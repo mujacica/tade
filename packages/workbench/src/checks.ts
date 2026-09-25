@@ -2,8 +2,9 @@ import {
   type Check,
   type CheckLog,
   type CheckRun,
-  type ChecksManifest,
+  type ChecksRead,
   carryOver,
+  followRenames,
   latestAt,
   planFor,
   type Runner,
@@ -37,7 +38,8 @@ import { makeRunner } from './runners.ts'
 // would protect the branch.
 
 export interface ProjectChecks {
-  manifest: ChecksManifest
+  /** What this project says it checks, read out of its CI and its commit hook. */
+  read: ChecksRead
   /** What would run for this commit, in order. */
   plan: Check[]
   /** Every run recorded in this worktree, oldest first. */
@@ -68,23 +70,24 @@ export async function checksAt(opts: {
   changed?: readonly string[]
 }): Promise<ProjectChecks> {
   const rule = checksFor(opts.config, opts.project)
-  const manifest = await readChecks({
+  const read = await readChecks({
     name: opts.project,
     root: opts.worktree,
     test: opts.config.projects[opts.project]?.test_command,
-    fromCi: rule.from_ci,
   })
-  const plan = planFor(manifest.checks, {
+  const plan = planFor(read.checks, {
     ...(opts.changed ? { changed: opts.changed } : {}),
     only: rule.only,
   })
-  const runs = await readRuns(opts.worktree)
+  // A run recorded under a step's earlier name still speaks for it where it
+  // ran the same command, so retitling a step costs no history.
+  const runs = followRenames(read.checks, await readRuns(opts.worktree))
   // A run is about a tree, not a commit id: one taken just before the commit
   // that holds exactly what it read still speaks for it. Anything else — a
   // partial commit, somebody else's file caught in the run — does not.
   const at = await carryOver(opts.worktree, runs, opts.commit)
   return {
-    manifest,
+    read,
     plan,
     runs,
     at: latestAt(runs, at),
@@ -112,13 +115,13 @@ export async function runProjectChecks(opts: {
   onOutput?: (check: string, chunk: string) => void
 }): Promise<CheckLog[]> {
   const rule = checksFor(opts.config, opts.project)
-  const manifest = await readChecks({
+  const read = await readChecks({
     name: opts.project,
     root: opts.worktree,
     test: opts.config.projects[opts.project]?.test_command,
   })
   const only = opts.only?.length ? opts.only : rule.only
-  const plan = planFor(manifest.checks, {
+  const plan = planFor(read.checks, {
     ...(opts.changed ? { changed: opts.changed } : {}),
     only,
   })

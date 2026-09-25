@@ -65,7 +65,10 @@ export const FLOOR: Record<string, number> = {
   'packages/app': 82,
   'packages/harnesses/codex': 83,
   'packages/extensions/sentry': 84,
-  'packages/extensions/checks': 86,
+  // Went up when `checks_propose` went: what a project checks is read from its
+  // own CI and its own hook, so the tool that wrote it down had nothing left to
+  // write, and the branchy half of this extension left with it.
+  'packages/extensions/checks': 89,
   'packages/forges/scripted': 86,
   'packages/workbench': 86,
   'packages/harnesses/pi': 89,

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
@@ -31,90 +32,18 @@ function tade(
   })
 }
 
-const MANIFEST = [
-  'checks:',
-  '  - id: hello',
-  '    title: Hello',
-  '    run: echo hello',
-  'ci:',
-  '  runs_on: [ubuntu-latest]',
-  '  setup:',
-  '    - uses: actions/checkout@v4',
-].join('\n')
+const WORKFLOW = ciWorkflow([{ id: 'hello', run: 'echo hello' }])
 
-async function project(manifest = MANIFEST) {
+async function project(workflow = WORKFLOW) {
   const repo = mkrepo()
   await mkdir(join(repo.root, '.tade'), { recursive: true })
-  await writeFile(join(repo.root, '.tade', 'checks.yaml'), manifest)
+  await mkdir(join(repo.root, '.github', 'workflows'), { recursive: true })
+  await writeFile(join(repo.root, CI_WORKFLOW), workflow)
   const home = tmp('tade-cli-checks-')
   const config = join(home, 'config.yaml')
   await writeFile(config, `projects:\n  demo:\n    root: ${repo.root}\n`)
   return { repo, home, config, env: { TADE_HOME: home, HOME: home } }
 }
-
-describe('tade checks adopt', () => {
-  const WORKFLOW = [
-    'jobs:',
-    '  check:',
-    '    steps:',
-    '      - uses: actions/checkout@v4',
-    '      - name: tests',
-    '        run: echo testing',
-  ].join('\n')
-
-  async function withCi() {
-    const repo = mkrepo()
-    await mkdir(join(repo.root, '.github', 'workflows'), { recursive: true })
-    await writeFile(join(repo.root, '.github', 'workflows', 'ci.yml'), WORKFLOW)
-    const home = tmp('tade-cli-adopt-')
-    const config = join(home, 'config.yaml')
-    await writeFile(config, `projects:\n  demo:\n    root: ${repo.root}\n`)
-    return { repo, config, env: { TADE_HOME: home, HOME: home } }
-  }
-
-  it('shows what it would write, and writes nothing', async () => {
-    const where = await withCi()
-    const r = await tade(['checks', 'adopt', '--config', where.config, '-p', 'demo'], where.env)
-    expect(r.code).toBe(0)
-    expect(r.stdout).toContain('echo testing')
-    // What CI does and Tade cannot is said before anything is written.
-    expect(r.stderr).toContain('actions/checkout@v4')
-    await expect(readFile(join(where.repo.root, '.tade', 'checks.yaml'), 'utf8')).rejects.toThrow()
-  })
-
-  it('writes a manifest that the next read uses', async () => {
-    const where = await withCi()
-    const wrote = await tade(
-      ['checks', 'adopt', '--write', '--config', where.config, '-p', 'demo'],
-      where.env,
-    )
-    expect(wrote.code).toBe(0)
-    expect(wrote.stdout).toContain('wrote .tade/checks.yaml')
-    const listed = await tade(['checks', '--config', where.config, '-p', 'demo'], where.env)
-    expect(listed.stdout).toContain('.tade/checks.yaml')
-    expect(listed.stdout).toContain('tests')
-  })
-
-  it('refuses to adopt over a manifest somebody already wrote', async () => {
-    const where = await project()
-    const r = await tade(['checks', 'adopt', '--config', where.config, '-p', 'demo'], where.env)
-    expect(r.code).toBe(2)
-    expect(r.stderr).toContain('already has')
-  })
-
-  it('says so when there is nothing in CI to adopt', async () => {
-    const repo = mkrepo()
-    const home = tmp('tade-cli-adopt-none-')
-    const config = join(home, 'config.yaml')
-    await writeFile(config, `projects:\n  demo:\n    root: ${repo.root}\n`)
-    const r = await tade(['checks', 'adopt', '--config', config, '-p', 'demo'], {
-      TADE_HOME: home,
-      HOME: home,
-    })
-    expect(r.code).toBe(2)
-    expect(r.stderr).toContain('no commands in CI')
-  })
-})
 
 describe('tade checks', () => {
   it('says what a project checks and that nothing has run yet', async () => {
@@ -137,40 +66,44 @@ describe('tade checks', () => {
   })
 
   it('exits non-zero on a red check, and says which', async () => {
-    const where = await project(
-      'checks:\n  - id: nope\n    title: Nope\n    run: echo "8 failed" >&2; exit 1\n',
-    )
+    const where = await project(ciWorkflow([{ id: 'nope', run: 'echo "8 failed" >&2; exit 1' }]))
     const r = await tade(['checks', 'run', '--config', where.config, '-p', 'demo'], where.env)
     expect(r.code).toBe(1)
     expect(r.stdout).toContain('nope failed')
   })
 
-  it('generates the workflow the manifest implies, and says when the file differs', async () => {
+  it('says which file it read them from, and what it did not read', async () => {
     const where = await project()
-    const printed = await tade(
-      ['checks', 'workflow', '--config', where.config, '-p', 'demo'],
-      where.env,
-    )
-    expect(printed.stdout).toContain('- name: hello')
-    expect(printed.stdout).toContain('run: echo hello')
+    const r = await tade(['checks', '--config', where.config, '-p', 'demo'], where.env)
+    expect(r.stdout).toContain(`read from ${CI_WORKFLOW}`)
+    // What CI does and Tade cannot, every time: the install step, and the
+    // action nothing here can run.
+    expect(r.stderr).toContain('not read here:')
+    expect(r.stderr).toContain('actions/checkout@v5')
+  })
 
-    const failing = await tade(
-      ['checks', 'workflow', '--check', '--config', where.config, '-p', 'demo'],
-      where.env,
-    )
-    expect(failing.code).toBe(1)
-    expect(failing.stderr).toContain('regenerate it')
+  it('says a project says nothing, and what would be read if it did', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-cli-bare-')
+    const config = join(home, 'config.yaml')
+    await writeFile(config, `projects:\n  demo:\n    root: ${repo.root}\n`)
+    const r = await tade(['checks', '--config', config, '-p', 'demo'], {
+      TADE_HOME: home,
+      HOME: home,
+    })
+    expect(r.code).toBe(0)
+    expect(r.stdout).toContain('says nothing about what checking it means')
+    expect(r.stdout).toContain('test_command')
+  })
 
-    await mkdir(join(where.repo.root, '.github', 'workflows'), { recursive: true })
-    const wrote = await tade(
-      ['checks', 'workflow', '--write', '--config', where.config, '-p', 'demo'],
-      where.env,
-    )
-    expect(wrote.code).toBe(0)
-    const passing = await tade(
-      ['checks', 'workflow', '--check', '--config', where.config, '-p', 'demo'],
-      where.env,
-    )
-    expect(passing.code).toBe(0)
+  it('has no command that writes a project’s checks down', async () => {
+    // There is nothing to write: they are read from the project's own CI and
+    // its own hook, and a command that wrote them would be the duplication
+    // this removed.
+    const where = await project()
+    for (const gone of ['adopt', 'workflow']) {
+      const r = await tade(['checks', gone, '--config', where.config, '-p', 'demo'], where.env)
+      expect(r.code, gone).not.toBe(0)
+    }
   })
 })

@@ -11,6 +11,9 @@ description: How to run a project's own checks through Tade before committing or
    the person watching sees the same rows you do.
 2. **`checks_list` first if you only want to know.** It reads files: what this project checks, and
    how each one stands at the commit that is checked out. No run, no network, no waiting.
+   It also says *where each check came from*, because nothing here is configured: they are read out
+   of the project's own CI workflows — the steps of a job in a workflow that runs on every change —
+   and its own commit hook. There is no `.tade/checks.yaml` and no tool that writes one.
 3. **A check that never ran is not a check that passed.** The rollup says `unknown` when a required
    check has not run at this commit, and Tade treats that as unverified — not as green.
 4. **Run them, then commit — the run follows the work.** A run is about the bytes it read, so the
@@ -24,9 +27,17 @@ description: How to run a project's own checks through Tade before committing or
    message rather than working around it.
 6. **Run only what you need while you iterate** (`checks_run` with `only`), and run all of them
    before you finish: a check you skipped is the one CI will run.
-7. **If a failure is certainly not yours** — a flake, an outage, somebody else's half-finished work
+7. **A check that says `cannot run here` is CI's, not yours.** A step needing a secret, a service
+   container or something only the runner knows keeps its row and says why, and it is left out of
+   what the local run adds up to. Do not try to make one pass; do not read its absence as green
+   either — the clause under every check (*on this machine, not CI's matrix*) is the rest of it.
+8. **Where a project says nothing at all, Tade will not invent a gate.** `checks_list` says so, and
+   then working out what checking that project means is yours: run its tests, its type checker, its
+   linter, and say in your last message what you ran and what it said. Nothing recorded a run, so
+   your word is the only evidence there is.
+9. **If a failure is certainly not yours** — a flake, an outage, somebody else's half-finished work
    in a shared checkout — call `checks_override` with the scope and the reason in your own words,
    then push. It is written down with your name on it, the person is told what you said, and the
    red run stays red. Never use it because a check is slow.
-8. **Never edit `.tade/checks.jsonl` or `.tade/checks.lock`.** They are Tade's record of what ran;
+10. **Never edit `.tade/checks.jsonl` or `.tade/checks.lock`.** They are Tade's record of what ran;
    changing them is claiming something ran when it did not.

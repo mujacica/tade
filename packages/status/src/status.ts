@@ -3,7 +3,6 @@ import { basename, dirname, join } from 'node:path'
 import {
   type AgentSignal,
   type Config,
-  checksFor,
   deriveState,
   expandHome,
   isLive,
@@ -163,7 +162,6 @@ async function buildTask(
       name: ref.name,
       root: wt.path,
       test: opts.config.projects[ref.name]?.test_command,
-      fromCi: checksFor(opts.config, ref.name).from_ci,
     }),
   })
 

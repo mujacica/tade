@@ -175,6 +175,10 @@ function asRun(value: unknown): CheckLog | null {
     code: typeof raw.code === 'number' ? raw.code : null,
     summary: typeof raw.summary === 'string' ? raw.summary : null,
     by: typeof raw.by === 'string' ? raw.by : null,
+    // What it ran, where the record says. A record written before this existed
+    // cannot be followed through a rename, which is honest: the file is
+    // append-only, so the only cure for that is time.
+    ...(typeof raw.ran === 'string' && raw.ran !== '' ? { ran: raw.ran } : {}),
     tail: typeof raw.tail === 'string' ? raw.tail : '',
     // A record written before this existed, or one we cannot read, has no
     // coverage — which says the run is about its own commit and no other.

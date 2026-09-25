@@ -15,8 +15,9 @@ description: How to put work up for review from Tade — the commit trailer that
    `git commit -a`, which in a shared checkout sweep up whatever three other agents have
    half-written. Tade's own bookkeeping under `.tade/` is ignored and should never appear in a
    diff; if `git status` is offering you somebody's task file, a pasted screenshot or
-   `checks.jsonl`, the project has not got the rules yet — leave them out and say so. The one file
-   under there that does belong to the project is `.tade/checks.yaml`.
+   `checks.jsonl`, the project has not got the rules yet — leave them out and say so. Nothing under
+   there belongs to the project: what it checks is read from its own CI workflows and its own
+   commit hook, so there is no file of Tade's for a diff to carry.
 4. **Push your own branch, and only yours.** Never push a branch you did not make, and never force-push
    one somebody else could be reading.
 5. **Open it with `review_open`**, not `gh pr create`: Tade writes the trailer into the body, keeps

@@ -94,9 +94,10 @@ describe('the window, starting and ending agents', () => {
     expect(page).toContain('charge once on ret')
     expect(page).toContain('1 +7')
     expect(page).not.toContain('tidy the readme')
-    // And a project that checks nothing says so, rather than looking fine.
+    // And a project that says nothing about what checking it means says so,
+    // rather than looking fine.
     expect(page).toContain('CHECKS')
-    expect(page).toContain('None configured')
+    expect(page).toContain('Nothing here says what checking')
   }, 30_000)
 
   it("opens an agent's menu with a right-click, listing what can be done", async () => {

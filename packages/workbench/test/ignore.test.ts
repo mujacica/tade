@@ -1,15 +1,12 @@
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MANIFEST_PATH } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, runGit } from '../../../test/fixtures/mkrepo.ts'
 import { ensureIgnored, IGNORE_RULES, ignoreAddition } from '../src/ignore.ts'
 
 // Against real repositories, because the whole question is what git does with
-// a pattern — and the one that matters, re-including a file under a folder
-// whose contents are excluded, is exactly what a hand-rolled matcher would
-// get wrong.
+// a pattern, and a hand-rolled matcher would answer a different question.
 
 // `check-ignore` exits 1 for a path it does not ignore, which `runGit` throws
 // over: not an answer of "no" until it is turned into one.
@@ -22,7 +19,7 @@ const ignored = (root: string, path: string): boolean => {
 }
 
 describe('ignoring what Tade writes under a project', () => {
-  it('denies everything under .tade and keeps the checks manifest', async () => {
+  it('denies everything under .tade, and nothing outside it', async () => {
     const repo = mkrepo()
     const done = await ensureIgnored(repo.root)
     expect(done.added).toEqual(IGNORE_RULES)
@@ -36,12 +33,14 @@ describe('ignoring what Tade writes under a project', () => {
       '.tade/checks.lock',
       '.tade/tests.json',
       '.tade/attachments/pasted.png',
+      // `checks.yaml` used to be the one exception, because CI was generated
+      // from it. Nothing is: what a project checks is read from its own
+      // workflows and its own hook, so a file left behind under here is
+      // bookkeeping like the rest of it.
+      '.tade/checks.yaml',
     ]) {
       expect(ignored(repo.root, path), path).toBe(true)
     }
-    // The one file a person writes and CI is generated from.
-    expect(ignored(repo.root, MANIFEST_PATH)).toBe(false)
-    // And nothing outside Tade's own folder.
     expect(ignored(repo.root, 'src/index.ts')).toBe(false)
   })
 
@@ -53,11 +52,10 @@ describe('ignoring what Tade writes under a project', () => {
       '.tade/tasks/a-task/design.md': '# a plan\n',
       '.tade/attachments/pasted.png': 'not really a png',
       '.tade/checks.jsonl': '{}\n',
-      [MANIFEST_PATH]: 'checks: []\n',
     })
     runGit(repo.root, 'add', '-A')
     const staged = runGit(repo.root, 'diff', '--cached', '--name-only').trim().split('\n')
-    expect(staged.sort()).toEqual(['.gitignore', MANIFEST_PATH])
+    expect(staged.sort()).toEqual(['.gitignore'])
   })
 
   it('appends to what somebody wrote, and never twice', async () => {
@@ -87,22 +85,24 @@ describe('ignoring what Tade writes under a project', () => {
 
   it('says nothing when the project already ignores them its own way', async () => {
     const repo = mkrepo()
+    // Whatever they wrote, however they spelled it: `.tade/*` on its own, and
+    // the two-line version every repository Tade worked in before this has.
     writeFileSync(join(repo.root, '.gitignore'), '.tade/*\n!.tade/checks.yaml\n')
     const done = await ensureIgnored(repo.root)
     expect(done.added).toEqual([])
     expect(done.because).toBe('this project already ignores them its own way')
   })
 
-  it('leaves a project that ignores all of .tade alone, and says what that costs', async () => {
+  it('leaves a project that ignores all of .tade alone, and writes nothing', async () => {
     const repo = mkrepo()
     writeFileSync(join(repo.root, '.gitignore'), '.tade/\n')
     const done = await ensureIgnored(repo.root)
-    // The exception cannot be added under somebody else's rule -- git never
-    // descends into an ignored folder -- and the line is theirs to change.
+    // They have said the same thing, so there is nothing to add and nothing to
+    // warn about: with no exception under the folder, excluding the folder and
+    // excluding its contents are the same rule.
     expect(done.added).toEqual([])
-    expect(done.because).toContain('/.tade/*')
+    expect(done.because).toBe('this project already ignores them its own way')
     expect(readFileSync(join(repo.root, '.gitignore'), 'utf8')).toBe('.tade/\n')
-    expect(ignored(repo.root, MANIFEST_PATH)).toBe(true)
   })
 
   it('writes the rules where git cannot be asked, rather than taking silence for yes', async () => {
@@ -131,9 +131,12 @@ describe('ignoreAddition', () => {
     expect(ignoreAddition(IGNORE_RULES.map((rule) => `  ${rule}  `).join('\n'))).toBeNull()
   })
 
-  it('adds only what is missing', () => {
-    const half = ignoreAddition(`${IGNORE_RULES[0]}\n`)
-    expect(half?.added).toEqual([IGNORE_RULES[1]])
+  it('adds nothing to a file written when there were two rules', () => {
+    // Every repository Tade worked in before this has the pair. The rule it
+    // does not have any more is a line that now re-includes a file nothing
+    // reads, which is harmless — and appending a second copy of the rule it
+    // does have, to say what that line already says, would not be.
+    expect(ignoreAddition('/.tade/*\n!/.tade/checks.yaml\n')).toBeNull()
   })
 
   it('writes the file whole when there was none', () => {

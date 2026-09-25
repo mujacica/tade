@@ -38,6 +38,20 @@ export const SERVER_RUNS_AS_YOU =
   'so turn on only what you would run yourself.'
 
 /**
+ * What a project checks, now that Tade has no list of its own.
+ *
+ * `checks.from_ci` chose what a reading of somebody's CI was good for — shown,
+ * run, or ignored — because a reading was a guess and `.tade/checks.yaml` was
+ * the definition. The reading is now the definition: it takes only what the
+ * workflow file *states* is a gate, names everything it did not take, and
+ * there is no manifest to adopt into, so there is nothing left for the key to
+ * choose between.
+ */
+export const CHECKS_ARE_READ =
+  'what a project checks is read from its CI workflows and its commit hook, so there is nothing to ' +
+  'adopt and nothing to choose: use projects.<name>.test_command where neither can be read'
+
+/**
  * Keys Tade used to read and does not any more, and what to say about each.
  *
  * A setting somebody wrote down is a sentence they meant. Refusing the whole
@@ -57,6 +71,8 @@ const GONE: readonly (readonly [pattern: string, said: string])[] = [
     'sandboxes are gone from Tade: agents run as you, and what needs containing is a harness’s or an agent’s to do',
   ],
   ['mcp.servers.*.sandbox', `sandboxes are gone from Tade. ${SERVER_RUNS_AS_YOU}`],
+  ['checks.from_ci', CHECKS_ARE_READ],
+  ['projects.*.checks.from_ci', CHECKS_ARE_READ],
 ]
 
 /**

@@ -152,16 +152,34 @@ export function runsBefore(checks: ChecksConfig, what: 'commit' | 'push'): boole
 }
 
 /**
+ * What an agent is told where nothing in the project says what checking it
+ * means. Tade reads a project's checks out of what it already has — its CI
+ * workflows and its commit hook — and will not invent a gate for a project
+ * that has neither: a check nobody could read is not a check Tade may make up.
+ *
+ * So the agent is told, rather than left to think the silence means everything
+ * is fine. The last sentence is the load-bearing one: with no run recorded,
+ * the only place the evidence can be is what the agent says it did.
+ */
+export const CHECK_IT_YOURSELF = [
+  'Nothing in this project says what checking it means: it has no CI workflow that runs on a change, no commit hook, and no test command configured.',
+  'So work out what checking it means and run that yourself before you commit — the tests it has, its type checker, its linter, whatever it actually uses.',
+  'Say in your last message what you ran and what it said: nothing here recorded a run, so your word is the only evidence there is.',
+].join(' ')
+
+/**
  * What an agent is told about a project's checks: the rule in its own terms,
  * and that Tade runs them one at a time so four agents do not start four
- * suites in one checkout.
+ * suites in one checkout. Where a project says nothing at all, that it says
+ * nothing — which is the one thing silence here cannot convey.
  */
 export function checksTold(
   checks: ChecksConfig | null,
   ids: readonly string[],
   hold: boolean,
 ): string | null {
-  if (!checks || ids.length === 0) return null
+  if (!checks) return null
+  if (ids.length === 0) return CHECK_IT_YOURSELF
   const when =
     checks.before === 'off'
       ? 'before you push'

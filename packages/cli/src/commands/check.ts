@@ -53,11 +53,14 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
       const head = found.task.git?.head ?? null
       const project = found.project.name
       const test = cfg.config.projects[project]?.test_command
-      const manifest = await readChecks({ name: project, root: worktree, test })
+      const read = await readChecks({ name: project, root: worktree, test })
 
-      if (manifest.checks.length === 0) {
-        io.err(`${project} has nothing to check: write .tade/checks.yaml, or set`)
-        io.err(`  projects: { ${project}: { test_command: "pnpm test" } } in ${cfg.path}`)
+      if (read.checks.length === 0) {
+        io.err(`${project} says nothing about what checking it means.`)
+        io.err('  A workflow that runs on a change, or a pre-commit hook, is what would be read.')
+        io.err(
+          `  Failing both, set projects: { ${project}: { test_command: "pnpm test" } } in ${cfg.path}`,
+        )
         setExit(Exit.invalidInput)
         return
       }

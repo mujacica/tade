@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { type CheckLog, coverageOf, writeRun } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 import { readRecord, readTests, testsPath, verifiedAt, writeTests } from '../src/tests.ts'
 
 // A test result is about one commit. Everything here is about refusing to let
@@ -78,14 +79,10 @@ describe('readRecord', () => {
 })
 
 describe('verifiedAt', () => {
-  const manifest = [
-    'checks:',
-    '  - id: format',
-    '    run: pnpm exec biome ci .',
-    '  - id: tests',
-    '    run: pnpm exec vitest run',
-    '    alone: true',
-  ].join('\n')
+  const workflow = ciWorkflow([
+    { id: 'format', run: 'pnpm exec biome ci .' },
+    { id: 'tests', run: 'pnpm exec vitest run' },
+  ])
 
   const run = (check: string, state: string, commit = 'abc123') =>
     JSON.stringify({
@@ -108,7 +105,8 @@ describe('verifiedAt', () => {
   it('is the rollup of the required checks, not of one command', async () => {
     const worktree = tmp('tade-verified-')
     mkdirSync(join(worktree, '.tade'), { recursive: true })
-    writeFileSync(join(worktree, '.tade', 'checks.yaml'), manifest)
+    mkdirSync(join(worktree, '.github', 'workflows'), { recursive: true })
+    writeFileSync(join(worktree, CI_WORKFLOW), workflow)
     writeFileSync(join(worktree, '.tade', 'checks.jsonl'), `${run('format', 'passed')}\n`)
     // One of two required checks has run: unverified, never green.
     expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('unknown')
@@ -134,7 +132,7 @@ describe('verifiedAt', () => {
   // then commits it, and the commit it just made is the work that was checked.
   it('is green at the commit an agent made of exactly what the run read', async () => {
     const repo = mkrepo()
-    repo.commit('start', { '.tade/checks.yaml': manifest, 'a.txt': 'a\n' })
+    repo.commit('start', { [CI_WORKFLOW]: workflow, 'a.txt': 'a\n' })
     repo.write({ 'a.txt': 'a, edited\n' })
     const before = repo.head()
     const covered = await coverageOf(repo.root, before)
@@ -153,7 +151,7 @@ describe('verifiedAt', () => {
 
   it('is unknown at a commit that holds a byte nobody ran anything over', async () => {
     const repo = mkrepo()
-    repo.commit('start', { '.tade/checks.yaml': manifest, 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    repo.commit('start', { [CI_WORKFLOW]: workflow, 'a.txt': 'a\n', 'b.txt': 'b\n' })
     repo.write({ 'a.txt': 'a, edited\n' })
     const before = repo.head()
     const covered = await coverageOf(repo.root, before)

@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { carryOver, type FromCi, readChecks, readRuns, rollup } from '@tade/checks-core'
+import { carryOver, followRenames, readChecks, readRuns, rollup } from '@tade/checks-core'
 import type { TestSignal } from '@tade/core'
 
 // Whether a task's tests passed, and whether that is still true.
@@ -51,16 +51,18 @@ export async function readTests(worktree: string, head: string | null): Promise<
 export async function verifiedAt(
   worktree: string,
   head: string | null,
-  project?: { name: string; root: string; test?: string | undefined; fromCi?: FromCi | undefined },
+  project?: { name: string; root: string; test?: string | undefined },
 ): Promise<TestSignal> {
   const manifest = await readChecks({
     name: project?.name ?? 'project',
     root: worktree,
     ...(project?.test ? { test: project.test } : {}),
-    ...(project?.fromCi ? { fromCi: project.fromCi } : {}),
   })
   if (manifest.checks.length === 0) return readTests(worktree, head)
-  const runs = await readRuns(worktree)
+  // Runs recorded under a step's earlier name still speak for it, as long as
+  // they ran the same command: retitling a step in CI must not read as a check
+  // nobody has ever run.
+  const runs = followRenames(manifest.checks, await readRuns(worktree))
   // A run taken just before a commit, over the bytes that commit holds, is a
   // run of this commit whatever it is called: `carryOver` says which those
   // are, and says nothing about any other.

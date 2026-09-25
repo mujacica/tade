@@ -59,12 +59,13 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
       code: null,
       summary: check.skip ?? null,
       by,
+      ran: check.run,
       tail: '',
     }))
   for (const run of skipped) request.onRun?.(run)
   const toRun = plan.filter((check) => !check.skip)
   if (toRun.length === 0) {
-    const all = covering(skipped, await coverageOf(project.root, commit))
+    const all = covering(skipped, await coverageOf(project.root, commit), plan)
     await record(project.root, all, request)
     return all
   }
@@ -134,7 +135,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
       },
       onOutput: (check, chunk) => request.onOutput?.(check, chunk),
     })
-    const all = covering([...skipped, ...ran], covered)
+    const all = covering([...skipped, ...ran], covered, plan)
     await record(project.root, all, request)
     return all
   } finally {
@@ -153,8 +154,23 @@ function asRunning(run: CheckRun): RunningCheck {
   }
 }
 
-function covering(runs: readonly CheckLog[], covered: Covered | null): CheckLog[] {
-  return runs.map((run) => (covered ? { ...run, covered } : run))
+/**
+ * What each run read, and what it ran. The bytes are what lets a run still
+ * speak for the commit made right after it; the command is what lets it still
+ * speak for its check after somebody retitles the step it came from. Written
+ * here rather than in each runner, so a runner cannot forget either.
+ */
+function covering(
+  runs: readonly CheckLog[],
+  covered: Covered | null,
+  plan: readonly Check[],
+): CheckLog[] {
+  const ran = new Map(plan.map((check) => [check.id, check.run]))
+  return runs.map((run) => ({
+    ...run,
+    ...(covered ? { covered } : {}),
+    ...(run.ran ? {} : { ran: ran.get(run.check) ?? '' }),
+  }))
 }
 
 async function record(

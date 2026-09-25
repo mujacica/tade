@@ -167,14 +167,8 @@ export interface ActionsView {
    * class answer: a check nobody ran is not a check that passed.
    */
   rollup: 'pass' | 'fail' | 'unknown'
-  /** Where the checks came from, or what to do when there are none. */
+  /** Where the checks were read from, or what to do when there are none. */
   source: string
-  /**
-   * The checks were read from the project's CI config and nobody has adopted
-   * them, so none of them run here. The one thing that changes that is a
-   * button, because it writes a file into the repository.
-   */
-  adoptable: boolean
   /** A run going on in this worktree now, whoever started it. */
   running: { since: number; by: string; done: number; total: number } | null
   /** What this cannot say: no forge, no network, what a local run does not prove. */

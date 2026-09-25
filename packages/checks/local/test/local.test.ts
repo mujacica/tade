@@ -4,6 +4,7 @@ import type { Check } from '@tade/checks-core'
 import { testRunner } from '@tade/checks-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { CI_WORKFLOW, ciWorkflow } from '../../../../test/fixtures/workflow.ts'
 import { makeLocalRunner } from '../src/index.ts'
 
 // Real commands in a real directory. Never a mocked shell: the thing worth
@@ -114,15 +115,11 @@ describe('the local runner', () => {
     expect(tests?.summary).toContain('types')
   })
 
-  it('reads the project\u2019s own manifest to say what would run', async () => {
+  it('reads what the project already says to work out what would run', async () => {
     const root = tmp('tade-local-')
-    writeFileSync(join(root, 'checks.yaml'), 'checks:\n  - id: tests\n    run: pnpm test\n')
     const { mkdirSync } = await import('node:fs')
-    mkdirSync(join(root, '.tade'), { recursive: true })
-    writeFileSync(
-      join(root, '.tade', 'checks.yaml'),
-      'checks:\n  - id: tests\n    title: Tests\n    run: pnpm test\n',
-    )
+    mkdirSync(join(root, '.github', 'workflows'), { recursive: true })
+    writeFileSync(join(root, CI_WORKFLOW), ciWorkflow([{ id: 'tests', run: 'pnpm test' }]))
     const plan = await makeLocalRunner().plan(
       { name: 'demo', root },
       { commit: 'a1b2c3d4', changed: [] },

@@ -114,19 +114,6 @@ export const ChecksConfigSchema = z.strictObject({
   keep: z.int().positive().default(200),
   /** Show what CI says about the same commit beside the local run. Inert without a forge. */
   ci: z.boolean().default(true),
-  /**
-   * What to do with the checks read out of a project's CI config when it has
-   * no `.tade/checks.yaml` of its own.
-   *
-   * `show` — the default — reads them so the window can say what this project
-   * checks, and runs none of them: a CI config holds releases and deploys
-   * beside its tests, and the step names those checks are identified by change
-   * whenever somebody retitles a step. `tade checks adopt` turns them into a
-   * manifest, which is the point at which they become ours to run. `run` runs
-   * them here unadopted, which is what Tade did before this key existed;
-   * `off` does not read them at all.
-   */
-  from_ci: z.enum(['run', 'show', 'off']).default('show'),
 })
 export type ChecksConfig = z.infer<typeof ChecksConfigSchema>
 
@@ -147,8 +134,11 @@ export const ProjectConfigSchema = z.strictObject({
   /** At most this many agents at once; as many as you start unless set. */
   max_parallel: z.int().positive().optional(),
   /**
-   * How to check the work, run by `tade check`. Without it, `review` means
-   * "finished and clean" rather than "finished, clean and verified".
+   * How to check the work, for a project whose CI and commit hook cannot be
+   * read. Everything else reads its checks out of what the project already
+   * says — its workflows and its hook — so this is the whole of what anybody
+   * writes down, and it is one line here rather than a file Tade puts in
+   * somebody's repository.
    */
   test_command: z.string().min(1).optional(),
   /**

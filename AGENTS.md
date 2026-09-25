@@ -186,9 +186,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   one request, tells nobody anything and finds nothing where there is no remote; and it only ever
   adds work — never a push, a revert or a merge, and past `attempts` fixes on one branch in six
   hours it stops fixing and says what is wrong instead.
-- **A check that nobody ran is not a check that passed.** A project says what it checks in
-  `.tade/checks.yaml` — the one file CI is generated from (`tade checks workflow`), held to
-  `pnpm check` by a test — and a run (`packages/checks/core`) is always about a named commit. The
+- **A check that nobody ran is not a check that passed.** A project says what it checks in the files
+  it already has — its CI workflows and its commit hook, read by `packages/checks/core` — and a run
+  is always about a named commit. The
   rollup of the required checks at HEAD is what `deriveState` reads as `tests`, and `unknown` is a
   first-class answer: absent is not fine. Runs go through Tade so the worktree's lock, the record
   and the row in the window come free — four agents in one checkout must never start four suites.
@@ -216,20 +216,50 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   shared checkout what is uncommitted is said to be nobody's to attribute rather than claimed as
   this agent's. A check is what ran, when, against which commit, how long it took and what it
   counted, with the tail of a failure read on the page — and `unknown` is drawn as `unknown`.
-- **Reading what CI runs is not adopting it.** A project with no manifest has its CI config read
-  (`readFromCi`) so the window can say what it checks — and by default (`checks.from_ci: show`) runs
-  none of it: a CI config holds releases and deploys beside its tests and nothing can tell which is
-  which, and the ids come from step names that change whenever somebody retitles one, which would
-  orphan every run recorded under the old name. Every check read that way carries a `skip`, so the
-  rollup stays `unknown` rather than going green off a guess. Adoption is the act that changes it —
-  `tade checks adopt`, `checks_propose`, the button on the ACTIONS tab, all writing the same file the
-  same way — and what CI does and Tade cannot is named every time rather than dropped. `.tade/checks.yaml`
-  is one of the two files Tade writes into somebody else's repository, and the only one it writes
-  the contents of: it never commits there (`recordAuthored` is for `<home>`, and `git add -A` over
-  a shared checkout would sweep up four agents' half-written work), it goes through the YAML
-  document so the comments survive, and it refuses a draft rather than leaving a broken file to be
-  found by hand. It is the orchestrator's and a person's, never an agent's: an agent judged by
-  these checks does not get a tool that rewrites its own gate.
+- **What a project checks is read out of what it already says, and Tade has no list of its own.**
+  There is no `.tade/checks.yaml` and nothing writes one: a project already says what it checks
+  twice — the hook that runs before a commit (`readHooks`) and the workflows that run on every
+  change (`readWorkflows`) — and a third list was one somebody had to keep in step with both. Tade
+  used to *generate* CI from that file, which made the drift a test could catch and the duplication
+  a person still had to maintain. Reading was refused as the definition for three reasons, and each
+  is answered rather than ignored.
+  **"A CI config holds releases and deploys beside its tests and nothing can tell which is which"**
+  was wrong, and why is that nobody had read the *triggers*. A release is told from a gate by facts
+  the file states about itself: `on: pull_request` or a push to branches is what runs on every
+  change, where `on: push: tags:` ships something; `environment:` is GitHub's own word for a deploy
+  target; `permissions: …: write` publishes; `services:` needs a database only CI has; `${{ }}` in a
+  `run:` needs what only the runner knows; no `run:` at all is somebody's action. So the rule is a
+  conjunction of declared facts, under one principle: **reading may only ever narrow what Tade
+  claims.** Everything it cannot place is *named* (`Reading.unread`, said every time in
+  `checks_list`, `tade checks` and the ACTIONS page's own rows) rather than run, so the failure mode
+  is "Tade checked less than CI does, and said so" and never "Tade ran a deploy". The one rule that
+  is a list of verbs rather than a fact is `SETUP`, and it is safe for the same reason: installing is
+  not checking, and excluding it makes Tade claim less.
+  **"The ids come from step names, so a rename orphans every run"** is answered the way `carryOver`
+  answers it one level up. A run already survives the commit after it, because what makes a run true
+  of a commit is the bytes it read and not the commit's id — so a run recorded under an earlier id
+  still stands for this check **when the command is the same**. The id stays the step's own name:
+  readable, what CI shows on its row, what somebody types at `checks_run`. `CheckRun.ran` records
+  the command, and `followRenames` (`identity.ts`) reads a run whose id is gone back onto the check
+  that runs it, only where exactly one check runs that command and only onto a check with no run of
+  its own — a relabelling that had to choose would be a guess, and a guess here draws a green tick.
+  A run written before `ran` existed cannot be followed, which is `turn_started`'s situation exactly
+  and which only time cures.
+  **"A matrix runs on operating systems this machine is not"** was never an argument for a manifest:
+  the clause under every check (*on this machine, not CI's matrix*) is the right shape for a caveat
+  true of every row, and what the reading must not do is turn a 2×OS matrix into two checks. It is
+  one check, run once, here.
+  Two distinctions decide what a person sees. A step that is **not a check at all** — an action, an
+  install, a deploying job, a releasing workflow — is named and is nowhere else. A step that **is** a
+  check and cannot run *here* keeps its row with a `skip` saying why, and is `required: false`, so it
+  is out of the rollup: a rollup is what a run *here* adds up to, and a project with one
+  `${{ secrets.… }}` step would otherwise be `unknown` for ever. And where a project says **nothing**
+  Tade invents no gate: `unknown` stands, which is true, and the agent is told so in as many words
+  (`CHECK_IT_YOURSELF`) — work out what checking this project means, run it, and say what you ran,
+  because nothing recorded a run and its word is the only evidence there is. The one escape hatch is
+  deliberately a config key and not a file in somebody's repository: `projects.<name>.test_command`,
+  one line, in Tade's own config. `checks.from_ci` chose what a reading was good for and is `GONE`,
+  ignored and said, because there is no manifest to adopt into and nothing left to choose between.
 - **Tade configures itself, and how far its own arm reaches is a rule rather than a promise.**
   The orchestrator reads what Tade is set up with and changes some of it (`tade_settings`,
   `tade_setting_change`, `tade_project_open`, `tade_project_close`), through the same
@@ -268,16 +298,18 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   is the same door the picker uses (`openAt`) — a repository Tade has, one on disk it does not, or
   one that is not there yet, made and `git init`ed only where it was asked for — and it never
   repoints a project it already has, because moving a root moves where every agent in it works.
-- **Everything else Tade writes under a project is ignored, and the manifest is the exception.**
+- **Everything Tade writes under a project is ignored, with no exception.**
   A task file is one person's, `checks.jsonl` rotates and dies with the worktree it ran in, an
   attachment is a pasted screenshot, a lock holds a pid — none of it means anything on another
   machine, and all of it was being committed. So the first time Tade works in a project
-  (`ensureIgnored`, from `createTask`) it appends two lines to the project's `.gitignore`:
-  `/.tade/*`, and `!/.tade/checks.yaml` to put back the one file a person writes and CI is
-  generated from. Written as a denial with one exception, never as a list of what to deny — the
-  next thing Tade learns to write under `.tade/` is ignored the day it is written. `/.tade/*` and
-  not `/.tade/`, because git never descends into an ignored folder and the exception under one can
-  never be reached. It is `.gitignore` and not `.git/info/exclude`: what went wrong is a *push*,
+  (`ensureIgnored`, from `createTask`) it appends one line to the project's `.gitignore`:
+  `/.tade/*`. There used to be a second, `!/.tade/checks.yaml`, because CI was generated from that
+  file; nothing is now, so the rule is the plain denial it always wanted to be — a list of what to
+  deny would leak every new thing Tade learns to write, and an exception is the half that quietly
+  stops working. It stays `/.tade/*` rather than `/.tade/`, which now say the same thing, because it
+  is the line already written in every repository Tade has worked in and a second spelling would
+  append a rule to all of them to say what the first already says. It is `.gitignore` and not
+  `.git/info/exclude`: what went wrong is a *push*,
   which is everybody's, and a rule that travels protects the teammate who never ran Tade — while a
   rule nobody can see is the worse surprise. So it only ever appends, only ever once (it asks git
   whether the outcome already holds, however somebody spelled it), never edits a line somebody
@@ -972,7 +1004,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   any other: one somebody decided about is a row among the extensions with its own state, the ones
   nobody has decided about are the catalogue behind one group row (`MCP servers`), and the harness
   group lists the servers `claude mcp add` and `~/.codex/config.toml` already load — **read, never
-  adopted**, the way `readFromCi` reads a CI config. What a server's own row says is only what is
+  adopted**, the way a harness's own config is read. What a server's own row says is only what is
   true: how Tade talks to it, every tool it offered with the server's own name beside Tade's, what
   was dropped and why, and when it was last asked. One that is off was never connected, so the page
   says that and nothing else. `tade mcp list | add | enable | disable | probe` is the same answer

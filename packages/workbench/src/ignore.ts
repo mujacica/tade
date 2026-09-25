@@ -1,6 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { MANIFEST_PATH } from '@tade/checks-core'
 import { PROJECT_DIR, SHARED_TASKS_DIR } from '@tade/core'
 import { git } from '@tade/status'
 
@@ -13,14 +12,12 @@ import { git } from '@tade/status'
 // and all of it was being committed -- twenty-six files of it in Tade's own
 // repository before this existed.
 //
-// The one exception is `.tade/checks.yaml`, which is the opposite in every
-// way: a person writes it, CI is generated from it, and a test holds it to the
-// gate. It is shared, so it is tracked.
-//
-// So the rule is written as a denial with one exception, never as a list of
-// what to deny. Whatever Tade learns to write under `.tade/` next is ignored
-// the day it is written, and only a file somebody decides is the project's has
-// to be named here; a list of paths would leak every new one.
+// There used to be one exception, `.tade/checks.yaml`, because CI was
+// generated from it. Nothing is now: what a project checks is read out of its
+// own workflows and its own commit hook, so Tade writes nothing under `.tade/`
+// that anybody else should ever pull. The rule is a plain denial, which is what
+// it always wanted to be — and whatever Tade learns to write under there next
+// is ignored the day it is written, with no second line to remember.
 //
 // It goes in `.gitignore` and not `.git/info/exclude`. The failure this
 // answers is a *push*, which is everybody's: an exclude fixes one clone, and
@@ -32,7 +29,7 @@ import { git } from '@tade/status'
 // the journal that it did.
 
 /** What Tade adds to a project's ignore rules, in the order it writes them. */
-export const IGNORE_RULES: readonly string[] = [`/${PROJECT_DIR}/*`, `!/${MANIFEST_PATH}`]
+export const IGNORE_RULES: readonly string[] = [`/${PROJECT_DIR}/*`]
 
 /**
  * Written above the rules so whoever finds them knows who put them there and
@@ -41,8 +38,8 @@ export const IGNORE_RULES: readonly string[] = [`/${PROJECT_DIR}/*`, `!/${MANIFE
 export const IGNORE_HEADER: readonly string[] = [
   '# Tade writes its own bookkeeping under .tade/ -- task files, pasted',
   '# attachments, check runs, locks -- and none of it is the project’s: it is',
-  '# one machine’s and one person’s. checks.yaml is the exception, because a',
-  '# person writes it and CI is generated from it.',
+  '# one machine’s and one person’s. What Tade checks this project with is not',
+  '# in here at all; it is read from .github/workflows and the commit hook.',
   '# Added by Tade the first time it worked here; delete it and it stays deleted.',
 ]
 
@@ -75,10 +72,11 @@ export interface IgnoreAddition {
  * nothing. Pure, and append-only by construction: what is already there is
  * read for one question -- is this line present -- and written back unchanged.
  *
- * `/.tade/*` and not `/.tade/`: git does not descend into an excluded
- * directory, so excluding the folder itself would make the exception below it
- * unreachable. Excluding its *contents* leaves the folder readable and the
- * negation works.
+ * `/.tade/*` and not `/.tade/`, which now mean the same thing: it was the
+ * contents because there used to be an exception under them, and it stays the
+ * contents because that is the line already written in every repository Tade
+ * has worked in. Spelling it the other way would append a second rule to all of
+ * them to say what the first one already says.
  */
 export function ignoreAddition(existing: string): IgnoreAddition | null {
   const lines = new Set(existing.split('\n').map((line) => line.trim()))
@@ -109,19 +107,11 @@ export async function ensureIgnored(root: string): Promise<IgnoreOutcome> {
   }
   const addition = ignoreAddition(existing)
   if (!addition) return { added: [], because: 'the rules were already there' }
-  const said = await asGitSees(root)
-  if (said?.bookkeeping) {
-    // Somebody has already said it, in their own words. The second case is
-    // the one worth a sentence rather than a shrug: excluding the folder
-    // itself takes `checks.yaml` with it, and git cannot re-include a file
-    // under an excluded directory -- so the only fix is to edit the line they
-    // wrote, and that is theirs to do, not Tade's.
-    return {
-      added: [],
-      because: said.manifest
-        ? `this project ignores all of ${PROJECT_DIR}/, ${MANIFEST_PATH} with it: nothing under an ignored folder can be put back, so change that line to ${IGNORE_RULES[0]} if the manifest should be committed`
-        : 'this project already ignores them its own way',
-    }
+  if (await alreadyIgnored(root)) {
+    // Somebody has already said it, in their own words -- `.tade/`, `.tade/*`,
+    // or a global excludes file. However they spelled it, the outcome holds and
+    // does not need saying again.
+    return { added: [], because: 'this project already ignores them its own way' }
   }
   try {
     await writeFile(path, existing + addition.text, 'utf8')
@@ -132,24 +122,20 @@ export async function ensureIgnored(root: string): Promise<IgnoreOutcome> {
 }
 
 /**
- * What git makes of the two paths the rules are about, or null where git
- * cannot be asked at all -- somewhere that is not a repository yet, or no git
- * on the machine. Null is never read as "already arranged": the rules are
- * written, and they are right by the time there is a repository to read them.
+ * Whether git already ignores what the rules are about. False where git cannot
+ * be asked at all -- somewhere that is not a repository yet, or no git on the
+ * machine -- which is never read as "already arranged": the rules are written,
+ * and they are right by the time there is a repository to read them.
  *
- * `--no-index` because by default `check-ignore` says nothing about a path
- * that is tracked, and both of these are paths that might be. Knowing it is a
- * repository first is what lets a non-zero exit mean "not ignored" rather than
- * "could not tell".
+ * `--no-index` because by default `check-ignore` says nothing about a path that
+ * is tracked, and this is a path that might be. Knowing it is a repository
+ * first is what lets a non-zero exit mean "not ignored" rather than "could not
+ * tell".
  */
-async function asGitSees(
-  root: string,
-): Promise<{ bookkeeping: boolean; manifest: boolean } | null> {
+async function alreadyIgnored(root: string): Promise<boolean> {
   const repo = await git(root, ['rev-parse', '--git-dir'])
-  if (!repo.ok) return null
-  const asked = async (path: string): Promise<boolean> =>
-    (await git(root, ['check-ignore', '--no-index', '-q', '--', path])).ok
-  return { bookkeeping: await asked(A_TASK_FILE), manifest: await asked(MANIFEST_PATH) }
+  if (!repo.ok) return false
+  return (await git(root, ['check-ignore', '--no-index', '-q', '--', A_TASK_FILE])).ok
 }
 
 function message(err: unknown): string {

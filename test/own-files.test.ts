@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { MANIFEST_PATH } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
 
 // Tade is built by agents running in Tade, so its own `.tade/` fills up with
@@ -8,12 +7,11 @@ import { describe, expect, it } from 'vitest'
 // and twenty-six of them were committed here before anybody noticed. None of
 // it means anything on another machine.
 //
-// The manifest is the one exception, and the reason this is a test rather
-// than a line in `.gitignore` nobody reads again: the rule has two halves, and
-// the half that quietly stops working is the exception. `/.tade/` instead of
-// `/.tade/*` looks identical and silently takes `checks.yaml` with it, because
-// git never descends into an ignored folder — and then CI is generated from a
-// file that is not in the repository.
+// There used to be one exception, `checks.yaml`, and the rule had two halves
+// because of it. There is nothing to except now: what this project checks is
+// read out of `.github/workflows/ci.yml` and `.githooks/pre-commit`, which are
+// files it was always going to have. So the rule is a plain denial, and the
+// question this test asks is the simple one it always wanted to be.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -23,8 +21,8 @@ const lines = (...args: string[]): string[] =>
     .filter((line) => line !== '')
 
 describe("Tade's own bookkeeping", () => {
-  it('is not in this repository, except the checks manifest', () => {
-    expect(lines('ls-files', '--', '.tade')).toEqual([MANIFEST_PATH])
+  it('is not in this repository at all', () => {
+    expect(lines('ls-files', '--', '.tade')).toEqual([])
   })
 
   it('is ignored, so nothing here can add it back by accident', () => {
@@ -48,9 +46,12 @@ describe("Tade's own bookkeeping", () => {
       '.tade/checks.running.json',
       '.tade/checks.lock',
       '.tade/tests.json',
+      // The file that used to be the exception. Ignored like everything else
+      // now: nothing reads it, so one left behind on somebody's machine is
+      // bookkeeping and not a gate.
+      '.tade/checks.yaml',
     ]) {
       expect(ignored(path), path).toBe(true)
     }
-    expect(ignored(MANIFEST_PATH), MANIFEST_PATH).toBe(false)
   })
 })

@@ -7,8 +7,7 @@ import { Checks } from '../../src/wire/checks.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 
 // The window's end of "a check that nobody ran is not a check that passed":
-// the button that adopts what CI already does, the button that runs a task's
-// checks, and the tail of what one printed.
+// the button that runs a task's checks, and the tail of what one printed.
 //
 // Built by hand rather than through the harness, unlike the rest of this
 // folder. The whole of this subject is *what it asks the extension host for* —
@@ -179,45 +178,6 @@ describe('the review the branch is out for', () => {
   })
 })
 
-describe('adopting what CI already does', () => {
-  it('writes them through the one tool that writes that file', async () => {
-    const world = wiring({ host: { answer: 'took 3 checks; 2 could not be taken' } })
-    await new Checks(world.wire, deps()).adopt('shop/refunds')
-
-    // Never written here: the orchestrator, the CLI and this button must all
-    // write the same file the same way.
-    expect(world.calls).toEqual([
-      {
-        tool: 'checks_propose',
-        input: { project: 'shop', adopt: true },
-        // A person pressing a button is not an agent, so no audience gate applies.
-        caller: { kind: 'you' },
-      },
-    ])
-  })
-
-  it('puts what the tool said in the conversation, where there is room for it', async () => {
-    const world = wiring({ host: { answer: 'took 3 checks; 2 could not be taken' } })
-    await new Checks(world.wire, deps()).adopt('shop/refunds')
-    // A notice is one line and the next notice eats it, and what could not be
-    // taken is the half worth reading.
-    expect(JSON.stringify(world.at().transcript)).toContain('2 could not be taken')
-  })
-
-  it('says what went wrong rather than throwing out of a button', async () => {
-    const world = wiring({ host: { fails: 'no CI config to read' } })
-    await new Checks(world.wire, deps()).adopt('shop/refunds')
-    expect(JSON.stringify(world.at().transcript)).toContain('no CI config to read')
-  })
-
-  it('says so plainly where no extensions are loaded', async () => {
-    const world = wiring({ host: null })
-    await new Checks(world.wire, deps()).adopt('shop/refunds')
-    expect(world.at().notice).toContain('no extensions are loaded')
-    expect(world.calls).toEqual([])
-  })
-})
-
 describe('running a task’s checks', () => {
   it('runs them in the task’s own worktree, as that task', async () => {
     const world = wiring({
@@ -342,7 +302,6 @@ describe('the actions it answers', () => {
     const world = wiring()
     expect(Object.keys(new Checks(world.wire, deps()).actions()).sort()).toEqual([
       'check-log:',
-      'checks-adopt:',
       'checks-run:',
     ])
   })

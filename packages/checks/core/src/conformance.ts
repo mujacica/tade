@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inOrder, planFor } from './manifest.ts'
+import { inOrder, planFor } from './plan.ts'
 import {
   CHECK_STATES,
   type Check,

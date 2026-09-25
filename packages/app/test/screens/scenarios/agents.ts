@@ -154,7 +154,7 @@ export const AGENT_SCREENS: Scenario[] = [
   {
     name: 'checks-read-from-ci',
     about:
-      'A project with CI and no manifest of its own. What CI runs is read and shown, and none of it runs here: the row says so, and `Adopt from CI` is the one act that changes it — it writes .tade/checks.yaml, and only then are these checks Tade\u2019s to run.',
+      'What this project checks is read out of the workflow that runs on every change — nothing of Tade\u2019s is in the repository, and nothing had to be adopted. The last row is the honest half: a step CI runs and this machine cannot keeps its place, says so, and is left out of what a local run adds up to, because a rollup is what ran here.',
     state: viewActions(base(), 'checkout/stripe-v15'),
     frame: frame({
       actions: {
@@ -162,13 +162,13 @@ export const AGENT_SCREENS: Scenario[] = [
         checks: [
           check('format', { run: 'biome ci .' }),
           check('tests', { run: 'pnpm vitest run' }),
-          check('publish', {
-            run: 'npm publish --provenance',
-            skip: 'needs CI: it uses something only the runner knows',
+          check('integration', {
+            run: 'pnpm vitest run test/integration',
+            skip: 'cannot run here: its job needs service containers, which only CI has',
+            required: false,
           }),
         ],
-        source: 'read from .github/workflows/ci.yml · not adopted',
-        adoptable: true,
+        source: 'read from .github/workflows/ci.yml',
       },
     }),
   },

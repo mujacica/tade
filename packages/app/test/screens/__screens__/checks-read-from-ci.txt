@@ -8,16 +8,16 @@
    ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ───────────────────────────────────────────────────────  none yet 
      working                 █│  ◌ Nothing uncommitted.                                                                 
                              █│                                                                                         
- ▸ SMART QUEUE          none █│  CHECKS ──────────────────────────  no commit to check yet   Adopt from CI    Run all   
- ▾ CHANGES  3        vs main █│  read from .github/workflows/ci.yml · not adopted                                       
-  M package.json       +2 −1 █│  ◦ format   not run          nobody has run it                                          
-  A …/webhooks.test.ts   +48 █│      biome ci .                                                                         
-  M src/webhooks.ts   +12 −4 █│  ◦ tests    not run          nobody has run it                                          
-                             ▕│      pnpm vitest run                                                                    
- ▾ FILES                     ▕│  ◦ publish  not run          cannot run here                                            
-   ▾ src/                    ▕│      needs CI: it uses something only the runner knows                                  
-       webhooks.test.ts      ▕│                                                                                         
-       webhooks.ts           ▕│  on this machine, not CI’s matrix                                                       
+ ▸ SMART QUEUE          none █│  CHECKS ──────────────────────────────────────────  no commit to check yet    Run all   
+ ▾ CHANGES  3        vs main █│  ◦ format      not run          nobody has run it                                       
+  M package.json       +2 −1 █│      biome ci .                                                                         
+  A …/webhooks.test.ts   +48 █│  ◦ tests       not run          nobody has run it                                       
+  M src/webhooks.ts   +12 −4 █│      pnpm vitest run                                                                    
+                             ▕│  ◦ integration not run          cannot run here                           not required  
+ ▾ FILES                     ▕│      cannot run here: its job needs service containers, which only CI has               
+   ▾ src/                    ▕│                                                                                         
+       webhooks.test.ts      ▕│  on this machine, not CI’s matrix                                                       
+       webhooks.ts           ▕│                                                                                         
    ▸ test/                   ▕│                                                                                         
      package.json            ▕│                                                                                         
      README.md               ▕│                                                                                         

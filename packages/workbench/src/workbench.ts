@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { MANIFEST_PATH, readRuns } from '@tade/checks-core'
+import { readRuns } from '@tade/checks-core'
 import {
   AccountName,
   type Caution,
@@ -1043,9 +1043,9 @@ export class Workbench {
         project,
         path: IGNORE_PATH,
         added: done.added,
-        // Nothing commits it: this is the one file Tade changes in somebody's
-        // repository beside the checks manifest, and both are theirs to keep.
-        message: `${IGNORE_PATH} in ${project} now ignores what Tade writes under ${PROJECT_DIR}/, except ${MANIFEST_PATH}. It is not committed.`,
+        // Nothing commits it: this is the only file Tade changes in somebody
+        // else's repository, and it is theirs to keep or delete.
+        message: `${IGNORE_PATH} in ${project} now ignores what Tade writes under ${PROJECT_DIR}/. It is not committed.`,
       },
     })
   }
@@ -1644,8 +1644,12 @@ export class Workbench {
 
   /**
    * What a project's checks are, and the rule about when they run, for the
-   * agent's prompt. Nothing at all for a project that checks nothing, which
-   * is what leaves the old one-command sentence in place.
+   * agent's prompt.
+   *
+   * A project that says nothing gets an empty list rather than nothing at all,
+   * because `checksTold` has something to say about that case: Tade will not
+   * invent a gate, so the agent is told to work out what checking this project
+   * means and run it itself.
    */
   private async checksTold(
     project: string,
@@ -1653,10 +1657,9 @@ export class Workbench {
   ): Promise<{ checks?: { ids: string[]; rule: ReturnType<typeof checksFor>; hold: boolean } }> {
     try {
       const stood = await checksAt({ config: this.config, project, worktree: cwd, commit: null })
-      if (stood.manifest.source === 'none' || stood.manifest.checks.length === 0) return {}
       return {
         checks: {
-          ids: stood.manifest.checks.map((check) => check.id),
+          ids: stood.read.checks.map((check) => check.id),
           rule: stood.rule,
           // Only under `policy` can a push actually be held; anywhere else
           // the rule is something the agent keeps, and Tade writes down.
@@ -1664,7 +1667,7 @@ export class Workbench {
         },
       }
     } catch {
-      // A manifest that will not read is the extension's problem to report,
+      // A workflow that will not read is the extension's problem to report,
       // never a reason an agent cannot start.
       return {}
     }

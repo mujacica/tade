@@ -58,11 +58,13 @@ describe('task and run RPC', () => {
     await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
     const written = readFileSync(path, 'utf8')
     expect(written).toContain('/.tade/*')
-    expect(written).toContain('!/.tade/checks.yaml')
+    // One rule and no exception: nothing Tade writes under there is the
+    // project's any more, since what it checks is read from its own CI.
+    expect(written).not.toContain('!/.tade/')
 
     const [said] = await client.events({ types: ['ignore_written'] })
     expect(said?.detail.project).toBe('app')
-    expect(said?.detail.added).toEqual(['/.tade/*', '!/.tade/checks.yaml'])
+    expect(said?.detail.added).toEqual(['/.tade/*'])
 
     // The second task finds it done and says nothing more about it.
     await client.createTask({ project: 'app', slug: 'search', intent: 'faster search' })

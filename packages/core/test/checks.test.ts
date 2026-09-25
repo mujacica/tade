@@ -156,8 +156,15 @@ describe('what an agent is told about them', () => {
     expect(told).toContain('checks_override')
   })
 
-  it('says nothing at all when a project has no checks', () => {
-    expect(checksTold(rule, [], true)).toBeNull()
+  it('tells a project that says nothing that nothing here invents a gate', () => {
+    // Silence is the one thing this cannot convey: an agent told nothing reads
+    // it as nothing to do. Tade reads a project's checks out of its own CI and
+    // its own hook and will not make one up, so the agent is told to work out
+    // what checking it means, and that its word is the only evidence there is.
+    const told = checksTold(rule, [], true)
+    expect(told).toContain('work out what checking it means')
+    expect(told).toContain('what you ran and what it said')
+    // No rule at all is still nothing to say: there is no project in hand.
     expect(checksTold(null, ['tests'], true)).toBeNull()
   })
 })

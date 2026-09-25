@@ -494,8 +494,7 @@ export function actions(): ActionsView {
       }),
     ],
     rollup: 'fail',
-    source: 'from .tade/checks.yaml',
-    adoptable: false,
+    source: 'read from .github/workflows/ci.yml',
     running: null,
     notes: ['on this machine, not CI’s matrix'],
   }

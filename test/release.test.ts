@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readChecks, WORKFLOW_PATH, workflowFor } from '@tade/checks-core'
 import { afterAll, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { changelogFor, notesFor } from '../scripts/release/changelog.ts'
@@ -200,6 +199,7 @@ describe('what a contributor gets and a user does not', () => {
 // push into a publish, and a token where there should be none.
 
 const RELEASE_PATH = '.github/workflows/release.yml'
+const CI_PATH = '.github/workflows/ci.yml'
 
 interface Workflow {
   on: Record<string, unknown>
@@ -219,17 +219,15 @@ const release = parse(readFileSync(join(ROOT, RELEASE_PATH), 'utf8')) as Workflo
 describe('the release workflow', () => {
   it('runs the gate by calling CI, rather than keeping a copy of it', () => {
     // A second description of what this project checks is a second thing to
-    // drift. `.tade/checks.yaml` is the one list, `ci.yml` is generated from
-    // it, and this calls that file.
+    // drift. `ci.yml` is the one list — Tade reads it rather than generating
+    // it — and this calls that file.
     expect(release.jobs.gate?.uses).toBe('./.github/workflows/ci.yml')
   })
 
-  it('is calling a workflow that can be called', async () => {
+  it('is calling a workflow that can be called', () => {
     // Without `workflow_call` in its triggers, `uses:` above fails at the
     // moment of a release and at no earlier moment.
-    const manifest = await readChecks({ name: 'tade', root: ROOT })
-    expect(workflowFor(manifest)).toContain('workflow_call:')
-    const ci = parse(readFileSync(join(ROOT, WORKFLOW_PATH), 'utf8')) as Workflow
+    const ci = parse(readFileSync(join(ROOT, CI_PATH), 'utf8')) as Workflow
     expect(Object.keys(ci.on)).toContain('workflow_call')
   })
 

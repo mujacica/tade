@@ -318,7 +318,7 @@ export function settingsOf(
       id: 'checks',
       title: 'Checks',
       about:
-        "A project's own checks, run here before anybody else sees the work. What a project checks is `.tade/checks.yaml`, beside its code; these are the rules about when Tade runs them. Only `approvals.mode: policy` can actually hold an agent's push while they run — under the default `bypass` nothing here is a gate: the agent is told the rule and Tade writes down what happened.",
+        "A project's own checks, run here before anybody else sees the work. What a project checks is read from what it already says — its CI workflows and its commit hook — so there is nothing here to keep in step with them; these are the rules about when Tade runs them. Only `approvals.mode: policy` can actually hold an agent's push while they run — under the default `bypass` nothing here is a gate: the agent is told the rule and Tade writes down what happened.",
       settings: [
         {
           path: 'checks.before',
@@ -351,17 +351,6 @@ export function settingsOf(
           fallback: '2',
           type: { kind: 'number' },
           live: true,
-        },
-        {
-          path: 'checks.from_ci',
-          title: 'Checks read from CI',
-          means:
-            'a project’s CI commands, where it has no manifest: shown, run here too, or ignored',
-          value: config.checks.from_ci,
-          fallback: 'show',
-          type: { kind: 'choice', options: ['show', 'run', 'off'] },
-          live: true,
-          keywords: ['github', 'actions', 'workflow', 'ci', 'adopt', 'import'],
         },
         {
           path: 'checks.ci',
@@ -569,7 +558,7 @@ export function settingsOf(
       id: 'project-checks',
       title: 'Checks per project',
       about:
-        "One project's own answer to the Checks rules. Left empty it follows the rule above; what a project actually checks is its own `.tade/checks.yaml`, which Settings does not hold because it lives in the repository.",
+        "One project's own answer to the Checks rules. Left empty it follows the rule above; what a project actually checks is read from its own workflows and commit hook, which Settings does not hold because they live in the repository.",
       settings: projects.flatMap(([name, project]) => [
         {
           path: `projects.${name}.checks.before`,
@@ -590,16 +579,6 @@ export function settingsOf(
           type: { kind: 'choice', options: ['', 'hold', 'tell', 'note'] },
           live: true,
           keywords: [name, 'checks', 'red', 'fail'],
-        },
-        {
-          path: `projects.${name}.checks.from_ci`,
-          title: `${name} — checks read from CI`,
-          means: `what ${name}'s CI config is good for when it has no .tade/checks.yaml`,
-          value: project.checks?.from_ci ?? '',
-          fallback: config.checks.from_ci,
-          type: { kind: 'choice', options: ['', 'show', 'run', 'off'] },
-          live: true,
-          keywords: [name, 'github', 'actions', 'workflow', 'adopt'],
         },
         {
           path: `projects.${name}.checks.parallel`,

@@ -155,7 +155,6 @@ export function actionRows(
   // ── How it stands ──────────────────────────────────────────────────────
   rows.push(blank(width))
   const run: Target = { kind: 'action', name: `checks-run:${pane.task}` }
-  const adopt: Target = { kind: 'action', name: `checks-adopt:${pane.task}` }
   const going = view.running
   const at = view.commit ? view.commit.slice(0, 7) : 'no commit'
   const rollup = (g: Row) => {
@@ -177,23 +176,25 @@ export function actionRows(
     g.text(word, tone).text(` at ${at}`, skin.hint)
   }
   heading('CHECKS', rollup, (r) => {
-    // Adoption is the act that makes these runnable, so it sits where the
-    // thing it unlocks is — and `Run all` stays primary, because once a
-    // project has adopted them that is the only button that matters.
-    if (view.adoptable) r.chip('Adopt from CI', adopt).space()
     r.button(going ? 'Running…' : 'Run all', run, going ? 'rest' : 'primary').space()
   })
-  // Where they came from is load-bearing in exactly two cases: there are none,
-  // and there are some that nothing here may run. Anywhere else it is a row
-  // spent saying `.tade/checks.yaml` to somebody who wrote it.
-  if (view.checks.length === 0 || view.adoptable) {
+  // Where they came from is load-bearing in exactly one case: there are none,
+  // and then the sentence *is* the answer — nothing in this project says what
+  // checking it means. With checks on the page the row under each says which
+  // step it came from, so a second line naming the file is a row spent twice.
+  if (view.checks.length === 0) {
     line((r) => r.text(said(view.source), skin.hint))
   }
   // Said once, where it is the whole answer: absent is not fine, and a page
   // that leaves `unknown` looking like a quiet green is the bug this rule is
   // for. Not said where the row above already explains why nothing has run.
+  // The id column is sized from the longest id on the page, not from a number
+  // somebody picked: ids are the names of steps in somebody's CI now, so
+  // `integration-tests` is as ordinary as `types`, and a fixed width shoves
+  // every column after it out of line on exactly the row that is longest.
+  const pad = Math.max(8, ...view.checks.map((check) => visibleWidth(check.id)))
   for (const check of view.checks) {
-    rows.push(...checkRows(check, pane.task, state, now, width, skin, pointer))
+    rows.push(...checkRows(check, pane.task, state, now, width, skin, pointer, pad))
   }
   // ── What else landed on this branch ────────────────────────────────────
   if (view.others.length > 0) {
@@ -263,6 +264,8 @@ export function checkRows(
   width: number,
   skin: Skin,
   pointer: Pointer,
+  /** How wide the id column is: the longest id on the page, so they line up. */
+  pad = 8,
 ): { text: string; hits: Hit[] }[] {
   const rows: { text: string; hits: Hit[] }[] = []
   const target: Target = { kind: 'check', task, check: check.id }
@@ -298,7 +301,7 @@ export function checkRows(
   head
     .text(check.state === 'running' ? spinner(now) : glyphFor(check.state), tone)
     .space()
-    .text(check.id.padEnd(8), hovered ? skin.you : (text) => text)
+    .text(check.id.padEnd(pad), hovered ? skin.you : (text) => text)
     .space()
     .text(check.state.padEnd(8), tone)
     .space()

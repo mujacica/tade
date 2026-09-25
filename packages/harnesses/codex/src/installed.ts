@@ -5,9 +5,9 @@ import { join } from 'node:path'
 // What Codex loads by itself: the MCP servers in `~/.codex/config.toml`,
 // which is the user's file and is never written by Tade.
 //
-// Read, never adopted — the same rule as `readFromCi` and as Claude Code's
-// own: the window says they are there so nobody takes an agent's tools for
-// Tade's, and that is the whole of it.
+// Read, never adopted — the same rule as Claude Code's own: the window says
+// they are there so nobody takes an agent's tools for Tade's, and that is the
+// whole of it.
 //
 // A TOML file read for one thing: the table headers under `mcp_servers`. A
 // line nothing here recognises is left out, which is what a file that grew a

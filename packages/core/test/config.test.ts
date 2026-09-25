@@ -82,34 +82,32 @@ projects:
     expect(r.config.mcp.servers.linear?.env).toEqual({ sandbox: 'yes' })
   })
 
-  it('shows what CI runs without running it, unless told otherwise', () => {
-    const none = parseConfig('')
-    // The default is the safe direction: a CI config holds releases beside
-    // its tests, so it is read and not run until somebody adopts it.
-    expect(none.ok && none.config.checks.from_ci).toBe('show')
-    const ran = parseConfig('checks:\n  from_ci: run\n')
-    expect(ran.ok && ran.config.checks.from_ci).toBe('run')
-    const bad = parseConfig('checks:\n  from_ci: sometimes\n')
-    expect(bad.ok).toBe(false)
-    if (bad.ok) return
-    expect(bad.issues[0]?.path).toBe('checks.from_ci')
+  it('ignores from_ci and says what is true instead, at either level', () => {
+    // It chose what a reading of somebody's CI was good for, because a reading
+    // was a guess and `.tade/checks.yaml` was the definition. The reading is
+    // the definition now, there is no manifest to adopt into, and so there is
+    // nothing left for the key to choose between. Ignored rather than refused:
+    // somebody wrote it, and refusing the file takes away everything else they
+    // wrote at the same time.
+    const r = parseConfig(
+      'checks:\n  from_ci: run\nprojects:\n  demo:\n    root: /tmp/demo\n    checks:\n      from_ci: off\n',
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.warnings.join('\n')).toContain('checks.from_ci is ignored')
+    expect(r.warnings.join('\n')).toContain('projects.demo.checks.from_ci is ignored')
+    expect(r.warnings.join('\n')).toContain('read from its CI workflows and its commit hook')
+    expect('from_ci' in r.config.checks).toBe(false)
   })
 
   it('lets one project answer the checks rules for itself', () => {
     const r = parseConfig(
-      [
-        'projects:',
-        '  demo:',
-        '    root: /tmp/demo',
-        '    checks:',
-        '      from_ci: off',
-        '      on_red: tell',
-        '',
-      ].join('\n'),
+      ['projects:', '  demo:', '    root: /tmp/demo', '    checks:', '      on_red: tell', ''].join(
+        '\n',
+      ),
     )
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect(checksFor(r.config, 'demo').from_ci).toBe('off')
     expect(checksFor(r.config, 'demo').on_red).toBe('tell')
     // Anything it does not answer still follows the rule above it.
     expect(checksFor(r.config, 'demo').before).toBe(r.config.checks.before)

@@ -4,27 +4,23 @@ import { type CheckLog, coverageOf, writeRun } from '@tade/checks-core'
 import { ConfigSchema, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 import { checksAt, checksGate, pushOrCommit } from '../src/checks.ts'
 
 // The rule about pushing without a green run, and what it can honestly do.
 
-const MANIFEST = [
-  'checks:',
-  '  - id: format',
-  '    title: Formatting',
-  '    run: pnpm exec biome ci .',
-  '  - id: tests',
-  '    title: Tests',
-  '    run: pnpm exec vitest run',
-  '    alone: true',
-].join('\n')
+const WORKFLOW = ciWorkflow([
+  { id: 'format', run: 'pnpm exec biome ci .' },
+  { id: 'tests', run: 'pnpm exec vitest run' },
+])
 
 const COMMIT = 'a1b2c3d4e5f6'
 
 function worktreeWith(runs: { check: string; state: string; tail?: string }[] = []): string {
   const root = tmp('tade-gate-')
   mkdirSync(join(root, '.tade'), { recursive: true })
-  writeFileSync(join(root, '.tade', 'checks.yaml'), MANIFEST)
+  mkdirSync(join(root, '.github', 'workflows'), { recursive: true })
+  writeFileSync(join(root, CI_WORKFLOW), WORKFLOW)
   if (runs.length > 0) {
     writeFileSync(
       join(root, '.tade', 'checks.jsonl'),
@@ -182,7 +178,7 @@ describe('the checks gate', () => {
   // commit is made a second after the run that checked it.
   it('lets the push through after a commit of exactly what the run read', async () => {
     const repo = mkrepo()
-    repo.commit('start', { '.tade/checks.yaml': MANIFEST, 'a.txt': 'a\n' })
+    repo.commit('start', { [CI_WORKFLOW]: WORKFLOW, 'a.txt': 'a\n' })
     repo.write({ 'a.txt': 'a, edited\n' })
     const before = repo.head()
     const covered = await coverageOf(repo.root, before)
@@ -203,7 +199,7 @@ describe('the checks gate', () => {
 
   it('refuses it when the commit holds work the run never read', async () => {
     const repo = mkrepo()
-    repo.commit('start', { '.tade/checks.yaml': MANIFEST, 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    repo.commit('start', { [CI_WORKFLOW]: WORKFLOW, 'a.txt': 'a\n', 'b.txt': 'b\n' })
     repo.write({ 'a.txt': 'a, edited\n' })
     const before = repo.head()
     const covered = await coverageOf(repo.root, before)

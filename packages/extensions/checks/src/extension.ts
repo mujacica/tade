@@ -1,17 +1,12 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  adoptable,
-  amendChecks,
-  type CheckDraft,
   type CheckLog,
   type CheckRun,
   carriedNote,
   checkLine,
   latestAt,
-  MANIFEST_PATH,
   RunnerError,
-  writeChecks,
 } from '@tade/checks-core'
 import {
   type ChecksConfig,
@@ -22,7 +17,6 @@ import {
   overrideProblem,
 } from '@tade/core'
 import {
-  boolean,
   type ExtensionContext,
   list,
   number,
@@ -59,9 +53,8 @@ export const checksExtension: TadeExtension = {
   workflow: [
     'Says how each check stands at the commit checked out (checks_list).',
     'Runs them here, one suite at a time (checks_run), recorded against the commit.',
-    'Writes a project the gate it has not got (checks_propose).',
     'Overruling is an act with a reason, written down (checks_override).',
-    'What it reads from CI it does not adopt: the rollup stays unknown.',
+    'What a project checks is read from its own CI workflows and its commit hook — nothing here is configured, and nothing is written into the repository.',
   ],
   root: ROOT,
 
@@ -75,8 +68,7 @@ export const checksExtension: TadeExtension = {
       'For "is this green" and "what is red", call checks_list — it reads files and asks nothing of the network.',
       'To have them run, checks_run: it takes minutes, runs one at a time per checkout, and answers with what failed.',
       'A red check is not a reason to start an agent on your own: tell the person, or hand it to the agent whose commit it is.',
-      'When checks_list says a project checks nothing yet, say so once and offer checks_propose — a project with no checks has no gate, and nobody finds that out until something is already merged.',
-      'checks_propose writes .tade/checks.yaml. Never guess the commands: adopt what CI already runs, or read the project and say what you are proposing before you write it.',
+      'What a project checks is read from its own CI workflows and its commit hook, so there is nothing to configure and no file to write. Where checks_list says a project says nothing, the answer is not a gate Tade invents: say what CI it is missing, and that its agents are told to work out what checking it means and run that themselves.',
     ].join(' ')
   },
 
@@ -101,19 +93,20 @@ export const checksExtension: TadeExtension = {
           worktree: where.worktree,
           commit: where.commit,
         })
-        if (stood.manifest.checks.length === 0) {
+        if (stood.read.checks.length === 0) {
           return {
             text: [
-              `${where.project} has no checks written down, so nothing here is verified.`,
+              `${where.project} says nothing about what checking it means, so nothing here is verified.`,
               '',
-              '`checks_propose` writes `.tade/checks.yaml` — an id, a title and a command each — and CI can be generated from the same file with `tade checks workflow --write`.',
-              ...stood.manifest.problems.map((problem) => `- ${problem}`),
+              'Tade reads a project’s checks out of its CI workflows and its commit hook. This one has neither that could be read, and Tade will not invent a gate: agents working here are told to work out what checking it means and run that themselves, and to say what they ran.',
+              'A workflow that runs on `pull_request` or on a push to a branch is what would be read; so would a `pre-commit` hook. Failing both, `projects.<name>.test_command` in Tade’s own config is the one line that gives it a check.',
+              ...stood.read.problems.map((problem) => `- ${problem}`),
             ].join('\n'),
-            said: `${where.project} checks nothing yet.`,
+            said: `${where.project} says nothing about what it checks.`,
           }
         }
         const lines = [
-          `## ${where.project} — ${stood.manifest.checks.length} checks (from ${stood.manifest.from ?? stood.manifest.source})`,
+          `## ${where.project} — ${stood.read.checks.length} checks (read from ${stood.read.from ?? stood.read.source})`,
           '',
           `At ${where.commit ? where.commit.slice(0, 8) : 'no commit'}: **${stood.rollup.state}**.`,
           '',
@@ -123,21 +116,14 @@ export const checksExtension: TadeExtension = {
           lines.push(
             run
               ? `${checkLine(run)}${carriedNote(run, stood.carried.has(run.id))}`
-              : `- ◦ \`${check.id}\` has not run at this commit${check.skip ? ` (${check.skip})` : ''}`,
+              : `- ◦ \`${check.id}\` has not run at this commit${check.skip ? ` (${check.skip})` : ''}${check.from ? ` — ${check.from}` : ''}`,
           )
         }
-        if (stood.manifest.problems.length > 0) {
-          lines.push('', ...stood.manifest.problems.map((problem) => `- ${problem}`))
-        }
-        if (stood.manifest.source === 'CI') {
-          // These are a reading, not a gate: every one of them carries a
-          // `skip`, so the rollup above says `unknown` and will keep saying it
-          // until somebody adopts them. Offering that here is the only place
-          // the orchestrator finds out it can.
-          lines.push(
-            '',
-            `These were read from ${stood.manifest.from}, so none of them run here yet. \`checks_propose\` with \`adopt\` writes them into \`${MANIFEST_PATH}\`, and then they do.`,
-          )
+        // What CI does and Tade cannot is said every time rather than once: a
+        // list that quietly holds less than CI does is how somebody comes to
+        // believe a green tick here means a green tick there.
+        if (stood.read.problems.length > 0) {
+          lines.push('', 'Not read here:', ...stood.read.problems.map((problem) => `- ${problem}`))
         }
         lines.push(
           '',
@@ -248,7 +234,7 @@ export const checksExtension: TadeExtension = {
         const run = [...stood.runs].reverse().find((one) => one.check === wanted)
         if (!run) {
           throw new Error(
-            `${wanted} has never run here (this project checks ${stood.manifest.checks.map((one) => one.id).join(', ') || 'nothing'})`,
+            `${wanted} has never run here (this project checks ${stood.read.checks.map((one) => one.id).join(', ') || 'nothing'})`,
           )
         }
         const lines = Number(input.lines) > 0 ? Math.min(500, Number(input.lines)) : 60
@@ -266,121 +252,6 @@ export const checksExtension: TadeExtension = {
           ].join('\n'),
           said: `${run.check} ${run.state}`,
           data: run,
-        }
-      },
-    },
-    {
-      name: 'checks_propose',
-      description:
-        'Write what this project checks into .tade/checks.yaml. Use it when checks_list says a project checks nothing yet, or when a check should be added, changed or taken out. `adopt` takes what the project already runs in CI, which is the right first move for a project that has CI and no manifest; otherwise pass the checks yourself. Say what you are about to write before you write it, and use `dry_run` to show it. It changes one file and never any code; the project\u2019s own git is the undo.',
-      parameters: object({
-        project: projectInput,
-        adopt: boolean(
-          'write what this project already runs in CI, instead of naming checks yourself',
-        ),
-        checks: list(
-          object(
-            {
-              id: string('short, lowercase, dashes: format, types, tests'),
-              run: string('the command line, exactly as it would be typed in the project'),
-              title: string('what it checks, as a person says it: "Formatting and lint"'),
-              alone: boolean('it needs the machine to itself; nothing else of ours runs beside it'),
-              minutes: number('stopped and called timed out after this long (10)'),
-              required: boolean('merging waits on it (true)'),
-            },
-            ['id', 'run'],
-          ),
-          'the checks to add, or to replace where the id is already there',
-        ),
-        remove: list(string('a check id'), 'checks to take out of the file'),
-        dry_run: boolean('show the file it would write and write nothing'),
-      }),
-      // The orchestrator only. An agent is judged by these checks, and a tool
-      // that lets it rewrite its own gate is the wrong shape whatever it is
-      // guarded with \u2014 an agent that thinks the checks are wrong is already
-      // editing files and can say so in its task.
-      for: ['orchestrator'],
-      async run(input, ctx) {
-        const where = await workingIn(input, ctx)
-        const dry = input.dry_run === true
-        const drafts = asDrafts(input.checks)
-        const remove = Array.isArray(input.remove) ? input.remove.map(String) : []
-        if (input.adopt === true) {
-          if (drafts.length > 0 || remove.length > 0) {
-            throw new Error(
-              'adopt writes the whole file from CI, so it cannot be combined with checks or remove: adopt first, then amend.',
-            )
-          }
-          const found = await adoptable(where.worktree)
-          if (!found || found.checks.length === 0) {
-            throw new Error(
-              `${where.project} runs no commands in CI that could be adopted${found?.couldNotTake.length ? ` (${found.couldNotTake.join('; ')})` : ''}. Name the checks yourself instead.`,
-            )
-          }
-          const lines = [
-            `## ${dry ? 'Would write' : 'Wrote'} ${MANIFEST_PATH} for ${where.project}`,
-            '',
-            `${found.checks.length} checks, read from ${found.from}:`,
-            ...found.checks.map((check) => `- \`${check.id}\` \u2014 ${check.run.split('\n')[0]}`),
-          ]
-          // What CI does and Tade cannot is said every time, not once: a
-          // manifest that quietly holds less than CI does is how somebody
-          // comes to believe a green tick here means a green tick there.
-          if (found.couldNotTake.length > 0) {
-            lines.push(
-              '',
-              'Not taken \u2014 only the runner can do these:',
-              ...found.couldNotTake.map((why) => `- ${why}`),
-            )
-          }
-          if (dry) {
-            lines.push('', '```yaml', found.text.trimEnd(), '```')
-            return {
-              text: lines.join('\n'),
-              said: `That would be ${found.checks.length} checks from CI.`,
-            }
-          }
-          const written = await writeChecks(where.worktree, found.checks)
-          lines.push(
-            '',
-            'Tell the person to read it: CI runs releases and deploys beside its tests, and Tade cannot tell which is which.',
-          )
-          return {
-            text: lines.join('\n'),
-            said: `${where.project} now checks ${written.ids.join(', ')}.`,
-            data: { path: written.path, ids: written.ids },
-          }
-        }
-        if (drafts.length === 0 && remove.length === 0) {
-          throw new Error(
-            'Say what to write: pass checks, or remove, or adopt to take what this project already runs in CI.',
-          )
-        }
-        if (dry) {
-          return {
-            text: [
-              `## Would change ${MANIFEST_PATH} for ${where.project}`,
-              '',
-              ...drafts.map((one) => `- \`${one.id}\` \u2014 ${one.run}`),
-              ...remove.map((id) => `- remove \`${id}\``),
-            ].join('\n'),
-            said: 'Nothing written yet.',
-          }
-        }
-        // `amendChecks` keeps the comments and the `ci:` block, and throws a
-        // sentence naming what is wrong rather than writing a file somebody
-        // then has to find and fix by hand.
-        const written = await amendChecks(where.worktree, drafts, { remove })
-        return {
-          text: [
-            `## ${written.amended ? 'Changed' : 'Wrote'} ${written.path} for ${where.project}`,
-            '',
-            `It now checks: ${written.ids.join(', ')}.`,
-            '',
-            'It is a change in the working tree, not a commit. `tade checks workflow --write` generates CI back from it.',
-          ].join('\n'),
-          said: `${where.project} now checks ${written.ids.join(', ')}.`,
-          data: { path: written.path, ids: written.ids },
         }
       },
     },
@@ -454,25 +325,6 @@ export const checksExtension: TadeExtension = {
       heard: [/^what('s| is) red( here)?\??$/i],
     },
   ],
-}
-
-/** The checks a caller asked for, as drafts. Shape trouble is `amendChecks`'s to name. */
-function asDrafts(value: unknown): CheckDraft[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((entry) => {
-    if (typeof entry !== 'object' || entry === null) return []
-    const one = entry as Record<string, unknown>
-    return [
-      {
-        id: String(one.id ?? ''),
-        run: String(one.run ?? ''),
-        ...(typeof one.title === 'string' ? { title: one.title } : {}),
-        ...(one.alone === true ? { alone: true } : {}),
-        ...(typeof one.minutes === 'number' ? { minutes: one.minutes } : {}),
-        ...(one.required === false ? { required: false } : {}),
-      },
-    ]
-  })
 }
 
 interface Working {

@@ -3,12 +3,16 @@ import type { ListSection } from '@tade/extensions-core'
 import type { ActionsView, Frame } from '../frame.ts'
 import type { Live } from '../live.ts'
 import { notice, ORCHESTRATOR_TAB } from '../model.ts'
-import { problem, ran, said } from '../transcript.ts'
-import { type Actions, type Subject, type Wiring, why } from './context.ts'
+import type { Actions, Subject, Wiring } from './context.ts'
 
 // A check that nobody ran is not a check that passed, and this is the window's
-// end of that: the button that adopts what CI already does, the button that
-// runs a task's own checks, and the tail of what one printed.
+// end of that: the button that runs a task's own checks, and the tail of what
+// one printed.
+//
+// There is no button that writes checks down any more, because there is
+// nothing to write: what a project checks is read from its own CI workflows
+// and its own commit hook, so a project either says what it checks or it does
+// not, and a button could not change which.
 //
 // Nothing here decides anything about a check. The run goes through the same
 // `checks_run` the orchestrator and `tade check` use, so the worktree's lock,
@@ -47,7 +51,6 @@ export class Checks implements Subject {
 
   actions(): Actions {
     return {
-      'checks-adopt:': (task) => this.adopt(task),
       'checks-run:': (task) => this.run(task),
       'check-log:': async (rest) => {
         const [task, check] = rest.split('\u0000')
@@ -99,59 +102,6 @@ export class Checks implements Subject {
       }
     }
     return null
-  }
-
-  /**
-   * Write a project's checks down from what its CI already does — which is
-   * what turns a reading into checks Tade may run.
-   *
-   * It goes through `checks_propose` rather than writing the file here: the
-   * orchestrator, the CLI and this button must all write the same file the
-   * same way, and what the tool says about what it could not take is worth
-   * putting in the conversation, where there is room for it — a notice is one
-   * line and the next notice eats it.
-   */
-  async adopt(task: string): Promise<void> {
-    const host = this.wire.opts.extensions
-    if (!host) {
-      this.wire.put(
-        notice(this.wire.state, 'no extensions are loaded, so nothing can write them here'),
-      )
-      this.wire.draw()
-      return
-    }
-    const project = task.split('/')[0] ?? task
-    const id = this.deps.callId()
-    this.wire.put({
-      ...this.wire.state,
-      bottom: ORCHESTRATOR_TAB,
-      transcript: ran(
-        this.wire.state.transcript,
-        { id, tool: 'checks_propose', input: { project, adopt: true } },
-        this.wire.now(),
-      ),
-    })
-    this.wire.draw()
-    try {
-      const answer = await host.call(
-        'checks_propose',
-        { project, adopt: true },
-        // A person pressing a button is not an agent: the tool is the
-        // orchestrator's, and `you` is neither, so no audience gate applies.
-        { caller: { kind: 'you' }, id, tade: this.wire.opts.extensionWorkbench ?? null },
-      )
-      this.wire.put({
-        ...this.wire.state,
-        transcript: said(this.wire.state.transcript, answer.text, this.wire.now()),
-      })
-    } catch (err) {
-      this.wire.put({
-        ...this.wire.state,
-        transcript: problem(this.wire.state.transcript, why(err), this.wire.now()),
-      })
-    } finally {
-      this.wire.draw()
-    }
   }
 
   /**

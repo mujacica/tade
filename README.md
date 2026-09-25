@@ -154,9 +154,11 @@ Every file an agent touches, marked the way git marks it, with the diff a click 
 
 ## The checks, before anybody else sees them
 
-A project says what it checks in one file, and that same file is what CI is generated from. Tade
-runs them here, one set at a time per checkout, and records each against the commit it ran on. A
-push with nothing green behind it is held, with what is missing.
+Nothing to configure: a project already says what it checks, in the workflows that run on every
+change and in the hook that runs before a commit, and Tade reads those. It runs them here, one set
+at a time per checkout, and records each against the commit it ran on. A push with nothing green
+behind it is held, with what is missing. A step only CI can run — a secret, a service container —
+keeps its row, says so, and is left out of what a local run adds up to.
 
 ![The ACTIONS tab: the commits this agent made, what is not committed, and each check with what it ran, how long it took and what it counted](images/work.svg)
 

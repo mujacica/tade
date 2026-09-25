@@ -17,24 +17,24 @@ export interface ProjectRef {
   name: string
   /** Absolute: the worktree the checks run in, which is a task's in `worktree` mode. */
   root: string
-  /** The one command the config has always had, for a project with nothing else written down. */
-  test?: string | undefined
   /**
-   * What to do with checks read out of the project's CI config when it has no
-   * manifest: run them here, only show them, or do not read them at all.
-   * `show` when nobody says, which is `checks.from_ci`'s default.
+   * The one command Tade's own config has always had, for a project whose CI
+   * cannot be read. Deliberately a config key and not a file in the project:
+   * a file Tade writes into somebody's repository so it can read it back is
+   * the duplication all of this removes.
    */
-  fromCi?: FromCi | undefined
+  test?: string | undefined
 }
 
-/** What checks read out of a project's CI config are good for here. */
-export type FromCi = 'run' | 'show' | 'off'
-
-/** Why a check read from CI is not run here, until somebody adopts it. */
-export const UNADOPTED =
-  'read from CI and not adopted: `tade checks adopt` writes it into .tade/checks.yaml, and then it runs here'
-
-/** A named unit of verification a project defines. Ids are stable: CI names its steps after them. */
+/**
+ * A named unit of verification a project already runs.
+ *
+ * The id is the step's own name, because that is the name a person typed, the
+ * name CI shows on its row, and the name somebody types at `checks_run`. A
+ * rename does not orphan its history: `ran` on a run says which command it
+ * was, and `followRenames` reads a run back onto the check that runs it — the
+ * same reasoning as a run surviving the commit after it.
+ */
 export interface Check {
   /** `format`, `types`, `tests`. Lowercase, dashes; unique in a project. */
   id: string
@@ -57,8 +57,10 @@ export interface Check {
   when?: readonly string[]
   /** Checks that must have passed first. A cycle is a config error, caught before anything runs. */
   needs?: readonly string[]
-  /** Why it cannot be run here, when it cannot: `needs CI`. Planned, reported, never ticked. */
+  /** Why it cannot be run here, when it cannot. Planned, reported, never ticked. */
   skip?: string
+  /** Where it was read: a workflow's job and step, or the hook's path. For the row that says so. */
+  from?: string
 }
 
 export type CheckState =
@@ -134,6 +136,14 @@ export interface CheckRun {
   summary: string | null
   /** Who asked: an agent's task, the orchestrator, you, a rule, or the forge. */
   by: string | null
+  /**
+   * The command it ran, so retitling the step it came from does not orphan it:
+   * `followRenames` reads a run whose id is gone back onto the check that runs
+   * this command. Absent on a forge's run, and on every run recorded before
+   * this was written down — and absent means the run cannot be followed, which
+   * is honest and which only time cures.
+   */
+  ran?: string
   /**
    * The bytes it read, where anybody looked: what makes a run still true of a
    * commit that came after it. Absent on a forge's run, and on every run

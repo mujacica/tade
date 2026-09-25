@@ -894,13 +894,12 @@ export class Live {
       review: null,
       checks,
       rollup: stood.rollup.state,
+      // Read, not configured: so it says which file said so, and where nothing
+      // did, that nothing did — which is the answer, not a gap in the page.
       source:
         stood.plan.length > 0
-          ? stood.manifest.source === 'CI'
-            ? `read from ${stood.manifest.from} · not adopted`
-            : `from ${stood.manifest.from ?? stood.manifest.source}`
-          : 'None configured — adopt what CI runs, or write .tade/checks.yaml.',
-      adoptable: stood.manifest.source === 'CI',
+          ? `read from ${stood.read.from ?? stood.read.source}`
+          : 'Nothing here says what checking this project means — no workflow that runs on a change, no commit hook.',
       running: going
         ? {
             since: Date.parse(going.at) || this.now(),
