@@ -799,7 +799,7 @@ export class Live {
    * here rather than a reason to go and find out.
    */
   seenActions(task: string): ActionsView | null {
-    return this.works.get(task)?.work ?? null
+    return this.works.get(task)?.work ?? null // never `actions`: that looks
   }
 
   /**

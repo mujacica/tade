@@ -1,17 +1,19 @@
-import { renameSync, rmSync } from 'node:fs'
+import { renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Task, Workspace } from '@tade/core'
+import { ConfigSchema, type Task, type Workspace } from '@tade/core'
 import { git } from '@tade/status'
+import { Workbench } from '@tade/workbench'
 import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
-import { describe, expect, it } from 'vitest'
-import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   CHANGED_FORMAT,
   changedFrom,
   changesFrom,
   commitsFrom,
   knownTasks,
+  Live,
   snapshotsFrom,
 } from '../src/live.ts'
 
@@ -285,4 +287,54 @@ describe('commitsFrom', () => {
     const out = commitsFrom(entry('a1b2c3d', 1, 'copied message', 'shop/one,shop/two'))
     expect(out[0]?.task).toBe('shop/one')
   })
+})
+
+describe('the last look at a task, read without starting one', () => {
+  const opened: { live: Live; client: Workbench }[] = []
+
+  afterEach(async () => {
+    for (const one of opened.splice(0)) {
+      await one.live.stop().catch(() => {})
+      await one.client.close().catch(() => {})
+    }
+  })
+
+  it('answers what the last look said, and never goes looking itself', async () => {
+    // Search composes what is happening for every task on every keystroke, so
+    // the checks have to be readable without a look — a look is git, and one
+    // per task per letter is the window shelling out while somebody types.
+    const repo = mkrepo()
+    repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge' })
+    const home = tmp('tade-live-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    let changed = 0
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      // Far longer than this test: the beat's own looks are not what is measured.
+      pollMs: 600_000,
+      onChange: () => {
+        changed++
+      },
+    })
+    opened.push({ live, client })
+
+    // Nothing has looked, so there is nothing to say — and asking again and
+    // again says nothing and starts nothing, which is the whole point of it.
+    const settled = changed
+    for (let i = 0; i < 50; i++) expect(live.seenActions('app/refunds')).toBeNull()
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    // Still nothing: a look that had run would have filled this and said so.
+    // Both halves, because the cache is the fact and the callback is the clue.
+    expect(live.seenActions('app/refunds')).toBeNull()
+    expect(changed).toBe(settled)
+
+    // `actions` is the one that looks, and what it finds is what this reads.
+    live.actions('app/refunds')
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    expect(live.seenActions('app/refunds')).toEqual(live.actions('app/refunds'))
+    expect(live.seenActions('app/refunds')?.task).toBe('app/refunds')
+  }, 30_000)
 })
