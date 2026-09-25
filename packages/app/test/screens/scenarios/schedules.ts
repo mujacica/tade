@@ -5,7 +5,7 @@ import {
   withProjects,
   withTasks,
 } from '../../../src/model.ts'
-import { frame, type Scenario, utcClock, utcDate } from './fixtures.ts'
+import { frame, type Scenario, showing, utcClock, utcDate } from './fixtures.ts'
 import { queueSchedules, queueTasks } from './queue.ts'
 
 // Schedules and watches: a rule, and what to do each time it comes due.
@@ -87,7 +87,7 @@ export const SCHEDULE_SCREENS: Scenario[] = [
       ),
       project: 'checkout',
       folded: ['changes', 'files', 'notes', 'where'],
-      queueFilter: 'timed',
+      ...showing('checkout', { scope: 'next' }),
     },
     frame: frame({
       screen: '',
@@ -116,7 +116,7 @@ export const SCHEDULE_SCREENS: Scenario[] = [
       ),
       project: 'checkout',
       folded: ['changes', 'files', 'notes', 'where'],
-      queueFilter: 'timed',
+      ...showing('checkout', { scope: 'next' }),
     },
     frame: frame({
       screen: '',

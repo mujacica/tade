@@ -37,9 +37,12 @@ const BUDGET: Record<string, number> = {
   'packages/app/src/live.ts': 1_300,
   'packages/app/src/model.ts': 2_000,
   'packages/app/src/wire/extensions.ts': 900,
-  'packages/app/test/model.test.ts': 1_100,
+  // Both lost their SMART QUEUE corner to `packages/app/test/queue-view.test.ts`:
+  // what the queue shows and how the side draws it are one subject, and they
+  // were being tested as two halves that could disagree.
+  'packages/app/test/model.test.ts': 1_000,
   'packages/app/test/panels.test.ts': 1_400,
-  'packages/app/test/view.test.ts': 1_400,
+  'packages/app/test/view.test.ts': 1_150,
   // `settingsOf` is one long table. Split by category into
   // `settings/{agents,window,voice,queue,checks,telemetry,keys}.ts`, each
   // exporting one `SettingGroup` and `settingsOf` composing them — mechanical,

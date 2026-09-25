@@ -7,6 +7,7 @@ import {
   resolveLayout,
   worthKeeping,
 } from '../src/layout.ts'
+import { QUEUE_SCOPES } from '../src/queue-view.ts'
 
 // A preference is a wish, not an instruction. Everything here is about what
 // happens when the wish does not fit the terminal in front of you.
@@ -115,6 +116,42 @@ describe('asRemembered', () => {
       focused: 'app/search',
       spots: { app: { focused: 'app/search' }, infra: { focused: null }, worse: { focused: null } },
     })
+  })
+
+  it('reads back what each project was showing in its queue, and no scope nobody offers', () => {
+    expect(
+      asRemembered({
+        focused: null,
+        queueViews: {
+          app: { scope: 'next', timed: false },
+          infra: { scope: 'all', timed: true },
+          // None of these is a view, and none is a reason to open the window
+          // on no preferences at all. A scope nothing offers matters most: read
+          // back as one, it would leave a project showing something no control
+          // could put right.
+          made_up: { scope: 'timed', timed: true },
+          missing: { scope: 'next' },
+          bad: 'next',
+        },
+      }),
+    ).toEqual({
+      focused: null,
+      queueViews: {
+        app: { scope: 'next', timed: false },
+        infra: { scope: 'all', timed: true },
+      },
+    })
+  })
+
+  it('reads back every scope the queue offers, so a new one cannot be dropped here', () => {
+    // The one place a word of the queue's is spelt twice. This is what holds
+    // the two lists together: add a scope to `QUEUE_SCOPES` and forget this
+    // file, and a project set to it comes back as no preference at all.
+    for (const scope of QUEUE_SCOPES) {
+      expect(
+        asRemembered({ focused: null, queueViews: { app: { scope, timed: true } } })?.queueViews,
+      ).toEqual({ app: { scope, timed: true } })
+    }
   })
 
   it('keeps the agent out of a spot and never the tab, which cannot outlive the window', () => {

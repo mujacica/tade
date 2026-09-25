@@ -427,6 +427,22 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   reason — the shorter way of saying it where a narrow side has no room for the sentence. Opening
   or folding it is a person's, remembered across a close as the rest of the view is, and only what
   differs from what the section does on its own is written down.
+  **What it shows is two questions, and so two controls** (`QueueView`, `shownBy`). `all` and `next`
+  are *positions* in that tree and are a scope, one of the pair always on; waiting for a clock is a
+  *kind* of queued work, and is a switch beside them (`timed`). Drawn as a third exclusive choice it
+  took the slot the ordinary case wanted, so "everything that is not on a clock" — much the
+  commonest thing to want — had no button at all, and a fourth would have been a second spelling of
+  `all` in every project with no schedules in it. Split, the missing view is `timed` off at either
+  scope, and `next` with it on is the other thing three buttons could not say: the front of the tree
+  *and* the clock about to fire, which is a true answer to what happens next. So the switch is the
+  **only** thing that hides a clock — a schedule shows under `next` too, standing behind nothing and
+  starting by itself — because two controls answering one question is how the first one came to have
+  no answer for the other. It is one project's and outlives the window, like where you were standing
+  and what you folded, and only a view that was narrowed is written down. A control that is hiding
+  something is always drawn, however little else is in the section: a switch you cannot reach is
+  work hidden with no way back to it. And what a control emptied, that control is the reason for —
+  `queueEmptySays` names it, because it is the one thing that can be done about it, where
+  `release-notes waits for a time` reads as stuck and is one press from being in the list.
   Why it waits is drawn as that same tree (`drawWhy`), never as a list of edges sorted by name: the
   reasons hang off the waits they explain, wrapped rather than cut, and the lines that join them are
   the queue's own (`treeStems`), because two drawings of one relationship drift apart.

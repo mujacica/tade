@@ -8,6 +8,7 @@ import {
   withProjects,
   withTasks,
 } from '../../../src/model.ts'
+import { type QueueView, WHOLE_QUEUE } from '../../../src/queue-view.ts'
 import { COLOUR } from '../../../src/skin.ts'
 
 // The world every screen is drawn against: one project, three agents, a
@@ -79,6 +80,15 @@ export const finished = (): AppState =>
     ]),
     'checkout/stripe-v15',
   )
+
+/**
+ * A project's SMART QUEUE showing what its controls were left showing: the
+ * scope, the `timed` switch, or both. Spread into a scenario's state, since the
+ * choice is that project's.
+ */
+export const showing = (project: string, view: Partial<QueueView>): Partial<AppState> => ({
+  queueViews: { [project]: { ...WHOLE_QUEUE, ...view } },
+})
 
 /** Times said in UTC, so the screens do not change with the machine's time zone. */
 export const utcClock = (at: number) => new Date(at).toISOString().slice(11, 16)

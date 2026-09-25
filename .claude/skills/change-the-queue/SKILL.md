@@ -21,7 +21,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/workbench/src/tasks.ts` | `by`, `done` and `start` in a task file; `beginFrom` for stacked worktrees |
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal |
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
-| `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told |
+| `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told, why an empty list is empty (`queueEmptySays`) |
+| `packages/app/src/queue-view.ts` | what the SMART QUEUE shows: the scope, the `timed` switch, `shownBy` |
 | `packages/app/src/view/queue.ts`, `view/plan.ts`, `view/schedule.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
 | `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_queue`, `tade_queue_change`, `tade_schedule` |
 | `packages/extensions/core/src/port.ts`, `host.ts` | `ExtensionWatch`, and the host that looks with one |
@@ -46,7 +47,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 - **The queue is shown as the tree it resolves to.** `queueTree` (`app/src/model.ts`) orders queued
   work by the path it is on — what comes next first, and under each piece whatever waits on it —
   from the states the rules derived, never from the plan alone; `queueRows` is that list as the
-  filter has it, `next` being the front of the tree. The side shifts each piece right of what it
+  view has it (`queue-view.ts`) — a scope, `all` or `next`, and a `timed` switch for what waits on a
+  clock, which are two questions and never one control. The side shifts each piece right of what it
   waits on (`queueStems`), and a card draws the whole chain with `chainOf` + `drawPlan`, the same
   drawing the plan view uses. **Clicking queued work opens its card, never starts it**: starting is
   `queue-start` through `queueTools().change`, so the journal says who started it and why.

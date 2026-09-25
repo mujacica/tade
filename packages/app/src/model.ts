@@ -11,6 +11,7 @@ import type { Turn } from '@tade/voice-core'
 import type { ScrollArea, Target } from './hits.ts'
 import { type Spot, standingIn, whereYouWere } from './layout.ts'
 import type { Panel } from './panels.ts'
+import { onAClock, type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
 import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
 import { emptyTranscript, fromTurn, type Transcript, tadeDid } from './transcript.ts'
@@ -115,11 +116,6 @@ export interface ScheduleView {
   }
 }
 
-/** Which queued work the SMART QUEUE shows: all of it, the front of the tree, or what waits for a time. */
-export type QueueFilter = 'all' | 'next' | 'timed'
-
-export const QUEUE_FILTERS: readonly QueueFilter[] = ['all', 'next', 'timed']
-
 export interface AppState {
   panes: AgentPane[]
   /**
@@ -187,8 +183,13 @@ export interface AppState {
    * hiding one is a view, never a decision about it.
    */
   hidingDone: boolean
-  /** Which queued work the SMART QUEUE shows. */
-  queueFilter: QueueFilter
+  /**
+   * What the SMART QUEUE shows, by project. A project is a place you come back
+   * to, so it comes back showing what you left it showing — the same courtesy
+   * the pane you were on and the sections you folded already get. Keyed by
+   * project name, with `''` for a window that has no project at all.
+   */
+  queueViews: Record<string, QueueView>
   /** The plan is drawn where an agent's screen would be, while no agent is in front. */
   showingPlan: boolean
   /** The schedule open where an agent's screen would be, while no agent is in front. */
@@ -326,7 +327,7 @@ export function initialState(): AppState {
     folded: [...FOLDED_AT_START],
     opened: [],
     hidingDone: false,
-    queueFilter: 'all',
+    queueViews: {},
     showingPlan: false,
     schedule: null,
     expanded: [],
@@ -547,29 +548,6 @@ const QUEUE_RANK: Readonly<Record<QueueState['kind'], number>> = {
 }
 
 /**
- * Whether queued work is what a filter shows.
- *
- * `next` is the front of the resolved tree: the work that starts as soon as
- * what it waits on finishes. Nothing queued stands before it — so work behind
- * one running agent is next, and the second piece of a chain is not — and it
- * is work that will start by itself when that happens, which held and paused
- * work will not: each of those needs somebody, and is said in its own words
- * where the list comes out empty rather than counted as next. Not everything
- * queued, and not only what could start this second.
- */
-export function shownBy(
-  filter: QueueFilter,
-  row: { queued: QueuedView; parent: string | null },
-): boolean {
-  if (filter === 'all') return true
-  const timed = row.queued.at !== null || row.queued.state.kind === 'scheduled'
-  if (filter === 'timed') return timed
-  if (timed || row.parent !== null) return false
-  const kind = row.queued.state.kind
-  return kind === 'ready' || kind === 'waiting'
-}
-
-/**
  * Queued work where the resolved path puts it: what it still waits on, how far
  * down the path it sits, and which queued work it hangs from.
  */
@@ -688,66 +666,42 @@ export function queueTree(state: AppState): QueueRow[] {
  * that leaves out the thing in front of you is a list you cannot trust.
  */
 export function queueRows(state: AppState): QueueRow[] {
+  const view = queueViewOf(state)
   return queueTree(state).filter(
-    (row) =>
-      row.pane.focused ||
-      shownBy(state.queueFilter, { queued: row.pane.queued, parent: row.parent }),
+    (row) => row.pane.focused || shownBy(view, { queued: row.pane.queued, parent: row.parent }),
   )
 }
 
-/** Why queued work at the front of the queue is not starting, in a word. */
-type QueueHold = 'held' | 'paused' | 'timed' | 'stuck'
-
-/** What each of those is, said the way it would be said out loud. */
-const HOLD_SAYS: Readonly<Record<QueueHold, string>> = {
-  held: 'is held',
-  paused: 'is paused',
-  timed: 'waits for a time',
-  stuck: 'cannot start itself',
+/**
+ * Whether anything in the project in front of you waits for a clock rather
+ * than for us — queued work with a time on it, or a schedule. What the `timed`
+ * switch is about, and so whether there is any point drawing it.
+ */
+export function clocksHere(state: AppState, schedules: readonly { project: string }[]): boolean {
+  const mine = (project: string) => project === (state.project ?? project)
+  return (
+    schedules.some((one) => mine(one.project)) ||
+    queueTree(state).some((row) => onAClock(row.pane.queued))
+  )
 }
 
-/** The same, as one word in a list of them. */
-const HOLD_WORDS: Readonly<Record<QueueHold, string>> = {
-  held: 'held',
-  paused: 'paused',
-  timed: 'waiting for a time',
-  stuck: 'unable to start itself',
-}
-
-/** Why a piece of queued work is not the front of anything that will start. */
-function holdOf(row: QueueRow): QueueHold {
-  if (row.pane.queued.at !== null || row.pane.queued.state.kind === 'scheduled') return 'timed'
-  const kind = row.pane.queued.state.kind
-  return kind === 'held' || kind === 'paused' ? kind : 'stuck'
+/** What the SMART QUEUE shows in the project in front of you. */
+export function queueViewOf(state: AppState): QueueView {
+  return state.queueViews[state.project ?? ''] ?? WHOLE_QUEUE
 }
 
 /**
- * Why the SMART QUEUE is showing nothing, in the words of the reason it
- * actually is — everything held, everything paused, everything waiting for a
- * time, or nothing queued at all. One sentence for every case reads as a bug
- * the moment one of the cases is not true: "nothing is next" beside work that
- * plainly is queued is what sent somebody looking for this code.
+ * The same, changed: half of it at a time, since the scope and the switch are
+ * two controls. The choice is that project's and outlives the window.
  */
-export function queueEmptySays(state: AppState): string {
-  if (state.queueFilter === 'timed') return 'nothing waits for a time'
-  const rows = queueTree(state)
-  if (rows.length === 0 || state.queueFilter === 'all') return 'nothing is queued'
-  // Nothing shown under `next` means the front of the tree is what is stopping
-  // it: what waits behind held or paused work is not next, it is behind that.
-  const fronts = rows.filter((row) => row.parent === null)
-  const kinds = [...new Set(fronts.map(holdOf))]
-  // One reason is said as that reason, and by name where there is one thing
-  // it is about. No front at all is a plan that waits on itself: there is
-  // nothing to name, but there is still an answer to give.
-  if (kinds.length <= 1) {
-    const who = fronts.length === 1 ? (fronts[0]?.pane.name ?? '') : 'the work at the front'
-    return `nothing is next: ${who} ${HOLD_SAYS[kinds[0] ?? 'stuck']}`
+export function showQueue(state: AppState, change: Partial<QueueView>): AppState {
+  return {
+    ...state,
+    queueViews: {
+      ...state.queueViews,
+      [state.project ?? '']: { ...queueViewOf(state), ...change },
+    },
   }
-  const words = (['held', 'paused', 'timed', 'stuck'] as const)
-    .filter((kind) => kinds.includes(kind))
-    .map((kind) => HOLD_WORDS[kind])
-  const list = `${words.slice(0, -1).join(', ')} or ${words.at(-1) ?? ''}`
-  return `nothing is next: what is at the front is ${list}`
 }
 
 /**
@@ -882,15 +836,19 @@ export function openSchedule(state: AppState, id: string): AppState {
 
 /**
  * The schedules the SMART QUEUE shows for the project in front of you, as the
- * filter has it: soonest first, then paused ones, then ones with nothing left
- * to run. None under `next`, which is the front of the queued work — a
- * schedule is not queued work, and is waiting for a clock rather than for us.
+ * view has it: soonest first, then paused ones, then ones with nothing left to
+ * run. A schedule is the clearest thing there is waiting for a clock, so the
+ * switch is the whole of what decides whether it is drawn — and at `next` as
+ * much as at `all`, because a schedule stands behind nothing and starts by
+ * itself, which is what `next` asks. It was the scope that hid a schedule
+ * before, and having two controls answer the one question is what left the
+ * ordinary case with no control at all.
  */
 export function schedulesShown(
   schedules: readonly ScheduleView[],
   state: AppState,
 ): ScheduleView[] {
-  if (state.queueFilter === 'next') return []
+  if (!queueViewOf(state).timed) return []
   const rank = (one: ScheduleView) => (one.next.length === 0 ? 2 : one.paused ? 1 : 0)
   return schedules
     .filter((one) => one.project === (state.project ?? one.project))

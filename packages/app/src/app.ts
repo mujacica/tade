@@ -517,7 +517,7 @@ export class App {
   }
 
   private async begin(): Promise<void> {
-    const { sidebarWidth, stripHeight, order, spots, hidingDone, folded, opened } =
+    const { sidebarWidth, stripHeight, order, spots, hidingDone, folded, opened, queueViews } =
       this.window.recall() ?? {}
     this.state = {
       ...this.state,
@@ -528,11 +528,11 @@ export class App {
       // may have gone since; `standingIn` is what checks that, at the tab.
       spots: spots ?? {},
       // Here rather than on the first tasks: the view you left is what the
-      // first frame draws, so a list you hid the finished agents in never
-      // flashes them and then takes them away again.
+      // first frame draws, never a flash of what you had put away.
       hidingDone: hidingDone ?? this.state.hidingDone,
       folded: folded ?? this.state.folded,
       opened: opened ?? this.state.opened,
+      queueViews: queueViews ?? this.state.queueViews,
     }
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.machine.loadAccounts()

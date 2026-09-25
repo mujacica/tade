@@ -138,6 +138,53 @@ describe('the window, remembering itself', () => {
     expect(terminal.written).not.toContain('▾ CHANGES')
   }, 30_000)
 
+  it('comes back to the queue this project was showing, and writes down nothing else', async () => {
+    terminal.columns = 160
+    terminal.rows = 40
+    const first = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // A chain of three: the front of it starts, and the two behind it stay
+    // queued — so the controls have something to filter for the whole test.
+    await first.queueTools().plan({
+      project: 'app',
+      said: 'one after another',
+      agents: [
+        { name: 'first-one', said: 'one now', prompt: '', after: [], touches: [] },
+        ...['second-one', 'third-one'].map((name, i) => ({
+          name,
+          said: `after the ${i === 0 ? 'first' : 'second'}`,
+          prompt: '',
+          after: [{ agent: i === 0 ? 'first-one' : 'second-one', why: 'one file, in order' }],
+          touches: [],
+        })),
+      ],
+    })
+    // Nothing here is on a clock, so the switch is not drawn at all and the
+    // scope is the whole of the row.
+    const rowOf = (label: string) => headingRow(label).row + 1
+    await until('the queue on screen', () =>
+      (screenOf(terminal.written)[rowOf('SMART QUEUE')] ?? '').includes('<all> [next]'),
+    )
+    const row = rowOf('SMART QUEUE')
+    click((screenOf(terminal.written)[row] ?? '').indexOf('next'), row)
+    await until('next showing', () =>
+      (screenOf(terminal.written)[rowOf('SMART QUEUE')] ?? '').includes('<next>'),
+    )
+    await first.stop()
+    // One project's choice, written under that project's name — and only
+    // because it was narrowed: a project showing the whole of its queue never
+    // said anything, and a default written down is a default frozen.
+    const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
+    expect(kept.queueViews).toEqual({ app: { scope: 'next', timed: true } })
+
+    // Opened again: it is showing what it was showing, and the switch it left
+    // alone is still not drawn.
+    await start()
+    await until('the window again', () => sidebar().includes('refunds'))
+    await until('next still showing', () => sidebar().includes('<next>'))
+    expect(sidebar()).not.toContain('timed')
+  }, 60_000)
+
   it('keeps the SMART QUEUE open once you open it, with nothing in it to open it for', async () => {
     terminal.columns = 160
     terminal.rows = 40

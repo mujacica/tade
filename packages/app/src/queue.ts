@@ -12,13 +12,109 @@ import {
   scheduleEnded,
   type Watched,
 } from '@tade/core'
-import type { ScheduleView } from './model.ts'
+import { type AppState, type QueueRow, queueTree, queueViewOf, type ScheduleView } from './model.ts'
+import { shownBy } from './queue-view.ts'
 
 // What the queue says, in words: to the journal when it starts something, to
-// the orchestrator when something is held or it asks, and to you in the
-// transcript. The rules themselves are core's; this is how they are told.
+// the orchestrator when something is held or it asks, to you in the transcript,
+// and — where its own controls have left the list empty — in the side. The
+// rules themselves are core's; this is how they are told.
 //
 // Pure: queued work and facts in, sentences out.
+
+/**
+ * Why queued work at the front of the queue is not starting, in a word.
+ *
+ * Waiting for a time is not one of them any more, and that is the switch's
+ * whole point: work on a clock at the front of the tree *is* next, and what
+ * keeps it out of the list is a control one press away — so it is said as
+ * that, below, rather than filed here beside the two that need a person.
+ */
+type QueueHold = 'held' | 'paused' | 'stuck'
+
+/** What each of those is, said the way it would be said out loud. */
+const HOLD_SAYS: Readonly<Record<QueueHold, string>> = {
+  held: 'is held',
+  paused: 'is paused',
+  stuck: 'cannot start itself',
+}
+
+/** The same, as one word in a list of them. */
+const HOLD_WORDS: Readonly<Record<QueueHold, string>> = {
+  held: 'held',
+  paused: 'paused',
+  stuck: 'unable to start itself',
+}
+
+/** Why a piece of queued work is not the front of anything that will start. */
+function holdOf(row: QueueRow): QueueHold {
+  const kind = row.pane.queued.state.kind
+  return kind === 'held' || kind === 'paused' ? kind : 'stuck'
+}
+
+/**
+ * Why the SMART QUEUE is showing nothing, in the words of the reason it
+ * actually is — the switch is off and what is here is on a clock, everything
+ * at the front is held, everything is paused, or nothing is queued at all. One
+ * sentence for every case reads as a bug the moment one of the cases is not
+ * true: "nothing is next" beside work that plainly is queued is what sent
+ * somebody looking for this code.
+ *
+ * The schedules come in because the switch hides those too, and a project
+ * whose only clocks are schedules would otherwise be told "nothing is queued"
+ * about a list its own control had emptied.
+ *
+ * Where a control is what emptied the list, that control is the reason given:
+ * it is the one thing that can be done about it, and `release-notes waits for
+ * a time` reads as stuck when it is one press from being in the list.
+ */
+export function queueEmptySays(
+  state: AppState,
+  schedules: readonly { project: string }[] = [],
+): string {
+  const view = queueViewOf(state)
+  const rows = queueTree(state)
+  const clocks = schedules.filter((one) => one.project === (state.project ?? one.project)).length
+  if (rows.length === 0 && clocks === 0) return 'nothing is queued'
+  const lead = view.scope === 'next' ? 'nothing is next: ' : ''
+  if (!view.timed) {
+    const of = (row: QueueRow) => ({ queued: row.pane.queued, parent: row.parent })
+    const hidden = rows.filter(
+      (row) => !shownBy(view, of(row)) && shownBy({ ...view, timed: true }, of(row)),
+    )
+    const all = hidden.length + clocks
+    if (all > 0) {
+      const only = clocks === 0 && hidden.length === 1 ? hidden[0]?.pane.name : null
+      const what = only
+        ? `${only} waits for a time`
+        : all === 1
+          ? 'what is here waits for a time'
+          : `${all} here wait for a time`
+      return `${lead}timed is off, and ${what}`
+    }
+  }
+  if (view.scope === 'all') return 'nothing is queued'
+  // Nothing shown under `next` means the front of the tree is what is stopping
+  // it: what waits behind held or paused work is not next, it is behind that.
+  // Only the fronts the view is not showing, since a front that is shown is a
+  // list with something in it.
+  const fronts = rows.filter(
+    (row) => row.parent === null && !shownBy(view, { queued: row.pane.queued, parent: row.parent }),
+  )
+  const kinds = [...new Set(fronts.map(holdOf))]
+  // One reason is said as that reason, and by name where there is one thing
+  // it is about. No front at all is a plan that waits on itself: there is
+  // nothing to name, but there is still an answer to give.
+  if (kinds.length <= 1) {
+    const who = fronts.length === 1 ? (fronts[0]?.pane.name ?? '') : 'the work at the front'
+    return `nothing is next: ${who} ${HOLD_SAYS[kinds[0] ?? 'stuck']}`
+  }
+  const words = (['held', 'paused', 'stuck'] as const)
+    .filter((kind) => kinds.includes(kind))
+    .map((kind) => HOLD_WORDS[kind])
+  const list = `${words.slice(0, -1).join(', ')} or ${words.at(-1) ?? ''}`
+  return `nothing is next: what is at the front is ${list}`
+}
 
 /** A schedule as the SMART QUEUE shows it, from what was set and what the journal says it did. */
 export function scheduleView(

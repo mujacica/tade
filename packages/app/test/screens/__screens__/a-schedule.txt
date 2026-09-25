@@ -9,13 +9,16 @@
      working                 ▕│  │ Update dependencies within their major versions, run the tests, and commit what      
                              ▕│  │ changed.                                                                             
  ▾ SMART QUEUE  8      plan  ▕│                                                                                         
-   all   next   timed        ▕│  NEXT       Mon 14 Sep 09:00 · Mon 21 Sep 09:00 · Mon 28 Sep 09:00                      
+   all   next    timed       ▕│  NEXT       Mon 14 Sep 09:00 · Mon 21 Sep 09:00 · Mon 28 Sep 09:00                      
                              ▕│  IF MISSED  runs once when Tade opens                                                   
-   ◷ release-notes   18:00   ▕│  FROM       you · “every monday morning update our dependencies”                        
-     ❯ waits for its time    ▕│                                                                                         
+   ◌ docs-typos       next   ▕│  FROM       you · “every monday morning update our dependencies”                        
+     ◆ waiting for room      ▕│                                                                                         
                              ▕│  RUNS                                                                                   
-   ↻ morning brief   08:45   ▕│  Mon 7 Sep 09:00   deps-weekly-0907                                                     
-     ◆ every weekday at 0…   ▕│  Mon 31 Aug 09:00  deps-weekly-0831  2 missed before it                                 
+   ◷ release-notes   18:00   ▕│  Mon 7 Sep 09:00   deps-weekly-0907                                                     
+     ❯ waits for its time    ▕│  Mon 31 Aug 09:00  deps-weekly-0831  2 missed before it                                 
+                             ▕│                                                                                         
+   ↻ morning brief   08:45   ▕│                                                                                         
+     ◆ every weekday at 0…   ▕│                                                                                         
                              ▕│                                                                                         
  ▌ ↻ deps weekly     09:00   ▕│                                                                                         
  ▌   ❯ every Monday at 09…   ▕│                                                                                         
@@ -27,9 +30,6 @@
  ▸ FILES                     ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
  ▸ GIT                       ▕│                                                                                         
-                             ▕│                                                                                         
-                             ▕│                                                                                         
-                             ▕│                                                                                         
                              ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         

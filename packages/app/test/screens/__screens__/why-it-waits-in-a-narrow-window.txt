@@ -6,7 +6,7 @@
      working             █│  ◌ Waits on refund-flow.                            
                          █│                                                     
  ▾ SMART QUEUE  5        █│  THE CHAIN IT IS IN                                 
-   all   next   timed    █│  FIRST               THEN                THEN       
+   all   next            █│  FIRST               THEN                THEN       
                          █│  ╭──────────────╮    ╭──────────────╮    ╭──────────
    ◌ ledger-a… 1 ahead   █│  │ ⠋ ledger-sc… │───▶│ ◌ ledger-api │───▶│ ◌ refund-
      ◆ after ledger-sc…  ▕│  │   working    │    │   ◆ after l… │    │   ◆ after

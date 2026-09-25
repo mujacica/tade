@@ -1,28 +1,25 @@
    T A D E      checkout ! ✕ ⠋ ◌3 ‖      +             ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    ▕│ checkout › plan  4 tasks · 1 working · 2 waiting to start                               
+ ▾ AGENTS  2            +    ▕│ checkout › fix-charge    agent    actions     +      claude-opus-5 ▾     high ▾     ×   
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
-   ✕ fix-charge              ▕│                                                                                         
-     tests failed twice      ▕│  FIRST                         THEN                          THEN                       
-                             ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ╭──────────────────────╮   
-   ⠋ bump-mailer             ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶│ ◌ refund-emails      │   
-     working                 ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    │   ◆ after add-refun… │   
-                             ▕│  ╰──────────────────────╯      ╰──────────────────────╯ │    ╰──────────────────────╯   
- ▾ SMART QUEUE  5      plan  ▕│                                                         │                               
-   all   next    timed       ▕│  ╭──────────────────────╮                               │                               
-                             ▕│  │ ⠋ bump-mailer        │───────────────────────────────╯                               
-   ! add-refunds      held   ▕│  │   working            │                                                               
-   │ ◆ fix-charge failed:…   ▕│  ╰──────────────────────╯                                                               
+ ▌ ✕ fix-charge              ▕│                                                                                         
+ ▌   tests failed twice      ▕│  Its last run failed.                                                                   
+                             ▕│                                                                                         
+   ⠋ bump-mailer             ▕│    Open its agent   where it stopped                                                    
+     working                 ▕│                                                                                         
+                             ▕│                                                                                         
+ ▾ SMART QUEUE  8      plan  ▕│                                                                                         
+   all   next    timed       ▕│                                                                                         
+                             ▕│                                                                                         
+   ! add-refunds      held   ▕│                                                                                         
+   │ ◆ fix-charge failed:…   ▕│                                                                                         
    │                         ▕│                                                                                         
    ╰─◌ refund-emails         ▕│                                                                                         
-       ◆ after add-refund…   ▕│  WHY THIS ORDER                                                                         
-                             ▕│  ✕ fix-charge                                                                           
-   ◌ docs-typos       next   ▕│  ╰─! add-refunds  after fix-charge                                                      
-     ◆ waiting for room      ▕│    │ both change src/charge.ts                                                          
-                             ▕│    ╰─◌ refund-emails  after add-refunds                                                 
-   ◷ release-notes   18:00   ▕│        it emails what refund() returns                                                  
-     ❯ waits for its time    ▕│        also after bump-mailer                                                           
-                             ▕│        the mailer’s send() changes in v4                                                
+       ◆ after add-refund…   ▕│                                                                                         
+                             ▕│                                                                                         
+   ◌ docs-typos       next   ▕│                                                                                         
+     ◆ waiting for room      ▕│                                                                                         
+                             ▕│                                                                                         
    ‖ perf-check     paused   ▕│                                                                                         
      ❯ paused                ▕│                                                                                         
                              ▕│                                                                                         
@@ -30,6 +27,9 @@
  ▸ FILES                     ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
  ▸ GIT                       ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
                              ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         

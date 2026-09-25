@@ -10,6 +10,8 @@
 //
 // Pure: preferences and a terminal size in, concrete rows and columns out.
 
+import type { QueueScope, QueueView } from './queue-view.ts'
+
 export interface LayoutPrefs {
   /** Columns for the projects list. */
   sidebarWidth?: number
@@ -226,6 +228,11 @@ export interface RememberedWindow {
   opened?: string[]
   /** By project, the agents in the order they were dragged into. */
   order?: Record<string, string[]>
+  /**
+   * By project, what the SMART QUEUE was showing — only where that is not the
+   * whole of it, exactly as a dragged size is only written when it was dragged.
+   */
+  queueViews?: Record<string, QueueView>
   /** By project, where you were standing in it — the pane, never the tab (`worthKeeping`). */
   spots?: Record<string, Spot>
 }
@@ -268,6 +275,26 @@ export function asRemembered(value: unknown): RememberedWindow | null {
       spots[project] = { focused: typeof spot.focused === 'string' ? spot.focused : null }
     }
   }
+  // The one place a *word* of the queue's is checked here rather than its
+  // shape: a scope nobody offers is not a view, and reading it back as one
+  // would leave a project showing something no control could undo. The words
+  // are `QUEUE_SCOPES`', and `layout.test.ts` holds this list to that one, so
+  // a scope added there and not here fails at the commit.
+  const queueViews: Record<string, QueueView> = {}
+  if (
+    typeof raw.queueViews === 'object' &&
+    raw.queueViews !== null &&
+    !Array.isArray(raw.queueViews)
+  ) {
+    for (const [project, value] of Object.entries(raw.queueViews)) {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) continue
+      const view = value as { scope?: unknown; timed?: unknown }
+      const scope: QueueScope | null =
+        view.scope === 'all' ? 'all' : view.scope === 'next' ? 'next' : null
+      if (scope === null || typeof view.timed !== 'boolean') continue
+      queueViews[project] = { scope, timed: view.timed }
+    }
+  }
   return {
     focused: typeof raw.focused === 'string' ? raw.focused : null,
     ...size('sidebarWidth'),
@@ -277,6 +304,7 @@ export function asRemembered(value: unknown): RememberedWindow | null {
     ...(opened ? { opened } : {}),
     ...(Object.keys(order).length > 0 ? { order } : {}),
     ...(Object.keys(spots).length > 0 ? { spots } : {}),
+    ...(Object.keys(queueViews).length > 0 ? { queueViews } : {}),
   }
 }
 

@@ -13,8 +13,16 @@ import {
   readyToStart,
   startFrom,
 } from '@tade/core'
-import { notice, QUEUE_FILTERS, type ScheduleView, showPlan, withTranscript } from '../model.ts'
+import {
+  notice,
+  queueViewOf,
+  type ScheduleView,
+  showPlan,
+  showQueue,
+  withTranscript,
+} from '../model.ts'
 import { describeQueue, describeSchedule, heldMessage, planAnswer, whyStarting } from '../queue.ts'
+import { QUEUE_SCOPES } from '../queue-view.ts'
 import { tadeDid } from '../transcript.ts'
 import { type Actions, clockOf, type Subject, type Wiring, whenShort, why } from './context.ts'
 // Type-only, so it is erased and no module edge exists between the two
@@ -99,9 +107,16 @@ export class Queue implements Subject {
         this.wire.put(showPlan(this.wire.state))
         this.wire.draw()
       },
-      'queue-filter:': (name) => {
-        const filter = QUEUE_FILTERS.find((one) => one === name)
-        if (filter) this.wire.put({ ...this.wire.state, queueFilter: filter })
+      // Two controls, because the queue is showing the answers to two
+      // questions: how much of the tree, and whether what is on a clock is in
+      // it. Each is remembered for the project it was pressed in.
+      'queue-scope:': (name) => {
+        const scope = QUEUE_SCOPES.find((one) => one === name)
+        if (scope) this.wire.put(showQueue(this.wire.state, { scope }))
+        this.wire.draw()
+      },
+      'queue-timed': () => {
+        this.wire.put(showQueue(this.wire.state, { timed: !queueViewOf(this.wire.state).timed }))
         this.wire.draw()
       },
     }

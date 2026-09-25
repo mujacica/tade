@@ -6,7 +6,7 @@
  ▌   working             █│                                                                     
                          █│                                                                     
  ▾ SMART QUEUE  5        █│                                                                     
-   all   next   timed    █│                                                                     
+   all   next            █│                                                                     
                          █│                                                                     
    ◌ keycaps-… 1 ahead   █│                                                                     
    │ ◆ after layout-js…  ▕│                                                                     

@@ -6,7 +6,7 @@
      working                       ▕│  ◌ Waits on api.                                                                                                
                                    ▕│                                                                                                                 
  ▾ SMART QUEUE  4            plan  ▕│  THE CHAIN IT IS IN                                                                                             
-   all   next   timed              ▕│  FIRST                    THEN                     THIS ONE                 AFTER IT                            
+   all   next                      ▕│  FIRST                    THEN                     THIS ONE                 AFTER IT                            
                                    ▕│  ╭──────────────────╮     ╭──────────────────╮     ┏━━━━━━━━━━━━━━━━━━┓     ╭──────────────────╮                
    ◌ tidy-mailer            next   ▕│  │ ⠋ schema         │────▶│ ◌ api            │────▶┃ ◌ client         ┃────▶│ ◌ docs           │                
      ❯ waiting for room            ▕│  │   working        │     │   ◆ after schema │     ┃   ◆ after api    ┃     │   ◆ after client │                

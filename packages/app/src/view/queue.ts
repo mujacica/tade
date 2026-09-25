@@ -6,20 +6,21 @@ import {
   type AgentPane,
   type AppState,
   chainOf,
+  clocksHere,
   glyph,
   MARK_TONES,
   markOf,
   planOf,
-  QUEUE_FILTERS,
   type QueuedView,
-  type QueueFilter,
   type QueueRow,
-  queueEmptySays,
   queueRows,
+  queueViewOf,
   schedulesShown,
   shownName,
 } from '../model.ts'
 import { drawPlan, drawWhy, layoutPlan, type PlanBox, treeStems } from '../plan-graph.ts'
+import { queueEmptySays } from '../queue.ts'
+import { narrowing, QUEUE_SCOPES, type QueueView } from '../queue-view.ts'
 import type { Band, Skin } from '../skin.ts'
 import { blank, type Drawn, fit, type Pointer, Row, slid, stack } from '../ui.ts'
 import { planPicture, planTone } from './plan.ts'
@@ -219,18 +220,23 @@ export function queueSection(
       : {}),
     // Folded with nothing in it, the heading is the only place left to say
     // why there is nothing, so that is what it says.
-    ...(quiet && !open ? { note: queueEmptySays(state), brief: 'none' } : {}),
+    ...(quiet && !open ? { note: queueEmptySays(state, frame.schedules), brief: 'none' } : {}),
     rows: (row) => {
+      const view = queueViewOf(state)
       const entries = queueRows(state)
-      const schedules = schedulesShown(frame.schedules ?? [], state)
-      const filters = all > 1 ? [queueFilters(row(), state.queueFilter)] : []
+      const here = frame.schedules ?? []
+      const schedules = schedulesShown(here, state)
+      // Where there is a choice, and always where the view is leaving something
+      // out: one nothing can widen again is work hidden with no way back to it.
+      const controls =
+        all > 1 || narrowing(view) ? [queueControls(row(), view, clocksHere(state, here))] : []
       if (entries.length === 0 && schedules.length === 0) {
         // Why there is nothing, in the words of the reason there is nothing:
         // wrapped rather than cut, because the reason is the whole of what
         // this row is for.
-        const none = wrapWords(queueEmptySays(state), Math.max(10, width - 6)).slice(0, 4)
+        const none = wrapWords(queueEmptySays(state, here), Math.max(10, width - 6)).slice(0, 4)
         return [
-          ...filters,
+          ...controls,
           blank(width),
           ...none.map((text) => row().space(3).text(text, skin.hint).build()),
           blank(width),
@@ -239,7 +245,7 @@ export function queueSection(
       // Where the tree puts each piece, so the side reads like the plan does.
       const stems = queueStems(entries)
       return [
-        ...filters,
+        ...controls,
         ...tabList(
           [
             ...entries.map((one, i) =>
@@ -257,26 +263,36 @@ export function queueSection(
 }
 
 /**
- * The filters over the SMART QUEUE: the set of small controls every other
- * heading has, and the one showing is filled in the brand's amber — what
- * being on looks like everywhere else in the window, taken from the skin so
- * it moves when the palette does. They light under the pointer as chips do,
- * because a control that never answers the pointer reads as a label.
+ * The controls over the SMART QUEUE: the set of small controls every other
+ * heading has, whatever is on filled in the brand's amber — what being on looks
+ * like everywhere else in the window, taken from the skin so it moves when the
+ * palette does — and each lighting under the pointer, since a control that never
+ * answers the pointer reads as a label.
+ *
+ * Two sets, because the queue answers two questions (`QueueView`): the scope,
+ * one of its pair always on, then a gap wider than the one inside that pair,
+ * then the `timed` switch. Both look the same on — amber, as `H` beside AGENTS
+ * does, which is a switch too — because the gap already says which is which, and
+ * a fourth look would be a fourth thing to learn about a row twenty columns
+ * wide. It is drawn where there is a clock to show or hide and wherever it is off:
+ * with none it does nothing, and off it is the only way back to what it hid.
  *
  * Nothing here pauses anything: pausing is something you do to one piece of
  * work, beside its name — in its tab, its menu, or on the card it opens — so
  * it is never in doubt which one you are pausing.
  */
-function queueFilters(row: Row, current: QueueFilter): { text: string; hits: Hit[] } {
+function queueControls(row: Row, view: QueueView, clocks: boolean): { text: string; hits: Hit[] } {
+  const chip = (label: string, name: string, on: boolean) =>
+    row.chip(label, { kind: 'action', name }, on ? 'primary' : 'rest')
   row.space(2)
-  QUEUE_FILTERS.forEach((filter, i) => {
+  QUEUE_SCOPES.forEach((scope, i) => {
     if (i > 0) row.space()
-    row.chip(
-      filter,
-      { kind: 'action', name: `queue-filter:${filter}` },
-      filter === current ? 'primary' : 'rest',
-    )
+    chip(scope, `queue-scope:${scope}`, scope === view.scope)
   })
+  if (clocks || !view.timed) {
+    row.space(2)
+    chip('timed', 'queue-timed', view.timed)
+  }
   return row.build()
 }
 

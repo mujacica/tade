@@ -6,7 +6,7 @@
      working                 ▕│  FIRST               THEN                THEN                THEN                THEN   
                              ▕│  ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────
  ▾ SMART QUEUE  5      plan  ▕│  │ ⠋ ledger-sc… │───▶│ ◌ ledger-api │───▶│ ◌ refund-fl… │─┬─▶│ ◌ admin-view │ ╭─▶│ ◌ rel
-   all   next   timed        ▕│  │   working    │    │   ◆ after l… │    │   ◆ after l… │ │  │   ◆ after r… │ │  │   ◆ a
+   all   next                ▕│  │   working    │    │   ◆ after l… │    │   ◆ after l… │ │  │   ◆ after r… │ │  │   ◆ a
                              ▕│  ╰──────────────╯    ╰──────────────╯    ╰──────────────╯ │  ╰──────────────╯ │  ╰──────
    ◌ ledger-api    1 ahead   ▕│                                                           │                   │         
    │ ◆ after ledger-schema   ▕│                                                           │  ╭──────────────╮ │         

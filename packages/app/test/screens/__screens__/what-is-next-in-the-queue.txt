@@ -6,7 +6,7 @@
  ▌   working                 █│                                                                                         
                              █│                                                                                         
  ▾ SMART QUEUE  4      plan  █│                                                                                         
-   all   next   timed        █│                                                                                         
+   all   next                █│                                                                                         
                              █│                                                                                         
    ◌ tidy-mailer      next   █│                                                                                         
      ❯ waiting for room      █│                                                                                         

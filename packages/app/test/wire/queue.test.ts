@@ -175,12 +175,15 @@ describe('the window, and the work waiting in it', () => {
         },
       ],
     })
-    // The filters, as the plain skin draws them: the one showing is a chip
-    // that is on, the others chips at rest.
+    // The scope, as the plain skin draws it: the one showing is a chip that is
+    // on, the other a chip at rest. Nothing here is on a clock, so the `timed`
+    // switch is not drawn at all — a control that could neither show nor hide
+    // anything reads as a label.
     await until('the queue on screen', () =>
-      screenOf(terminal.written).some((row) => row.includes('<all> [next] [timed]')),
+      screenOf(terminal.written).some((row) => row.includes('<all> [next]')),
     )
-    // Nothing over the queue pauses everything at once: the filters, and no more.
+    expect(screenOf(terminal.written).some((row) => row.includes('timed'))).toBe(false)
+    // Nothing over the queue pauses everything at once: the controls, and no more.
     expect(screenOf(terminal.written).some((row) => row.includes('‖ pause'))).toBe(false)
 
     // Looking at it is not starting it: its card says which one you are pausing.

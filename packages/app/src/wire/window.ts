@@ -17,6 +17,7 @@ import {
   shownName,
   toggleDone,
 } from '../model.ts'
+import { narrowing } from '../queue-view.ts'
 import { windowTitle } from '../title.ts'
 import { type Actions, clockOf, type Subject, tilde, type Wiring, whenShort } from './context.ts'
 
@@ -156,6 +157,12 @@ export class Window implements Subject {
       // the others. `worthKeeping` is what drops the half of a spot that
       // cannot survive the close.
       const spots = worthKeeping(whereYouWere(this.wire.state))
+      // Only a queue you narrowed: a project showing the whole of its queue is
+      // a project you never said anything about, and writing today's default
+      // down would freeze it the way writing `FOLDED_AT_START` down would.
+      const queueViews = Object.fromEntries(
+        Object.entries(this.wire.state.queueViews).filter(([, view]) => narrowing(view)),
+      )
       const kept: RememberedWindow = {
         focused: this.wire.state.focused,
         ...this.wire.state.sizes,
@@ -172,6 +179,7 @@ export class Window implements Subject {
         ...(this.wire.state.opened.length > 0 ? { opened: this.wire.state.opened } : {}),
         ...(Object.keys(this.wire.state.order).length > 0 ? { order: this.wire.state.order } : {}),
         ...(Object.keys(spots).length > 0 ? { spots } : {}),
+        ...(Object.keys(queueViews).length > 0 ? { queueViews } : {}),
       }
       writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
     } catch {

@@ -7,7 +7,7 @@ import {
   withProjects,
   withTasks,
 } from '../../../src/model.ts'
-import { base, frame, type Scenario, utcClock } from './fixtures.ts'
+import { base, frame, type Scenario, showing, utcClock } from './fixtures.ts'
 
 // Work that has not started: the SMART QUEUE, and the plans behind it.
 //
@@ -316,7 +316,7 @@ export const QUEUE_SCREENS: Scenario[] = [
   {
     name: 'a-smart-queue',
     about:
-      'Work planned together: two agents working, and under them the SMART QUEUE in the order the resolved tree gives — held because what it waited on failed, with what waits on it shifted right and joined to it by a line, then next, at a time, and paused — told apart by shape, with filters over it. The held one is open: it will not start by itself, it says what can be done, and the chain it is in is drawn with its own box the heavy one.',
+      'Work planned together: two agents working, and under them the SMART QUEUE in the order the resolved tree gives — held because what it waited on failed, with what waits on it shifted right and joined to it by a line, then next, at a time, and paused — told apart by shape, with its two controls over it: the scope, `all` or `next`, and the `timed` switch beside it in its own set. The held one is open: it will not start by itself, it says what can be done, and the chain it is in is drawn with its own box the heavy one.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), queueTasks),
@@ -330,20 +330,20 @@ export const QUEUE_SCREENS: Scenario[] = [
   {
     name: 'what-is-next-in-the-queue',
     about:
-      'The queue under NEXT: the front of the resolved tree — the one only waiting for room, and the one whose single wait is an agent working now, which says how much is ahead of it. The rest of the chain is behind those two and left out. The tab showing is filled in the brand’s amber and the pointer is on another, which lights.',
+      'The queue under NEXT: the front of the resolved tree — the one only waiting for room, and the one whose single wait is an agent working now, which says how much is ahead of it. The rest of the chain is behind those two and left out. Nothing here is on a clock, so the `timed` switch is not drawn at all: the scope is the only choice there is to make. The chip showing is filled in the brand’s amber and the pointer is on the other, which lights.',
     state: {
       ...withTasks(withProjects(initialState(), ['checkout']), chainTasks),
       project: 'checkout',
       folded: ['changes', 'files', 'notes', 'where'],
-      queueFilter: 'next',
-      hover: { kind: 'action', name: 'queue-filter:timed' },
+      ...showing('checkout', { scope: 'next' }),
+      hover: { kind: 'action', name: 'queue-scope:all' },
     },
     frame: frame({ screen: '', height: 30, clock: utcClock }),
   },
   {
     name: 'nothing-is-next',
     about:
-      'NEXT with nothing in it, and why in the words of the actual reason: the work at the front is held and needs a decision, so what waits behind it is behind that rather than next. Not one sentence for every case — nothing queued, everything paused and everything waiting for a clock each say their own.',
+      'NEXT with nothing in it, and why in the words of the actual reason: the work at the front is held and needs a decision, so what waits behind it is behind that rather than next. Not one sentence for every case — nothing queued, everything paused, and a list its own `timed` switch emptied each say their own.',
     state: {
       ...withTasks(
         withProjects(initialState(), ['checkout']),
@@ -356,9 +356,51 @@ export const QUEUE_SCREENS: Scenario[] = [
       ),
       project: 'checkout',
       folded: ['changes', 'files', 'notes', 'where'],
-      queueFilter: 'next',
+      ...showing('checkout', { scope: 'next' }),
     },
     frame: frame({ screen: '', height: 30, clock: utcClock }),
+  },
+  {
+    name: 'the-queue-without-the-clocks',
+    about:
+      'The queue with the timed switch off: the ordinary case, and the one three exclusive buttons had no room for — everything queued that is waiting for us, with the piece due at 18:00 and all three schedules left out. `all` is still the scope, because leaving the clocks out is not a scope; the switch beside it is grey, and the pointer is on it.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['checkout']), queueTasks),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      ...showing('checkout', { timed: false }),
+      hover: { kind: 'action', name: 'queue-timed' },
+    },
+    frame: frame({ screen: '', height: 44, clock: utcClock, schedules: queueSchedules }),
+  },
+  {
+    name: 'next-including-the-clocks',
+    about:
+      'NEXT with the timed switch on — the view three buttons could not say at all: the front of the resolved tree and the clocks that will fire, in one list. The piece due at 18:00 stands behind nothing and starts by itself, so it is next like the rest of the front, and the schedules are under it. Both chips are lit, and the gap between the pair and the switch is what says they answer different questions.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['checkout']), queueTasks),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      ...showing('checkout', { scope: 'next' }),
+    },
+    frame: frame({ screen: '', height: 44, clock: utcClock, schedules: queueSchedules }),
+  },
+  {
+    name: 'the-clocks-are-hidden',
+    about:
+      'A queue emptied by its own control, saying so: everything here waits for a time and the timed switch is off, which is a different answer from “nothing is queued” and is one press from being undone. The switch stays drawn however little else is here, because it is the only way back to what it is hiding.',
+    state: {
+      ...withTasks(
+        withProjects(initialState(), ['checkout']),
+        queueTasks.filter((task) =>
+          ['checkout/bump-mailer', 'checkout/release-notes'].includes(task.task),
+        ),
+      ),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      ...showing('checkout', { timed: false }),
+    },
+    frame: frame({ screen: '', height: 30, clock: utcClock, schedules: queueSchedules }),
   },
   {
     name: 'an-empty-smart-queue',
@@ -392,14 +434,14 @@ export const QUEUE_SCREENS: Scenario[] = [
   {
     name: 'waiting-in-the-queue',
     about:
-      'Queued work open in front of you — which is what clicking it in the queue shows: the whole chain it is in as boxes, its own drawn heavier, every wait’s reason under it, what its agent will be told, what it will change, and how it counts as finished.',
+      'Queued work open in front of you — which is what clicking it in the queue shows: the whole chain it is in as boxes, its own drawn heavier, every wait’s reason under it, what its agent will be told, what it will change, and how it counts as finished. Down the side, NEXT with the clocks in it: the piece due at 18:00 stands behind nothing and starts by itself, so it is next like the rest of the front.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), queueTasks),
         'checkout/refund-emails',
       ),
       folded: ['changes', 'files', 'notes', 'where'],
-      queueFilter: 'next',
+      ...showing('checkout', { scope: 'next' }),
     },
     frame: frame({ screen: '', height: 44, clock: utcClock }),
   },
@@ -443,14 +485,14 @@ export const QUEUE_SCREENS: Scenario[] = [
   {
     name: 'why-it-waits-in-a-narrow-window',
     about:
-      'The same chain in a narrow window: the boxes are still drawn rather than given up on, with a bar under them saying how much of the chain is in view. Down the side, NEXT is the front of the tree — the piece behind the one agent working, which says how much is ahead of it — and the piece in front of you is listed with it whatever the filter says, in the column its depth gives it.',
+      'The same chain in a narrow window: the boxes are still drawn rather than given up on, with a bar under them saying how much of the chain is in view. Down the side, NEXT is the front of the tree — the piece behind the one agent working, which says how much is ahead of it — and the piece in front of you is listed with it whatever the view says, in the column its depth gives it.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), longChainTasks),
         'checkout/refund-emails',
       ),
       folded: ['changes', 'files', 'notes', 'where'],
-      queueFilter: 'next',
+      ...showing('checkout', { scope: 'next' }),
     },
     frame: frame({ screen: '', width: 80, height: 26, clock: utcClock }),
   },
