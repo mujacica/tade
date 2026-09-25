@@ -2,12 +2,12 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Extensions ───────────────────────────────────────────────────── esc ─╮   
    │  vulnerab▏        │ Dependencies  built-in                      ready  │───
- ▌ │                   │ 2 tools · 1 watch · 2 settings                     │t s
+ ▌ │                   │ 2 tools · 2 watches · 2 settings                   │t s
  ▌ │ ● Dependenci…    ▕│                                                    │   
    │                  ▕│ Finds what a project depends on that is out of    █│   
    │                  ▕│ date, vulnerable or deprecated, and updates it in █│   
    │                  ▕│ an agent’s worktree.                              █│   
-   │                  ▕│                                                   █│╮  
+   │                  ▕│                                                   ▕│╮  
  ▸ │                  ▕│   Settings…     Check dependencies                ▕││  
  ▾ │                  ▕│                                                   ▕││  
   M│                  ▕│   Update dependencies (minor)                     ▕│╯  

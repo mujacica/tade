@@ -648,6 +648,24 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   where nothing has been decided and never again, and what it offers is what the extensions
   somebody has *just* chosen declare. What it writes is an ordinary schedule under the id the
   Extensions page uses (`scheduleIdOf`), so the button there turns off the thing it turned on.
+- **A watch that bumps dependencies is defined by what it will not do.** `deps.updates`
+  (`packages/extensions/deps/src/updates.ts`) looks once a day and puts an agent on what has
+  released since — and every decision in it is about the morning after. **Patch and minor, never
+  major**: those two promise not to break you and the checks say within the hour when they did,
+  where a major promises the opposite and is somebody's decision, so it is *named* — in the finding
+  and by the agent when it finishes — and never bumped by a clock. **The patches are one commit and
+  each minor is its own**: twenty agents in one checkout is twenty installs racing one lockfile,
+  twenty bumps in one branch is a diff nobody reads, and a minor that breaks something has to be
+  identifiable, which a wall of them is not. **A package at a version is the key**, so a bump that
+  failed is not tried again tomorrow and a release after it is new information; past
+  `extensions.deps.attempts` bumps of one package in a fortnight it is told about and never tried
+  again — the review watches' rule, over a window long enough for a daily look to see yesterday.
+  **Nothing red is committed**: the value is not the bump, it is the evidence that the project still
+  works on it, so the agent runs the project's own checks through `checks_run` and where it cannot
+  make them green it puts the manifests back and says so. And **never in a checkout other agents
+  share**: `workspaceFor` is read before anything else, and a project whose agents work in its own
+  tree is refused with both ways out named, because a config nobody could read is the machine's
+  default, which is that checkout.
 - **Turning a watch on or off is a person's ask, and the button says which way it goes.** On the
   Extensions page it is `Turn on` / `Turn off` — the page's own words for that act, said three
   other places on it — where it read `Watch tade`, which is a noun phrase about a project rather

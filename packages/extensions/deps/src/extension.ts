@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'node:url'
 import {
-  type ExtensionContext,
   list,
   object,
   oneOf,
@@ -12,14 +11,13 @@ import {
 import {
   applyUpdate,
   type Change,
-  check,
   describeReport,
   installCommands,
   type Level,
   planUpdate,
-  type Report,
 } from './check.ts'
-import { PUBLIC_REGISTRIES, type Registries } from './registries.ts'
+import { report } from './look.ts'
+import { dependencyUpdates } from './updates.ts'
 
 // Dependencies: what a project uses that is out of date, vulnerable or
 // deprecated, and an agent to bring it up to date.
@@ -30,31 +28,6 @@ import { PUBLIC_REGISTRIES, type Registries } from './registries.ts'
 // agents work — the checkout, or a worktree of its own.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-
-function registries(ctx: ExtensionContext): Registries {
-  const npm =
-    typeof ctx.settings.registry === 'string' ? ctx.settings.registry : ctx.env.npm_config_registry
-  return { ...PUBLIC_REGISTRIES, ...(npm ? { npm: npm.replace(/\/+$/, '') } : {}) }
-}
-
-function ignored(ctx: ExtensionContext): string[] {
-  return Array.isArray(ctx.settings.ignore) ? ctx.settings.ignore.map(String) : []
-}
-
-/** The files git knows about in a folder: what it tracks, and what it would. */
-async function files(ctx: ExtensionContext, root: string): Promise<string[]> {
-  const listed = await ctx.exec('git', [
-    '-C',
-    root,
-    'ls-files',
-    '-z',
-    '--cached',
-    '--others',
-    '--exclude-standard',
-  ])
-  if (listed.code !== 0) throw new Error(`${root} is not a git repository: ${listed.stderr.trim()}`)
-  return listed.stdout.split('\0').filter((file) => file !== '')
-}
 
 /** Where a call works: the agent's own worktree, or the project's checkout. */
 function where(
@@ -72,27 +45,6 @@ function where(
   }
   const project = ctx.project(input.project ? String(input.project) : null)
   return { project, root: project.root }
-}
-
-async function report(
-  ctx: ExtensionContext,
-  root: string,
-  progress: (text: string) => void,
-): Promise<{ report: Report; files: string[] }> {
-  const found = await files(ctx, root)
-  progress('reading manifests')
-  return {
-    files: found,
-    report: await check({
-      root,
-      files: found,
-      fetch: ctx.fetch,
-      registries: registries(ctx),
-      ignore: ignored(ctx),
-      vulnerabilities: ctx.settings.vulnerabilities !== false,
-      onProgress: progress,
-    }),
-  }
 }
 
 function changeList(changes: readonly Change[]): string {
@@ -119,6 +71,8 @@ export const depsExtension: TadeExtension = {
     'Looks and changes nothing (deps_check): behind, vulnerable or deprecated.',
     'Hands the update to an agent in its own worktree (deps_update).',
     'Watches OSV once a day, where you turn the watch on.',
+    'Bumps patch and minor releases daily, where you turn that watch on.',
+    'A major is reported and never bumped on a clock; nothing red is committed.',
     'Ranges you wrote stay as written; anything under `ignore` is left alone.',
   ],
   root: ROOT,
@@ -139,6 +93,12 @@ export const depsExtension: TadeExtension = {
       kind: 'boolean',
       means:
         'mention vulnerable dependencies in the brief (it asks the network, so off unless set)',
+    },
+    {
+      key: 'attempts',
+      kind: 'number',
+      means:
+        'how many times a watch may bump one package automatically in a fortnight before it only says what is wrong (2)',
     },
   ],
   ready: async (ctx) => {
@@ -301,6 +261,7 @@ export const depsExtension: TadeExtension = {
         }
       },
     },
+    dependencyUpdates,
   ],
   actions: [
     { id: 'check', title: 'Check dependencies', tool: 'deps_check', project: true },
@@ -335,9 +296,13 @@ export const depsExtension: TadeExtension = {
     return items
   },
   orchestrator: () =>
-    'When asked to check, verify or update the dependencies of a project, call deps_check first and say what it found briefly — how many are behind, the majors, anything vulnerable. To update, call deps_update with the level the human asked for (minor unless they said everything or major): it starts an agent that installs, tests and fixes, so tell them which agent is on it. Never update in the project’s own checkout.',
+    [
+      'When asked to check, verify or update the dependencies of a project, call deps_check first and say what it found briefly — how many are behind, the majors, anything vulnerable.',
+      'To update, call deps_update with the level the human asked for (minor unless they said everything or major): it starts an agent that installs, tests and fixes, so tell them which agent is on it. Never update in the project’s own checkout.',
+      'To keep them current without being asked each time, turn on the watch deps.updates with tade_schedule: it looks once a day, bumps patch and minor releases in an agent’s own worktree — the patches in one commit, each minor on its own — and commits only what the project’s checks pass. It never bumps a major and never commits a red tree, so a major it reports is a decision for you and the person, not for it.',
+    ].join(' '),
   agents: () =>
-    'deps_check lists which dependencies of your worktree are out of date, vulnerable or deprecated; deps_update moves them forward in your worktree, after which you install and run the tests.',
+    'deps_check lists which dependencies of your worktree are out of date, vulnerable or deprecated; deps_update moves them forward in your worktree, after which you install, run the project’s own checks with checks_run, and commit only what is green — put the manifests back rather than committing a red tree.',
   setup: () => ({
     guide: [
       'Nothing is needed: dependencies are checked against the public registries, and vulnerabilities against OSV.',

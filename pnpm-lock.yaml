@@ -262,9 +262,15 @@ importers:
 
   packages/extensions/deps:
     dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../core
+      '@tade/workbench':
+        specifier: workspace:*
+        version: link:../../workbench
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
