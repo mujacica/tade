@@ -173,6 +173,13 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       }
 
       const stuck: string[] = []
+      /**
+       * Whether the extensions step ran this time, which is what says the
+       * watches are worth offering: they are asked once, on the machine where
+       * nothing has been decided, and that step is finished for good the
+       * moment every extension has been.
+       */
+      let chose = false
       const todo = readiness(facts).some((step) => !step.done)
       const context = () => render([...readiness(facts), worksStep(proof)])
       const flow = runScreen({ title: 'Setting up', context: context() }, async (ui) => {
@@ -184,6 +191,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
               look = await lookHere(home)
               return look
             })
+            if (id === 'extensions') chose = true
           } catch (err) {
             // One step that cannot be finished is not a reason to abandon the
             // others: somebody who has to go and export an API key should
@@ -199,6 +207,19 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
           if (id === 'native' && stillBlocked(facts)) {
             ui.say('Nothing else can be set up until that is fixed: all of it runs in a lane.')
             return
+          }
+        }
+        // Which watches should look, after the keys rather than with the
+        // extensions: what a watch can do turns on whether its extension has
+        // what it needs, and the step above is where a key gets pasted. Asked
+        // only where the extensions were, so it is asked once and never again.
+        if (chose) {
+          ui.say('')
+          try {
+            await setUpWatches(ui)
+          } catch (err) {
+            stuck.push(`Watches: ${message(err)}`)
+            ui.say(`  watches: ${message(err)}`)
           }
         }
         // The closing check, always, whether anything was asked or not: it is
@@ -507,10 +528,11 @@ async function setUpJudge(ui: Ui): Promise<void> {
  * the ones nobody has decided about are offered; whatever the judge step or
  * the window already answered is left exactly as it is.
  *
- * The watches come after, in the same step and not in one of their own, so
- * that they are asked on the machine where nothing has been decided and never
- * again — and so that what is offered is what the extensions somebody has just
- * chosen actually declare.
+ * Which of their watches should look is asked after this and after the keys
+ * step (`setUpWatches`, from the loop), because a watch can only look if its
+ * extension has what it needs and the keys step is where that gets pasted —
+ * but only where *this* step ran, which is what makes it asked once on a
+ * machine where nothing has been decided and never again.
  */
 async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
   const waiting = look.extensions.filter((one) => !one.chosen)
@@ -542,12 +564,6 @@ async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
     }
     ui.say('  what you turned on loads the next time Tade starts')
   }
-
-  // Whichever way that went, including "none for now": Tade's own extensions
-  // are on unless somebody turns them off, so there are watches to offer even
-  // where every question above was answered no.
-  ui.say('')
-  await setUpWatches(ui)
 }
 
 /** On or off, written down: there is one answer to whether an extension runs. */

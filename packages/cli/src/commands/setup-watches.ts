@@ -21,12 +21,14 @@ import { Schedules } from '@tade/workbench/schedules'
 // being on costs nothing anybody has to agree to, which is not true of the
 // rest.
 //
-// It is part of the extensions step rather than a step of its own, and that is
+// It is tied to the extensions step rather than a step of its own, and that is
 // the whole of how it avoids becoming the step people learn to skip: that step
 // is finished once every extension has been decided about, so this is asked on
 // a machine where nothing has been decided and never again. Which is also why
 // it need not subtract what somebody has turned off since — on that machine
-// there is nothing to subtract.
+// there is nothing to subtract. It runs after the *keys* step rather than
+// inside the extensions one, because what a watch can do turns on whether its
+// extension has what it needs, and the keys step is where that gets pasted.
 //
 // What it writes is an ordinary schedule under the id the Extensions page
 // would have used, so the button there turns off the thing this turned on.
