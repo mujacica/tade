@@ -242,6 +242,19 @@ export interface ExtensionWatch {
    */
   standing?: boolean
   /**
+   * How many of what one look finds are acted on, where two — the schedule's
+   * own default — is the wrong number for this watch.
+   *
+   * Only ever a starting point: whoever turns a watch on may say otherwise, and
+   * the schedule is what decides from then on. It is here because two is a
+   * sensible ceiling on *agents started* and no ceiling anybody wants on
+   * *questions asked*: the findings sweep tells somebody about work that has
+   * already happened, so a backlog of nine metered at two an hour is a backlog
+   * that takes five hours to be mentioned once. A watch that starts agents
+   * (`offers: 'agent'`) should leave this alone.
+   */
+  most?: number
+  /**
    * Look, and say what there is. No model: it runs on a clock, and a look that
    * finds nothing costs nothing. Nothing found is an empty list, never a throw;
    * it throws, with why, only when it cannot look at all. What it returns as
@@ -401,6 +414,33 @@ export interface ExtensionList {
   rows(ctx: WindowContext, filter: string): Promise<readonly ListRow[]>
 }
 
+/** A tab an extension's view offers, the first being the default. */
+export interface ViewTab {
+  /** Its own name for it: `overview`. Handed back as `ViewAt.tab`. */
+  id: string
+  /** What the tab is called on the page. */
+  title: string
+}
+
+/**
+ * Where a view is being read: which tab, and how far back.
+ *
+ * The window decides what a day is and hands the moment over, because there is
+ * one idea of a day in Tade (`sinceOf`) and an extension inventing a second one
+ * is how a page comes to disagree with the Spend panel about what happened this
+ * morning. An extension that declares no tabs and no window is given the first
+ * tab of none and a `since` of zero, which is every page written before this
+ * existed, unchanged.
+ */
+export interface ViewAt {
+  /** The tab chosen, out of `viewTabs`, or empty where it offers none. */
+  tab: string
+  /** Only what happened at or after this. Zero means everything there has ever been. */
+  since: number
+  /** Which window that is, in the window's own words: `today`, `window`, `week`. */
+  window: string
+}
+
 /** A few words an extension keeps in the window's status bar, clicked for its view. */
 export interface StatusItem {
   text: string
@@ -524,7 +564,19 @@ export interface TadeExtension {
    * is open. It must be cheap: it runs whether or not anyone looks.
    */
   status?(ctx: WindowContext): Promise<StatusItem | null>
+  /**
+   * Tabs its view offers, the first being the default. None is one page, which
+   * is what every view was before this.
+   */
+  viewTabs?: readonly ViewTab[]
+  /**
+   * Whether its view is about a window of time somebody can change — today,
+   * this window, seven days — drawn by the window as the Spend panel's is. A
+   * view that is about *now* (what Tade is using this minute) declares nothing
+   * and is handed a `since` of zero.
+   */
+  viewWindowed?: boolean
   /** What its status opens: a document, in markdown, asked for when shown and again while it is open. */
-  view?(ctx: WindowContext): Promise<string>
+  view?(ctx: WindowContext, at: ViewAt): Promise<string>
   harness?: Readonly<Record<string, HarnessPieces>>
 }

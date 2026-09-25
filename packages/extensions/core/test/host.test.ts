@@ -436,6 +436,10 @@ describe('watching', () => {
         offers: 'agent',
         // And nobody said it stands, so nothing turns it on but a person.
         standing: false,
+        // A watch that starts an agent per finding leaves `most` alone: the right
+        // ceiling on agents started is not the right one on questions asked, and
+        // only a watch that knows the difference says so.
+        most: null,
         problem: null,
       },
     ])

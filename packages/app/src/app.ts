@@ -174,6 +174,7 @@ export class App {
         return app.live
       },
       now: () => app.now(),
+      openedAt: opts.now?.() ?? Date.now(),
       draw: () => app.draw(),
       note: (err) => {
         app.state = notice(app.state, why(err))
@@ -416,6 +417,7 @@ export class App {
       openSettings: (category) => this.settings.open(category),
       onScreen: (name) => this.orchestrator.onScreen(name),
       loadDiff: (task, path) => this.files.loadDiff(task, path),
+      loadExtensionView: (panel) => this.extensions.refreshExtensionView(panel.extension, panel),
       searchOpened: () => this.search.opened(),
       lookAtWhatIsInstalled: () => void this.machine.lookAtWhatIsInstalled(),
     })

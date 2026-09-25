@@ -42,6 +42,16 @@ export const When = z
   .strict()
 export type When = z.infer<typeof When>
 
+/**
+ * How many new things one look of a watch acts on, unless somebody says.
+ *
+ * Two, because the thing being bounded is usually *agents started*: a watch
+ * that finds nine new Sentry issues must not put nine agents in nine lanes on
+ * the strength of one look. A watch that starts nothing and only asks a
+ * question says its own number (`ExtensionWatch.most`).
+ */
+export const DEFAULT_MOST = 2
+
 /** What a schedule does each time it runs. */
 export const ScheduleDoes = z.discriminatedUnion('kind', [
   z.object({
@@ -72,7 +82,7 @@ export const ScheduleDoes = z.discriminatedUnion('kind', [
      * At most this many new things acted on from one look — agents started, or
      * told to the orchestrator. The rest wait for its next look.
      */
-    most: z.number().int().positive().default(2),
+    most: z.number().int().positive().default(DEFAULT_MOST),
   }),
 ])
 export type ScheduleDoes = z.infer<typeof ScheduleDoes>
@@ -431,6 +441,11 @@ export interface WatchOffered {
   every: string
   offers: 'ask' | 'agent'
   standing: boolean
+  /**
+   * How many of one look's findings the schedule starts on, where the watch
+   * says the default of two is wrong for it. Null leaves it at the default.
+   */
+  most?: number | null
   /** Why its extension cannot look now — no key, turned off, broken — or null. */
   problem: string | null
 }
@@ -487,7 +502,16 @@ export function standingSchedules(
         project,
         said: '',
         when: { every: watch.every },
-        does: { kind: 'watch', watch: watch.id, input: {}, found: watch.offers, most: 2 },
+        does: {
+          kind: 'watch',
+          watch: watch.id,
+          input: {},
+          found: watch.offers,
+          // The watch's own number where it has one, and two where it has not.
+          // It is a starting point and not a rule: this writes an ordinary
+          // schedule, and from here on `most` is the schedule's.
+          most: watch.most ?? DEFAULT_MOST,
+        },
         missed: 'once',
         by: `extension:${watch.id.split('.')[0] ?? ''}`,
         created: new Date(now).toISOString(),

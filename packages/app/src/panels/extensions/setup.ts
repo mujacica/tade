@@ -1,3 +1,4 @@
+import { SPEND_WINDOWS, type SpendWindow } from '../../spend.ts'
 import { pageBy } from '../frame.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
@@ -11,12 +12,23 @@ import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 export interface ExtensionViewPanel {
   kind: 'extension-view'
   extension: string
+  /**
+   * The tab it is on, out of the ones the extension declares, or empty for a
+   * page that offers none. Kept here rather than worked out on every draw, so
+   * the page does not jump back to the first tab on the beat that refreshes it.
+   */
+  tab: string
+  /** How far back it is showing, the same three windows the Spend panel has. */
+  window: SpendWindow
   scroll: number
   busy: false
 }
 
-export function extensionViewPanel(extension: string): ExtensionViewPanel {
-  return { kind: 'extension-view', extension, scroll: 0, busy: false }
+export function extensionViewPanel(extension: string, tab = ''): ExtensionViewPanel {
+  // Today, because that is what the person is looking at when they click the
+  // strip — and because a page that opens on everything Jev has ever read made
+  // the figure that matters the one that never changes.
+  return { kind: 'extension-view', extension, tab, window: 'today', scroll: 0, busy: false }
 }
 
 /** Setting an extension up, or changing its settings: a guide, and fields. */
@@ -165,13 +177,38 @@ function setValue(panel: ExtensionSetupPanel, key: string, value: string): Exten
 }
 
 /** The page an extension writes about itself: nothing to answer, only to read. */
+/** What a page offers, as the extension declared it: nothing is sniffed off the text. */
+export interface ViewOffers {
+  tabs: readonly { id: string }[]
+  windowed: boolean
+}
+
+/**
+ * The keys the page answers: tab moves through its tabs, ← → through its
+ * windows, and the rest scrolls — exactly the Spend panel's, because a page
+ * with tabs and a window is the same thing twice and nobody should have to
+ * learn it in two places.
+ *
+ * A tab or a window changed is a different page, so it starts at the top.
+ */
 export function extensionViewKey(
   panel: ExtensionViewPanel,
   key: string | undefined,
   lines: number,
+  at: ViewOffers = { tabs: [], windowed: false },
 ): PanelOutcome {
   const most = Math.max(0, lines - 1)
   if (key === 'escape' || key === 'enter') return close
+  if ((key === 'tab' || key === 'shift+tab') && at.tabs.length > 1) {
+    return stay({ ...panel, tab: cycle(at.tabs, panel.tab, key === 'tab' ? 1 : -1), scroll: 0 })
+  }
+  if ((key === 'left' || key === 'right') && at.windowed) {
+    return stay({
+      ...panel,
+      window: cycle(SPEND_WINDOWS, panel.window, key === 'left' ? -1 : 1),
+      scroll: 0,
+    })
+  }
   if (key === 'home') return stay({ ...panel, scroll: 0 })
   if (key === 'end') return stay({ ...panel, scroll: most })
   const by = pageBy(key)
@@ -180,8 +217,34 @@ export function extensionViewKey(
     : stay({ ...panel, scroll: Math.max(0, Math.min(most, panel.scroll + by)) })
 }
 
-export function extensionViewClick(panel: ExtensionViewPanel, control: string): PanelOutcome {
-  return control === 'close' ? close : stay(panel)
+/**
+ * A press on the page: a tab, a window, or Close.
+ *
+ * Held to what the page declared, the same as the keys are and through the same
+ * two facts — a control the page never drew is a control nothing may press, and
+ * a panel left on the seven-day window of a page that has no windows is a page
+ * the window would then keep asking again for no reason.
+ */
+export function extensionViewClick(
+  panel: ExtensionViewPanel,
+  control: string,
+  at: ViewOffers = { tabs: [], windowed: false },
+): PanelOutcome {
+  if (control === 'close') return close
+  const [kind, id] = control.split(':')
+  if (kind === 'tab' && id && at.tabs.some((tab) => tab.id === id)) {
+    return stay({ ...panel, tab: id, scroll: 0 })
+  }
+  if (kind === 'window' && at.windowed && SPEND_WINDOWS.some((one) => one.id === id)) {
+    return stay({ ...panel, window: id as SpendWindow, scroll: 0 })
+  }
+  return stay(panel)
+}
+
+/** The next one along, wrapping. The same move the Spend panel's tabs make. */
+function cycle<T extends string>(options: readonly { id: T }[], current: T, delta: number): T {
+  const at = options.findIndex((option) => option.id === current)
+  return options[(at + delta + options.length) % options.length]?.id ?? current
 }
 
 export function setupClick(

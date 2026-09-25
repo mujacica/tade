@@ -148,8 +148,17 @@ export interface PanelContext {
   servers: readonly McpServerOffer[]
   /** The tools Tade wrote for itself, on or off. */
   written: readonly WrittenToolView[]
-  /** The extension view being shown, once it has been asked for. */
-  extensionView: { title: string; markdown: string } | null
+  /**
+   * The extension view being shown, once it has been asked for: its page, and
+   * what it declared about itself, so the tabs and the window row are drawn
+   * from the extension's own answer rather than from anything sniffed.
+   */
+  extensionView: {
+    title: string
+    markdown: string
+    tabs: readonly { id: string; title: string }[]
+    windowed: boolean
+  } | null
   /** The extension being set up: its state, its guide and its fields. */
   setup: {
     title: string

@@ -193,6 +193,17 @@ export interface Sweep {
   accounted: OpenFinding[]
   /** Nobody is going to account for these: whoever wrote the change is gone. */
   orphaned: OpenFinding[]
+  /**
+   * Nobody in particular wrote the change, so no agent can account for it.
+   *
+   * These are the ones that sat silent for three days. A finding raised about a
+   * whole branch — several agents' commits, several intents joined together —
+   * belongs to none of the agents in it, so it is never accounted for; and it
+   * is not orphaned either, because `orphaned` asks whether *every* task in the
+   * unit is gone, and one of twelve agents still typing was enough to keep it
+   * out of both buckets and out of everybody's sight for good.
+   */
+  unowned: OpenFinding[]
   /** Every finding with no verdict, however long it has been there. */
   unresolved: OpenFinding[]
   /** How long the oldest unresolved one has waited, in milliseconds. */
@@ -210,15 +221,68 @@ export interface Sweep {
  */
 export function sweepOf(
   findings: readonly OpenFinding[],
-  about: { now: number; after: number; gone: (finding: OpenFinding) => boolean },
+  about: {
+    now: number
+    after: number
+    gone: (finding: OpenFinding) => boolean
+    /** Whether the change was one agent's own commits, and so somebody's to answer for. */
+    owned?: (finding: OpenFinding) => boolean
+  },
 ): Sweep {
   const unresolved = findings.filter((one) => !one.verdict)
   const accounted = unresolved.filter((one) => one.account !== null)
-  const orphaned = unresolved.filter(
-    (one) => one.account === null && about.now - one.at >= about.after && about.gone(one),
-  )
+  const waited = (one: OpenFinding) => about.now - one.at >= about.after
+  const quiet = unresolved.filter((one) => one.account === null && waited(one))
+  const owned = about.owned ?? (() => true)
+  const orphaned = quiet.filter((one) => owned(one) && about.gone(one))
+  // Whose it is decides which bucket, and `gone` is not asked: a change nobody
+  // in particular wrote will not be accounted for whether its agents are still
+  // at their desks or not.
+  const unowned = quiet.filter((one) => !owned(one))
   const oldest = unresolved.reduce((worst, one) => Math.min(worst, one.at), about.now)
-  return { accounted, orphaned, unresolved, oldestMs: Math.max(0, about.now - oldest) }
+  return { accounted, orphaned, unowned, unresolved, oldestMs: Math.max(0, about.now - oldest) }
+}
+
+/**
+ * How long a finding has waited, as a rung it is mentioned on once.
+ *
+ * The sweep tells somebody about a finding by handing it over as a *finding*,
+ * and Tade remembers every key a watch has ever found so that one thing is
+ * never acted on twice. That is exactly right for a watch that starts agents
+ * and exactly wrong for one that asks a question: twenty-three findings were
+ * mentioned once each, in the hour they became answerable, and then went
+ * silent for ever — which is why nine of them were still open three days later
+ * with nobody having decided against them, only having forgotten.
+ *
+ * So waiting longer is *new information*, and it is said on a ladder rather
+ * than on a clock: four rungs, ever, per finding per reason. A finding cannot
+ * become a nag, and it cannot become silence either.
+ */
+export const RUNGS: readonly { after: number; said: string }[] = [
+  { after: 0, said: '' },
+  { after: 86_400_000, said: '1d' },
+  { after: 3 * 86_400_000, said: '3d' },
+  { after: 7 * 86_400_000, said: '7d' },
+]
+
+/** The rung a wait is on: the longest one it has passed. */
+export function rungOf(waitedMs: number): string {
+  let said = ''
+  for (const rung of RUNGS) if (waitedMs >= rung.after) said = rung.said
+  return said
+}
+
+/**
+ * The key the sweep hands one finding over under: the finding, why it is being
+ * mentioned, and which rung of waiting this is.
+ *
+ * The first rung keeps the bare `#accounted` and `#gone` spellings on purpose:
+ * everything already mentioned under them stays mentioned, so turning the
+ * ladder on does not re-ask a hundred old questions on the hour it lands.
+ */
+export function sweepKey(key: string, because: string, waitedMs: number): string {
+  const rung = rungOf(waitedMs)
+  return `${key}#${because}${rung ? `@${rung}` : ''}`
 }
 
 /**
@@ -230,24 +294,36 @@ export function sweepOf(
  * its agent is news again rather than silence.
  */
 export function sweepFindings(sweep: Sweep, now: number): Finding[] {
-  const waited = (at: number) => duration(Math.max(0, now - at))
-  const accounted = sweep.accounted.map((one) => ({
-    key: `${one.key}#accounted`,
-    title: shorten(
-      `${one.key}: its agent says ${one.account?.did === 'fixed' ? 'it fixed this' : 'this is not real'} — “${one.account?.said ?? ''}”. No verdict after ${waited(Date.parse(one.account?.at ?? '') || one.at)}.`,
-      220,
-    ),
-    detail: accountDetail(one, now),
-  }))
+  const since = (at: number) => Math.max(0, now - at)
+  const waited = (at: number) => duration(since(at))
+  const accounted = sweep.accounted.map((one) => {
+    const said = Date.parse(one.account?.at ?? '') || one.at
+    return {
+      key: sweepKey(one.key, 'accounted', since(said)),
+      title: shorten(
+        `${one.key}: its agent says ${one.account?.did === 'fixed' ? 'it fixed this' : 'this is not real'} — “${one.account?.said ?? ''}”. No verdict after ${waited(said)}.`,
+        220,
+      ),
+      detail: accountDetail(one, now),
+    }
+  })
   const orphaned = sweep.orphaned.map((one) => ({
-    key: `${one.key}#gone`,
+    key: sweepKey(one.key, 'gone', since(one.at)),
     title: shorten(
       `${one.key}: flagged at ${one.probability.toFixed(2)} ${waited(one.at)} ago and the agent that wrote it is gone. Nobody will account for it.`,
       220,
     ),
     detail: accountDetail(one, now),
   }))
-  return [...accounted, ...orphaned]
+  const unowned = sweep.unowned.map((one) => ({
+    key: sweepKey(one.key, 'unowned', since(one.at)),
+    title: shorten(
+      `${one.key}: flagged at ${one.probability.toFixed(2)} ${waited(one.at)} ago about a change that is nobody's in particular — ${one.tasks.length} task(s) share it — so no agent will account for it.`,
+      220,
+    ),
+    detail: accountDetail(one, now),
+  }))
+  return [...accounted, ...orphaned, ...unowned]
 }
 
 /** Everything known about one finding the sweep is asking about. */
@@ -260,40 +336,6 @@ function accountDetail(one: OpenFinding, now: number): string {
       : 'The newest reading of that change no longer raises it, which is evidence and not a verdict.',
     `Read ${one.file || 'the change'} in ${one.unit} yourself, then jev_verdict, whose sentence has to cite what in the change decided it.`,
   ].join('\n')
-}
-
-/** How many of the waiting are named on a page before the rest are a number. */
-const MOST_WAITING = 10
-
-/** The gap, for a page: how many are waiting, how many have an account, and for how long. */
-export function gapLines(findings: readonly OpenFinding[], now: number): string[] {
-  if (findings.length === 0) return []
-  const open = findings.filter((one) => !one.verdict)
-  const accounted = open.filter((one) => one.account !== null)
-  const lines = ['', '## Waiting on a verdict', '']
-  if (open.length === 0) {
-    lines.push(`Nothing: all ${findings.length} finding(s) have been answered.`)
-    return lines
-  }
-  const oldest = open.reduce((worst, one) => Math.min(worst, one.at), now)
-  lines.push(
-    `${open.length} of ${findings.length} finding(s) have no verdict, ${accounted.length} of them with an agent's account already. The oldest has waited ${duration(Math.max(0, now - oldest))}.`,
-  )
-  lines.push('')
-  // Which ones, and not only how many: a verdict is written about a finding by
-  // name, so a backlog nobody can name is a backlog nobody can answer. Oldest
-  // first, because that is the order somebody would work through them in.
-  for (const one of [...open].sort((a, b) => a.at - b.at).slice(0, MOST_WAITING)) {
-    lines.push(
-      `- **${one.key}** — ${one.probability.toFixed(2)}${one.file ? ` · ${one.file}` : ''} · waiting ${duration(Math.max(0, now - one.at))}${one.account ? `, its agent says ${one.account.did === 'fixed' ? 'it fixed this' : 'this is not real'}` : ', nobody has accounted for it'}`,
-    )
-  }
-  if (open.length > MOST_WAITING) lines.push(`- … and ${open.length - MOST_WAITING} more.`)
-  lines.push('')
-  lines.push(
-    'Nothing here becomes a false positive by getting old: jev_verdict is the only thing that closes one, it is never an agent’s to give about its own change, and its sentence has to cite what in the change decided it.',
-  )
-  return lines
 }
 
 /** The same gap in a clause, for the brief and the status line; nothing when nothing waits. */

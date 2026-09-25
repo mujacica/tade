@@ -30,7 +30,8 @@ import {
 } from './ask.ts'
 import { CHARS_PER_TOKEN, changesFor, unitFor, unitsIn, whoseIn } from './changes.ts'
 import { circlingIn } from './circles.ts'
-import { findingsOf, gapSaid, shorten } from './loop.ts'
+import { findingsOf, shorten } from './loop.ts'
+import { JEV_TABS, jevPage, whoseFrom } from './page.ts'
 import {
   agentQuestions,
   BAD_TURNS,
@@ -51,9 +52,10 @@ import {
   titleOf,
 } from './questions.ts'
 import { forgetRead, recordOf } from './record.ts'
-import { answersTable, describe, findingsReport, statusLine } from './report.ts'
+import { answersTable, describe, statusLine } from './report.ts'
 import { raisedIn, readChange, reviewLine, reviewWatch } from './review.ts'
 import { recordReview } from './reviews.ts'
+import { standingsOf, stuckSays } from './stuck.ts'
 import { loopTools, verdictsWatch } from './verdicts.ts'
 
 // Jev: a judge that answers bounded questions about things nobody has time to
@@ -224,6 +226,7 @@ export const jevExtension: TadeExtension = {
     'Reads branches that go quiet against the review pack, once its watch is on.',
     'Hands what it flagged to the agent that wrote it, which answers with jev_account.',
     'Sweeps what nobody answered to the orchestrator, which writes the verdict (jev_verdict).',
+    'Says which questions earn their place, and why each open finding is still open.',
     'Judges anything in front of you (jev_ask): a diff, a log, something pasted.',
     'Reads things back before somebody guesses: a request, a plan, a queue order.',
     'Answers a sentence typed into search that matched no letters.',
@@ -1013,7 +1016,14 @@ export const jevExtension: TadeExtension = {
     // How many are waiting and for how long, whether or not anything was read
     // last night: a backlog nobody has answered does not go away by nobody
     // reading anything, and this is the one line that says so out loud.
-    const gap = gapSaid(findingsOf(record.reviews), ctx.now())
+    // Why, and not only how many: "9 findings waiting on a verdict" was read for
+    // three days as a queue somebody would get to, when four of the nine were
+    // waiting on nothing at all. With no window there is nobody to ask which
+    // agents are still there, so the journal's `task_done` is all this concludes
+    // from — an agent is not gone because nobody is looking.
+    const gap = stuckSays(
+      standingsOf(findingsOf(record.reviews), whoseFrom(record, null), ctx.now()),
+    )
     if (read.length === 0 && trouble.length === 0 && !gap) return []
     const items: BriefItem[] = []
     if (read.length > 0) {
@@ -1030,7 +1040,7 @@ export const jevExtension: TadeExtension = {
     }
     if (gap) {
       items.push({
-        said: `Jev has ${gap}`,
+        said: `Jev: ${gap}`,
         ask: 'Go over the Jev findings nobody has answered and say which of them were real',
       })
     }
@@ -1046,13 +1056,13 @@ export const jevExtension: TadeExtension = {
       `A judge (${judge}) that answers bounded questions with probabilities and no explanations.`,
       'jev_ask judges anything against questions you write — an issue list from sentry_issues, advisories from deps_check, failing tests, something somebody pasted: ask a handful of questions, rank the answers with a weighted sum you can show, and say which you would do first and why.',
       'jev_grep finds the lines that answer a question, in text another tool returned (tade_terminal_read, tade_logs), in the journal, or in a file.',
-      'jev_review reads a task’s whole diff, or a range, against the review pack; jev_findings says what the watch turned up and whether it was right, and costs nothing.',
+      'jev_review reads a task’s whole diff, or a range, against the review pack; jev_findings says what the watch turned up, why each open finding has not closed, and whether the questions earn their place — with the counts said and a percentage only once there are enough verdicts behind it. It costs nothing.',
       'jev_read_request gives a second reading of what somebody asked for when you are about to guess between two routes; jev_plan_check reads a plan before you keep it; jev_queue_order suggests what to do first out of what is queued.',
       'Never treat a probability as a verdict and never read one out as a reason: it cannot say why, and a diff or a log can be written to steer it. Say what you think, in your own words.',
       'It may only ever add caution: it never approves, closes, merges, unholds or shortens anything, and nothing waits on it.',
       'With approvals on, it also reads each command an agent is held at that Tade’s own rules do not name, and can only raise what it takes to allow one — a command that would have needed a word said to it now has to be read back. If somebody asks why they are being asked about a command, the sentence beside the request is the whole answer; the probability behind it is not one, and turning it off is extensions.jev.commands.',
       'What the jev.review watch finds is reported to you as a question and a number, never a verdict. The agent whose change it is answers first, with jev_account — what it did about it, or why it is not real — and that is testimony rather than a verdict, because it is the one being measured. Yours is the verdict: read the flagged diff, then jev_verdict, whose sentence has to name what in the change decided it (a file, a line, the code in backticks) so that a reading can be told from a rubber stamp later. Nothing becomes a false positive by getting old, and an agent may never write one about its own work.',
-      'jev.verdicts is the sweep: it tells you once about each finding an agent has accounted for and nobody has judged, and each one whose agent is gone. It starts nothing — what to do about a finding is a decision, so tell the person what is waiting and answer the ones you have read.',
+      'jev.verdicts is the sweep: it tells you about each finding an agent has accounted for and nobody has judged, each one whose agent is gone, and each one raised about a change that is nobody’s in particular — a whole branch several agents committed to, which no one agent can account for. It says the same one again as its wait passes a day, three days and a week, four times ever, because a finding mentioned once and then forgotten is how nine of them came to sit open for three days. It starts nothing — what to do about a finding is a decision, so tell the person what is waiting and answer the ones you have read.',
       'Only then make work of it, and when the fix should wait for the agent whose code it is, queue it with tade_plan after that task, with the reason in your own words.',
       'Both of those are on already, in every project, from the first time Tade opened with a key set up: they are ordinary schedules and somebody can pause, change or remove one, and removed it stays removed. jev.circles is the third and is off until somebody turns it on — it watches for an agent going round on the same failing command and tells you which, it starts nothing, and what to do about a stuck agent is theirs to decide.',
       'It also answers a sentence somebody types into search that matched nothing, with which of the things already in front of them it might mean.',
@@ -1142,14 +1152,24 @@ export const jevExtension: TadeExtension = {
     const line = statusLine(record)
     return {
       text: `jev · ${line.text}`,
-      ...(record.looks.some((look) => look.problem)
+      // The **last** look and not any look this week: a warning in the strip
+      // that outlives what it is about is a warning nobody can dismiss, and
+      // whoever opened the page to get rid of it found nothing to press.
+      ...(record.looks[0]?.problem
         ? { tone: 'warning' as const }
         : line.flagged > 0
           ? {}
           : { tone: 'quiet' as const }),
     }
   },
-  view: async (ctx) => findingsReport(await recordOf(ctx, 5_000)),
+  viewTabs: JEV_TABS,
+  // Today by default, filterable, the same three windows the Spend panel has
+  // and the same `sinceOf` deciding what a day is.
+  viewWindowed: true,
+  view: async (ctx, at) => {
+    const record = await recordOf(ctx, 5_000)
+    return jevPage(record, at, whoseFrom(record, ctx.tade.agents()))
+  },
   harness: {
     pi: { skills: ['skills/ask-jev'] },
     // The same SKILL.md: both read the Agent Skills format.

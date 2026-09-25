@@ -18,6 +18,7 @@ import {
 import type { PanelContext } from '../panels/context.ts'
 import {
   type ExtensionSetupPanel,
+  type ExtensionViewPanel,
   extensionSetupPanel,
   extensionViewPanel,
 } from '../panels/extensions/setup.ts'
@@ -35,6 +36,7 @@ import {
 import { extensionsScrollable } from '../panels/extensions/view.ts'
 import { writeSetting } from '../settings.ts'
 import type { Skin } from '../skin.ts'
+import { sinceOf } from '../spend.ts'
 import { fromThinker, ran, said } from '../transcript.ts'
 import { markdownLines } from '../viewer.ts'
 import {
@@ -101,6 +103,16 @@ export interface ExtensionsDeps {
   spoken(text: string): string
 }
 
+/** An extension's page as the window is holding it: what it said, and what it declared. */
+interface ExtensionPageShown {
+  name: string
+  title: string
+  markdown: string
+  tabs: readonly { id: string; title: string }[]
+  windowed: boolean
+  at: number
+}
+
 export class Extensions implements Subject {
   private readonly wire: Wiring
   private readonly deps: ExtensionsDeps
@@ -121,9 +133,16 @@ export class Extensions implements Subject {
   private statuses: NonNullable<Frame['statuses']> = []
   /** The sections extensions keep in the sidebar, as they last answered. */
   private sections: ListSection[] = []
-  /** The extension page being read, and when it was read. */
-  private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
-    null
+  /** The extension page being read: what it said, what it declared, and when. */
+  private extensionShown: ExtensionPageShown | null = null
+  /**
+   * The tab each extension's page was last on, by extension.
+   *
+   * The window's own, like which pane is in front: coming back to a page comes
+   * back to where you were on it, and closing Tade forgets it, because a tab
+   * remembered across a restart is a tab an extension may have renamed.
+   */
+  private extensionTabs: Record<string, string> = {}
   /** They are being asked what they keep in the strip, and when they last were. */
   private asking = false
   private statusedAt = Number.NEGATIVE_INFINITY
@@ -169,7 +188,14 @@ export class Extensions implements Subject {
       const shown = this.shown()
       return {
         extensionView:
-          shown?.name === panel.extension ? { title: shown.title, markdown: shown.markdown } : null,
+          shown?.name === panel.extension
+            ? {
+                title: shown.title,
+                markdown: shown.markdown,
+                tabs: shown.tabs,
+                windowed: shown.windowed,
+              }
+            : null,
       }
     }
     if (panel?.kind !== 'extensions') return {}
@@ -193,7 +219,16 @@ export class Extensions implements Subject {
       scrollable: room.body,
       listRoom: room.listRoom,
       setupFields: panel?.kind === 'extension-setup' ? (this.setupFacts(panel)?.fields ?? []) : [],
-      ...(panel?.kind === 'extension-view' ? { lines: this.extensionViewLines() } : {}),
+      ...(panel?.kind === 'extension-view'
+        ? {
+            lines: this.extensionViewLines(),
+            // What the page declared about itself, so `tab` and ← → do nothing
+            // at all on a page that offers neither rather than something
+            // invisible.
+            viewTabs: this.extensionShown?.tabs ?? [],
+            viewWindowed: this.extensionShown?.windowed === true,
+          }
+        : {}),
     }
   }
 
@@ -212,9 +247,14 @@ export class Extensions implements Subject {
         this.wire.draw()
       },
       'extension-view:': async (name) => {
-        this.wire.put({ ...this.wire.state, panel: extensionViewPanel(name) })
+        // The tab it was last on for this extension, so coming back to a page
+        // comes back to where you were on it — the same courtesy the projects
+        // list gets. Kept only while the window is open: it is one of the
+        // window's own, like which pane is in front.
+        const panel = extensionViewPanel(name, this.extensionTabs[name] ?? '')
+        this.wire.put({ ...this.wire.state, panel })
         this.wire.draw()
-        await this.refreshExtensionView(name)
+        await this.refreshExtensionView(name, panel)
       },
       'extension:': async (rest) => {
         const [name, id] = rest.split(':')
@@ -254,7 +294,7 @@ export class Extensions implements Subject {
   }
 
   /** The extension page being read, or nothing when none is. */
-  shown(): { name: string; title: string; markdown: string } | null {
+  shown(): ExtensionPageShown | null {
     return this.extensionShown
   }
 
@@ -549,7 +589,8 @@ export class Extensions implements Subject {
           tone: one.item.tone ?? 'quiet',
           viewable: one.viewable,
         }))
-        if (panel?.kind === 'extension-view') await this.refreshExtensionView(panel.extension)
+        if (panel?.kind === 'extension-view')
+          await this.refreshExtensionView(panel.extension, panel)
         // The sections extensions keep in the sidebar, on the same beat: the
         // host answers each from its own cache and asks nobody oftener than
         // that section says, so this costs a function call most times.
@@ -562,16 +603,41 @@ export class Extensions implements Subject {
       })
   }
 
-  /** Ask an extension for its view again, and show it if its panel is still open. */
-  async refreshExtensionView(name: string): Promise<void> {
+  /**
+   * Ask an extension for its view again, for the tab and window its panel is on,
+   * and show it if that panel is still open.
+   *
+   * `sinceOf` decides what a day is, here as on the Spend panel: there is one
+   * idea of a day in the window and an extension is handed the moment rather
+   * than the word, so nothing downstream can invent a second one.
+   */
+  async refreshExtensionView(name: string, at?: ExtensionViewPanel): Promise<void> {
     const host = this.wire.opts.extensions
     const tade = this.wire.opts.extensionWorkbench
     if (!host || !tade) return
+    const window = at?.window ?? 'today'
+    const asked = {
+      tab: at?.tab ?? '',
+      window,
+      since: sinceOf(window, this.wire.now(), this.wire.openedAt),
+    }
     try {
-      const view = await host.view(name, tade)
+      const view = await host.view(name, tade, asked)
       this.extensionShown = { name, ...view, at: this.wire.now() }
+      // Which tab it settled on, so coming back to this page comes back here.
+      // The host's answer and not the panel's ask: a tab an extension no longer
+      // offers is answered as its first, and remembering the ask would put the
+      // page back on a tab that does not exist every time.
+      if (asked.tab) this.extensionTabs = { ...this.extensionTabs, [name]: asked.tab }
     } catch (err) {
-      this.extensionShown = { name, title: name, markdown: why(err), at: this.wire.now() }
+      this.extensionShown = {
+        name,
+        title: name,
+        markdown: why(err),
+        tabs: [],
+        windowed: false,
+        at: this.wire.now(),
+      }
     }
     if (this.wire.state.panel?.kind === 'extension-view') this.wire.draw()
   }

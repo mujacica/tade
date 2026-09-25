@@ -195,7 +195,29 @@ const FIGURE = paint('38;5;255')
 const COLUMN = paint('38;5;248;1')
 
 /**
- * A little chart: bars, figures and the words over the columns.
+ * The tones a row of a chart may be marked with, and the glyph that says which.
+ *
+ * The same four the window paints everywhere else and in the same colours —
+ * green for done, red for gone wrong, violet for waiting on you, grey for
+ * nothing to say — because a page that invents a fifth meaning for a colour is
+ * a page somebody has to learn. The glyphs are the ones the agent list and the
+ * project tabs already use, so what a `●` means is the same fact twice rather
+ * than two facts.
+ *
+ * Only the mark is painted, never the row: what the row says is figures and
+ * names, and tinting a whole line green reads as the line being *about* green.
+ */
+const MARKS: Readonly<Record<string, (text: string) => string>> = {
+  '●': paint('38;5;114'),
+  '✓': paint('38;5;114'),
+  '✗': paint('38;5;203'),
+  '◐': paint('38;5;176'),
+  '▲': paint('38;5;176'),
+  '○': paint('38;5;244'),
+}
+
+/**
+ * A little chart: a tone mark, bars, figures and the words over the columns.
  *
  * The filled part of a bar is Tade's own amber and the rest the grey its rules
  * are drawn in, so how far along a row is reads before any of it is; the
@@ -206,12 +228,27 @@ const COLUMN = paint('38;5;248;1')
  */
 function chartLines(code: string): string[] {
   return code.split('\n').map((line) => {
+    const marked = markedIn(line)
+    if (marked) return marked
     if (!/[█░]/.test(line)) return /\d/.test(line) ? line : COLUMN(line)
-    return line
-      .replace(/\d[\d.]*\s?(%|[KMGT]B)/g, (figure) => FIGURE(figure))
-      .replace(/█+/g, (run) => FILLED(run))
-      .replace(/░+/g, (run) => REST(run))
+    return figured(line)
   })
+}
+
+/** A row with a tone mark at the front, painted; nothing when it has none. */
+function markedIn(line: string): string | null {
+  const found = /^(\s*)(\S)(\s)/.exec(line)
+  const tone = found?.[2] === undefined ? undefined : MARKS[found[2]]
+  if (!found || !tone) return null
+  return `${found[1]}${tone(found[2] ?? '')}${found[3]}${figured(line.slice(found[0].length))}`
+}
+
+/** Figures brightened and bars painted, wherever they are in a row. */
+function figured(text: string): string {
+  return text
+    .replace(/\d[\d.]*\s?(%|[KMGT]B)/g, (figure) => FIGURE(figure))
+    .replace(/█+/g, (run) => FILLED(run))
+    .replace(/░+/g, (run) => REST(run))
 }
 
 const PLAIN_THEME: MarkdownTheme = {

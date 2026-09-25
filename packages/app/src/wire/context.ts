@@ -213,6 +213,18 @@ export interface Wiring {
   readonly live: Live | null
   /** The clock, which is the window's and never a subject's own. */
   now(): number
+  /**
+   * When this window opened: the start of "This window" wherever it is offered.
+   *
+   * The window's own, so the Spend page and an extension's page mean the same
+   * moment by it. Two subjects each reading the clock in their own constructor
+   * would be two answers to one question, which is the shape of drift that
+   * makes one page disagree with another about what happened this morning.
+   *
+   * A value rather than a call, unlike `now()`, because it is the one fact about
+   * the window that cannot change while the window is open.
+   */
+  readonly openedAt: number
   /** Ask for a frame. */
   draw(): void
   /**

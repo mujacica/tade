@@ -2,6 +2,7 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import { KEYS_AND_AGENTS } from '@tade/core'
 import { type Hit, sameTarget } from '../../hits.ts'
 import { linkedRow } from '../../links.ts'
+import { SPEND_WINDOWS } from '../../spend.ts'
 import { blank, box, type Drawn, NO_POINTER, Row } from '../../ui.ts'
 import { markdownLines } from '../../viewer.ts'
 import { cap, count, sideWidth, withFocus, wrapTo } from '../cells.ts'
@@ -307,6 +308,12 @@ export function extensionsScrollable(
  * What an extension shows when its status is clicked: its document, formatted,
  * as tall as the window allows and scrolled with the arrows. It is asked again
  * while it is open, so what it shows stays current.
+ *
+ * Its tabs and its window row are above the body and never scroll — the same
+ * shape the Spend panel has, and drawn from what the extension *declared* about
+ * itself rather than from anything read off the page. A page that offers
+ * neither is drawn exactly as every extension's page was before either
+ * existed: one document, one scrollbar.
  */
 export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
@@ -314,26 +321,29 @@ export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Dra
   // The page keeps a column for its bar: it is somebody else's document and
   // there is no telling how long it is until it has been laid out.
   const inner = width - 2 - BAR
-  const lines = ctx.extensionView
-    ? markdownLines(ctx.extensionView.markdown, inner - 2, !skin.colour).map((line) =>
+  const shown = ctx.extensionView
+  const lines = shown
+    ? markdownLines(shown.markdown, inner - 2, !skin.colour).map((line) =>
         linkedRow(` ${line}`, inner, skin, ctx.pointer),
       )
     : [new Row(inner, skin).space().text('Looking…', skin.hint).build()]
+  const head = viewHead(panel, shown, inner, ctx)
   // Where it ended up, worked out once and handed to the column: the bar says
   // it as a picture, and the foot says it in figures, because a document of
   // somebody else's is one you want to be able to say where you are in.
-  const room = Math.max(1, tall - 1)
+  const room = Math.max(1, tall - 1 - head.length)
   const start = startOf(panel.scroll, lines.length, room)
   const drawn = column(
     {
+      head,
       body: { lines, width: inner, scroll: start },
       foot: [
         new Row(inner, skin, ctx.pointer)
           .space()
           .text(
             lines.length > room
-              ? `↑↓ scrolls · ${start + 1}–${Math.min(lines.length, start + room)} of ${lines.length} · kept current while open`
-              : 'kept current while open',
+              ? `${moves(shown)} · ${start + 1}–${Math.min(lines.length, start + room)} of ${lines.length} · kept current while open`
+              : `${moves(shown)} · kept current while open`,
             skin.hint,
           )
           .right((r) => r.button('Close', { kind: 'control', id: 'close' }).space())
@@ -343,7 +353,51 @@ export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Dra
     },
     ctx,
   )
-  return box(ctx.extensionView?.title ?? 'Extension', drawn.rows, width, skin, { corner: 'esc' })
+  return box(shown?.title ?? 'Extension', drawn.rows, width, skin, { corner: 'esc' })
+}
+
+/** What the keys do on this page, which depends on what it offers. */
+function moves(shown: PanelContext['extensionView']): string {
+  const said = ['↑↓ scrolls']
+  if ((shown?.tabs.length ?? 0) > 1) said.push('tab moves')
+  if (shown?.windowed) said.push('←→ the window')
+  return said.join(' · ')
+}
+
+/**
+ * The rows above the body that never scroll: the tabs, and how far back it is
+ * showing.
+ *
+ * Both on one row where they fit, because the two together are one sentence —
+ * *which* of this page, over *what* — and two rows for them on a page whose
+ * whole point is being read at a glance is a row of the answer given up.
+ */
+function viewHead(
+  panel: ExtensionViewPanel,
+  shown: PanelContext['extensionView'],
+  inner: number,
+  ctx: PanelContext,
+): Line[] {
+  const tabs = shown?.tabs ?? []
+  if (tabs.length === 0 && !shown?.windowed) return []
+  const chosen = tabs.some((tab) => tab.id === panel.tab) ? panel.tab : (tabs[0]?.id ?? '')
+  const row = new Row(inner, ctx.skin, ctx.pointer).space()
+  for (const tab of tabs) {
+    row.tab(tab.title, { kind: 'control', id: `tab:${tab.id}` }, tab.id === chosen)
+  }
+  if (shown?.windowed) {
+    row.right((r) => {
+      for (const window of SPEND_WINDOWS) {
+        r.tab(
+          window.label,
+          { kind: 'control', id: `window:${window.id}` },
+          panel.window === window.id,
+        )
+      }
+      r.space()
+    })
+  }
+  return [row.build(), blank(inner)]
 }
 
 /**

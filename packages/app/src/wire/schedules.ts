@@ -1,4 +1,5 @@
 import {
+  DEFAULT_MOST,
   type DoneRule,
   describeWhen,
   dueNow,
@@ -501,7 +502,10 @@ export class Schedules implements Subject {
         input: { ...(req.input ?? {}) },
         // What the watch says it is for, unless somebody said otherwise.
         found: req.found ?? offer.offers,
-        most: req.most ?? 2,
+        // The watch's own number where it has one, as `standingSchedules` uses
+        // it: what is right for a watch that starts agents is not what is right
+        // for one that asks a question.
+        most: req.most ?? offer.most ?? DEFAULT_MOST,
       }
       when ??= { every: offer.every }
       // Turned on while its extension cannot look is allowed, and said.

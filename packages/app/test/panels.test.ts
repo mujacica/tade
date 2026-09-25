@@ -1063,6 +1063,54 @@ describe("an extension's view", () => {
     expect(panelKey(panel, 'escape', '', {}).panel).toBeNull()
     expect(panelClick(panel, 'close', {}).panel).toBeNull()
   })
+
+  // What a page offers is the extension's own declaration, so the keys that move
+  // between tabs and windows do nothing at all on a page that offers neither —
+  // rather than something invisible, which is how a key comes to feel broken.
+  const tabs = [
+    { id: 'overview', title: 'Overview' },
+    { id: 'findings', title: 'Findings' },
+    { id: 'looks', title: 'Looks' },
+  ]
+  const offering = { viewTabs: tabs, viewWindowed: true, lines: 40 }
+
+  it('opens on today, on the tab it is given, and starts at the top', () => {
+    const panel = extensionViewPanel('jev', 'findings')
+    expect(panel).toMatchObject({ tab: 'findings', window: 'today', scroll: 0 })
+    expect(extensionViewPanel('resources')).toMatchObject({ tab: '', window: 'today' })
+  })
+
+  it('moves through the tabs with tab, and through the windows with the arrows', () => {
+    let panel = extensionViewPanel('jev', 'overview')
+    panel = panelKey(panel, 'tab', '', offering).panel as typeof panel
+    expect(panel.tab).toBe('findings')
+    panel = panelKey(panel, 'shift+tab', '', offering).panel as typeof panel
+    expect(panel.tab).toBe('overview')
+    // Wrapping, like the Spend panel's, so neither end is a dead key.
+    panel = panelKey(panel, 'shift+tab', '', offering).panel as typeof panel
+    expect(panel.tab).toBe('looks')
+    panel = panelKey(panel, 'right', '', offering).panel as typeof panel
+    expect(panel.window).toBe('window')
+    panel = panelKey(panel, 'left', '', offering).panel as typeof panel
+    expect(panel.window).toBe('today')
+  })
+
+  it('goes back to the top on a different tab or a different window', () => {
+    let panel = extensionViewPanel('jev', 'overview')
+    panel = panelKey(panel, 'pageDown', '', offering).panel as typeof panel
+    expect(panel.scroll).toBe(10)
+    expect((panelKey(panel, 'tab', '', offering).panel as typeof panel).scroll).toBe(0)
+    expect((panelKey(panel, 'right', '', offering).panel as typeof panel).scroll).toBe(0)
+    expect((panelClick(panel, 'tab:looks', offering).panel as typeof panel).tab).toBe('looks')
+    expect((panelClick(panel, 'window:week', offering).panel as typeof panel).window).toBe('week')
+  })
+
+  it('leaves a page that offers neither exactly as it was', () => {
+    const panel = extensionViewPanel('resources')
+    expect(panelKey(panel, 'tab', '', { lines: 40 }).panel).toEqual(panel)
+    expect(panelKey(panel, 'right', '', { lines: 40 }).panel).toEqual(panel)
+    expect(panelClick(panel, 'window:week', {}).panel).toEqual(panel)
+  })
 })
 
 describe('setting an extension up', () => {

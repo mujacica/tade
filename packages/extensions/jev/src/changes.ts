@@ -676,23 +676,49 @@ export function stateOf(
 }
 
 /**
- * The files of one change in groups that fit an ask. A file whose own patch is
- * bigger than a group goes on its own, truncated as it was read.
+ * The files of one change in groups that fit an ask, and how much had to be cut
+ * to make them fit.
+ *
+ * Every batch fits. It used to be that a file whose own patch was bigger than
+ * the budget went in on its own anyway — the check is `batch.length > 0`, so the
+ * first file of a batch is never measured — which is an ask built to be refused:
+ * `PATCH_LIMIT` is a cap on one file and says nothing about what one *ask*
+ * takes, and the two are only ever comfortably apart while the rest of the state
+ * is small. The state is measured now, so on a change with a long intent and
+ * forty file names the room left can fall below one file's patch, and then the
+ * old rule sent a state over the limit and lost the whole reading.
+ *
+ * So such a file is cut to what is left and how much was left behind is
+ * returned, because that is a reading of part of a file and the caller has to
+ * say so: what it did not read, it cannot have answered about.
  */
-export function inBatches(changes: readonly FileChange[], budgetChars: number): FileChange[][] {
+export function inBatches(
+  changes: readonly FileChange[],
+  budgetChars: number,
+): { batches: FileChange[][]; cut: number } {
   const batches: FileChange[][] = []
   let batch: FileChange[] = []
   let size = 0
+  let cut = 0
+  const room = Math.max(1, budgetChars)
   for (const change of changes) {
-    const length = change.patch.length + change.file.length
-    if (batch.length > 0 && size + length > budgetChars) {
+    const names = change.file.length
+    const fits = Math.max(1, room - names)
+    const patch = change.patch.length > fits ? change.patch.slice(0, fits) : change.patch
+    cut += change.patch.length - patch.length
+    const one =
+      patch.length === change.patch.length
+        ? change
+        : { ...change, patch, cut: change.cut + (change.patch.length - patch.length) }
+    const length = patch.length + names
+    if (batch.length > 0 && size + length > room) {
       batches.push(batch)
       batch = []
       size = 0
     }
-    batch.push(change)
+    batch.push(one)
     size += length
   }
   if (batch.length > 0) batches.push(batch)
-  return batches
+  return { batches, cut }
 }

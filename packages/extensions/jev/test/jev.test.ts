@@ -6,8 +6,9 @@ import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { circlingIn } from '../src/circles.ts'
 import { jevExtension } from '../src/extension.ts'
 import { shorten } from '../src/loop.ts'
+import { findingsReport } from '../src/page.ts'
 import { RUBRIC, reviewQuestions } from '../src/questions.ts'
-import { findingsReport, statusLine } from '../src/report.ts'
+import { statusLine } from '../src/report.ts'
 import { readReviews } from '../src/reviews.ts'
 import { host, NOW, offline, typesafe } from './harness.ts'
 
@@ -366,9 +367,12 @@ describe('the record', () => {
     })
     await loaded.call('jev_review', { project: 'shop', task: 'shop/add-refunds' }, asked)
     const before = await loaded.call('jev_findings', { project: 'shop' }, asked)
-    expect(before.text).toMatch(/## This week/)
-    expect(before.text).toMatch(/1 change read · 1 flagged/)
-    expect(before.text).toMatch(/\| test_missing \| 1 \| 0 \| 0 \|/)
+    // `jev_findings` is every tab and no window: a tool call has no tabs to
+    // press, and the orchestrator is usually asking about findings older than
+    // today.
+    expect(before.text).toMatch(/## Read ever/)
+    expect(before.text).toMatch(/1 change · 1 flagged/)
+    expect(before.text).toMatch(/test_missing\s+1\s+█+\s+none judged/)
 
     await loaded.call(
       'jev_verdict',
@@ -380,8 +384,8 @@ describe('the record', () => {
       asked,
     )
     const after = await loaded.call('jev_findings', { project: 'shop' }, asked)
-    expect(after.text).toMatch(/\| test_missing \| 1 \| 1 \| 0 \|/)
-    expect(after.text).toMatch(/## Calibration/)
+    expect(after.text).toMatch(/test_missing\s+1\s+█+\s+1 of 1, too few to call/)
+    expect(after.text).toMatch(/## By probability/)
     await expect(
       loaded.call(
         'jev_verdict',
@@ -397,7 +401,7 @@ describe('the record', () => {
 
   it('keeps what it is asked to keep, and answers with nothing when nothing was read', () => {
     const record = { reviews: [], looks: [], findings: [], finished: new Set<string>(), now: NOW }
-    expect(findingsReport(record)).toMatch(/Nothing read yet/)
+    expect(findingsReport(record)).toMatch(/Nothing read ever/)
     expect(statusLine(record).text).toBe('0 read · 0 flagged')
   })
 })
@@ -550,7 +554,21 @@ describe('what the window shows', () => {
     expect(performance.now() - started).toBeLessThan(200)
 
     const view = await loaded.view('jev', tade)
-    expect(view.markdown).toMatch(/1 change read · 1 flagged/)
+    expect(view.markdown).toMatch(/1 change · 1 flagged/)
+    // The page says what it offers, so the window draws the tabs and the window
+    // row from the extension's own answer rather than from anything sniffed.
+    expect(view.tabs.map((tab) => tab.id)).toEqual([
+      'overview',
+      'findings',
+      'questions',
+      'calibration',
+      'looks',
+    ])
+    expect(view.windowed).toBe(true)
+    // And a tab it was never offered is answered as its first, so a page whose
+    // tabs were renamed never comes back empty.
+    const overview = await loaded.view('jev', tade, { tab: 'nonesuch', since: 0, window: 'today' })
+    expect(overview.markdown).toBe(view.markdown)
     const brief = await loaded.brief()
     expect(brief.items[0]?.said).toMatch(/Jev read 1 change and flagged 1/)
     expect(brief.items[0]?.ask).toMatch(/which .* are worth fixing/)

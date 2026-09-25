@@ -1,5 +1,5 @@
 import { readdirSync } from 'node:fs'
-import { standingSchedules } from '@tade/core'
+import { DEFAULT_MOST, standingSchedules } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { patchesIn } from '../src/changes.ts'
@@ -84,6 +84,12 @@ describe('the watches that are on without anybody turning one on', () => {
     // them — somebody who wants an agent per finding says so when they change
     // it, and the reading still offers one.
     expect(made[1]?.does).toMatchObject({ watch: 'jev.verdicts', found: 'ask' })
+    // Two is the right ceiling on agents started and the wrong one on questions
+    // asked. The sweep starts nothing, and metered at two an hour a backlog of
+    // nine takes five hours to be mentioned once — which is how nine findings
+    // came to sit open for three days with nobody having decided against them.
+    expect(made[0]?.does).toMatchObject({ most: DEFAULT_MOST })
+    expect(made[1]?.does.kind === 'watch' && made[1].does.most).toBeGreaterThan(DEFAULT_MOST)
   })
 
   it('is on for nobody with no key: no schedule, no look, no file, no noise', async () => {

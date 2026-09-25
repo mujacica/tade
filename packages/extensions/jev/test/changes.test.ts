@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { CHARS_PER_TOKEN, cutTo, partSaid, whoseWork } from '../src/changes.ts'
+import { CHARS_PER_TOKEN, cutTo, inBatches, partSaid, whoseWork } from '../src/changes.ts'
+import { roomFor } from '../src/review.ts'
 import { readReviews } from '../src/reviews.ts'
 import { host, NOW, typesafe } from './harness.ts'
 
@@ -172,6 +173,117 @@ describe('reading a change that will not fit', () => {
       }),
     ).rejects.toThrow(
       /the one change it found could not be read: shop\/regenerate .*longer than one ask takes/,
+    )
+  })
+})
+
+describe('an ask is built to fit, rather than sent to be refused', () => {
+  const asking = { judge: { capabilities: { stateTokens: 32_000 } } } as Parameters<
+    typeof roomFor
+  >[0]
+  const unit = { intent: 'add refunds', branch: 'tade/add-refunds', tasks: ['shop/add-refunds'] }
+  const file = (name: string, size: number) => ({ file: name, patch: 'x'.repeat(size), cut: 0 })
+
+  it('never puts more in a batch than the budget, one oversized file included', () => {
+    // The check used to be `batch.length > 0`, so the first file of a batch was
+    // never measured at all: a file bigger than the budget went in whole and the
+    // ask came back `max_tokens_exceeded`, taking the whole reading with it.
+    const { batches, cut } = inBatches(
+      [file('src/huge.ts', 9_000), file('src/small.ts', 100)],
+      1000,
+    )
+    for (const batch of batches) {
+      const size = batch.reduce((sum, one) => sum + one.patch.length + one.file.length, 0)
+      expect(size).toBeLessThanOrEqual(1000)
+    }
+    // And what it had to leave behind is counted, because a reading of part of a
+    // file is different evidence from a reading of the whole of it.
+    expect(cut).toBeGreaterThan(8_000)
+    expect(batches.flat().map((one) => one.file)).toEqual(['src/huge.ts', 'src/small.ts'])
+  })
+
+  it('leaves a change that fits exactly as it was, with nothing cut', () => {
+    const { batches, cut } = inBatches([file('a.ts', 100), file('b.ts', 200)], 10_000)
+    expect(cut).toBe(0)
+    expect(batches).toHaveLength(1)
+    expect(batches[0]?.[0]?.patch.length).toBe(100)
+  })
+
+  it('takes the state around the patches off the budget, measured rather than guessed', () => {
+    // The 0.6 this replaces was a ratio standing in for the intent, the branch,
+    // the task names and every file name — the part that varies most. An agent
+    // whose intent is three paragraphs puts thousands of characters into every
+    // ask before a line of diff.
+    const small = roomFor(asking, unit, { files: [file('a.ts', 10)], unread: [], cut: 0 }, [])
+    const wordy = roomFor(
+      asking,
+      { ...unit, intent: 'x'.repeat(20_000) },
+      { files: [file('a.ts', 10)], unread: [], cut: 0 },
+      [],
+    )
+    expect(small - wordy).toBeGreaterThan(19_000)
+    // And the file names are all of them, whichever batch a file lands in.
+    const many = roomFor(
+      asking,
+      unit,
+      {
+        files: Array.from({ length: 40 }, (_, at) => file(`packages/app/src/page-${at}.ts`, 10)),
+        unread: [],
+        cut: 0,
+      },
+      [],
+    )
+    expect(small - many).toBeGreaterThan(1_000)
+  })
+
+  it('leaves room for the estimate being an estimate, and never goes over the budget', () => {
+    const room = roomFor(asking, unit, { files: [file('a.ts', 10)], unread: [], cut: 0 }, [])
+    expect(room).toBeLessThan(32_000 * CHARS_PER_TOKEN)
+    expect(room).toBeGreaterThan(50_000)
+  })
+
+  it('reads the rest of a change when one batch of it is refused', async () => {
+    // One refused ask is not a change nobody could read. The whole reading used
+    // to go with it, reaching somebody as a provider's JSON.
+    const repo = mkrepo()
+    const worktree = repo.addTask('many-files', { project: 'shop', intent: 'change five things' })
+    const lines = (word: string) =>
+      Array.from(
+        { length: 300 },
+        (_, at) => `export const ${word}${at} = compute(${at}, 'a rather long argument here')`,
+      ).join('\n')
+    // Five files of three hundred lines: more than one ask takes, so the change
+    // is read in two, and the file the judge refuses is in the second of them.
+    repo.commit(
+      'five things',
+      {
+        'src/a1.ts': lines('one'),
+        'src/a2.ts': lines('two'),
+        'src/a3.ts': lines('three'),
+        'src/a4.ts': lines('four'),
+        'src/zrefused.ts': lines('five'),
+      },
+      worktree,
+    )
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: refusing(/src\/zrefused\.ts/, typesafe({ test_missing: 0.9 })),
+    })
+    const answer = await loaded.call(
+      'jev_review',
+      { project: 'shop', task: 'shop/many-files' },
+      asked,
+    )
+    expect(answer.text).toMatch(/\| test_missing \| 0\.90 \|/)
+    // And it names what it could not read, because what it did not read it
+    // cannot have answered about — **with what was said about it**, since "was
+    // not read" is an absence and this is a failure, and telling those two apart
+    // is the whole of what a reader of a partial answer needs.
+    expect(answer.text).toMatch(/Read in part:.*src\/zrefused\.ts/)
+    expect(answer.text).toMatch(
+      /could not read because: .*longer than one ask takes: read it in pieces/,
     )
   })
 })

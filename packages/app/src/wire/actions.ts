@@ -1,4 +1,5 @@
 import { focusTask, matchActions, notice, parseCommand } from '../model.ts'
+import type { ExtensionViewPanel } from '../panels/extensions/setup.ts'
 import { type MenuSubject, menuPanel } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { UPDATES } from '../panels/settings/state.ts'
@@ -49,6 +50,8 @@ export interface RouterDeps {
   onScreen(name: string): Promise<void>
   /** Read a diff, because the diff panel moved to another file. */
   loadDiff(task: string, path: string): Promise<void>
+  /** Ask an extension for its page again, for the tab and window its panel is on. */
+  loadExtensionView(panel: ExtensionViewPanel): Promise<void>
   /** Search was opened: the slow halves of it start. */
   searchOpened(): void
   /** The Updates page was opened: what is installed here is read. */
@@ -127,6 +130,15 @@ export class Router {
       const was = before?.kind === 'diff' ? before : null
       if (!was || was.file !== outcome.panel.file || was.task !== outcome.panel.task) {
         void this.deps.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
+      }
+    }
+    // A different tab or a different window is a different page: the extension
+    // is asked again now rather than on the next status beat, because a tab that
+    // takes a second to answer is a tab that looks broken.
+    if (outcome.panel?.kind === 'extension-view') {
+      const was = before?.kind === 'extension-view' ? before : null
+      if (!was || was.tab !== outcome.panel.tab || was.window !== outcome.panel.window) {
+        void this.deps.loadExtensionView(outcome.panel)
       }
     }
     if (outcome.panel?.kind === 'search') this.deps.searchOpened()

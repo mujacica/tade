@@ -1,60 +1,35 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AG╭─ Jev ──────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮ ×   
-     │ This week                                                                                                 █│─────
- ▌ ! │                                                                                                           █│     
- ▌   │ 2 looks · 3 changes read · 4 flagged · $0.01                                                              █│     
-     │                                                                                                           █│     
-   ⠋ │ Waiting on a verdict                                                                                      █│     
-     │                                                                                                           █│     
-     │ 2 of 4 finding(s) have no verdict, 1 of them with an agent's account already. The oldest has waited 6h.   █│     
- ▸ SM│                                                                                                           █│     
- ▾ CH│ - checkout/refund-window:test_missing — 0.64 · src/webhook.ts · waiting 6h, nobody has accounted for it   █│     
-  M p│ - checkout/stripe-v15:test_missing — 0.88 · src/webhook.ts · waiting 40m, its agent says this is not real █│     
-  A …│                                                                                                           █│     
-  M s│ Nothing here becomes a false positive by getting old: jev_verdict is the only thing that closes one, it   █│     
-     │ is never an agent’s to give about its own change, and its sentence has to cite what in the change decided █│     
- ▾ FI│ it.                                                                                                       █│     
-   ▾ │                                                                                                           █│     
-     │ By question                                                                                               █│     
-     │                                                                                                           █│     
-   ▸ │ ┌─────────────────┬───────┬───────────┬────────────────┐                                                  █│     
-     │ │ question        │ fired │ confirmed │ false positive │                                                  █│     
-     │ ├─────────────────┼───────┼───────────┼────────────────┤                                                  █│     
-     │ │ test_missing    │ 2     │ 0         │ 0              │                                                  █│     
- ▸ NO│ ├─────────────────┼───────┼───────────┼────────────────┤                                                  █│     
- ▾ GI│ │ error_swallowed │ 1     │ 1         │ 0              │                                                  █│     
-   re│ ├─────────────────┼───────┼───────────┼────────────────┤                                                  █│     
-   br│ │ kind_fixture    │ 1     │ 0         │ 1              │                                                  █│     
-   fr│ └─────────────────┴───────┴───────────┴────────────────┘                                                  █│     
-   wo│                                                                                                           █│     
-   pa│ Calibration                                                                                               █│     
-     │                                                                                                           █│     
-     │ ┌─────────────┬─────────┬───────────┐                                                                     █│     
-     │ │ probability │ flagged │ confirmed │                                                                     █│     
-     │ ├─────────────┼─────────┼───────────┤                                                                     █│     
-     │ │ 0.6–0.7     │ 2       │ 0         │                                                                     █│     
-     │ ├─────────────┼─────────┼───────────┤                                                                     █│     
-     │ │ 0.7–0.8     │ 1       │ 1         │                                                                     █│     
-     │ ├─────────────┼─────────┼───────────┤                                                                     █│     
-     │ │ 0.8–0.9     │ 1       │ 0         │                                                                     █│     
-     │ └─────────────┴─────────┴───────────┘                                                                     █│     
-     │                                                                                                           █│     
-     │ What it found                                                                                             █│     
-     │                                                                                                           █│     
-     │ - checkout/stripe-v15:error_swallowed — Does this change catch an error and carry on without reporting it █│     
-     │   anywhere?                                                                                               █│     
-     │   checkout/fix-swallowed-error, going · confirmed: src/webhook.ts catches the parse error and still       █│     
-     │   returns 200                                                                                             █│     
-     │ - checkout/stripe-v15:test_missing — Does this change alter what the program does without adding or       █│     
-━   o│   changing a test that covers it?                                                                         █│▾   ━
-     │   told orchestrator · its agent: not real — the new branch is covered by the contract tests in            █│     
-     │   test/stripe.test.ts                                                                                     █│    ▕
-     │ - checkout/refund-window:kind_fixture — Does this change make a test fixture tidier or more forgiving     █│    ▕
-     │   than a real project would be?                                                                           ▕│    ▕
-     │ ↑↓ scrolls · 1–51 of 52 · kept current while open                                                 Close    │    ▕
+     │   Overview    Findings    Questions    Calibration    Looks              Today    This window    7 days    │─────
+ ▌ ! │                                                                                                            │     
+ ▌   │ Read today                                                                                                ▕│     
+     │                                                                                                           ▕│     
+   ⠋ │ 2 changes · 4 flagged · 0.8¢ · 2 looks                                                                    ▕│     
+     │                                                                                                           ▕│     
+     │ Where they stand                                                                                          ▕│     
+ ▸ SM│                                                                                                           ▕│     
+ ▾ CH│   ✗ told, no verdict  1                                                                                   ▕│     
+  M p│   ◐ its agent         1                                                                                   ▕│     
+  A …│   ● judged            2                                                                                   ▕│     
+  M s│                                                                                                           ▕│     
+     │ 2 findings with no verdict. The oldest has waited 6h.                                                     ▕│     
+ ▾ FI│                                                                                                           ▕│     
+   ▾ │ Worth running                                                                                             ▕│     
+     │                                                                                                           ▕│     
+     │   ◐ precision  1 of 2, too few to call                                                                    ▕│     
+   ▸ │                                                                                                           ▕│     
+     │ 2 verdict(s) is not a rate. Under 5 the counts are said and the percentage is not, because one verdict    ▕│     
+     │ moving a figure by a quarter is not a trend.                                                              ▕│     
+     │                                                                                                           ▕│     
+━   o│ Loudest questions                                                                                         ▕│▾   ━
+     │                                                                                                           ▕│     
+     │   ◐ test_missing     2 fired  none judged                                                                 ▕│    ▕
+     │   ◐ error_swallowed  1 fired  1 of 1, too few to call  under 5 verdicts                                   ▕│    ▕
+     │   ◐ kind_fixture     1 fired  0 of 1, too few to call  under 5 verdicts                                   ▕│    ▕
+     │ ↑↓ scrolls · tab moves · ←→ the window · kept current while open                                  Close    │    ▕
  ❯ wh╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯    ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute    3 read · 4 flagged │ claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute    2 read · 4 flagged │ claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

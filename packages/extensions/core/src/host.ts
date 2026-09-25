@@ -25,6 +25,8 @@ import type {
   StatusItem,
   TadeExtension,
   ToolAnswer,
+  ViewAt,
+  ViewTab,
   WatchAgent,
   WatchContext,
 } from './port.ts'
@@ -171,6 +173,8 @@ export interface WatchOffer {
   offers: 'ask' | 'agent'
   /** Whether it is on without anybody turning it on, once its extension can look. */
   standing: boolean
+  /** How many of one look's findings to act on, where the watch says two is wrong for it. */
+  most: number | null
   /** Why it cannot look now — its extension needs setting up, is off, is broken — or null. */
   problem: string | null
 }
@@ -702,16 +706,39 @@ export class ExtensionHost {
     }
   }
 
-  /** An extension's view, as markdown. Throws with the reason it could not be made. */
-  async view(name: string, tade: ExtensionWorkbench): Promise<{ title: string; markdown: string }> {
+  /**
+   * An extension's view, as markdown, for the tab and window it is being read
+   * in. Throws with the reason it could not be made.
+   *
+   * What tabs there are and whether it is windowed are the extension's own
+   * declarations, handed back with the page so the window can draw them without
+   * asking anybody: a page that offers none is drawn exactly as every page was
+   * before tabs existed.
+   */
+  async view(
+    name: string,
+    tade: ExtensionWorkbench,
+    at: ViewAt = { tab: '', since: 0, window: 'today' },
+  ): Promise<{
+    title: string
+    markdown: string
+    tabs: readonly ViewTab[]
+    windowed: boolean
+  }> {
     const entry = this.ready().find((one) => one.extension.name === name)
     if (!entry?.extension.view) throw new Error(`${name} has nothing to show`)
+    const tabs = entry.extension.viewTabs ?? []
     return {
       title: entry.extension.title,
-      markdown: await entry.extension.view({
-        ...entry.ctx,
-        tade: asExtension(tade, entry.extension.name),
-      }),
+      tabs,
+      windowed: entry.extension.viewWindowed === true,
+      markdown: await entry.extension.view(
+        { ...entry.ctx, tade: asExtension(tade, entry.extension.name) },
+        // A tab nobody offered is the first one there is: the panel remembers
+        // which tab you were on per extension, and an extension whose tabs were
+        // renamed must not answer about one it no longer has.
+        { ...at, tab: tabs.some((tab) => tab.id === at.tab) ? at.tab : (tabs[0]?.id ?? '') },
+      ),
     }
   }
 
@@ -736,6 +763,7 @@ export class ExtensionHost {
         input: watch.input ?? null,
         offers: watch.offers ?? 'agent',
         standing: watch.standing === true,
+        most: watch.most ?? null,
         problem: notReady(entry),
       })),
     )

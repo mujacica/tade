@@ -278,10 +278,12 @@ flagged gets the question in the judge's own words — material to judge, never 
 answers it: it fixed the cause, or the finding is not real and why. That is its **account**, not a
 verdict; an agent marking its own work a false positive is the defendant grading the exam. The
 **verdict** is yours or the orchestrator's, and it has to name what in the change decided it. What
-nobody answered is swept up and put in front of you, and nothing becomes a false positive by
-getting old.
+nobody answered is swept up and put in front of you — again as it keeps waiting, never once and
+then silence — and nothing becomes a false positive by getting old. Every finding with no verdict
+says *why* it has none, because "waiting on a verdict" is the symptom and each of its causes wants
+something different done.
 
-![What Jev has read this week, each question by how often it was right, and every finding with what became of it](images/jev.svg)
+![What Jev read today, where every finding stands and why, and whether the questions earn their place](images/jev.svg)
 
 Paste a key and it is on. With none, none of it runs and nothing else changes.
 

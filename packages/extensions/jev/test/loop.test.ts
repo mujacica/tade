@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { jevExtension } from '../src/extension.ts'
 import { citedIn, findingsOf, sweepOf, verdictProblem } from '../src/loop.ts'
-import { RUBRIC, rubricOf } from '../src/questions.ts'
+import { RUBRIC, reviewQuestions, rubricOf, titleOf } from '../src/questions.ts'
 import { readReviews } from '../src/reviews.ts'
 import { host, NOW, offline, typesafe } from './harness.ts'
 
@@ -286,17 +286,19 @@ describe('the sweep', () => {
 })
 
 describe('the gap, where anybody can see it', () => {
-  it('says how many are waiting, how many have an account, and for how long', async () => {
+  it('says how many are waiting, why, and for how long', async () => {
     const { loaded, home, worktree, key } = await flagged()
     const before = await loaded.call('jev_findings', { project: 'shop' }, asked)
-    expect(before.text).toMatch(/## Waiting on a verdict/)
-    expect(before.text).toMatch(/1 of 1 finding\(s\) have no verdict, 0 of them with an agent/)
+    expect(before.text).toMatch(/1 finding with no verdict/)
     expect(before.text).toMatch(/never an agent’s to give about its own change/)
     // Named, and not only counted: a verdict is written about a finding by
-    // name, so a backlog nobody can name is a backlog nobody can answer.
-    expect(before.text).toMatch(
-      /- \*\*shop\/add-refunds:test_missing\*\* — 0\.88 · src\/refund\.ts · waiting .+, nobody has accounted for it/,
-    )
+    // name, so a backlog nobody can name is a backlog nobody can answer. And
+    // *why* beside it, because "waiting on a verdict" is the symptom and each
+    // of the five causes wants something different done about it.
+    expect(before.text).toMatch(/shop\/add-refunds:test_missing\s+0\.88/)
+    // Its agent, because with no window open an agent is not gone just because
+    // nobody is looking — which is the same caution the sweep takes.
+    expect(before.text).toMatch(/its agent has not answered for it and is still there to/)
 
     await loaded.call(
       'jev_account',
@@ -304,12 +306,12 @@ describe('the gap, where anybody can see it', () => {
       agentAsking('shop/add-refunds', worktree),
     )
     const after = await loaded.call('jev_findings', { project: 'shop' }, asked)
-    expect(after.text).toMatch(/1 of 1 finding\(s\) have no verdict, 1 of them with an agent/)
-    expect(after.text).toMatch(/waiting .+, its agent says this is not real/)
+    expect(after.text).toMatch(/1 finding with no verdict/)
+    expect(after.text).toMatch(/its agent answered and nothing has put it in front of anybody yet/)
     // An account is testimony, never a verdict: an agent saying its own work
     // is fine may not move the tables that say whether the rubric was right.
-    expect(after.text).toMatch(/\| test_missing \| 1 \| 0 \| 0 \|/)
-    expect(after.text).toMatch(/\| 0\.8–0\.9 \| 1 \| 0 \|/)
+    expect(after.text).toMatch(/test_missing\s+1\s+█+\s+none judged/)
+    expect(after.text).toMatch(/0\.8–0\.9\s+1\s+none judged/)
 
     await loaded.call(
       'jev_verdict',
@@ -317,16 +319,20 @@ describe('the gap, where anybody can see it', () => {
       asked,
     )
     const closed = await loaded.call('jev_findings', { project: 'shop' }, asked)
-    expect(closed.text).toMatch(/Nothing: all 1 finding\(s\) have been answered/)
-    expect(closed.text).toMatch(/\| 0\.8–0\.9 \| 1 \| 1 \|/)
+    expect(closed.text).not.toMatch(/finding with no verdict/)
+    expect(closed.text).toMatch(/0\.8–0\.9\s+1\s+1 of 1, too few to call/)
     expect(readReviews(home)[0]?.verdict.test_missing?.was).toBe('confirmed')
   })
 
   it('puts the same figure in the brief, whether or not anything was read last night', async () => {
     const { loaded } = await flagged()
     const brief = await loaded.brief()
-    const gap = brief.items.find((item) => /waiting on a verdict/.test(item.said))
-    expect(gap?.said).toMatch(/1 finding waiting on a verdict, the oldest/)
+    const gap = brief.items.find((item) => /no verdict/.test(item.said))
+    // The same sentence the page says, and the reason with it: a backlog nobody
+    // has answered does not go away by nobody reading anything, and half of what
+    // was in this one was waiting on nothing at all.
+    expect(gap?.said).toMatch(/1 finding with no verdict\. The oldest has waited/)
+    expect(gap?.said).toMatch(/its agent has not answered for it/)
     expect(gap?.ask).toMatch(/say which of them were real/)
   })
 })
@@ -338,5 +344,67 @@ describe('the rubric version', () => {
     expect(rubricOf([one, two])).toBe(rubricOf([two, one]))
     expect(rubricOf([one, two])).not.toBe(rubricOf([one, { ...two, ask: 'Is it b, really?' }]))
     expect(RUBRIC).toMatch(/^q-[0-9a-f]{8}$/)
+  })
+
+  it('changes when what an answer would mean changes', () => {
+    // `means` is sent to the judge with the question and is therefore part of
+    // it: fingerprinting `ask` alone filed two different questions under one id
+    // the day somebody sharpened what yes means.
+    const one = { id: 'a', kind: 'yes-no' as const, ask: 'Is it a?' }
+    const sharpened = { ...one, means: { yes: 'it is a', no: 'it is not a' } }
+    expect(rubricOf([one])).not.toBe(rubricOf([sharpened]))
+    expect(rubricOf([sharpened])).not.toBe(
+      rubricOf([{ ...sharpened, means: { yes: 'it is really a', no: 'it is not a' } }]),
+    )
+  })
+})
+
+// Every verdict written in this repository's first fortnight named the same
+// failure: a question firing on a change that touched a file the words it was
+// asked for did not literally name, which here is nearly always `AGENTS.md` or a
+// recipe under `.claude/skills` — the two things the guide *requires* of
+// finished work. A question that reads those as something other than what was
+// asked fires hardest on the work that followed the rules.
+describe('the pack knows documentation is not code', () => {
+  const means = (id: string) => {
+    const found = reviewQuestions([id])[0]
+    return found?.kind === 'yes-no' ? found.means : undefined
+  }
+
+  it('says so in both questions it kept firing on, and in no on both', () => {
+    for (const id of ['test_missing', 'did_what_was_asked']) {
+      expect(means(id)?.no, id).toMatch(/[Dd]ocumentation is not code/)
+      expect(means(id)?.no, id).toMatch(/Markdown/)
+      expect(means(id)?.no, id).toMatch(/\.claude\/skills/)
+    }
+  })
+
+  it('says a project may require an invariant beside the thing it describes', () => {
+    // The house rule this repository is actually held to, said in the question
+    // that was firing hardest on people keeping it.
+    expect(means('did_what_was_asked')?.no).toMatch(
+      /a project may require an invariant to be written beside the thing it describes/,
+    )
+    expect(means('did_what_was_asked')?.no).toMatch(
+      /Documentation, tests and comments written beside the code this change is about are part of doing what was asked/,
+    )
+  })
+
+  it('keeps the exception out of the question itself, which stays one question', () => {
+    // A question with three sentences of exception after it is a question hiding
+    // several judgments. `means` is where "the proposition alone is not enough"
+    // belongs, and it reaches the judge with the question either way.
+    for (const id of ['test_missing', 'did_what_was_asked']) {
+      expect(titleOf(id).split('?').length - 1, id).toBeLessThanOrEqual(1)
+      expect(titleOf(id).trim().endsWith('?'), id).toBe(true)
+      expect(titleOf(id), id).not.toMatch(/Markdown/)
+    }
+  })
+
+  it('says what each answer would mean, so neither is read off the wording alone', () => {
+    for (const id of ['test_missing', 'did_what_was_asked']) {
+      expect(means(id), id).toBeDefined()
+      expect(means(id)?.yes, id).not.toBe(means(id)?.no)
+    }
   })
 })

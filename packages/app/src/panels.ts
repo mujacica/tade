@@ -144,6 +144,9 @@ export interface PanelInputs {
   written?: readonly WrittenToolView[]
   /** The fields of the extension being set up. */
   setupFields?: readonly SetupFieldView[]
+  /** The tabs the extension's own page offers, and whether it is windowed. */
+  viewTabs?: readonly { id: string; title: string }[]
+  viewWindowed?: boolean
 }
 
 /**
@@ -165,7 +168,12 @@ export function panelKey(
   if (panel.kind === 'keys') return keysKey(panel, key)
   if (panel.kind === 'model') return modelKey(panel, key, data, inputs.models ?? [])
   if (panel.kind === 'extension-setup') return setupKey(panel, key, data, inputs.setupFields ?? [])
-  if (panel.kind === 'extension-view') return extensionViewKey(panel, key, inputs.lines ?? 0)
+  if (panel.kind === 'extension-view') {
+    return extensionViewKey(panel, key, inputs.lines ?? 0, {
+      tabs: inputs.viewTabs ?? [],
+      windowed: inputs.viewWindowed === true,
+    })
+  }
   if (panel.kind === 'extensions') return extensionsKey(panel, key, data, inputs)
   if (panel.kind === 'quit') return quitKey(panel, key)
   if (panel.kind === 'reload') return reloadKey(panel, key)
@@ -206,7 +214,12 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'file') return fileClick(panel, control, inputs)
   if (panel.kind === 'keys') return keysClick(panel, control)
   if (panel.kind === 'model') return modelClick(panel, control, inputs.models ?? [])
-  if (panel.kind === 'extension-view') return extensionViewClick(panel, control)
+  if (panel.kind === 'extension-view') {
+    return extensionViewClick(panel, control, {
+      tabs: inputs.viewTabs ?? [],
+      windowed: inputs.viewWindowed === true,
+    })
+  }
   if (panel.kind === 'extension-setup') return setupClick(panel, control, inputs.setupFields ?? [])
   if (panel.kind === 'extensions') return extensionsClick(panel, control, inputs)
   if (panel.kind === 'quit') return quitClick(panel, control)

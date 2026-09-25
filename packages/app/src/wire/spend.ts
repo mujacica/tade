@@ -19,12 +19,9 @@ import type { Actions, Subject, Wiring } from './context.ts'
 
 export class Spend implements Subject {
   private readonly wire: Wiring
-  /** When this window opened: the start of "This window" on the Spend page. */
-  private readonly openedAt: number
 
   constructor(wire: Wiring) {
     this.wire = wire
-    this.openedAt = wire.now()
   }
 
   /** Today's spend and today's runtime, how full each plan's window is, and the page. */
@@ -53,7 +50,9 @@ export class Spend implements Subject {
       window: panel.window,
       by: panel.by,
       now: this.wire.now(),
-      openedAt: this.openedAt,
+      // The window's own moment, so an extension's page and this one mean the
+      // same thing by "This window".
+      openedAt: this.wire.openedAt,
       projects: projects(this.wire.state),
       runs: live.runs,
       made: live.produced,

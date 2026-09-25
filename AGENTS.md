@@ -292,6 +292,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   not a look that could not look, and only a look that could read nothing says so. Silence is the
   one answer that teaches nobody: a whole review lost to a 400 reached somebody as a single red
   line with a provider's JSON in it, which is neither a finding nor a reason.
+  **And the ask is built to fit rather than sent to be refused.** Everything in it is in hand at
+  the moment it is built, so everything but the estimate is *measured*: `roomFor` takes the length
+  of the state around the patches off the budget — the words the work was asked for in, the branch,
+  the task names, every file's name — where a ratio of 0.6 used to stand in for the whole of it,
+  and the part it was standing in for is the part that varies most. `inBatches` then never emits a
+  batch bigger than what is left, one oversized file included: the check was `batch.length > 0`, so
+  the first file of a batch was never measured at all, and `PATCH_LIMIT` is a bound on one file
+  that says nothing about what one *ask* takes. What had to be cut to make it fit is counted and
+  said, because that is a reading of part of a file. And one batch refused is not a change nobody
+  could read: it is named as unread and the rest is read, since the alternative is losing a whole
+  reading to one ask — which is the same lesson one layer down.
 - **An agent accounts for a finding; somebody else judges it.** A rubric that nobody says was right
   is a rubric nobody can argue with, so a finding has to be answered — and by whom is the whole of
   it (`packages/extensions/jev/src/loop.ts`). The agent whose diff it is gets the question in the
@@ -307,11 +318,47 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   recognisable afterwards. Finding, account and verdict each keep the version of the *questions*
   that produced them (`RUBRIC`, a fingerprint of the pack, derived so nobody has to remember to
   bump it), because one word changed in a question makes two different questions under one id. The
-  **sweep** (`jev.verdicts`, `offers: 'ask'`) is how what nobody answered reaches somebody: once
-  per finding an agent accounted for and nobody judged, and once per finding whose agent is gone,
-  after that agent has had its own hour to answer. It starts nothing — what to do about a finding
-  is a decision — and **nothing becomes a false positive by getting old**: unresolved stays
-  unresolved, and how many, which ones and for how long is said in `jev_findings` and in the brief.
+  **sweep** (`jev.verdicts`, `offers: 'ask'`) is how what nobody answered reaches somebody: a
+  finding an agent accounted for and nobody judged, one whose agent is gone, and one raised about a
+  change that is **nobody's in particular** — a whole branch several agents committed to, which no
+  one agent can account for and which `orphaned` missed, because that asks whether *every* task in
+  the unit is gone and one of twelve agents still typing was enough to keep a finding out of both
+  buckets and out of everybody's sight for good. Each after the agent has had its own hour. It
+  starts nothing — what to do about a finding is a decision — and **nothing becomes a false
+  positive by getting old**: unresolved stays unresolved.
+  **And it asks again rather than going quiet.** Tade remembers every key a watch ever found, so
+  that one thing is never acted on twice; that is exactly right for a watch that starts agents and
+  exactly wrong for one that asks a question. Twenty-three findings were mentioned once each, in
+  the hour they became answerable, and then went silent — which is how nine of them were still open
+  three days later with nobody having decided against them, only having forgotten. So waiting
+  longer is new information and is said on a **ladder** (`RUNGS`, `sweepKey`): four rungs ever, per
+  finding per reason, the first of them keeping the bare `#accounted` and `#gone` spellings so
+  turning the ladder on re-asks nothing. A finding cannot become a nag, and it cannot become
+  silence either. And because this watch starts nothing, what one look tells somebody about is
+  bounded by its own number (`ExtensionWatch.most`) rather than by the two that is the right
+  ceiling on *agents started*: a backlog of nine metered at two an hour takes five hours to be
+  mentioned once.
+- **A finding with no verdict is six different situations, and the page says which.** "Waiting on
+  a verdict" is the symptom, and every one of its causes wants something different done
+  (`stuckOf`, `packages/extensions/jev/src/stuck.ts`): its agent has not answered yet; its agent is
+  gone and never did; it was read as a **whole branch** and every agent in it is gone, so it is
+  unanswerable by construction; nothing says whose work it was; its agent answered and somebody was
+  told; its agent answered and nothing has put it in front of anybody yet. Twelve of twenty-six
+  findings read as one fact for three days, nine of them never accounted for at all. Derived, from
+  the record and two questions about the world — whether that task's agent is still there, and whether
+  the sweep has ever handed this key over — and with no window open an agent is **not gone because
+  nobody is looking**, which is the same caution the sweep takes. It closes nothing: `answered` is
+  the only settled state and it means somebody wrote a verdict down.
+- **A rate nobody has the verdicts for is not a rate.** Precision is the one number that says
+  whether any of this was worth running, and three ways of getting it wrong are all in one pure
+  file (`packages/extensions/jev/src/precision.ts`). It is counted over **findings** and never over
+  readings — one question raised again by a later look at the same change is one finding with one
+  key, and counted per reading a question that fired on one branch twenty-one times read as
+  twenty-one mistakes. An unresolved finding is counted as **neither** outcome, ever, and nothing
+  ages it into one. And under `ENOUGH` verdicts the counts are said and the percentage is not,
+  because `0%` over one verdict is a fact nobody has: a bar is a picture of a rate, so it is drawn
+  only where the rate may be read as one. A question is called `costs` — firing and wrong — only
+  once the verdicts say so, which is what makes that answer worth anything when it comes.
 - **A finding is about one agent's change, and in a shared checkout that is its own commits.** A
   finding nobody can be asked about is a finding nobody answers, which is what an empty calibration
   table is made of. Everybody on one branch read as one change asks the pack about seven agents'
@@ -456,6 +503,21 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   `rowLook` is the one answer to how a row looks — the marker says where the keyboard is, the lighter
   ground says what the mouse is over, and they are never the same thing; a menu drawing the pointed
   item as chosen made the keyboard appear to move when only the mouse had.
+- **A page an extension writes may have tabs and a window, and both are declared.** An extension's
+  `view` is somebody else's document, so what shape it has is the extension's to say
+  (`viewTabs`, `viewWindowed`) and the window draws the tab row and the window row from that answer
+  — never from anything read off the text, and never on a page that offers neither, which is drawn
+  exactly as every page was before either existed. The keys are the Spend panel's, because a page
+  with tabs and a window is the same thing twice and nobody should have to learn it in two places:
+  `tab` moves through the tabs, ← → through the windows, and a page that offers one of them does
+  not answer the other's keys at all. **What a day is, is the window's** — `sinceOf`, the same
+  three windows the Spend page has, `today` by default — and what is handed over is the *moment*
+  rather than the word, so nothing downstream can invent a second idea of a day; "this window"
+  means one moment everywhere, which is why it is the window's own (`Wiring.openedAt`) and not a
+  clock each subject reads in its own constructor. A tab pressed is a different page, so it is
+  asked for then and there rather than on the next status beat, and the tab each extension was last
+  on is remembered while the window is open — not across a close, because a tab written down is one
+  an extension may have renamed.
 - **A lane that took the whole screen scrolls itself, and the wheel is handed to it.** A program
   on the alternate screen — Claude Code, an editor a shell was pointed at — keeps no scrollback for
   anybody else to move: the lines that went past were never kept, so a window scrolling it has
@@ -543,7 +605,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   finding never starts work twice — a start that failed included. One look acts on at most `most`
   new findings, as queued work named for them or told to the orchestrator; the rest wait for the
   next look, which starts where this one did. A look that cannot look is said when it starts going
-  wrong, not at every look.
+  wrong, not at every look — and `most` is what one look *acts on*, which is a ceiling on agents
+  started and not on questions asked, so a watch that starts nothing says its own number
+  (`ExtensionWatch.most`).
+  **And a warning about a look must not outlive the look.** `a look failed` in the strip was said
+  whenever any look in seven days had failed, so one bad hour on Tuesday warned until Tuesday week
+  about a watch that had been looking happily ever since — purple text with nothing to press,
+  because there was nothing to dismiss. What a derived line says has to be true while it is drawn:
+  the **last** look's trouble, in its own words rather than a provider's JSON, going quiet of its
+  own accord the moment a look works. That is the only dismissal a line nobody stored can honestly
+  have, and the whole of the reason is one click away on the page it opens.
 - **A watch that is on by default is still a schedule somebody can take away.** A watch may declare
   that it stands (`standing`), and then the window writes it — once, per project, through the same
   `setSchedule` everything else goes through (`standingSchedules`, `core/src/schedule.ts`; written

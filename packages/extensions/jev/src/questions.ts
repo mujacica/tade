@@ -30,7 +30,32 @@ export const SEVERITY = [
   'must not ship',
 ] as const
 
-const yesNo = (id: string, ask: string): Question => ({ id, kind: 'yes-no', ask })
+const yesNo = (id: string, ask: string, means?: { yes: string; no: string }): Question => ({
+  id,
+  kind: 'yes-no',
+  ask,
+  ...(means ? { means } : {}),
+})
+
+/**
+ * What documentation is, for the two questions that kept firing on it.
+ *
+ * Every verdict written in this repository's first fortnight named the same
+ * failure: a change that touches a file the words it was asked for did not
+ * literally name, which here is nearly always `AGENTS.md` or a recipe under
+ * `.claude/skills` — and those are what the guide *requires* of finished work,
+ * because an invariant lives beside the thing it describes. A question that
+ * treats them as something other than what was asked for is a question that
+ * fires hardest on the work that followed the rules.
+ *
+ * It is in `means` and not in `ask`, which stays one literal question ending in
+ * a question mark: a question with three sentences of exception after it is a
+ * question hiding several judgments, which is the first mistake to make here.
+ * `means` is exactly the place for "when the proposition alone is not enough",
+ * and it reaches the judge with the question either way.
+ */
+const DOCUMENTATION =
+  'a Markdown file, a README, a guide, a recipe under .claude/skills, a comment, a changelog or a licence notice'
 
 // ── Reading a change ────────────────────────────────────────────────────────
 //
@@ -69,6 +94,10 @@ export const HAZARDS: readonly Question[] = [
   yesNo(
     'test_missing',
     'Does this change alter what the program does without adding or changing a test that covers it?',
+    {
+      yes: 'the change alters what the program does, and nothing in the change tests that it does',
+      no: `nothing the program does changed, or a test in the change covers what did. Documentation is not code: a change that only edits ${DOCUMENTATION} alters nothing the program does and has no behaviour to test`,
+    },
   ),
 ]
 
@@ -108,6 +137,10 @@ export const HOUSE: readonly Question[] = [
 export const DID_WHAT_WAS_ASKED: Question = yesNo(
   'did_what_was_asked',
   'The words the work was asked for in are in the state. Does this change do something other than what was asked for?',
+  {
+    yes: 'the change does something nobody asked for: behaviour, a feature, or a file that has nothing to do with what was asked',
+    no: `everything in the change serves what was asked. Documentation, tests and comments written beside the code this change is about are part of doing what was asked, even where the words did not name the file: documentation is not code — ${DOCUMENTATION} — and a project may require an invariant to be written beside the thing it describes`,
+  },
 )
 
 export const SEVERITY_QUESTION: Question = {
@@ -154,7 +187,7 @@ export const RUBRIC: string = rubricOf([
 /** A fingerprint of a pack of questions: their ids, their words, their answers. */
 export function rubricOf(questions: readonly Question[]): string {
   const words = questions
-    .map((one) => `${one.id}\u0000${one.ask}\u0000${answersOf(one)}`)
+    .map((one) => `${one.id}\u0000${one.ask}\u0000${meansOf(one)}\u0000${answersOf(one)}`)
     .sort()
     .join('\n')
   // FNV-1a, written out: nothing is being hidden behind this, so it wants no
@@ -164,6 +197,18 @@ export function rubricOf(questions: readonly Question[]): string {
     digest = Math.imul(digest ^ words.charCodeAt(at), 0x01000193)
   }
   return `q-${(digest >>> 0).toString(16).padStart(8, '0')}`
+}
+
+/**
+ * What a yes-no question says each answer would mean, for the fingerprint.
+ *
+ * It is sent to the judge with the question and is therefore part of it: a
+ * rubric that fingerprinted only `ask` would file two different questions
+ * under one id the day somebody sharpened what yes means.
+ */
+function meansOf(question: Question): string {
+  if (question.kind !== 'yes-no' || !question.means) return ''
+  return `${question.means.yes}\u0000${question.means.no}`
 }
 
 function answersOf(question: Question): string {

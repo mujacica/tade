@@ -14,10 +14,12 @@ import {
   sweepOf,
   verdictProblem,
 } from './loop.ts'
+import { findingsReport, whoseFrom } from './page.ts'
 import { RUBRIC } from './questions.ts'
 import { forgetRead, recordOf } from './record.ts'
-import { findingsReport, statusLine } from './report.ts'
+import { statusLine } from './report.ts'
 import { readReviews, recordAccount, recordVerdict } from './reviews.ts'
+import { oneAgents } from './stuck.ts'
 
 // Closing the loop, as three tools and a sweep.
 //
@@ -34,7 +36,7 @@ export const loopTools: ExtensionTool[] = [
   {
     name: 'jev_findings',
     description:
-      'What the review watch has looked at, what it flagged, what came of it, and whether it was right: this week, by question, how many findings are still waiting on a verdict, and a calibration table. It asks the judge nothing and costs nothing. Use it for "what did the overnight review turn up", to decide which questions are worth keeping, and — as an agent — to read what was flagged about your own change, which is what you answer with jev_account.',
+      'What the review watch has looked at, what it flagged, what came of it, and whether it was right: where every finding stands and why the open ones are open, which questions earn their place, whether a probability means what it says, and how the looks themselves have gone. Precision is counted out of verdicts and stated as a rate only once there are enough of them, so read the counts rather than the percentage on a young question. It asks the judge nothing and costs nothing. Use it for "what did the overnight review turn up", to decide which questions are worth keeping, and — as an agent — to read what was flagged about your own change, which is what you answer with jev_account.',
     parameters: object({ project, task: string('only findings about this task') }, []),
     for: ['orchestrator', 'agent'],
     run: async (input, ctx) => {
@@ -64,7 +66,7 @@ export const loopTools: ExtensionTool[] = [
         ...(task ? { task } : {}),
       }
       return {
-        text: findingsReport(record, about),
+        text: findingsReport(record, about, whoseFrom(record, ctx.tade?.agents() ?? null)),
         said: statusLine(record).text,
         data: { findings: record.findings.length, reviews: record.reviews.length },
       }
@@ -198,6 +200,12 @@ export const verdictsWatch: ExtensionWatch = {
   // decision is a person's or the orchestrator's. This asks; it never
   // answers, and no finding here becomes a false positive by getting old.
   offers: 'ask',
+  // Two is the right ceiling on agents started and the wrong one on questions
+  // asked. Nine findings sat open for three days while this told somebody
+  // about two of them an hour, each exactly once — so the backlog was being
+  // metered rather than answered. Nothing here starts anything, so what the
+  // number bounds is how much of a page the orchestrator is handed at once.
+  most: 8,
   // On beside the reading it closes the loop on, because half a loop is what
   // an empty calibration table is: findings nobody answered, and no way to
   // say whether any of the questions were worth asking. It costs nothing —
@@ -225,6 +233,11 @@ export const verdictsWatch: ExtensionWatch = {
           one.tasks.every(
             (task) => record.finished.has(task) || (agents !== null && !running.has(task)),
           ),
+        // A change that is one agent's own commits is somebody's to answer for;
+        // a branch several agents share is nobody's, however many of them are
+        // still at their desks. Without this the second kind fell between the
+        // two buckets and was never mentioned at all.
+        owned: oneAgents,
       },
     )
     return { found: sweepFindings(sweep, ctx.now()) }

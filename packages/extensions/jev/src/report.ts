@@ -1,20 +1,18 @@
 import type { Answer, Judgement } from '@tade/judges-core'
-import {
-  ACCOUNT_NOT_VERDICT,
-  FINDINGS_ARE_MATERIAL,
-  findingsOf,
-  gapLines,
-  type OpenFinding,
-} from './loop.ts'
+import { ACCOUNT_NOT_VERDICT, FINDINGS_ARE_MATERIAL } from './loop.ts'
 import { SEVERITY, titleOf } from './questions.ts'
 import type { Review } from './reviews.ts'
 
-// What everything Jev did adds up to, in words and tables.
+// What one reading answered, and the few words the status bar keeps.
+//
+// The page this file used to hold is `page.ts`, which windows it and gives it
+// tabs. What is left is the two things that are about a single reading rather
+// than about the record — the table of every answer, and what a finding says to
+// whoever is woken by it — and the line in the status bar.
 //
 // Pure: readings, looks and findings in, markdown out. Nothing here asks
-// anybody anything, so `jev_findings`, the status item, the view and the brief
-// are one function read four ways — and none of them can be slow, cost money
-// or need a key.
+// anybody anything, so the status item, the view and the brief are one read —
+// and none of them can be slow, cost money or need a key.
 
 /** One thing a watch found, as the journal has it. */
 export interface Found {
@@ -43,8 +41,6 @@ export interface ReviewRecord {
   finished: ReadonlySet<string>
   now: number
 }
-
-const WEEK = 7 * 24 * 60 * 60_000
 
 /** A probability, said the way a threshold is read. */
 function said(probability: number): string {
@@ -103,141 +99,58 @@ export function severitySaid(answers: Readonly<{ [id: string]: Answer }>): strin
   return severity.levels[Math.round(severity.level)] ?? SEVERITY[0]
 }
 
-/** What the record says, as a page: this week, by question, calibration, and what is open. */
-export function findingsReport(
-  record: ReviewRecord,
-  about?: { project?: string; task?: string },
-): string {
-  const reviews = record.reviews.filter(
-    (review) =>
-      (!about?.project || review.project === about.project) &&
-      (!about?.task || review.unit === about.task || review.tasks.includes(about.task)),
-  )
-  const findings = record.findings.filter(
-    (finding) => !about?.task || finding.key.startsWith(`${about.task}:`),
-  )
-  const week = reviews.filter((review) => Date.parse(review.at) >= record.now - WEEK)
-  const looks = record.looks.filter((look) => look.at >= record.now - WEEK)
-  const raised = week.reduce((sum, review) => sum + review.raised.length, 0)
-  const spent = week.reduce((sum, review) => sum + review.cost_usd, 0)
-  const lines: string[] = []
-
-  lines.push('## This week')
-  lines.push('')
-  lines.push(
-    looks.length === 0 && week.length === 0
-      ? 'Nothing read yet — the review watch reads a change once it has stopped moving, and jev_review reads on demand.'
-      : `${looks.length} look${looks.length === 1 ? '' : 's'} · ${week.length} change${week.length === 1 ? '' : 's'} read · ${raised} flagged · ${centsSaid(spent)}`,
-  )
-  const trouble = looks.filter((look) => look.problem)
-  if (trouble.length > 0) {
-    lines.push('')
-    lines.push(`${trouble.length} look(s) could not look: ${trouble[0]?.problem ?? ''}`)
-  }
-
-  // The state of the loop, before any of the tables: whether anything it
-  // flagged was ever answered is the question the rest of this page is only
-  // worth reading if the answer to is yes.
-  const raisedFindings = findingsOf(reviews)
-  const known = new Map(raisedFindings.map((one) => [one.key, one]))
-  lines.push(...gapLines(raisedFindings, record.now))
-
-  const byQuestion = new Map<string, { fired: number; confirmed: number; wrong: number }>()
-  for (const review of reviews) {
-    for (const id of review.raised) {
-      const row = byQuestion.get(id) ?? { fired: 0, confirmed: 0, wrong: 0 }
-      row.fired++
-      const verdict = review.verdict[id]
-      if (verdict?.was === 'confirmed') row.confirmed++
-      if (verdict?.was === 'false positive') row.wrong++
-      byQuestion.set(id, row)
-    }
-  }
-  if (byQuestion.size > 0) {
-    lines.push('')
-    lines.push('## By question')
-    lines.push('')
-    lines.push('| question | fired | confirmed | false positive |')
-    lines.push('| --- | --- | --- | --- |')
-    for (const [id, row] of [...byQuestion].sort((a, b) => b[1].fired - a[1].fired)) {
-      lines.push(`| ${id} | ${row.fired} | ${row.confirmed} | ${row.wrong} |`)
-    }
-  }
-
-  const buckets = calibration(reviews)
-  if (buckets.some((bucket) => bucket.judged > 0)) {
-    lines.push('')
-    lines.push('## Calibration')
-    lines.push('')
-    lines.push('| probability | flagged | confirmed |')
-    lines.push('| --- | --- | --- |')
-    for (const bucket of buckets) {
-      if (bucket.judged === 0) continue
-      lines.push(
-        `| ${bucket.from.toFixed(1)}–${bucket.to.toFixed(1)} | ${bucket.judged} | ${bucket.confirmed} |`,
-      )
-    }
-  }
-
-  if (findings.length > 0) {
-    lines.push('')
-    lines.push('## What it found')
-    lines.push('')
-    for (const finding of findings.slice(0, 20)) {
-      const became = finding.task
-        ? `${finding.task}${record.finished.has(finding.task) ? ', finished' : ', going'}`
-        : finding.told
-          ? `told ${finding.told}`
-          : (finding.problem ?? 'nothing yet')
-      lines.push(`- **${finding.key}** — ${finding.title}`)
-      lines.push(`  ${became}${saidAbout(known.get(finding.key))}`)
-    }
-  }
-  return lines.join('\n')
-}
-
-/** What has been said about one finding since: the agent's account, then the verdict. */
-function saidAbout(one: OpenFinding | undefined): string {
-  if (!one) return ''
-  const account = one.account ? ` · its agent: ${one.account.did} — ${one.account.said}` : ''
-  const verdict = one.verdict ? ` · ${one.verdict.was}: ${one.verdict.said}` : ''
-  return `${account}${verdict}`
-}
-
-function calibration(reviews: readonly Review[]) {
-  const buckets = Array.from({ length: 10 }, (_, index) => ({
-    from: index / 10,
-    to: (index + 1) / 10,
-    judged: 0,
-    confirmed: 0,
-  }))
-  for (const review of reviews) {
-    for (const id of review.raised) {
-      const probability = review.answers[id] ?? 0
-      const bucket = buckets[Math.min(9, Math.max(0, Math.floor(probability * 10)))]
-      if (!bucket) continue
-      bucket.judged++
-      if (review.verdict[id]?.was === 'confirmed') bucket.confirmed++
-    }
-  }
-  return buckets
-}
-
 function centsSaid(usd: number): string {
   if (usd <= 0) return 'nothing measured'
   return usd < 0.01 ? `${(usd * 100).toFixed(1)}¢` : `$${usd.toFixed(2)}`
 }
 
-/** What the status bar keeps: cheap, and the same numbers as everything else. */
+/**
+ * What the status bar keeps: cheap, today's, and true while it is drawn.
+ *
+ * Two things were wrong with the line it replaces, and both of them made it a
+ * line nobody could get rid of. It counted the whole week, so a figure that
+ * never went down read as a figure that was stuck. And `a look failed` was
+ * said whenever *any* look in seven days had failed — so one bad hour on
+ * Tuesday put a warning in the strip until Tuesday week, with no way to dismiss
+ * it, about a watch that had been looking happily ever since.
+ *
+ * So it is today's, like the page it opens, and the trouble it reports is the
+ * **last** look's. A watch that has started working again says so by going
+ * quiet, which is the only dismissal a derived line can honestly have — and
+ * what it says names what happened rather than that something did.
+ */
 export function statusLine(record: ReviewRecord): { text: string; flagged: number } {
-  const week = record.reviews.filter((review) => Date.parse(review.at) >= record.now - WEEK)
-  const flagged = week.reduce((sum, review) => sum + review.raised.length, 0)
-  const spent = week.reduce((sum, review) => sum + review.cost_usd, 0)
-  const trouble = record.looks.filter((look) => look.problem && look.at >= record.now - WEEK).length
+  const since = startOfDay(record.now)
+  const today = record.reviews.filter((review) => Date.parse(review.at) >= since)
+  const flagged = today.reduce((sum, review) => sum + review.raised.length, 0)
+  const spent = today.reduce((sum, review) => sum + review.cost_usd, 0)
+  // `looks` is newest first, as `watchedFrom` hands it over.
+  const last = record.looks[0]
   return {
-    text: `${week.length} read · ${flagged} flagged${spent > 0 ? ` · ${centsSaid(spent)}` : ''}${trouble > 0 ? ' · a look failed' : ''}`,
+    text: `${today.length} read · ${flagged} flagged${spent > 0 ? ` · ${centsSaid(spent)}` : ''}${last?.problem ? ` · ${shortly(last.problem)}` : ''}`,
     flagged,
   }
+}
+
+/** Local midnight: the same day the window means, and never a rolling 24 hours. */
+function startOfDay(now: number): number {
+  const day = new Date(now)
+  day.setHours(0, 0, 0, 0)
+  return day.getTime()
+}
+
+/**
+ * A reason short enough for the strip, cut at a word.
+ *
+ * The strip has one line and the reason may be a sentence, so what goes here is
+ * its front — and the whole of it is one click away on the Looks tab. Never a
+ * provider's JSON: `{"detail":{"error_type":"max_tokens_exceeded"}}` reached
+ * somebody as the whole of why a review did not happen, which is neither a
+ * finding nor a reason.
+ */
+function shortly(said: string): string {
+  const first = said.split(/[:.]/)[0]?.trim() || said
+  return first.length > 44 ? `${first.slice(0, 43).trimEnd()}…` : first
 }
 
 /** What a finding says to whoever is woken by it: the question, and that it is not a verdict. */

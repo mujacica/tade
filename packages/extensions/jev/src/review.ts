@@ -46,19 +46,61 @@ export interface Reading {
 }
 
 /**
- * How much of an ask is left for the diff once the questions are in it.
+ * Room left in the ask, for a safety margin on an estimate nobody has measured.
  *
- * Counted at `CHARS_PER_TOKEN` rather than at the port's four, because
- * what is being sized here is a diff. The 0.6 on top is room for everything in
- * the ask that is not the patches — the intent, the file names, the JSON
- * around them — and for the fact that the characters-to-tokens number is
- * itself an estimate: the whole of what went wrong was one estimate used as
- * though it were a measurement.
+ * Everything else here is counted rather than guessed, so this is the only
+ * number left that is a judgement: `CHARS_PER_TOKEN` is an estimate of how a
+ * diff tokenises and being over by a tenth costs the whole reading, while being
+ * under by a tenth costs one more request.
  */
-function roomFor(asking: Asking, questions: readonly Question[]): number {
-  const asked = questions.reduce((sum, one) => sum + one.ask.length, 0)
-  const budget = asking.judge.capabilities.stateTokens * CHARS_PER_TOKEN
-  return Math.max(2_000, Math.floor(budget * 0.6) - asked)
+const MARGIN = 0.9
+
+/** How many characters one question takes in an ask, its `means` included. */
+function askedLength(question: Question): number {
+  if (question.kind !== 'yes-no' || !question.means) return question.ask.length
+  // `Yes means ${yes}. No means ${no}.`, which is what the judge sends.
+  return question.ask.length + question.means.yes.length + question.means.no.length + 24
+}
+
+/**
+ * How much of an ask is left for the patches once everything else in it is
+ * counted.
+ *
+ * The 0.6 this replaces was a *ratio* standing in for everything in the state
+ * that is not a patch — the words the work was asked for in, the branch, the
+ * task names, the file names, the JSON around all of it — and a ratio is not a
+ * measurement. Those things are all in hand at this point, so they are measured:
+ * the state is built empty and its own length taken off the budget. It matters
+ * because the part being guessed at is the part that varies most — an agent
+ * whose intent is three paragraphs and a change across forty files puts
+ * thousands of characters in the state before a single line of diff, and
+ * `max_tokens_exceeded` takes the reading with it.
+ *
+ * Counted at `CHARS_PER_TOKEN` rather than at the port's four, because what is
+ * being sized is a diff.
+ */
+export function roomFor(
+  asking: Asking,
+  unit: Pick<Unit, 'intent' | 'branch' | 'tasks'>,
+  change: Change,
+  questions: readonly Question[],
+): number {
+  // Every question as the judge is given it, which for a yes-no with `means` is
+  // the proposition and both readings of it. Counted, not allowed for: the
+  // review pack's two longest questions carry three hundred characters of
+  // `means` between them.
+  const asked = questions.reduce((sum, one) => sum + askedLength(one), 0)
+  const budget = asking.judge.capabilities.stateTokens * CHARS_PER_TOKEN * MARGIN
+  // The state around the patches, measured: every file name is in it whichever
+  // batch a file lands in, so the whole change's names are counted and not one
+  // batch's.
+  const around = JSON.stringify(
+    stateOf(
+      unit,
+      change.files.map((file) => ({ ...file, patch: '' })),
+    ),
+  ).length
+  return Math.max(2_000, Math.floor(budget) - asked - around)
 }
 
 /**
@@ -84,9 +126,31 @@ export async function readChange(
     part: partSaid(change),
   }
   let severity = -1
-  for (const batch of inBatches(change.files, roomFor(asking, questions))) {
+  const room = roomFor(asking, unit, change, questions)
+  const batched = inBatches(change.files, room)
+  // A batch that would not fit is cut to fit and said, rather than sent to be
+  // refused: the ask is built from what is in hand, so whether it will fit is
+  // knowable here and a 400 is not information anybody needed.
+  reading.part = partSaid({ ...change, cut: change.cut + batched.cut })
+  const refused: string[] = []
+  let why = ''
+  for (const batch of batched.batches) {
     options.progress?.(`reading ${batch.map((one) => one.file).join(', ')}`)
-    const judged = await asking.askAll(stateOf(unit, batch), questions, options.signal)
+    let judged: Awaited<ReturnType<typeof asking.askAll>>
+    try {
+      judged = await asking.askAll(stateOf(unit, batch), questions, options.signal)
+    } catch (err) {
+      // One batch nobody could read is not a change nobody could read. A whole
+      // reading lost to one refused ask reached somebody as a single red line
+      // with a provider's JSON in it, which is neither a finding nor a reason —
+      // so what could not be read is named, **with what was said about it**, and
+      // the rest is read. A look that could read *nothing* still throws.
+      if (options.signal?.aborted) throw err
+      if (batched.batches.length === 1) throw err
+      refused.push(...batch.map((one) => one.file))
+      why ||= err instanceof Error ? err.message : String(err)
+      continue
+    }
     reading.version = judged.version
     for (const [id, answer] of Object.entries(judged.answers)) {
       if (answer.kind !== 'yes-no') continue
@@ -99,6 +163,23 @@ export async function readChange(
       severity = rated.level
       reading.severity = severitySaid(judged.answers)
     }
+  }
+  if (refused.length === change.files.length) {
+    throw new Error(`none of the ${refused.length} files in it could be read: ${why}`)
+  }
+  if (refused.length > 0) {
+    reading.part = [
+      partSaid({
+        ...change,
+        cut: change.cut + batched.cut,
+        unread: [...change.unread, ...refused],
+      }),
+      // And why, because "were not read" is an absence and this is a failure:
+      // the one thing a reader of a partial answer has to be able to tell apart.
+      `What it could not read, it could not read because: ${why}`,
+    ]
+      .filter(Boolean)
+      .join(' ')
   }
   return reading
 }

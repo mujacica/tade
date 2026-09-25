@@ -1,6 +1,6 @@
 import { checksExtension } from '@tade/extension-checks'
 import { depsExtension } from '@tade/extension-deps'
-import { findingsReport, jevExtension, RUBRIC } from '@tade/extension-jev'
+import { JEV_TABS, jevExtension, jevPage, RUBRIC, type Whose } from '@tade/extension-jev'
 import { chart, type Group, History, type Proc, sampleOf } from '@tade/extension-resources'
 import { sentryExtension } from '@tade/extension-sentry'
 import type { TadeExtension } from '@tade/extensions-core'
@@ -325,9 +325,18 @@ function extensionFacts() {
 }
 
 /**
- * What Jev has read this week, as its own report draws it: the real function
- * over made-up records, so the page shows the panel a person opens rather than
- * a picture of one.
+ * The window the page is drawn over: what "today" was at four in the afternoon.
+ *
+ * Said as a number rather than asked of `sinceOf`, which reads the local clock:
+ * the picture is compared byte for byte, and a midnight that moves with the
+ * machine's time zone is a picture that is right here and wrong on the runner.
+ */
+const TODAY = NOW - 16 * 3_600_000
+
+/**
+ * What Jev has read today, as its own page draws it: the real function over
+ * made-up records, so the picture shows the panel a person opens rather than a
+ * drawing of one.
  */
 function jevFindings(): string {
   const said = (at: number) => new Date(NOW - at).toISOString()
@@ -366,89 +375,99 @@ function jevFindings(): string {
       Object.entries(answered.verdict ?? {}).map(([id, one]) => [id, { ...one, rubric: RUBRIC }]),
     ),
   })
-  return findingsReport({
-    reviews: [
-      review(
-        40 * 60_000,
-        'checkout/stripe-v15',
-        { shell_injection: 0.04, test_missing: 0.88, error_swallowed: 0.71, severity: 1.6 },
-        ['test_missing', 'error_swallowed'],
+  return jevPage(
+    {
+      reviews: [
+        review(
+          40 * 60_000,
+          'checkout/stripe-v15',
+          { shell_injection: 0.04, test_missing: 0.88, error_swallowed: 0.71, severity: 1.6 },
+          ['test_missing', 'error_swallowed'],
+          {
+            verdict: {
+              error_swallowed: {
+                was: 'confirmed',
+                by: 'you',
+                said: 'src/webhook.ts catches the parse error and still returns 200',
+                at: said(30 * 60_000),
+                cited: 'src/webhook.ts',
+              },
+            },
+            // Answered by the agent that wrote it and by nobody else yet: the
+            // gap the sweep is for, drawn as the page draws it.
+            account: {
+              test_missing: {
+                did: 'not real',
+                by: 'checkout/stripe-v15',
+                said: 'the new branch is covered by the contract tests in test/stripe.test.ts',
+                at: said(35 * 60_000),
+              },
+            },
+          },
+        ),
+        review(
+          6 * 3_600_000,
+          'checkout/refund-window',
+          { secret_committed: 0.02, test_missing: 0.64, kind_fixture: 0.66 },
+          ['test_missing', 'kind_fixture'],
+          {
+            verdict: {
+              kind_fixture: {
+                was: 'false positive',
+                by: 'you',
+                said: 'the fixture in test/fixtures/refunds.ts is small on purpose',
+                at: said(5 * 3_600_000),
+                cited: 'test/fixtures/refunds.ts',
+              },
+            },
+          },
+        ),
+        review(26 * 3_600_000, 'search/rank-by-recency', { authz_removed: 0.03 }, []),
+      ],
+      looks: [
+        { at: NOW - 9 * 60_000, found: 2, fresh: 0, left: 0, problem: null },
+        { at: NOW - 40 * 60_000, found: 2, fresh: 2, left: 0, problem: null },
+      ],
+      findings: [
         {
-          verdict: {
-            error_swallowed: {
-              was: 'confirmed',
-              by: 'you',
-              said: 'src/webhook.ts catches the parse error and still returns 200',
-              at: said(30 * 60_000),
-              cited: 'src/webhook.ts',
-            },
-          },
-          // Answered by the agent that wrote it and by nobody else yet: the
-          // gap the sweep is for, drawn as the page draws it.
-          account: {
-            test_missing: {
-              did: 'not real',
-              by: 'checkout/stripe-v15',
-              said: 'the new branch is covered by the contract tests in test/stripe.test.ts',
-              at: said(35 * 60_000),
-            },
-          },
+          at: NOW - 40 * 60_000,
+          key: 'checkout/stripe-v15:error_swallowed',
+          title: 'Does this change catch an error and carry on without reporting it anywhere?',
+          task: 'checkout/fix-swallowed-error',
+          told: null,
+          problem: null,
         },
-      ),
-      review(
-        6 * 3_600_000,
-        'checkout/refund-window',
-        { secret_committed: 0.02, test_missing: 0.64, kind_fixture: 0.66 },
-        ['test_missing', 'kind_fixture'],
         {
-          verdict: {
-            kind_fixture: {
-              was: 'false positive',
-              by: 'you',
-              said: 'the fixture in test/fixtures/refunds.ts is small on purpose',
-              at: said(5 * 3_600_000),
-              cited: 'test/fixtures/refunds.ts',
-            },
-          },
+          at: NOW - 40 * 60_000,
+          key: 'checkout/stripe-v15:test_missing',
+          title:
+            'Does this change alter what the program does without adding or changing a test that covers it?',
+          task: null,
+          told: 'orchestrator',
+          problem: null,
         },
-      ),
-      review(26 * 3_600_000, 'search/rank-by-recency', { authz_removed: 0.03 }, []),
-    ],
-    looks: [
-      { at: NOW - 9 * 60_000, found: 2, fresh: 0, left: 0, problem: null },
-      { at: NOW - 40 * 60_000, found: 2, fresh: 2, left: 0, problem: null },
-    ],
-    findings: [
-      {
-        at: NOW - 40 * 60_000,
-        key: 'checkout/stripe-v15:error_swallowed',
-        title: 'Does this change catch an error and carry on without reporting it anywhere?',
-        task: 'checkout/fix-swallowed-error',
-        told: null,
-        problem: null,
-      },
-      {
-        at: NOW - 40 * 60_000,
-        key: 'checkout/stripe-v15:test_missing',
-        title:
-          'Does this change alter what the program does without adding or changing a test that covers it?',
-        task: null,
-        told: 'orchestrator',
-        problem: null,
-      },
-      {
-        at: NOW - 6 * 3_600_000,
-        key: 'checkout/refund-window:kind_fixture',
-        title:
-          'Does this change make a test fixture tidier or more forgiving than a real project would be?',
-        task: null,
-        told: 'orchestrator',
-        problem: null,
-      },
-    ],
-    finished: new Set<string>(),
-    now: NOW,
-  })
+        {
+          at: NOW - 6 * 3_600_000,
+          key: 'checkout/refund-window:kind_fixture',
+          title:
+            'Does this change make a test fixture tidier or more forgiving than a real project would be?',
+          task: null,
+          told: 'orchestrator',
+          problem: null,
+        },
+      ],
+      finished: new Set<string>(),
+      now: NOW,
+    },
+    { tab: 'overview', since: TODAY, window: 'today' },
+    // The agent that wrote `checkout/stripe-v15` is still at work, so the one
+    // finding nobody has accounted for is waiting on *it* rather than on a
+    // person — which is the distinction the page is for.
+    {
+      going: (task: string) => task === 'checkout/refund-window',
+      told: (key: string) => key === 'checkout/stripe-v15:test_missing',
+    } satisfies Whose,
+  )
 }
 
 export const EXTENSION_SCREENS: Scenario[] = [
@@ -601,23 +620,37 @@ export const EXTENSION_SCREENS: Scenario[] = [
     frame: frame({
       statuses: [{ extension: 'resources', text: '91% · 783 MB', tone: 'quiet', viewable: true }],
       panel: {
-        extensionView: { title: 'Resources', markdown: resourceChart() },
+        extensionView: {
+          title: 'Resources',
+          markdown: resourceChart(),
+          // What Tade is using is about now, so it has no tabs and no window.
+          tabs: [],
+          windowed: false,
+        },
       },
     }),
   },
   {
     name: 'what-jev-flagged',
     about:
-      'What Jev has read: how much it read this week and what it cost, every question by how often it fired and how often a person said it was right, whether a probability means what it says, and each finding with what became of it.',
+      'What Jev has read today: what it cost, where every finding stands and why the open ones are open, whether any of it is worth running — with the counts said and a percentage only once there are enough verdicts behind it — and the questions that fire loudest. Five tabs over one window of time, today by default.',
     state: { ...base(), panel: extensionViewPanel('jev') },
     frame: frame({
-      // Tall enough for the whole report: what it found is the half a person
-      // reads, and a picture that stops before it shows a page of tables. It
-      // grew by the two findings the gap now names, because a backlog nobody
-      // can name is a backlog nobody can answer.
-      height: 60,
-      statuses: [{ extension: 'jev', text: '3 read · 4 flagged', tone: 'quiet', viewable: true }],
-      panel: { extensionView: { title: 'Jev', markdown: jevFindings() } },
+      // Tall enough for the whole of the tab it is on, which is now the point:
+      // the overview is four short sections rather than four tables end to end,
+      // so the picture shows the answer instead of the first screen of it.
+      height: 35,
+      // Today's, like the page it opens: a figure that never goes down reads as
+      // a figure that is stuck.
+      statuses: [{ extension: 'jev', text: '2 read · 4 flagged', tone: 'quiet', viewable: true }],
+      panel: {
+        extensionView: {
+          title: 'Jev',
+          markdown: jevFindings(),
+          tabs: JEV_TABS,
+          windowed: true,
+        },
+      },
     }),
   },
   {

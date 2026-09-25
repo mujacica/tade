@@ -15,16 +15,16 @@
   M│ · Harnesses' own     2 ▕│   jev_account.                                                                      █│   
    │                        ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict         █│   
  ▾ │                        ▕│   (jev_verdict).                                                                    ▕│   
+   │                        ▕│ · Says which questions earn their place, and why each open finding is still open.   ▕│   
    │                        ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something pasted.       ▕│   
    │                        ▕│ · Reads things back before somebody guesses: a request, a plan, a queue order.      ▕│   
    │                        ▕│ · Answers a sentence typed into search that matched no letters.                     ▕│   
    │                        ▕│ · Reads a command the approval rules do not name — only ever asking for more.       ▕│   
    │                        ▕│ · May only add caution: never approves, merges, unholds or shortens a review.       ▕│   
-   │                        ▕│                                                                                     ▕│   
-━  │                        ▕│ TOOLS                                                                               ▕│  ━
-   │                        ▕│ jev_ask               Judge anything against questions you write                    ▕│   
+━  │                        ▕│                                                                                     ▕│  ━
+   │                        ▕│ TOOLS                                                                               ▕│   
+   │                        ▕│ jev_ask               Judge anything against questions you write                    ▕│  ▕
    │                        ▕│ jev_grep              Grep that reads                                               ▕│  ▕
-   │                        ▕│ jev_review            Read a change against the review pack and say what it flags   ▕│  ▕
    │                        ▕│                                                                                      │  ▕
    │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
