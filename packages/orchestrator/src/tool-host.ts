@@ -89,6 +89,19 @@ export interface ToolHostOptions {
     openProject(req: { path: string; name?: string; create: boolean }): Promise<string>
     closeProject(req: { project: string; said: string }): Promise<string>
   }
+  /**
+   * What Tade is watching for, and turning one watch on or off.
+   *
+   * The window's, like the config, and for the same reason: a watch is a
+   * schedule in a project, the schedules are the window's, and the boundary
+   * that decides whether the orchestrator may touch one is enforced there
+   * rather than in the tool — a rule that lives where the model lives is a
+   * rule the model can be talked out of.
+   */
+  watches?: {
+    list(find: string): Promise<string>
+    change(req: { watch: string; project: string; on: boolean; said: string }): Promise<string>
+  }
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -188,6 +201,14 @@ export class ToolHost {
         configOf(opts).change({
           path: String(p.path ?? ''),
           value: String(p.value ?? ''),
+          said: String(p.said ?? ''),
+        }),
+      'watch/list': async (p) => watchesOf(opts).list(p.find ? String(p.find) : ''),
+      'watch/change': async (p) =>
+        watchesOf(opts).change({
+          watch: String(p.watch ?? ''),
+          project: String(p.project ?? ''),
+          on: p.on === true,
           said: String(p.said ?? ''),
         }),
       'project/open': async (p) =>
@@ -399,6 +420,15 @@ function configOf(opts: ToolHostOptions): NonNullable<ToolHostOptions['config']>
       'changing how Tade is set up needs the Tade window open, which is what holds the config',
     )
   return opts.config
+}
+
+/** What the watches are, or why there is nothing to ask. */
+function watchesOf(opts: ToolHostOptions): NonNullable<ToolHostOptions['watches']> {
+  if (!opts.watches)
+    throw new Error(
+      'watches need the Tade window open: a watch is a schedule, and nothing runs one without it',
+    )
+  return opts.watches
 }
 
 /** The window's queue, or why there is none to use. */

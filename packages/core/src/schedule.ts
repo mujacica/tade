@@ -442,6 +442,12 @@ export interface WatchOffered {
   offers: 'ask' | 'agent'
   standing: boolean
   /**
+   * What it looks for and what it does about it, in the watch's own sentence.
+   * Optional because deciding what is on needs none of it — only the first
+   * minute, which has to say what it is offering somebody.
+   */
+  means?: string
+  /**
    * How many of one look's findings the schedule starts on, where the watch
    * says the default of two is wrong for it. Null leaves it at the default.
    */
@@ -451,12 +457,38 @@ export interface WatchOffered {
 }
 
 /**
- * The id a standing watch's schedule keeps for good, in one project.
+ * A schedule's id, for good, from the name it was first given: made again
+ * under that name, it is the same schedule changed.
+ *
+ * Cut to forty characters, because an id is read in the queue, typed at
+ * `tade_queue_change` and used to name tasks — which is exactly why the id a
+ * watch keeps (`standingId`, below) is *not* cut: that one is the only handle
+ * on "has this project ever had this watch", and two long project names cut to
+ * the same forty characters would be one schedule that one of them could never
+ * be given.
+ */
+export function scheduleIdOf(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'schedule'
+  )
+}
+
+/**
+ * The id a watch's schedule keeps for good, in one project.
  *
  * Never shortened, unlike an id made from a name somebody typed: this one is
  * the only handle on "has this project ever had this watch", and two long
  * project names cut to the same forty characters would be one schedule that
  * one of them could never be given.
+ *
+ * Standing watches are what it was written for and are not the only user:
+ * setting up writes the watches somebody ticked under it too, so that one
+ * turned on in the first minute and one that turned itself on are the same
+ * schedule with the same memory of what it has already found.
  */
 export function standingId(watch: string, project: string): string {
   const slug = (said: string) =>
@@ -465,6 +497,42 @@ export function standingId(watch: string, project: string): string {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
   return `${slug(watch)}-${slug(project)}`.replace(/^-+|-+$/g, '') || 'watch'
+}
+
+/**
+ * The schedule that turning one watch on in one project is.
+ *
+ * One rule, because three things turn a watch on — the window's standing pass,
+ * the button on the Extensions page and the first minute — and three answers
+ * to "what does turning this on actually write" would drift. The window's own
+ * `set` is the fourth and is the general path: it takes a rule, a `found` and
+ * a `most` from whoever asked, and falls back to exactly these.
+ */
+export function watchSchedule(
+  watch: WatchOffered,
+  where: { id: string; name: string; project: string; by: string; said?: string },
+  now: number,
+): Schedule {
+  return {
+    id: where.id,
+    name: where.name,
+    project: where.project,
+    said: where.said ?? '',
+    when: { every: watch.every },
+    does: {
+      kind: 'watch',
+      watch: watch.id,
+      input: {},
+      found: watch.offers,
+      // The watch's own number where it has one, and two where it has not.
+      // It is a starting point and not a rule: this writes an ordinary
+      // schedule, and from here on `most` is the schedule's.
+      most: watch.most ?? DEFAULT_MOST,
+    },
+    missed: 'once',
+    by: where.by,
+    created: new Date(now).toISOString(),
+  }
 }
 
 /**
@@ -496,26 +564,13 @@ export function standingSchedules(
       if (!watch.standing || watch.problem !== null) continue
       const id = standingId(watch.id, project)
       if (already(id)) continue
-      made.push({
-        id,
-        name: watch.title,
-        project,
-        said: '',
-        when: { every: watch.every },
-        does: {
-          kind: 'watch',
-          watch: watch.id,
-          input: {},
-          found: watch.offers,
-          // The watch's own number where it has one, and two where it has not.
-          // It is a starting point and not a rule: this writes an ordinary
-          // schedule, and from here on `most` is the schedule's.
-          most: watch.most ?? DEFAULT_MOST,
-        },
-        missed: 'once',
-        by: `extension:${watch.id.split('.')[0] ?? ''}`,
-        created: new Date(now).toISOString(),
-      })
+      made.push(
+        watchSchedule(
+          watch,
+          { id, name: watch.title, project, by: `extension:${watch.id.split('.')[0] ?? ''}` },
+          now,
+        ),
+      )
     }
   }
   return made

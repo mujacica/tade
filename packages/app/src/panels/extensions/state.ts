@@ -145,8 +145,10 @@ export interface WatchOfferView {
   every: string
   /** The project it would watch: the one you are in. Null when you are in none. */
   project: string | null
-  /** The schedule watching it there, once it is on. */
+  /** The schedule watching it there, once there is one. Null before anybody turned it on. */
   on: string | null
+  /** Whether that schedule is paused, which is what turning a watch off leaves behind. */
+  paused: boolean
 }
 
 /** A tool Tade wrote for itself: one file, for you to read and turn on. */
@@ -401,10 +403,7 @@ export function extensionControls(
   if (view.folder) controls.push(`folder:${view.name}`)
   if (view.state !== 'broken') controls.push(`toggle:${view.name}`)
   if (view.state === 'broken') return controls
-  for (const watch of view.watches) {
-    const control = watchControl(view.name, watch)
-    if (control) controls.push(control)
-  }
+  for (const watch of view.watches) controls.push(...watchControls(view.name, watch))
   return controls
 }
 
@@ -420,12 +419,35 @@ export function toolSummary(description: string): string {
 }
 
 /**
- * What a watch's button does: show the schedule watching it, once one is on;
- * turn it on in the project you are in; or nothing, when you are in none.
+ * Whether a watch is running in the project you are in: it has a schedule and
+ * that schedule is not paused.
+ *
+ * One reading of it, because the button's label, the mark down the left and
+ * what pressing it does all have to agree. A paused schedule is off — it is
+ * what turning a watch off leaves behind, so that turning it back on picks up
+ * with everything it has already found rather than starting work on all of it
+ * again.
  */
-export function watchControl(extension: string, watch: WatchOfferView): string | null {
-  if (watch.on) return `watching:${watch.on}`
-  return watch.project ? `watch:${extension}:${watch.id}` : null
+export function watchOn(watch: WatchOfferView): boolean {
+  return watch.on !== null && !watch.paused
+}
+
+/**
+ * What a watch's row offers, in the order they are drawn and the keyboard
+ * walks them: showing the schedule, where there is one, and the button that
+ * turns it on or off — which is only there where you are in a project,
+ * because a watch is a schedule in one.
+ *
+ * The button used to say `Watch tade`, which reads as a noun phrase about a
+ * project rather than as an act with a state — so it says what pressing it
+ * does, in the page's own words for that act: the same `Turn on` / `Turn off`
+ * every extension, written tool and server on this page already uses.
+ */
+export function watchControls(extension: string, watch: WatchOfferView): string[] {
+  return [
+    ...(watch.on ? [`watching:${watch.on}`] : []),
+    ...(watch.project ? [`watch:${extension}:${watch.id}`] : []),
+  ]
 }
 
 /**

@@ -339,7 +339,7 @@ export function orchestratorTools(
 
   tool(
     'tade_schedule',
-    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given. It runs while Tade is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
+    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given, and turning one on needs the person to have asked for that watch in their own words (tade_watches lists them, and tade_watch_change is the tool for it); scheduling an agent or an ask needs no such thing. It runs while Tade is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
     object(
       {
         name: string('what it is called, in a few words'),

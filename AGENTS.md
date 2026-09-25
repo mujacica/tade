@@ -238,7 +238,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   `config_changed` — the path, what it was, what it is now, who asked, and their words — because
   a change nobody watched has to be one somebody can find and undo; a credential is said as `set`
   or `not set` there and is never read back by any tool, the way it is never in the journal
-  anywhere else.
+  anywhere else. One thing decided here is not a config key at all — a watch, which lives in
+  `schedules.jsonl` (`WATCH_REACH`) — because the question is the same question, and answering it
+  somewhere else is how two answers to it come to exist.
 - **Closing a project and forgetting its work are not the same act, and Tade only offers the
   first.** `tade_project_close` takes `projects.<name>` out of the config and does nothing else:
   the folder, every commit, branch and worktree, everything under `.tade/` and the journal all
@@ -631,6 +633,36 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   on costs nothing anybody has to agree to: no credential of somebody else's, nobody outside told
   anything, and a look that finds nothing spending nothing. Its first look is one interval away
   rather than the moment it is written, so opening Tade is never a reading of everything.
+- **What may not stand is offered instead, once, in the first minute.** The bar for standing is
+  high and most watches fail it — `deps.vulnerabilities` starts an agent per vulnerable package,
+  and work queued by a clock nobody agreed to is the surprise at three in the morning — so what is
+  left is a question rather than a default. `watchesToOffer` (`core/src/watches.ts`) is the rule:
+  every watch with what it does, how often it looks, and what being on *costs*, said either way —
+  one that starts agents says so, one whose extension has no key says what it needs instead of
+  being offered as though it would work, and one that stands is said and never asked, because a
+  tick that changed nothing would be a lie. Ticked is only ever a watch that tells you something
+  and starts nothing: pressing enter without reading has to mean being told, never four agents in
+  four lanes by morning. It is asked inside the extensions step (`setup-watches.ts`) rather than
+  in one of its own, which is the whole of how it avoids being the step people learn to skip —
+  that step is finished once every extension has been decided about, so this is asked on a machine
+  where nothing has been decided and never again, and what it offers is what the extensions
+  somebody has *just* chosen declare. What it writes is an ordinary schedule under the id the
+  Extensions page uses (`scheduleIdOf`), so the button there turns off the thing it turned on.
+- **Turning a watch on or off is a person's ask, and the button says which way it goes.** On the
+  Extensions page it is `Turn on` / `Turn off` — the page's own words for that act, said three
+  other places on it — where it read `Watch tade`, which is a noun phrase about a project rather
+  than an act with a state. Off **pauses** the schedule and never removes it: a watch remembers
+  what it has found through its schedule's id, so a removed-and-remade one would come back with no
+  memory and start work on everything it had already dealt with. Removing one for good stays the
+  queue's. The orchestrator has the same two acts (`tade_watches`, `tade_watch_change`) at the
+  `asked` tier, decided in `settingReach`'s own file (`WATCH_REACH`) and enforced in the window:
+  `extensions.*.enabled` is `never` because turning an extension on imports somebody's code and
+  hands its tools to every agent, and a watch inside one already on widens nothing an agent may do
+  — it only lets a clock start work in a project already open, visibly, undoably. Off needs the
+  words most, not least, because the watches are what notice a red build. The check sits at the
+  one door every way of turning a watch on goes through (`Schedules.set`), so `tade_schedule` is
+  held to it too; what it does not hold is the queue's own pause and remove, and that is said in
+  `WATCH_REACH` rather than papered over.
 - **Tade tells the orchestrator; it never talks over it.** What happened waits and goes with the
   next thing you say, under "What they said:"; what needs it now goes after its current turn
   (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and

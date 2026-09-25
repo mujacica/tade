@@ -16,7 +16,7 @@ import {
   HARNESS,
   toolSummary,
   WRITTEN,
-  watchControl,
+  watchControls,
 } from '../src/panels/extensions/state.ts'
 import {
   type FilePanel,
@@ -887,6 +887,7 @@ describe('the Extensions panel', () => {
           every: '1h',
           project: 'shop',
           on: null,
+          paused: false,
         },
         {
           id: 'regressions',
@@ -895,6 +896,7 @@ describe('the Extensions panel', () => {
           every: '1h',
           project: 'shop',
           on: 'regressions',
+          paused: false,
         },
       ],
     },
@@ -935,7 +937,10 @@ describe('the Extensions panel', () => {
       'setup:sentry',
       'toggle:sentry',
       'watch:sentry:new-errors',
+      // One that is on has two: the schedule it made, and the button that
+      // turns it off again — which is the half `Watch tade` never offered.
       'watching:regressions',
+      'watch:sentry:regressions',
     ])
     // Turning it off is last: enter into the right-hand side lands on the
     // first control, and that must never be the switch.
@@ -1041,13 +1046,15 @@ describe('the Extensions panel', () => {
     )
   })
 
-  it('offers a watch only where there is a project to watch', () => {
+  it('offers a watch only where there is a project to watch, and says which way it goes', () => {
     const watch = views[1]!.watches[0]!
-    expect(watchControl('sentry', watch)).toBe('watch:sentry:new-errors')
-    expect(watchControl('sentry', { ...watch, project: null })).toBeNull()
-    expect(watchControl('sentry', { ...watch, project: null, on: 'new-sentry-errors' })).toBe(
+    expect(watchControls('sentry', watch)).toEqual(['watch:sentry:new-errors'])
+    expect(watchControls('sentry', { ...watch, project: null })).toEqual([])
+    // On, there are two: the schedule it made, and the button that turns it off.
+    expect(watchControls('sentry', { ...watch, on: 'new-sentry-errors' })).toEqual([
       'watching:new-sentry-errors',
-    )
+      'watch:sentry:new-errors',
+    ])
   })
 })
 

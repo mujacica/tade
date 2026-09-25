@@ -127,6 +127,7 @@ function extensionShown(
       every: watch.every,
       project: 'checkout',
       on: null,
+      paused: false,
     })),
     ...over,
   }

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { watchSchedule } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -130,9 +131,9 @@ describe('the window, and what it watches', () => {
     const extensionsButton = find('Extensions ]')
     click(extensionsButton.col + 2, extensionsButton.row)
     await until('the watch offered', () =>
-      screenOf(terminal.written).some((row) => row.includes('Watch app ]')),
+      screenOf(terminal.written).some((row) => row.includes('Turn on ]')),
     )
-    const watch = find('Watch app ]')
+    const watch = find('Turn on ]')
     click(watch.col + 2, watch.row)
     await until('it is on, and says when it looks', () =>
       screenOf(terminal.written).some((row) =>
@@ -334,6 +335,17 @@ describe('the window, and what it watches', () => {
     await expect(
       tools.schedule({ name: 'Snow', project: 'app', said: '', watch: 'weather.snow' }),
     ).rejects.toThrow('there is no watch called weather.snow (there is weather.rain)')
+    // Turning a watch on through this door is the same act as through the
+    // watch tool, so it is held to the same words: a rule with an unguarded
+    // door beside it is worse than no rule.
+    await expect(
+      tools.schedule({ name: 'Rain', project: 'app', said: '', watch: 'weather.rain' }),
+    ).rejects.toThrow(/Nothing they have said names Rain/)
+    await client.log.append({
+      type: 'said',
+      task: null,
+      detail: { text: 'tell me when it rains — turn the rain watch on' },
+    })
     await expect(
       tools.schedule({
         name: 'Rain',
@@ -384,5 +396,106 @@ describe('the window, and what it watches', () => {
     expect(await tools.change({ schedule: 'rain', change: 'start' })).toBe(
       'Rain looked: nothing new.',
     )
+  }, 30_000)
+  it('lets the orchestrator read the watches, and turn one only where they asked', async () => {
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          watches: [
+            {
+              id: 'rain',
+              title: 'Rain',
+              means: 'Looks for rain, and starts an agent to bring the washing in.',
+              every: '1h',
+              check: async () => ({ found: [] }),
+              agent: () => ({ title: 'never', prompt: 'never' }),
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    const window = await start({ extensions, thinker: { ask: async () => 'ok' } })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const watches = window.watchTools()
+    const theySaid = (text: string) =>
+      client.log.append({ type: 'said', task: null, detail: { text } })
+
+    // Reading is ungated, and says what each one costs and where it stands.
+    const listed = await watches.watches('')
+    expect(listed).toContain('weather.rain')
+    expect(listed).toContain('app: off')
+    expect(listed).toContain('starts an agent on each thing it finds')
+    expect(await watches.watches('nothing like this')).toContain('Nothing matches')
+
+    // Nobody asked: refused, and the refusal says what to ask for.
+    await expect(
+      watches.change({ watch: 'weather.rain', project: 'app', on: true, said: '' }),
+    ).rejects.toThrow(/asks for it/)
+    await theySaid('how are the watches getting on?')
+    await expect(
+      watches.change({ watch: 'weather.rain', project: 'app', on: true, said: 'they want it on' }),
+    ).rejects.toThrow(/Nothing they have said names Rain/)
+    expect(client.schedules()).toEqual([])
+
+    // A watch Tade does not have, and a project it does not have, are each
+    // refused in their own words rather than written anyway.
+    await expect(
+      watches.change({ watch: 'weather.snow', project: 'app', on: true, said: 'watch for snow' }),
+    ).rejects.toThrow(/no watch called weather.snow/)
+    await expect(
+      watches.change({ watch: 'weather.rain', project: 'nope', on: true, said: 'watch for rain' }),
+    ).rejects.toThrow(/not a project/)
+
+    // Off is the direction that needs the words most, so it takes them too.
+    // Turned on by the person, as the button on the Extensions page does it.
+    await client.setSchedule(
+      watchSchedule(
+        {
+          id: 'weather.rain',
+          title: 'Rain',
+          every: '1h',
+          offers: 'agent',
+          standing: false,
+          problem: null,
+        },
+        { id: 'rain', name: 'Rain', project: 'app', by: 'you' },
+        Date.now(),
+      ),
+      'you',
+    )
+    await expect(
+      watches.change({ watch: 'weather.rain', project: 'app', on: false, said: 'off with it' }),
+    ).rejects.toThrow(/Nothing they have said names Rain/)
+    expect(client.schedules()).toMatchObject([{ id: 'rain', paused: false }])
+
+    // Named, it goes off — paused rather than removed, so nothing it has
+    // already found is forgotten and turning it back on starts no work twice.
+    await theySaid('turn off the rain watch')
+    expect(
+      await watches.change({
+        watch: 'weather.rain',
+        project: 'app',
+        on: false,
+        said: 'turn off the rain watch',
+      }),
+    ).toContain('is off in app')
+    expect(client.schedules()).toMatchObject([{ id: 'rain', paused: true }])
+    expect(await watches.watches('rain')).toContain('app: off, paused')
+
+    // And back on is the same schedule resumed, not a second one.
+    expect(
+      await watches.change({
+        watch: 'weather.rain',
+        project: 'app',
+        on: true,
+        said: 'turn the rain watch back on',
+      }),
+    ).toContain('Rain is back on in app')
+    expect(client.schedules()).toMatchObject([{ id: 'rain', paused: false }])
   }, 30_000)
 })

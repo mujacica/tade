@@ -202,6 +202,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // and used everywhere that holds one, and the boundary saying what the
       // orchestrator may touch is checked there rather than in its own process.
       let settings: ReturnType<App['configTools']> | null = null
+      let watches: ReturnType<App['watchTools']> | null = null
       const opening = () => new Error('Tade is still opening: ask again in a moment')
       // Where everything stands, derived fresh. What `tade_status` answers
       // with, and what the efforts in the briefing are folded out of.
@@ -253,6 +254,16 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           closeProject: async (req) => {
             if (!settings) throw opening()
             return settings.closeProject(req)
+          },
+        },
+        watches: {
+          list: async (find) => {
+            if (!watches) throw opening()
+            return watches.watches(find)
+          },
+          change: async (req) => {
+            if (!watches) throw opening()
+            return watches.change(req)
           },
         },
         status,
@@ -355,6 +366,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         handOff = (cwd) => app.handOff(cwd)
         queue = app.queueTools()
         settings = app.configTools()
+        watches = app.watchTools()
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty

@@ -94,7 +94,10 @@ same failing call keeps coming round it asks whether that is a loop or a method,
 agent and what it keeps trying. It never stops one, steers one or starts one.
 Extensions offer them, and almost nothing is watched until you turn one on — the exception is
 **CI on the branch you are on**, which is on wherever you have a forge, because a red `main` is
-everybody's and nobody should have to notice it by hand.
+everybody's and nobody should have to notice it by hand. Setting up offers the rest once, saying
+what each one costs before you answer: one that starts an agent on what it finds says so, and one
+whose extension has no key says what it needs instead of pretending it would work. Afterwards it is
+the Extensions page, or asking — "turn the vulnerable dependencies watch on".
 
 ![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](images/watches.svg)
 

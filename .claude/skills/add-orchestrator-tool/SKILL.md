@@ -47,8 +47,12 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   Tade sends something is `never` its to write — see `settingReach` in `packages/core/src/reach.ts`
   and the invariant in AGENTS.md. Most of the rest needs the person's own words, checked against
   the journal's `said` lines rather than against an argument the tool was passed. Both checks live
-  in the window (`wire/settings.ts`, `wire/projects.ts`): a rule that runs inside the model's own
-  process is a rule the model can be talked out of. Say the limit in the tool's description too,
+  in the window (`wire/settings.ts`, `wire/projects.ts`, `wire/schedules.ts`): a rule that runs
+  inside the model's own process is a rule the model can be talked out of. A thing that is not a
+  config key is decided there anyway — a watch is `WATCH_REACH`, beside `settingReach` — because
+  the question is the same question, and the check goes at the one door every way of doing that act
+  goes through, not only at the new tool's: a gate with an unguarded door beside it reads like a
+  promise Tade does not keep. Say the limit in the tool's description too,
   in the words of the refusal — a limit a model only learns by being refused costs a turn every
   time — and write the change down (`config_changed`) with what it was before, so somebody who was
   not watching can find it and undo it.

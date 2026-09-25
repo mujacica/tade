@@ -91,7 +91,13 @@ the card (`renderSchedule`) and in `tade schedules`. Test it in `workbench/test/
 and through the window in `test/wire/schedules.test.ts`.
 
 **A watch.** It belongs to an extension: follow `add-extension`. Tade's side — turning it on,
-looking, the journal, the queue, telling people — needs nothing new.
+looking, the journal, the queue, telling people — needs nothing new. Three places offer it and all
+three go through the same rules, so none of them wants code of its own: the first minute
+(`watchesToOffer` in `core/src/watches.ts`, drawn by `cli/src/commands/setup-watches.ts`), the
+Extensions page (`Turn on` / `Turn off`, through `Schedules.turnWatch`), and the orchestrator
+(`tade_watches`, `tade_watch_change`, held to `WATCH_REACH`). What a new watch decides is only what
+it declares — `standing` where being on costs nothing anybody has to agree to, and `offers: 'ask'`
+where it starts nothing, which is also what decides whether the first minute ticks it.
 
 Then: a screen scenario for anything drawn (`test/screens/scenarios/queue.ts`, `pnpm screens`, accept on
 purpose), the invariant in `AGENTS.md` if a rule changed, and `pnpm check` on its own.

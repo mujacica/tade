@@ -7,14 +7,7 @@ import {
 } from '@tade/extensions-core'
 import type { Frame } from '../frame.ts'
 import type { Linker } from '../links.ts'
-import {
-  type AppState,
-  notice,
-  ORCHESTRATOR_TAB,
-  openSchedule,
-  type ScheduleView,
-  withTranscript,
-} from '../model.ts'
+import { type AppState, notice, ORCHESTRATOR_TAB, openSchedule, withTranscript } from '../model.ts'
 import type { PanelContext } from '../panels/context.ts'
 import {
   type ExtensionSetupPanel,
@@ -46,13 +39,8 @@ import {
   type Submits,
   tilde,
   type Wiring,
-  whenShort,
   why,
 } from './context.ts'
-// Type-only, so it is erased and no module edge exists between the two
-// subjects: this is the shape of what turning a watch on asks for, and what
-// it *does* is the schedules'.
-import type { ScheduleRequest } from './schedules.ts'
 
 // Extensions, the servers brokered as extensions, and the page that says what
 // each is for.
@@ -93,12 +81,12 @@ export interface ExtensionsDeps {
   reveal(path: string, folder: boolean): Promise<void>
   /** Installing something an extension needs, in a terminal you can watch. */
   watchCommand(kind: 'install', line: string): Promise<void>
-  /** Turning a watch on is telling a schedule, like any other. */
-  setSchedule(req: ScheduleRequest): Promise<string>
-  /** The schedule a name belongs to, by the id that name makes. */
-  scheduleNamed(name: string): ScheduleView | undefined
-  /** Whether a schedule of that name is already on somewhere else. */
-  scheduledElsewhere(name: string, project: string): boolean
+  /**
+   * Turn a watch the other way in a project. A watch is a schedule, so which
+   * way that is, and what it takes, are both the schedules' — this page only
+   * says which button was pressed.
+   */
+  toggleWatch(watch: string, project: string): Promise<string>
   /** A line as a voice would say it, for an answer that had no said form of its own. */
   spoken(text: string): string
 }
@@ -406,44 +394,28 @@ export class Extensions implements Subject {
           })),
           watches: offers
             .filter((offer) => offer.extension === one.name)
-            .map((offer) => ({
-              id: offer.id.slice(one.name.length + 1),
-              title: offer.title,
-              means: offer.means,
-              every: offer.every,
-              project,
-              on:
-                schedules.find(
-                  (each) =>
-                    each.project === project &&
-                    each.does.kind === 'watch' &&
-                    each.does.watch === offer.id,
-                )?.id ?? null,
-            })),
+            .map((offer) => {
+              const watching = schedules.find(
+                (each) =>
+                  each.project === project &&
+                  each.does.kind === 'watch' &&
+                  each.does.watch === offer.id,
+              )
+              return {
+                id: offer.id.slice(one.name.length + 1),
+                title: offer.title,
+                means: offer.means,
+                every: offer.every,
+                project,
+                on: watching?.id ?? null,
+                paused: watching?.paused === true,
+              }
+            }),
           server: servers.find((each) => `mcp-${each.name}` === one.name),
         })
       }),
       ...this.serverViews(loaded.map((one) => one.name)),
     ]
-  }
-
-  /**
-   * Turn a watch on in a project, as you: a schedule named for the watch, or
-   * for the watch and the project when it is already on somewhere else, looking
-   * as often as the watch says. Said in a line: when it looks, and what it waits
-   * for when its extension cannot look yet.
-   */
-  private async turnOnWatch(watch: string, project: string): Promise<string> {
-    const offer = this.wire.opts.extensions?.watches().find((one) => one.id === watch)
-    if (!offer) throw new Error(`there is no watch called ${watch}`)
-    const elsewhere = this.deps.scheduledElsewhere(offer.title, project)
-    const name = elsewhere ? `${offer.title} in ${project}` : offer.title
-    await this.deps.setSchedule({ name, project, said: '', watch, by: 'you' })
-    const view = this.deps.scheduleNamed(name)
-    const first = view?.next[0]
-    const when = first === undefined ? '' : `, first at ${whenShort(first, this.wire.now())}`
-    const yet = offer.problem ? `; it cannot look yet: ${offer.problem}` : ''
-    return `${name} is on in ${project}: it looks ${view?.when ?? `every ${offer.every}`}${when}${yet}`
   }
 
   /** Something pressed in the Extensions panel. */
@@ -469,10 +441,13 @@ export class Extensions implements Subject {
           if (folder) await this.deps.reveal(folder, true)
           return stay(null)
         }
+        // One button, both ways: what it says is what pressing it does. Off
+        // pauses rather than removes, so a watch turned back on keeps what it
+        // has already found — the schedules' rule, decided there.
         case 'watch': {
           const project = this.wire.state.project
           if (!project) return stay('Open a project to watch it')
-          return stay(await this.turnOnWatch(`${name}.${rest[1] ?? ''}`, project))
+          return stay(await this.deps.toggleWatch(`${name}.${rest[1] ?? ''}`, project))
         }
         case 'watching':
           this.wire.put(openSchedule({ ...this.wire.state, panel: null }, name))

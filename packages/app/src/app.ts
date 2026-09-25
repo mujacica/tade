@@ -54,7 +54,7 @@ import { Orchestrator } from './wire/orchestrator.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Routes } from './wire/routes.ts'
-import { Schedules, scheduleIdOf } from './wire/schedules.ts'
+import { Schedules, type WatchTools } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
 import { Settings, type SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
@@ -300,12 +300,7 @@ export class App {
       openLink: (url) => this.files.openLink(url),
       reveal: (path, folder) => this.files.reveal(path, folder),
       watchCommand: (kind, line) => this.machine.watchCommand(kind, line),
-      setSchedule: (req) => this.schedules.set(req),
-      scheduleNamed: (name) => this.schedules.views().find((one) => one.id === scheduleIdOf(name)),
-      scheduledElsewhere: (name, project) =>
-        this.opts.client
-          .schedules()
-          .some((one) => one.id === scheduleIdOf(name) && one.project !== project),
+      toggleWatch: (watch, project) => this.schedules.toggleWatch(watch, project),
       spoken: (text) => spokenLine(text),
     })
     this.orchestrator = new Orchestrator(this.wire, {
@@ -742,6 +737,11 @@ export class App {
   /** What the orchestrator's settings and project tools do, from this window. */
   configTools(): SettingTools & ProjectTools {
     return { ...this.settings.tools(), ...this.projects.tools() }
+  }
+
+  /** What the orchestrator's watch tools do, answered from this window. */
+  watchTools(): WatchTools {
+    return this.schedules.tools()
   }
 
   private draw(): void {

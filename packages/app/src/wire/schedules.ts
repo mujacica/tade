@@ -4,13 +4,19 @@ import {
   describeWhen,
   dueNow,
   joined,
+  LINES_LOOKED_BACK,
   newFindings,
+  ONLY_TELLS,
   type Schedule,
   type ScheduleDoes,
+  STARTS_AGENTS,
+  scheduleIdOf,
   standingSchedules,
   taskOrigin,
+  WATCH_REACH,
   type When,
   watchedFrom,
+  watchNamedBy,
 } from '@tade/core'
 import type { ExtensionHost } from '@tade/extensions-core'
 import { readEverMade } from '@tade/workbench/schedules'
@@ -25,6 +31,7 @@ import {
   type Menus,
   type Prompts,
   type Subject,
+  saidLately,
   type Wiring,
   whenShort,
   why,
@@ -40,6 +47,12 @@ const CHANGES = ['open', 'run', 'pause', 'resume', 'remove', 'rename'] as const
 // as the schedule says, never once per run missed. A watch is a schedule that
 // looks before it acts — Tade keeps where each look left off and every key
 // found, so one finding never starts work twice, a start that failed included.
+
+/** What the orchestrator's watch tools do, answered from this window. */
+export interface WatchTools {
+  watches(find: string): Promise<string>
+  change(req: { watch: string; project: string; on: boolean; said: string }): Promise<string>
+}
 
 /** What a schedule is asked for, in the words the orchestrator's tool takes. */
 export interface ScheduleRequest {
@@ -63,17 +76,6 @@ export interface ScheduleRequest {
   done?: DoneRule
   missed?: 'once' | 'skip'
   by?: string
-}
-
-/** A schedule's id, for good, from the name it was first given: made again under it, it is changed. */
-export function scheduleIdOf(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'schedule'
-  )
 }
 
 /** Who made a schedule, in words for the orchestrator. */
@@ -203,6 +205,82 @@ export class Schedules implements Subject {
     const one = this.wire.opts.client.schedules().find((each) => each.id === id)
     if (!one) throw new Error(`there is no schedule called ${id}`)
     return this.fire(one, { run: true, due: this.wire.now(), missed: 0 }, { asked })
+  }
+
+  /** The schedule watching one watch in one project, or null when none is. */
+  private watching(watch: string, project: string): (Schedule & { paused: boolean }) | null {
+    return (
+      this.wire.opts.client
+        .schedules()
+        .find(
+          (one) => one.project === project && one.does.kind === 'watch' && one.does.watch === watch,
+        ) ?? null
+    )
+  }
+
+  /**
+   * Turn a watch the other way in a project, as you: what the button on the
+   * Extensions page presses.
+   *
+   * Which way it goes is read here rather than by whoever drew the button, so
+   * that the label and the act can never disagree about what is running.
+   */
+  async toggleWatch(watch: string, project: string): Promise<string> {
+    const already = this.watching(watch, project)
+    return this.turnWatch(watch, project, already === null || already.paused, 'you')
+  }
+
+  /**
+   * Turn a watch on or off in a project: the one act behind the button on the
+   * Extensions page and the orchestrator's own tool.
+   *
+   * On, with nothing watching it yet, writes a schedule named for the watch —
+   * or for the watch and the project, where that name is taken by another
+   * project — looking as often as the watch says. On again, having been turned
+   * off, resumes the one that is there.
+   *
+   * **Off pauses it; it never takes it away.** A watch remembers what it has
+   * found through its schedule's id, so a removed-and-remade watch would come
+   * back with no memory and start work on everything it had already dealt
+   * with. Paused, it is still in the queue, still says what it is, and comes
+   * back exactly where it was. Removing one is a person's, in the queue.
+   */
+  async turnWatch(
+    watch: string,
+    project: string,
+    on: boolean,
+    by: string,
+    said = '',
+  ): Promise<string> {
+    const offer = this.wire.opts.extensions?.watches().find((one) => one.id === watch)
+    if (!offer) throw new Error(`there is no watch called ${watch}`)
+    const already = this.watching(watch, project)
+    if (already) {
+      if (already.paused !== on) {
+        return `${already.name} is already ${on ? 'on' : 'off'} in ${project}`
+      }
+      const kept = await this.wire.opts.client.changeSchedule({
+        id: already.id,
+        change: on ? 'resume' : 'pause',
+        by,
+      })
+      this.wire.draw()
+      const name = kept?.name ?? already.name
+      return on
+        ? `${name} is back on in ${project}: it looks ${describeWhen(already.when)}`
+        : `${name} is off in ${project} — it is paused in the queue, and keeps what it has already found`
+    }
+    if (!on) return `nothing is watching ${offer.title.toLowerCase()} in ${project}`
+    const taken = this.wire.opts.client
+      .schedules()
+      .some((one) => one.id === scheduleIdOf(offer.title) && one.project !== project)
+    const name = taken ? `${offer.title} in ${project}` : offer.title
+    await this.set({ name, project, said, watch, by })
+    const view = this.views().find((one) => one.id === scheduleIdOf(name))
+    const first = view?.next[0]
+    const when = first === undefined ? '' : `, first at ${whenShort(first, this.wire.now())}`
+    const yet = offer.problem ? `; it cannot look yet: ${offer.problem}` : ''
+    return `${name} is on in ${project}: it looks ${view?.when ?? `every ${offer.every}`}${when}${yet}`
   }
 
   /**
@@ -493,6 +571,13 @@ export class Schedules implements Subject {
         ? host.watchProblem(req.watch, req.input ?? {})
         : 'this window runs no extensions'
       if (refused || !offer) throw new Error(refused ?? `there is no watch called ${req.watch}`)
+      // The boundary, at the one door every way of turning a watch on goes
+      // through. `tade_watch_change` has already asked this and asks it again
+      // here on purpose: `tade_schedule` writes a watch schedule too, and a
+      // rule with a door beside it that nobody guards is worse than no rule,
+      // because it reads like a promise. Nothing here gates an agent or an
+      // ask schedule — those are the queue's, and always were.
+      if ((req.by ?? 'orchestrator') === 'orchestrator') await this.mayWatch(offer, true)
       if (req.most !== undefined && !(Number.isInteger(req.most) && req.most > 0)) {
         throw new Error('most is how many new things one look acts on: a whole number, 1 or more')
       }
@@ -538,5 +623,129 @@ export class Schedules implements Subject {
     this.wire.draw()
     const next = view.next.map((at) => whenShort(at, now))
     return `${kept.name} (${kept.id}): ${view.when}, ${view.does}. ${next.length > 0 ? `Next: ${next.join(', ')}.` : 'It has nothing left to run.'}${waits}`
+  }
+
+  /**
+   * What the orchestrator's watch tools do, answered from this window.
+   *
+   * The boundary is `WATCH_REACH` in core and it is enforced here rather than
+   * in the tool, for the reason the settings boundary is: the tool runs inside
+   * the model's own process, and a rule that lives where the model lives is a
+   * rule the model can be talked out of. It may only ever refuse — everything
+   * it allows, the button on the Extensions page already allowed.
+   */
+  tools(): WatchTools {
+    return {
+      watches: async (find) => this.listedWatches(find),
+      change: async (req) => this.askedWatch(req),
+    }
+  }
+
+  /**
+   * Every watch there is, as something to read: what it looks for, how often,
+   * what it does about what it finds, and whether it is on in each project.
+   *
+   * Every watch and not only the ones that can look: one whose extension needs
+   * a key is still worth knowing about, and saying what it needs is how
+   * somebody comes to set it up.
+   */
+  private listedWatches(find: string): string {
+    const words = find.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const offers = this.wire.opts.extensions?.watches() ?? []
+    const projects = Object.keys(this.wire.opts.config.projects)
+    const lines: string[] = []
+    for (const offer of offers) {
+      const text = `${offer.id} ${offer.title} ${offer.means}`.toLowerCase()
+      if (!words.every((word) => text.includes(word))) continue
+      const where = projects.map((project) => {
+        const one = this.watching(offer.id, project)
+        return `${project}: ${one ? (one.paused ? 'off, paused' : 'on') : 'off'}`
+      })
+      lines.push(
+        `${offer.id} — ${offer.title}, looks ${describeWhen({ every: offer.every })}, and ${
+          offer.offers === 'agent' ? STARTS_AGENTS : ONLY_TELLS
+        }`,
+      )
+      lines.push(`  ${offer.means}`)
+      lines.push(
+        `  ${where.length > 0 ? where.join(' · ') : 'no project is open'}${
+          offer.problem ? ` · it cannot look yet: ${offer.problem}` : ''
+        }`,
+      )
+    }
+    if (lines.length === 0) {
+      return offers.length === 0
+        ? 'No extension here offers anything to watch.'
+        : `Nothing matches ${find}. Ask again with fewer words, or with none for all of them.`
+    }
+    return [
+      ...lines,
+      '',
+      `Turning one on or off takes the person's own words naming that watch: ${WATCH_REACH.because}.`,
+    ].join('\n')
+  }
+
+  /**
+   * Turn a watch on or off on somebody's behalf, or say why not.
+   *
+   * The same three things that hold for a setting: Tade has to offer the watch
+   * at all, the boundary has to reach it, and the person has to have asked for
+   * *this* watch in their own words. That last check reads the journal, not
+   * the argument — `said` is the orchestrator's account of what was asked and
+   * is written down beside the change, and what authorises it is a line the
+   * person themselves typed or spoke. A page can tell a model to turn the
+   * review watch off. It cannot put "turn the review watch off" in somebody's
+   * mouth.
+   */
+  private async askedWatch(req: {
+    watch: string
+    project: string
+    on: boolean
+    said: string
+  }): Promise<string> {
+    const watch = req.watch.trim()
+    const offer = this.wire.opts.extensions?.watches().find((one) => one.id === watch)
+    if (!offer) {
+      throw new Error(
+        `Tade has no watch called ${watch}. tade_watches lists every one there is, by the id this takes.`,
+      )
+    }
+    const project = req.project.trim()
+    if (!this.wire.opts.config.projects[project]) {
+      throw new Error(
+        `${project || 'no project'} is not a project Tade has open. A watch runs in one, so say which.`,
+      )
+    }
+    if (req.said.trim() === '') {
+      throw new Error(
+        `${offer.title} only goes ${req.on ? 'on' : 'off'} when somebody asks for it. Pass what they said, word for word.`,
+      )
+    }
+    await this.mayWatch(offer, req.on)
+    return this.turnWatch(watch, project, req.on, 'orchestrator', req.said.trim())
+  }
+
+  /**
+   * Whether the orchestrator may turn this watch, or why not.
+   *
+   * The rule is `WATCH_REACH` in core and the check is the journal's: what
+   * authorises it is a line the *person* typed or spoke, kept verbatim, which
+   * nothing an agent read can ever become. It may only ever refuse.
+   */
+  private async mayWatch(offer: { id: string; title: string }, on: boolean): Promise<void> {
+    const { reach, because } = WATCH_REACH
+    const way = on ? 'on' : 'off'
+    if (reach === 'never') {
+      throw new Error(
+        `${offer.title} is not mine to turn ${way}: ${because}. A person does it on the Extensions page or in the queue.`,
+      )
+    }
+    if (reach !== 'asked') return
+    const line = watchNamedBy(offer, await saidLately(this.wire, LINES_LOOKED_BACK))
+    if (!line) {
+      throw new Error(
+        `Nothing they have said names ${offer.title}, so I will not turn it ${way} — ${because}. Ask them plainly: "${offer.title.toLowerCase()}" said back to you is enough.`,
+      )
+    }
   }
 }

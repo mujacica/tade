@@ -36,6 +36,7 @@ import {
   setUpPrograms,
   signInSomewhere,
 } from './setup-machine.ts'
+import { setUpWatches } from './setup-watches.ts'
 import { WHISPER_MODELS } from './voice.ts'
 
 // The first minute.
@@ -497,7 +498,7 @@ async function setUpJudge(ui: Ui): Promise<void> {
 }
 
 /**
- * Which extensions to use.
+ * Which extensions to use, and then which of their watches should look.
  *
  * Nothing is on because it is there: what Tade ships with, and anything in
  * your extensions folder — including what Tade wrote for itself — is listed
@@ -505,6 +506,11 @@ async function setUpJudge(ui: Ui): Promise<void> {
  * the question it deserves, asked once, last, and skippable in one key. Only
  * the ones nobody has decided about are offered; whatever the judge step or
  * the window already answered is left exactly as it is.
+ *
+ * The watches come after, in the same step and not in one of their own, so
+ * that they are asked on the machine where nothing has been decided and never
+ * again — and so that what is offered is what the extensions somebody has just
+ * chosen actually declare.
  */
 async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
   const waiting = look.extensions.filter((one) => !one.chosen)
@@ -524,20 +530,24 @@ async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
   if (choice === 2) {
     for (const one of waiting) setExtension(one.name, false)
     ui.say('  all off — Settings › Extensions whenever you want one')
-    return
-  }
-  if (choice === 0) {
+  } else if (choice === 0) {
     for (const one of waiting) setExtension(one.name, true)
     ui.say(`  on: ${waiting.map((one) => one.title).join(', ')}`)
     ui.say('  they load the next time Tade starts')
-    return
+  } else {
+    for (const one of waiting) {
+      const on = await ui.confirm(`use ${one.title}?`, true)
+      setExtension(one.name, on)
+      ui.say(`  ${one.title} is ${on ? 'on' : 'off'}`)
+    }
+    ui.say('  what you turned on loads the next time Tade starts')
   }
-  for (const one of waiting) {
-    const on = await ui.confirm(`use ${one.title}?`, true)
-    setExtension(one.name, on)
-    ui.say(`  ${one.title} is ${on ? 'on' : 'off'}`)
-  }
-  ui.say('  what you turned on loads the next time Tade starts')
+
+  // Whichever way that went, including "none for now": Tade's own extensions
+  // are on unless somebody turns them off, so there are watches to offer even
+  // where every question above was answered no.
+  ui.say('')
+  await setUpWatches(ui)
 }
 
 /** On or off, written down: there is one answer to whether an extension runs. */

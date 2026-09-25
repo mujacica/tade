@@ -3,6 +3,7 @@ import { SEEN_BY_AGENTS } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
+import { extensionBody } from '../src/panels/extensions/body.ts'
 import { extensionSetupPanel, type SetupFieldView } from '../src/panels/extensions/setup.ts'
 import {
   type ExtensionsPanel,
@@ -12,11 +13,12 @@ import {
   HARNESS,
   type McpServerOffer,
   SERVERS as SERVERS_ROW,
+  type WatchOfferView,
   WRITTEN,
 } from '../src/panels/extensions/state.ts'
 import { extensionsScrollable, extensionsSize } from '../src/panels/extensions/view.ts'
 import { COLOUR } from '../src/skin.ts'
-import type { Drawn } from '../src/ui.ts'
+import { type Drawn, NO_POINTER } from '../src/ui.ts'
 
 // What the Extensions panel has to be true at every width.
 //
@@ -86,6 +88,7 @@ const jev: ExtensionView = {
       every: '10m',
       project: 'checkout',
       on: null,
+      paused: false,
     },
     {
       id: 'circles',
@@ -94,6 +97,7 @@ const jev: ExtensionView = {
       every: '10m',
       project: 'checkout',
       on: 'agents-going-in-circles',
+      paused: false,
     },
   ],
 }
@@ -315,6 +319,37 @@ const facts = {
 const drawnAt = (panel: ExtensionsPanel, over: Partial<PanelContext> = {}): Drawn =>
   drawPanel(panel, context(over)).panel
 
+/** One watch, off, in the project you are in. */
+const offWatch: WatchOfferView = {
+  id: 'rain',
+  title: 'Rain',
+  means: 'Looks for rain.',
+  every: '1h',
+  project: 'checkout',
+  on: null,
+  paused: false,
+}
+
+/** The WATCHES section of a page with exactly this one watch on it. */
+function watchRows(watch: WatchOfferView): string[] {
+  const only: ExtensionView = { ...jev, watches: [watch] }
+  const lines = extensionBody(
+    { ...facts, extensions: [only] },
+    {
+      id: only.name,
+      title: only.title,
+      kind: 'extension',
+      state: only.state,
+      count: 0,
+      wants: false,
+    },
+    120,
+    NO_POINTER,
+    null,
+  )
+  return lines.map((line) => stripTerminalSequences(line.text))
+}
+
 const plainRows = (drawn: Drawn) => drawn.rows.map((row) => stripTerminalSequences(row))
 
 /** Everything the panel says about one extension, read by scrolling to the end of it. */
@@ -373,6 +408,40 @@ describe('the extensions page at any width', () => {
       expect(said, `at ${width}`).toContain('HOW IT IS USED')
       expect(said, `at ${width}`).toContain('Version')
     }
+  })
+
+  it('says what pressing a watch’s button does, and what state it is in', () => {
+    // `Watch tade` read as a noun phrase about a project and said neither. The
+    // page's own word for this act is what every other on/off control here
+    // already uses, so a watch says it too.
+    const said = watchRows({ ...offWatch })
+    expect(said.join('\n')).toContain('Turn on')
+    expect(said.join('\n')).not.toContain('Watch checkout')
+
+    // On, it offers the way back out and the schedule it made.
+    const on = watchRows({ ...offWatch, on: 'rain' }).join('\n')
+    expect(on).toContain('Turn off')
+    expect(on).toContain('Show')
+
+    // Off is a paused schedule, so the button says on again and the schedule
+    // is still there to look at: a watch that forgot what it had found would
+    // start work on all of it a second time.
+    const paused = watchRows({ ...offWatch, on: 'rain', paused: true }).join('\n')
+    expect(paused).toContain('Turn on')
+    expect(paused).toContain('Show')
+
+    // And in no project there is nothing to press, because a watch is a
+    // schedule in one.
+    const nowhere = watchRows({ ...offWatch, project: null }).join('\n')
+    expect(nowhere).toContain('open a project to watch it')
+    expect(nowhere).not.toContain('Turn on')
+  })
+
+  it('counts a paused watch as off in the heading, as the button does', () => {
+    expect(watchRows({ ...offWatch, on: 'rain' }).join('\n')).toContain('1 of 1 on')
+    expect(watchRows({ ...offWatch, on: 'rain', paused: true }).join('\n')).toContain(
+      'none on until you turn one on',
+    )
   })
 
   it('says what a key is, and where to put one when there is none', () => {

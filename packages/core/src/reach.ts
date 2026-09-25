@@ -27,6 +27,11 @@ import type { Setting } from './settings.ts'
 //
 // It may only ever *refuse*. Nothing here can widen what a tier allows, and
 // nothing outside these tiers is writable at all.
+//
+// One thing here is not a config key at all: a watch, which lives in
+// `schedules.jsonl`. It is decided here anyway (`WATCH_REACH`), because the
+// question is the same question and answering it somewhere else is how two
+// answers to it come to exist.
 
 /** How far the orchestrator may go with one setting. */
 export type Reach = 'open' | 'asked' | 'never'
@@ -135,6 +140,72 @@ export function settingReach(path: string): Reaches {
     }
   }
   return { reach: 'asked', because: '' }
+}
+
+/**
+ * How far the orchestrator reaches into a watch, and why that is not where its
+ * extension sits.
+ *
+ * `extensions` is a `never` subtree, and turning a *watch* on is not turning
+ * an extension on. The difference is what the act widens. Enabling an
+ * extension imports somebody's code, hands its tools to every agent and puts
+ * its credential in reach — which is why no words are enough. A watch lives
+ * inside an extension a person already turned on and already trusts: its code
+ * is loaded either way, its tools are offered either way, no third party is
+ * handed anything new, and nothing about what an agent may do moves an inch.
+ * What it changes is that a clock may start work, in a project that is already
+ * open, on findings the person can see in the queue and stop there.
+ *
+ * That is `asked`-shaped and not `never`-shaped: a real consequence, visible,
+ * undoable, and written down. So it takes the person's own words naming the
+ * watch, the same bar `tade_setting_change` is held to, checked the same way
+ * against the journal.
+ *
+ * **Both ways, and turning one off is the direction that needs it most.** Off
+ * is usually the safe direction and here it is not: the watches are what
+ * notice a red build, a new error, a vulnerable package and what a judge
+ * flagged, so "turn the review watch off" is exactly the sentence an injected
+ * page would like to be obeyed. Nothing an agent read can put those words in
+ * somebody's mouth, which is the whole of why `namedBy` reads `said` lines.
+ *
+ * **Honest about what it holds.** It is checked at every door that turns a
+ * watch on — the watch tool and `tade_schedule`, which writes the same
+ * schedule — so there is no way round it in that direction. What it does not
+ * hold is the other end of a watch's life: the schedule a watch makes is an
+ * ordinary schedule, and the queue's own tools can still pause or remove one
+ * without naming the watch, because pausing the queue is not a watch decision
+ * and `tade_queue_change` has no idea it is looking at one. That is a gap and
+ * is said rather than papered over: what it costs is a look that stops, in the
+ * queue, where a person can see it and start it again, with a line in the
+ * journal saying who asked.
+ */
+export const WATCH_REACH: Reaches = {
+  reach: 'asked',
+  because:
+    'a watch starts work on a clock, so it goes on or off when the person asks for that watch',
+}
+
+/**
+ * The words that identify one watch: what a person would have to say for a
+ * line of theirs to be about it.
+ *
+ * Its full id (`sentry.new-errors`), its own half of that id in both the
+ * spellings people use (`new-errors`, `new errors`), and its title.
+ *
+ * **The extension's name is deliberately not one of them.** `wordsFor` drops
+ * the first segment of a setting's path for the same reason: a section names
+ * everything under it, so "how is the review extension doing" would name four
+ * different watches and identify none of them.
+ */
+export function watchNamedBy(
+  watch: { id: string; title: string },
+  lines: readonly string[],
+): string | null {
+  const own = watch.id.split('.').slice(1).join('.')
+  return namedBy(
+    { path: watch.id, title: watch.title, keywords: [own, own.replace(/-/g, ' ')] },
+    lines,
+  )
 }
 
 /**

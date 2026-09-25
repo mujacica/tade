@@ -4,7 +4,7 @@ import type { Hit } from '../../hits.ts'
 import { blank, type Pointer, Row } from '../../ui.ts'
 import { cap, padTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
-import { type ExtensionEntry, watchControl } from './state.ts'
+import { type ExtensionEntry, watchOn } from './state.ts'
 
 // Everything the right-hand side of the Extensions page says, as lines.
 //
@@ -299,35 +299,44 @@ export function extensionBody(
     lines.push(blank(form))
     // What the heading says has to be true of these watches: some turn
     // themselves on once their extension can look, and the rows say where.
-    const on = watches.filter((watch) => watch.on).length
+    const on = watches.filter((watch) => watchOn(watch)).length
     heading('WATCHES', on === 0 ? 'none on until you turn one on' : `${on} of ${watches.length} on`)
     for (const watch of watches) {
-      const id = watchControl(view.name, watch)
+      const running = watchOn(watch)
       const every = `  every ${watch.every}`
-      const press = id ? (watch.on ? 'Show' : `Watch ${watch.project ?? ''}`) : ''
+      // What pressing it does and what the state is, in the words the rest of
+      // this page uses for the same act. `Watch tade` said neither: it read as
+      // a noun phrase about a project.
+      const press = watch.project ? (running ? 'Turn off' : 'Turn on') : ''
+      const show = watch.on ? 'Show' : ''
       // What is pinned at the right, measured before the name is cut: a row
       // that does not fit drops its right-hand group, and the button that
       // turns a watch on is not something to lose to a long title.
       const pinned =
-        (watch.on ? visibleWidth(`on in ${watch.project ?? ''}  `) : 0) +
+        (show ? visibleWidth(show) + 5 : 0) +
         (press ? visibleWidth(press) + 4 : visibleWidth('open a project to watch it')) +
         2
       const title = row()
         .space()
-        .text('◎', watch.on ? skin.done : skin.hint)
+        .text('◎', running ? skin.done : skin.hint)
         .space()
         .text(cap(watch.title, Math.max(8, form - 3 - visibleWidth(every) - pinned)), skin.you)
         .text(every, skin.hint)
       title.right((r) => {
-        if (watch.on) r.text(`on in ${watch.project ?? ''}  `, skin.done)
+        if (show) r.button(show, control(`watching:${watch.on ?? ''}`)).space()
         if (press) {
-          r.button(press, control(id as string))
+          r.button(
+            press,
+            control(`watch:${view.name}:${watch.id}`),
+            running ? undefined : 'primary',
+          )
         } else {
           r.text('open a project to watch it', skin.hint)
         }
         r.space()
       })
-      lines.push({ ...title.build(), on: id !== null && id === focused })
+      const mine = [`watching:${watch.on ?? ''}`, `watch:${view.name}:${watch.id}`]
+      lines.push({ ...title.build(), on: focused !== null && mine.includes(focused) })
       wrap(watch.means, 3)
     }
   }

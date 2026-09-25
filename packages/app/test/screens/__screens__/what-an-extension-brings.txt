@@ -12,12 +12,12 @@
  ▾ │ ○ release-notes        ▕│ jev_queue_order       Suggest what should come first out of what… orchestrator only ▕│   
   M│ · Written by Tade    1 ▕│                                                                                     ▕│   
   A│ · MCP servers        4 ▕│ WATCHES  none on until you turn one on                                              ▕│   
-  M│ · Harnesses' own     2 ▕│ ◎ Review what agents change  every 10m                             Watch checkout   ▕│   
+  M│ · Harnesses' own     2 ▕│ ◎ Review what agents change  every 10m                                    Turn on   ▕│   
    │                        ▕│   reads each agent’s own change once it has stopped moving, and reports what it     ▕│   
  ▾ │                        ▕│   flags                                                                             █│   
-   │                        ▕│ ◎ Agents going in circles  every 10m                               Watch checkout   █│   
+   │                        ▕│ ◎ Agents going in circles  every 10m                                      Turn on   █│   
    │                        ▕│   reads the agents that keep making the same failing call, and says which           █│   
-   │                        ▕│ ◎ Findings nobody has answered  every 1h                           Watch checkout   █│   
+   │                        ▕│ ◎ Findings nobody has answered  every 1h                                  Turn on   █│   
    │                        ▕│   looks for findings an agent has accounted for and nobody has judged, and ones     █│   
    │                        ▕│   whose agent is gone                                                               █│   
    │                        ▕│                                                                                     █│   
