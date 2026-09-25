@@ -391,30 +391,53 @@ function gridOf(name: string, crop?: Box | 'panel') {
   return cropGrid(grid, crop === 'panel' ? panelBox(grid) : crop)
 }
 
+export interface Drawn {
+  file: string
+  /** The picture, exactly as the file of that name has to hold it. */
+  svg: string
+}
+
 export interface Written {
   file: string
   bytes: number
+}
+
+/**
+ * Every picture the README uses, drawn.
+ *
+ * Separate from writing them because the test that holds `images/` to this has
+ * to read the same bytes without touching the tree: four agents share this
+ * checkout, and a test that wrote the pictures to check them would be a test
+ * that made the change it was looking for.
+ */
+export function drawPictures(): Drawn[] {
+  const shots: Shot[] = REEL.frames.map((frame) => ({
+    grid: gridOf(frame.scenario),
+    hold: frame.hold,
+    about: frame.scenario,
+  }))
+  const drawn: Drawn[] = [
+    { file: REEL.file, svg: reel(shots, REEL.title === undefined ? {} : { title: REEL.title }) },
+  ]
+  for (const picture of PICTURES) {
+    drawn.push({
+      file: picture.file,
+      svg: shot(
+        gridOf(picture.scenario, picture.crop),
+        picture.title === undefined ? {} : { title: picture.title },
+      ),
+    })
+  }
+  return drawn
 }
 
 /** Draw every picture the README uses into `dir`, and say what was written. */
 export function writePictures(dir: string): Written[] {
   mkdirSync(dir, { recursive: true })
   const written: Written[] = []
-  const shots: Shot[] = REEL.frames.map((frame) => ({
-    grid: gridOf(frame.scenario),
-    hold: frame.hold,
-    about: frame.scenario,
-  }))
-  const animated = reel(shots, REEL.title === undefined ? {} : { title: REEL.title })
-  writeFileSync(join(dir, REEL.file), animated)
-  written.push({ file: REEL.file, bytes: animated.length })
-  for (const picture of PICTURES) {
-    const svg = shot(
-      gridOf(picture.scenario, picture.crop),
-      picture.title === undefined ? {} : { title: picture.title },
-    )
-    writeFileSync(join(dir, picture.file), svg)
-    written.push({ file: picture.file, bytes: svg.length })
+  for (const one of drawPictures()) {
+    writeFileSync(join(dir, one.file), one.svg)
+    written.push({ file: one.file, bytes: one.svg.length })
   }
   return written
 }

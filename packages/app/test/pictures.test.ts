@@ -2,17 +2,28 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { PICTURES, REEL } from '../scripts/pictures.ts'
+import { drawPictures, PICTURES, REEL } from '../scripts/pictures.ts'
 import { SCENARIOS } from './screens/scenarios.ts'
 
 // The README's pictures.
 //
 // They are drawn from the scenarios above by `pnpm screens --assets`, which is
-// what keeps the page showing the window Tade actually has. What can still go
-// wrong is the paperwork: a picture drawn from a scenario nobody has any more,
-// a file the README asks for that was never written, or a file left behind in
-// the repository that nothing shows. Each of those is a broken README that
-// every other test passes, so they are checked here.
+// what keeps the page showing the window Tade actually has — for exactly as
+// long as somebody remembers to run it. Nothing made anybody, and a page
+// showing a window Tade no longer has was a lie every other test passed. So
+// the last test here draws every picture again and holds `images/` to it: a
+// change to how the window looks that was not redrawn fails at the commit
+// rather than being found by whoever next reads the README.
+//
+// In memory, rather than regenerating and looking for a dirty tree. Four
+// agents share this checkout, so a dirty tree is somebody else's uncommitted
+// work as often as it is a stale picture — and a comparison can say *which*
+// picture, which `git diff --exit-code` cannot.
+//
+// The rest is the paperwork, and just as capable of breaking the page on its
+// own: a picture drawn from a scenario nobody has any more, a file the README
+// asks for that was never written, or a file left behind in the repository
+// that nothing shows.
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const images = join(repo, 'images')
@@ -44,5 +55,34 @@ describe('the pictures the README is made of', () => {
     const files = readdirSync(images).filter((file) => file.endsWith('.svg'))
     expect(files.filter((file) => !wanted.includes(file))).toEqual([])
     expect(drawn.filter((file) => !files.includes(file))).toEqual([])
+  })
+
+  it('holds the file on disk to what the renderer draws today', () => {
+    // Drawing every picture is ~170ms over 36 scenarios, which is what this
+    // rule costs the suite. The goldens already prove `draw` gives the same
+    // bytes on every machine; everything after it here is arithmetic over a
+    // grid, with no clock, no randomness and no path in it.
+    //
+    // Thrown rather than expected, for `modularity.test.ts`'s reason: a diff
+    // of two hundred-kilobyte SVGs teaches nobody, and the name of the picture
+    // and the command to run are the whole of what somebody needs here.
+    const stale = drawPictures()
+      .filter((one) => {
+        let onDisk: string
+        try {
+          onDisk = readFileSync(join(images, one.file), 'utf8')
+        } catch {
+          return true
+        }
+        return onDisk !== one.svg
+      })
+      .map((one) => one.file)
+    if (stale.length > 0)
+      throw new Error(
+        `\n\nimages/ no longer shows the window this code draws: ${stale.join(', ')}.\n` +
+          'Run `pnpm screens --assets` and commit the pictures with the change that moved them.\n' +
+          'The recipe, including how to look at what changed before accepting it, is the\n' +
+          '`redraw-the-pictures` skill.\n',
+      )
   })
 })

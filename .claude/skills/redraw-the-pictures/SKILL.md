@@ -11,6 +11,11 @@ changes one without the other leaves the page showing a window Tade no longer ha
 
 Nothing here is ever taken by hand, touched up, or cropped in an image editor.
 
+**You will be told when you forget.** `packages/app/test/pictures.test.ts` draws every picture again
+and holds it to the bytes in `images/`, naming the ones that moved — and it is in `test:smoke`, so
+the commit hook says it in a few seconds rather than CI saying it in an hour. Nothing writes the
+pictures for you: the test only ever tells you to run step 3 below.
+
 ## When
 
 Any change that somebody could see, including:
@@ -36,7 +41,7 @@ Run them in that order, and **look at step 2 before accepting anything**. Where 
 matches its golden the page shows both, golden first: that side-by-side is the review.
 
 Then `git status images/` must be either empty or part of your diff. Both are fine; a surprise is
-not.
+not — and if you skip step 3, the test is the surprise instead.
 
 ## Checking the pictures are the program
 
@@ -76,7 +81,8 @@ could see, because the goldens never go through a terminal.
    crop (a rectangle, or `'panel'` for whatever panel floats over the window), and `about` — what
    somebody who cannot see it is told, which is the alt text and is not optional.
 3. Reference it from `README.md`. `packages/app/test/pictures.test.ts` fails on a picture the README
-   asks for that nothing draws, and on a file in `images/` that nothing shows.
+   asks for that nothing draws, on a file in `images/` that nothing shows, and on a file whose bytes
+   are not what the renderer draws today.
 4. `pnpm screens --assets`.
 
 ## Gotchas
