@@ -301,6 +301,18 @@ describe('the keys the extensions asked for', () => {
     expect(ui.said.join('\n')).toContain('$TYPESAFE_API_KEY')
   })
 
+  it('says who else can read the file, before asking anybody to paste a key into it', async () => {
+    // The wizard is where most people meet this question, and `0600` is not
+    // the answer to it: agents run as you, so the file is open to every one
+    // of them. Said here with what to do instead, or it is a warning nobody
+    // can act on.
+    const ui = recorder({ ask: [''] })
+    await setUpKeys(ui, look)
+    const said = ui.said.join(' ').replace(/\s+/g, ' ')
+    expect(said).toContain('any agent you run can read')
+    expect(said).toContain('export its variable instead')
+  })
+
   it('is explicit that everything works without one, and writes nothing when skipped', async () => {
     const skipped = tmp('tade-setup-skipped-')
     process.env.TADE_HOME = skipped

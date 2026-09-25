@@ -237,8 +237,9 @@ export const jevExtension: TadeExtension = {
       kind: 'secret',
       env: 'TYPESAFE_API_KEY',
       envFrom: 'key_env',
-      means:
-        'the TypeSafe API key. Paste it here and Tade writes it into config.yaml, which only you can read; $TYPESAFE_API_KEY still wins when it is set',
+      // Where a key is kept and who can read it is Tade's sentence and is
+      // said wherever one is drawn; what is left here is what this key is.
+      means: 'the TypeSafe API key',
     },
     {
       key: 'judge',
@@ -1082,7 +1083,10 @@ export const jevExtension: TadeExtension = {
         label: 'API key',
         kind: 'secret',
         placeholder: 'paste the key from the console',
-        help: 'written into your config as you typed it, so you can check it against the console',
+        // Where it is kept and who can read it is said once above the fields,
+        // the same on every extension's page; what is left to say here is
+        // what is true of this key and no other.
+        help: '$TYPESAFE_API_KEY wins when it is set',
       },
       {
         key: 'model',
@@ -1163,6 +1167,6 @@ function keyGuide(ctx: ExtensionContext): string {
   const variable = keyVariable(ctx)
   const from = keyFrom(ctx)
   return from
-    ? `**Key:** in use from ${from}. It is written in \`config.yaml\`, which only you can read, and never in the journal or the logs.`
-    : `**Key:** create one at console.typesafe.ai/settings/keys and paste it below. Tade writes it into \`config.yaml\` as you typed it — your own file, \`0600\` — so you can read it back and check it. \`export ${variable}="…"\` in your shell still works and still wins.`
+    ? `**Key:** in use from ${from}. It is written in \`config.yaml\`, and never in the journal or the logs.`
+    : `**Key:** create one at console.typesafe.ai/settings/keys and paste it below. \`export ${variable}="…"\` in your shell still works and still wins.`
 }

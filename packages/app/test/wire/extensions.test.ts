@@ -235,6 +235,9 @@ describe('the window, and its extensions', () => {
     )
     // Written into the config, under the setting it is.
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('wk_0123456789')
+    // And nowhere else: pasting a key writes no line about it, so the journal
+    // this window has been keeping all along holds none of it.
+    expect(readFileSync(join(home, 'events.jsonl'), 'utf8')).not.toContain('wk_0123456789')
   })
 
   it('keeps what an extension watches in the status bar, and opens its view from there', async () => {

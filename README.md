@@ -22,6 +22,12 @@ setup offers to install each where you want it, shows the exact command first, a
 terminal you are watching. It ends by opening a lane, running a command in it and closing it, and
 `tade setup --check` does the same whenever you want to be sure.
 
+One thing to know before the first agent starts: **agents run as you.** Out of the box nothing
+sandboxes them and nothing asks before a command, so an agent can read and change whatever you can
+— your files, and `~/.tade/config.yaml`, where every key you paste into Tade is kept. Approvals and
+a sandbox are both there and both yours to turn on; a key you would rather Tade never wrote down
+can stay in an environment variable, which always wins over the file.
+
 From a checkout, which is how you change Tade:
 
 ```sh
@@ -227,8 +233,9 @@ are.
 Checks, Dependencies, Jev, Reviews, Sentry and Resources ship with Tade; yours go beside them in
 `~/.tade/extensions/`. An extension brings tools the orchestrator and your agents can both call,
 settings and watches. Being there is not being on: one of yours is listed and off until you turn it
-on. Keys are pasted in as text and written into `~/.tade/config.yaml` — your own file, readable
-only by you — so you can read one back and check it.
+on. Keys are pasted in as text and written into `~/.tade/config.yaml`, so you can read one back and
+check it against the console that issued it — and any agent you run can read it too. To keep one out
+of the file, export its variable instead, or leave that extension unconfigured.
 
 Every one of them is down the side, searchable by anything it would say — and the one you pick says
 what it is for in the work you actually do, every tool it brings with what each is for, what it

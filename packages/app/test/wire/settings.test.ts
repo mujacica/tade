@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, loadConfig, settingsOf } from '@tade/core'
+import { ConfigSchema, loadConfig, SEEN_BY_AGENTS, settingsOf } from '@tade/core'
 import { ExtensionHost, type TadeExtension } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -286,6 +286,66 @@ describe('the window, and its settings', () => {
     )
     // Saved all the same: it is what is used the day the variable goes.
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('wk_9876543210')
+  })
+
+  it('says under the field who else can read it, and keeps the key out of the journal', async () => {
+    // Two halves of one promise. The file is one you can read back — that is
+    // the whole reason it is a file — and `0600` keeps it from other people,
+    // who are not the threat: agents run as you. So the page says so where
+    // somebody is deciding to paste one. And everywhere a key is *not* meant
+    // to be, it still is not: `config_changed` is what makes a change
+    // undoable, and for a credential it says whether there is one, never
+    // which one.
+    const weather: TadeExtension = {
+      name: 'weather',
+      title: 'Weather',
+      description: 'Whether it is raining.',
+      settings: [{ key: 'key', kind: 'secret', env: 'WEATHER_API_KEY', means: 'the key' }],
+      ready: (ctx) => (ctx.secret('key') ? null : 'weather needs a key'),
+      setup: () => ({
+        guide: ['Paste the key.'],
+        fields: [{ key: 'key', label: 'API key', kind: 'secret' }],
+      }),
+    }
+    terminal.columns = 140
+    terminal.rows = 50
+    const extensions = await ExtensionHost.load({
+      builtin: [weather],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+      env: {},
+    })
+    await start({ extensions })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Keys and tokens'))
+    const category = find('Keys and tokens')
+    click(category.col + 1, category.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('Weather api key')),
+    )
+    const field = find('Weather api key')
+    click(field.col + 30, field.row)
+    // The line under the setting you are on, which is where this page puts
+    // what a control's name cannot say.
+    await until('what it says about who can read it', () =>
+      screenOf(terminal.written).some((row) => row.includes(SEEN_BY_AGENTS)),
+    )
+    terminal.press(asPaste('wk_5555555555\n'))
+    terminal.press('\r')
+    await until('saved', () => terminal.written.includes('applies now'))
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('wk_5555555555')
+
+    const written = async () =>
+      (await client.events({ types: ['config_changed'] })).find(
+        (event) => event.detail.path === 'extensions.weather.key',
+      )?.detail
+    await until('the change written down', async () => (await written()) !== undefined)
+    expect(await written()).toMatchObject({ was: 'not set', now: 'set' })
+    // And not only this line: the journal is one file and a key is in none of
+    // it, whatever else the window wrote while this was going on.
+    expect(readFileSync(join(home, 'events.jsonl'), 'utf8')).not.toContain('wk_5555555555')
   })
 
   it('says why a key did not save, rather than saying Saved over the top of it', async () => {

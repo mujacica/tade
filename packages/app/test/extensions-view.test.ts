@@ -1,7 +1,9 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import { SEEN_BY_AGENTS } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
+import { extensionSetupPanel, type SetupFieldView } from '../src/panels/extensions/setup.ts'
 import {
   type ExtensionsPanel,
   type ExtensionView,
@@ -584,5 +586,69 @@ describe('the extensions page at any width', () => {
     // underneath it.
     expect(said).toContain('Nothing matches “nothing like this”')
     expect(said.match(/Nothing matches/g)).toHaveLength(1)
+  })
+})
+
+// Pasting a key is the one thing this page does that reaches outside it, and
+// `0600` is not the answer to who can read one: agents run as you. So the
+// panel says so above the fields, where somebody is deciding — and only where
+// there is a key to paste, because on a panel of ordinary settings it would
+// be a warning about nothing.
+describe('setting one up, where a key is pasted', () => {
+  const field = (over: Partial<SetupFieldView> = {}): SetupFieldView => ({
+    key: 'token',
+    label: 'Auth token',
+    help: '',
+    placeholder: '',
+    kind: 'secret',
+    choices: [],
+    ...over,
+  })
+
+  const setup = (fields: readonly SetupFieldView[]) => ({
+    title: 'Sentry',
+    state: 'needs-setup',
+    problem: 'no Sentry token',
+    guide: ['Paste it below.'],
+    links: [],
+    fields,
+  })
+
+  /** What the panel says, read across the wrap: the box's own edges are not words. */
+  const said = (fields: readonly SetupFieldView[], width = 120) =>
+    plainRows(
+      drawPanel(extensionSetupPanel('sentry', []), context({ width, setup: setup(fields) })).panel,
+    )
+      .map((row) =>
+        row
+          .replace(/^[│╭╰]/u, '')
+          .replace(/[│╮╯]$/u, '')
+          .trim(),
+      )
+      .join(' ')
+      .replace(/\s+/gu, ' ')
+
+  it('says who else can read the key, and what to do instead, at every width', () => {
+    for (const width of WIDTHS) {
+      const page = said([field()], width)
+      expect(page, `at ${width}`).toContain(SEEN_BY_AGENTS)
+      // A warning with nothing to do about it is one people scroll past, so
+      // the way out is in the same breath rather than a page away.
+      expect(page, `at ${width}`).toContain('export its variable instead')
+    }
+  })
+
+  it('says nothing about keys on a panel that asks for none', () => {
+    const page = said([field({ key: 'org', label: 'Organization', kind: 'text' })])
+    expect(page).not.toContain(SEEN_BY_AGENTS)
+    expect(page).toContain('Organization')
+  })
+
+  it('never draws the key itself as anything but itself', () => {
+    // The other half of the same decision: it is in a file you can read, so
+    // hiding it in the field would protect nothing and cost you the check
+    // against the console that issued it.
+    const page = said([field({ key: 'token' })])
+    expect(page).not.toContain('••')
   })
 })

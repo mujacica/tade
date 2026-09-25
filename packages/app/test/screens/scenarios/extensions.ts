@@ -565,7 +565,7 @@ export const EXTENSION_SCREENS: Scenario[] = [
             {
               key: 'token',
               label: 'Auth token',
-              help: 'written into your config; $SENTRY_AUTH_TOKEN wins when it is set',
+              help: '$SENTRY_AUTH_TOKEN wins when it is set',
               placeholder: 'sntryu_…',
               // A key is typed as itself and written as the setting it is:
               // one you cannot read is one you cannot check.

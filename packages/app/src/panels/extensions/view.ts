@@ -1,10 +1,11 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
+import { KEYS_AND_AGENTS } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { linkedRow } from '../../links.ts'
 import { BAR } from '../../scrollbar.ts'
 import { blank, box, type Drawn, NO_POINTER, Row } from '../../ui.ts'
 import { markdownLines } from '../../viewer.ts'
-import { bar, cap, count, fitTo, listStart, sideWidth, withFocus } from '../cells.ts'
+import { bar, cap, count, fitTo, listStart, sideWidth, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import { type ExtensionFacts, extensionBody } from './body.ts'
 import { type ExtensionSetupPanel, type ExtensionViewPanel, setupControls } from './setup.ts'
@@ -401,6 +402,21 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
     rows.push(links.build())
   }
   rows.push(blank(inner))
+  // Said where the key is about to be pasted, because that is where the
+  // decision is, and it is the one thing about a credential that is not on
+  // the page: the field says what it is for, the value says what it is, and
+  // neither says who else can read it. Once above the fields rather than
+  // under each of them — it is the same fact about all of them.
+  if (setup.fields.some((field) => field.kind === 'secret')) {
+    // As many lines as it takes, like the guide above it and unlike a note
+    // under a control: what is cut here is the way out, which is the half
+    // that turns this from a warning into something to do about it. Three
+    // lines on an ordinary terminal, nine on one nobody should be using.
+    for (const line of wrapTo(KEYS_AND_AGENTS, inner - 2, 12)) {
+      rows.push(row().space().text(line, skin.hint).build())
+    }
+    rows.push(blank(inner))
+  }
   const label = 16
   for (const field of setup.fields) {
     const focused = chosen === `field:${field.key}`

@@ -924,6 +924,31 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   anything telemetry would send. Nothing is kept anywhere else: there is no keychain, no
   `secrets.json` and no vault to choose between — a key pasted into an older Tade has to be pasted
   again.
+- **`0600` keeps the file from other people, and an agent is not another person.** That is the whole
+  of what the mode buys, and there is no second user on the machine to buy it from: agents run as
+  you, in your checkout, unsandboxed (`sandbox: 'none'`) and unasked (`approvals.mode: 'bypass'`)
+  unless somebody has said otherwise — so **any agent can read `config.yaml` and every key in it**.
+  The audit agent that found this did exactly that, incidentally, with no special access and no
+  prompt. Everything above stays true and stays worth having, and it is all containment of
+  *everywhere else*: a key is never in the journal (`set` or `not set`, `held` in
+  `wire/settings.ts`), never in anything telemetry would send (`KEPT`, and `leak.test.ts` is the
+  proof), never in a lane's stored spec (`withoutInherited`) and never in a launch line — a harness
+  is handed `secretCommand`, which prints the key at the moment it is needed. What is not contained
+  is the one program you deliberately handed the machine to, and no arrangement of the file can
+  contain that. So it is **a decision and not an oversight, and the rule is that it is said where
+  somebody is deciding**: the Extensions page above the field, the line under a credential on the
+  Settings page, the prompt that asks for an account's key, and `tade setup` before it asks anybody
+  to paste one — each of them the same sentence, written once (`KEYS_AND_AGENTS`, with
+  `SEEN_BY_AGENTS` as the clause a two-line note has room for, in `core/src/secrets.ts`) rather
+  than four wordings that drift. The README says it in its own words, being prose and not a
+  drawing, in the setup section and where it talks about pasting keys. It carries **the way out in
+  the same breath**, because a warning with nothing to do about it is one people learn to scroll
+  past: export the variable, which wins over the file and which Tade never writes down, or leave
+  that extension unset. And nothing anywhere may go back to saying the file is one *only you* can
+  read: fourteen sentences across eight files said exactly that, each of them true about the mode
+  and wrong about the machine, and each of them read by somebody at the moment they were deciding. Making a sandbox the default is the real answer and is deliberately not this: it
+  changes what agents may do, a sandbox that cannot be applied fails the run, and approvals and
+  sandboxes are never Tade's own to change.
 - **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
   that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
   on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.

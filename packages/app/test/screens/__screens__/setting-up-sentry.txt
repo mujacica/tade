@@ -1,29 +1,29 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
-                             █│─────────────────────────────────────────────────────────────────────────────────────────
- ▌ ! stripe-v15   880k tok   █│                                                                                         
- ▌   wants y╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮            
-            │ ◐ Needs setting up: no Sentry token                                                          │            
-   ⠋ refunds│                                                                                              │            
-     working│  Create a user auth token with org:read, project:read, event:read and event:write.           │            
-            │  Paste it below, or log in with sentry-cli login and leave it empty.                         │            
- ▸ SMART QUE│  Say which Sentry project each of your projects sends to.                                    │            
- ▾ CHANGES  │ Create a token ↗                                                                             │            
-  M package.│                                                                                              │            
-  A …/webhoo│ Auth token       sntryu_typed_just_now▏                                                      │            
-  M src/webh│                 written into your config; $SENTRY_AUTH_TOKEN wins when it is set             │            
-            │ Organization     acme                                                                        │            
- ▾ FILES    │                 its slug, as in the URL                                                      │            
-   ▾ src/   │                   acme     acme-labs                                                         │            
-       webho│ Projects         checkout: checkout-web                                                      │            
-       webho│                 your project: its Sentry project, comma separated                            │            
-   ▸ test/  │                                                                                              │            
-     package│                                                                                              │            
-     README.│ tab moves · enter presses · space turns on and off                Close     Save and check   │            
-━   orchestr╰──────────────────────────────────────────────────────────────────────────────────────────────╯ ⤢     ▾   ━
-                                                                                                                        
-                                                                                                                       ▕
+            ╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮────────────
+ ▌ ! stripe-│ ◐ Needs setting up: no Sentry token                                                          │            
+ ▌   wants y│                                                                                              │            
+            │  Create a user auth token with org:read, project:read, event:read and event:write.           │            
+   ⠋ refunds│  Paste it below, or log in with sentry-cli login and leave it empty.                         │            
+     working│  Say which Sentry project each of your projects sends to.                                    │            
+            │ Create a token ↗                                                                             │            
+ ▸ SMART QUE│                                                                                              │            
+ ▾ CHANGES  │ Kept in config.yaml as you typed it, so you can read it back — and any agent you run can     │            
+  M package.│ read it too: agents run as you, unsandboxed unless you say so. To keep one out of the file,  │            
+  A …/webhoo│ export its variable instead, which wins and is never written down, or leave this unset.      │            
+  M src/webh│                                                                                              │            
+            │ Auth token       sntryu_typed_just_now▏                                                      │            
+ ▾ FILES    │                 $SENTRY_AUTH_TOKEN wins when it is set                                       │            
+   ▾ src/   │ Organization     acme                                                                        │            
+       webho│                 its slug, as in the URL                                                      │            
+       webho│                   acme     acme-labs                                                         │            
+   ▸ test/  │ Projects         checkout: checkout-web                                                      │            
+     package│                 your project: its Sentry project, comma separated                            │            
+     README.│                                                                                              │            
+━   orchestr│                                                                                              │ ⤢     ▾   ━
+            │ tab moves · enter presses · space turns on and off                Close     Save and check   │            
+            ╰──────────────────────────────────────────────────────────────────────────────────────────────╯           ▕
                                                                                                                        ▕
                                                                                                                        ▕
                                                                                                                        ▕

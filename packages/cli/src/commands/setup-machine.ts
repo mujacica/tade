@@ -218,8 +218,10 @@ export async function setUpKeys(ui: Ui, look: Look): Promise<void> {
   const configPath = defaultConfigPath()
   ui.say('Some extensions do more with a key. All of them work without one, and what is')
   ui.say('missing is said on the extension’s own page, so skipping here changes nothing else.')
-  ui.say(`A key you paste is written into ${configPath}, which only you can read — as you`)
-  ui.say('typed it, so you can check it against the console you copied it from.')
+  ui.say(`A key you paste is written into ${configPath} as you typed it, so you can`)
+  ui.say('check it against the console you copied it from — and any agent you run can read')
+  ui.say('it: agents run as you. To keep one out of the file, export its variable instead,')
+  ui.say('which always wins, or skip it here.')
   ui.say('')
 
   for (const one of wanted) {

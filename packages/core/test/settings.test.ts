@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../src/config.ts'
+import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from '../src/secrets.ts'
 import {
   applySetting,
   describeSetting,
@@ -299,6 +300,32 @@ describe('keys and tokens', () => {
     for (const words of [['api', 'key'], ['token'], ['typesafe_api_key'], ['credential']]) {
       expect(settingFound(group, group.settings[0], words)).toBe(true)
     }
+  })
+
+  it('says who else can read it under every one of them, not only in the heading', () => {
+    // `0600` keeps the file from other people, and agents are not other
+    // people: they run as you. The page is options and values, so what a
+    // person actually reads is the line under the setting they are on — and
+    // the fact is the same for every key, so every key says it.
+    const group = settingsOf(config(), [
+      secrets[0]!,
+      { ...secrets[0]!, path: 'extensions.sentry.token', title: 'Sentry token', means: '' },
+    ]).find((one) => one.id === 'credentials')
+    expect(group?.about).toContain(KEYS_AND_AGENTS)
+    for (const setting of group?.settings ?? []) {
+      expect(setting.means, setting.path).toContain(SEEN_BY_AGENTS)
+    }
+    // What it is for stays the extension's to say, and follows it — the line
+    // is cut at two, so the half that must survive the cut is first.
+    expect(group?.settings[0]?.means).toBe(`${SEEN_BY_AGENTS}; the TypeSafe API key`)
+    // And a credential whose extension said nothing still says this much.
+    expect(group?.settings[1]?.means).toBe(SEEN_BY_AGENTS)
+  })
+
+  it('says what to do instead, because a warning with no way out is one people scroll past', () => {
+    const group = settingsOf(config(), secrets).find((one) => one.id === 'credentials')
+    expect(group?.about).toContain('export its variable instead')
+    expect(group?.about).toContain('or leave this unset')
   })
 })
 

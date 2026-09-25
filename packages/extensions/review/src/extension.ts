@@ -93,8 +93,7 @@ export const reviewExtension: TadeExtension = {
       kind: 'secret',
       env: ['GITHUB_TOKEN', 'GH_TOKEN'],
       envFrom: 'token_env',
-      means:
-        'a forge token with `repo` scope, for when `gh` is not what you use. Paste it here and Tade writes it into config.yaml, which only you can read; $GITHUB_TOKEN still wins',
+      means: 'a forge token with `repo` scope, for when `gh` is not what you use',
     },
     {
       key: 'token_env',
@@ -138,7 +137,7 @@ export const reviewExtension: TadeExtension = {
     return {
       guide: [
         'Tade reads reviews with whatever you are already signed in with: the GitHub CLI, or a token.',
-        '1. `gh auth login` in a terminal — or paste a token with `repo` scope below, which Tade writes into `config.yaml` — your own file, `0600`, where you can read it back. `$GITHUB_TOKEN` still wins when it is set.',
+        '1. `gh auth login` in a terminal — or paste a token with `repo` scope below. `$GITHUB_TOKEN` still wins when it is set.',
         '2. Say which repositories are yours to watch (`include`), as `owner/repo` or `acme/*`.',
         '3. Nothing is watched until you turn a watch on — ask the orchestrator to watch failing checks.',
         `Tade is reading ${settings.include.length > 0 ? settings.include.join(', ') : "each project's own repository"}.`,
@@ -149,7 +148,7 @@ export const reviewExtension: TadeExtension = {
           label: 'Token',
           kind: 'secret',
           placeholder: 'ghp_…',
-          help: 'only when you do not use `gh`; written into your config as you typed it',
+          help: 'only when you do not use `gh`; $GITHUB_TOKEN wins when it is set',
         },
         { key: 'include', label: 'Repositories', kind: 'list', placeholder: 'acme/*, you/tade' },
         { key: 'exclude', label: 'Never these', kind: 'list' },

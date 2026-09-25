@@ -7,6 +7,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from './config.ts'
+import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 
 // The settings a person actually changes, and what each one means.
 //
@@ -838,8 +839,10 @@ export function settingsOf(
           {
             id: 'credentials',
             title: 'Keys and tokens',
-            about:
-              'The keys Tade holds for you, written into config.yaml as you typed them — a file only you can read. They are shown as themselves so you can check one against the console that issued it. A variable in your shell still wins over anything pasted.',
+            // The one thing about a key that cannot be seen on the page, and
+            // the file's mode is not it: `0600` keeps the file from other
+            // people, and the programs you run here are not other people.
+            about: `The keys Tade holds for you. ${KEYS_AND_AGENTS}`,
             keywords: [
               'key',
               'keys',
@@ -854,7 +857,13 @@ export function settingsOf(
               (secret): Setting => ({
                 path: secret.path,
                 title: secret.title,
-                means: secret.means,
+                // What the key is for is the extension's to say; who else can
+                // read it is Tade's, and is said under every one of them
+                // rather than left to the group's heading — this line is what
+                // a person actually reads, and only for the setting they are
+                // on. Tade's half goes first because the line is cut at two,
+                // and the half that may never be the one cut is this one.
+                means: secret.means ? `${SEEN_BY_AGENTS}; ${secret.means}` : SEEN_BY_AGENTS,
                 value: secret.value,
                 // What is *used*, which is the environment where there is one:
                 // a field that looks empty while an agent authenticates fine is

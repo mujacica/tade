@@ -441,7 +441,7 @@ function extensionFor(opts: {
             {
               key: KEY,
               kind: 'secret' as const,
-              means: `The credential ${name} is reached with. Written into config.yaml, which only you can read, and whatever the environment says wins.`,
+              means: `The credential ${name} is reached with; whatever the environment says wins.`,
               ...(declaration.variables.length > 0 ? { env: declaration.variables } : {}),
             },
           ],

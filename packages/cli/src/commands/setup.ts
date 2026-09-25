@@ -455,12 +455,14 @@ async function setUpJudge(ui: Ui): Promise<void> {
   if (!key) {
     // Pasting one is offered here rather than refused on principle, and it is
     // written into your config as you type it: a key you cannot read back is
-    // a key you cannot check. The file is yours alone, and the environment
-    // still wins over what is in it.
+    // a key you cannot check. `0600` keeps that file from other people, and
+    // an agent is not another person — so that is said here too, with the way
+    // out, which is the variable the environment still wins with.
     ui.say('  Create one at https://console.typesafe.ai/settings/keys — or ask for access at')
     ui.say('  https://typesafe.ai if you are not in yet.')
-    ui.say(`  Paste it here and Tade writes it into ${configPath}, which only you`)
-    ui.say(`  can read. \`export ${variable}="…"\` in your shell works too, and wins.`)
+    ui.say(`  Paste it here and Tade writes it into ${configPath}, which any agent`)
+    ui.say(`  you run can read. \`export ${variable}="…"\` works too, wins, and is never`)
+    ui.say('  written down.')
     const typed = (await ui.ask('paste the key (enter to skip)', '')).trim()
     if (!typed) {
       ui.say('  skipped — Settings › Extensions › Jev whenever you want it')

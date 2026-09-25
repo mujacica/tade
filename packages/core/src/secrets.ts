@@ -30,6 +30,29 @@ export interface SecretFound {
 /** What the config is called in a sentence, for saying where a key is. */
 export const IN_CONFIG = 'config.yaml'
 
+/**
+ * The short of it, for the one line a control gets: `— any agent you run can
+ * read it`. A clause of the sentence below, and never a second wording of it.
+ */
+export const SEEN_BY_AGENTS = 'any agent you run can read it'
+
+/**
+ * What is true of every credential Tade keeps, said wherever one is pasted.
+ *
+ * `0600` keeps the file from other people, and an agent is not another
+ * person: it runs as you, in your checkout, unsandboxed and unasked unless
+ * you have said otherwise, so it can read this file the way it can read any
+ * other file of yours. Nothing in the file can answer that, so it is said
+ * instead — here, once, so the README, the Extensions page, the Settings page
+ * and the account prompt cannot drift apart about it — and the way out is
+ * said in the same breath, because a warning with nothing to do about it is
+ * a warning people learn to scroll past.
+ */
+export const KEYS_AND_AGENTS =
+  `Kept in ${IN_CONFIG} as you typed it, so you can read it back — and ${SEEN_BY_AGENTS} too: ` +
+  `agents run as you, unsandboxed unless you say so. To keep one out of the file, export its ` +
+  `variable instead, which wins and is never written down, or leave this unset.`
+
 /** Where an extension's credential is written: `extensions.jev.key`. */
 export function secretPath(extension: string, key: string): string {
   return `extensions.${extension}.${key}`

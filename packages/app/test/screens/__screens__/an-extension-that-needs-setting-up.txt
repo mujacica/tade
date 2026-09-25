@@ -19,7 +19,7 @@
    │                        ▕│ · Turns an error into work (sentry_fix): an agent with the stack already in hand.   █│   
    │                        ▕│ · Lets new errors find you: the new-errors watch starts an agent on each.           ▕│   
    │                        ▕│ · Says something back — resolve, ignore, assign — only when you asked for it.       ▕│   
-   │                        ▕│ · The token is written into `config.yaml`, which only you can read.                 ▕│   
+   │                        ▕│ · The token is kept in `config.yaml`, which any agent you run can read.             ▕│   
    │                        ▕│                                                                                     ▕│   
 ━  │                        ▕│ TOOLS                                                                               ▕│  ━
    │                        ▕│ sentry_issues         List a project's Sentry issues                                ▕│   

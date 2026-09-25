@@ -1,9 +1,9 @@
 import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { KEY_BINDINGS } from '@tade/core'
+import { KEY_BINDINGS, KEYS_AND_AGENTS } from '@tade/core'
 import type { Hit } from '../../hits.ts'
 import { keyCaps } from '../../keys.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
-import { cap, fitTo, pad } from '../cells.ts'
+import { cap, fitTo, pad, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import {
   type BranchPanel,
@@ -216,6 +216,16 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
       )
       rows.push(blank(inner))
     }
+  }
+  // An account's key goes into the same file every other key goes into, and
+  // this is the moment somebody is deciding to put one there. `wrapTo` and
+  // not a slice: what would be cut on a narrow terminal is the way out, and
+  // a sentence that stops mid-word with no mark reads as a bug.
+  if (panel.purpose === 'account-key') {
+    for (const line of wrapTo(KEYS_AND_AGENTS, inner - 2, 12)) {
+      rows.push(row().space().text(line, skin.hint).build())
+    }
+    rows.push(blank(inner))
   }
   rows.push(
     row().space().text(panel.label, skin.label).build(),
