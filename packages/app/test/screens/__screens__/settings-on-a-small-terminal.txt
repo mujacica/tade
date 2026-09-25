@@ -9,14 +9,14 @@
    │  Approvals       █│▌  sentry sends through Sentry’s own SDK, imported █│   
    │  Checks          █│▌  only when there is a DSN; none sends nothing    █│╮  
  ▸ │  Voice           █│                                                   ▕││  
- ▾ │  Window          █│ Crashes and warnings    ──██ on                 ↻ ▕││  
-  M│  Projects     3  █│                                                   ▕│╯  
-  A│  Checks per pro… █│ What happened around …  ──██ on                 ↻ ▕│   
-━  │  Budgets     ● 1 █│                                                   ▕│  ━
-   │  Journal         █│ Numbers                 ──██ on                 ↻ ▕│   
-   │▌ Telemetry       █│                                                   ▕│  ▕
-   │  Shortcuts       █│ ● Saved as you change it.                          │  ▕
-   │  Accounts    ● 2 ▕│                       Open config.yaml     Done    │  ▕
+ ▾ │  Search          █│ Crashes and warnings    ──██ on                 ↻ ▕││  
+  M│  Window          █│                                                   ▕│╯  
+  A│  Projects     3  █│ What happened around …  ──██ on                 ↻ ▕│   
+━  │  Checks per pro… █│                                                   ▕│  ━
+   │  Budgets     ● 1 █│ Numbers                 ──██ on                 ↻ ▕│   
+   │  Journal         █│                                                   ▕│  ▕
+   │▌ Telemetry       ▕│ ● Saved as you change it.                          │  ▕
+   │  Shortcuts       ▕│                       Open config.yaml     Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                          type, or hold    ctrl   +   space   

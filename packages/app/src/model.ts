@@ -36,6 +36,13 @@ export interface AgentPane {
   name: string
   /** What the work is called, once the agent has said: shown in place of the name. */
   title: string | null
+  /**
+   * What was asked for, verbatim, as its task file has it. Not drawn — the
+   * sidebar has room for a name — and what search matches a sentence against,
+   * because "the agent on test coverage" is in nobody's name and in exactly
+   * one of these.
+   */
+  intent?: string
   /** Its branch; empty until an agent that started without one changes something. */
   branch: string
   /** Lane whose screen this pane draws, when the agent has one. */
@@ -364,6 +371,8 @@ export interface TaskSnapshot {
   state: TaskState
   reason?: string
   title?: string | null
+  /** What was asked for, verbatim, as its task file has it. */
+  intent?: string
   branch?: string
   lane?: string | null
   waiting?: boolean
@@ -390,6 +399,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     project: task.task.split('/')[0] ?? task.task,
     name: task.task.split('/').at(-1) ?? task.task,
     title: task.title ?? null,
+    ...(task.intent ? { intent: task.intent } : {}),
     branch: task.branch ?? '',
     lane: task.lane ?? null,
     state: task.state,

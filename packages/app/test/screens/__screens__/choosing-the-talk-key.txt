@@ -9,16 +9,16 @@
      wor│  Approvals      byp│                                                            │s to stop          ▕│        
         │  Checks            │                        ctrl   +   r                        │                   ▕│        
  ▸ SMART│▌ Voice             │                                                            │      ↻ on restart ▕│        
- ▾ CHANG│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │                   ▕│        
-  M pack│  Projects          │   While Tade holds it, your agents never see it.           │      ↻ on restart ▕│        
-  A …/we│  Checks per project│                                                            │                   ▕│        
-  M src/│  Budgets           │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                   ▕│        
-        │  Journal           │ Not a key that types a character.                          │                   ▕│        
- ▾ FILES│  Telemetry         │                                                            │                   ▕│        
-   ▾ src│  Shortcuts         │                        Try another     Use ctrl+r anyway   │                   ▕│        
-       w│  Accounts          ╰────────────────────────────────────────────────────────────╯                   ▕│        
-       w│  Updates               ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
-   ▸ tes│                        ▕│                                                                           ▕│        
+ ▾ CHANG│  Search            │ ▲ Pi and most shells search history with ctrl+r.           │                   ▕│        
+  M pack│  Window            │   While Tade holds it, your agents never see it.           │      ↻ on restart ▕│        
+  A …/we│  Projects          │                                                            │                   ▕│        
+  M src/│  Checks per project│ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                   ▕│        
+        │  Budgets           │ Not a key that types a character.                          │                   ▕│        
+ ▾ FILES│  Journal           │                                                            │                   ▕│        
+   ▾ src│  Telemetry         │                        Try another     Use ctrl+r anyway   │                   ▕│        
+       w│  Shortcuts         ╰────────────────────────────────────────────────────────────╯                   ▕│        
+       w│  Accounts          ● 2 ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
+   ▸ tes│  Updates               ▕│                                                                           ▕│        
      pac│                        ▕│ Quiet hours      22:00    to  07:00                          ↻ on restart ▕│        
      REA│                        ▕│                                                                           ▕│        
 ━   orch│                        ▕│                                                                           ▕│   ▾   ━

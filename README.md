@@ -116,11 +116,24 @@ each result saying which project and which agent it belongs to. `file:42` goes s
 
 ![Search: files and matching lines across projects and worktrees, each labelled with its project and agent](images/search.svg)
 
-Type a sentence rather than a name and, with Jev on, what the letters could not place is put to a
-judge — which of the things already in that list you meant, under **MIGHT MEAN**. It appears beside
-the ordinary results, never instead of them, and choosing one does what choosing it always did.
+It also matches what is *happening*: what each agent is doing right now, what it was asked for in
+your own words, what queued work waits on and why, how the checks stand, your notes. So `coverage`
+finds the agent raising it even though nothing is called that, and the row says which line of what
+is going on put it there.
+
+Type a sentence rather than a name and, with Jev on, it goes to a judge alongside whatever the
+letters found — which of the things already in that list you meant, under **MIGHT MEAN**. It appears
+beside the ordinary results, never instead of them, and choosing one does what choosing it always
+did.
 
 ![A sentence typed into search, and the two things already in the list that it might have meant](images/asking.svg)
+
+**What that sends.** The letters match everything above on your own machine and send nothing
+anywhere. The sentence does not: what goes with the question is the name of each thing in front of
+you, where it is, and what is happening about it — so task intents, notes and what agents are doing
+reach whoever answers, which today is Jev's provider. It is on because a sentence answered out of
+names alone is not answered at all. Turn it off in Settings › Search and search keeps everything
+else, letters and all; `Answer search` off on Jev's own page stops the question being asked at all.
 
 ## Changes, tracked as they happen
 

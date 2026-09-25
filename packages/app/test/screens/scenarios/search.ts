@@ -32,6 +32,18 @@ function searched(query: string, meant?: readonly SearchEntry[]): SearchEntry[] 
       note: 'waiting on you',
       complete: '@stripe-v15',
     },
+    {
+      // Found by what is happening rather than by what it is called: nothing
+      // here is named `webhook`, and one agent was asked to fix one.
+      id: 'task:checkout/ledger',
+      kind: 'agent',
+      label: 'ledger',
+      detail: 'in checkout',
+      mark: '●',
+      tone: 'busy',
+      complete: '@ledger',
+      about: 'working · 3 commits, tests green\nasked for: retry the webhook that double-charges',
+    },
     { id: 'run:new-agent', kind: 'action', label: 'New agent', mark: '›' },
     { id: 'stop:checkout/stripe-v15', kind: 'action', label: 'Stop stripe-v15', mark: '■' },
     {

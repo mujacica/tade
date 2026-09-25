@@ -769,6 +769,37 @@ describe('a sentence typed into search', () => {
     expect(options).toEqual(['c1', 'c2', 'c3', 'none'])
   })
 
+  it('is asked with what is happening about each thing, where the window offered it', async () => {
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: picks({ c1: 0.9 }, seen),
+    })
+    await loaded.meant({
+      said: 'the agent on test coverage',
+      choices: [
+        {
+          id: 'task:tade/flaky-suite',
+          label: 'flaky-suite',
+          detail: 'in tade',
+          about: 'working · 2 commits, tests green asked for: raise test coverage',
+        },
+        { id: 'run:new-agent', label: 'New agent' },
+      ],
+      signal: new AbortController().signal,
+    })
+    const [body] = seen as { questions: { meant: { criteria: Record<string, string> } } }[]
+    const options = body?.questions.meant.criteria ?? {}
+    // Which is the whole of what makes the sentence answerable: nothing here
+    // is called `coverage`, and one of them is doing it.
+    expect(options.c1).toBe(
+      'flaky-suite — in tade · working · 2 commits, tests green asked for: raise test coverage',
+    )
+    // And a choice that came with none is offered exactly as it always was.
+    expect(options.c2).toBe('New agent')
+  })
+
   it('says nothing where none of them was meant', async () => {
     const loaded = await host({
       home: tmp('tade-jev-'),

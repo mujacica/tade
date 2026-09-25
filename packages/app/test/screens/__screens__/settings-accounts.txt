@@ -9,16 +9,16 @@
      wor│  Approvals      bypass ▕│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, ▕│        
         │  Checks                ▕│   and you sign in to them inside pi.                                      ▕│        
  ▸ SMART│  Voice                 ▕│                                                                           ▕│        
- ▾ CHANG│  Window                ▕│ Claude Code                                                               ▕│        
-  M pack│  Projects           3  ▕│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents    ▕│        
-  A …/we│  Checks per project    ▕│     Sign in again…     Sign out                                           ▕│        
-  M src/│  Budgets           ● 1 ▕│   work                  ○ not signed in yet                               ▕│        
-        │  Journal               ▕│     Sign in…     Use for new agents     Remove                            ▕│        
- ▾ FILES│  Telemetry             ▕│                                                                           ▕│        
-   ▾ src│  Shortcuts             ▕│     Add an account…     Add an API-key account…                           ▕│        
+ ▾ CHANG│  Search                ▕│ Claude Code                                                               ▕│        
+  M pack│  Window                ▕│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents    ▕│        
+  A …/we│  Projects           3  ▕│     Sign in again…     Sign out                                           ▕│        
+  M src/│  Checks per project    ▕│   work                  ○ not signed in yet                               ▕│        
+        │  Budgets           ● 1 ▕│     Sign in…     Use for new agents     Remove                            ▕│        
+ ▾ FILES│  Journal               ▕│                                                                           ▕│        
+   ▾ src│  Telemetry             ▕│     Add an account…     Add an API-key account…                           ▕│        
+       w│  Shortcuts             ▕│                                                                           ▕│        
        w│▌ Accounts          ● 2 ▕│                                                                           ▕│        
-       w│  Updates               ▕│                                                                           ▕│        
-   ▸ tes│                        ▕│                                                                           ▕│        
+   ▸ tes│  Updates               ▕│                                                                           ▕│        
      pac│                        ▕│                                                                           ▕│        
      REA│                        ▕│                                                                           ▕│        
 ━   orch│                        ▕│                                                                           ▕│   ▾   ━

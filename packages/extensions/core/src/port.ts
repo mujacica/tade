@@ -320,8 +320,19 @@ export interface CautionAnswer {
 export interface MeantRequest {
   /** What they typed, exactly as they typed it. */
   said: string
-  /** What it could be, each with the words the person would see. */
-  choices: readonly { id: string; label: string; detail?: string }[]
+  /**
+   * What it could be: the words the person would see, and what is happening
+   * about each — what an agent is doing, what it was asked for, what queued
+   * work waits on.
+   *
+   * `about` is the half that makes a sentence answerable: "the agent on test
+   * coverage" is in nobody's name. It is also the half that leaves the
+   * machine, so the window bounds how much of it there is and a person decides
+   * whether any of it is offered at all (`surfaces.search.context`) — with it
+   * off, every choice arrives with none, which is a question worth asking and
+   * a narrower one.
+   */
+  choices: readonly { id: string; label: string; detail?: string; about?: string }[]
   /** Dropped when the answer is no longer wanted: somebody is watching the box. */
   signal: AbortSignal
 }

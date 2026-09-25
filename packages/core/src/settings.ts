@@ -136,6 +136,7 @@ export function settingsOf(
       ?.replace(/^ggml-/, '')
       .replace(/\.bin$/, '') ?? 'base.en'
   const window = config.surfaces.window
+  const search = config.surfaces.search
   const route = config.workers.routes[config.workers.default]
   // Each side of the model question asks its own harness, and says which.
   const agentHarness = route?.harness ?? 'pi'
@@ -466,6 +467,25 @@ export function settingsOf(
           fallback: 'none',
           type: { kind: 'hours' },
           live: false,
+        },
+      ],
+    },
+    {
+      id: 'search',
+      title: 'Search',
+      about: 'What ctrl+k can find, and what leaves the machine to find it.',
+      keywords: ['ctrl+k', 'find', 'command palette', 'might mean'],
+      settings: [
+        {
+          path: 'surfaces.search.context',
+          title: 'Send what is happening',
+          means:
+            'what a sentence typed into search is put to whoever reads one with: what each agent is doing, what it was asked for, what queued work waits on, your notes — which reaches their provider. Off they get names and where they are, and the letters go on matching all of it here, which sends nothing anywhere',
+          value: search.context ? 'on' : 'off',
+          fallback: 'on',
+          type: { kind: 'flag' },
+          live: true,
+          keywords: ['privacy', 'judge', 'jev', 'might mean', 'intent', 'notes', 'sentence'],
         },
       ],
     },

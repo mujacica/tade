@@ -181,7 +181,8 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       'ctrl+k: one box over agents, files in every worktree and the lines inside them, each result ' +
-      'saying which project and which agent it belongs to.',
+      'saying which project and which agent it belongs to — and an agent found by what it was ' +
+      'asked for rather than by what it is called, with the line that said so under its name.',
   },
   {
     file: 'asking.svg',

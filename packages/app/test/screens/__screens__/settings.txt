@@ -9,16 +9,16 @@
      wor│  Approvals      bypass ▕│ Mode            ◉ Hold to talk   ○ Press to start, press to stop          ▕│        
         │  Checks                ▕│                                                                           ▕│        
  ▸ SMART│▌ Voice                 ▕│ Speech to text   whisper · base.en · on this machine  ▾      ↻ on restart ▕│        
- ▾ CHANG│  Window                ▕│                                                                           ▕│        
-  M pack│  Projects           3  ▕│ Microphone       MacBook Pro Microphone                      ↻ on restart ▕│        
-  A …/we│  Checks per project    ▕│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                    ▕│        
-  M src/│  Budgets           ● 1 ▕│                                                                           ▕│        
-        │  Journal               ▕│ Muted           ██── off                                                  ▕│        
- ▾ FILES│  Telemetry             ▕│                                                                           ▕│        
-   ▾ src│  Shortcuts             ▕│ Spoken replies  ──██ on                                                   ▕│        
-       w│  Accounts          ● 2 ▕│                                                                           ▕│        
-       w│  Updates               ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
-   ▸ tes│                        ▕│                                                                           ▕│        
+ ▾ CHANG│  Search                ▕│                                                                           ▕│        
+  M pack│  Window                ▕│ Microphone       MacBook Pro Microphone                      ↻ on restart ▕│        
+  A …/we│  Projects           3  ▕│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                    ▕│        
+  M src/│  Checks per project    ▕│                                                                           ▕│        
+        │  Budgets           ● 1 ▕│ Muted           ██── off                                                  ▕│        
+ ▾ FILES│  Journal               ▕│                                                                           ▕│        
+   ▾ src│  Telemetry             ▕│ Spoken replies  ──██ on                                                   ▕│        
+       w│  Shortcuts             ▕│                                                                           ▕│        
+       w│  Accounts          ● 2 ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
+   ▸ tes│  Updates               ▕│                                                                           ▕│        
      pac│                        ▕│ Quiet hours      22:00    to  07:00                          ↻ on restart ▕│        
      REA│                        ▕│                                                                           ▕│        
 ━   orch│                        ▕│                                                                           ▕│   ▾   ━

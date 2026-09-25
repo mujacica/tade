@@ -409,6 +409,28 @@ export const ConfigSchema = z
               .prefault({}),
           })
           .prefault({}),
+        /** The box `ctrl+k` opens, and what it is allowed to know. */
+        search: z
+          .strictObject({
+            /**
+             * Whether what is happening — what each agent is doing, what it was
+             * asked for in their own words, what queued work waits on, your
+             * notes — is put in front of whoever reads a sentence typed into
+             * search.
+             *
+             * On, because without it the question is "which of these names did
+             * you mean" and the answer to "the agent on test coverage" is not a
+             * name. Off, search is what it always was: letters matched against
+             * what Tade has, which never leaves the machine — and the letters
+             * still read what is happening either way, because matching it here
+             * sends nothing anywhere.
+             *
+             * Said where somebody is deciding, not only here: on the field
+             * where the key that would read it is pasted, and in the README.
+             */
+            context: z.boolean().default(true),
+          })
+          .prefault({}),
         /**
          * How the window is divided. Sizes are wishes: a sidebar wider than
          * the terminal leaves nothing to watch, so they are fitted rather than

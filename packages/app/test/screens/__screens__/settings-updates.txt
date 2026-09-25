@@ -9,16 +9,16 @@
      wor│  Approvals      bypass ▕│ Tade                                                                      █│        
         │  Checks                ▕│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                   █│        
  ▸ SMART│  Voice                 ▕│   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1             █│        
- ▾ CHANG│  Window                ▕│   git -C ~/src/tade pull --ff-only && pnpm install                        █│        
-  M pack│  Projects           3  ▕│     Update Tade…     Reload Tade…                                         █│        
-  A …/we│  Checks per project    ▕│                                                                           █│        
-  M src/│  Budgets           ● 1 ▕│ Programs it runs                                                          █│        
-        │  Journal               ▕│   git             2.39.5      · cannot tell                               █│        
- ▾ FILES│  Telemetry             ▕│                   the system’s own · /usr/bin/git                         █│        
-   ▾ src│  Shortcuts             ▕│                   no command · the system updates it — macOS:             █│        
-       w│  Accounts          ● 2 ▕│                   `xcode-select --install`                                █│        
-       w│▌ Updates           ● 2 ▕│                                                                           █│        
-   ▸ tes│                        ▕│   tmux            —           ▲ not installed                             █│        
+ ▾ CHANG│  Search                ▕│   git -C ~/src/tade pull --ff-only && pnpm install                        █│        
+  M pack│  Window                ▕│     Update Tade…     Reload Tade…                                         █│        
+  A …/we│  Projects           3  ▕│                                                                           █│        
+  M src/│  Checks per project    ▕│ Programs it runs                                                          █│        
+        │  Budgets           ● 1 ▕│   git             2.39.5      · cannot tell                               █│        
+ ▾ FILES│  Journal               ▕│                   the system’s own · /usr/bin/git                         █│        
+   ▾ src│  Telemetry             ▕│                   no command · the system updates it — macOS:             █│        
+       w│  Shortcuts             ▕│                   `xcode-select --install`                                █│        
+       w│  Accounts          ● 2 ▕│                                                                           █│        
+   ▸ tes│▌ Updates           ● 2 ▕│   tmux            —           ▲ not installed                             █│        
      pac│                        ▕│                   nothing here needs it                                   █│        
      REA│                        ▕│                   no command · nothing on your PATH answers to `tmux`     ▕│        
 ━   orch│                        ▕│                                                                           ▕│   ▾   ━

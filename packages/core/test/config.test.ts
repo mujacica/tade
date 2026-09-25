@@ -146,6 +146,19 @@ projects:
     expect(notepad.issues[0]?.path).toBe('surfaces.window.editor')
   })
 
+  it('puts what is happening in front of a reader unless somebody says not to', () => {
+    // On, because without it a sentence is answered out of names — and said
+    // out loud where the key that would read it is pasted, not only here.
+    const on = parseConfig('')
+    expect(on.ok && on.config.surfaces.search.context).toBe(true)
+    const off = parseConfig('surfaces:\n  search:\n    context: false\n')
+    expect(off.ok && off.config.surfaces.search.context).toBe(false)
+    const wrong = parseConfig('surfaces:\n  search:\n    context: sometimes\n')
+    expect(wrong.ok).toBe(false)
+    if (wrong.ok) return
+    expect(wrong.issues[0]?.path).toBe('surfaces.search.context')
+  })
+
   it('names an unknown (typo) key', () => {
     const r = parseConfig('workspace:\n  drivr: pty\n')
     expect(r.ok).toBe(false)

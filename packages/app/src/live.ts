@@ -187,6 +187,10 @@ export function snapshotsFrom(
         ...(task.start && task.start.after.length > 0 ? { waitsOn: task.start.after } : {}),
         ...(task.start && task.start.touches.length > 0 ? { touches: task.start.touches } : {}),
         title: task.title ?? null,
+        // Verbatim, as its task file has it: nothing can recover what somebody
+        // asked for once it has been reworded, which is why search matches it
+        // rather than a summary of it.
+        ...(task.intent_spoken ? { intent: task.intent_spoken } : {}),
         branch: task.branch,
         lane: lane?.id ?? null,
         waiting: pending.some((approval) => approval.task === task.id),
@@ -784,6 +788,18 @@ export class Live {
       shared: facts ? facts.workspace === 'checkout' : seen.work.shared,
       review: review ?? seen.work.review,
     }
+  }
+
+  /**
+   * What the last look at a task's work said, and nothing more.
+   *
+   * `actions` answers and then looks again in the background; this only ever
+   * answers. Search composes what is happening for every task on every
+   * keystroke, and a look is git — so what has not been looked at is `null`
+   * here rather than a reason to go and find out.
+   */
+  seenActions(task: string): ActionsView | null {
+    return this.works.get(task)?.work ?? null
   }
 
   /**

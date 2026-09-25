@@ -3,12 +3,12 @@
  ▾ ╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮l  
    │  search sett…   │ Telemetry                    │───
  ▌ │                 │                              │   
- ▌ │  Agents        █│ Send to                   ↻ █│   
-   │  Models        █│    $TADE_TELEMETRY_DSN, o…  █│+12
-   │  Orchestrator  █│                             ▕│   
-   │  Approvals     █│▌Reporter                  ↻ ▕│   
-   │  Checks        █│▌  ◉ sentry                  ▕│   
- ▸ │  Voice         █│▌  ○ none                    ▕│   
+ ▌ │  Models        ▕│ Send to                   ↻ █│   
+   │  Orchestrator  █│    $TADE_TELEMETRY_DSN, o…  █│+12
+   │  Approvals     █│                             ▕│   
+   │  Checks        █│▌Reporter                  ↻ ▕│   
+   │  Voice         █│▌  ◉ sentry                  ▕│   
+ ▸ │  Search        █│▌  ○ none                    ▕│   
  ▾ │  Window        █│▌  sentry sends through      ▕│   
   M│  Projects   3  █│▌  Sentry’s own SDK, import… ▕│   
 ━  │  Checks per p… █│                             ▕│  ━

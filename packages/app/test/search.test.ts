@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ABOUT_ASKED,
+  askedAbout,
   completed,
   fuzzy,
   GROUPS,
@@ -173,15 +175,40 @@ describe('a sentence, when the letters find nothing', () => {
     expect(isSentence('#stop whoever is on refunds')).toBe(false)
   })
 
-  it('is worth asking about only when nothing it could have meant came back', () => {
+  it('is worth asking about unless the whole of it came back', () => {
     const said = 'stop whoever is on the refunds thing'
     expect(worthAsking(said, [])).toBe(true)
     // A line inside somebody's code is not an answer to what they asked for.
     expect(worthAsking(said, [{ id: 'x', kind: 'match', label: 'a.ts:2', mark: '≡' }])).toBe(true)
-    expect(worthAsking(said, [{ id: 'y', kind: 'action', label: 'Stop refunds', mark: '■' }])).toBe(
-      false,
-    )
     expect(worthAsking('stop', [])).toBe(false)
+  })
+
+  it('still asks when the letters found something weak', () => {
+    // What a sentence matches is never a name and is always letters scattered
+    // down some long label. One of these was enough to silence the question
+    // for good, and it is not an answer to anything.
+    const said = 'what the run'
+    const weak = searchResults(said, {
+      entries: [
+        {
+          id: 'setting:telemetry',
+          kind: 'setting',
+          label: 'Telemetry › What the brief counts',
+          mark: '◇',
+        },
+      ],
+      files: [],
+      matches: [],
+    })
+    expect(weak).toHaveLength(1)
+    expect(worthAsking(said, weak)).toBe(true)
+  })
+
+  it('does not ask when what came back is the whole of what was typed', () => {
+    const said = 'Show the changes in refunds'
+    const found = searchResults(said, { entries: list, files: [], matches: [] })
+    expect(found.map((entry) => entry.id)).toEqual(['changes:checkout/refunds'])
+    expect(worthAsking(said, found)).toBe(false)
   })
 
   it('puts a handful of what there is to do, not everything', () => {
@@ -193,6 +220,24 @@ describe('a sentence, when the letters find nothing', () => {
     expect(
       searchResults('stop whoever is on the refunds thing', { entries: list, files, matches: [] }),
     ).toEqual([])
+  })
+
+  it('picks out what is happening, where no name says it', () => {
+    // The whole of what this is for: `coverage` is in nobody's name here, and
+    // in exactly one thing that is going on.
+    const working: SearchEntry[] = [
+      {
+        id: 'task:tade/flaky-suite',
+        kind: 'agent',
+        label: 'flaky-suite',
+        detail: 'in tade',
+        mark: '●',
+        about: 'working · 2 commits, tests green\nasked for: raise test coverage in packages/core',
+      },
+      ...list,
+    ]
+    const picked = shortlist('agent working on test coverage', working, 3)
+    expect(picked.map((entry) => entry.id)).toContain('task:tade/flaky-suite')
   })
 
   it('tops up from what there is to do when no word matches anything', () => {
@@ -220,5 +265,60 @@ describe('a sentence, when the letters find nothing', () => {
       meant: [list[1] as SearchEntry],
     })
     expect(found.filter((entry) => entry.id === 'stop:checkout/refunds')).toHaveLength(1)
+  })
+})
+
+describe('what is happening, as something the letters can find', () => {
+  const working: SearchEntry[] = [
+    {
+      id: 'task:tade/flaky-suite',
+      kind: 'agent',
+      label: 'flaky-suite',
+      detail: 'in tade',
+      mark: '●',
+      about: 'working · 2 commits, tests green\nasked for: raise test coverage in packages/core',
+    },
+    {
+      id: 'task:tade/coverage-report',
+      kind: 'agent',
+      label: 'coverage-report',
+      detail: 'in tade',
+      mark: '○',
+    },
+  ]
+
+  it('finds a thing by what is going on with it, and says which line said so', () => {
+    const found = searchResults('raise test coverage', {
+      entries: working,
+      files: [],
+      matches: [],
+    })
+    expect(found.map((entry) => entry.id)).toEqual(['task:tade/flaky-suite'])
+    // Nothing in the name matched, so nothing in it is lit; the line that did
+    // is under it, which is what says why the row is there at all.
+    expect(found[0]?.hits).toEqual([])
+    expect(found[0]?.preview).toBe('asked for: raise test coverage in packages/core')
+  })
+
+  it('never puts what is happening above what is named', () => {
+    const found = searchResults('coverage', { entries: working, files: [], matches: [] })
+    expect(found.map((entry) => entry.id)).toEqual([
+      'task:tade/coverage-report',
+      'task:tade/flaky-suite',
+    ])
+  })
+
+  it('matches it whole, never as letters wandering through a paragraph', () => {
+    // Every letter of `rtc` is in that paragraph, in order, and means nothing.
+    expect(searchResults('rtc', { entries: working, files: [], matches: [] })).toEqual([])
+  })
+
+  it('carries as much of it as one ask is worth, saying where it was cut', () => {
+    expect(askedAbout(undefined)).toBeUndefined()
+    expect(askedAbout('  ')).toBeUndefined()
+    expect(askedAbout('working\nasked for: x')).toBe('working asked for: x')
+    const long = askedAbout('a'.repeat(ABOUT_ASKED + 50)) ?? ''
+    expect(long).toHaveLength(ABOUT_ASKED + 1)
+    expect(long.endsWith('…')).toBe(true)
   })
 })

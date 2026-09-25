@@ -82,6 +82,8 @@ describe('snapshotsFrom', () => {
         // Why, as status says it: what tells an idle agent from one waiting on a decision.
         reason: 'because',
         title: null,
+        // What was asked for, verbatim: what search matches a sentence against.
+        intent: 'something',
         branch: expect.any(String),
         lane: null,
         waiting: false,
@@ -93,6 +95,7 @@ describe('snapshotsFrom', () => {
         state: 'blocked',
         reason: 'because',
         title: null,
+        intent: 'something',
         branch: expect.any(String),
         lane: null,
         waiting: false,

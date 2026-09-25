@@ -356,21 +356,31 @@ export function optionKey(index: number): string {
 /** No option is the right one. Always offered, so "none of these" is sayable. */
 export const NONE = 'none'
 
+/**
+ * One option per thing in front of them: what it is called, where it is, and
+ * what is happening about it.
+ *
+ * What is happening is what makes a sentence answerable at all — "the agent on
+ * test coverage" names nothing and describes one thing exactly — and it is
+ * offered or not by the window, never asked for here: a question that assumed
+ * it would be a question that could not be answered on a machine where
+ * somebody has turned it off.
+ */
 export function meantQuestion(
   said: string,
-  choices: readonly { label: string; detail?: string }[],
+  choices: readonly { label: string; detail?: string; about?: string }[],
 ): Question {
+  const words = (choice: (typeof choices)[number]): string => {
+    const where = choice.detail ? ` — ${choice.detail}` : ''
+    const doing = choice.about ? ` · ${choice.about}` : ''
+    return `${choice.label}${where}${doing}`
+  }
   return {
     id: 'meant',
     kind: 'pick',
-    ask: `Somebody typed this into the search box of a tool that runs coding agents: "${said}". Which one of these is what they were asking for?`,
+    ask: `Somebody typed this into the search box of a tool that runs coding agents: "${said}". Each option is something already in front of them — its name, where it is, and what is happening about it. Which one of these is what they were asking for?`,
     options: {
-      ...Object.fromEntries(
-        choices.map((choice, at) => [
-          optionKey(at),
-          choice.detail ? `${choice.label} — ${choice.detail}` : choice.label,
-        ]),
-      ),
+      ...Object.fromEntries(choices.map((choice, at) => [optionKey(at), words(choice)])),
       [NONE]: 'none of these is what they meant',
     },
   }
