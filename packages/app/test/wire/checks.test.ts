@@ -350,7 +350,7 @@ describe('the actions it answers', () => {
   it('reads a check log action as a task and a check', async () => {
     const world = wiring({ live: { worktreeOf: () => null } as never })
     const checks = new Checks(world.wire, deps())
-    await checks.actions()['check-log:']?.('shop/refunds types')
+    await checks.actions()['check-log:']?.('shop/refunds\u0000types')
     expect(world.calls[0]?.input).toEqual({ check: 'types', project: 'shop' })
   })
 

@@ -271,7 +271,7 @@ describe('doing something to an account', () => {
     expect(panel.title).toBe('Add a Claude Code account paid with an API key')
     // The harness and which kind it is, carried on the panel: what comes back
     // is a name, and by then nothing else remembers what it is a name for.
-    expect(panel.target).toBe('claude-code api-key')
+    expect(panel.target).toBe('claude-code\u0000api-key')
     // Nothing happened to any account yet.
     expect(world.did).toEqual([])
   })
