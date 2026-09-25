@@ -43,6 +43,22 @@ describe('tade CLI', () => {
     expect(r.stdout).toContain(': ok')
   })
 
+  it('config --check says a setting Tade no longer has, and still passes the file', async () => {
+    // The point of ignoring rather than refusing is that the person is told:
+    // a key that quietly does nothing is a key somebody goes on believing in.
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cli-'))
+    const path = join(dir, 'config.yaml')
+    await writeFile(
+      path,
+      'workers:\n  routes:\n    default: { model: claude-opus-5, sandbox: seatbelt }\n',
+    )
+    const r = tade(['config', '--check', '--config', path])
+    expect(r.code).toBe(0)
+    expect(r.stdout).toContain(': ok')
+    expect(r.stderr).toContain('workers.routes.default.sandbox is ignored')
+    expect(r.stderr).toContain('sandboxes are gone from Tade')
+  })
+
   it('config --check defaults to $TADE_HOME/config.yaml', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-cli-'))
     const r = tade(['config', '--check'], { TADE_HOME: dir })

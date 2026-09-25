@@ -369,3 +369,35 @@ describe('task and run RPC', () => {
     ).rejects.toThrow(/max_parallel is 2/)
   }, 90_000)
 })
+
+describe('a config that names a setting Tade no longer has', () => {
+  let home: string
+  let client: Workbench
+
+  afterEach(async () => {
+    await client?.close().catch(() => {})
+  })
+
+  it('opens on it and says which key is ignored, rather than refusing the file', async () => {
+    const repo = mkrepo()
+    home = tmp('tade-gone-')
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `workers:\n  routes:\n    default: { model: claude-opus-5, sandbox: seatbelt }\nprojects:\n  app:\n    root: ${repo.root}\n`,
+    )
+    client = await Workbench.open({ home, version: '9.9.9' })
+    // Everything beside it still applies: refusing the file would have taken
+    // the project and the model with it.
+    expect(client.config.projects.app?.root).toBe(repo.root)
+    expect(client.config.workers.routes.default?.model).toBe('claude-opus-5')
+    const said = (await client.events({ types: ['warning'] })).map((e) =>
+      String(e.detail.message ?? ''),
+    )
+    // And the person is told, because a key that quietly does nothing is one
+    // somebody goes on believing in.
+    expect(said.some((line) => line.includes('workers.routes.default.sandbox is ignored'))).toBe(
+      true,
+    )
+    expect(said.some((line) => line.includes('sandboxes are gone from Tade'))).toBe(true)
+  })
+})

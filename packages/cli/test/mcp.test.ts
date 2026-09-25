@@ -79,9 +79,15 @@ describe('tade mcp', () => {
     const on = await tade(['mcp', 'enable', 'mine', '-c', config], { TADE_HOME: dir })
     expect(on.code).toBe(0)
     expect(on.stdout).toContain('next time Tade starts')
+    // Nothing in Tade holds somebody else's program to anything, and this is
+    // the moment the decision is made, so this is where that is said.
+    expect(on.stdout).toContain('runs as you')
+    expect(on.stdout).toContain('nothing here holds it')
     expect(await readFile(config, 'utf8')).toContain('enabled: true')
     const off = await tade(['mcp', 'disable', 'mine', '-c', config], { TADE_HOME: dir })
     expect(off.code).toBe(0)
+    // Said where somebody is turning one on, and nowhere else.
+    expect(off.stdout).not.toContain('runs as you')
     expect(await readFile(config, 'utf8')).toContain('enabled: false')
   })
 
