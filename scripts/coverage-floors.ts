@@ -52,8 +52,8 @@ const TABLE = 'scripts/coverage-floors.ts'
  */
 export const FLOOR: Record<string, number> = {
   // What is left of the CLI once the program itself is taken out (see UNSEEN):
-  // `telemetry.ts` and `commands/voice.ts` are the two with real gaps.
-  'packages/cli': 64,
+  // `commands/voice.ts` and `telemetry.ts` are the two with real gaps.
+  'packages/cli': 70,
   // The watch that reads a forge's checks, and the fixing it starts: what is
   // left is the fixing, which starts an agent.
   'packages/extensions/review': 74,
