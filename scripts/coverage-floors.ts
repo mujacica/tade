@@ -2,7 +2,7 @@
 //
 // The tables and the rules, with nothing under them: no clock, no filesystem,
 // no child process. `scripts/coverage.ts` runs the suite and hands what it
-// measured to `readCoverage` here, and `test/coverage.test.ts` hands it made-up
+// measured to `readCoverage` here, and `test/coverage-floors.test.ts` hands it made-up
 // readings and checks that each rule fires — which is the whole reason the two
 // are apart. A gate is exactly the sort of thing that fails by quietly doing
 // nothing, and a gate that runs the suite on import is a gate nothing can test.

@@ -14,7 +14,7 @@ import { type FileCoverage, FLOOR, measure, readCoverage, said } from './coverag
 // version of the suite that is "the one where we also look".
 //
 // Everything that decides anything is in `coverage-floors.ts`, which has no
-// machine under it and is held to its cases by `test/coverage.test.ts`. What is
+// machine under it and is held to its cases by `test/coverage-floors.test.ts`. What is
 // here is the running and the printing.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
