@@ -13,8 +13,12 @@ checks:
     run: pnpm exec tsc -p tsconfig.json
     minutes: 5
   - id: tests
-    title: Tests
-    run: pnpm exec vitest run
+    title: Tests and coverage
+    # The suite, and then the coverage floors — `scripts/coverage.ts` runs
+    # vitest and holds what it measured to a floor per package. Measuring costs
+    # nothing worth naming (111.6s against 111.8s), so there is no version of
+    # the suite that is the one where we also look.
+    run: pnpm exec node scripts/coverage.ts
     # The suite spawns real git and PTY processes with short timeouts. Anything
     # CPU-heavy beside it starves them, and that looks exactly like a
     # regression and is not one: 13 such failures over 485s became 465 passing

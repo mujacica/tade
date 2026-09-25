@@ -44,4 +44,4 @@ jobs:
       - name: types
         run: pnpm exec tsc -p tsconfig.json
       - name: tests
-        run: pnpm exec vitest run
+        run: pnpm exec node scripts/coverage.ts

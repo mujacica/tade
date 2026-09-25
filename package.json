@@ -22,7 +22,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
-    "check": "biome ci . && tsc -p tsconfig.json && vitest run",
+    "check": "biome ci . && tsc -p tsconfig.json && node scripts/coverage.ts",
     "tade": "node packages/cli/src/bin.ts",
     "link:global": "cd packages/cli && pnpm link --global",
     "unlink:global": "pnpm uninstall -g @tade/cli",
@@ -30,6 +30,7 @@
     "prepare": "node scripts/install-hooks.mjs",
     "hooks": "node scripts/install-hooks.mjs --force",
     "test:smoke": "vitest run packages/core/test packages/app/test/pictures.test.ts test/checks-manifest.test.ts test/lint-rules.test.ts test/modularity.test.ts test/notices.test.ts test/own-files.test.ts",
+    "coverage": "node scripts/coverage.ts",
     "screens": "node packages/app/scripts/screens.ts",
     "notices": "node scripts/notices.ts",
     "changelog": "node scripts/release/changelog.ts",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
     "@types/node": "^22.20.2",
+    "@vitest/coverage-v8": "^5.0.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.0"
   }

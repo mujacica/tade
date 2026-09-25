@@ -7,8 +7,11 @@ why closing it is harmless. **You may be a Tade worker editing Tade itself.**
 
 ## Commands
 
-- `pnpm check`: the full gate (biome ci, tsc, vitest). Run it before calling work done.
+- `pnpm check`: the full gate (biome ci, tsc, then the suite with its coverage floors). Run it
+  before calling work done.
 - `pnpm test`: vitest (must stay under 30s with zero network calls).
+- `pnpm coverage`: the suite with coverage, then the floors in `scripts/coverage.ts`; `--table`
+  prints every package rather than only what is wrong. This is what the `tests` check runs.
 - `pnpm exec biome check --write .` formats and fixes.
 - `pnpm test:smoke`: the cheap end of the suite — the domain, and the tests that hold this
   repository to its own word. A second or two, and what the pre-commit hook runs.
@@ -1435,6 +1438,27 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   runs in `test:smoke`, so a file crossing its line is said at the commit rather than in CI, and every
   failure says what to do about it. `app.ts` reached 8,635 lines because adding the fortieth subject
   to it was never once visibly a decision, and prose does not fail a build.
+- **A coverage floor per package, and never one number for the repository.** `scripts/coverage.ts`
+  is the same ratchet in the other direction — one table, checked in, a floor may go **up** in the
+  commit that earns it and never down without an argument, and a floor sitting more than `SLACK = 4`
+  points under what a package covers is the ratchet failing. It is per package because one number
+  answers nothing: `packages/core` is pure functions and covers 97%, `packages/harnesses/pi` spawns
+  a real agent and covers 62%, and the 86% they average to is true of nothing — and a single total
+  can be held up by the cheap half of the repository while the expensive half falls, silently. It
+  is the `tests` check, because measuring costs nothing worth naming (111.6s against 111.8s), so
+  there is no version of the suite that is the one where we also look; `test:smoke` and the commit
+  hook do not measure, because whole-repo floors against a sixth of the suite are red for reasons
+  that have nothing to do with the change. **A number is not the goal**: what it counts is lines
+  that ran, so a test that executes a function and asserts nothing raises every figure in it and is
+  worse than no test, because it makes the table lie — nothing mechanical tells the two apart, and
+  a floor in the way is answered by covering the thing or by lowering the floor and saying why.
+  What the instrument **cannot see** is named file by file with its reason (`UNSEEN`) rather than
+  mocked around: a program that only ever runs in another process reads zero however well it is
+  tested — the `tade` binary, which twenty test files drive by spawning it, and the hooks and MCP
+  servers Claude Code and Codex start. Excluding one is not a claim that it is covered, and the
+  list cannot rot, because an excluded file that shows a covered line fails the gate. One package's
+  floor is the lower of two readings and says so: `harnesses/claude` covers 89% where the `claude`
+  binary is installed and 74% where it is not, and a floor has to be true on both.
 - **A surface is options and values; the explanation lives where somebody asks for it.** Every
   drawn surface — a settings group, a sidebar section, a panel, a footer — is a heading and then
   controls, and no paragraph. A control whose name says what it is gets no sentence under it; where
