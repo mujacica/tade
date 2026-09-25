@@ -1444,22 +1444,22 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   `scripts/coverage-floors.ts` is the same ratchet in the other direction — one table, checked in, a
   floor may go **up** in the commit that earns it and never down without an argument, and a floor
   sitting more than `SLACK = 4` points under what a package covers is the ratchet failing. It is per
-  package because one number answers nothing: `packages/core` is pure functions and covers 97%,
-  `packages/harnesses/pi` spawns a real agent and covers 62%, and the 86% they average to is true of
-  nothing — and a single total can be held up by the cheap half of the repository while the
-  expensive half falls, silently. It is the `tests` check, because measuring costs nothing worth
-  naming (111.6s against 111.8s), so there is no version of the suite that is the one where we also
-  look; `test:smoke` and the commit hook do not measure, because whole-repo floors against a sixth
-  of the suite are red for reasons that have nothing to do with the change. **A number is not the
-  goal**: what it counts is lines that ran, so a test that executes a function and asserts nothing
-  raises every figure in it and is worse than no test, because it makes the table lie — nothing
-  mechanical tells the two apart, and a floor in the way is answered by covering the thing or by
-  lowering the floor and saying why. What the instrument **cannot see** is named file by file with
-  its reason (`UNSEEN`) rather than mocked around: a program that only ever runs in another process
-  reads zero however well it is tested — the `tade` binary, which twenty test files drive by
-  spawning it, and the hooks and MCP servers Claude Code and Codex start. Excluding one is not a
-  claim that it is covered, and the list cannot rot, because an excluded file that shows a covered
-  line fails the gate. One package's floor is the lower of two readings and says so:
+  package because one number answers nothing: `packages/core` is pure functions and covers 97%, what
+  is left of `packages/cli` once the program itself is taken out covers 65%, and the 88% they
+  average to is true of nothing — and a single total can be held up by the cheap half of the
+  repository while the expensive half falls, silently. It is the `tests` check, because measuring
+  costs nothing worth naming (111.6s against 111.8s), so there is no version of the suite that is
+  the one where we also look; `test:smoke` and the commit hook do not measure, because whole-repo
+  floors against a sixth of the suite are red for reasons that have nothing to do with the change.
+  **A number is not the goal**: what it counts is lines that ran, so a test that executes a function
+  and asserts nothing raises every figure in it and is worse than no test, because it makes the
+  table lie — nothing mechanical tells the two apart, and a floor in the way is answered by covering
+  the thing or by lowering the floor and saying why. What the instrument **cannot see** is named
+  file by file with its reason (`UNSEEN`) rather than mocked around: a program that only ever runs
+  in another process reads zero however well it is tested — the `tade` binary, which twenty test
+  files drive by spawning it, and the hooks and MCP servers Claude Code and Codex start. Excluding
+  one is not a claim that it is covered, and the list cannot rot, because an excluded file that
+  shows a covered line fails the gate. One package's floor is the lower of two readings and says so:
   `harnesses/claude` covers 89% where the `claude` binary is installed and 74% where it is not, and
   a floor has to be true on both. The tables and the rules have no machine under them, so
   `test/coverage-floors.test.ts` gives every rule a made-up reading that should fire it and one that

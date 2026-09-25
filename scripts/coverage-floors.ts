@@ -10,12 +10,12 @@
 //
 // **Why a floor per package and not one number for the repository.** A single
 // percentage hides the thing worth knowing. `packages/core` is pure functions
-// of what they are handed and is at 97%; `packages/harnesses/pi` spawns a real
-// agent and is at 62%. Added together they are 86%, which is true of nothing
-// and answers no question anybody has. Worse, one number can be held up by the
-// cheap half of the repository while the expensive half falls, and nothing
-// says so. So: a floor each, at what that package already does, and a package
-// that slips is named.
+// of what they are handed and is at 97%; what is left of `packages/cli` once
+// the program itself is taken out is at 65%. Added together they are 88%,
+// which is true of nothing and answers no question anybody has. Worse, one
+// number can be held up by the cheap half of the repository while the
+// expensive half falls, and nothing says so. So: a floor each, at what that
+// package already does, and a package that slips is named.
 //
 // **What this cannot do.** It counts lines that ran. A test that executes a
 // function and asserts nothing raises every number here, and is worse than no
@@ -54,16 +54,15 @@ export const FLOOR: Record<string, number> = {
   // What is left of the CLI once the program itself is taken out (see UNSEEN):
   // `telemetry.ts` and `commands/voice.ts` are the two with real gaps.
   'packages/cli': 64,
-  // `tools-extension.ts`: the half of it that talks over the socket to a
-  // running window is reached by nothing in the suite.
-  'packages/orchestrator': 67,
-  // The watch that reads a forge's checks, and the fixing it starts.
-  'packages/extensions/review': 69,
+  // The watch that reads a forge's checks, and the fixing it starts: what is
+  // left is the fixing, which starts an agent.
+  'packages/extensions/review': 74,
   'packages/harnesses/claude': 77,
+  'packages/orchestrator': 77,
   // `src/wire/` is the hole and everything else here is over 89%: the pure
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
   // reaches lanes, files and the machine.
-  'packages/app': 81,
+  'packages/app': 82,
   'packages/harnesses/codex': 83,
   'packages/extensions/sentry': 84,
   'packages/extensions/checks': 86,
@@ -103,18 +102,25 @@ export const FLOOR: Record<string, number> = {
  * Packages whose coverage is a fact about the machine as well as about the
  * tests, and so have no one reading a ratchet can hold them to.
  *
- * `live-lane.test.ts` and `orchestrator/test/claude.test.ts` are
- * `describe.runIf(claude)`: they drive the real Claude Code binary where it is
- * on the machine and are skipped where it is not. That is the right test to
- * have — a harness nobody proved can drive the program it adapts is a harness
- * nobody should ship — and it means this package reads about 74% on a runner
- * with no Claude Code and about 89% on the laptop of somebody who works on
- * Tade. The floor is the lower one, because a floor has to be true everywhere;
- * the slack rule is skipped here, because on half the machines that run it the
- * slack is fifteen points and is nobody's to close.
+ * `harnesses/claude/test/live-lane.test.ts` and
+ * `orchestrator/test/claude.test.ts` are `describe.runIf(claude)`: they drive
+ * the real Claude Code binary where it is on the machine and are skipped where
+ * it is not. That is the right test to have — a harness nobody proved can
+ * drive the program it adapts is a harness nobody should ship — and it means
+ * `harnesses/claude` reads about 79% on a runner with no Claude Code and about
+ * 93% on the laptop of somebody who works on Tade. The floor is the lower one,
+ * because a floor has to be true everywhere; the slack rule is skipped, because
+ * on half the machines that run it the slack is fourteen points and is nobody's
+ * to close.
+ *
+ * `orchestrator`'s spread is two points rather than fourteen, and it is here
+ * for the same reason rather than a smaller one: a floor that has to sit inside
+ * a two-point window between what a runner reads and what a laptop does is a
+ * floor that goes red on somebody the first time either end moves.
  */
 export const MOVES: Record<string, string> = {
   'packages/harnesses/claude': 'its live-lane tests run only where Claude Code is installed',
+  'packages/orchestrator': 'claude.test.ts runs only where Claude Code is installed',
 }
 
 /**
