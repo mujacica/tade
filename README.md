@@ -11,16 +11,11 @@ npm install -g tade-sh   # the package is `tade-sh`; the command it installs is 
 tade                     # the window; the first time, a short setup that sets you up
 ```
 
-Needs Node ≥ 22.19 and git. Two of the things Tade is built on are native — node-pty, which is
-every terminal it opens, and better-sqlite3 — and they arrive prebuilt on macOS and are compiled on
-Linux, which needs python3 and a C++ toolchain (`build-essential`, or `gcc-c++ make python3`).
-Installing with pnpm, add `pnpm approve-builds -g`: pnpm 10 holds a dependency's install scripts
-until you say so, and an unbuilt node-pty is a Tade that cannot open a terminal — which setup
-recognises and tells you how to fix, rather than leaving it to be found at the first lane. Optional:
-tmux (agents that outlive the window), whisper.cpp and ffmpeg (speech), `gh` (pull request state);
-setup offers to install each where you want it, shows the exact command first, and runs it in a
-terminal you are watching. It ends by opening a lane, running a command in it and closing it, and
-`tade setup --check` does the same whenever you want to be sure.
+Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest.
+
+![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](images/tade.svg)
+
+## Agents run as you
 
 One thing to know before the first agent starts: **agents run as you.** Nothing in Tade contains
 them and nothing asks before a command, so an agent can read and change whatever you can — your
@@ -28,19 +23,6 @@ files, and `~/.tade/config.yaml`, where every key you paste into Tade is kept. A
 and yours to turn on; containing an agent is its harness's business, not Tade's; and a key you
 would rather Tade never wrote down can stay in an environment variable, which always wins over the
 file.
-
-From a checkout, which is how you change Tade:
-
-```sh
-git clone https://github.com/mujacica/tade && cd tade
-pnpm install
-pnpm run link:global    # puts `tade` on your PATH
-```
-
-There is no build step — Node runs the TypeScript — so `tade` always runs the code you have and
-`git pull` is the upgrade.
-
-![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](images/tade.svg)
 
 ## The window
 
@@ -359,8 +341,42 @@ worktree. With Jev on, what no pattern names is read a second time before you ar
 a `terraform destroy` is the command read back rather than one word said to it. It can only ever
 make Tade ask for more, never less, and what you hear is Tade's own sentence, never a probability.
 
+## Installing
+
+```sh
+npm install -g tade-sh
+tade
+```
+
+Needs Node ≥ 22.19 and git. The first `tade` is a short setup: it looks at the machine, offers to
+install what is missing — the exact command on screen first, run in a terminal you are watching —
+and ends by opening a lane, running a command in it and closing it, so that "all set" means a
+terminal that actually opened. `tade setup --check` does the same whenever you want to be sure.
+
+What it is looking for, in case you would rather do it yourself. Two of the things Tade is built on
+are native — node-pty, which is every terminal it opens, and better-sqlite3 — and they arrive
+prebuilt on macOS and are compiled on Linux, which needs python3 and a C++ toolchain
+(`build-essential`, or `gcc-c++ make python3`). Installing with pnpm, add `pnpm approve-builds -g`:
+pnpm 10 holds a dependency's install scripts until you say so, and an unbuilt node-pty is a Tade
+that cannot open a terminal — which setup recognises and tells you how to fix, rather than leaving
+it to be found at the first lane. Optional: tmux (agents that outlive the window), whisper.cpp and
+ffmpeg (speech), `gh` (pull request state); setup offers to install each where you want it.
+
+## Contributing
+
+From a checkout, which is how you change Tade:
+
+```sh
+git clone https://github.com/mujacica/tade && cd tade
+pnpm install
+pnpm run link:global    # puts `tade` on your PATH
+```
+
+There is no build step — Node runs the TypeScript — so `tade` always runs the code you have and
+`git pull` is the upgrade. Changing Tade itself starts at [AGENTS.md](AGENTS.md): the invariants,
+where things go, and a recipe for each kind of change that comes up again.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Tade builds on the work of many others; they are credited, with their
-licences, in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Changing Tade itself starts at
-[AGENTS.md](AGENTS.md).
+licences, in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

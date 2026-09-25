@@ -1050,7 +1050,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   to paste one — each of them the same sentence, written once (`KEYS_AND_AGENTS`, with
   `SEEN_BY_AGENTS` as the clause a two-line note has room for, in `core/src/secrets.ts`) rather
   than four wordings that drift. The README says it in its own words, being prose and not a
-  drawing, in the setup section and where it talks about pasting keys. It carries **the way out in
+  drawing, in a short section of its own under the first picture and where it talks about pasting
+  keys — above the features rather than down with install, because it is the one thing to know
+  before the first agent starts and not a step of setting up. It carries **the way out in
   the same breath**, because a warning with nothing to do about it is one people learn to scroll
   past: export the variable, which wins over the file and which Tade never writes down, or leave
   that extension unset. And nothing anywhere may go back to saying the file is one *only you* can
