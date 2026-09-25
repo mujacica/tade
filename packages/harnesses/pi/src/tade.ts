@@ -269,6 +269,18 @@ export default function tadeExtension(pi: PiApi): void {
   }
 
   const drop = () => {
+    // Once per socket, whatever it emits on the way out.
+    //
+    // A socket that cannot connect emits `error` and then `close`, and both
+    // are wired here — so every failed redial used to schedule *two* more, and
+    // the retry doubled every two seconds: four dials, then eight, then a
+    // thousand, until the agent ran out of file descriptors and could not open
+    // a file to do its work. It fires exactly where the retry was written to
+    // help, because a window that closed is the one case that redials at all,
+    // and under a driver whose lanes outlive the window that is an ordinary
+    // afternoon rather than a fault.
+    if (!socket) return
+    socket = null
     const wasConnected = connected
     connected = false
     // Tade gone mid-flight. Only a gate has anything to say about that: with

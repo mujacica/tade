@@ -51,10 +51,6 @@ const TABLE = 'scripts/coverage-floors.ts'
  * them has a note saying what is uncovered inside it.
  */
 export const FLOOR: Record<string, number> = {
-  // pi's supervision extension (`tade.ts`, 259 lines) runs inside pi's own
-  // process, and `installed.ts` reads pi's folders with nothing asking it to —
-  // where `claude` and `codex` both have an `installed.test.ts`.
-  'packages/harnesses/pi': 60,
   // What is left of the CLI once the program itself is taken out (see UNSEEN):
   // `telemetry.ts` and `commands/voice.ts` are the two with real gaps.
   'packages/cli': 64,
@@ -63,16 +59,17 @@ export const FLOOR: Record<string, number> = {
   'packages/orchestrator': 67,
   // The watch that reads a forge's checks, and the fixing it starts.
   'packages/extensions/review': 69,
-  'packages/harnesses/claude': 73,
-  'packages/harnesses/codex': 78,
-  // `src/wire/` is 60.5% of this and everything else is over 89%: the pure
+  'packages/harnesses/claude': 77,
+  // `src/wire/` is the hole and everything else here is over 89%: the pure
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
   // reaches lanes, files and the machine.
   'packages/app': 81,
+  'packages/harnesses/codex': 83,
   'packages/extensions/sentry': 84,
-  'packages/workbench': 85,
   'packages/extensions/checks': 86,
   'packages/forges/scripted': 86,
+  'packages/workbench': 86,
+  'packages/harnesses/pi': 89,
   'packages/status': 89,
   'packages/forges/github': 90,
   'packages/mcp/http': 90,

@@ -52,7 +52,10 @@ export async function readInput(): Promise<Record<string, unknown> | null> {
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer)
   try {
     const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
-    return typeof parsed === 'object' && parsed !== null
+    // An array is an object and is not an event: everything downstream reads
+    // `event.hook_event_name`, so a list would arrive as an event with every
+    // field missing rather than as nothing at all.
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null
   } catch {
