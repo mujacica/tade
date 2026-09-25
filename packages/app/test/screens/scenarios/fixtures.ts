@@ -1,4 +1,4 @@
-import { IDLE_REASON, type TadeEvent } from '@tade/core'
+import { IDLE_REASON, noRuntime, type TadeEvent } from '@tade/core'
 import type { ActionsView, CheckView, CommitView, Frame } from '../../../src/frame.ts'
 import {
   type AppState,
@@ -190,7 +190,7 @@ export const frame = (over: Partial<Frame> = {}): Frame => ({
     },
     // Two agents still at it, so the morning's agent time is longer than the
     // morning: what `ran` below adds up to.
-    runtime: { ms: 7_500_000, runs: 3, running: true },
+    runtime: { ...noRuntime(), ms: 7_500_000, runs: 3, running: true, workingMs: 3_100_000 },
   },
   route: {
     harness: 'pi',
@@ -237,7 +237,7 @@ export const usage = (
 })
 
 const runEvent = (
-  type: 'run_started' | 'run_exited',
+  type: 'run_started' | 'run_exited' | 'turn_started' | 'turn_done',
   task: string,
   ts: string,
   on: { harness: string; provider?: string } = { harness: 'pi', provider: 'anthropic' },
@@ -308,12 +308,45 @@ export const made = [
 ]
 
 /** The same morning's runs: two agents still going, one that finished. */
+/**
+ * A morning of runs, and the turns inside them.
+ *
+ * Both halves, because the page draws both: how long each agent was open, and
+ * how much of that a model spent working. An agent is open from the moment it
+ * is started until it stops, so the gaps between these turns are an agent
+ * sitting in its lane with an answer nobody has read yet — which is the whole
+ * of why the two figures differ and the reason there are two columns.
+ *
+ * Refunds is mid-turn, so its working time is still counting up.
+ */
+const turns = (task: string, spans: readonly [string, string | null][], harness = 'pi') =>
+  spans.flatMap(([from, to]) => [
+    runEvent('turn_started', task, `2026-09-13T${from}.000Z`, { harness }),
+    ...(to ? [runEvent('turn_done', task, `2026-09-13T${to}.000Z`, { harness })] : []),
+  ])
+
 export const ran = [
   runEvent('run_started', 'checkout/stripe-v15', '2026-09-13T13:05:00.000Z', {
     harness: 'claude-code',
   }),
   runEvent('run_started', 'search/pagination', '2026-09-13T13:02:00.000Z'),
   runEvent('run_started', 'checkout/refunds', '2026-09-13T13:20:00.000Z'),
+  ...turns(
+    'checkout/stripe-v15',
+    [
+      ['13:06:00', '13:21:00'],
+      ['13:28:00', '13:54:00'],
+    ],
+    'claude-code',
+  ),
+  ...turns('search/pagination', [
+    ['13:03:00', '13:11:00'],
+    ['13:19:00', '13:29:00'],
+  ]),
+  ...turns('checkout/refunds', [
+    ['13:22:00', '13:47:00'],
+    ['13:52:00', null],
+  ]),
   runEvent('run_exited', 'search/pagination', '2026-09-13T13:32:00.000Z'),
 ]
 

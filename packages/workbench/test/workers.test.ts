@@ -1,220 +1,11 @@
 import { join } from 'node:path'
-import { effectByName } from '@tade/core'
-import type {
-  PermissionDecision,
-  RunId,
-  WorkerAdapter,
-  WorkerCapabilities,
-  WorkerHandle,
-  WorkerSignal,
-  WorkerSignalListener,
-  WorkerSpec,
-} from '@tade/harnesses-core'
-import { noHarnessSpend, PermissionNotPendingError } from '@tade/harnesses-core'
+import { PermissionNotPendingError } from '@tade/harnesses-core'
 import type { Reporter, Span, Work } from '@tade/telemetry'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
 import { WorkerSupervisor, type WorkerSupervisorOptions } from '../src/workers.ts'
-
-// A scripted adapter: no agent, no model, no network. What is under test is
-// the decision and bookkeeping around a worker, so the worker is fake and
-// every signal is delivered on demand.
-
-class FakeAdapter implements WorkerAdapter {
-  readonly id = 'fake'
-  /** It routes, like pi: what a run was reached through is the route's to say. */
-  readonly provider = null
-  readonly capabilities: WorkerCapabilities = {
-    permissionGate: true,
-    steer: 'live',
-    queue: 'live',
-    abort: 'live',
-    model: 'live',
-    thinking: 'live',
-    thinkingLevels: ['low', 'high'],
-    rename: 'live',
-    visibleUi: false,
-    resume: false,
-    resumeKeeps: true,
-    images: 'none',
-    done: true,
-    nativeExtensions: false,
-    skills: false,
-    tools: true,
-    spend: { usd: 'none', tokens: false, limits: 'none' },
-    accounts: false,
-    mcp: false,
-    headless: true,
-    why: {},
-  }
-  readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []
-  readonly steered: Array<{ run: string; message: string }> = []
-  readonly stopped: string[] = []
-  readonly answers: Array<{ run: string; callId: string; ok: boolean; text: string }> = []
-  private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
-  private readonly handles = new Map<string, WorkerHandle>()
-
-  launchSpec(spec: WorkerSpec) {
-    return { command: 'fake', args: [spec.run], env: {} }
-  }
-
-  async probe() {
-    return { ok: true, version: null, problems: [] }
-  }
-
-  effectOf(tool: string) {
-    return tool === 'bash' ? ('exec' as const) : effectByName(tool)
-  }
-
-  conversationKey(task: string) {
-    return task
-  }
-
-  async hasConversation() {
-    return false
-  }
-
-  async spent() {
-    return noHarnessSpend()
-  }
-
-  async models() {
-    return []
-  }
-
-  async resolveModel() {
-    return { ok: false as const, reason: 'the fake has no models' }
-  }
-
-  async modelOf() {
-    return null
-  }
-
-  async account() {
-    return { signedIn: true, who: null, plan: null, method: null, problem: null }
-  }
-
-  signIn() {
-    return null
-  }
-
-  async signOut() {}
-
-  limits() {
-    return null
-  }
-
-  async prepareAccount() {}
-
-  async carryConversation() {
-    return false
-  }
-
-  async start(spec: WorkerSpec): Promise<WorkerHandle> {
-    return this.supervise(spec)
-  }
-
-  async supervise(spec: WorkerSpec): Promise<WorkerHandle> {
-    const handle: WorkerHandle = {
-      run: spec.run,
-      task: spec.task,
-      sessionId: 's1',
-      startedAt: 1,
-      lane: null,
-    }
-    this.handles.set(spec.run, handle)
-    return handle
-  }
-  async prompt(): Promise<void> {}
-  async steer(run: RunId, message: string): Promise<void> {
-    this.steered.push({ run, message })
-  }
-  async queue(): Promise<void> {}
-  async decide(run: RunId, requestId: string, decision: PermissionDecision): Promise<void> {
-    this.decisions.push({ run, requestId, decision })
-  }
-  async answer(run: RunId, callId: string, result: { ok: boolean; text: string }): Promise<void> {
-    this.answers.push({ run, callId, ...result })
-  }
-  async setModel(): Promise<void> {}
-  async setThinking(): Promise<void> {}
-  async name(): Promise<void> {}
-  async abort(): Promise<void> {}
-  async stop(run: RunId): Promise<void> {
-    this.stopped.push(run)
-    this.handles.delete(run)
-  }
-  onSignal(run: RunId, listener: WorkerSignalListener) {
-    let set = this.listeners.get(run)
-    if (!set) {
-      set = new Set()
-      this.listeners.set(run, set)
-    }
-    set.add(listener)
-    return () => set.delete(listener)
-  }
-  async list(): Promise<WorkerHandle[]> {
-    return [...this.handles.values()]
-  }
-  /** Letting go must be distinguishable from stopping, so it records neither. */
-  async detach(): Promise<void> {}
-  async shutdown(): Promise<void> {}
-
-  /** Deliver a signal as the agent would. */
-  emit(run: string, signal: Record<string, unknown>): void {
-    const full = { run, at: 1, ...signal } as unknown as WorkerSignal
-    for (const listener of this.listeners.get(run) ?? []) listener(full)
-  }
-
-  askPermission(run: string, requestId: string, tool: string, input: unknown, summary: string) {
-    this.emit(run, { type: 'permission_request', requestId, tool, input, summary })
-  }
-}
-
-const WORKTREE = '/work/wt/app-refunds'
-
-/**
- * Signals are handled asynchronously and `blocking` events are fsynced before
- * the append resolves, so tests wait for the condition they care about rather
- * than for a fixed delay.
- */
-async function until(check: () => boolean | Promise<boolean>, timeout = 5_000): Promise<void> {
-  const deadline = Date.now() + timeout
-  for (;;) {
-    if (await check()) return
-    if (Date.now() > deadline) throw new Error('timed out waiting')
-    await new Promise((r) => setTimeout(r, 5))
-  }
-}
-
-const logged = (
-  log: EventLog,
-  type: Parameters<EventLog['read']>[0] extends never ? never : string,
-) => log.read({ types: [type] as never })
-
-async function setup(
-  mode: 'bypass' | 'policy',
-  report?: Reporter,
-  caution?: WorkerSupervisorOptions['caution'],
-) {
-  const log = await EventLog.open({ path: join(tmp('tade-workers-'), 'events.jsonl') })
-  const adapter = new FakeAdapter()
-  const supervisor = new WorkerSupervisor({
-    adapter,
-    log,
-    approvals: { mode },
-    ...(report ? { report } : {}),
-    ...(caution ? { caution } : {}),
-  })
-  const handle = await supervisor.start({
-    run: 'r1',
-    task: 'app/refunds',
-    cwd: WORKTREE,
-    prompt: 'fix the refund flow',
-  })
-  return { log, adapter, supervisor, handle }
-}
+import { FakeAdapter, logged, setup, until, WORKTREE } from './workers-harness.ts'
 
 describe('WorkerSupervisor', () => {
   let close: (() => Promise<void>) | null = null
@@ -616,6 +407,36 @@ describe('WorkerSupervisor', () => {
     // An agent that has gone is in the middle of nothing.
     adapter.emit('r1', { type: 'exited', code: 0 })
     await until(() => supervisor.turnOf('r1') === 'unknown')
+  })
+
+  it('writes down when a turn began, once per turn', async () => {
+    // How long an agent *ran* counts every hour it sat finished in its lane
+    // waiting to be read. How long a model *worked* needs the beginnings of
+    // turns, and until this was written the journal held ends and no
+    // beginnings — so the question could not be asked of any of it.
+    const { log, adapter, supervisor } = await setup('bypass')
+    close = () => log.close()
+    adapter.emit('r1', { type: 'started', sessionId: null, model: 'openrouter/opus' })
+    await until(() => supervisor.turnOf('r1') === 'idle')
+    adapter.emit('r1', { type: 'turn_started' })
+    await until(async () => (await logged(log, 'turn_started')).length === 1)
+    // pi says it again whenever its socket reconnects mid-turn, so a window
+    // opening on a working agent does not take it for idle. That is the same
+    // turn: a second beginning would put its thinking time in twice.
+    adapter.emit('r1', { type: 'turn_started' })
+    adapter.emit('r1', { type: 'turn_done', status: 'ok' })
+    await until(async () => (await logged(log, 'turn_done')).length === 1)
+    expect(await logged(log, 'turn_started')).toHaveLength(1)
+    // And the next turn is a turn, which is what makes it worth writing —
+    // whether or not anything said `idle` in between. `turn_done` deliberately
+    // leaves the agent reading as `running`, since ending one step of the work
+    // is not ending the work, so a beginning written off that reading would
+    // record the first turn of a session and none after it.
+    adapter.emit('r1', { type: 'turn_started' })
+    await until(async () => (await logged(log, 'turn_started')).length === 2)
+    expect(supervisor.turnOf('r1')).toBe('running')
+    const [first] = await logged(log, 'turn_started')
+    expect(first).toMatchObject({ run: 'r1', task: 'app/refunds' })
   })
 
   describe('which provider a run was on', () => {

@@ -226,6 +226,8 @@ export class WorkerSupervisor {
    * over looks, from outside, exactly like one that is thinking.
    */
   private readonly turns = new Map<string, 'running' | 'idle'>()
+  /** By run: a turn begun and not ended — `turns` stays `running` through one. */
+  private readonly inTurn = new Set<string>()
   /**
    * By run: the last things each agent did, and how its last turns ended.
    * Bounded, because a window is open for days and an agent that is fine is
@@ -535,6 +537,7 @@ export class WorkerSupervisor {
     state?.stop()
     this.runs.delete(run)
     this.turns.delete(run)
+    this.inTurn.delete(run)
   }
 
   /** Whether an agent is in the middle of a turn: unknown until it has said. */
@@ -550,6 +553,7 @@ export class WorkerSupervisor {
         await this.onPermissionRequest(run, signal, state)
         return
       case 'turn_done': {
+        this.inTurn.delete(run)
         const kept = this.kept(run)
         kept.ends.push({ at: signal.at, status: signal.status })
         if (kept.ends.length > KEPT_TURNS) kept.ends.shift()
@@ -563,7 +567,10 @@ export class WorkerSupervisor {
       case 'exited':
         await this.ended(run, task, signal.code)
         return
-      case 'turn_started':
+      case 'turn_started': {
+        // pi says this again when its socket reconnects mid-turn: one turn.
+        const began = !this.inTurn.has(run)
+        this.inTurn.add(run)
         this.turns.set(run, 'running')
         if (task) {
           this.timing.started(run, {
@@ -573,7 +580,11 @@ export class WorkerSupervisor {
             at: signal.at,
           })
         }
+        // When a model started working, which `runtimeFrom` folds against
+        // `turn_done` — the only thing that can say how long it worked.
+        if (began) await this.log.append({ type: 'turn_started', task, run })
         return
+      }
       case 'done':
         await this.log.append({
           type: 'task_done',

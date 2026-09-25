@@ -1,4 +1,5 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import { noRuntime } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
 import { describe, expect, it } from 'vitest'
 import type { ActionsView, CheckView, CommitView } from '../src/frame.ts'
@@ -831,7 +832,7 @@ describe('agent spend', () => {
         usd: 0.351,
         hasCost: true,
         byTask: {},
-        runtime: { ms: 80 * 60_000, runs: 2, running: true },
+        runtime: { ...noRuntime(), ms: 80 * 60_000, runs: 2, running: true },
       },
     })
     const footer = plain(rows[rows.length - 1] ?? '')
@@ -848,7 +849,7 @@ describe('agent spend', () => {
         usd: 0.351,
         hasCost: true,
         byTask: {},
-        runtime: { ms: 0, runs: 0, running: false },
+        runtime: { ...noRuntime(), ms: 0, runs: 0, running: false },
       },
     })
     expect(plain(rows[rows.length - 1] ?? '')).not.toContain('0s')
@@ -862,7 +863,7 @@ describe('agent spend', () => {
         usd: 0.351,
         hasCost: true,
         byTask: {},
-        runtime: { ms: 80 * 60_000, runs: 2, running: true },
+        runtime: { ...noRuntime(), ms: 80 * 60_000, runs: 2, running: true },
       },
     })
     const footer = plain(rows[rows.length - 1] ?? '')
@@ -895,7 +896,7 @@ describe('the status strip', () => {
     usd: 0.351,
     hasCost: true,
     byTask: {},
-    runtime: { ms: 80 * 60_000, runs: 2, running: true },
+    runtime: { ...noRuntime(), ms: 80 * 60_000, runs: 2, running: true },
   }
   const strip = (over: Partial<AppState> = {}) =>
     draw(

@@ -18,6 +18,7 @@ import {
   statsFrom,
   tadeHome,
   UNRECORDED,
+  workedSays,
 } from '@tade/core'
 import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
@@ -196,6 +197,12 @@ export function registerSpend(program: Command, io: Io): void {
       // figure nobody can defend is one nobody looks at twice.
       const says = runtimeSays(ran.total)
       if (says) io.out(says)
+      // And how much of that time a model was actually working, which is the
+      // half of the question the column above cannot answer: a run counts
+      // until it stopped, idle time included, and what it *worked* is the
+      // figure that pairs with what it cost.
+      const worked = workedSays(ran.total)
+      if (worked) io.out(worked)
     })
 }
 

@@ -9,6 +9,7 @@ import {
   runtimeFrom,
   startOfToday,
   type Unsubscribe,
+  workedOf,
 } from '@tade/core'
 import { openReporter, type Reporter, saw } from '@tade/telemetry'
 import type { Workbench } from '@tade/workbench'
@@ -99,6 +100,19 @@ async function reportRuntime(reporter: Reporter, client: Workbench): Promise<voi
       name: 'tade.agent.runtime',
       kind: 'gauge',
       value: runtime.ms,
+      unit: 'millisecond',
+      about: { project },
+    })
+    // And how much of that a model was actually working, which is the half
+    // that pairs with what it cost. Only where something could say: a run
+    // whose turns have ends and no beginnings cannot answer this, and a zero
+    // sent for it would be a measurement of nothing drawn as a measurement.
+    if (workedOf(runtime) === 'unrecorded') continue
+    reporter.measure({
+      at: now,
+      name: 'tade.agent.working',
+      kind: 'gauge',
+      value: runtime.workingMs,
       unit: 'millisecond',
       about: { project },
     })

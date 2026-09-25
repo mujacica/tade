@@ -3,7 +3,7 @@ import type { TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import { type SpendPanel, spendPanel } from '../src/panels/spend/state.ts'
-import { nameLines, spendColumns } from '../src/panels/spend/view.ts'
+import { nameLines, SPEND_WIDTH, spendColumns } from '../src/panels/spend/view.ts'
 import { COLOUR } from '../src/skin.ts'
 import { type SpendBy, spendView } from '../src/spend.ts'
 
@@ -32,7 +32,7 @@ const usage = (over: Partial<TadeEvent> & { detail?: Record<string, unknown> } =
   }) as TadeEvent
 
 const run = (
-  type: 'run_started' | 'run_exited' | 'run_model',
+  type: 'run_started' | 'run_exited' | 'run_model' | 'turn_started' | 'turn_done',
   over: Partial<TadeEvent> & { detail?: Record<string, unknown> } = {},
 ): TadeEvent =>
   ({
@@ -372,6 +372,69 @@ describe('grouping what it cost', () => {
   })
 })
 
+describe('how long a model was working, beside how long its agent was open', () => {
+  // Two questions and two columns. A run counts until it stopped, idle time
+  // included — an agent that answered at noon and sat in its lane until
+  // somebody closed the window ran all afternoon — and what a model *worked*
+  // is the turns inside that. Drawn as one figure, the page was answering the
+  // second question with the first.
+  const ago = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString()
+  const table = (runs: TadeEvent[]) => {
+    const panel: SpendPanel = { ...spendPanel(), by: 'agent' }
+    return drawPanel(
+      panel,
+      context({ width: 120, spend: viewBy('agent', THREE_ROUTES, runs) }),
+    ).panel.rows.map((row) => stripTerminalSequences(row))
+  }
+
+  it('says both, each in its own word and its own column', () => {
+    const rows = table([
+      run('run_started', { ts: ago(60) }),
+      run('turn_started', { ts: ago(55) }),
+      run('turn_done', { ts: ago(35) }),
+      run('run_exited', { ts: ago(10) }),
+    ])
+    expect(rows.some((row) => row.includes('WORKING') && row.includes('OPEN'))).toBe(true)
+    expect(rows.some((row) => row.includes('20m working · 50m open'))).toBe(true)
+    // And on the row: twenty minutes of thinking inside fifty of being there.
+    const refunds = rows.find((row) => row.includes('refunds')) ?? ''
+    expect(refunds).toContain('20m')
+    expect(refunds).toContain('50m')
+  })
+
+  it('says working time is unknown rather than drawing it as nought', () => {
+    // Every run of every journal written before Tade recorded when a turn
+    // begins: turns with ends and no beginnings. `0s` here would read as an
+    // agent that did nothing, which is the opposite of what happened.
+    const rows = table([
+      run('run_started', { ts: ago(60) }),
+      run('turn_done', { ts: ago(35) }),
+      run('run_exited', { ts: ago(10) }),
+    ])
+    expect(rows.some((row) => row.includes('working unknown · 50m open'))).toBe(true)
+    expect(rows.some((row) => row.includes('0s working'))).toBe(false)
+    // And the column under it says nothing rather than a figure, the way the
+    // money column does for money nobody priced.
+    const refunds = rows.find((row) => row.includes('refunds')) ?? ''
+    expect(refunds).toContain('—')
+    expect(refunds).toContain('50m')
+  })
+
+  it('marks a figure made of some runs that could say and some that could not', () => {
+    const rows = table([
+      run('run_started', { ts: ago(60) }),
+      run('turn_started', { ts: ago(55) }),
+      run('turn_done', { ts: ago(35) }),
+      run('run_exited', { ts: ago(30) }),
+      run('run_started', { ts: ago(25), run: 'r2', task: 'search/pagination' }),
+      run('turn_done', { ts: ago(20), run: 'r2', task: 'search/pagination' }),
+      run('run_exited', { ts: ago(10), run: 'r2', task: 'search/pagination' }),
+    ])
+    // A floor, marked where it is read — the way estimated money is.
+    expect(rows.some((row) => row.includes('≥20m working'))).toBe(true)
+  })
+})
+
 describe('a long name at any width', () => {
   /**
    * The longest name this table draws, which is a task's: a model is one row
@@ -419,7 +482,7 @@ describe('a long name at any width', () => {
     // which is worth its width. Beside a model it repeats the name column, and
     // beside a harness or a provider it averages over rows that ran on many.
     for (const width of WIDTHS) {
-      const inner = Math.min(84, width - 4) - 2
+      const inner = Math.min(SPEND_WIDTH, width - 4) - 2
       const model = spendColumns(inner, 'model')
       const agent = spendColumns(inner, 'agent')
       expect(model.model, `at ${width}`).toBe(0)

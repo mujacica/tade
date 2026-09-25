@@ -84,6 +84,23 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   nobody wrote an exit for ends where the window closed, or where the next one opened and
   relaunched it — counting the hours Tade was shut would add a night's sleep to every agent's
   morning. The orchestrator is not in it: it has no run of its own, it lives as long as the window.
+- **And how long it was *working* is the same fold, one level down.** A run counts until it
+  stopped, idle time included, which is the honest answer to how long an agent was there and the
+  wrong answer to how long a model was thinking — the one that pairs with what it cost. So
+  `runtimeFrom` reads the turns inside each run too (`turn_started`, `turn_done`), clipped to the
+  run that holds them so working time can never exceed the wall clock beside it, and a turn still
+  in flight counts up to `now` like the run around it. A harness saying a turn began while one
+  already has is the same turn and keeps the first, because pi says it again every time its socket
+  reconnects mid-turn. Nobody holds a stopwatch here either: what the supervisor sees, it writes
+  down, and the arithmetic is a fold like every other statistic.
+- **A run whose turns have ends and no beginnings cannot say, and says that.** `turn_done` has
+  always been journalled and `turn_started` had not, so every run written before this has finished
+  turns and nothing to time them by — 7,090 of them in the journal this was built from. That is
+  `unknown` and never nought: a run only reaches this state by having *worked*, so a `0s` would
+  read as an agent that did nothing, which is the opposite of what happened. `workedOf` is the one
+  answer — `recorded`, `partly`, `unrecorded`, the shape `pricedOf` has for money and for the same
+  reason — a figure made of some runs that could say and some that could not is drawn as the floor
+  it is (`≥`), and the journal is append-only, so the only cure is time.
 - Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. Never mock git.
 - **A fixture must not be kinder than reality.** If the fixture differs from what a user's machine
   looks like, it hides bugs instead of finding them: `mkrepo` deliberately leaves `.tade/`
@@ -391,16 +408,50 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   of a write inside an agent's own worktree, and never of an agent — one judged at this gate does
   not get to answer it. Nothing reading, or reading late, is today's answer arriving on time, and
   it is said once per run rather than under every command.
-- **Search matches letters; asking is what happens when they match nothing.** `ctrl+k` is a pure
-  ranking of what Tade already has (`searchResults`), and that is what answers instantly and what
-  answers when nobody is set up. A sentence is not letters to match, so when what was typed reads
-  as one (`isSentence`) and nothing it could have meant came back (`worthAsking`), a shortlist
-  drawn in code (`shortlist`) goes to whoever offers to read one (`meant` on the extension port).
-  Code does the recall, a judge does the precision, and what comes back is *rows added under
-  `MIGHT MEAN`*, never a reordering of what is there: the same entries, doing what they always did
-  when chosen. Only ids that were offered come back, nothing invented is shown, nothing is run, and
-  an answer that arrives after the box changed is dropped — somebody is watching it, and a list that
-  moves under their hands is worse than one that says nothing.
+- **Search matches letters; asking is what happens when the letters are not enough.** `ctrl+k` is a
+  pure ranking of what Tade already has (`searchResults`), and that is what answers instantly and
+  what answers when nobody is set up. A sentence is not letters to match, so when what was typed
+  reads as one (`isSentence`) and no single row came back that is plainly the whole of it
+  (`worthAsking`), a shortlist drawn in code (`shortlist`) goes to whoever offers to read one
+  (`meant` on the extension port). Code does the recall, a judge does the precision, and what comes
+  back is *rows added under `MIGHT MEAN`*, never a reordering of what is there: the same entries,
+  doing what they always did when chosen. Only ids that were offered come back, nothing invented is
+  shown, nothing is run, and an answer that arrives after the box changed is dropped — somebody is
+  watching it, and a list that moves under their hands is worse than one that says nothing.
+  **"Nothing matched at all" was the wrong bar**, and it is the shape of bug that hides in a rule
+  that reads as careful: a sentence is long and a name is short, so what a sentence matches is never
+  a name and is always letters scattered down some long label — every letter of `what the run` is in
+  `Telemetry › What the brief counts`, in order, and means nothing by it. One of those was enough to
+  silence the question for good, and over the three-word sentences somebody would actually type, 418
+  of them were silenced that way. So what counts as an answer is every word of the sentence that
+  carries meaning, in one row's own name, and more than one of them (`answered`, `wordsIn`) — one
+  word found is a word found, and an agent called `coverage` answering "what is the coverage" is
+  exactly the guess this was built to stop making. Asking alongside is safe for the reason it always
+  was: what comes back only ever adds rows.
+- **What search matches is what is happening, not only what things are called.** The orchestrator can
+  answer "what is going on" because it reads the task files, the journal and the queue's own rules;
+  the box could only ever answer out of names, so "the agent on test coverage" found nothing and
+  whoever was asked what the sentence meant was handed a list of names and asked to guess. So every
+  entry carries what is happening about it (`SearchEntry.about`, composed by `happeningOn` and
+  `happeningIn` in `packages/app/src/happening.ts`): what the agent is doing, what it was asked for
+  *verbatim*, what queued work waits on and why and what its agent will be told, how the checks stood
+  at the commit in hand, and the notes about it. Derived on every look and never a store of its own —
+  what an agent is doing changes while you type — and out of what the window has already polled, so
+  it costs no disk, no git and no clock: the panes are status's last look, the work is a fold over the
+  journal in memory, and the checks are `seenActions`, which answers and never goes looking.
+  The two halves match it differently, and that is the whole of why it does not flood. A **name** is
+  short, so letters in order are evidence. `about` is a paragraph, and letters in order through a
+  paragraph are evidence of nothing — so the letters only ever find it as a **whole run**, ranked
+  below every name match, with the line that said it shown as the row's `preview` so it says why it
+  is there; and the **shortlist** counts a word said outright in it far above a name that merely
+  spells that word, which is where `coverage` finding the agent raising it actually happens.
+  **And it is the half that leaves the machine**, which is exactly the text telemetry may never send.
+  That is a trade somebody has to be able to see and undo, so it is said where they are deciding —
+  the `means` of `surfaces.search.context`, the guide above the field where Jev's key is pasted, and
+  the README — and the switch is the *window's*, not the extension's, because a rule that lives in
+  the code that reads the text bounds one reader and a rule at the door bounds every reader. Off,
+  each choice goes with its name and where it is and nothing else; the letters go on matching all of
+  it either way, because matching it here sends nothing anywhere. On by default, said out loud.
 - **A watch may have nothing to start.** What it finds can be work already going, and going badly:
   such a watch declares `offers: 'ask'`, has no `agent` at all, and what it finds is told to the
   orchestrator, which asks you. The counted part is code and runs every look — the same call coming
@@ -1253,12 +1304,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   agents over an afternoon each ran for the whole of their own afternoon, and a run is wall clock
   from start to stop, so one that finished at noon and sat in its lane until the window closed
   counted the wait. Both are true and both are surprising, so both are said — `runtimeSays` in core
-  is the one sentence, read by `tade spend`, and the window says the same fact as a clause riding
-  on the figure itself (`2h 5m over 3 runs`, in the Spend panel's head). Neither may ever *explain*
-  it differently, and the short one may never be the one that leaves something out: `over 3 runs`
-  is what makes a figure that is not elapsed time readable, which is the whole of what the
-  paragraph was for. It is beside the figure and not under the page, for the reason the `~` is:
-  a footnote is read once and a mark is read every time.
+  is the one sentence, read by `tade spend`, with `workedSays` beside it for the other half — and
+  neither may ever *explain* it differently from the window. `over 3 runs` is what makes a figure
+  that is not elapsed time readable, which is the whole of what the paragraph was for, so it is
+  drawn whenever the figure is and is never a step of a ladder that drops it. It sits on the line
+  **under** the head's figures rather than beside them, which is where that head already puts what
+  the money figure does not cover, and for the reason written there: the head now carries two times
+  where it carried one (`1h 32m working · 2h 5m open`), it has no columns to spare, and a clause one
+  line lower is still read every time — a footnote at the foot of a page is what this may never
+  become. The two words are the two the columns under them are headed with, so the page says which
+  is which once and in a word.
 - **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid
   out from the room there is (`spendColumns`): the figures take what a figure takes, the share
   meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`) and

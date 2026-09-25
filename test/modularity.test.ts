@@ -77,7 +77,10 @@ const BUDGET: Record<string, number> = {
   // workbench.
   'packages/workbench/src/workbench.ts': 2_500,
   'packages/workbench/src/workers.ts': 1_100,
-  'packages/workbench/test/workers.test.ts': 1_000,
+  // Its harness — a fake adapter, a supervisor and a log — is now
+  // `workers-harness.ts`, which is the half of the file that was not about any
+  // particular behaviour and is under the default on its own.
+  'packages/workbench/test/workers.test.ts': 850,
 }
 
 /** Anything not named above. This is the real rule; the table is the exceptions. */

@@ -80,6 +80,23 @@ export const EventType = z.enum([
   'permission_request',
   'permission_granted',
   'permission_denied',
+  /**
+   * A turn began: the moment a model started working, as its harness said so.
+   *
+   * How long an agent *ran* is the span its lane was open, which counts every
+   * hour it sat finished waiting for somebody to read it — the honest answer
+   * to "how long was it there" and the wrong answer to "how long was it
+   * working". The second needs the beginnings of turns, and the journal that
+   * produced this comment had 7,090 `turn_done` in it and not one thing saying
+   * when any of them started, so the question could not be asked of a single
+   * hour of history.
+   *
+   * All three harnesses already say it (`turn_started` on the wire) and the
+   * supervisor already reads it to time its spans; what was missing was
+   * writing it down. Nothing keeps a stopwatch: this is the beginning and
+   * `turn_done` is the end, and `runtimeFrom` folds the pair.
+   */
+  'turn_started',
   'turn_done',
   'failed',
   /** What a turn consumed, in tokens and money. */
@@ -174,6 +191,14 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   permission_request: 'blocking',
   permission_granted: 'routine',
   permission_denied: 'routine',
+  // Routine rather than notable, and never trace. Not notable, because a turn
+  // beginning is not news — the window already draws the agent as busy, and an
+  // earcon per turn start is a metronome. Never trace, for the reason `usage`
+  // is not: it is read back out of the journal to be added up, and trace is
+  // the first thing dropped when a subscriber falls behind — which here would
+  // mean a turn whose end was written and whose beginning was not, and so an
+  // agent's working time silently reading as unknown.
+  turn_started: 'routine',
   turn_done: 'notable',
   failed: 'blocking',
   // Routine rather than trace: spend is read back out of the journal, and

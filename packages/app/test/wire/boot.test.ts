@@ -75,7 +75,7 @@ describe('the window, booted', () => {
     click(status.col + 1, status.row)
     // Its own title and its column heads: the sections under them scroll, like
     // every other panel's body, so which of them is in view is the window's size.
-    await until('the spend panel', () => terminal.written.includes('RUNTIME'))
+    await until('the spend panel', () => terminal.written.includes('WORKING'))
   })
 
   it('shows agent spend in the status bar', async () => {

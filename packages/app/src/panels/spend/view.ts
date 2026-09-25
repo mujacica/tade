@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { duration, type Priced } from '@tade/core'
+import { duration, type Priced, type Runtime, workedOf } from '@tade/core'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
@@ -51,15 +51,13 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   // holds money nobody priced says so where it is read, not in a footnote.
   top.text(view ? cost(view.priced, view.usd) : '—', skin.you).space(2)
   top.text(tokenCount(view?.tokens ?? 0), skin.hint).space(2)
-  // Every agent's time added together, which is why two working at once put
-  // two hours on the clock in one — said as `over 3 runs` beside the figure,
-  // because a figure that is not elapsed time is unreadable without it and
-  // `13d 3h` off a machine that has been on since breakfast reads as a bug.
+  // Both times, each said in its own word: how long a model was working, and
+  // how long the agents were open. Two figures and no sentence — the page says
+  // which is which the way the columns under it do, and what makes the pair
+  // readable (`over 3 runs`) is on the line below, where the money's own
+  // caveat already lives.
   const ran = view?.runtime
-  top.text(
-    `${duration(ran?.ms ?? 0)}${ran && ran.runs > 1 ? ` over ${ran.runs} runs` : ''}`,
-    ran?.running ? skin.busy : skin.hint,
-  )
+  top.text(runtimeHead(ran), ran?.running ? skin.busy : skin.hint)
   top.right((r) => {
     for (const window of SPEND_WINDOWS) {
       r.tab(
@@ -80,14 +78,25 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   // it has already said it — and here rather than beside the figure because
   // the head has no columns to spare and a tab you cannot press costs more
   // than a sentence one line lower.
-  head.push(
+  // Everything the figures above need said about them, in the gap under them
+  // rather than in rows of their own. Two things can want it. `over 3 runs` is
+  // what makes a time that is not elapsed time readable: twenty agents over an
+  // afternoon each ran for the whole of their own afternoon, so `13d 3h` off a
+  // machine that has been on since breakfast reads as a bug and is not one.
+  // And a harness whose own sign-in is a plan has no price per turn, so its
+  // agents put their work in the token figure and nothing at all in the money
+  // one — a total that adds up the rest and stops there is a figure with an
+  // agent's cost missing from it.
+  const runs = ran && ran.runs > 1 ? `over ${ran.runs} runs` : ''
+  // The runs clause keeps its room and the money sentence gives ground, which
+  // is what that sentence already does when it is short of it: the figure in
+  // it is the part that may never go, and the words around it are not.
+  const unpriced =
     view && view.tokensUnpriced > 0 && view.usd > 0
-      ? row()
-          .space()
-          .text(missingFrom(view.tokensUnpriced, inner - 1), skin.hint)
-          .build()
-      : blank(inner),
-  )
+      ? missingFrom(view.tokensUnpriced, inner - 1 - (runs ? runs.length + 3 : 0))
+      : ''
+  const under = [runs, unpriced].filter(Boolean).join(' · ')
+  head.push(under ? row().space().text(under, skin.hint).build() : blank(inner))
 
   // Six facets is more than a narrow panel fits on one line, and a tab that
   // ran off the edge is a grouping nobody can reach. So they wrap, under the
@@ -114,7 +123,9 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
       .space(SPEND_GAP)
       .text(padTo('SHARE', meter), skin.label)
       .space()
-      .text('RUNTIME'.padStart(RUNTIME_W), skin.label)
+      .text('WORKING'.padStart(WORKING_W), skin.label)
+      .space()
+      .text('OPEN'.padStart(OPEN_W), skin.label)
       .text('COST'.padStart(COST_W), skin.label)
       .build(),
   )
@@ -150,9 +161,11 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         .space(SPEND_GAP)
         .meter(entry.tokens / total, meter)
         .space()
+        .text(working(entry.runtime).padStart(WORKING_W), skin.hint)
+        .space()
         .text(
           (entry.runtime && entry.runtime.ms > 0 ? duration(entry.runtime.ms) : '—').padStart(
-            RUNTIME_W,
+            OPEN_W,
           ),
           entry.runtime?.running ? skin.busy : undefined,
         )
@@ -327,15 +340,36 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   return box('Spend', drawn.rows, width, skin, { corner: 'esc' })
 }
 
-/** As wide as the table wants, and never wider than the window it floats over. */
-const SPEND_WIDTH = 84
+/**
+ * As wide as the table wants, and never wider than the window it floats over.
+ *
+ * It wants seven more than it did, because it now says how long a model was
+ * working beside how long its agent was open — two questions that were being
+ * answered with one figure. Taken out of the columns instead, the table paid
+ * for it twice over: the share meter is decoration and gives ground first, but
+ * after that it comes out of the name, and a name is the one column here that
+ * cannot be abbreviated without lying.
+ */
+export const SPEND_WIDTH = 91
 
 /** A space, the state mark, and the space after it: where every name starts. */
 const LEAD = 3
 /** The clear column between one column and the next. Never zero: that was the bug. */
 const SPEND_GAP = 2
 const TOKENS_W = 6
-const RUNTIME_W = 7
+/**
+ * Two times and not one, because they answer two questions and reading either
+ * as the other is what sent somebody looking for this page. `OPEN` is how long
+ * the agent was there, which is what one sitting finished in its lane until
+ * somebody closes the window burns; `WORKING` is how long a model was actually
+ * working, which is the one that pairs with the money two columns along.
+ *
+ * Wide enough for the mark: `≥9h 40m` is what a figure made of some runs that
+ * could say and some that could not looks like, and a floor drawn as though it
+ * were a total is the one thing these columns may not do.
+ */
+const WORKING_W = 7
+const OPEN_W = 6
 /** Room for the figure and the mark that says whether anybody priced it. */
 const COST_W = 9
 
@@ -361,7 +395,7 @@ export function spendColumns(
   inner: number,
   by: SpendBy,
 ): { name: number; model: number; meter: number } {
-  const figures = LEAD + SPEND_GAP + TOKENS_W + SPEND_GAP + 1 + RUNTIME_W + COST_W
+  const figures = LEAD + SPEND_GAP + TOKENS_W + SPEND_GAP + 1 + WORKING_W + 1 + OPEN_W + COST_W
   let room = inner - figures
   // The model column is worth its width in the Agent view — and only while
   // there is still a name left beside it. A panel narrow enough that both
@@ -394,6 +428,47 @@ const MIN_NAME = 10
 export function nameLines(label: string, width: number): string[] {
   const lines = wrapTo(label, width, 2)
   return lines.length === 0 ? [cap(label, width)] : lines
+}
+
+/**
+ * The pair of times at the top of the page, each with the word that says which
+ * it is. No prose: `working` and `open` are the same two words the columns
+ * under them are headed with, so the page says which is which once.
+ *
+ * `open` is always a figure — a run has a start and an end, or it is still
+ * going. `working` is not: every run of a journal written before Tade recorded
+ * when a turn begins has turns with ends and no beginnings, and what those
+ * spent working is unanswerable rather than nought. So it is said as unknown,
+ * and never as the `0s` it would otherwise add up to.
+ */
+export function runtimeHead(ran: Runtime | undefined): string {
+  if (!ran) return `${duration(0)} open`
+  const open = `${duration(ran.ms)} open`
+  switch (workedOf(ran)) {
+    case 'recorded':
+      return `${duration(ran.workingMs)} working · ${open}`
+    // A floor, because some of the runs in it could say and some could not.
+    // Marked where it is read, the way estimated money is: a caveat true under
+    // every row is a mark, never a footnote.
+    case 'partly':
+      return `≥${duration(ran.workingMs)} working · ${open}`
+    default:
+      return `working unknown · ${open}`
+  }
+}
+
+/**
+ * How long a model worked, in a cell: the figure, a floor where only some of
+ * the runs behind it could say, and `—` where there is nothing to say at all.
+ *
+ * `—` is what this page already draws for money nobody reported, and it means
+ * the same thing here — nothing to show — whether that is because the run took
+ * no turns or because it began before Tade wrote turn beginnings down. Which
+ * of the two it is, is the head's to say, and it says it.
+ */
+function working(ran: Runtime | null): string {
+  if (!ran || workedOf(ran) === 'unrecorded' || ran.workingMs <= 0) return '—'
+  return `${workedOf(ran) === 'partly' ? '≥' : ''}${duration(ran.workingMs)}`
 }
 
 /**

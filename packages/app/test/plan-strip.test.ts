@@ -1,4 +1,4 @@
-import type { PlanStanding } from '@tade/core'
+import { noRuntime, type PlanStanding } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import type { Frame } from '../src/frame.ts'
 import { type AppState, initialState, withProjects, withTasks } from '../src/model.ts'
@@ -41,7 +41,7 @@ describe('what a subscription has left, in the strip', () => {
     usd: 0.351,
     hasCost: true,
     byTask: {},
-    runtime: { ms: 80 * 60_000, runs: 2, running: true },
+    runtime: { ...noRuntime(), ms: 80 * 60_000, runs: 2, running: true },
   }
   const standing = (over: Partial<PlanStanding> = {}): PlanStanding => ({
     harness: 'claude-code',
