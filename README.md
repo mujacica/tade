@@ -22,11 +22,12 @@ setup offers to install each where you want it, shows the exact command first, a
 terminal you are watching. It ends by opening a lane, running a command in it and closing it, and
 `tade setup --check` does the same whenever you want to be sure.
 
-One thing to know before the first agent starts: **agents run as you.** Out of the box nothing
-sandboxes them and nothing asks before a command, so an agent can read and change whatever you can
-— your files, and `~/.tade/config.yaml`, where every key you paste into Tade is kept. Approvals and
-a sandbox are both there and both yours to turn on; a key you would rather Tade never wrote down
-can stay in an environment variable, which always wins over the file.
+One thing to know before the first agent starts: **agents run as you.** Nothing in Tade contains
+them and nothing asks before a command, so an agent can read and change whatever you can — your
+files, and `~/.tade/config.yaml`, where every key you paste into Tade is kept. Approvals are there
+and yours to turn on; containing an agent is its harness's business, not Tade's; and a key you
+would rather Tade never wrote down can stay in an environment variable, which always wins over the
+file.
 
 From a checkout, which is how you change Tade:
 
@@ -345,9 +346,9 @@ from git, processes and transcripts.
 ## Approvals, on your terms
 
 Off by default, and every command an agent runs is written down either way. Turn approvals on and
-the risky ones stop and ask — in the window, by voice, or from another project's toast. Agents can
-be boxed into a sandbox; one that cannot be applied fails the run rather than quietly running
-without it.
+the risky ones stop and ask — in the window, by voice, or from another project's toast. This is the
+whole of what Tade holds an agent to: containing one is its harness's own business, and Tade does
+not pretend to a half of it.
 
 ![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](images/approval.svg)
 

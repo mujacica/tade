@@ -4,27 +4,27 @@
    │  search extensions      │ MCP servers                                                                          │───
  ▌ │                         │ 4 servers nobody has turned on                                                       │   
  ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ Tool servers Tade knows about, none of them on. Turning one on is yours.            █│   
-   │ ● Jev                  ▕│                                                                                     █│   
-   │ ◐ Sentry             ! ▕│ ○ Postgres  postgres                                         Install…     Turn on   █│   
-   │ ✗ standup            ! ▕│   Read a database's schema and query it.                                            █│   
- ▸ │ ● GitHub               ▕│   mcp-server-postgres ${project}                                                    █│   
- ▾ │ ○ release-notes        ▕│   postgres needs a credential: paste one                                            █│   
-  M│ · Written by Tade    1 ▕│   install: npm install --global @modelcontextprotocol/server-postgres               █│   
-  A│▌· MCP servers        4 ▕│   Its credential is a connection string, kept where credentials are kept.           █│   
-  M│ · Harnesses' own     2 ▕│                                                                                     █│   
-   │                        ▕│ ○ GitHub  github                                                          Turn on   █│   
- ▾ │                        ▕│   Issues, pull requests and code search on GitHub.                                  █│   
+   │ ● Dependencies         ▕│ Tool servers Tade knows about, none of them on. Turning one on is yours, and        █│   
+   │ ● Jev                  ▕│ nothing here holds it.                                                              █│   
+   │ ◐ Sentry             ! ▕│                                                                                     █│   
+   │ ✗ standup            ! ▕│ ○ Postgres  postgres                                         Install…     Turn on   █│   
+ ▸ │ ● GitHub               ▕│   Read a database's schema and query it.                                            █│   
+ ▾ │ ○ release-notes        ▕│   mcp-server-postgres ${project}                                                    █│   
+  M│ · Written by Tade    1 ▕│   postgres needs a credential: paste one                                            █│   
+  A│▌· MCP servers        4 ▕│   install: npm install --global @modelcontextprotocol/server-postgres               █│   
+  M│ · Harnesses' own     2 ▕│   Its credential is a connection string, kept where credentials are kept.           █│   
+   │                        ▕│                                                                                     █│   
+ ▾ │                        ▕│ ○ GitHub  github                                                          Turn on   █│   
+   │                        ▕│   Issues, pull requests and code search on GitHub.                                  █│   
    │                        ▕│   https://api.githubcopilot.com/mcp/                                                █│   
    │                        ▕│   github needs a credential: paste one                                              █│   
    │                        ▕│   Reviews, checks and merges are the Forge port’s, not this server’s.               █│   
    │                        ▕│                                                                                     █│   
    │                        ▕│ ○ Sentry (MCP)  sentry                                                    Turn on   █│   
-   │                        ▕│   Errors, traces and releases in Sentry, as its own server answers them.            █│   
-━  │                        ▕│   https://mcp.sentry.dev/mcp                                                        █│  ━
-   │                        ▕│   sentry needs a credential: paste one                                              ▕│   
+━  │                        ▕│   Errors, traces and releases in Sentry, as its own server answers them.            ▕│  ━
+   │                        ▕│   https://mcp.sentry.dev/mcp                                                        ▕│   
+   │                        ▕│   sentry needs a credential: paste one                                              ▕│  ▕
    │                        ▕│   Not the Sentry extension: that one is `sentry`, this is `mcp-sentry`.             ▕│  ▕
-   │                        ▕│                                                                                     ▕│  ▕
    │                        ▕│                                                                                      │  ▕
    │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕

@@ -4,6 +4,7 @@ import {
   expandHome,
   loadConfig,
   MCP_TRANSPORT_NAMES,
+  SERVER_RUNS_AS_YOU,
   tadeHome,
   writeSetting,
 } from '@tade/core'
@@ -221,6 +222,10 @@ export function registerMcp(program: Command, io: Io, setExit: (code: number) =>
             ? `${name} is on — it connects the next time Tade starts, and its tools are offered to every agent and the orchestrator`
             : `${name} is off — its session ends and its tools stop being offered`,
         )
+        // Said at the moment of the decision, and only when it is being made:
+        // nothing in Tade holds the program to anything, and a person turning
+        // one on is the one person who can weigh that.
+        if (on) io.out(SERVER_RUNS_AS_YOU)
       })
   }
 

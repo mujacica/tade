@@ -244,8 +244,8 @@ export function testRunner(
       const problem = await runner.ready(project)
       expect(typeof problem).toBe('string')
       expect(problem).toBeTruthy()
-      // Never a silent fall back to another runner: a runner you selected and
-      // did not get is the sandbox rule again.
+      // Never a silent fall back to another runner: a runner you selected
+      // and did not get is worse than one that was never offered.
       await expect(runAll(runner, project, [checks.passes])).rejects.toMatchObject({
         trouble: 'unavailable',
       })

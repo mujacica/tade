@@ -21,8 +21,8 @@ describe('what no words reach', () => {
     }
   })
 
-  it('refuses what an agent may write to, while leaving what it thinks with', () => {
-    expect(settingReach('workers.routes.default.sandbox').reach).toBe('never')
+  it('refuses where a route sends work, while leaving what it thinks with', () => {
+    expect(settingReach('workers.routes.default.provider').reach).toBe('never')
     // A model is not a permission: the route's own model, thinking and harness
     // are ordinary settings that happen to live beside a dangerous one.
     expect(settingReach('workers.routes.default.model').reach).toBe('asked')

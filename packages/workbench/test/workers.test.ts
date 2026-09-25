@@ -79,10 +79,6 @@ class FakeAdapter implements WorkerAdapter {
     return noHarnessSpend()
   }
 
-  sandboxWrites() {
-    return { paths: [], prefixes: [] }
-  }
-
   async models() {
     return []
   }

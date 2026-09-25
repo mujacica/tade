@@ -1,4 +1,3 @@
-import { isAbsolute } from 'node:path'
 import { declarationProblems, LIMITS_SUPPORT, type TaskId, THINKING_LEVELS } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -203,12 +202,6 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         expect(offered.harness).toBe((await adapter()).id)
         expect(offered.why === null).toBe(offered.models.length > 0)
         if (offered.why !== null) expect(offered.why.trim().length).toBeGreaterThan(0)
-      })
-
-      it('names where a contained agent must write with absolute paths', async () => {
-        const writes = (await adapter()).sandboxWrites()
-        for (const path of [...writes.paths, ...writes.prefixes])
-          expect(isAbsolute(path)).toBe(true)
       })
     })
 

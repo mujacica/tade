@@ -16,7 +16,7 @@ const routed = config({
     routes: {
       cheap: { provider: 'openrouter', model: 'deepseek/deepseek-v3' },
       subscription: { provider: 'anthropic', model: 'claude-opus-5' },
-      local: { provider: 'ollama', model: 'qwen2.5-coder', sandbox: 'seatbelt' },
+      local: { provider: 'ollama', model: 'qwen2.5-coder', thinking: 'low' as const },
     },
   },
   projects: {
@@ -44,16 +44,16 @@ describe('resolveRoute', () => {
   it('an explicit override beats everything', () => {
     expect(resolveRoute(routed, { project: 'checkout', route: 'local' })).toMatchObject({
       name: 'local',
-      sandbox: 'seatbelt',
+      model: 'qwen2.5-coder',
     })
   })
 
-  it('carries the sandbox and harness through', () => {
+  it('carries the harness and how hard it thinks through', () => {
     expect(resolveRoute(routed, { route: 'local' })).toMatchObject({
       harness: 'pi',
-      sandbox: 'seatbelt',
+      thinking: 'low',
     })
-    expect(resolveRoute(routed, { route: 'cheap' }).sandbox).toBe('none')
+    expect(resolveRoute(routed, { route: 'cheap' }).thinking).toBeUndefined()
   })
 
   it('uses the only route there is, whatever it is named', () => {

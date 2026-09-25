@@ -6,13 +6,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import {
-  type RequiredProgram,
-  sandboxed,
-  type ThinkingLevel,
-  type ToolEffect,
-  type Unsubscribe,
-} from '@tade/core'
+import type { RequiredProgram, ThinkingLevel, ToolEffect, Unsubscribe } from '@tade/core'
 import {
   type AccountStatus,
   type HarnessAccount,
@@ -26,7 +20,6 @@ import {
   type PlanLimits,
   type RunId,
   reaped,
-  type SandboxWrites,
   type SignIn,
   WORKER_ENV,
   type WorkerAdapter,
@@ -410,20 +403,6 @@ export class ClaudeAdapter implements WorkerAdapter {
   }
 
   /**
-   * Claude Code writes its transcripts and state under its config folder, and
-   * — for the default account — a state file beside it that it replaces
-   * through a temporary sibling. Contained without them, it runs, answers,
-   * and quietly keeps nothing.
-   */
-  sandboxWrites(): SandboxWrites {
-    const own = !this.ownFolder()
-    return {
-      paths: [this.opts.configDir],
-      prefixes: own ? [join(homedir(), '.claude.json')] : [],
-    }
-  }
-
-  /**
    * What it can be started on: the names Claude Code keeps pointing at the
    * newest of each line, which it resolves itself. A list of versions kept
    * here would be out of date the first time a model came out.
@@ -592,35 +571,32 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   launchSpec(spec: WorkerSpec): LaunchSpec {
     const files = this.filesFor(spec)
-    const launch = sandboxed(
-      {
-        command: '/bin/sh',
-        args: [
-          '-c',
-          LAUNCHER,
-          'tade-claude',
-          sessionIdFor(spec.task),
-          this.opts.configDir,
-          spec.title ?? '',
-          this.opts.bin,
-          // First: it takes several values, and would take the next word too.
-          '--mcp-config',
-          ...[files.mcp, ...(spec.extras?.mcp ?? [])],
-          '--settings',
-          files.settings,
-          // Tade's own gate decides what is held; Claude Code asking as well
-          // would ask twice, in a lane nobody may be looking at.
-          '--permission-mode',
-          'bypassPermissions',
-          ...(spec.model ? ['--model', modelName(spec.model)] : []),
-          ...(spec.thinking ? ['--effort', effortOf(spec.thinking)] : []),
-          ...(files.instructions ? ['--append-system-prompt-file', files.instructions] : []),
-          ...(files.plugin ? ['--plugin-dir', files.plugin] : []),
-          ...this.opts.args,
-        ],
-      },
-      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
-    )
+    const launch = {
+      command: '/bin/sh',
+      args: [
+        '-c',
+        LAUNCHER,
+        'tade-claude',
+        sessionIdFor(spec.task),
+        this.opts.configDir,
+        spec.title ?? '',
+        this.opts.bin,
+        // First: it takes several values, and would take the next word too.
+        '--mcp-config',
+        ...[files.mcp, ...(spec.extras?.mcp ?? [])],
+        '--settings',
+        files.settings,
+        // Tade's own gate decides what is held; Claude Code asking as well
+        // would ask twice, in a lane nobody may be looking at.
+        '--permission-mode',
+        'bypassPermissions',
+        ...(spec.model ? ['--model', modelName(spec.model)] : []),
+        ...(spec.thinking ? ['--effort', effortOf(spec.thinking)] : []),
+        ...(files.instructions ? ['--append-system-prompt-file', files.instructions] : []),
+        ...(files.plugin ? ['--plugin-dir', files.plugin] : []),
+        ...this.opts.args,
+      ],
+    }
     return {
       ...launch,
       env: this.runEnv(spec),
@@ -691,35 +667,32 @@ export class ClaudeAdapter implements WorkerAdapter {
     const files = this.filesFor(spec, { hooks: false })
     const going = await transcriptFor(spec.task, this.opts.configDir)
     const session = sessionIdFor(spec.task)
-    const launch = sandboxed(
-      {
-        command: this.opts.bin,
-        args: [
-          '--mcp-config',
-          ...[files.mcp, ...(spec.extras?.mcp ?? [])],
-          '-p',
-          '--input-format',
-          'stream-json',
-          '--output-format',
-          'stream-json',
-          // Whole messages and the pieces as they arrive: the window draws a
-          // reply as it is written.
-          '--verbose',
-          '--include-partial-messages',
-          // The same conversation every time: made under this id once, and
-          // taken up again every time after.
-          ...(going ? ['--resume', session] : ['--session-id', session]),
-          '--permission-mode',
-          'bypassPermissions',
-          ...(spec.model ? ['--model', modelName(spec.model)] : []),
-          ...(spec.thinking ? ['--effort', effortOf(spec.thinking)] : []),
-          ...(files.instructions ? ['--append-system-prompt-file', files.instructions] : []),
-          ...(files.plugin ? ['--plugin-dir', files.plugin] : []),
-          ...this.opts.args,
-        ],
-      },
-      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
-    )
+    const launch = {
+      command: this.opts.bin,
+      args: [
+        '--mcp-config',
+        ...[files.mcp, ...(spec.extras?.mcp ?? [])],
+        '-p',
+        '--input-format',
+        'stream-json',
+        '--output-format',
+        'stream-json',
+        // Whole messages and the pieces as they arrive: the window draws a
+        // reply as it is written.
+        '--verbose',
+        '--include-partial-messages',
+        // The same conversation every time: made under this id once, and
+        // taken up again every time after.
+        ...(going ? ['--resume', session] : ['--session-id', session]),
+        '--permission-mode',
+        'bypassPermissions',
+        ...(spec.model ? ['--model', modelName(spec.model)] : []),
+        ...(spec.thinking ? ['--effort', effortOf(spec.thinking)] : []),
+        ...(files.instructions ? ['--append-system-prompt-file', files.instructions] : []),
+        ...(files.plugin ? ['--plugin-dir', files.plugin] : []),
+        ...this.opts.args,
+      ],
+    }
     // It has no lane to carry on in and nobody could find it again, so it
     // does not outlive Tade — however Tade ends.
     const watched = reaped(launch)

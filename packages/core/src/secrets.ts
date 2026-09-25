@@ -40,17 +40,22 @@ export const SEEN_BY_AGENTS = 'any agent you run can read it'
  * What is true of every credential Tade keeps, said wherever one is pasted.
  *
  * `0600` keeps the file from other people, and an agent is not another
- * person: it runs as you, in your checkout, unsandboxed and unasked unless
- * you have said otherwise, so it can read this file the way it can read any
- * other file of yours. Nothing in the file can answer that, so it is said
- * instead — here, once, so the README, the Extensions page, the Settings page
- * and the account prompt cannot drift apart about it — and the way out is
- * said in the same breath, because a warning with nothing to do about it is
- * a warning people learn to scroll past.
+ * person: it runs as you, in your checkout, with nothing contained and
+ * nothing asked unless you have turned approvals on, so it can read this file
+ * the way it can read any other file of yours. Nothing in the file can answer
+ * that, so it is said instead — here, once, so the README, the Extensions
+ * page, the Settings page and the account prompt cannot drift apart about it
+ * — and the way out is said in the same breath, because a warning with
+ * nothing to do about it is a warning people learn to scroll past.
+ *
+ * It says "nothing sandboxes them" and not "unless you say so", because there
+ * is nothing to say: Tade had a sandbox setting, it was off by every default,
+ * and half-owning containment was worse than leaving it to the harness or the
+ * agent, which is where it went.
  */
 export const KEYS_AND_AGENTS =
   `Kept in ${IN_CONFIG} as you typed it, so you can read it back — and ${SEEN_BY_AGENTS} too: ` +
-  `agents run as you, unsandboxed unless you say so. To keep one out of the file, export its ` +
+  `agents run as you, and nothing sandboxes them. To keep one out of the file, export its ` +
   `variable instead, which wins and is never written down, or leave this unset.`
 
 /** Where an extension's credential is written: `extensions.jev.key`. */

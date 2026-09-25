@@ -221,7 +221,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   never in the tool: a rule that lives where the model lives is a rule the model can be talked out
   of. Three answers and no fourth. **`never`** is everything that widens what an agent may do,
   hands a third party tools or a credential, changes who is asked, or changes where Tade sends
-  something — `approvals`, `accounts` and `workers.accounts`, a route's `sandbox`, the whole of
+  something — `approvals`, `accounts` and `workers.accounts`, a route's `provider`, the whole of
   `extensions` and `mcp`, `orchestrator.extensions`, `telemetry.dsn`, and a project's `root`. Each
   is a **subtree** and not a key, which is what makes a key added to one of them refused on the day
   it is added, by somebody who never read this file. **`asked`** is the default and nearly
@@ -649,10 +649,20 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   not, because nothing tells it from `report.md`. Where it opens is the one seam that reaches the
   machine (`AppOptions.open`), so a test is handed an opener that records the command instead of
   running it.
-- **A sandbox that cannot be applied fails the run**, never silently runs the worker unconfined:
-  a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
-  contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
-  The orchestrator is never sandboxed; it has to drive your terminal.
+- **Tade does not sandbox anything, and says so rather than half-owning it.** There was a
+  `sandbox` on every route and on every MCP server — seatbelt on macOS, bwrap on Linux, and the
+  rule that one which could not be applied failed the run. Every default was `none`, so the
+  promise it read like was one almost nobody ever got; and what it was containing is a program the
+  person deliberately handed the machine to, under `approvals.mode: 'bypass'`, running as them in
+  their own checkout. Containment is **the harness's or the agent's** — Codex has its own
+  `--sandbox` and Tade passes `danger-full-access` because Tade's gate is what decides here — and
+  a thing Tade half-owns is worse than either end of it, which is the keystore's lesson again.
+  What is left is what was always doing the work: the approval tiers, the worktree as the policy
+  boundary, and saying plainly where somebody is deciding that an agent and an MCP server both run
+  as you (`KEYS_AND_AGENTS`, `SERVER_RUNS_AS_YOU`). A config that still names a sandbox is
+  **ignored and said** (`GONE` in `core/src/gone.ts`, beside the sentence that replaced it, so
+  that tidying one away takes the other with it), never refused: people have it written down, and
+  refusing the file takes away everything else they wrote at the same time.
 - **What Tade writes for itself is under git** (`recordAuthored`), committed as `Tade` and never
   as the user. That is the fourth safety rail, with `--safe`, nothing loading unasked and no hot
   reload: the other three let you stop an unwelcome change, and this is what lets you see and undo
@@ -730,9 +740,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   whoever started it ends its group — with an environment scrubbed to `PATH`, `HOME`, `TMPDIR`,
   what the declaration itself names and the credential where `auth` says. It works in a scratch
   directory of its own (`<home>/mcp/<name>/`), never in a project unless `scope: project` says so
-  and the call came from one; `${project}` is put in then, and never one per agent. A sandbox asked
-  for that cannot be applied here is a server listed broken, said by `ready()` before anything
-  starts rather than found at the first tool call. Nothing waits without a deadline: a handshake
+  and the call came from one; `${project}` is put in then, and never one per agent. That is the
+  whole of what holds it — it runs as you, and nothing contains it — which is why the sentence
+  saying so (`SERVER_RUNS_AS_YOU`) is on the server's row and on `tade mcp enable`, where a person
+  is deciding. Nothing waits without a deadline: a handshake
   that does not answer is abandoned, a call can be given up on, and a program that dies is an
   answer with the tail of what it said on the way out.
 - **Over HTTP the credential travels and nothing else does.** One transport speaks both shapes —
@@ -862,7 +873,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   nobody can see, drive or stop is the one outcome worse than both.
 - **What Tade draws itself dies with Tade, however Tade ends.** The orchestrator has no lane to
   carry on in and nobody could find it again, so a headless run is started through a watcher
-  (`reaped`, beside `sandboxed`) that ends it once Tade's pid is gone. An exit path only runs when
+  (`reaped`, in `harnesses/core`) that ends it once Tade's pid is gone. An exit path only runs when
   there is one: a window killed outright would otherwise leave a model process running that nothing
   can reach. Agents are the opposite and stay that way — under a driver whose lanes outlive the
   window they keep working, which is what makes closing Tade harmless.
@@ -926,8 +937,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   again.
 - **`0600` keeps the file from other people, and an agent is not another person.** That is the whole
   of what the mode buys, and there is no second user on the machine to buy it from: agents run as
-  you, in your checkout, unsandboxed (`sandbox: 'none'`) and unasked (`approvals.mode: 'bypass'`)
-  unless somebody has said otherwise — so **any agent can read `config.yaml` and every key in it**.
+  you, in your checkout, with nothing containing them and nothing asked (`approvals.mode:
+  'bypass'`) unless somebody has turned approvals on — so **any agent can read `config.yaml` and
+  every key in it**.
   The audit agent that found this did exactly that, incidentally, with no special access and no
   prompt. Everything above stays true and stays worth having, and it is all containment of
   *everywhere else*: a key is never in the journal (`set` or `not set`, `held` in
@@ -946,9 +958,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   past: export the variable, which wins over the file and which Tade never writes down, or leave
   that extension unset. And nothing anywhere may go back to saying the file is one *only you* can
   read: fourteen sentences across eight files said exactly that, each of them true about the mode
-  and wrong about the machine, and each of them read by somebody at the moment they were deciding. Making a sandbox the default is the real answer and is deliberately not this: it
-  changes what agents may do, a sandbox that cannot be applied fails the run, and approvals and
-  sandboxes are never Tade's own to change.
+  and wrong about the machine, and each of them read by somebody at the moment they were deciding.
+  Containing an agent is deliberately not the answer here and is not Tade's to give: what an agent
+  may reach is the harness's or the agent's own, and approvals are never Tade's to change.
 - **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
   that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
   on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.
@@ -1199,7 +1211,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   `restart` or `none` per thing a person can ask of a running agent, each short of full with a
   sentence in `why`; every surface reads them through `offer()`, so none offers what another hides.
   A lane records the harness it was started in, and whatever touches a harness's own records —
-  its conversation, its spend, where it must write when contained — asks the adapter.
+  its conversation, its spend, its accounts — asks the adapter.
 - **An account is the harness's own sign-in, kept apart, and Tade never holds it.** Each harness
   runs as its own default, or as an account added beside it (`accounts.<name>`, a folder under
   `<home>/accounts`), chosen for its new agents (`workers.accounts`) or for one agent (`account` in

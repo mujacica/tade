@@ -1,7 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { accessSync, constants, mkdirSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
-import { type SandboxKind, sandboxed } from '@tade/core'
 import {
   type CallContext,
   McpError,
@@ -19,7 +18,10 @@ import * as wire from '@tade/mcp-core/protocol'
 // A server that is a program on this machine, talked to over its own pipes.
 //
 // Everything here follows from one thing: the program is somebody else's, and
-// it runs with the window's privileges rather than an agent's sandbox. So:
+// it runs as you, with the window's privileges. Nothing contains it — Tade had
+// a `sandbox` key here and it was half a promise, since the default was `none`
+// and containing a program somebody deliberately handed the machine to was
+// never Tade's to do. What it does have is real, and is all of it:
 //
 //   It is **detached**, in a process group of its own, so a signal meant for
 //   Tade's own group never sweeps it up by accident — and, per the rule that
@@ -30,9 +32,9 @@ import * as wire from '@tade/mcp-core/protocol'
 //   where `auth` says. Not the window's own environment, which holds
 //   everybody's tokens.
 //
-//   It is **sandboxable**, and a sandbox asked for that cannot be applied
-//   here fails the server rather than starting it loose — said in `ready()`,
-//   so it is a row on the page and not a surprise at the first tool call.
+//   It works in **a scratch directory of its own**, never in a project unless
+//   it is scoped to one — which bounds where it writes by default and stops
+//   nothing, and is said as that where somebody turns a server on.
 //
 //   Nothing it does can hang the window: the handshake has a deadline, a call
 //   can be given up on, and a program that dies is an answer with what it
@@ -59,14 +61,10 @@ const FRAME_CAP = 8 * 1024 * 1024
 /** How many pages of a tool list are read before Tade stops asking. */
 const PAGES = 20
 
-export interface StdioTransportOptions extends TransportOptions {
-  /** Which machine this is, for the suite to be sure of the answer on any of them. */
-  platform?: NodeJS.Platform
-}
+export type StdioTransportOptions = TransportOptions
 
 export function makeStdioTransport(options: StdioTransportOptions = {}): McpTransport {
   const cap = options.cap ?? 20_000
-  const platform = options.platform ?? process.platform
 
   return {
     id: 'stdio',
@@ -78,12 +76,12 @@ export function makeStdioTransport(options: StdioTransportOptions = {}): McpTran
       cancel: true,
     },
     async ready(server, ctx) {
-      return readiness(server, ctx, platform)
+      return readiness(server, ctx)
     },
     async open(server, ctx) {
-      const said = readiness(server, ctx, platform)
+      const said = readiness(server, ctx)
       if (said) throw new McpError('unavailable', said)
-      return start(server, ctx, platform, cap)
+      return start(server, ctx, cap)
     },
   }
 }
@@ -92,45 +90,14 @@ export function makeStdioTransport(options: StdioTransportOptions = {}): McpTran
  * Whether this program could be started at all, and what to do about it when
  * it could not. The filesystem and the declaration, and nothing else.
  */
-function readiness(
-  server: ServerDeclaration,
-  ctx: TransportContext,
-  platform: NodeJS.Platform,
-): string | null {
+function readiness(server: ServerDeclaration, ctx: TransportContext): string | null {
   if (!server.command) return `${server.name} is a program Tade starts, and nothing says which`
   if (!found(server.command, ctx.env)) {
     // Tade never installs anything: the line is shown, and running it is an
     // act somebody takes in a lane they are looking at.
     return `${server.command} is not on this machine${server.install ? `: ${server.install}` : ''}`
   }
-  return sandboxProblem(server, ctx, platform)
-}
-
-/**
- * Whether the sandbox this server asked for can be applied here.
- *
- * Asked before anything starts, because the alternative — finding out at
- * spawn — is a server that is listed ready and fails at the first tool call.
- * A sandbox asked for and not appliable is a server listed broken; it is
- * never started loose.
- */
-function sandboxProblem(
-  server: ServerDeclaration,
-  ctx: TransportContext,
-  platform: NodeJS.Platform,
-): string | null {
-  if (server.sandbox === 'none') return null
-  try {
-    sandboxed(
-      { command: server.command ?? '', args: [] },
-      { kind: server.sandbox as SandboxKind, worktree: scratch(ctx.home, server.name), platform },
-    )
-    return null
-  } catch (err) {
-    return `${server.name} asks to be held to ${server.sandbox}, which cannot be done here: ${
-      err instanceof Error ? err.message : String(err)
-    }`
-  }
+  return null
 }
 
 /** Where a server of its own keeps whatever it writes: never a project, unless it is scoped to one. */
@@ -188,7 +155,6 @@ function environment(
 async function start(
   server: ServerDeclaration,
   ctx: TransportContext,
-  platform: NodeJS.Platform,
   cap: number,
 ): Promise<ServerSession> {
   const dir = scratch(ctx.home, server.name)
@@ -198,20 +164,7 @@ async function start(
     // A home that cannot be written is a server with nowhere of its own to
     // work in, which only matters if it tries; it is not a reason not to start.
   }
-  const launch = sandboxed(
-    {
-      command: server.command ?? '',
-      args: withProject(server.args, ctx.cwd),
-    },
-    {
-      kind: server.sandbox as SandboxKind,
-      // Its own scratch directory and nothing else: a server whose job is a
-      // repository still only reads it, because what it does to files is
-      // something Tade's gate can see the call to and not the effect of.
-      worktree: dir,
-      platform,
-    },
-  )
+  const launch = { command: server.command ?? '', args: withProject(server.args, ctx.cwd) }
   const child = spawn(launch.command, launch.args, {
     cwd: ctx.cwd ?? dir,
     env: environment(server, ctx),

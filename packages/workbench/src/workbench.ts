@@ -30,7 +30,6 @@ import {
   resolveRoute,
   routeIn,
   runtimeDir,
-  type SandboxKind,
   type Schedule,
   type StartCondition,
   sinceLastLook,
@@ -356,6 +355,12 @@ export class Workbench {
             message: `config.yaml is invalid, using defaults: ${loaded.issues[0]?.message ?? ''}`,
           },
         })
+      }
+      // A setting Tade used to read and does not any more. Said once a window,
+      // because the alternative is a key that quietly does nothing and a
+      // person who goes on believing it works.
+      for (const said of loaded.ok ? loaded.warnings : []) {
+        await log.append({ type: 'warning', detail: { message: `config.yaml: ${said}` } })
       }
       // One adapter per harness there is; the route's is the default.
       const harnessOptions: HarnessOptions = {
@@ -1565,14 +1570,6 @@ export class Workbench {
       ...(model ? { model } : {}),
       ...(thinking ? { thinking } : {}),
       lane,
-      sandbox: {
-        kind: req.sandbox ?? this.sandboxFor(req.task),
-        worktree: req.worktree ?? req.cwd,
-        // Where the harness keeps the conversation: contained without it, an
-        // agent runs and quietly keeps nothing.
-        writable: [...adapter.sandboxWrites().paths],
-        writablePrefixes: [...adapter.sandboxWrites().prefixes],
-      },
     }
     // Listen before launching: the channel has to exist for the agent's very
     // first signal, and its path is derived from the run id so both halves
@@ -2365,21 +2362,6 @@ export class Workbench {
     }
   }
 
-  /**
-   * How the task's route says to contain a worker. Deliberately not caught: a
-   * route that cannot be resolved fails the run rather than quietly starting
-   * an agent with the whole disk writable.
-   */
-  private sandboxFor(task: string): SandboxKind {
-    const project = task.split('/')[0]
-    return resolveRoute(this.config, project ? { project } : {}).sandbox
-  }
-
-  /**
-   * The model the task's route names. `projects.*.worker` picks a route and
-   * the route picks the model — which nothing was doing, so choosing a route
-   * changed the sandbox and nothing else.
-   */
   /** How hard new agents in a task's project think, when a level was chosen. */
   private thinkingFor(task: string, harness: string): ThinkingLevel | undefined {
     const project = task.split('/')[0]

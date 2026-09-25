@@ -75,21 +75,7 @@ describe('PiAdapter', () => {
     expect(existsSync(piBinary())).toBe(true)
   })
 
-  it('contains a worker when the route asks for one', () => {
-    adapter = new PiAdapter({ runDir: tmp('tade-pi-') })
-    const launch = adapter.launchSpec({
-      run: 'r1',
-      task: 'app/t',
-      cwd: '/wt/t',
-      prompt: '',
-      sandbox: { kind: 'seatbelt', worktree: '/wt/t', platform: 'darwin' },
-    })
-    expect(launch.command).toBe('sandbox-exec')
-    // Wrapped, not replaced: what was going to run is still what runs.
-    expect(launch.args).toContain(process.execPath)
-  })
-
-  it('leaves a worker alone when no sandbox was asked for', () => {
+  it('starts pi itself, wrapped in nothing', () => {
     adapter = new PiAdapter({ runDir: tmp('tade-pi-') })
     const launch = adapter.launchSpec({ run: 'r1', task: 'app/t', cwd: '/wt/t', prompt: '' })
     expect(launch.command).toBe(process.execPath)

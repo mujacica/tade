@@ -68,9 +68,6 @@ closes, which is the thing this design exists to avoid.
 - Own the harness's own record: `conversationKey` (two tasks with the same key share a
   conversation), `hasConversation` (whether coming back needs an opening instruction), `spent`
   (the ledger read on opening). Nothing outside the adapter reads a harness's files.
-- Say where a contained agent must write (`sandboxWrites`): the folder it keeps conversations in,
-  and a prefix for a file it replaces through a temporary sibling. Leave one out and a sandboxed
-  agent runs, answers, and quietly keeps nothing — no session to come back to, no spend.
 
 - Own its accounts, if it can have more than one (`capabilities.accounts`): an adapter is made
   per account (`HarnessOptions.account`: a folder, and for an API key a *command* that prints it),
@@ -101,8 +98,9 @@ everything said to it is typed into its lane. Each of these was found the hard w
   all through one queue per lane.
 - **No hook runs when a turn is cut short**, and the Stop hook runs *before* the last of the reply is
   in the transcript: say the abort yourself, and count tokens after the status line is drawn.
-- **A contained agent that cannot write its own folder runs and keeps nothing**: declare
-  `sandboxWrites`, prefixes included.
+- **Containment is the harness's, never Tade's.** Tade has no sandbox and offers none: where the
+  harness has one of its own, the adapter decides what to pass it — Codex's adapter passes
+  `--sandbox danger-full-access`, because Tade's approval gate is what decides here.
 - **Subscriptions are the user's own, through the harness's own sign-in.** Tade runs the unmodified
   binary, never reads or stores a subscription token, and an API key it keeps is read by the harness
   through a command, so it is never written into a launch line.

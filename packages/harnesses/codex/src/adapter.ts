@@ -6,13 +6,7 @@ import { homedir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import {
-  type RequiredProgram,
-  sandboxed,
-  type ThinkingLevel,
-  type ToolEffect,
-  type Unsubscribe,
-} from '@tade/core'
+import type { RequiredProgram, ThinkingLevel, ToolEffect, Unsubscribe } from '@tade/core'
 import {
   type AccountStatus,
   type HarnessAccount,
@@ -26,7 +20,6 @@ import {
   type PlanLimits,
   type RunId,
   reaped,
-  type SandboxWrites,
   type SignIn,
   WORKER_ENV,
   type WorkerAdapter,
@@ -372,17 +365,6 @@ export class CodexAdapter implements WorkerAdapter {
   }
 
   /**
-   * Codex writes its threads, its state databases and its caches under its
-   * home; its hooks and the server that lends it Tade's tools reach Tade
-   * through the socket beside the run's files. Contained without either, it
-   * runs, answers, and quietly keeps nothing — no thread to come back to, and
-   * nothing said to the window.
-   */
-  sandboxWrites(): SandboxWrites {
-    return { paths: [this.opts.codexHome, this.opts.socketDir], prefixes: [] }
-  }
-
-  /**
    * What it can be started on, as Codex's own catalog names them. Asked of
    * Codex rather than kept here, because a list of models written down would
    * be out of date the first time one came out.
@@ -553,34 +535,34 @@ export class CodexAdapter implements WorkerAdapter {
   }
 
   launchSpec(spec: WorkerSpec): LaunchSpec {
-    const launch = sandboxed(
-      {
-        command: '/bin/sh',
-        args: [
-          '-c',
-          LAUNCHER,
-          'tade-codex',
-          threadFile(spec.task, this.opts.runDir),
-          this.opts.account?.kind === 'api-key' ? (this.opts.account.key ?? '') : '',
-          this.opts.bin,
-          ...this.overrides(spec, { hooks: true }),
-          // Tade's own gate decides what is held; Codex asking as well would
-          // ask twice, in a lane nobody may be looking at.
-          '--ask-for-approval',
-          'never',
-          '--sandbox',
-          'danger-full-access',
-          // Tade wrote the hooks it is being given, one launch at a time.
-          '--dangerously-bypass-hook-trust',
-          // `--skip-git-repo-check` belongs to `codex exec` and nowhere else:
-          // given to the one that draws a terminal, Codex refuses the line and
-          // the lane holds a usage message instead of an agent. What answers
-          // the question in a terminal is the folder being trusted, above.
-          ...this.opts.args,
-        ],
-      },
-      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
-    )
+    const launch = {
+      command: '/bin/sh',
+      args: [
+        '-c',
+        LAUNCHER,
+        'tade-codex',
+        threadFile(spec.task, this.opts.runDir),
+        this.opts.account?.kind === 'api-key' ? (this.opts.account.key ?? '') : '',
+        this.opts.bin,
+        ...this.overrides(spec, { hooks: true }),
+        // Tade's own gate decides what is held; Codex asking as well would
+        // ask twice, in a lane nobody may be looking at.
+        '--ask-for-approval',
+        'never',
+        // Codex's own containment, turned off: what an agent may reach is
+        // the harness's business and never Tade's, and Tade's gate is what
+        // decides here. Its flag, not a setting of ours.
+        '--sandbox',
+        'danger-full-access',
+        // Tade wrote the hooks it is being given, one launch at a time.
+        '--dangerously-bypass-hook-trust',
+        // `--skip-git-repo-check` belongs to `codex exec` and nowhere else:
+        // given to the one that draws a terminal, Codex refuses the line and
+        // the lane holds a usage message instead of an agent. What answers
+        // the question in a terminal is the folder being trusted, above.
+        ...this.opts.args,
+      ],
+    }
     return {
       ...launch,
       env: this.runEnv(spec),
@@ -968,26 +950,24 @@ export class CodexAdapter implements WorkerAdapter {
   /** Start a turn: `codex exec`, on this run's own thread, printing its events. */
   private async runTurn(entry: Run, message: string): Promise<void> {
     const spec = entry.spec
-    const launch = sandboxed(
-      {
-        command: this.opts.bin,
-        args: [
-          'exec',
-          ...(entry.thread ? ['resume', entry.thread] : []),
-          ...this.overrides(spec, { hooks: true, gate: false }),
-          '--sandbox',
-          'danger-full-access',
-          '--dangerously-bypass-hook-trust',
-          '--skip-git-repo-check',
-          '--json',
-          ...this.opts.args,
-          // Read from standard input: what is said never goes on a command
-          // line, where every process table would have it.
-          '-',
-        ],
-      },
-      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
-    )
+    const launch = {
+      command: this.opts.bin,
+      args: [
+        'exec',
+        ...(entry.thread ? ['resume', entry.thread] : []),
+        ...this.overrides(spec, { hooks: true, gate: false }),
+        // Codex's own flag, as above: containment is the harness's to decide.
+        '--sandbox',
+        'danger-full-access',
+        '--dangerously-bypass-hook-trust',
+        '--skip-git-repo-check',
+        '--json',
+        ...this.opts.args,
+        // Read from standard input: what is said never goes on a command
+        // line, where every process table would have it.
+        '-',
+      ],
+    }
     // It has no lane to carry on in and nobody could find it again, so it
     // does not outlive Tade — however Tade ends.
     const watched = reaped(launch)

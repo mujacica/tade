@@ -98,9 +98,10 @@ not duplicate something Tade already does better through a port of its own.
   so. The warm-up (`Brokered.warm`) is what fills it, once, after the window is up — never on the
   way up, and never on the draw path.
 - **A process of somebody else's is detached, scrubbed and ended by whoever started it.** Its own
-  process group, an environment of `PATH`/`HOME`/`TMPDIR` plus what the declaration names, a
-  scratch directory of its own to work in, and a sandbox that cannot be applied is a server listed
-  broken rather than one started loose. Nothing waits without a deadline.
+  process group, an environment of `PATH`/`HOME`/`TMPDIR` plus what the declaration names, and a
+  scratch directory of its own to work in. That is all of it: nothing contains the program, it
+  runs as you, and `SERVER_RUNS_AS_YOU` says so where somebody turns one on. Nothing waits
+  without a deadline.
 - **The page is the Extensions page.** A server somebody decided about is a row among the
   extensions (`ExtensionView.server`); the rest are the catalogue behind one group row. What a
   server's row says comes from `shownServers`, and it says only what is true — a server that is

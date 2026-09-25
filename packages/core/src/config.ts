@@ -5,6 +5,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
 import { z } from 'zod'
+import { dropGone } from './gone.ts'
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
 // error rather than a silently ignored setting.
@@ -39,9 +40,6 @@ export const WorkerRoute = z.strictObject({
   model: z.string().optional(),
   /** How hard new agents think: the harness's own default when unset. */
   thinking: z.enum(THINKING_LEVELS).optional(),
-  // `container` was here and did nothing; a sandbox you can select and not get
-  // is worse than one that is not offered.
-  sandbox: z.enum(['none', 'bwrap', 'seatbelt']).default('none'),
   /**
    * What new agents start on in a harness other than the route's own. A model
    * chosen for a Claude Code agent is not one for pi's, and each harness names
@@ -242,12 +240,6 @@ const McpServerSchema = z.strictObject({
    * third party's handle on a worktree Tade's gate cannot see into.
    */
   scope: z.enum(['window', 'project']).optional(),
-  /**
-   * What the started program may write to. `none` means everything you can;
-   * the others hold it to a scratch directory of its own. Asked for and
-   * unavailable, the server is listed broken rather than started loose.
-   */
-  sandbox: z.enum(['none', 'seatbelt', 'bwrap']).optional(),
   /** What you turned it on for, in a line. The popular ones come with their own words. */
   about: z.string().optional(),
 })
@@ -318,7 +310,7 @@ export const ConfigSchema = z
         /** Which route to use when a project doesn't name one. */
         default: RouteName.default('default'),
         // prefault, not default: the fallback is an input to parse, so the
-        // built-in route picks up harness and sandbox defaults like any other.
+        // built-in route picks up the harness default like any other route.
         routes: z.record(RouteName, WorkerRoute).prefault({ default: {} }),
         /**
          * Which account new agents of each harness run as. Absent, the
@@ -667,7 +659,7 @@ export interface ConfigIssue {
 }
 
 export type ConfigResult =
-  | { ok: true; config: Config; path: string; exists: boolean }
+  | { ok: true; config: Config; path: string; exists: boolean; warnings: string[] }
   | { ok: false; path: string; issues: ConfigIssue[] }
 
 export function parseConfig(text: string, path = '<inline>'): ConfigResult {
@@ -678,6 +670,7 @@ export function parseConfig(text: string, path = '<inline>'): ConfigResult {
     const message = err instanceof YAMLParseError ? err.message : String(err)
     return { ok: false, path, issues: [{ path: '', message: `invalid YAML: ${message}` }] }
   }
+  const warnings = dropGone(raw)
   const parsed = ConfigSchema.safeParse(raw)
   if (!parsed.success) {
     return {
@@ -689,7 +682,7 @@ export function parseConfig(text: string, path = '<inline>'): ConfigResult {
       })),
     }
   }
-  return { ok: true, config: parsed.data, path, exists: true }
+  return { ok: true, config: parsed.data, path, exists: true, warnings }
 }
 
 /**
@@ -752,7 +745,7 @@ export async function loadConfig(path = defaultConfigPath()): Promise<ConfigResu
     text = await readFile(path, 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { ok: true, config: ConfigSchema.parse({}), path, exists: false }
+      return { ok: true, config: ConfigSchema.parse({}), path, exists: false, warnings: [] }
     }
     return { ok: false, path, issues: [{ path: '', message: String(err) }] }
   }

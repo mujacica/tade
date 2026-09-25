@@ -175,7 +175,6 @@ function declare(host: string, over: Partial<ServerDeclaration> = {}): ServerDec
     variables: [],
     tools: [],
     scope: 'window',
-    sandbox: 'none',
     install: null,
     ...over,
   }

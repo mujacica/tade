@@ -538,6 +538,10 @@ describe('the extensions page at any width', () => {
     // One row in the list, not twelve: the list stays findable.
     const rows = plainRows(drawnAt(extensionsPanel(SERVERS_ROW))).join('\n')
     expect(rows).toContain('MCP servers')
+    // The clause once over the whole list, never three lines under each of
+    // them: what Tade holds a server to is nothing, and every row here has a
+    // `Turn on` beside it.
+    expect(said).toContain('nothing here holds it')
   })
 
   it('says of a server that is on where it is, and what the server calls each tool', () => {
@@ -555,6 +559,9 @@ describe('the extensions page at any width', () => {
     expect(said).toContain('weird is not offered')
     // A command that downloads its code every time it starts says so.
     expect(said).toContain('fetches code from the network')
+    // What turning it on means is said where turning it on is the decision,
+    // not on every page of every server that is already on forever.
+    expect(said).not.toContain('runs as you')
   })
 
   it('says of a server that is off that it was never connected, and nothing else', () => {
@@ -566,6 +573,10 @@ describe('the extensions page at any width', () => {
     // No tools, no version, no "last asked": nothing has asked it anything.
     expect(said).not.toContain('TOOLS')
     expect(said).not.toContain('Last asked')
+    // Tade holds somebody else's program to nothing, and this is the row
+    // where somebody is about to decide, so this is where that is said.
+    expect(said).toContain('runs as you')
+    expect(said).toContain('scratch directory of its own')
   })
 
   it('lists what each harness loads by itself without claiming any of it', () => {

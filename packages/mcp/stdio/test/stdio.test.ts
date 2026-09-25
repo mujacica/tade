@@ -44,7 +44,6 @@ function declare(mode: string, over: Partial<ServerDeclaration> = {}): ServerDec
     variables: [],
     tools: [],
     scope: 'window',
-    sandbox: 'none',
     install: null,
     ...over,
   }
@@ -164,15 +163,6 @@ describe('a server that is a program on this machine', () => {
     )
     expect(said).toContain('not on this machine')
     expect(said).toContain('npm i -g the-thing')
-  })
-
-  it('refuses a sandbox it cannot apply here rather than starting the program loose', async () => {
-    const transport = makeStdioTransport({ platform: 'linux' })
-    const said = await transport.ready(declare('works', { sandbox: 'seatbelt' }), context())
-    expect(said).toContain('seatbelt')
-    await expect(
-      transport.open(declare('works', { sandbox: 'seatbelt' }), context()),
-    ).rejects.toMatchObject({ trouble: 'unavailable' })
   })
 
   it('says why a program that will not start would not, in its own words', async () => {

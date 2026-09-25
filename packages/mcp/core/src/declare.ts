@@ -1,6 +1,6 @@
 import { CATALOGUE, type CatalogueEntry, catalogued } from './catalogue.ts'
 import { serverNameProblem } from './naming.ts'
-import type { AuthKind, SandboxKind, ServerDeclaration, ServerScope } from './port.ts'
+import type { AuthKind, ServerDeclaration, ServerScope } from './port.ts'
 
 // What Tade has been told about, and what is wrong with each of them.
 //
@@ -27,7 +27,6 @@ export interface ServerSettings {
   key_env?: string | undefined
   tools?: readonly string[] | undefined
   scope?: ServerScope | undefined
-  sandbox?: SandboxKind | undefined
   about?: string | undefined
 }
 
@@ -131,7 +130,6 @@ function one(
     variables,
     tools: said.tools ?? [],
     scope: said.scope ?? entry?.scope ?? 'window',
-    sandbox: said.sandbox ?? 'none',
     install: entry?.install ?? null,
   }
   return {

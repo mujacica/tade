@@ -89,7 +89,6 @@ export function orchestratorRoute(config: Config): ResolvedRoute {
   return {
     name: 'orchestrator',
     harness,
-    sandbox: 'none',
     ...(provider ? { provider } : {}),
     ...(model ? { model } : {}),
     ...(thinking ? { thinking } : {}),

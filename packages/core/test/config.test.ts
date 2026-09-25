@@ -25,7 +25,7 @@ workers:
   default: cheap
   routes:
     cheap: { provider: openrouter, model: deepseek/deepseek-v3 }
-    subscription: { provider: anthropic, model: claude-opus-5, sandbox: seatbelt }
+    subscription: { provider: anthropic, model: claude-opus-5, thinking: high }
 surfaces:
   voice:
     stt: { driver: groq, language: en, api_key_env: GROQ_API_KEY }
@@ -36,7 +36,50 @@ projects:
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.config.projects.checkout?.max_parallel).toBe(2)
-    expect(r.config.workers.routes.subscription?.sandbox).toBe('seatbelt')
+    expect(r.config.workers.routes.subscription?.thinking).toBe('high')
+  })
+
+  it('ignores a setting Tade no longer has, and says so rather than refusing the file', () => {
+    // Sandboxes are gone, and people have them written down. Refusing the
+    // whole file over one would take away everything else they wrote at the
+    // same time, and accepting it silently would read like a promise.
+    const r = parseConfig(`
+workers:
+  routes:
+    default: { model: claude-opus-5, sandbox: seatbelt }
+mcp:
+  servers:
+    linear: { enabled: true, sandbox: bwrap }
+projects:
+  checkout: { root: ~/src/checkout }
+`)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // Everything beside it survives, which is the whole point of not refusing.
+    expect(r.config.workers.routes.default?.model).toBe('claude-opus-5')
+    expect(r.config.mcp.servers.linear?.enabled).toBe(true)
+    expect(r.config.projects.checkout?.root).toBe('~/src/checkout')
+    expect(r.warnings).toHaveLength(2)
+    expect(r.warnings[0]).toContain('workers.routes.default.sandbox')
+    expect(r.warnings[0]).toContain('sandboxes are gone')
+    expect(r.warnings[1]).toContain('mcp.servers.linear.sandbox')
+  })
+
+  it('says nothing about a config that names no setting Tade has dropped', () => {
+    const r = parseConfig('workers:\n  routes:\n    default: { model: claude-opus-5 }\n')
+    expect(r.ok && r.warnings).toEqual([])
+  })
+
+  it('leaves a key called sandbox alone where no rule names one', () => {
+    // The rules are shapes, not the word: `mcp.servers.<name>.env.sandbox` is
+    // somebody's environment variable and none of Tade's business.
+    const r = parseConfig(
+      'mcp:\n  servers:\n    linear: { enabled: true, env: { sandbox: "yes" } }\n',
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.warnings).toEqual([])
+    expect(r.config.mcp.servers.linear?.env).toEqual({ sandbox: 'yes' })
   })
 
   it('shows what CI runs without running it, unless told otherwise', () => {

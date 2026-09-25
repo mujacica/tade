@@ -6,7 +6,6 @@ import {
   decideApproval,
   modelDetail,
   modelIdentity,
-  type SandboxKind,
   type TaskId,
   type ThinkingLevel,
   type Tier,
@@ -44,11 +43,6 @@ export interface StartRunRequest {
    * Defaults to `cwd`, which is the task's worktree in normal use.
    */
   worktree?: string
-  /**
-   * How to contain the worker. Comes from the task's route; `none` unless the
-   * config asks for one.
-   */
-  sandbox?: SandboxKind
   /** What extensions add to it: instructions, tools, harness-native pieces. */
   extras?: WorkerExtras
   /** The harness it runs in — `harness@account` for an account's — the default one unless said. */
@@ -340,11 +334,6 @@ export class WorkerSupervisor {
         ...(request.thinking ? { thinking: request.thinking } : {}),
         ...(request.extras ? { extras: request.extras } : {}),
         ...(request.images ? { images: request.images } : {}),
-        // The worktree is both the policy boundary and the sandbox boundary:
-        // the one place a worker is meant to be changing anything.
-        ...(request.sandbox && request.sandbox !== 'none'
-          ? { sandbox: { kind: request.sandbox, worktree } }
-          : {}),
       })
     } catch (err) {
       stop()

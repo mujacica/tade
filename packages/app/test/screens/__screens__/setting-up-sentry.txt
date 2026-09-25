@@ -10,7 +10,7 @@
             │ Create a token ↗                                                                             │            
  ▸ SMART QUE│                                                                                              │            
  ▾ CHANGES  │ Kept in config.yaml as you typed it, so you can read it back — and any agent you run can     │            
-  M package.│ read it too: agents run as you, unsandboxed unless you say so. To keep one out of the file,  │            
+  M package.│ read it too: agents run as you, and nothing sandboxes them. To keep one out of the file,     │            
   A …/webhoo│ export its variable instead, which wins and is never written down, or leave this unset.      │            
   M src/webh│                                                                                              │            
             │ Auth token       sntryu_typed_just_now▏                                                      │            

@@ -25,9 +25,6 @@ export type AuthKind = 'none' | 'env' | 'bearer' | 'header'
 /** One of it for this window, or one per project, in that project's own directory. */
 export type ServerScope = 'window' | 'project'
 
-/** What a started program may write to. Never applied loosely: unavailable is broken. */
-export type SandboxKind = 'none' | 'seatbelt' | 'bwrap'
-
 /**
  * A server Tade has been told about, with everything resolved: what the
  * person wrote, filled in by the catalogue where they wrote nothing.
@@ -63,7 +60,6 @@ export interface ServerDeclaration {
   /** Offer only these of its tools, by the name Tade gives them. Empty offers all. */
   tools: readonly string[]
   scope: ServerScope
-  sandbox: SandboxKind
   /** The line a person runs to get the program, when the catalogue knows one. */
   install: string | null
 }

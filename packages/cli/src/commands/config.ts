@@ -25,6 +25,10 @@ export function registerConfig(program: Command, io: Io, setExit: (code: number)
         setExit(Exit.invalidInput)
         return
       }
+      // A setting Tade no longer has is said rather than refused: the file is
+      // otherwise fine, and a line somebody can go and delete is worth more
+      // than an error that takes the rest of their setup down with it.
+      for (const warning of result.warnings) io.err(`${result.path}: ${warning}`)
       if (opts.check) {
         io.out(result.exists ? `${result.path}: ok` : `${result.path}: not found, using defaults`)
         return

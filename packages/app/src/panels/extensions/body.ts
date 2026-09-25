@@ -1,4 +1,5 @@
 import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
+import { SERVER_HELD_BY_NOTHING, SERVER_RUNS_AS_YOU } from '@tade/core'
 import type { Hit } from '../../hits.ts'
 import { blank, type Pointer, Row } from '../../ui.ts'
 import { cap, padTo } from '../cells.ts'
@@ -140,7 +141,13 @@ export function extensionBody(
   }
 
   if (here.kind === 'servers') {
-    wrap('Tool servers Tade knows about, none of them on. Turning one on is yours.', 1)
+    // The clause and not the sentence: this is a list with a `Turn on` beside
+    // every row, and three lines true of all of them under each is the
+    // footnote nobody reads. The whole of it is on the row you open.
+    wrap(
+      `Tool servers Tade knows about, none of them on. Turning one on is yours, and ${SERVER_HELD_BY_NOTHING}.`,
+      1,
+    )
     for (const server of facts.servers) {
       lines.push(blank(form))
       const title = row()
@@ -375,6 +382,12 @@ export function extensionBody(
       skin.hint,
     )
     if (view.server.fetches) wrap(FETCHES, 1, skin.waiting)
+    // What turning it on means, said on the rows where turning it on is the
+    // decision in front of you — the same rule the credential note goes by,
+    // and for the same reason: three lines true of every server, on every
+    // server's page forever, is the footnote nobody reads. Nothing in Tade
+    // holds the program to anything, which is why it is said at all.
+    if (!view.server.on) wrap(SERVER_RUNS_AS_YOU, 1, skin.hint)
     if (view.server.install) wrap(`install: ${view.server.install}`, 1, skin.hint)
     if (view.server.note) wrap(view.server.note, 1, skin.hint)
     for (const dropped of view.server.dropped) {

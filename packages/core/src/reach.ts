@@ -65,7 +65,10 @@ const NEVER: readonly (readonly [string, string])[] = [
   ],
   ['accounts', 'an account is a sign-in: whose money and whose permissions agents run with'],
   ['workers.accounts', 'which sign-in agents run as is a sign-in decision'],
-  ['workers.routes', 'a route carries the sandbox, which is what an agent may write to'],
+  [
+    'workers.routes',
+    'a route carries the provider an agent’s work is sent to, and where Tade sends something is not mine to move',
+  ],
   [
     'extensions',
     'an extension is code your agents call, and its own key lives here — turning one on or pointing it somewhere else is a person’s act',
@@ -96,6 +99,10 @@ const NEVER: readonly (readonly [string, string])[] = [
  * of one project, and that is `asked`: it decides where the next agent works,
  * which widens nothing an agent may do. `root` stays refused — moving it moves
  * every agent already in the project.
+ *
+ * A route is the same shape: its model, how hard it thinks and which harness
+ * it opens are ordinary settings, and `provider` is the one left that a
+ * sentence I read must not reach, because it is where the work is sent.
  */
 const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.brief$/,

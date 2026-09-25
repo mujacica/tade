@@ -3,7 +3,6 @@ import type {
   LaneId,
   LimitsSupport,
   RequiredProgram,
-  SandboxSpec,
   TaskId,
   ThinkingLevel,
   ToolEffect,
@@ -39,11 +38,6 @@ export interface WorkerSpec {
   /** Lane to render into, for adapters that show a UI. */
   lane?: LaneId
   env?: Record<string, string>
-  /**
-   * How to contain this worker. An adapter that spawns a process must apply
-   * it: the harness has no permission system of its own.
-   */
-  sandbox?: SandboxSpec
   /** What extensions add to this worker. */
   extras?: WorkerExtras
   /** A name a person gave the work, for the harness's own session to carry. */
@@ -278,8 +272,7 @@ export const WORKER_ENV = {
 export const REAPER_PATH = fileURLToPath(new URL('./reaper.ts', import.meta.url))
 
 /**
- * Wrap a launch so it cannot outlive Tade, the way `sandboxed` wraps one so it
- * cannot write outside its worktree.
+ * Wrap a launch so it cannot outlive Tade.
  *
  * For `start()` only: an agent in a lane is meant to carry on without us —
  * that is what a driver whose lanes detach is for — but the one Tade draws
@@ -477,18 +470,6 @@ export function noHarnessSpend(): HarnessSpend {
   }
 }
 
-/**
- * Where a contained agent of this harness has to be able to write, beyond its
- * worktree: the harness's own record of the conversation, mostly. Without
- * them an agent can run and quietly keep nothing.
- */
-export interface SandboxWrites {
-  /** Directories, and everything under them. */
-  paths: readonly string[]
-  /** Files written by replacing them, whose temporary siblings share this prefix. */
-  prefixes: readonly string[]
-}
-
 /** US dollars per million tokens, as a harness's catalog prices a model. */
 export interface ModelPrice {
   input: number
@@ -680,8 +661,6 @@ export interface WorkerAdapter {
   hasConversation(task: TaskId, cwd: string): Promise<boolean>
   /** What a task's agent has spent, from the harness's own record. Nothing spent when it has none. */
   spent(task: TaskId, cwd: string): Promise<HarnessSpend>
-  /** Where a contained agent must be able to write, beyond its worktree. */
-  sandboxWrites(): SandboxWrites
   /** The models an agent of this harness can be started on, as it offers them. */
   models(): Promise<HarnessModel[]>
   /** A model said the way people say it — "opus 5" — among this harness's. */

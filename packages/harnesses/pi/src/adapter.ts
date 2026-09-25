@@ -1,13 +1,11 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   effectByName,
   type RequiredProgram,
-  sandboxed,
   THINKING_LEVELS,
   type ThinkingLevel,
   type ToolEffect,
@@ -24,7 +22,6 @@ import {
   type PlanLimits,
   type RunId,
   reaped,
-  type SandboxWrites,
   type SignIn,
   WORKER_ENV,
   type WorkerAdapter,
@@ -351,14 +348,6 @@ export class PiAdapter implements WorkerAdapter {
     return usageOfTask(task, this.recordsAt())
   }
 
-  /**
-   * pi writes its sessions, and refreshed sign-ins, under its own folder: a
-   * contained pi that cannot is one that runs and quietly keeps nothing.
-   */
-  sandboxWrites(): SandboxWrites {
-    return { paths: [this.opts.sessionsRoot ?? join(homedir(), '.pi', 'agent')], prefixes: [] }
-  }
-
   async account(): Promise<AccountStatus> {
     try {
       const providers = await loggedInProviders()
@@ -442,25 +431,22 @@ export class PiAdapter implements WorkerAdapter {
    * already told once.
    */
   launchSpec(spec: WorkerSpec): LaunchSpec {
-    const launch = sandboxed(
-      {
-        command: process.execPath,
-        args: [
-          this.opts.bin,
-          ...this.modelArgs(spec.model),
-          ...(spec.thinking ? ['--thinking', spec.thinking] : []),
-          '--session-id',
-          sessionIdFor(spec.task),
-          '-e',
-          EXTENSION_PATH,
-          '-e',
-          COMPAT_PATH,
-          ...extrasArgs(spec),
-          ...this.opts.args,
-        ],
-      },
-      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
-    )
+    const launch = {
+      command: process.execPath,
+      args: [
+        this.opts.bin,
+        ...this.modelArgs(spec.model),
+        ...(spec.thinking ? ['--thinking', spec.thinking] : []),
+        '--session-id',
+        sessionIdFor(spec.task),
+        '-e',
+        EXTENSION_PATH,
+        '-e',
+        COMPAT_PATH,
+        ...extrasArgs(spec),
+        ...this.opts.args,
+      ],
+    }
     return {
       ...launch,
       env: this.runEnv(spec),
@@ -522,33 +508,27 @@ export class PiAdapter implements WorkerAdapter {
         })
       : null
 
-    // Contained if the route asked for it. The harness runs with whatever
-    // permissions it was launched with, so this is the only thing between a
-    // worker and the rest of the disk.
-    const launch = sandboxed(
-      {
-        command: process.execPath,
-        args: [
-          this.opts.bin,
-          '--mode',
-          'rpc',
-          // The same conversation every time, which is the whole of coming
-          // back to it: pi makes it under this id once and continues it after.
-          '--session-id',
-          sessionIdFor(spec.task),
-          ...this.modelArgs(spec.model),
-          ...(spec.thinking ? ['--thinking', spec.thinking] : []),
-          '--session-dir',
-          join(this.opts.runDir, 'sessions'),
-          ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
-          '-e',
-          COMPAT_PATH,
-          ...extrasArgs(spec),
-          ...this.opts.args,
-        ],
-      },
-      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
-    )
+    const launch = {
+      command: process.execPath,
+      args: [
+        this.opts.bin,
+        '--mode',
+        'rpc',
+        // The same conversation every time, which is the whole of coming
+        // back to it: pi makes it under this id once and continues it after.
+        '--session-id',
+        sessionIdFor(spec.task),
+        ...this.modelArgs(spec.model),
+        ...(spec.thinking ? ['--thinking', spec.thinking] : []),
+        '--session-dir',
+        join(this.opts.runDir, 'sessions'),
+        ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
+        '-e',
+        COMPAT_PATH,
+        ...extrasArgs(spec),
+        ...this.opts.args,
+      ],
+    }
 
     // It has no lane to carry on in and nobody could find it again, so it
     // does not outlive Tade — however Tade ends.
@@ -986,8 +966,8 @@ export class PiAdapter implements WorkerAdapter {
  * End a model process, and whatever it started.
  *
  * It leads its own process group, so the group is what to signal: the pid
- * alone would leave the tools pi had spawned behind, holding the sandbox and
- * the worktree. A group that has already gone — or a platform without them —
+ * alone would leave the tools pi had spawned behind, still holding the
+ * worktree. A group that has already gone — or a platform without them —
  * falls back to the child, which is the outcome either way.
  */
 function endProcess(child: ChildProcess): void {

@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process'
 import { existsSync, lstatSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -142,17 +141,6 @@ describe('ClaudeAdapter', () => {
       expect(mcp.mcpServers.tade.args).toEqual([MCP_PATH])
       expect(mcp.mcpServers.tade.env.TADE_EXTENSION_TOOLS).toBe('/tools.json')
       expect(readFileSync(given('--append-system-prompt-file'), 'utf8')).toBe('You run in Tade.')
-    })
-
-    it('lets a contained agent write its account, and the default account’s state file', () => {
-      // The default is where Claude Code looks when left alone: the real home.
-      const own = new ClaudeAdapter({ runDir: tmp('tcc-') })
-      expect(own.sandboxWrites()).toEqual({
-        paths: [join(homedir(), '.claude')],
-        prefixes: [join(homedir(), '.claude.json')],
-      })
-      const other = new ClaudeAdapter({ runDir: tmp('tcc-'), configDir: '/accounts/work' })
-      expect(other.sandboxWrites()).toEqual({ paths: ['/accounts/work'], prefixes: [] })
     })
   })
 
