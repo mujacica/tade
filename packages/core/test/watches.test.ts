@@ -1,6 +1,8 @@
 import {
+  askAboutWatches,
   ONLY_TELLS,
   STARTS_AGENTS,
+  type Step,
   WATCH_REACH,
   type WatchOffered,
   watchesToOffer,
@@ -81,6 +83,24 @@ describe('the watches the first minute offers', () => {
       }),
     ])
     expect(one).toMatchObject({ title: 'Failing CI', means: 'reads the commit', every: '10m' })
+  })
+})
+
+describe('whether the first minute asks about them at all', () => {
+  const step = (id: string, done: boolean): Step =>
+    ({ id, title: id, done, detail: '', required: false }) as Step
+
+  it('asks where this run is deciding the extensions', () => {
+    expect(askAboutWatches([step('model', true), step('extensions', false)])).toBe(true)
+  })
+
+  it('and never again once they have been decided', () => {
+    // The whole of how it avoids being the step people learn to skip: a
+    // question that comes back every time about something you said no to last
+    // week is one people press through without reading.
+    expect(askAboutWatches([step('model', false), step('extensions', true)])).toBe(false)
+    expect(askAboutWatches([step('model', false)])).toBe(false)
+    expect(askAboutWatches([])).toBe(false)
   })
 })
 

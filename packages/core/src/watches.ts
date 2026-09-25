@@ -1,3 +1,4 @@
+import type { Step } from './readiness.ts'
 import type { WatchOffered } from './schedule.ts'
 
 // Which watches to suggest, and what each one costs to say yes to.
@@ -17,6 +18,26 @@ import type { WatchOffered } from './schedule.ts'
 //
 // Pure: offers in, choices out. Nothing here writes a schedule or asks
 // anybody anything.
+
+/**
+ * Whether the first minute should offer the watches at all.
+ *
+ * Only where it is deciding the extensions, which is the whole of how this
+ * avoids becoming the step people learn to skip: the extensions step is
+ * finished for good once every extension has been decided about, so the
+ * question is asked on a machine where nothing has been decided and never
+ * again. A wizard that asks every time about something you said no to last
+ * week is one people press through without reading.
+ *
+ * It is not a step of its own for the same reason: a step has to know when it
+ * is done, and nothing records "I was offered the watches and said no" — the
+ * one thing that does record a decision about a watch is its schedule, and
+ * writing a paused schedule for every watch somebody declined would fill the
+ * queue with rows nobody asked for.
+ */
+export function askAboutWatches(steps: readonly Step[]): boolean {
+  return steps.some((step) => step.id === 'extensions' && !step.done)
+}
 
 /** What being on costs, for a watch that puts work in the queue by itself. */
 export const STARTS_AGENTS = 'starts an agent on each thing it finds'

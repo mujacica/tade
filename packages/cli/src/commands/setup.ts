@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runScreen, ScreenCancelled, type Ui } from '@tade/app'
 import {
+  askAboutWatches,
   defaultConfigPath,
   type InstallersHere,
   isReady,
@@ -173,13 +174,10 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       }
 
       const stuck: string[] = []
-      /**
-       * Whether the extensions step ran this time, which is what says the
-       * watches are worth offering: they are asked once, on the machine where
-       * nothing has been decided, and that step is finished for good the
-       * moment every extension has been.
-       */
-      let chose = false
+      // Read before anything is answered, because answering the extensions
+      // step is what makes it done: `askAboutWatches` says the watches are
+      // worth offering only where this run is deciding the extensions.
+      const offerWatches = askAboutWatches(readiness(facts))
       const todo = readiness(facts).some((step) => !step.done)
       const context = () => render([...readiness(facts), worksStep(proof)])
       const flow = runScreen({ title: 'Setting up', context: context() }, async (ui) => {
@@ -191,7 +189,6 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
               look = await lookHere(home)
               return look
             })
-            if (id === 'extensions') chose = true
           } catch (err) {
             // One step that cannot be finished is not a reason to abandon the
             // others: somebody who has to go and export an API key should
@@ -211,9 +208,8 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
         }
         // Which watches should look, after the keys rather than with the
         // extensions: what a watch can do turns on whether its extension has
-        // what it needs, and the step above is where a key gets pasted. Asked
-        // only where the extensions were, so it is asked once and never again.
-        if (chose) {
+        // what it needs, and the step above is where a key gets pasted.
+        if (offerWatches) {
           ui.say('')
           try {
             await setUpWatches(ui)
