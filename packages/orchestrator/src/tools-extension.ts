@@ -377,7 +377,7 @@ export function orchestratorTools(
         most: {
           type: 'number',
           description:
-            'at most this many new things one look acts on; the rest wait for the next (2 unless said)',
+            'at most this many new things one look acts on; the rest wait for the next. Left out, it is what the watch says is right for it, and two otherwise — a ceiling on agents started, which is the wrong ceiling for a watch that only tells you something',
         },
         done,
         missed: {
