@@ -1438,27 +1438,31 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   runs in `test:smoke`, so a file crossing its line is said at the commit rather than in CI, and every
   failure says what to do about it. `app.ts` reached 8,635 lines because adding the fortieth subject
   to it was never once visibly a decision, and prose does not fail a build.
-- **A coverage floor per package, and never one number for the repository.** `scripts/coverage.ts`
-  is the same ratchet in the other direction — one table, checked in, a floor may go **up** in the
-  commit that earns it and never down without an argument, and a floor sitting more than `SLACK = 4`
-  points under what a package covers is the ratchet failing. It is per package because one number
-  answers nothing: `packages/core` is pure functions and covers 97%, `packages/harnesses/pi` spawns
-  a real agent and covers 62%, and the 86% they average to is true of nothing — and a single total
-  can be held up by the cheap half of the repository while the expensive half falls, silently. It
-  is the `tests` check, because measuring costs nothing worth naming (111.6s against 111.8s), so
-  there is no version of the suite that is the one where we also look; `test:smoke` and the commit
-  hook do not measure, because whole-repo floors against a sixth of the suite are red for reasons
-  that have nothing to do with the change. **A number is not the goal**: what it counts is lines
-  that ran, so a test that executes a function and asserts nothing raises every figure in it and is
-  worse than no test, because it makes the table lie — nothing mechanical tells the two apart, and
-  a floor in the way is answered by covering the thing or by lowering the floor and saying why.
-  What the instrument **cannot see** is named file by file with its reason (`UNSEEN`) rather than
-  mocked around: a program that only ever runs in another process reads zero however well it is
-  tested — the `tade` binary, which twenty test files drive by spawning it, and the hooks and MCP
-  servers Claude Code and Codex start. Excluding one is not a claim that it is covered, and the
-  list cannot rot, because an excluded file that shows a covered line fails the gate. One package's
-  floor is the lower of two readings and says so: `harnesses/claude` covers 89% where the `claude`
-  binary is installed and 74% where it is not, and a floor has to be true on both.
+- **A coverage floor per package, and never one number for the repository.**
+  `scripts/coverage-floors.ts` is the same ratchet in the other direction — one table, checked in, a
+  floor may go **up** in the commit that earns it and never down without an argument, and a floor
+  sitting more than `SLACK = 4` points under what a package covers is the ratchet failing. It is per
+  package because one number answers nothing: `packages/core` is pure functions and covers 97%,
+  `packages/harnesses/pi` spawns a real agent and covers 62%, and the 86% they average to is true of
+  nothing — and a single total can be held up by the cheap half of the repository while the
+  expensive half falls, silently. It is the `tests` check, because measuring costs nothing worth
+  naming (111.6s against 111.8s), so there is no version of the suite that is the one where we also
+  look; `test:smoke` and the commit hook do not measure, because whole-repo floors against a sixth
+  of the suite are red for reasons that have nothing to do with the change. **A number is not the
+  goal**: what it counts is lines that ran, so a test that executes a function and asserts nothing
+  raises every figure in it and is worse than no test, because it makes the table lie — nothing
+  mechanical tells the two apart, and a floor in the way is answered by covering the thing or by
+  lowering the floor and saying why. What the instrument **cannot see** is named file by file with
+  its reason (`UNSEEN`) rather than mocked around: a program that only ever runs in another process
+  reads zero however well it is tested — the `tade` binary, which twenty test files drive by
+  spawning it, and the hooks and MCP servers Claude Code and Codex start. Excluding one is not a
+  claim that it is covered, and the list cannot rot, because an excluded file that shows a covered
+  line fails the gate. One package's floor is the lower of two readings and says so:
+  `harnesses/claude` covers 89% where the `claude` binary is installed and 74% where it is not, and
+  a floor has to be true on both. The tables and the rules have no machine under them, so
+  `test/coverage-floors.test.ts` gives every rule a made-up reading that should fire it and one that
+  should not — a gate fails by quietly doing nothing, and `scripts/coverage.ts`, which runs the
+  suite, is only the running and the printing.
 - **A surface is options and values; the explanation lives where somebody asks for it.** Every
   drawn surface — a settings group, a sidebar section, a panel, a footer — is a heading and then
   controls, and no paragraph. A control whose name says what it is gets no sentence under it; where

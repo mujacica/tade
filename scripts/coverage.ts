@@ -1,222 +1,26 @@
 import { execFileSync, spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { type FileCoverage, FLOOR, measure, readCoverage, said } from './coverage-floors.ts'
 
 // The suite, and then what it left uncovered.
 //
-//   pnpm coverage            the suite with coverage, then this gate
-//   pnpm coverage --table    …and print every package, not just the problems
+//   pnpm coverage            the suite with coverage, then the floors
+//   pnpm coverage --table    …and print every package, not just what is wrong
 //
 // This is what the `tests` check runs, so coverage is measured wherever the
 // gate is: on your machine, in `pnpm check`, and in CI. It costs nothing —
 // 111.6s with coverage against 111.8s without, which is noise — so there is no
 // version of the suite that is "the one where we also look".
 //
-// **Why a floor per package and not one number for the repository.** A single
-// percentage hides the thing worth knowing. `packages/core` is pure functions
-// of what they are handed and is at 97%; `packages/harnesses/pi` spawns a real
-// agent and is at 62%. Added together they are 86%, which is true of nothing
-// and answers no question anybody has. Worse, one number can be held up by the
-// cheap half of the repository while the expensive half falls, and nothing
-// says so. So: a floor each, at what that package already does, and a package
-// that slips is named.
-//
-// **What this cannot do.** It counts lines that ran. A test that executes a
-// function and asserts nothing raises every number here, and is worse than no
-// test at all, because it makes this file lie. Nothing mechanical can tell the
-// two apart — so the rule is a rule for people: never write a test to move a
-// number in this file. If a floor is in the way, the honest moves are to cover
-// the thing properly, or to say in the commit message why it is not worth
-// covering and lower it.
-//
-// The shape is `test/modularity.test.ts`'s, deliberately, because it is the
-// same kind of rule: one table, checked in, and a ratchet. The direction is the
-// mirror of it — a line budget may only go down, a coverage floor may only go
-// up.
-//
-// Nothing here can quietly stop working, which is the failure a gate is most
-// likely to have: a report it cannot read is a refusal, a package the report
-// never reached is a named problem, and an excluded file that turns out to be
-// measurable is a named problem too. There is no path through this file that
-// looks at nothing and says it is fine.
+// Everything that decides anything is in `coverage-floors.ts`, which has no
+// machine under it and is held to its cases by `test/coverage.test.ts`. What is
+// here is the running and the printing.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const TABLE = 'scripts/coverage.ts'
-
-/**
- * What each package must cover, in percent of lines that ran.
- *
- * A number here may go UP in the commit that earns it, and never down without
- * a reason in the commit message. Each is set at or just under what that
- * package covers today — one to two points under, which is margin for a
- * machine that takes a different branch, not room to lose work in.
- *
- * Read the low end as a map of where the tests are not: the three at the top
- * are the three that spawn something real and are hardest to reach, and each
- * of them has holes named in the report beside this table.
- */
-const FLOOR: Record<string, number> = {
-  // pi's supervision extension (`tade.ts`, 259 lines) runs inside pi's own
-  // process, and `installed.ts` reads pi's folders with nothing asking it to.
-  'packages/harnesses/pi': 60,
-  // What is left of the CLI once the program itself is taken out (see UNSEEN):
-  // `telemetry.ts` and `commands/voice.ts` are the two with real gaps.
-  'packages/cli': 64,
-  // `tools-extension.ts`: the half of it that talks over the socket to a
-  // running window is reached by nothing in the suite.
-  'packages/orchestrator': 67,
-  // The watch that reads a forge's checks, and the fixing it starts.
-  'packages/extensions/review': 69,
-  'packages/harnesses/claude': 73,
-  'packages/harnesses/codex': 78,
-  'packages/app': 81,
-  'packages/extensions/sentry': 84,
-  'packages/workbench': 85,
-  'packages/extensions/checks': 86,
-  'packages/forges/scripted': 86,
-  'packages/status': 89,
-  'packages/forges/github': 90,
-  'packages/mcp/http': 90,
-  'packages/extensions/deps': 91,
-  'packages/mcp/stdio': 91,
-  'packages/drivers/tmux': 92,
-  'packages/voice/tts': 92,
-  'packages/drivers/pty': 93,
-  'packages/extensions/core': 93,
-  'packages/extensions/resources': 93,
-  'packages/extensions/jev': 94,
-  'packages/judges/jev': 94,
-  'packages/mcp/broker': 94,
-  'packages/voice/core': 94,
-  'packages/core': 95,
-  'packages/forges/core': 95,
-  'packages/judges/core': 95,
-  'packages/voice/stt': 95,
-  'packages/checks/core': 96,
-  'packages/harnesses/core': 96,
-  'packages/checks/scripted': 97,
-  'packages/drivers/core': 97,
-  'packages/mcp/core': 97,
-  'packages/telemetry': 98,
-  'packages/checks/local': 99,
-  'packages/judges/scripted': 99,
-  'packages/mcp/scripted': 99,
-}
-
-/**
- * Packages whose coverage is a fact about the machine as well as about the
- * tests, and so have no one reading a ratchet can hold them to.
- *
- * `live-lane.test.ts` and `orchestrator/test/claude.test.ts` are
- * `describe.runIf(claude)`: they drive the real Claude Code binary when it is
- * on the machine and are skipped when it is not. That is the right test to
- * have — a harness nobody proved can drive the program it adapts is a harness
- * nobody should ship — and it means this package reads about 74% on a runner
- * with no Claude Code and about 89% on the laptop of somebody who works on
- * Tade. The floor is the lower one, because a floor has to be true everywhere;
- * the slack rule is skipped here, because on half the machines that run it the
- * slack is fifteen points and is not anybody's to close.
- */
-const MOVES: Record<string, string> = {
-  'packages/harnesses/claude': 'its live-lane tests run only where Claude Code is installed',
-}
-
-/**
- * Files this cannot see, and why. Each only ever runs in another process, so
- * the coverage this collects — which is of the vitest worker — reads zero
- * however well it is tested.
- *
- * Excluding one is not a claim that it is covered. It is a claim that the
- * number would say nothing, which is worse than no number: a floor computed
- * over a file the instrument cannot see is a floor that measures the
- * instrument. Where a file here has no test at all that is a hole, and the
- * holes are named in the report rather than here, because this list is about
- * what can be measured and not about what was.
- *
- * The list cannot rot, because an excluded file that shows a covered line
- * fails the gate: something imports it now, so it can be measured, and its
- * line here is what is stopping that from counting.
- *
- * What would change it: run the children under `NODE_V8_COVERAGE` and merge
- * what they write into the report. That is real work and it is worth doing —
- * it is 1,536 lines of the CLI, driven by twenty test files, currently
- * invisible.
- */
-const UNSEEN: Record<string, string> = {
-  // The `tade` program. Its tests drive it the way a person does — sixteen of
-  // the twenty files in `packages/cli/test` spawn `bin.ts` and read what it
-  // printed and what it exited with — which is the right test for a program
-  // whose exit codes and stdio are the thing under test, and is invisible from
-  // inside a worker. What stays measured is the CLI's modules: `native.ts`,
-  // `node.ts`, `io.ts`, `version.ts`, `telemetry.ts`, `commands/voice.ts` and
-  // `commands/setup-machine.ts` are all imported directly by a test.
-  'packages/cli/src/bin.ts': 'the binary',
-  'packages/cli/src/program.ts': 'builds the program the binary runs',
-  'packages/cli/src/attach.ts': 'puts a real terminal in raw mode',
-  'packages/cli/src/format.ts': 'prints for `tade status`, which its test runs as a process',
-  'packages/cli/src/with-workbench.ts': 'wraps a command in an open workbench',
-  'packages/cli/src/commands/accounts.ts': 'a command of the binary',
-  'packages/cli/src/commands/app.ts': 'a command of the binary',
-  'packages/cli/src/commands/brief.ts': 'a command of the binary',
-  'packages/cli/src/commands/chat.ts': 'a command of the binary',
-  'packages/cli/src/commands/check.ts': 'a command of the binary',
-  'packages/cli/src/commands/checks.ts': 'a command of the binary',
-  'packages/cli/src/commands/config.ts': 'a command of the binary',
-  'packages/cli/src/commands/lanes.ts': 'a command of the binary',
-  'packages/cli/src/commands/mcp.ts': 'a command of the binary',
-  'packages/cli/src/commands/notes.ts': 'a command of the binary',
-  'packages/cli/src/commands/proposals.ts': 'a command of the binary',
-  'packages/cli/src/commands/schedules.ts': 'a command of the binary',
-  'packages/cli/src/commands/setup.ts': 'a command of the binary',
-  'packages/cli/src/commands/setup-facts.ts': 'a command of the binary',
-  'packages/cli/src/commands/spend.ts': 'a command of the binary',
-  'packages/cli/src/commands/summary.ts': 'a command of the binary',
-  'packages/cli/src/commands/tasks.ts': 'a command of the binary',
-  'packages/cli/src/commands/update.ts': 'a command of the binary',
-
-  // Programs somebody else starts. Each is a path handed to a spawn —
-  // `REAPER_PATH`, `HOOK_PATH`, `MCP_PATH`, `TOOLS_MCP`, `secretCommand` — and
-  // importing one runs it, which is why no test can hold one in its own
-  // process. Two of them are driven for real by a test that spawns them
-  // (`tools-mcp.test.ts`, and `print-secret` through `accounts.test.ts`); the
-  // five that Claude Code and Codex run have no test at all, which is a hole
-  // and is said so in the report.
-  'packages/core/src/print-secret.ts': 'run by a program asking for its key',
-  'packages/orchestrator/src/tools-mcp.ts': "Tade's tools, served to a harness over stdio",
-  'packages/harnesses/claude/src/hook.ts': 'run by Claude Code, once per hook',
-  'packages/harnesses/claude/src/mcp.ts': 'run by Claude Code for the life of a session',
-  'packages/harnesses/claude/src/statusline.ts': 'run by Claude Code after every reply',
-  'packages/harnesses/codex/src/hook.ts': 'run by Codex, once per hook',
-  'packages/harnesses/codex/src/mcp.ts': 'run by Codex for the life of a session',
-  'packages/harnesses/core/src/reaper.ts': 'runs between Tade and a headless harness',
-}
-
-/**
- * How far above a floor a package's coverage may sit before the floor is
- * asked to follow it up. The half that makes the ratchet work: without it the
- * numbers stay at the day they were written and the table becomes decoration.
- *
- * Four points rather than one, because a floor is set one to two points under
- * to begin with, and because a package of a hundred lines moves a point at a
- * time.
- */
-const SLACK = 4
 
 /** Where the report lands. `coverage/` is already ignored. */
 const REPORT = 'coverage/coverage-final.json'
-
-/** The istanbul-shaped file the v8 provider writes: statements, per file. */
-interface FileCoverage {
-  statementMap: Record<string, { start: { line: number } }>
-  s: Record<string, number>
-}
-
-/** What one package's files came to. */
-interface Tally {
-  lines: number
-  covered: number
-  files: number
-}
 
 /** Repo-relative paths of every `.ts` file git tracks under `packages/`. */
 function tracked(): Set<string> {
@@ -227,176 +31,46 @@ function tracked(): Set<string> {
   return new Set(out.split('\0').filter((path) => path.endsWith('.ts')))
 }
 
-/**
- * Which package a source file belongs to: `packages/<a>` or `packages/<a>/<b>`,
- * whichever holds the `src/` it is under. Null for anything else.
- */
-function packageOf(path: string): string | null {
-  const nested = /^(packages\/[^/]+\/[^/]+)\/src\//.exec(path)
-  if (nested) return nested[1] ?? null
-  const flat = /^(packages\/[^/]+)\/src\//.exec(path)
-  return flat?.[1] ?? null
-}
-
-/**
- * Lines that ran, out of lines there are, the way istanbul counts them: a
- * statement lands on the line it starts at, and a line runs if anything on it
- * did. Not the count of statements — two statements on one line is one line,
- * and a percentage per statement reads differently for no reason anybody asked
- * about.
- */
-function linesOf(file: FileCoverage): { lines: number; covered: number } {
-  const hits = new Map<number, number>()
-  for (const [id, where] of Object.entries(file.statementMap)) {
-    const line = where.start.line
-    hits.set(line, Math.max(hits.get(line) ?? 0, file.s[id] ?? 0))
-  }
-  return {
-    lines: hits.size,
-    covered: [...hits.values()].filter((count) => count > 0).length,
-  }
-}
-
-const pct = (covered: number, lines: number): number =>
-  lines === 0 ? 100 : (100 * covered) / lines
-
-/** `81.0`, always one place, because two is noise and none is a rounded lie. */
-const said = (n: number): string => n.toFixed(1)
-
-/**
- * Everything the gate has to say. Nothing to report is the gate passing, and
- * every problem arrives already saying what to do about it — a coverage gate
- * that says only that a number moved teaches nobody.
- */
-function report(problems: string[]): void {
-  if (problems.length === 0) return
-  process.stdout.write(`\n${problems.join('\n\n')}\n\n`)
-  process.exit(1)
-}
-
-/** Read the report and hold the repository to the tables above. */
+/** Read the report and hold the repository to the tables. Exits 1 on a problem. */
 function gate(reportPath: string, showTable: boolean): void {
   let raw: string
   try {
     raw = readFileSync(reportPath, 'utf8')
   } catch {
-    report([
-      `No coverage report at ${reportPath}.\n` +
-        'The suite has to run with coverage for there to be one: `pnpm coverage`.',
-    ])
-    return
-  }
-  const files = JSON.parse(raw) as Record<string, FileCoverage>
-  const known = tracked()
-  const problems: string[] = []
-
-  const by = new Map<string, Tally>()
-  const seen = new Set<string>()
-  for (const [absolute, file] of Object.entries(files)) {
-    const path = absolute.startsWith(ROOT) ? absolute.slice(ROOT.length) : absolute
-    seen.add(path)
-    const { lines, covered } = linesOf(file)
-    if (path in UNSEEN) {
-      if (covered > 0)
-        problems.push(
-          `${path} is excluded as unmeasurable, and ${covered} of its ${lines} lines ran.\n` +
-            `Something imports it now, so it can be measured: delete its line from UNSEEN\n` +
-            `(${TABLE}) and let its package's floor account for it.`,
-        )
-      continue
-    }
-    const pkg = packageOf(path)
-    if (pkg === null) continue
-    const tally = by.get(pkg) ?? { lines: 0, covered: 0, files: 0 }
-    tally.lines += lines
-    tally.covered += covered
-    tally.files += 1
-    by.set(pkg, tally)
-  }
-
-  // A file the report never mentioned is one `coverage.include` no longer
-  // reaches — a rule that quietly stopped applying, which is the thing both
-  // tables are against.
-  for (const path of Object.keys(UNSEEN)) {
-    if (seen.has(path)) continue
-    problems.push(
-      known.has(path)
-        ? `UNSEEN names ${path}, which the coverage report does not mention.\n` +
-            `Either \`coverage.include\` in vitest.config.ts no longer reaches it, or it moved.\n` +
-            `Point its line in ${TABLE} at where it went.`
-        : `UNSEEN names ${path}, which this repository does not have.\n` +
-            `Delete its line from ${TABLE}.`,
+    process.stdout.write(
+      `\nNo coverage report at ${reportPath}.\n` +
+        'The suite has to run with coverage for there to be one: `pnpm coverage`.\n\n',
     )
+    process.exit(1)
   }
-
-  const rows = [...by.entries()]
-    .map(([pkg, tally]) => ({ pkg, ...tally, coverage: pct(tally.covered, tally.lines) }))
-    .sort((a, b) => a.coverage - b.coverage)
-
-  for (const row of rows) {
-    const floor = FLOOR[row.pkg]
-    if (floor === undefined) {
-      problems.push(
-        `${row.pkg} covers ${said(row.coverage)}% of its lines and FLOOR does not name it.\n` +
-          `Give it a line in FLOOR (${TABLE}) at ${Math.floor(row.coverage - 1)} — at or just\n` +
-          'under what it does today. Every package has a floor; that is what makes a new one\n' +
-          'a decision rather than a gap.',
-      )
-      continue
-    }
-    if (row.coverage < floor) {
-      problems.push(
-        `${row.pkg} covers ${said(row.coverage)}% of its lines, under its floor of ${floor}.\n` +
-          'Cover what this change left behind — and cover it with a test that asserts\n' +
-          'something, because a test written to move this number is worse than none.\n' +
-          `If the floor is wrong, lower it in FLOOR (${TABLE}) and say why in the commit\n` +
-          'message: a floor may go UP in the commit that earns it, and going down is an\n' +
-          'argument somebody has to make.',
-      )
-      continue
-    }
-    if (row.pkg in MOVES) continue
-    if (row.coverage - floor > SLACK)
-      problems.push(
-        `${row.pkg} covers ${said(row.coverage)}% of its lines and its floor says ${floor} — ` +
-          `${said(row.coverage - floor)} points of slack.\n` +
-          `Raise it to ${Math.floor(row.coverage - 1)} in this commit (FLOOR, ${TABLE}). This is the ratchet:\n` +
-          'the table only holds while the floors follow the coverage up.',
-      )
-  }
-
-  for (const pkg of Object.keys(FLOOR)) {
-    if (by.has(pkg)) continue
-    problems.push(
-      `FLOOR names ${pkg}, which has no source the coverage report reached.\n` +
-        `Delete its line from ${TABLE}, or point it at where that package went.`,
-    )
-  }
+  const report = JSON.parse(raw) as Record<string, FileCoverage>
+  const read = readCoverage(measure(report, ROOT), tracked())
 
   if (showTable) {
-    const width = Math.max(...rows.map((row) => row.pkg.length))
+    const width = Math.max(...read.rows.map((row) => row.pkg.length))
     process.stdout.write(`\n${'package'.padEnd(width)}   lines   floor    files\n`)
-    for (const row of rows)
+    for (const row of read.rows)
       process.stdout.write(
-        `${row.pkg.padEnd(width)}  ${said(row.coverage).padStart(6)}  ${String(FLOOR[row.pkg] ?? '—').padStart(6)}  ${String(row.files).padStart(7)}\n`,
+        `${row.pkg.padEnd(width)}  ${said(row.coverage).padStart(6)}  ` +
+          `${String(FLOOR[row.pkg] ?? '—').padStart(6)}  ${String(row.files).padStart(7)}\n`,
       )
   }
 
-  report(problems)
-
-  const lines = rows.reduce((sum, row) => sum + row.lines, 0)
-  const covered = rows.reduce((sum, row) => sum + row.covered, 0)
+  if (read.problems.length > 0) {
+    process.stdout.write(`\n${read.problems.join('\n\n')}\n\n`)
+    process.exit(1)
+  }
   process.stdout.write(
-    `\ncoverage: ${said(pct(covered, lines))}% of ${lines.toLocaleString('en-US')} lines, ` +
-      `every floor met in ${rows.length} packages\n`,
+    `\ncoverage: ${said(read.coverage)}% of ${read.lines.toLocaleString('en-US')} lines, ` +
+      `every floor met in ${read.rows.length} packages\n`,
   )
 }
 
 const args = process.argv.slice(2)
 const showTable = args.includes('--table')
 // `--report <path>` gates an existing report instead of running the suite,
-// which is how anybody working on this file gets an answer in a second rather
-// than in two minutes.
+// which is how anybody working on these files gets an answer in a second
+// rather than in two minutes.
 const given = args.indexOf('--report')
 if (given >= 0) {
   gate(args[given + 1] ?? REPORT, showTable)
@@ -410,6 +84,8 @@ if (given >= 0) {
     // A coverage number off a suite that did not pass is a number about which
     // tests ran, so it is not reported at all: the failures above are the news.
     if (code !== 0 || signal !== null) process.exit(code ?? 1)
-    gate(new URL(`../${REPORT}`, import.meta.url).pathname, showTable)
+    // `fileURLToPath` and not `.pathname`, which percent-encodes: a checkout in
+    // a folder with a space in it would look for a report nothing wrote.
+    gate(fileURLToPath(new URL(`../${REPORT}`, import.meta.url)), showTable)
   })
 }
