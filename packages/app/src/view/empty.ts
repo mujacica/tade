@@ -1,5 +1,5 @@
 import type { Frame } from '../frame.ts'
-import type { Hit } from '../hits.ts'
+import type { Hit, Target } from '../hits.ts'
 import { promptWidth } from '../layout.ts'
 import { type AppState, linePlace } from '../model.ts'
 import { type Skin, WORDMARK, WORDMARK_SHADES, WORDMARK_WIDTH } from '../skin.ts'
@@ -27,6 +27,9 @@ import { inputBox, inputRows } from './line.ts'
 // So the line is drawn here rather than copied here: `linePlace` says which of
 // the two regions owns it, the foot draws none while this one does, and the
 // editor behind it is the same single editor. See `view/line.ts`.
+
+/** Clicking the box takes the keyboard to the line, wherever the line is drawn. */
+const LINE: Target = { kind: 'orchestrator' }
 
 /** What is drawn, richest first: the ladder's own vocabulary. */
 interface Shown {
@@ -168,9 +171,15 @@ export function renderEmpty(
     closed.forEach((line, i) => {
       rows.push({
         text: fit(`${' '.repeat(left)}${line}`, width),
-        hits: box.hits
-          .filter((hit) => hit.row === i)
-          .map((hit) => ({ ...hit, row: 0, from: hit.from + left, to: hit.to + left })),
+        hits: [
+          // The whole box opens the line, as it does at the foot — under the
+          // box's own hits, so a click inside what you have typed still puts
+          // the caret where it landed rather than only taking the keyboard.
+          { row: 0, from: left, to: left + lineWidth - 1, target: LINE },
+          ...box.hits
+            .filter((hit) => hit.row === i)
+            .map((hit) => ({ ...hit, row: 0, from: hit.from + left, to: hit.to + left })),
+        ],
       })
     })
   }

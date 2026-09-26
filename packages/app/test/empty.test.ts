@@ -1,5 +1,6 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
+import { hitAt } from '../src/hits.ts'
 import {
   type AppState,
   focusTask,
@@ -8,8 +9,8 @@ import {
   withProjects,
   withTasks,
 } from '../src/model.ts'
-import { WORDMARK } from '../src/skin.ts'
-import { renderApp } from '../src/view.ts'
+import { PLAIN, WORDMARK } from '../src/skin.ts'
+import { draw, renderApp } from '../src/view.ts'
 
 // A project with nothing in it: where the window stays when you close the
 // last agent, and what it draws there.
@@ -92,6 +93,15 @@ describe('what an empty project draws', () => {
       const letters = WORDMARK.filter((line) => text.includes(line.trimEnd())).length
       expect([0, WORDMARK.length]).toContain(letters)
     }
+  })
+
+  it('is a place you can click into, as the line at the foot is', () => {
+    const { rows, hits } = draw(empty(), { ...frame({ width: 120, height: 34 }), skin: PLAIN })
+    const row = rows.findIndex((line) => plain(line).includes('Ask Tade for an agent'))
+    const at = plain(rows[row] ?? '').indexOf('Ask Tade')
+    // Clicking the box takes the keyboard to the line, wherever it is drawn:
+    // a prompt you have to know to type at is a prompt with no way in.
+    expect(hitAt(hits, at, row)?.kind).toBe('orchestrator')
   })
 
   it('is the same screen whether agents were closed here or never started', () => {
