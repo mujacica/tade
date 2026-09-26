@@ -9,7 +9,7 @@ import { makeScriptedForge } from '@tade/forge-scripted'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
 import { gitEnv, mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { redOn, standingOn } from '../src/branch.ts'
+import { onRemote, standingOn, whatRan } from '../src/commit.ts'
 import { reviewExtension } from '../src/extension.ts'
 import { forget } from '../src/forge.ts'
 
@@ -48,16 +48,31 @@ const reallyExec = async (command: string, args: readonly string[]) => {
   }
 }
 
-/** A real repository with a real remote, on `main`, with one commit on it. */
-function project(options: { branch?: string; remote?: boolean; subject?: string } = {}) {
-  const repo = mkrepo()
+/**
+ * A real repository with a real remote, on `main`, with one commit on it —
+ * really pushed unless the test is about a commit that is not.
+ *
+ * `origin` is fetched from the URL the GitHub forge serves and pushed to a bare
+ * repository next door, so the push is a real push writing a real
+ * `refs/remotes/origin/*` and nothing reaches the network. A fixture that wrote
+ * that ref with `update-ref` would be answering the one question this watch now
+ * asks git before anything else, which is the question that was got wrong.
+ */
+function project(
+  options: { branch?: string; remote?: boolean; subject?: string; pushed?: boolean } = {},
+) {
+  const repo = mkrepo({ remote: options.remote !== false })
   if (options.remote !== false) {
-    repo.git('remote', 'add', 'origin', 'git@github.com:acme/api.git')
+    repo.git('remote', 'set-url', 'origin', 'git@github.com:acme/api.git')
+    repo.git('remote', 'set-url', '--push', 'origin', repo.remote ?? '')
   }
   if (options.branch && options.branch !== 'main') {
     repo.git('checkout', '-q', '-b', options.branch)
   }
   repo.commit(options.subject ?? 'retry refunds once')
+  if (options.remote !== false && options.pushed !== false) {
+    repo.git('push', '-q', 'origin', options.branch ?? 'main')
+  }
   return { repo, commit: repo.git('rev-parse', 'HEAD').trim() }
 }
 
@@ -127,17 +142,20 @@ const look = (host: ExtensionHost) =>
 beforeEach(() => forget())
 
 describe('whether a commit is red yet', () => {
-  it('says nothing while CI has not reached the push, rather than saying it is fine', async () => {
-    // Every push looks like this for a minute. An answer of "no failures" and
-    // an answer of "nothing has run" are the same empty list to anybody above,
-    // which is why this returns null for both rather than an empty array.
-    const forge = makeScriptedForge({ commits: {} })
-    expect(await redOn(forge, 'acme/api', FRESH)).toBeNull()
+  /** What the scripted forge says about a commit, put through the rule. */
+  const asked = async (commit: string, runs: Record<string, CheckRun[]>) =>
+    whatRan(await makeScriptedForge({ commits: runs }).checksOn('acme/api', commit))
+
+  it('says nothing has run while CI has not reached the push, rather than saying it is fine', async () => {
+    // Every push looks like this for a minute. "No failures" and "nothing has
+    // run" are the same empty list to anybody reading a boolean, which is why
+    // each answer here is its own word.
+    expect(await asked(FRESH, {})).toEqual({ kind: 'nothing ran' })
   })
 
   it('waits while anything is still going, so a retry is never raced', async () => {
-    const forge = makeScriptedForge({
-      commits: {
+    expect(
+      await asked(RED, {
         [`acme/api@${RED}`]: [
           ran(RED, 'tests', 'failed'),
           // The one that decides: a workflow still running may yet turn this
@@ -145,30 +163,75 @@ describe('whether a commit is red yet', () => {
           // failure that was about to be re-run.
           ran(RED, 'types', 'running'),
         ],
-      },
-    })
-    expect(await redOn(forge, 'acme/api', RED)).toBeNull()
+      }),
+    ).toEqual({ kind: 'running' })
   })
 
   it('says which checks failed once everything has settled', async () => {
-    const forge = makeScriptedForge({
-      commits: {
-        [`acme/api@${RED}`]: [
-          ran(RED, 'format', 'passed'),
-          ran(RED, 'types', 'skipped'),
-          ran(RED, 'tests', 'failed'),
-        ],
-      },
+    const red = await asked(RED, {
+      [`acme/api@${RED}`]: [
+        ran(RED, 'format', 'passed'),
+        ran(RED, 'types', 'skipped'),
+        ran(RED, 'tests', 'failed'),
+      ],
     })
-    const red = await redOn(forge, 'acme/api', RED)
-    expect(red?.map((one) => one.check)).toEqual(['tests'])
+    expect(red.kind).toBe('red')
+    expect(red.kind === 'red' && red.runs.map((one) => one.check)).toEqual(['tests'])
   })
 
-  it('reads a green commit as nothing to do, not as something to look at', async () => {
-    const forge = makeScriptedForge({
-      commits: { [`acme/api@${RED}`]: [ran(RED, 'tests', 'passed')] },
+  it('reads a green commit as passed, which is not the same answer as nothing to look at', async () => {
+    expect(await asked(RED, { [`acme/api@${RED}`]: [ran(RED, 'tests', 'passed')] })).toEqual({
+      kind: 'passed',
     })
-    expect(await redOn(forge, 'acme/api', RED)).toBeNull()
+  })
+})
+
+describe('whether a commit is on the remote', () => {
+  const ctx = { exec: reallyExec, extension: 'review' } as unknown as Parameters<typeof onRemote>[0]
+  const standing = (repo: { git(...args: string[]): string }, branch = 'main') => ({
+    branch,
+    commit: repo.git('rev-parse', 'HEAD').trim(),
+    subject: 'retry refunds once',
+  })
+
+  it('is yes for a commit that was really pushed', async () => {
+    const { repo } = project()
+    expect(await onRemote(ctx, repo.root, standing(repo))).toEqual({
+      on: true,
+      branchThere: true,
+      problem: null,
+    })
+  })
+
+  it('is no for a commit that is only here, and says the branch is on origin', async () => {
+    // The whole bug: `main` three commits ahead of `origin/main` is not a
+    // failure, and nothing on the other end has ever heard of this sha.
+    const { repo } = project()
+    repo.commit('not pushed yet')
+    expect(await onRemote(ctx, repo.root, standing(repo))).toEqual({
+      on: false,
+      branchThere: true,
+      problem: null,
+    })
+  })
+
+  it('tells a branch that is not on origin at all from one that is merely ahead', async () => {
+    const { repo } = project({ branch: 'shop/refunds-retry', pushed: false })
+    expect(await onRemote(ctx, repo.root, standing(repo, 'shop/refunds-retry'))).toEqual({
+      on: false,
+      branchThere: false,
+      problem: null,
+    })
+  })
+
+  it('keeps git’s own refusal rather than reading it as not pushed', async () => {
+    // A probe that could not look is not a probe that found nothing: a sha no
+    // repository here has is a question git answers with an error, and calling
+    // that "not pushed yet" would be the same lie one scale down.
+    const { repo } = project()
+    const asked = await onRemote(ctx, repo.root, { ...standing(repo), commit: 'f'.repeat(40) })
+    expect(asked.on).toBe(false)
+    expect(asked.problem).toMatch(/bad object|unknown revision|not a valid/i)
   })
 })
 
@@ -261,6 +324,7 @@ describe('watching CI on the branch', () => {
   it('finds it again on the commit a fix was pushed as, because that is new', async () => {
     const { repo, commit } = project()
     const after = repo.commit('fix the retry')
+    repo.git('push', '-q', 'origin', 'main')
     expect(after).not.toBe(commit)
     const { host } = load({
       root: repo.root,
@@ -301,18 +365,73 @@ describe('watching CI on the branch', () => {
     expect((await look(await host)).found).toEqual([])
   })
 
-  it('is silent in a project with no remote, rather than complaining every look', async () => {
+  it('finds nothing and asks nobody about a commit that is not on the remote', async () => {
+    // The bug this watch had: `ce7b55f` existed on one laptop, GitHub was
+    // right to say it had never heard of it, and a watch read that as a
+    // failing look — once per look, with a new sha in it each time somebody
+    // committed, so that even saying it once could not hold.
+    const { repo, commit } = project()
+    const after = repo.commit('one more, not pushed')
+    const { host, replay } = load({
+      root: repo.root,
+      // Red on both, so the only reason nothing is found is that nothing is up.
+      runs: {
+        [commit]: checkRuns(['tests', 'completed', 'failure']),
+        [after]: checkRuns(['tests', 'completed', 'failure']),
+      },
+    })
+    const looked = await look(await host)
+    expect(looked.found).toEqual([])
+    expect(looked.said).toMatch(/nothing pushed yet/)
+    expect(looked.said).toContain('`main` here has commits `origin/main` does not')
+    // And it cost nothing: the question git answered was never put to GitHub.
+    expect(replay.calls.filter((one) => one.includes('check-runs'))).toEqual([])
+  })
+
+  it('says a branch that is not on origin at all differently from one merely ahead', async () => {
+    const { repo } = project({ branch: 'shop/refunds-retry', pushed: false })
+    const { host } = load({ root: repo.root })
+    const looked = await look(await host)
+    expect(looked.found).toEqual([])
+    expect(looked.said).toContain('`shop/refunds-retry` is not on origin at all')
+  })
+
+  it('is silent in a project with no remote, and says why once rather than every look', async () => {
     // It is on without anybody turning it on, so a project that will never
-    // have a forge must cost nothing and say nothing.
+    // have a forge must cost nothing and find nothing. What it says is a fact
+    // about that project, said where a look is recorded — never a problem,
+    // which is what "could not look" is for.
     const { repo } = project({ remote: false })
     const { host } = load({ root: repo.root })
-    expect((await look(await host)).found).toEqual([])
+    const looked = await look(await host)
+    expect(looked.found).toEqual([])
+    expect(looked.said).toContain('has no remote')
   })
 
   it('says it could not look when the forge refuses, rather than finding nothing', async () => {
     const { repo } = project()
     const { host } = load({ root: repo.root, limited: true })
     await expect(look(await host)).rejects.toThrow(/rate limiting/)
+  })
+
+  it('says nothing at all about a green commit, because there is nothing to say', async () => {
+    const { repo, commit } = project()
+    const { host } = load({
+      root: repo.root,
+      runs: { [commit]: checkRuns(['tests', 'completed', 'success']) },
+    })
+    const looked = await look(await host)
+    expect(looked.found).toEqual([])
+    expect(looked.said).toBeNull()
+  })
+
+  it('does not dress a commit the forge has never heard of as a commit nobody pushed', async () => {
+    // git says a ref of origin here has it, and the forge says there is no such
+    // commit. That is a repository somewhere it should not be — a fork, a
+    // mirror, a second remote — and it needs a person, not a quiet line.
+    const { repo } = project()
+    const { host } = load({ root: repo.root, missingCommit: true })
+    await expect(look(await host)).rejects.toThrow(/has no such commit in acme\/api/)
   })
 })
 

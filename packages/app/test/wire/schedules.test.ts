@@ -86,6 +86,8 @@ describe('the window, and what it watches', () => {
     let clock = Date.now()
     const found: { key: string; title: string }[] = []
     let radar: string | null = null
+    /** A quiet fact a look comes back with: nothing to look at, and not a failure. */
+    let quiet: string | null = null
     const told: string[] = []
     const extensions = await ExtensionHost.load({
       builtin: [
@@ -101,7 +103,7 @@ describe('the window, and what it watches', () => {
               every: '1h',
               check: async () => {
                 if (radar) throw new Error(radar)
-                return { found }
+                return { found, ...(quiet ? { said: quiet } : {}) }
               },
               agent: (finding) => ({
                 title: `bring in ${finding.key}`,
@@ -194,6 +196,28 @@ describe('the window, and what it watches', () => {
       'Rain looked: nothing new.',
     )
     expect(await tools.describe()).toContain('last looked')
+
+    // A look that had nothing to look at may say so, and it is said on the same
+    // terms: when it starts being true, not at every look while it stays true.
+    // Never as trouble — nobody has to do anything about a branch nobody has
+    // pushed except push it — which is the whole reason it is not a `problem`.
+    found.length = 0
+    quiet = 'nothing pushed yet'
+    const quietly = () =>
+      screenOf(terminal.written).filter((row) => row.includes('Rain: nothing pushed yet')).length
+    clock += 3_600_000
+    await until('said once', () => quietly() === 1, 15_000)
+    clock += 3_600_000
+    await until(
+      'looked again',
+      async () =>
+        (await client.events({ types: ['watch_checked'] })).filter((event) => event.detail.said)
+          .length === 2,
+      15_000,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(quietly()).toBe(1)
+    quiet = null
 
     // What it could not look at is said when it starts going wrong, not at every look.
     radar = 'the radar is down'

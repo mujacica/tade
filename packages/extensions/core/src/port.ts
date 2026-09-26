@@ -261,7 +261,24 @@ export interface ExtensionWatch {
    * `since` is handed to its next look, which may find some of the same things
    * again: Tade knows which it has seen.
    */
-  check(ctx: WatchContext): Promise<{ found: readonly Finding[]; since?: string }>
+  check(ctx: WatchContext): Promise<{
+    found: readonly Finding[]
+    since?: string
+    /**
+     * Why a look found nothing, in one sentence a person can act on —
+     * `nothing pushed yet`, never a service's error string.
+     *
+     * A look that found nothing because everything is fine and a look that
+     * found nothing because there was nothing to look at are opposite facts,
+     * and `found: 0` says both. This is the second of them, and it is **not** a
+     * problem: a look that could not look at all still throws. It is kept with
+     * the look and said when it starts being true rather than at every look
+     * while it stays true, so word it as a standing fact — a sha or a count in
+     * it is a sentence that changes every look, which is a sentence that gets
+     * said every look.
+     */
+    said?: string
+  }>
   /**
    * What an agent starting on one finding is told. Asked only for what work is
    * started on, so this is where anything slow to fetch about a finding belongs.

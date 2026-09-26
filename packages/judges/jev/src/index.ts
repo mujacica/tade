@@ -274,6 +274,9 @@ async function refusal(response: Response): Promise<JudgeError> {
     status,
     // Asking the same thing again cannot make it shorter.
     retryable: !tooLong(said) && (status === 429 || status === 529 || status >= 500),
+    // Said as a fact rather than left in the sentence: what a caller does about
+    // this is ask for less, and nobody should have to match on prose to know it.
+    tooBig: tooLong(said),
   })
 }
 

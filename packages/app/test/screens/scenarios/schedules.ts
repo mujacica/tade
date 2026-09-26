@@ -36,14 +36,29 @@ const sentryWatch: ScheduleView = {
     found: 'agent',
     most: 2,
     looks: [
-      { at: Date.parse('2026-09-14T09:00:00Z'), found: 3, fresh: 3, left: 1, problem: null },
-      { at: Date.parse('2026-09-14T08:00:00Z'), found: 1, fresh: 0, left: 0, problem: null },
+      {
+        at: Date.parse('2026-09-14T09:00:00Z'),
+        found: 3,
+        fresh: 3,
+        left: 1,
+        problem: null,
+        said: null,
+      },
+      {
+        at: Date.parse('2026-09-14T08:00:00Z'),
+        found: 1,
+        fresh: 0,
+        left: 0,
+        problem: null,
+        said: null,
+      },
       {
         at: Date.parse('2026-09-14T07:00:00Z'),
         found: 0,
         fresh: 0,
         left: 0,
         problem: 'Sentry is rate limiting these requests (429): try again in a minute',
+        said: null,
       },
     ],
     findings: [

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TadeEvent } from '../src/events.ts'
 import {
+  describeLook,
   describeWhen,
   dueNow,
   momentOf,
@@ -10,6 +11,7 @@ import {
   scheduleEnded,
   standingId,
   standingSchedules,
+  type WatchLook,
   type WatchOffered,
   type When,
   wallClock,
@@ -276,6 +278,37 @@ describe('what a watch has done', () => {
       'errors',
     )
     expect(again.since).toBeNull()
+  })
+
+  it('tells a look that found nothing from one that had nothing to find', () => {
+    // `found: 0` is both answers, and they are opposites: everything is fine,
+    // or there was never anything there to be fine. A watch may say which, and
+    // what it says is never a problem — nobody has to do anything about a
+    // branch that has not been pushed except push it.
+    const events = [
+      event('watch_checked', { schedule: 'ci', found: 0, fresh: [], left: 0, since: 'one' }),
+      event('watch_checked', {
+        schedule: 'ci',
+        found: 0,
+        fresh: [],
+        left: 0,
+        since: 'two',
+        said: 'nothing pushed yet: `main` here has commits `origin/main` does not',
+      }),
+    ]
+    const watched = watchedFrom(events, 'ci')
+    expect(watched.looks.map((look) => [look.problem, look.said])).toEqual([
+      [null, 'nothing pushed yet: `main` here has commits `origin/main` does not'],
+      [null, null],
+    ])
+    expect(describeLook(watched.looks[1] as WatchLook)).toBe('found nothing')
+    expect(describeLook(watched.looks[0] as WatchLook)).toBe(
+      'found nothing: nothing pushed yet: `main` here has commits `origin/main` does not',
+    )
+    // A look that could not look is still said as that, whatever else it said.
+    expect(
+      describeLook({ at: 0, found: 0, fresh: 0, left: 0, problem: 'the radar is down', said: 'x' }),
+    ).toBe('could not look: the radar is down')
   })
 
   it('acts on what was never found, as far as one look may, and counts the rest', () => {

@@ -478,7 +478,17 @@ export class Schedules implements Subject {
       fresh: fresh.map((finding) => finding.key),
       left,
       since: left > 0 ? watched.since : looked.since,
+      ...(looked.said ? { said: looked.said } : {}),
     })
+    // A look with nothing to look at may say so, and it is not a failure: a
+    // branch nobody has pushed is a quiet fact about that branch, so it is said
+    // in Tade's own voice rather than drawn as trouble. Held to the same rule as
+    // a look that could not look — said when it starts being true and not at
+    // every look for as long as it stays true — because the whole reason this is
+    // not a `problem` is that it was being shouted every ten minutes.
+    if (looked.said && (asked || watched.looks[0]?.said !== looked.said)) {
+      say(`${one.name}: ${looked.said}`)
+    }
     if (acting.length === 0) {
       const said = `${one.name} looked: ${looked.found.length === 0 ? 'found nothing' : 'nothing new'}`
       if (asked) {

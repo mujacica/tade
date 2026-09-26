@@ -800,6 +800,8 @@ export class ExtensionHost {
   ): Promise<{
     found: Finding[]
     since: string | null
+    /** Why it found nothing, where the watch had something to say about that. */
+    said: string | null
     agent: (finding: Finding) => Promise<WatchAgent>
   }> {
     const called = this.watchCalled(id)
@@ -835,6 +837,10 @@ export class ExtensionHost {
     return {
       found,
       since: looked.since ?? request.since,
+      // Only ever about a look that found nothing: what was found says what it
+      // is itself, and a sentence beside a finding would be a second wording of
+      // the same thing for nobody to read.
+      said: found.length === 0 && looked.said ? looked.said : null,
       agent: async (finding) => {
         // A watch with nothing to start is not a broken one: it is told to
         // somebody, which is what it said it was for.

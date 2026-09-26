@@ -198,6 +198,10 @@ describe('asking TypeSafe', () => {
     // Asking the same thing again cannot make it shorter.
     expect(failed?.retryable).toBe(false)
     expect(asked).toBe(1)
+    // And it is said as a fact and not only in the sentence: what a caller does
+    // about this refusal is ask for less, and nothing should have to read prose
+    // to know that this is the one refusal with a move in it.
+    expect(failed?.tooBig).toBe(true)
   })
 
   it('asks again when told to come back, and gives up saying why', async () => {

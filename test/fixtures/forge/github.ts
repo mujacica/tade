@@ -57,6 +57,17 @@ export interface ReplayOptions {
   runs?: Record<string, { check_runs: Record<string, unknown>[] }>
   /** The log of one job, by `<sha>:<check>`. */
   logs?: Record<string, string>
+  /**
+   * Every question about a commit's checks is answered the way GitHub answers
+   * one about a sha it has never been sent: `404 No commit found for SHA`.
+   *
+   * Written down because it is the answer a whole watch was built on top of
+   * without anybody having seen it. It is what a commit that is only on
+   * somebody's laptop looks like from here — and, told apart from that by
+   * asking git first, what a branch pushed to a different repository than the
+   * one Tade is reading looks like too.
+   */
+  missingCommit?: boolean
 }
 
 export function githubReplay(options: ReplayOptions = {}): GithubReplay {
@@ -122,6 +133,9 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     const runs = /\/repos\/([^/]+\/[^/]+)\/commits\/([^/]+)\/check-runs/.exec(url)
     if (runs) {
       const sha = runs[2] ?? ''
+      if (options.missingCommit) {
+        return answer({ message: `No commit found for SHA: ${sha}` }, 404)
+      }
       const named = options.runs?.[sha]
       if (named) return answer(named)
       // A commit no pull request here is on, and nobody scripted, has had

@@ -177,6 +177,88 @@ describe('reading a change that will not fit', () => {
   })
 })
 
+describe('an ask refused for its size', () => {
+  /**
+   * A TypeSafe that refuses whatever is longer than it takes, which is the real
+   * rule, and keeps the length of every ask it was sent — refused ones included,
+   * because what is being held here is how many doomed asks get made.
+   */
+  function refusingOver(bytes: number, otherwise: typeof fetch, tried: number[]): typeof fetch {
+    return (async (input: string | URL | Request, init?: RequestInit) => {
+      const length = String(init?.body ?? '').length
+      tried.push(length)
+      return length > bytes
+        ? new Response('{"detail":{"error_type":"max_tokens_exceeded"}}', { status: 400 })
+        : otherwise(input as string, init)
+    }) as typeof fetch
+  }
+
+  it('is asked again for less, rather than losing the whole reading', async () => {
+    // `roomFor` sizes an ask in characters standing in for tokens, so it is
+    // wrong sometimes by construction — and a one-file change is one batch,
+    // which had nowhere to go but a lost reading. `max_tokens_exceeded` was
+    // the whole of what this watch said for two days because of it.
+    const repo = mkrepo()
+    const worktree = repo.addTask('regenerate', { project: 'shop', intent: 'regenerate' })
+    repo.commit(
+      'regenerate',
+      { 'src/generated.ts': `const c = 1\n${'y'.repeat(40_000)}` },
+      worktree,
+    )
+    const seen: unknown[] = []
+    const tried: number[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: refusingOver(20_000, typesafe({ authz_removed: 0.91 }, seen), tried),
+      now: Date.now,
+    })
+    const look = await loaded.look('jev.review', {
+      project: 'shop',
+      input: { settle: '0m' },
+      since: null,
+      turnedOn: new Date(NOW - 60_000).toISOString(),
+    })
+    // It read it, and every ask it settled on was one the other end would take.
+    expect(look.found.map((finding) => finding.key)).toEqual(['shop/regenerate:authz_removed'])
+    expect(Math.max(...seen.map((body) => JSON.stringify(body).length))).toBeLessThanOrEqual(20_000)
+    // Halving, so what it spends getting there is a handful of asks and not a
+    // walk down from the budget one file at a time.
+    const doomed = tried.filter((length) => length > 20_000).length
+    expect(doomed).toBeGreaterThan(0)
+    expect(doomed).toBeLessThan(4)
+    // And it says it read part of it, because it did: what a question did not
+    // see, it cannot have answered about.
+    expect(look.found[0]?.detail).toMatch(/Read in part: .*characters of patch were left behind/)
+  })
+
+  it('is named as unread, not asked five times, when the refusal was not about size', async () => {
+    const repo = mkrepo()
+    const worktree = repo.addTask('regenerate', { project: 'shop', intent: 'regenerate' })
+    repo.commit('regenerate', { 'src/generated.ts': 'export const client = 1\n' }, worktree)
+    const tried: number[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      // A change small enough that halving it could not make it fit, which is
+      // the case where asking again only spends somebody's money to be told no.
+      fetch: refusingOver(10, typesafe({}), tried),
+      now: Date.now,
+    })
+    await expect(
+      loaded.look('jev.review', {
+        project: 'shop',
+        input: { settle: '0m' },
+        since: null,
+        turnedOn: new Date(NOW - 60_000).toISOString(),
+      }),
+    ).rejects.toThrow(/could not be read/)
+    expect(tried).toHaveLength(1)
+  })
+})
+
 describe('an ask is built to fit, rather than sent to be refused', () => {
   const asking = { judge: { capabilities: { stateTokens: 32_000 } } } as Parameters<
     typeof roomFor

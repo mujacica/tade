@@ -655,6 +655,12 @@ export interface WatchLook {
   left: number
   /** Why it could not look; null when it did. */
   problem: string | null
+  /**
+   * Why it found nothing, where the watch had something to say about that, and
+   * never a problem: "nothing pushed yet" is a fact about a branch, not a
+   * failure to look at one.
+   */
+  said: string | null
 }
 
 /** Something a watch found, and what became of it. */
@@ -701,6 +707,7 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
         fresh: Array.isArray(event.detail.fresh) ? event.detail.fresh.length : 0,
         left: count(event.detail.left),
         problem,
+        said: text(event.detail.said),
       })
     } else if (event.type === 'watch_found') {
       const key = text(event.detail.key)
@@ -722,7 +729,9 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
 /** How one look went, in a few words: `found 3, 2 new, 1 waits for the next look`, or why it could not look. */
 export function describeLook(look: WatchLook): string {
   if (look.problem) return `could not look: ${look.problem}`
-  if (look.found === 0) return 'found nothing'
+  // A look that found nothing and a look that had nothing to find are not the
+  // same answer, and this is where the second one gets to say so.
+  if (look.found === 0) return look.said ? `found nothing: ${look.said}` : 'found nothing'
   const fresh = look.fresh === 0 ? 'nothing new' : `${look.fresh} new`
   const waits =
     look.left > 0 ? `, ${look.left} ${look.left === 1 ? 'waits' : 'wait'} for the next look` : ''

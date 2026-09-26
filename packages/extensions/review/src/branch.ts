@@ -1,7 +1,7 @@
-import { type CheckRun, checkLine, settled } from '@tade/checks-core'
-import type { ExtensionContext, ExtensionWatch, Finding, WatchAgent } from '@tade/extensions-core'
-import type { Forge } from '@tade/forges-core'
+import { checkLine } from '@tade/checks-core'
+import type { ExtensionWatch, Finding, WatchAgent } from '@tade/extensions-core'
 import { hostOf } from '@tade/forges-core'
+import { type CommitCi, cannotLook, ciOn, saidOf, standingOn } from './commit.ts'
 import { settingsOf, whereOf } from './forge.ts'
 import { attemptsUnder } from './record.ts'
 
@@ -14,8 +14,13 @@ import { attemptsUnder } from './record.ts'
 // else pulls is broken — every red build was carried to the orchestrator by
 // hand. This is that run, watched.
 //
-// Three things keep it honest:
+// Four things keep it honest:
 //
+//   · **It asks git before it asks anybody else.** What CI said about the
+//     commit this checkout is on is `ciOn` (`commit.ts`), which answers from
+//     the refs here before it spends a request, and hands back a forge only
+//     with the one answer there is something to do about. A commit that is not
+//     on the remote is not a failure: it is CI that has not run yet.
 //   · **The commit is the unit, and one red commit is one finding.** A
 //     failure is a fact about a commit, not about a branch that has moved on,
 //     so the key is the commit and nothing else: a workflow re-run is the same
@@ -37,56 +42,6 @@ import { attemptsUnder } from './record.ts'
 const FIXING_HOURS = 6
 const FIXING_WINDOW_MS = FIXING_HOURS * 60 * 60_000
 
-/** Where the project's own checkout stands: the branch, its commit, and that commit's subject. */
-export interface Standing {
-  branch: string
-  commit: string
-  subject: string
-}
-
-/**
- * The branch a project is on, and the commit it is on. Null where there is no
- * branch to watch — a detached worktree, or a directory git knows nothing
- * about. Never throws: a project Tade cannot read git in is not a look that
- * went wrong.
- */
-export async function standingOn(ctx: ExtensionContext, root: string): Promise<Standing | null> {
-  const git = async (args: readonly string[]): Promise<string> => {
-    const got = await ctx.exec('git', ['-C', root, ...args], { timeoutMs: 10_000 })
-    return got.code === 0 ? got.stdout.trim() : ''
-  }
-  const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD'])
-  // `HEAD` is what git answers for a detached worktree, which is what an
-  // agent's own workspace looks like before its first commit: nobody's
-  // branch, and nothing anybody could have pushed.
-  if (!branch || branch === 'HEAD') return null
-  const said = await git(['log', '-1', '--format=%H%n%s'])
-  const [commit, ...rest] = said.split('\n')
-  if (!commit) return null
-  return { branch, commit, subject: rest.join(' ').trim() }
-}
-
-/**
- * What CI said about one commit, once it has finished saying it: the checks
- * that failed, or null when there is nothing to act on.
- *
- * Null covers three quiet answers that are all "not yet" rather than "fine":
- * nothing has run on it, something is still running, and everything that ran
- * passed. Acting while a run is still going is how an agent gets started on a
- * check that a retry was about to turn green.
- */
-export async function redOn(
-  forge: Forge,
-  repo: string,
-  commit: string,
-): Promise<readonly CheckRun[] | null> {
-  const runs = await forge.checksOn(repo, commit)
-  if (runs.length === 0) return null
-  if (runs.some((run) => !settled(run.state))) return null
-  const failed = runs.filter((run) => run.state === 'failed' || run.state === 'timed out')
-  return failed.length > 0 ? failed : null
-}
-
 /** The repository and the commit a finding of this watch is about. */
 export function readKey(key: string): { repo: string; commit: string } | null {
   const match = /^[^/]*\/(.+)@(.+)$/.exec(key)
@@ -104,25 +59,18 @@ export const branchChecks: ExtensionWatch = {
   every: '10m',
   // On without anybody turning it on: it reads one commit's checks with the
   // credential the extension already has, tells nobody anything, and a look
-  // that finds nothing costs one request. With no credential the extension is
-  // not ready, so there is no schedule at all rather than one failing all day.
+  // that finds nothing costs one request — none at all where the commit is not
+  // pushed, which git answers for free. With no credential the extension is not
+  // ready, so there is no schedule at all rather than one failing all day.
   standing: true,
 
   async check(ctx) {
     const since = new Date(ctx.now()).toISOString()
-    const where = await whereOf(ctx, ctx.watching)
-    // This watch is on by default, so a project with nothing to watch has to
-    // be silent: no remote is not a look that went wrong, it is a repository
-    // Tade only reads git from, and saying so is a complaint about a decision
-    // somebody made on purpose.
-    if ('problem' in where) return { found: [], since }
-    if (!where.forge.capabilities.commitChecks) {
-      throw new Error(`${where.forge.id} cannot say what ran on a commit with no review`)
-    }
     const here = await standingOn(ctx, ctx.watching.root)
     if (!here) return { found: [], since }
-    const red = await redOn(where.forge, where.repo, here.commit)
-    if (!red) return { found: [], since }
+    const ci = await ciOn(ctx, ctx.watching, here)
+    if (ci.kind !== 'red') return quietly(ci, since)
+    const { where, runs: red } = ci
     // Worth a second call only now that something is red. A branch that has a
     // review open is that review's: `review.checks-failed` answers its
     // failures, and two watches on one failure would start two agents on it.
@@ -170,9 +118,10 @@ export const branchChecks: ExtensionWatch = {
     const fixing = settings.fix.includes('checks') && !enough
     // Asked again rather than carried on the finding, because a log is slow
     // and `agent` is only ever asked for what work is actually started on.
-    // Not through `redOn`: that waits for a commit to settle, and a workflow
-    // somebody re-ran since would empty the context of the very failure this
-    // finding is about.
+    // Not through `ciOn`: this commit is on the remote or there would be no
+    // finding, and `whatRan` waits for a commit to settle — a workflow somebody
+    // re-ran since would empty the context of the very failure this finding is
+    // about.
     const about = 'problem' in where || !part ? null : { forge: where.forge, ...part }
     const failed = !about
       ? []
@@ -230,6 +179,23 @@ export const branchChecks: ExtensionWatch = {
       links: finding.links ?? [],
     }
   },
+}
+
+/**
+ * A look that found nothing red, and what it is worth telling somebody.
+ *
+ * Several kinds of quiet, and they must not be one: everything passing,
+ * something still running, nothing having run yet, nothing pushed yet and a
+ * project with no forge behind it are all facts about a repository nothing is
+ * wrong with. So they are `found: []`, with a sentence where there is one worth
+ * saying — kept with the look and said when it starts being true, not at every
+ * look while it stays true. A look that could not look throws, which is the one
+ * of these that needs a person.
+ */
+function quietly(ci: CommitCi, since: string): { found: Finding[]; since: string; said?: string } {
+  if (cannotLook(ci)) throw new Error(ci.said)
+  const said = saidOf(ci)
+  return { found: [], since, ...(said ? { said } : {}) }
 }
 
 /** A handful of names as a person would say them: `tests`, `types and tests`, `format, types and 2 more`. */

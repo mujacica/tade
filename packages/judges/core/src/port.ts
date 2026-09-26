@@ -97,12 +97,27 @@ export class JudgeError extends Error {
   readonly status: number | null
   /** Asking again later could work: rate limited, overloaded, a timeout. */
   readonly retryable: boolean
+  /**
+   * What it refused was the *size* of the ask, declared rather than left in the
+   * prose for a caller to match on.
+   *
+   * It is the one refusal a caller can do something about with nobody's help,
+   * and the thing to do is never to ask again — `retryable` is false — but to
+   * ask for less. A caller that cannot tell this refusal from the others has
+   * only one move for both, which is to give up on the whole reading; that is
+   * how one 400 came to be the whole of why a review did not happen.
+   */
+  readonly tooBig: boolean
 
-  constructor(message: string, options: { status?: number | null; retryable?: boolean } = {}) {
+  constructor(
+    message: string,
+    options: { status?: number | null; retryable?: boolean; tooBig?: boolean } = {},
+  ) {
     super(message)
     this.name = 'JudgeError'
     this.status = options.status ?? null
     this.retryable = options.retryable ?? false
+    this.tooBig = options.tooBig ?? false
   }
 }
 

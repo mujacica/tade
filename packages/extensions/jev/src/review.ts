@@ -6,7 +6,7 @@ import {
   object,
   string,
 } from '@tade/extensions-core'
-import type { Question } from '@tade/judges-core'
+import { JudgeError, type Question } from '@tade/judges-core'
 import { Asking, allowed, periodMs, thresholds } from './ask.ts'
 import {
   CHARS_PER_TOKEN,
@@ -55,6 +55,15 @@ export interface Reading {
  */
 const MARGIN = 0.9
 
+/**
+ * How small an ask may be cut to before there is nothing left to try.
+ *
+ * The same floor `roomFor` will not go under, for the same reason: an ask with
+ * three hundred characters of somebody's file in it is not a reading of it. A
+ * batch refused at this size is one that is named as unread instead.
+ */
+const LEAST_ROOM = 2_000
+
 /** How many characters one question takes in an ask, its `means` included. */
 function askedLength(question: Question): number {
   if (question.kind !== 'yes-no' || !question.means) return question.ask.length
@@ -100,7 +109,7 @@ export function roomFor(
       change.files.map((file) => ({ ...file, patch: '' })),
     ),
   ).length
-  return Math.max(2_000, Math.floor(budget) - asked - around)
+  return Math.max(LEAST_ROOM, Math.floor(budget) - asked - around)
 }
 
 /**
@@ -127,14 +136,20 @@ export async function readChange(
   }
   let severity = -1
   const room = roomFor(asking, unit, change, questions)
+  // A batch that would not fit is cut to fit, rather than sent to be refused:
+  // the ask is built from what is in hand, so whether it will fit is knowable
+  // here and a 400 is not information anybody needed. What is cut is counted all
+  // the way through, here and in anything cut again below, because a reading of
+  // part of a change is different evidence from a reading of all of it.
   const batched = inBatches(change.files, room)
-  // A batch that would not fit is cut to fit and said, rather than sent to be
-  // refused: the ask is built from what is in hand, so whether it will fit is
-  // knowable here and a 400 is not information anybody needed.
-  reading.part = partSaid({ ...change, cut: change.cut + batched.cut })
   const refused: string[] = []
   let why = ''
-  for (const batch of batched.batches) {
+  let read = 0
+  let cut = change.cut + batched.cut
+  const queue = [...batched.batches]
+  while (queue.length > 0) {
+    const batch = queue.shift()
+    if (!batch) break
     options.progress?.(`reading ${batch.map((one) => one.file).join(', ')}`)
     let judged: Awaited<ReturnType<typeof asking.askAll>>
     try {
@@ -146,11 +161,30 @@ export async function readChange(
       // so what could not be read is named, **with what was said about it**, and
       // the rest is read. A look that could read *nothing* still throws.
       if (options.signal?.aborted) throw err
-      if (batched.batches.length === 1) throw err
+      // Refused for its size is the one refusal that says what to do about
+      // itself: ask for less. `room` is characters standing in for tokens, so
+      // being wrong about it is a matter of when and not whether — and the one
+      // batch of a one-file change had nowhere to go but a lost reading, which
+      // is how `max_tokens_exceeded` was the whole of what a review said.
+      //
+      // Halved from what was actually sent rather than from the room it was cut
+      // to, because the size of the ask is the thing that was refused. Halving
+      // stops at `LEAST_ROOM`: a batch already under it cannot be divided into a
+      // reading of anything, and one refused there is named as unread instead —
+      // which also means a refusal that was never about size at all costs one
+      // ask rather than five.
+      const less = Math.floor(sizeOf(batch) / 2)
+      if (err instanceof JudgeError && err.tooBig && less >= LEAST_ROOM) {
+        const again = inBatches(batch, less)
+        cut += again.cut
+        queue.unshift(...again.batches)
+        continue
+      }
       refused.push(...batch.map((one) => one.file))
       why ||= err instanceof Error ? err.message : String(err)
       continue
     }
+    read++
     reading.version = judged.version
     for (const [id, answer] of Object.entries(judged.answers)) {
       if (answer.kind !== 'yes-no') continue
@@ -164,14 +198,17 @@ export async function readChange(
       reading.severity = severitySaid(judged.answers)
     }
   }
-  if (refused.length === change.files.length) {
-    throw new Error(`none of the ${refused.length} files in it could be read: ${why}`)
+  // Counted by asks that answered rather than by files, because a batch that was
+  // halved and read is files that were read twice over in the arithmetic.
+  if (read === 0) {
+    throw new Error(`none of the ${change.files.length} files in it could be read: ${why}`)
   }
+  reading.part = partSaid({ ...change, cut })
   if (refused.length > 0) {
     reading.part = [
       partSaid({
         ...change,
-        cut: change.cut + batched.cut,
+        cut,
         unread: [...change.unread, ...refused],
       }),
       // And why, because "were not read" is an absence and this is a failure:
@@ -182,6 +219,11 @@ export async function readChange(
       .join(' ')
   }
   return reading
+}
+
+/** What one ask carries, in the characters `inBatches` and `roomFor` count. */
+function sizeOf(batch: readonly { file: string; patch: string }[]): number {
+  return batch.reduce((sum, one) => sum + one.patch.length + one.file.length, 0)
 }
 
 /** The questions that cleared the reporting threshold, highest first. */

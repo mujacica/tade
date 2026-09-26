@@ -1246,7 +1246,14 @@ export class Workbench {
   async watchChecked(
     id: string,
     look:
-      | { found: number; fresh: readonly string[]; left: number; since: string | null }
+      | {
+          found: number
+          fresh: readonly string[]
+          left: number
+          since: string | null
+          /** Why it found nothing, where the watch said: never a problem. */
+          said?: string
+        }
       | { problem: string },
   ): Promise<void> {
     await this.log.append({
