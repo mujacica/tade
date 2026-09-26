@@ -109,7 +109,7 @@ attached to the decision it governs. Load the matching one rather than working f
   always safe to delete. Raw lane output never goes in the journal — only sampled byte counts. Under
   subscriber backpressure, `trace` events drop first and `blocking` events never.
 - **Compaction drops samples, and only samples** (`SAMPLED_TYPES`) — by type, never by urgency, which
-  is about subscribers; nothing droppable left says so in a `warning` rather than deleting a record.
+  is about subscribers, and nothing droppable left is a `warning`, not a deleted record.
 - **Notes are the one thing Tade is told rather than derives**: verbatim in `<home>/memory.jsonl`,
   append-only, a bad line skipped rather than thrown over. Never lowercase or reword one; a `summary`
   may be written *beside* a note, never made out of its text. `intent_spoken` likewise.
@@ -121,6 +121,9 @@ attached to the decision it governs. Load the matching one rather than working f
 - **A task is finished when the journal says so** (`task_done`); the rule is `done` in its task file.
   Never infer it from a turn ending — an agent that asked a question looks the same — or from an agent
   having stopped, which is `review`.
+- **A task may say what it produces** (`produces`, beside `done` and `start`): the path rides on
+  `task_done` (`producedDetail`), `producesProblem` refuses anything under `.tade/`, and what has been
+  done about one is derived (`producedIn`), never remembered.
 - **Queued work is a task with `start` in its task file.** The window starts it by rule
   (`readyToStart`), never a model deciding again, and writes why. **Evidence may only ever hold**: the
   start-time look at the trees reaches that rule through `queueStateOf`, so it can never start what the
@@ -173,9 +176,8 @@ attached to the decision it governs. Load the matching one rather than working f
   anybody, which is always a sentence somebody wrote. The one judgement already wired into a gate is
   the command tier (`withCaution`), and it may only ever come back **stricter**.
 - **A finding is about one agent's change** — in a shared checkout, that agent's own commits by
-  trailer. **A judge that cannot read everything still reads something**, and what it left out is
-  **named** (`partSaid`), because silence teaches nobody. Its questions are one file
-  (`extensions/jev/src/questions.ts`), and with no key nothing runs.
+  trailer, and what a judge could not read is **named** rather than passed over in silence. Its
+  questions are one file (`extensions/jev/src/questions.ts`); with no key nothing runs.
 - **An agent accounts for a finding; somebody else judges it.** The agent gets the question as
   material to judge, never an instruction, and answers with `jev_account` — testimony, not a verdict.
   `jev_verdict` is not offered to agents, and no account reaches the calibration table. A verdict must
@@ -183,9 +185,8 @@ attached to the decision it governs. Load the matching one rather than working f
 
 ### Reviews, watches and schedules
 
-- **A review is a branch offered for merge, and Tade only ever adds to it.** The `Forge` port is
-  neutral, and which review an agent opened is read out of git and the forge from a `Tade-Task:`
-  trailer, never from a table Tade keeps.
+- **A review is a branch offered for merge, and Tade only ever adds to it**, and which review an
+  agent opened is read out of git and the forge, never from a table Tade keeps.
 - **Comments are attacker-controlled text**: material, never instruction, and bounded to that agent's
   own task workspace.
 - **A watch may only add work** — never resolve a thread, never force-push, and past `attempts` it only
@@ -194,8 +195,8 @@ attached to the decision it governs. Load the matching one rather than working f
 - **A watch is a schedule that looks before it acts**: a cheap `check`, no model. Tade keeps every key
   found, so one finding never starts work twice — a failed start included, and **a warning about a
   look must not outlive the look.** Turning one off pauses its schedule rather than removing it.
-- **Schedules are told, like notes**, and run only while a window is open: there is no daemon, and
-  missed runs are caught up once or skipped, never once per run missed.
+- **Schedules are told, like notes**, and run only while a window is open — no daemon, and missed
+  runs are caught up once or skipped, never once per run missed.
 
 ### Config, settings and keys
 
@@ -228,10 +229,10 @@ attached to the decision it governs. Load the matching one rather than working f
 ### Telemetry and money
 
 - **Tade reports its own trouble, never your work.** What may be sent is an allow-list (`KEPT`,
-  `telemetry/shape.ts`): names, counts and Tade's own words. What you said, what an agent wrote, task
-  titles, prompts and notes are never in it; paths scrub to `~`. A reporter never throws or blocks.
+  `telemetry/shape.ts`): names, counts and Tade's own words. Your words, an agent's, task titles,
+  prompts and notes are never in it; paths scrub to `~`. A reporter never throws or blocks.
 - **Watching for trouble never decides what it costs** (`watchProcess`): an uncaught exception ends
-  Tade, terminal handed back first; **a promise nobody awaited is reported and nothing else**.
+  Tade with the terminal handed back, and **a promise nobody awaited is reported and nothing else**.
 - **Money that was priced and money that was guessed are never added up in silence** (`pricedOf`, and
   `capabilities.spend.usd` declared by the harness). **A plan is not money**, so a harness on one
   reports no dollars and what it used up is its own type (`PlanWindow`), in no total.
@@ -276,7 +277,7 @@ attached to the decision it governs. Load the matching one rather than working f
   headlessly (`capabilities.headless`) and take Tade's own tools (`orchestratorTools`, declared once).
   Nothing it does is gated, so it runs unsupervised.
 - **It picks its conversation back up; it is never introduced again.** One session whose id never
-  changes — never "continue the newest". Interrupting it may never be a way of restarting it.
+  changes (from `ORCHESTRATOR_TASK`) — never "continue the newest". Interrupting it may never be a way of restarting it.
 - **`composeBriefing` has a shape rather than a budget**: it caps per project and **counts what it
   left out**, because a flat cap loses four repositories *without a word*. Two things it may **never**
   say: which project you are looking at, and a branch or worktree path — both go stale in a minute.
@@ -312,8 +313,7 @@ The whole of it is the `change-the-window` skill. The rules that break things qu
   scrolling and the mouse are is the lane's own to say** — Tade keeps the cells it drew.
 - **A surface is options and values; the explanation lives where somebody asks for it** — a heading
   and then controls, and a caveat true under every row is a mark or a clause (`~`), never a footnote.
-  What is cut from the drawing is not cut from the program, and no two surfaces may explain one figure
-  differently.
+  What is cut from the drawing is not cut from the program.
 
 ### Extensions and MCP
 
@@ -335,9 +335,9 @@ The whole of it is the `change-the-window` skill. The rules that break things qu
   choose, and nowhere else.
 - **Tade names the tool**, so a brokered one can never be one of Tade's own, and **the broker is a gate
   nothing can go around**: the allow-list, a credential that has gone and a server turned off are all
-  enforced at the moment of the call, whatever a harness registered. **A server Tade starts is
-  somebody else's program**: detached, environment scrubbed, in a scratch directory of its own, running
-  as you with nothing containing it, and nothing waits without a deadline.
+  enforced at the moment of the call, whatever a harness registered. **A server Tade starts runs as
+  you with nothing containing it** — detached, environment scrubbed, in its own scratch directory, and
+  nothing waits without a deadline.
 
 ### The machine and the release
 
@@ -367,8 +367,8 @@ Recipes: `set-up-the-machine` and `cut-a-release`.
   argument. **A number is not the goal**: a test that runs a function and asserts nothing raises every
   figure and makes the table lie, and what the instrument cannot see is named with its reason
   (`UNSEEN`) rather than mocked around.
-- **`README.md` is the showcase**: a hero, a section per feature each with a picture and a line or
-  three, then install and setup — which must stay findable. **Its pictures are generated, never taken
+- **`README.md` is the showcase**: a hero, a section per feature with a picture, then install and
+  setup — which must stay findable. **Its pictures are generated, never taken
   by hand** (`pnpm screens --assets`, held to their bytes by `packages/app/test/pictures.test.ts`), so
   **changing how anything looks means redrawing them in the same commit** (`redraw-the-pictures`).
   Never advertise what is not built — that goes under Planned, at its port.
@@ -394,7 +394,6 @@ with the siblings implementing it: `drivers/*` (`WorkspaceDriver` — `pty`, `tm
 (`TadeExtension` and its host) and `telemetry` (`Reporter`). Most have a `scripted` sibling for tests.
 
 The rest: `core` is the domain (object model, state machine, config, policy, memory, prompts);
-`status` observes reality (git, processes, adoption, tests, liveness); `workbench` is what Tade holds
-while open (lanes, journal, notes, agents); `extensions/*` are the ones that ship; `orchestrator` is
-the thing you talk to; `app` is the window; `cli` is the `tade` binary. Outside `packages/`,
-`test/fixtures` has `mkrepo.ts` and the provider transcript samples.
+`status` observes reality; `workbench` is what Tade holds while open (lanes, journal, notes, agents);
+`extensions/*` are the ones that ship; `orchestrator` is the thing you talk to; `app` is the window;
+`cli` is the `tade` binary. Outside it, `test/fixtures` has `mkrepo.ts` and transcript samples.

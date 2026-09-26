@@ -15,6 +15,8 @@ in step.
 | `packages/workbench/src/workbench.ts` | the operation itself |
 | `packages/workbench/src/registry.ts` | lane state and its persistence |
 | `packages/workbench/src/events.ts` | the journal |
+| `packages/workbench/src/tasks.ts` | the task file: what a task is, what it is called, what it produces |
+| `packages/workbench/src/memory.ts` | notes — the one thing Tade is told rather than derives |
 | `packages/orchestrator/src/tool-host.ts` | only if an orchestrator tool needs to call it |
 | `packages/workbench/src/ignore.ts` | only if the operation writes a new kind of file into a project |
 
@@ -45,11 +47,32 @@ in step.
   another machine, and something holds it honest. If you do add an exception, put it after the
   denial: order matters, and a negation git never reaches does nothing. Never exclude a folder
   (`/.tade/`) rather than its contents, or
-  nothing under it can be put back.
+  nothing under it can be put back. **And the append says so in the journal** (`ignore_written`: the
+  project, the path, the lines added, and that nothing commits it) — this is the only file Tade
+  changes in somebody else's repository, and a line in the record is what makes that undoable rather
+  than mysterious. It fires only when something was actually added, because `ensureIgnored` asks git
+  whether the outcome already holds however somebody spelled it.
 - **Never report a lane as alive without evidence from the driver.** A live pid says something is
   running, not that we can drive it. `reconcile` asks the driver and takes its answer.
 - **`close()` lets go; `stopEverything()` ends the work.** Closing Tade must never stop agents that
   the driver says can outlive it.
+- **A name a person gave something is kept; anything else is a guess.** `setTitle(worktree, title,
+  named)` (`tasks.ts`) writes `title_named: true` in the task file when a person chose the name, and
+  that name is what the agent's session is given. A title taken from the first thing somebody asked
+  only fills a blank, and is replaced the moment a better one comes — so never write one over a
+  `title_named` task, and never pass `named` for a guess.
+- **A note is kept verbatim, and a headline is written beside it rather than out of it.**
+  `Memory.remember(text, scope, by, now, summary)` appends `text` exactly as it arrived; `summary` is
+  optional, a few words on what the note is about and what it does, written by whoever takes the note
+  down — the orchestrator as it calls `tade_remember`, a person on the note's own page. It is never
+  derived from the text: a summary drawn at drawing time is a guess at what somebody meant, made four
+  times a second, and the whole reason notes are verbatim is that nothing can recover that. Every
+  note taken before `summary` existed has none, so it stays optional and those are drawn in their own
+  words.
+- **`reflected` is the only record that a finished task was looked back over**, which is why
+  `needsReflection` (`core/src/reflect.ts`) reads it out of the journal instead of remembering it, and
+  why it may not be dropped: without it Tade looks again and spends a turn per finished task every
+  morning. It is `trace` urgency and is *not* in `SAMPLED_TYPES` — see `add-event-type`.
 - Every mutation of lane state is persisted by the registry and appended to the journal, in that
   order.
 - Don't log raw lane output as events. Output stays in the driver's scrollback and is sampled as

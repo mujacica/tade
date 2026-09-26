@@ -75,6 +75,78 @@ closes, which is the thing this design exists to avoid.
   it (`signIn`, with a sentence saying what they will be asked), makes a new account's folder ready
   (`prepareAccount`), and carries a task's conversation to another account (`carryConversation`).
 
+## A model is chosen per harness
+
+A route's model is for its own harness; what new agents of another harness start on is kept beside
+it (`workers.routes.<route>.harnesses.<harness>`), and a model is always resolved by the harness it
+is for (`resolveModel`) — never handed across.
+
+- **A picker only ever offers what one harness runs, asked of that harness.** `modelsOffered` asks
+  the adapter; `agentModels` asks the harness a task's agent is actually in, `harnessModels` the one
+  new agents of a harness would use, and `Orchestrator.models` its own — each **on the account it
+  runs as**, since a model is reached through a sign-in and another account's catalog is not this
+  agent's. There is **no everybody's list to fall back on**: an adapter that cannot say comes back
+  with nothing and the sentence it declared for exactly that (`capabilities.why.models`), and the
+  window says that sentence *in place of* a list, because a model of another harness is a name that
+  fails at the next launch — silently, in a lane, after the agent has already been started.
+- **Which harness a setting's model is for is part of the question**: the type is
+  `{ kind: 'model', harness }`, never a bare string. How hard a thing can be told to think is the
+  harness's too — `capabilities.thinking` for whether it can be told at all and
+  `capabilities.thinkingLevels` for what it may be told, least to most, since pi thinks at `off`
+  where Claude Code does not. The orchestrator is a harness choice like any other and reads them the
+  same way.
+- **Choosing a harness clears what was chosen for the one before it** (`clearedByHarness`,
+  `core/src/routes.ts`): model, provider and thinking level go back to unset, which is the harness
+  deciding and is exactly where a route sits before anybody has chosen anything. Carrying them
+  across is how a route ends up asking for something that does not exist there. What was chosen for
+  another harness under the same route (`harnesses.<id>`) is untouched — it was never this
+  harness's.
+- **And the same rule reaches backwards.** A run resumed is only ever told what *that* harness ran
+  it on (`modelLastRunOn`, asked per harness): a task moved from Claude Code to pi and back would
+  otherwise be handed the model of the harness it is no longer in, which means nothing there. What
+  is handed over is the *spelling* rather than the model's own name, because a bare `claude-opus-5`
+  is offered by several providers and pi refuses to guess between them — an agent that exits before
+  reading a word.
+
+## Starting an agent, and coming back to one
+
+**An opening instruction is said once, and nothing that comes back says it again.** Starting an
+agent with a first prompt (`startAgent`) and reattaching to the conversation it already has
+(`reopenAgent`) are **two acts**, not one call with an empty string: the reopen request has no
+prompt to pass, so no caller can reattach and instruct in one breath. The prompt reaches the harness
+as `LaunchSpec.opening`, is appended at that launch only, and is never written into the lane's spec
+— so relaunching a lane from what was stored, or reopening the window, reattaches in silence. An
+adapter that returned the opening prompt inside `args` would break exactly that, which is why the
+port has it come back in `opening` and nowhere else.
+
+Queued work whose agent already has a conversation is brought back rather than told again
+(`hasConversation`, then `reopened` in `queue_started`): an agent that hears its first instruction
+twice does the work twice, on top of what it has already done.
+
+**An agent that was running when Tade closed is opened again where it left off.** Alive when
+`lanes.json` was last written and gone when the next window looks means the window closed on it, so
+the record is marked `lost` (`packages/workbench/src/registry.ts`) and that window starts the agent
+again from the spec it kept. Stopping, removing or exiting clears the mark, which is the whole of
+what keeps the two apart — an agent somebody ended must never come back. The mark is also what
+keeps the evidence: `forgettable` never forgets a lane marked `lost`, so there is still a spec to
+relaunch from.
+
+## What is kept about a running agent
+
+- **What an agent has been doing is a reading, and is never journalled.** The supervisor keeps the
+  last tools each run called and how its last turns ended, in memory, by task (`doingByTask`,
+  `packages/workbench/src/workers.ts`), for a watch that reads whether an agent is getting anywhere
+  (`circlingIn`). The journal keeps what was *decided* about a tool call; writing down every step of
+  every turn is the log becoming the transcript. Nothing in it decides anything, and nothing in it
+  outlives the window.
+- **A lane's output is sampled, never recorded.** The output itself lives in the lane's scrollback;
+  what reaches the journal is a byte count every `DEFAULT_OUTPUT_SAMPLE_MS` (30s in
+  `workbench/src/registry.ts`, and 1s once), a thirtieth of the lines for the same trace. It paces
+  nothing live: `lastOutputAt` is set on **every** chunk, so liveness, stall detection and the
+  window's own idea of activity are unchanged — which is why a signal that needs to see an agent
+  moving reads `lastOutputAt`, and why sampling more often to make one work buys nothing and costs
+  the journal (the sizing argument is in `add-event-type`).
+
 ## What Claude Code taught (`packages/harnesses/claude`)
 
 When the harness has nothing of ours inside it, everything comes through what it offers — hooks,

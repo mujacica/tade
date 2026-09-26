@@ -147,6 +147,11 @@ way, and no agent could account for the answer because none of it was only their
 - **An agent asking `jev_review` or `jev_findings` about nothing is asking about its own change.**
   That is the whole of how a finding reaches the agent whose it is: a pull, because nothing in the
   port can push a sentence into a conversation already going.
+- **A judgement may advise before anybody guesses, and advising is not deciding.** `jev_plan_check`
+  reads a plan again beside what has actually changed, and `jev_queue_order` reads the order the same
+  way. Both may only ever make work *later* — they cannot start it, unhold it, jump a wait or exceed
+  `max_parallel`, because they answer through the queue's own rules and not around them — and the
+  reason anybody is given is the sentence Tade wrote, never the probability.
 
 ## Finding, account, verdict
 

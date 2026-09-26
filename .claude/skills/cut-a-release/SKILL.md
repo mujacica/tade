@@ -248,7 +248,9 @@ three ways to approve the install script a package manager held rather than ran.
 **`install-hooks.mjs` is `prepare`**, which runs for this repository and for a git install and never
 for somebody installing the published package. Pointing a stranger's git at hooks in a repository of
 theirs is not Tade's business, and `test/release.test.ts` holds the root manifest to it: `prepare`
-names it, `postinstall` must not.
+names it, `postinstall` must not. What it does here is point git at `.githooks` through
+`core.hooksPath` — and it leaves a hooks path somebody chose themselves alone unless asked, which is
+what `pnpm hooks` is for.
 
 **A dependency that did not load at all is caught once, in `bin.ts`**, and answered by
 `nativeTrouble`. It names the module, what the machine said, the toolchain a build needs, and the

@@ -89,6 +89,16 @@ not duplicate something Tade already does better through a port of its own.
   the table in `packages/mcp/core/test/naming.test.ts` is where you say what changed, and every
   existing case has to keep its answer: a name that moves is a tool an agent reaches for and
   misses.
+- **Because Tade names it, the policy is written once.** The same name reaches the approval rules in
+  every harness, so `approvals.auto_allow` takes one entry per brokered tool and there is no new key,
+  rule or tier to add for a server.
+- **A brokered tool can never be one of Tade's own, and four layers say so.** Brokered extensions
+  load after `builtin` *and* after yours, so a server loses a name either of them wanted and is
+  listed broken with why; `shapeProblem` refuses a tool whose name does not start with its
+  extension's; the host refuses a second extension with a name already taken. `nameProblem` is the
+  fourth and cannot fire given the other three — it is there so that changing one of them cannot
+  quietly open it, which means a change to load order or to `shapeProblem` has to keep `nameProblem`
+  unreachable rather than delete it.
 - **The call comes back into the window.** Enforce at the moment of the call, not only when the
   list was built: the `tools` allow-list, the credential, whether the server is still on. A server
   that calls its own call a failure comes back as a throw, because that is the only way a tool

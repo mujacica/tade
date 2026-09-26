@@ -716,6 +716,38 @@ the window's.
   is and nothing else; the letters go on matching all of it either way, because matching it here sends
   nothing anywhere. On by default, said out loud where somebody is deciding.
 
+## What the window says outside itself
+
+Two things leave the window without anybody asking for them, and both are pure: facts in, one line
+out, tested without a terminal.
+
+- **The terminal's title is the window's alone** (`title.ts`, written by `wire/window.ts`). It used to
+  be whatever ran in Tade's own process group last, so Terminal named the window after a child and it
+  flickered between `pi < node /the/whole/path` and `osascript` all day. Everything Tade starts on a
+  timer or in the background now runs detached — its own process group, so no child of ours can name
+  the terminal after itself — and this is the only thing that writes a title. `windowTitle` composes
+  it from the agents, the orchestrator and where you are (`⠹ tade · 2 working · 1 waiting — tade ›
+  ui-chrome`), with `titleMark` in front turning while anything works, the way an agent's own mark
+  does; the microphone wins it, then work, then a decision waiting, then a failure, then rest. The
+  counts come from `markOf`, so the title and the sidebar can never say the same thing two ways, and
+  **where you are is the first thing dropped** past `ROOM` — what is happening outlives what you are
+  looking at. Written when it changes, which while anything works is every look, and otherwise
+  re-asserted on the same slow beat as the repaint (`RETITLE_MS`), so a title something else took is
+  taken back.
+- **What Tade tells the orchestrator without being asked is `inbox.ts`.** News — an agent finished,
+  one failed, the queue started one — waits and goes with the next thing somebody says (`withNews`),
+  under the `THEIR_WORDS` heading, so the orchestrator can tell what was said *to* it from what it is
+  being *told*, and record only the first as somebody's intent. Something that needs deciding cannot
+  wait for you to speak and is told on its own, after whatever turn it is on.
+- **Where you are goes above that heading, and that is not a layout choice.** With five projects open,
+  "start an agent on the flaky test" is not a question anybody could answer, so `ask` appends one line
+  (`whereYouAre`): the project and the agent in front of you, and how many projects are open. It is
+  **Tade's** sentence, so putting it inside `What they said:` would record it as something the person
+  said. Derived at the moment of asking, never stored, and deliberately not in the briefing — a
+  briefing that says "you were in sentry" is wrong the instant somebody presses a tab, which is the
+  same class of bug as a remembered branch. Null with one project and nothing focused, where there is
+  nothing to disambiguate and a line saying so is noise.
+
 ## Checking it against a design
 
 When a screen is designed first, compare it line for line rather than by eye: draw the scenario with

@@ -9,6 +9,13 @@ Tade's own tools live in `packages/orchestrator/src/tools-extension.ts`, which p
 orchestrator session with `-e`. Each tool is a name, a description the model reads, a JSON Schema,
 and a function.
 
+**A tool answers about now; the briefing is a snapshot.** `composeBriefing` hands the orchestrator
+what the world looked like when the window opened, with times on it, and says so — so anything that
+has to be true *at the moment of asking* belongs in a tool and not in the briefing. `tade_status` is
+the one that answers it, which is why the briefing may never say which project somebody is looking
+at, or a branch or worktree path: both go stale within the minute, and a remembered location is the
+same class of bug as a remembered branch.
+
 **A tool about something outside Tade** — a service, a project's files, a registry — is not one of
 these: it is an extension (see `add-extension`), which agents can use too and the window can run.
 
