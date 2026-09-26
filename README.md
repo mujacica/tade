@@ -405,7 +405,7 @@ pnpm run link:global    # puts `tade` on your PATH
 
 There is no build step — Node runs the TypeScript — so `tade` always runs the code you have and
 `git pull` is the upgrade. Changing Tade itself starts at [AGENTS.md](AGENTS.md): the invariants,
-where things go, and a recipe for each kind of change that comes up again.
+where things go, and which recipe under `.claude/skills/` covers the change you are making.
 
 ## License
 

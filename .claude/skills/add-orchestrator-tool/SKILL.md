@@ -45,7 +45,7 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   The orchestrator reads attacker-controlled text all day, so anything that could widen what an
   agent may do, hand a third party tools or a credential, change who is asked, or change where
   Tade sends something is `never` its to write — see `settingReach` in `packages/core/src/reach.ts`
-  and the invariant in AGENTS.md. Most of the rest needs the person's own words, checked against
+  and the one-line invariant in AGENTS.md, whose argument lives in `add-config-key`. Most of the rest needs the person's own words, checked against
   the journal's `said` lines rather than against an argument the tool was passed. Both checks live
   in the window (`wire/settings.ts`, `wire/projects.ts`, `wire/schedules.ts`): a rule that runs
   inside the model's own process is a rule the model can be talked out of. A thing that is not a

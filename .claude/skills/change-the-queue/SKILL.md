@@ -102,4 +102,5 @@ it declares — `standing` where being on costs nothing anybody has to agree to,
 where it starts nothing, which is also what decides whether the first minute ticks it.
 
 Then: a screen scenario for anything drawn (`test/screens/scenarios/queue.ts`, `pnpm screens`, accept on
-purpose), the invariant in `AGENTS.md` if a rule changed, and `pnpm check` on its own.
+purpose), one line of invariant in `AGENTS.md` if a rule changed — with its argument here rather than
+there — and `pnpm check` on its own.

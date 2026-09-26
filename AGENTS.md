@@ -5,1782 +5,396 @@ derives task status from observable state, and is driven by an orchestrator you 
 state of its own — tmux owns the processes, pi owns the conversations, git owns the work — which is
 why closing it is harmless. **You may be a Tade worker editing Tade itself.**
 
+**This file is short on purpose, and is held to a size** (`test/guide.test.ts`, which carries the
+argument). Every agent reads all of it, so an invariant here is **one or two lines: the rule, and
+where it is enforced**; why, the measurements and what it used to be go in a comment beside that code,
+in its `.claude/skills/` recipe, or in a test. **Finishing work does not mean appending here.**
+
 ## Commands
 
-- `pnpm check`: the full gate (biome ci, tsc, then the suite with its coverage floors). Run it
+- `pnpm check` — the full gate (biome ci, tsc, then the suite with its coverage floors). Run it
   before calling work done.
-- `pnpm test`: vitest (must stay under 30s with zero network calls).
-- `pnpm coverage`: the suite with coverage, then the floors in `scripts/coverage.ts`; `--table`
-  prints every package rather than only what is wrong. This is what the `tests` check runs.
-- `pnpm exec biome check --write .` formats and fixes.
-- `pnpm test:smoke`: the cheap end of the suite — the domain, and the tests that hold this
-  repository to its own word. A second or two, and what the pre-commit hook runs.
-- `pnpm tade <args>` runs the CLI from source.
-- `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` is the only test that uses a
-  real model. It costs money and needs credentials, so it is skipped by default and run before a
-  release — but it is the only evidence that a model can choose the right tool from the descriptions
-  we wrote, because every other test tells the fake model what to call. **Before a release is not a
-  reminder**: a whole green run writes down the commit it went green against, anything red takes
-  that receipt away, and `pnpm release` refuses without one for HEAD — because a check nobody ran is
-  not a check that passed, and this one had never been run at all. A case is a row in its table, and
-  a failure is a defect: usually a description that reads unambiguously to whoever wrote it and
-  ambiguously to a model, sometimes a capability nothing offers, since a model cannot choose a tool
-  that does not exist.
+- `pnpm test` — vitest. Must stay under 30s with zero network calls.
+- `pnpm coverage` — the suite plus the floors in `scripts/coverage.ts` (`--table` prints every
+  package). This is what the `tests` check runs.
+- `pnpm exec biome check --write .` formats and fixes; `pnpm tade <args>` runs the CLI from source.
+- `pnpm test:smoke` — the domain, and the tests that hold this repository to its own word. A second or
+  two, and what the pre-commit hook runs.
+- `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` — the only test that uses a
+  real model, and the only evidence a model can pick the right tool from the descriptions we wrote.
+  Costs money, skipped by default; `pnpm release` refuses without a green receipt for HEAD.
 
 **The commit hook is the fast gate, and CI is the real one.** `.githooks/pre-commit` runs biome,
-`tsc` and `pnpm test:smoke` — four or five seconds over the whole repository, because a hook people
-wait on is a hook people pass `--no-verify` to. It deliberately leaves out everything that makes
-the suite take minutes: real git repositories, real PTYs, the tmux driver, the app's frame loop.
-So a green hook is not a green `pnpm check`, and it never stands in for one. `pnpm install` points
-git at it (`core.hooksPath`); `pnpm hooks` does it on demand, and leaves a hooks path you chose
-yourself alone unless you ask.
+`tsc` and `test:smoke` in four or five seconds, because a hook people wait on is a hook people pass
+`--no-verify` to. A green hook is not a green `pnpm check` and never stands in for one.
 
-**Run the suite on its own.** `pnpm check` runs the gate in sequence for a reason: the tests spawn
-real git and PTY processes with short timeouts, so anything CPU-heavy running alongside them —
-`tsc` over the monorepo, most obviously — starves those processes and they time out. That looks
-exactly like a regression and is not one: 13 such failures over 485s became 465 passing in 8s once
-the suite had the machine to itself. Never conclude the suite is broken from a run that shared it.
+**Run the suite on its own.** It spawns real git and PTY processes with short timeouts, so anything
+CPU-heavy alongside it starves them and they time out — which looks exactly like a regression and is
+not one. Never conclude the suite is broken from a run that shared the machine.
 
-**And a test never counts what the machine did in a fixed sleep.** CI's runner is that starved
-machine permanently, so a number asserted over a stretch of wall clock is a number about the
-runner: `asked < 8` after thirty notches ten milliseconds apart was six looks on a quiet laptop
-and eight on `macos-latest`, and the driver reads it was written to guard were nought in both —
-the assertion had drifted onto the frame loop and off the behaviour. Pace by the thing being
-counted instead — a notch and the look that answers it — and then assert what those looks asked
-for, which a slow machine takes longer to say rather than saying differently. A sleep is for
-waiting on something to settle, and even then the lane's own depth says when a shell has stopped
-printing better than a guess at how long it takes. The two shapes that are safe are a rate with a
-ceiling (`frame.probe.test.ts`) and a "said once" over a wait, because a slower machine can only
-ever make each of them pass.
+**A test never counts what the machine did in a fixed sleep.** A number over a stretch of wall clock
+is a number about the runner. Pace by the thing being counted; the safe shapes are a rate with a
+ceiling and a "said once" over a wait (`packages/app/test/wire/frame.probe.test.ts`).
+
+**Agents share this checkout.** Read a file again immediately before editing it. Commit only files
+you changed yourself, each added by path — never `git add -A`, `git add .` or `git commit -a` — and
+never run what throws others' work away: `git stash`, `git checkout`/`restore` of files,
+`git reset --hard`, `git clean`.
 
 There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). Consequences:
 - Relative imports use the `.ts` extension: `import { x } from './x.ts'`.
 - Erasable syntax only: no `enum`, `namespace`, or constructor parameter properties.
 - Type-only imports use `import type`.
-- The published tarball is the one place this is not true, and why is an invariant below.
+- The published tarball is the one place this is not true — see the `cut-a-release` skill.
 
 ## The four rules
 
 1. **R1: every port is an interface plus a registry.** A port lives with its subsystem —
    `drivers/core`, `harnesses/core`, `voice/core`, `extensions/core` — next to the conformance suite
-   its implementations must pass. Implementations are registered by name in one registry map; call sites
-   never `new` a concrete one.
-2. **R2: no port interface uses an implementation's vocabulary.** It's `write(lane, bytes)`,
-   never `sendKeys`. Check every method name against this before implementing.
+   its implementations must pass. Implementations are registered by name in one registry map; call
+   sites never `new` a concrete one.
+2. **R2: no port interface uses an implementation's vocabulary.** It's `write(lane, bytes)`, never
+   `sendKeys`. Check every method name against this before implementing.
 3. **R3: capabilities are declared, never sniffed.** Branch on `driver.capabilities.focus`, never on
    `driver.id === 'tmux'`. A Biome plugin (`biome/no-port-id-check.grit`) fails lint on this.
 4. **R4: conformance suites come first.** Each port has a shared suite beside it in its `core`
-   package (`drivers/core`, `voice/core`, `extensions/core`); every implementation must import and
-   pass it.
+   package; every implementation must import and pass it.
 
-## Other invariants
+## Read the recipe before you change anything
+
+`.claude/skills/` holds the recipe for every recurring change, with the reasoning behind each invariant
+attached to the decision it governs. Load the matching one rather than working from this file alone.
+
+| Changing | Skill |
+|---|---|
+| a `tade` subcommand · a config key or secret · an event type | `add-cli-command` · `add-config-key` · `add-event-type` |
+| an extension · an MCP server · a reporter or telemetry | `add-extension` · `add-mcp-server` · `add-reporter` |
+| an orchestrator tool · a workbench operation | `add-orchestrator-tool` · `add-workbench-operation` |
+| a driver · a harness · a status probe · a task's state | `add-workspace-driver` · `add-worker-adapter` · `add-status-probe` · `change-task-state` |
+| a judge · the checks · the reviews and CI watches | `add-judge` · `change-the-checks` · `change-the-reviews` |
+| the queue, schedules and watches · spend and plan limits | `change-the-queue` · `change-the-spend` |
+| the window · the README's pictures | `change-the-window` · `redraw-the-pictures` |
+| voice · transcription · a provider transcript | `add-voice-intent` · `add-transcriber` · `add-transcript-parser` |
+| the release · what the machine must have | `cut-a-release` · `set-up-the-machine` |
+
+## Invariants
+
+### Deriving, not remembering
 
 - **Status is a query, not a memory.** `deriveState` (`core/src/state.ts`) is a pure function of
   probe results: no I/O, no clock reads (take `now`), no async.
 - `status` never throws. Failures degrade to a partial answer plus `warnings[]`.
-- **How long an agent ran is derived too, never timed.** `runtimeFrom` (`core/src/runtime.ts`)
-  reads the journal's `run_started` and `run_exited` and nothing anywhere holds a stopwatch; a run
-  still open counts up to `now`, because an agent working right now is running right now. A run
-  nobody wrote an exit for ends where the window closed, or where the next one opened and
-  relaunched it — counting the hours Tade was shut would add a night's sleep to every agent's
-  morning. The orchestrator is not in it: it has no run of its own, it lives as long as the window.
-- **And how long it was *working* is the same fold, one level down.** A run counts until it
-  stopped, idle time included, which is the honest answer to how long an agent was there and the
-  wrong answer to how long a model was thinking — the one that pairs with what it cost. So
-  `runtimeFrom` reads the turns inside each run too (`turn_started`, `turn_done`), clipped to the
-  run that holds them so working time can never exceed the wall clock beside it, and a turn still
-  in flight counts up to `now` like the run around it. A harness saying a turn began while one
-  already has is the same turn and keeps the first, because pi says it again every time its socket
-  reconnects mid-turn. Nobody holds a stopwatch here either: what the supervisor sees, it writes
-  down, and the arithmetic is a fold like every other statistic.
-- **A run whose turns have ends and no beginnings cannot say, and says that.** `turn_done` has
-  always been journalled and `turn_started` had not, so every run written before this has finished
-  turns and nothing to time them by — 7,090 of them in the journal this was built from. That is
-  `unknown` and never nought: a run only reaches this state by having *worked*, so a `0s` would
-  read as an agent that did nothing, which is the opposite of what happened. `workedOf` is the one
-  answer — `recorded`, `partly`, `unrecorded`, the shape `pricedOf` has for money and for the same
-  reason — a figure made of some runs that could say and some that could not is drawn as the floor
-  it is (`≥`), and the journal is append-only, so the only cure is time.
-- Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. Never mock git.
-- **A fixture must not be kinder than reality.** If the fixture differs from what a user's machine
-  looks like, it hides bugs instead of finding them: `mkrepo` deliberately leaves `.tade/`
-  untracked and unignored, because a repository Tade has not worked in yet does, and excluding it
-  once concealed a broken teardown. The rules arrive in a fixture the way they arrive anywhere —
-  `createTask` writes them — so a test that goes through the workbench gets what a user gets, and
-  one that does not is a project before Tade, which is also a thing that exists.
+- **Every statistic is a fold over the journal** (`runtimeFrom`, `spendFrom`, `statsFrom`); nothing
+  holds a stopwatch or a tally.
+- **`unknown` is a first-class answer and is never drawn as nought**: `UNRECORDED`, `cannot tell`, `—`
+  rather than `$0.00`, `≥` for a figure some of whose answers could not say.
+- **A probe that could not look is not a probe that found nothing** (`problemWith`): not installed,
+  failed, timed out — three cases, never one, and a failed look degrades to the last scan that could
+  rather than to an empty list, which everything above reads as "nothing is running".
+- **Two things are written down because they cannot be asked again**: `commit_seen` keyed by sha
+  (`git log` answers differently after a rebase) and `check_ran` keyed by run id
+  (`.tade/checks.jsonl` dies with its worktree).
+
+### Git, tests and fixtures
+
+- Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. **Never mock git.**
+- **A fixture must not be kinder than reality** — `mkrepo` leaves `.tade/` untracked *and* unignored,
+  because a repository Tade has not worked in yet does.
 - Git is invoked directly with `--porcelain=v2` / `-z`. No git wrapper libraries.
 - Parsers of external formats (provider transcripts) return `null` on unknown shapes, never throw.
-- `intent_spoken` is stored verbatim. Never paraphrase or normalise it.
-- **Notes are the one thing Tade is told rather than derives**, and so the one exception to "status
-  is a query": nothing can recover them, so they are kept verbatim in `<home>/memory.jsonl`,
-  append-only, and a line that won't parse is skipped rather than thrown over. Never lowercase or
-  reword one — `parseUtterance` recovers the original casing for exactly this reason, and it took a
-  test with a capital letter in it to notice that it didn't. A headline may be written *beside* one
-  (`summary`, what the note is about and what it does) by whoever takes it down — the orchestrator
-  writes one as it calls `tade_remember`, and a person writes one on the note's own page — and the
-  window reads a note by it, over the words themselves. It is never made out of the note: a summary drawn from the text at drawing time is a
-  guess at what somebody meant, made four times a second, and the whole reason notes are verbatim is
-  that nothing can recover that. Optional and always will be, since every note taken before it
-  existed has none; those are drawn in their own words, as they always were.
-- **A task is finished when the journal says so** (`task_done`). Its agent says it (`tade_done`), a
-  person or the orchestrator marks it, or the window sees the task's own rule met and writes that
-  down once. The rule is `done` in its task file — `said`, `idle`, `committed`, `merged`, `manual` —
-  chosen by whoever made the task. Never infer it from a turn ending (an agent that asked a question
-  looks the same) or from a checkout agent having stopped (status calls that `review`). A branch
-  that was squash-merged counts as merged: its commits are nowhere in the base, so when there is no
-  ancestry to follow Tade asks whether merging it would still change anything.
-- **A task may say what it produces, and a document is not a change to the code.** An agent sent to
-  plan, audit or research writes one, and a task finishing reached the orchestrator as a single
-  line — the summary its agent wrote — with nothing saying a document existed or where, so a person
-  had to say "the research agent is done, go and read it" every single time. So a task names it
-  (`produces` in its task file, written when the task is made like `done` and `start`), its agent is
-  told where to write it, and the line that says it finished carries the path and whether the file
-  was actually there (`producedDetail`). On `task_done` rather than looked up afterwards, because
-  **the journal is the only thing that remembers**: the task's folder goes when the task does, and a
-  window that was shut when an agent finished still has to open knowing there is something to read
-  — which is what the briefing's own section is for, uncapped like `held`, because a document lost
-  to a per-project cap is the whole bug back again. What happens to it afterwards is answered by
-  where it may be: `producesProblem` refuses anything under `.tade/`, which git ignores and Tade
-  removes with the task, so it is an ordinary file the agent commits and that survives on its
-  branch. What has been done about one is **derived, never remembered** (`producedIn`): work made
-  since it finished that waits on it, and its own agent being started again — the two marks the two
-  useful answers leave — so "nothing has been done about it yet" stops being said the moment
-  something has. There is no research mode and no lifecycle of its own: a task is a task, and this
-  is one optional field on it. And Tade **tells, it never starts**: what to do about an analysis is
-  a judgement, and a rule that queued work off a document would fill the queue with guesses.
-- **Queued work is a task that has not started**, with `start` in its task file: what it waits on
-  and why, not before when, and what its agent is told. The window starts it by rule
-  (`readyToStart`) on every look at the tasks — never a model deciding again — as far as
-  `max_parallel` leaves room, and writes why (`queue_started`). What it waits on failing, stopping
-  or going holds it (`queue_held`), said once to the orchestrator, which asks the person; their
-  choice (`queue_changed`) is written down and read back. In a worktree it begins on top of what it
-  waited on (`startFrom`), or from the base when that was merged, and keeps its own `.tade` files.
-  A plan is checked against what the project is already on — agents working, work an earlier plan
-  left queued — and says what it will run into rather than refusing: what an agent will touch is a
-  reading of the code, and the orchestrator may know better.
-- **What a plan guessed is checked against the tree before anything starts.** `touches` is one
-  reading of the code, made when the plan was written; by the time work is about to start, agents
-  have been changing files for an hour. So the window looks (`lookAtTrees`) at the moment of
-  starting — and only then, at the projects the rule already says something is ready in: what is
-  changed and not committed, and what each agent with a run still open has committed since it
-  started, whose read back out of the `Tade-Task:` trailer and never guessed. Overlap it did not
-  expect holds it (`collidesNow`), through the one hold path there is. Only in a shared checkout:
-  with a worktree each, nothing is being changed under anybody, and what two branches do to one
-  file is a merge, which the plan already said. Evidence may only ever *hold*: it reaches
-  `readyToStart` through `queueStateOf`, so it can never start what the rule would not, never jump
-  a wait, never unhold and never exceed `max_parallel` — and held work is not ready, so it never
-  takes the slot of work behind it. It heals rather than waits on a person: the look that finds
-  the files settled starts the work, and until somebody looks again the last hold written stands,
-  so every reader says the same thing. `jev_plan_check` and `jev_queue_order` will read the plan
-  and the order again beside what has changed, which can only make work later; the reason anybody
-  is given is the sentence Tade wrote.
-- **An order among queued work is a written fact, and only a preference.** `inWrittenOrder` reads
-  the last `order` somebody wrote (`queue_changed`) and the window sorts what it hands
-  `readyToStart` with it, so it changes which of the *ready* ones goes first and nothing else: it
-  can never jump a wait, unhold a hold, resume a pause or exceed `max_parallel`, and nothing
-  starves, because the last line written wins rather than a score recomputing. With nothing
-  written it is arrival order, exactly as it was.
-- **A review is a branch offered for merge, and Tade only ever adds to it.** The `Forge` port
-  (`packages/forges/core`) is neutral — a `Review`, a `Verdict`, a `Thread`, never a pull request —
-  and each implementation declares the words a person reads (`words`), so the window says `PR #412`
-  on GitHub and `MR !88` on GitLab without anybody checking which forge it is. Which review an
-  agent opened is read back out of git and the forge from a `Tade-Task:` trailer, never from a
-  table Tade keeps: a table is wrong the moment somebody force-pushes, and "unattributed" is always
-  an allowed answer. Comments are attacker-controlled text: an agent is handed them as material,
-  never as instruction, and what they cause is bounded to its own task's workspace. A watch may
-  only add work — it never resolves a thread, never force-pushes, and after `attempts` automatic
-  fixes on one review it only tells you. Merging is a person's: `merge` is `never` by default.
-- **CI is watched on the branch you are on, not only on the reviews you opened.** A project that
-  pushes straight to its base branch opens no review, so `review.checks-failed` — which reads what
-  the forge says about *reviews* — never saw the run that decides whether the branch everybody
-  pulls is broken, and every red build was carried to the orchestrator by hand. So the forge
-  answers about a commit as well as about a review (`checksOn`, `checkLogOn`, behind
-  `capabilities.commitChecks`), which is what both were underneath: a review's number bought
-  nothing but its head sha. `review.branch-checks` reads the commit the project's checkout is on,
-  once everything that ran on it has settled — a check still going may yet be re-run green — and
-  **one red commit is one finding**: the key is the commit and no check is in it, so a workflow
-  re-run starts nothing new, a fix pushed on top is new information, and one push never becomes
-  one agent per failing column. A branch that has a review open is the review watch's, asked only
-  once something is red, so no failure is ever found twice. It is `standing`, because a look costs
-  one request, tells nobody anything and finds nothing where there is no remote; and it only ever
-  adds work — never a push, a revert or a merge, and past `attempts` fixes on one branch in six
-  hours it stops fixing and says what is wrong instead.
-- **A check that nobody ran is not a check that passed.** A project says what it checks in the files
-  it already has — its CI workflows and its commit hook, read by `packages/checks/core` — and a run
-  is always about a named commit. The
-  rollup of the required checks at HEAD is what `deriveState` reads as `tests`, and `unknown` is a
-  first-class answer: absent is not fine. Runs go through Tade so the worktree's lock, the record
-  and the row in the window come free — four agents in one checkout must never start four suites.
-  The rule (`checks.before`) is honest about what it can hold: under `approvals.mode: 'policy'` an
-  agent's push with nothing green behind it comes back refused with what is missing; anywhere else
-  the agent is told the rule and what happened is written down. The default mode is `bypass` and
-  approvals are never Tade's to change on its own, so out of the box this is a rule an agent keeps
-  and not a gate that holds one — said where somebody *chooses* it (the setting's `means`, the
-  group's `about`) and not only in the code that enforces it, because a setting that reads like a
-  promise Tade does not keep is worse than one it does not have. Overruling it is an act, not a
-  setting — `checks_override`, with a reason, read back out of the journal — and a red run that was
-  overruled is still recorded red.
-- **A suite takes minutes, so a run says what it is doing while it is doing it.** `checks.jsonl`
-  holds only what finished; what is going on now is a small file beside it (`running.ts`,
-  `.tade/checks.running.json`) that `runChecks` writes at every state change and takes back when
-  the run ends — so the window draws which check is going, how long it has been going and how many
-  are done, whoever started it: the button, an agent's `checks_run`, or `tade check` in a terminal.
-  The run lock's rule holds here too — a record whose process is gone is not a run — so a window
-  killed mid-suite leaves nothing claiming anything is running. What a run *printed* is read back
-  the same way (`readOutcome`): the counts and the files are in the tail already, and a shape
-  nothing here recognises reads as no counts rather than as an invented one.
-- **What an agent did and whether it holds up is one page** — the ACTIONS tab beside its screen
-  (`actionRows` in `packages/app/src/view/actions.ts`). Its own commits are the ones whose
-  `Tade-Task:` trailer names it, drawn apart from everybody else's rather than counted in a header,
-  and in a shared checkout what is uncommitted is said to be nobody's to attribute rather than
-  claimed as this agent's. A check is what ran, when, against which commit, how long it took and
-  what it counted, with the tail of a failure read on the page — and `unknown` is drawn as
-  `unknown`.
-- **And the checks on it are two categories, because one list was a wall.** Reading a project's own
-  CI and hook means every row carries where it came from, whether it can run here and why one is
-  skipped; each sentence is true and together they were what somebody asked to have taken away. So
-  the question is asked once — does Tade run this on *this machine*? — and `skip` is the whole of
-  the answer, whoever gave it. What runs here is the page: a tick, one cell of a mark for how long
-  it took beside the figure, when, what it counted, and the first file a failure named, because that
-  is what the page is opened for. What does not is **one fold** (`NOT_HERE`), shut unless somebody
-  opens it, with the reason a value beside a name rather than a sentence under one — in the same
-  `▸`/`▾` with a count the sidebar's sections use, through the same `sectionOpen`, because it is the
-  same act and nobody should learn it twice. A step the reading could not call a check at all is in
-  there too (`unread`), since that is exactly what it is. Everything a row could otherwise say is
-  behind the row instead: the command it runs, the rest of the files, the tail, the whole log. A
-  caveat true under *every* row — a local run is the commands CI runs and never CI's matrix — is a
-  clause on the heading and gives ground in the heading's own ladder, before the rollup and long
-  before the button.
-- **Which of them run here is a person's answer, and it lives where every other preference does.**
-  The reading says what a repository says and which of it cannot run here, which is a fact about the
-  machine and is right nearly always; the two things it cannot know are a decision — not running a
-  check here that the project runs, and running one the reading gave up on. Both are
-  `projects.<name>.checks.run_here.<id>` in Tade's own config, applied in one pure function
-  (`withChoices`, `packages/checks/core/src/choice.ts`) inside `readChecks`, so the window, the CLI,
-  the state machine and the runner cannot come to four answers. Turning one off gives it a `skip`
-  like any other and takes it out of `required`: a rollup is what a run *here* adds up to, and a
-  required check nothing ever runs would leave every commit `unknown` for good. Turning one on lifts
-  the skip and nothing else, because `required: false` was set for two reasons and only one of them
-  is what anybody just answered. Only what **differs** from the reading is written down
-  (`chosenAfter`), so pressing twice leaves the file as it was found and a step added to CI tomorrow
-  is checked here tomorrow. It is never a file in the repository — that is `.tade/checks.yaml` back
-  under another name — and the write goes through the Settings page's own door (`writeKey`), so the
-  schema still refuses a bad value and `config_changed` still records what changed.
-- **What a project checks is read out of what it already says, and Tade has no list of its own.**
-  There is no `.tade/checks.yaml` and nothing writes one: a project already says what it checks
-  twice — the hook that runs before a commit (`readHooks`) and the workflows that run on every
-  change (`readWorkflows`) — and a third list was one somebody had to keep in step with both. Tade
-  used to *generate* CI from that file, which made the drift a test could catch and the duplication
-  a person still had to maintain. Reading was refused as the definition for three reasons, and each
-  is answered rather than ignored.
-  **"A CI config holds releases and deploys beside its tests and nothing can tell which is which"**
-  was wrong, and why is that nobody had read the *triggers*. A release is told from a gate by facts
-  the file states about itself: `on: pull_request` or a push to branches is what runs on every
-  change, where `on: push: tags:` ships something; `environment:` is GitHub's own word for a deploy
-  target; `permissions: …: write` publishes; `services:` needs a database only CI has; `${{ }}` in a
-  `run:` needs what only the runner knows; no `run:` at all is somebody's action. So the rule is a
-  conjunction of declared facts, under one principle: **reading may only ever narrow what Tade
-  claims.** Everything it cannot place is *named* (`Reading.unread`, said every time in
-  `checks_list`, `tade checks` and the ACTIONS page's own rows) rather than run, so the failure mode
-  is "Tade checked less than CI does, and said so" and never "Tade ran a deploy". The one rule that
-  is a list of verbs rather than a fact is `SETUP`, and it is safe for the same reason: installing is
-  not checking, and excluding it makes Tade claim less.
-  **"The ids come from step names, so a rename orphans every run"** is answered the way `carryOver`
-  answers it one level up. A run already survives the commit after it, because what makes a run true
-  of a commit is the bytes it read and not the commit's id — so a run recorded under an earlier id
-  still stands for this check **when the command is the same**. The id stays the step's own name:
-  readable, what CI shows on its row, what somebody types at `checks_run`. `CheckRun.ran` records
-  the command, and `followRenames` (`identity.ts`) reads a run whose id is gone back onto the check
-  that runs it, only where exactly one check runs that command and only onto a check with no run of
-  its own — a relabelling that had to choose would be a guess, and a guess here draws a green tick.
-  A run written before `ran` existed cannot be followed, which is `turn_started`'s situation exactly
-  and which only time cures.
-  **"A matrix runs on operating systems this machine is not"** was never an argument for a manifest:
-  the clause under every check (*on this machine, not CI's matrix*) is the right shape for a caveat
-  true of every row, and what the reading must not do is turn a 2×OS matrix into two checks. It is
-  one check, run once, here.
-  Two distinctions decide what a person sees. A step that is **not a check at all** — an action, an
-  install, a deploying job, a releasing workflow — is named and is nowhere else. A step that **is** a
-  check and cannot run *here* keeps its row with a `skip` saying why, and is `required: false`, so it
-  is out of the rollup: a rollup is what a run *here* adds up to, and a project with one
-  `${{ secrets.… }}` step would otherwise be `unknown` for ever. And where a project says **nothing**
-  Tade invents no gate: `unknown` stands, which is true, and the agent is told so in as many words
-  (`CHECK_IT_YOURSELF`) — work out what checking this project means, run it, and say what you ran,
-  because nothing recorded a run and its word is the only evidence there is. The one escape hatch is
-  deliberately a config key and not a file in somebody's repository: `projects.<name>.test_command`,
-  one line, in Tade's own config. `checks.from_ci` chose what a reading was good for and is `GONE`,
-  ignored and said, because there is no manifest to adopt into and nothing left to choose between.
-- **Tade configures itself, and how far its own arm reaches is a rule rather than a promise.**
-  The orchestrator reads what Tade is set up with and changes some of it (`tade_settings`,
-  `tade_setting_change`, `tade_project_open`, `tade_project_close`), through the same
-  `settingsOf`, `parseSetting` and `writeSetting` the Settings page goes through — one write path,
-  so a value the schema refuses is still put back as it was. What differs is that it is ungated and
-  reads attacker-controlled text all day, so the question is never whether it can be trusted but
-  **what the worst a sentence it read can do is** — which is a property of the setting, and is
-  decided in one pure function (`settingReach`, `core/src/reach.ts`) and enforced in the window,
-  never in the tool: a rule that lives where the model lives is a rule the model can be talked out
-  of. Three answers and no fourth. **`never`** is everything that widens what an agent may do,
-  hands a third party tools or a credential, changes who is asked, or changes where Tade sends
-  something — `approvals`, `accounts` and `workers.accounts`, a route's `provider`, the whole of
-  `extensions` and `mcp`, `orchestrator.extensions`, `telemetry.dsn`, and a project's `root`. Each
-  is a **subtree** and not a key, which is what makes a key added to one of them refused on the day
-  it is added, by somebody who never read this file. **`asked`** is the default and nearly
-  everything else: the person's own words have to name that setting, checked against the journal's
-  `said` lines (`namedBy`), which is a real barrier rather than a formality because `said` is what
-  a person typed or spoke and nothing an agent read can ever get into it — a page can tell a model
-  to turn the checks off, it cannot put "turn the checks off" in somebody's mouth. It is honest
-  about what it holds: an ordinary word matches loosely, other wording is refused outright, and
-  both are the safe direction, because it may only ever refuse. **`open`** is the three window
-  sizes, where the worst case is something the person is looking at. Every change writes
-  `config_changed` — the path, what it was, what it is now, who asked, and their words — because
-  a change nobody watched has to be one somebody can find and undo; a credential is said as `set`
-  or `not set` there and is never read back by any tool, the way it is never in the journal
-  anywhere else. One thing decided here is not a config key at all — a watch, which lives in
-  `schedules.jsonl` (`WATCH_REACH`) — because the question is the same question, and answering it
-  somewhere else is how two answers to it come to exist.
-- **Closing a project and forgetting its work are not the same act, and Tade only offers the
-  first.** `tade_project_close` takes `projects.<name>` out of the config and does nothing else:
-  the folder, every commit, branch and worktree, everything under `.tade/` and the journal all
-  stay, and opening the same path again brings all of it back — which is why closing is
-  reversible and is said so when it happens. There is no tool that removes a worktree, deletes a
-  branch or deletes a folder, and asking explicitly does not produce one: that is a person with
-  git in a terminal. A project with an agent still running in it is refused, naming them. Opening
-  is the same door the picker uses (`openAt`) — a repository Tade has, one on disk it does not, or
-  one that is not there yet, made and `git init`ed only where it was asked for — and it never
-  repoints a project it already has, because moving a root moves where every agent in it works.
-- **Everything Tade writes under a project is ignored, with no exception.**
-  A task file is one person's, `checks.jsonl` rotates and dies with the worktree it ran in, an
-  attachment is a pasted screenshot, a lock holds a pid — none of it means anything on another
-  machine, and all of it was being committed. So the first time Tade works in a project
-  (`ensureIgnored`, from `createTask`) it appends one line to the project's `.gitignore`:
-  `/.tade/*`. There used to be a second, `!/.tade/checks.yaml`, because CI was generated from that
-  file; nothing is now, so the rule is the plain denial it always wanted to be — a list of what to
-  deny would leak every new thing Tade learns to write, and an exception is the half that quietly
-  stops working. It stays `/.tade/*` rather than `/.tade/`, which now say the same thing, because it
-  is the line already written in every repository Tade has worked in and a second spelling would
-  append a rule to all of them to say what the first already says. It is `.gitignore` and not
-  `.git/info/exclude`: what went wrong is a *push*,
-  which is everybody's, and a rule that travels protects the teammate who never ran Tade — while a
-  rule nobody can see is the worse surprise. So it only ever appends, only ever once (it asks git
-  whether the outcome already holds, however somebody spelled it), never edits a line somebody
-  wrote, never commits, and says in the journal (`ignore_written`) that it did — which is what
-  makes it undoable rather than mysterious.
-- **A run is about a tree, not a commit id.** It is recorded against the commit that was checked
-  out, and an agent's next act is to commit — so what it read is also written down (`coverageOf`):
-  that commit's tree, every tracked path whose bytes on disk differed from it, and the untracked
-  files that were also there. A later commit carries the run (`carryOver`) only when applying that
-  record to the run's tree yields exactly the commit's tree, because the same commands over the
-  same bytes give the same answer. Agents share one checkout, so this is where it has to be exact:
-  a partial commit, another agent's file caught in the run and left out of it, anything edited
-  after the run — the bytes committed are not the bytes read, and the answer stays `unknown`.
-  Untracked files cannot be in that comparison, since no tree holds them; they are recorded so a
-  commit that *adds* one matches, and one that stays untracked is on disk for the run and for any
-  re-run, so it is not what makes the two trees differ.
-- **A judge answers, it never decides.** A judge (`packages/judges/core`) is a model that takes
-  bounded questions — yes-no, one of these options, one of these levels — and answers each with a
-  probability and no prose, cheaply enough to ask of every diff and every log line. It may only
-  ever *add* caution: a finding, a wait, a raised tier, a person asked. It may never approve,
-  close, merge, unhold, shorten a review or skip a check, it is never inside a pure rule, and it is
-  never the reason given to anybody — whatever reaches a person is a sentence somebody wrote. Its
-  questions and thresholds live in one file (`packages/extensions/jev/src/questions.ts`), every finding
-  keeps the version that answered, and with no key nothing runs and nothing else changes.
-- **A judge that cannot look at everything still looks at something.** What one ask takes is a
-  bound, so a change bigger than it is read as far as the budget goes (`CHANGE_LIMIT` and `cutTo`
-  in `packages/extensions/jev/src/changes.ts`) and what was left out is **named** — in the table,
-  in the finding the agent is handed, and in the record, one sentence in one place (`partSaid`).
-  A reading of part of a change is a perfectly good answer and a different answer from a reading
-  of all of it, which is why it is an object and not a list of files. The bound is counted at the
-  rate a *diff* tokenises at and never at the four characters a token prose does: one estimate
-  used as though it were a measurement is what put an ask inside a 32k budget over it. And
-  because a change is one agent's, a look reads each on its own — one change nobody could read is
-  not a look that could not look, and only a look that could read nothing says so. Silence is the
-  one answer that teaches nobody: a whole review lost to a 400 reached somebody as a single red
-  line with a provider's JSON in it, which is neither a finding nor a reason.
-  **And the ask is built to fit rather than sent to be refused.** Everything in it is in hand at
-  the moment it is built, so everything but the estimate is *measured*: `roomFor` takes the length
-  of the state around the patches off the budget — the words the work was asked for in, the branch,
-  the task names, every file's name — where a ratio of 0.6 used to stand in for the whole of it,
-  and the part it was standing in for is the part that varies most. `inBatches` then never emits a
-  batch bigger than what is left, one oversized file included: the check was `batch.length > 0`, so
-  the first file of a batch was never measured at all, and `PATCH_LIMIT` is a bound on one file
-  that says nothing about what one *ask* takes. What had to be cut to make it fit is counted and
-  said, because that is a reading of part of a file. And one batch refused is not a change nobody
-  could read: it is named as unread and the rest is read, since the alternative is losing a whole
-  reading to one ask — which is the same lesson one layer down.
-- **An agent accounts for a finding; somebody else judges it.** A rubric that nobody says was right
-  is a rubric nobody can argue with, so a finding has to be answered — and by whom is the whole of
-  it (`packages/extensions/jev/src/loop.ts`). The agent whose diff it is gets the question in the
-  judge's own words, as **material to judge and never an instruction**, the same rule that governs
-  a review comment reaching an agent, and answers with `jev_account`: it fixed the cause, or the
-  finding is not real and why, in a sentence, while it still remembers. That is testimony and never
-  a verdict — an agent marking its own work a false positive is the defendant grading the exam, so
-  `jev_verdict` is not offered to agents at all and refuses one again in the tool, and no account
-  ever reaches the calibration table. The **verdict** is the orchestrator's or a person's, and its
-  sentence has to **cite what in the change decided it** — a path, a file, a line in one, or the
-  code quoted as code — because a rubber stamp in the calibration table is worse than an empty one:
-  it looks like evidence. What was cited is written down beside it, which is what makes a stamp
-  recognisable afterwards. Finding, account and verdict each keep the version of the *questions*
-  that produced them (`RUBRIC`, a fingerprint of the pack, derived so nobody has to remember to
-  bump it), because one word changed in a question makes two different questions under one id. The
-  **sweep** (`jev.verdicts`, `offers: 'ask'`) is how what nobody answered reaches somebody: a
-  finding an agent accounted for and nobody judged, one whose agent is gone, and one raised about a
-  change that is **nobody's in particular** — a whole branch several agents committed to, which no
-  one agent can account for and which `orphaned` missed, because that asks whether *every* task in
-  the unit is gone and one of twelve agents still typing was enough to keep a finding out of both
-  buckets and out of everybody's sight for good. Each after the agent has had its own hour. It
-  starts nothing — what to do about a finding is a decision — and **nothing becomes a false
-  positive by getting old**: unresolved stays unresolved.
-  **And it asks again rather than going quiet.** Tade remembers every key a watch ever found, so
-  that one thing is never acted on twice; that is exactly right for a watch that starts agents and
-  exactly wrong for one that asks a question. Twenty-three findings were mentioned once each, in
-  the hour they became answerable, and then went silent — which is how nine of them were still open
-  three days later with nobody having decided against them, only having forgotten. So waiting
-  longer is new information and is said on a **ladder** (`RUNGS`, `sweepKey`): four rungs ever, per
-  finding per reason, the first of them keeping the bare `#accounted` and `#gone` spellings so
-  turning the ladder on re-asks nothing. A finding cannot become a nag, and it cannot become
-  silence either. And because this watch starts nothing, what one look tells somebody about is
-  bounded by its own number (`ExtensionWatch.most`) rather than by the two that is the right
-  ceiling on *agents started*: a backlog of nine metered at two an hour takes five hours to be
-  mentioned once.
-- **A finding with no verdict is six different situations, and the page says which.** "Waiting on
-  a verdict" is the symptom, and every one of its causes wants something different done
-  (`stuckOf`, `packages/extensions/jev/src/stuck.ts`): its agent has not answered yet; its agent is
-  gone and never did; it was read as a **whole branch** and every agent in it is gone, so it is
-  unanswerable by construction; nothing says whose work it was; its agent answered and somebody was
-  told; its agent answered and nothing has put it in front of anybody yet. Twelve of twenty-six
-  findings read as one fact for three days, nine of them never accounted for at all. Derived, from
-  the record and two questions about the world — whether that task's agent is still there, and whether
-  the sweep has ever handed this key over — and with no window open an agent is **not gone because
-  nobody is looking**, which is the same caution the sweep takes. It closes nothing: `answered` is
-  the only settled state and it means somebody wrote a verdict down.
-- **A rate nobody has the verdicts for is not a rate.** Precision is the one number that says
-  whether any of this was worth running, and three ways of getting it wrong are all in one pure
-  file (`packages/extensions/jev/src/precision.ts`). It is counted over **findings** and never over
-  readings — one question raised again by a later look at the same change is one finding with one
-  key, and counted per reading a question that fired on one branch twenty-one times read as
-  twenty-one mistakes. An unresolved finding is counted as **neither** outcome, ever, and nothing
-  ages it into one. And under `ENOUGH` verdicts the counts are said and the percentage is not,
-  because `0%` over one verdict is a fact nobody has: a bar is a picture of a rate, so it is drawn
-  only where the rate may be read as one. A question is called `costs` — firing and wrong — only
-  once the verdicts say so, which is what makes that answer worth anything when it comes.
-- **A finding is about one agent's change, and in a shared checkout that is its own commits.** A
-  finding nobody can be asked about is a finding nobody answers, which is what an empty calibration
-  table is made of. Everybody on one branch read as one change asks the pack about seven agents'
-  work against seven intents joined together — a question nothing could answer truthfully, and
-  `did_what_was_asked` fired on two changes in three that way — and no agent could account for the
-  answer, because none of it was only theirs. So the unit is per agent (`unitsIn`,
-  `commitsByTask`): whose a commit is, is **read back out of the `Tade-Task:` trailer and never
-  guessed**, the same fact the ACTIONS tab and the queue's look at the trees read, and a change is
-  the sum of that agent's own commits (`changesFor`) rather than a diff across them, which would
-  take in whatever anybody else committed in between. What nobody signed stays nobody's: a
-  repository where no commit in the range carries a trailer is read as one branch, exactly as
-  before, and uncommitted work is in no unit at all. It is also what unsticks the reading — the
-  cursor and the settling are each agent's own, so one agent still typing no longer holds up the
-  reading of work that has stopped. An agent asking `jev_review` or `jev_findings` about nothing is
-  asking about its own change, which is the whole of how a finding reaches the agent whose it is:
-  a pull, because nothing in the port can push a sentence into a conversation already going.
-- **A raised tier is the only thing a reading may do to a command.** The approval rules are
-  patterns somebody wrote and they are what decides; what no pattern names is read a second time
-  (`caution` on the extension port, `withCaution` in `core/src/policy.ts`), with the agent held at
-  the call and a deadline on the answer. It may only ever come back stricter — there is no `auto`
-  to answer with, so a command written to argue with the judge gets exactly what it would have got
-  with nobody reading it at all. It is honest about what it can hold: under `bypass` nothing is
-  held, so what changes there is the record. What a person reads is the clause written beside the
-  question, never the probability that fired it. It is asked of commands only, never of a read or
-  of a write inside an agent's own worktree, and never of an agent — one judged at this gate does
-  not get to answer it. Nothing reading, or reading late, is today's answer arriving on time, and
-  it is said once per run rather than under every command.
-- **Search matches letters; asking is what happens when the letters are not enough.** `ctrl+k` is a
-  pure ranking of what Tade already has (`searchResults`), and that is what answers instantly and
-  what answers when nobody is set up. A sentence is not letters to match, so when what was typed
-  reads as one (`isSentence`) and no single row came back that is plainly the whole of it
-  (`worthAsking`), a shortlist drawn in code (`shortlist`) goes to whoever offers to read one
-  (`meant` on the extension port). Code does the recall, a judge does the precision, and what comes
-  back is *rows added under `MIGHT MEAN`*, never a reordering of what is there: the same entries,
-  doing what they always did when chosen. Only ids that were offered come back, nothing invented is
-  shown, nothing is run, and an answer that arrives after the box changed is dropped — somebody is
-  watching it, and a list that moves under their hands is worse than one that says nothing.
-  **"Nothing matched at all" was the wrong bar**, and it is the shape of bug that hides in a rule
-  that reads as careful: a sentence is long and a name is short, so what a sentence matches is never
-  a name and is always letters scattered down some long label — every letter of `what the run` is in
-  `Telemetry › What the brief counts`, in order, and means nothing by it. One of those was enough to
-  silence the question for good, and over the three-word sentences somebody would actually type, 418
-  of them were silenced that way. So what counts as an answer is every word of the sentence that
-  carries meaning, in one row's own name, and more than one of them (`answered`, `wordsIn`) — one
-  word found is a word found, and an agent called `coverage` answering "what is the coverage" is
-  exactly the guess this was built to stop making. Asking alongside is safe for the reason it always
-  was: what comes back only ever adds rows.
-- **What search matches is what is happening, not only what things are called.** The orchestrator can
-  answer "what is going on" because it reads the task files, the journal and the queue's own rules;
-  the box could only ever answer out of names, so "the agent on test coverage" found nothing and
-  whoever was asked what the sentence meant was handed a list of names and asked to guess. So every
-  entry carries what is happening about it (`SearchEntry.about`, composed by `happeningOn` and
-  `happeningIn` in `packages/app/src/happening.ts`): what the agent is doing, what it was asked for
-  *verbatim*, what queued work waits on and why and what its agent will be told, how the checks stood
-  at the commit in hand, and the notes about it. Derived on every look and never a store of its own —
-  what an agent is doing changes while you type — and out of what the window has already polled, so
-  it costs no disk, no git and no clock: the panes are status's last look, the work is a fold over the
-  journal in memory, and the checks are `seenActions`, which answers and never goes looking.
-  The two halves match it differently, and that is the whole of why it does not flood. A **name** is
-  short, so letters in order are evidence. `about` is a paragraph, and letters in order through a
-  paragraph are evidence of nothing — so the letters only ever find it as a **whole run**, ranked
-  below every name match, with the line that said it shown as the row's `preview` so it says why it
-  is there; and the **shortlist** counts a word said outright in it far above a name that merely
-  spells that word, which is where `coverage` finding the agent raising it actually happens.
-  **And it is the half that leaves the machine**, which is exactly the text telemetry may never send.
-  That is a trade somebody has to be able to see and undo, so it is said where they are deciding —
-  the `means` of `surfaces.search.context`, the guide above the field where Jev's key is pasted, and
-  the README — and the switch is the *window's*, not the extension's, because a rule that lives in
-  the code that reads the text bounds one reader and a rule at the door bounds every reader. Off,
-  each choice goes with its name and where it is and nothing else; the letters go on matching all of
-  it either way, because matching it here sends nothing anywhere. On by default, said out loud.
-- **A watch may have nothing to start.** What it finds can be work already going, and going badly:
-  such a watch declares `offers: 'ask'`, has no `agent` at all, and what it finds is told to the
-  orchestrator, which asks you. The counted part is code and runs every look — the same call coming
-  round with the same failure, turns ending badly one after another (`circlingIn`) — and only what
-  that finds is read by anybody, because an agent that has been working for two hours is working.
-  What an agent has been doing is a reading, kept in memory by the supervisor (`doingByTask`) and
-  never journalled: the journal keeps what was *decided* about a tool call, and writing down every
-  step of every turn is the log becoming the transcript. Nothing here stops, steers or starts an
-  agent: that is a decision, and a judge answers.
-- **Looking at queued work is never starting it.** Clicking it opens what it is — the chain it is
-  in drawn as boxes, every wait's reason, what its agent will be told, where it came from — and
-  starting it is its own act (`Start now`, its menu, `tade_queue_change`), which goes through the
-  queue so what started it and why is written down. It is shown where the resolved tree puts it:
-  what comes next first, and under each piece whatever waits on it, shifted right of it and joined
-  to it by a line — and `next` is the front of that tree, not everything that happens to be waiting.
-  The front is what starts as soon as what it waits on finishes (`shownBy`): work behind one
-  running agent is next and says how much is ahead of it, the second piece of a chain is not, and
-  work that will not start by itself — held, paused — is not next either, it is the reason nothing
-  is. So an empty `next` says which of those it is, in the words of the reason it actually is
-  (`queueEmptySays`): one sentence for every case reads as a bug the moment one of the cases is
-  untrue, which is what sent somebody looking for this code. The section itself is always in the
-  side, whether or not anything is in it, because a place you look is worth more than a row you
-  save: with nothing queued it folds itself away (`sectionOpen`) and its heading says that same
-  reason — the shorter way of saying it where a narrow side has no room for the sentence. Opening
-  or folding it is a person's, remembered across a close as the rest of the view is, and only what
-  differs from what the section does on its own is written down.
-  **What it shows is two questions, and so two controls** (`QueueView`, `shownBy`). `all` and `next`
-  are *positions* in that tree and are a scope, one of the pair always on; waiting for a clock is a
-  *kind* of queued work, and is a switch beside them (`timed`). Drawn as a third exclusive choice it
-  took the slot the ordinary case wanted, so "everything that is not on a clock" — much the
-  commonest thing to want — had no button at all, and a fourth would have been a second spelling of
-  `all` in every project with no schedules in it. Split, the missing view is `timed` off at either
-  scope, and `next` with it on is the other thing three buttons could not say: the front of the tree
-  *and* the clock about to fire, which is a true answer to what happens next. So the switch is the
-  **only** thing that hides a clock — a schedule shows under `next` too, standing behind nothing and
-  starting by itself — because two controls answering one question is how the first one came to have
-  no answer for the other. It is one project's and outlives the window, like where you were standing
-  and what you folded, and only a view that was narrowed is written down. A control that is hiding
-  something is always drawn, however little else is in the section: a switch you cannot reach is
-  work hidden with no way back to it. And what a control emptied, that control is the reason for —
-  `queueEmptySays` names it, because it is the one thing that can be done about it, where
-  `release-notes waits for a time` reads as stuck and is one press from being in the list.
-  Why it waits is drawn as that same tree (`drawWhy`), never as a list of edges sorted by name: the
-  reasons hang off the waits they explain, wrapped rather than cut, and the lines that join them are
-  the queue's own (`treeStems`), because two drawings of one relationship drift apart.
-- **A project tab says what is happening in its project, and a figure that cannot be placed is not
-  drawn.** Two projects and two plain names said nothing at all — which of them the spinner at the
-  right belonged to least of all — so each tab carries the marks the agent list carries
-  (`projectStandings`, `view/top.ts`): what wants you, what failed, what is working, what is queued,
-  what is sitting there, in that order, and `✓` where something finished and nothing is left, which
-  is the whole of "is everything I asked for done in there?" answered without going there. It is a
-  fold over the panes on every look and a tally nobody keeps — status is a query, and a count held
-  anywhere would be wrong the moment an agent finished. The marks go *inside* the tab, which costs
-  them their colour, because whose a mark is, is the entire point and a glyph outside the block
-  belongs to the tab on its left as much as the one on its right; every mark has a shape of its own
-  (`markGlyph`, beside `glyph`) for the same reason. The figures at the right stay everybody's —
-  `next-waiting` goes to the agent that wants you wherever it is — so with more than one project
-  open they say whose in a clause, the project where everything counted is in one and how many
-  otherwise, the way `over 3 runs` makes a figure readable. That clause is not a step of the
-  ladder: a total is drawn with it or it is not drawn, and short of room what a narrow window gives
-  up is the total, since the tabs are still counting an inch to the left. Everything along the top
-  gives ground in one ladder (`LADDER`) — the tabs from counts to marks to the one that matters most
-  to nothing, the total from words to figures to nothing — because two ladders would fit the two
-  ends of one row against each other.
-- **A column is a priority, and a pane out of room scrolls rather than folds.** Every drawing of
-  the queue puts a piece in the column its depth in the resolved tree gives it (`treeStems`), so
-  work that can run side by side lines up under work that can run side by side, however long the
-  chain is and whatever a filter leaves out. Folding the indent back at some level is the one thing
-  that may never happen: it puts two pieces that cannot run together in one column, and the column
-  is the whole of what the drawing says. So a deep chain reaches further right than its pane, and
-  that is answered sideways — the side and the picture of a plan are laid out in the room they need
-  and shown through the room there is (`slid`), with the bar from down the side lying along the
-  bottom (`barAcross`), drawn only where there is somewhere to go: one on a pane that fits costs a
-  row to say there is more when there is not. `drawPlan` never gives up and says a chain as a list
-  of names — the boxes and the arrows are what say what waits on what, and a list says none of it.
-  What is pinned at the right of a row stays pinned to the pane and not to what scrolls under it: a
-  button a deep chain put out of reach is a button that is gone.
-- **Everything that scrolls scrolls the same way, and how far a region goes is read off its own
-  bar.** One move (`scrollBy` in `model.ts`) and one setter (`atOffset`, the other half of
-  `offsetOf`): the wheel, a key and a drag on the bar each work out the offset they mean and land
-  there, so none of them can disagree about where the end is. Seven surfaces with five ideas of
-  the end is what "not smooth" was — three of them counted on past the last line there was, so a
-  flick off the end bought a handful of notches that did nothing on the way back. Nothing lays a
-  region out again to answer a notch: the scrollbar hit already carries `total` and `shown`
-  because a drag needs them (`reachOf`), and counting a conversation instead cost two milliseconds
-  a notch. **How much is in view is the rows the region drew, never the room it was given** — a
-  pane is the one place the two differ, because an approval card sits at the bottom of the agent's
-  own screen and takes five rows off it (`rowsRead` and `carded` in `view/lane.ts`, read by the
-  drawing and by the look). Sized from the pane instead, a screen with more lines in it than fit
-  reported everything in view and answered the wheel with nothing at all — and only while the
-  agent was waiting on you, which is what made it look intermittent.
-  What a notch is worth is the wheel's (`scroll.ts`): a terminal reports a notch and never says
-  whether the hand is on a wheel or a trackpad, so the rate is read — and as a **ramp, never a
-  step**. A step put the line at `RUN_MS`, a fifth of a second, so an ordinary mouse wheel fell on
-  the trackpad side of it and moved one row a detent while the same wheel turned slowly moved
-  three: four notches of one even turn came out `3, 1, 1, 1`. Between `DRAG_MS` (a finger
-  travelling) and `RUN_MS` (a detent on its own) it slides, and what rounding leaves over is
-  carried to the next notch (`Wheel`), so a run of them is even and adds up to exactly what the
-  hand asked for. A terminal grid moves by whole cells and that is the ceiling: even, in step and
-  predictable, never sub-cell.
-- **Every pop-up panel is the same thing underneath, and the shell it is drawn in is one file**
-  (`panels/frame.ts`). Nine panels grew nine answers to the same four questions, and the worst of
-  them was Settings: it had no offset at all, so the wheel over it was answered by *pressing its own
-  down key* — a notch moved what is **chosen**, one setting at a time, jumping over the ones between
-  — and it drew no bar, because nothing knew how long the form was. One bug, twice. So a panel's
-  body is a region of the window like any other (`panel`, `panel-side`), and the wheel, a key and a
-  drag on its bar all land through `scrollBy` and `atOffset` with the rest.
-  How big it is, is `panelSize`: the room there is, up to a width worth being, and never over the
-  four-row strip at the foot — never a number somebody typed, which is what capped Settings at
-  twenty-eight rows however tall the terminal. A height read off the content is only for a body that
-  is fixed the whole time the panel is open (a menu); one that changes under you — a list being
-  filtered, a form whose category switches — takes the window, because a panel that grows moves
-  between the click that chose a row and the click that presses it.
-  How its body scrolls is `column`: the head above it, the body with `bar` beside it in a column
-  kept whether or not there is anything to scroll, and two rows pinned at the foot — what it last
-  said, then the keys with its buttons. **Nothing cuts its own rows to fit**: `rows.slice(0, room)`
-  is what took the setup page's own Save button off the bottom, and a cap with `+7 more` under it is
-  what the Spend table said instead of scrolling — three times on one page. A panel with a selection
-  keeps `following` beside `scroll`, because `atOffset` turns it off: the keyboard moving brings the
-  body back to the row it is on, and scrolling yourself leaves the keyboard where it was. And
-  `rowLook` is the one answer to how a row looks — the marker says where the keyboard is, the lighter
-  ground says what the mouse is over, and they are never the same thing; a menu drawing the pointed
-  item as chosen made the keyboard appear to move when only the mouse had.
-- **A page an extension writes may have tabs and a window, and both are declared.** An extension's
-  `view` is somebody else's document, so what shape it has is the extension's to say
-  (`viewTabs`, `viewWindowed`) and the window draws the tab row and the window row from that answer
-  — never from anything read off the text, and never on a page that offers neither, which is drawn
-  exactly as every page was before either existed. The keys are the Spend panel's, because a page
-  with tabs and a window is the same thing twice and nobody should have to learn it in two places:
-  `tab` moves through the tabs, ← → through the windows, and a page that offers one of them does
-  not answer the other's keys at all. **What a day is, is the window's** — `sinceOf`, the same
-  three windows the Spend page has, `today` by default — and what is handed over is the *moment*
-  rather than the word, so nothing downstream can invent a second idea of a day; "this window"
-  means one moment everywhere, which is why it is the window's own (`Wiring.openedAt`) and not a
-  clock each subject reads in its own constructor. A tab pressed is a different page, so it is
-  asked for then and there rather than on the next status beat, and the tab each extension was last
-  on is remembered while the window is open — not across a close, because a tab written down is one
-  an extension may have renamed.
-- **A lane that took the whole screen scrolls itself, and the wheel is handed to it.** A program
-  on the alternate screen — Claude Code, an editor a shell was pointed at — keeps no scrollback for
-  anybody else to move: the lines that went past were never kept, so a window scrolling it has
-  nothing to scroll, which is why turning the wheel over one did nothing at all and drew a bar with
-  no thumb on it. Whose it is, is the lane's own to say and never the harness's: the driver reports
-  it per lane (`LaneScreen.scrolling` — `window`, `lane`, `nobody`), because a shell with `vim`
-  open in it is the same situation as an agent that draws its own conversation, and a window that
-  guessed from what it launched would be wrong the moment somebody opened one. `lane` means it
-  also asked for the mouse, so the notch goes to it (`wheel` on the driver, behind
-  `capabilities.pointer`) and it scrolls its own conversation; `nobody` means it took the screen
-  and wants no mouse, and then nothing moves, honestly. The bytes are the program's own encoding
-  and never a guess (`wheelBytes`): a report in the wrong one is not a scroll that misses, it is
-  characters typed into it. And the wheel is swallowed wherever it lands, scrollable or not —
-  Tade draws exactly one screen and never scrolls one, so a notch handed back is the terminal
-  library moving a viewport of its own, which is the window sliding under you.
-  **And such a lane gets a mark down its side rather than a bar**, because a bar is drawn from
-  three numbers — how much there is, how much is in view, where in it you are — and the window has
-  none of them: the program keeps its own history and answers the wheel itself. Drawn as one
-  anyway, `lines` is the height of the screen and the screen is what is in view, so it came out an
-  empty track that looks exactly like a bar that is broken — which is how it was reported — and
-  with an approval card over the pane the two differed by five rows and a thumb appeared, saying
-  something true about the capture and nothing about where the program is in its conversation. So
-  `gutterBeside` reads `LaneScreen.scrolling` and draws the column from it: the bar where the
-  scrolling is the window's, a dashed rule the whole height (`scrollElsewhere`) where it is the
-  lane's — never a thumb, because a thumb is never the whole track — and the plain track where it
-  is nobody's, which is what every region that does not scroll already draws. Neither mark is ever
-  given a hit, so neither lights, neither can be dragged, and `reachOf` finds nowhere to go, which
-  is what keeps the keys honest too: a handle that moves nothing is worse than no handle.
-- **And such a lane is clicked in, which means the window stops using that region.** A program
-  that draws its own interface draws its own controls, and nothing in a capture says which cell is
-  one — so the only way to press the close on Claude Code's files-changed panel is for the bytes to
-  reach the program. But then Tade cannot also use those cells for its click-to-focus, its
-  drag-to-select and its reading of the paths in the text, and a click that goes to the wrong one
-  feels broken in both directions. So the split is one sentence: **Tade keeps the cells it drew and
-  the lane gets the cells it drew**, and a pane that has not got the keyboard answers a click the
-  way it always has, by taking it — which is what makes sure one click always lands in Tade and
-  nobody can be shut out of their own window. What Tade drew is the header, the column down the
-  side, the approval card, the divider, the tabs; what the lane drew is its screen, `place` and
-  `link` included, so on such a lane Tade's own recognition of a path *steps aside* rather than
-  winning the cell (`laneLines` is handed `null` for its linkers, which is not `[]`): a path that
-  lights up under the pointer and then hands the click to the program is a worse lie than not
-  offering it. Two declared facts and no guess: it has to have taken the screen
-  (`LaneScreen.scrolling`), because only then are the rows the window drew the rows the program
-  thinks it has, and it has to have asked for the mouse (`LaneScreen.pointing` — `nobody`,
-  `press`, `drag`, apart from `scrolling` because one lane answers the two differently). `drag` is
-  what decides **how you select**: a program that asked about movement selects for itself and
-  copies the way it copies, and one that asked only about presses keeps Tade's drag, which is why
-  the level is a level and not a flag. A program that asked to be told about movement with no
-  button held is `drag` too — the window never sends that, because the pointer crosses a pane far
-  faster than the window draws and its own hover is made of those same moves. `pointedIn` and
-  `screenRows` (`view/lane.ts`, beside `rowsRead`) are the one reading of all of it, because the
-  rows a region draws are not the rows the program has: a lane is made the size of its pane and
-  then read back in what is left, so under an approval card drawn row 0 is row five of the lane and
-  a press told otherwise lands five rows above what was pressed. Nothing is remembered about what
-  the program did with it; what it draws in answer is read on the next look, as the wheel's is.
-- **A lane's screen is read once and cut, not read again per notch.** A capture costs what it asks
-  for, so reading `rows + scroll` lines back on every look cost a millisecond per two hundred
-  lines scrolled, four times a second, for lines that had not changed since the agent printed
-  them. Scrollback above the live screen cannot change — an agent appends, it never rewrites — so
-  the lines are held with how deep the lane was when they were read (`HeldLines`) and the screen
-  is cut out of them (`cutFrom`); only the bottom is asked for again. That is also what puts the
-  text and the bar beside it on the same frame: the wheel cuts, where it used to move a number and
-  leave the text until the next look. **And a cut that reached is the whole answer**: what a notch
-  changed is where the window is looking, not what the lane holds, so there is nothing to ask the
-  driver at all (`reslice` says whether it reached; only false asks for a look). Asking anyway
-  cost a screen read a notch in every lane in front of you — 81 ms of a 735 ms flick spent being
-  told that nothing had changed.
-  **Lines are only held where the scrolling is the window's** (`keeping`), because that is the
-  only place the fact they rest on is true. A program on the alternate screen repaints every row
-  in place and never gets any deeper, so the depth the held lines are keyed by never moves: every
-  look found the lines it already had, and the pane froze on the first screen it ever read. That
-  is what "the Claude pane does not scroll" was once the notch was reaching the program — it
-  scrolled, and the window went on drawing a photograph of it. Nothing is lost by not holding
-  them: such a lane has no scrollback to ask for, so a capture is one screen.
-- **Schedules are told, like notes, and run only while a window is open.** Each is a rule and what
-  to do each time, in `<home>/schedules.jsonl` — append-only, every change a line saying who made
-  it. When one last ran is the journal's (`schedule_fired`), so what is due is `dueNow` of the rule,
-  the journal and the clock. There is no daemon: runs that came due while no window was open are
-  caught up once or skipped, as the schedule says, never once per run missed. An agent a schedule
-  starts is queued work named for it and the day, in the project's own workspace.
-- **A watch is a schedule that looks before it acts.** An extension offers it (`watches`): a cheap
-  `check`, no model, and what an agent on each finding is told. Almost nothing is watched until
-  someone turns one on, and then it is a schedule like any other. Tade keeps where each look left
-  off and every key found (`watch_checked`, `watch_found`), so a watch keeps nothing itself and one
-  finding never starts work twice — a start that failed included. One look acts on at most `most`
-  new findings, as queued work named for them or told to the orchestrator; the rest wait for the
-  next look, which starts where this one did. A look that cannot look is said when it starts going
-  wrong, not at every look — and `most` is what one look *acts on*, which is a ceiling on agents
-  started and not on questions asked, so a watch that starts nothing says its own number
-  (`ExtensionWatch.most`).
-  **And a warning about a look must not outlive the look.** `a look failed` in the strip was said
-  whenever any look in seven days had failed, so one bad hour on Tuesday warned until Tuesday week
-  about a watch that had been looking happily ever since — purple text with nothing to press,
-  because there was nothing to dismiss. What a derived line says has to be true while it is drawn:
-  the **last** look's trouble, in its own words rather than a provider's JSON, going quiet of its
-  own accord the moment a look works. That is the only dismissal a line nobody stored can honestly
-  have, and the whole of the reason is one click away on the page it opens.
-- **A watch that is on by default is still a schedule somebody can take away.** A watch may declare
-  that it stands (`standing`), and then the window writes it — once, per project, through the same
-  `setSchedule` everything else goes through (`standingSchedules`, `core/src/schedule.ts`; written
-  in `wire/schedules.ts` on the pass that runs what is due). From that moment it is ordinary: it is
-  in the queue, it can be paused, changed or removed, and **removed it stays removed**, because
-  `schedules.jsonl` is append-only and the id it held is a fact that outlives it
-  (`readEverMade`, which nothing rotates, unlike the journal). Three refusals and no judgement: the watch says it stands, its extension
-  can look *right now*, and nothing has ever been written under that id. The middle one is what
-  makes the no-key case exact — with no key the extension is not ready, so there is no schedule at
-  all rather than one failing every ten minutes — and a watch may only ever declare it where being
-  on costs nothing anybody has to agree to: no credential of somebody else's, nobody outside told
-  anything, and a look that finds nothing spending nothing. Its first look is one interval away
-  rather than the moment it is written, so opening Tade is never a reading of everything.
-- **What may not stand is offered instead, once, in the first minute.** The bar for standing is
-  high and most watches fail it — `deps.vulnerabilities` starts an agent per vulnerable package,
-  and work queued by a clock nobody agreed to is the surprise at three in the morning — so what is
-  left is a question rather than a default. `watchesToOffer` (`core/src/watches.ts`) is the rule:
-  every watch with what it does, how often it looks, and what being on *costs*, said either way —
-  one that starts agents says so, one whose extension has no key says what it needs instead of
-  being offered as though it would work, and one that stands is said and never asked, because a
-  tick that changed nothing would be a lie. Ticked is only ever a watch that tells you something
-  and starts nothing: pressing enter without reading has to mean being told, never four agents in
-  four lanes by morning. It is asked inside the extensions step (`setup-watches.ts`) rather than
-  in one of its own, which is the whole of how it avoids being the step people learn to skip —
-  that step is finished once every extension has been decided about, so this is asked on a machine
-  where nothing has been decided and never again, and what it offers is what the extensions
-  somebody has *just* chosen declare. What it writes is an ordinary schedule under the id the
-  Extensions page uses (`scheduleIdOf`), so the button there turns off the thing it turned on.
-- **A watch that bumps dependencies is defined by what it will not do.** `deps.updates`
-  (`packages/extensions/deps/src/updates.ts`) looks once a day and puts an agent on what has
-  released since — and every decision in it is about the morning after. **Patch and minor, never
-  major**: those two promise not to break you and the checks say within the hour when they did,
-  where a major promises the opposite and is somebody's decision, so it is *named* — in the finding
-  and by the agent when it finishes — and never bumped by a clock. **The patches are one commit and
-  each minor is its own**: twenty agents in one checkout is twenty installs racing one lockfile,
-  twenty bumps in one branch is a diff nobody reads, and a minor that breaks something has to be
-  identifiable, which a wall of them is not. **A package at a version is the key**, so a bump that
-  failed is not tried again tomorrow and a release after it is new information; past
-  `extensions.deps.attempts` bumps of one package in a fortnight it is told about and never tried
-  again — the review watches' rule, over a window long enough for a daily look to see yesterday.
-  **Nothing red is committed**: the value is not the bump, it is the evidence that the project still
-  works on it, so the agent runs the project's own checks through `checks_run` and where it cannot
-  make them green it puts the manifests back and says so. And **never in a checkout other agents
-  share**: `workspaceFor` is read before anything else, and a project whose agents work in its own
-  tree is refused with both ways out named, because a config nobody could read is the machine's
-  default, which is that checkout.
-- **Turning a watch on or off is a person's ask, and the button says which way it goes.** On the
-  Extensions page it is `Turn on` / `Turn off` — the page's own words for that act, said three
-  other places on it — where it read `Watch tade`, which is a noun phrase about a project rather
-  than an act with a state. Off **pauses** the schedule and never removes it: a watch remembers
-  what it has found through its schedule's id, so a removed-and-remade one would come back with no
-  memory and start work on everything it had already dealt with. Removing one for good stays the
-  queue's. The orchestrator has the same two acts (`tade_watches`, `tade_watch_change`) at the
-  `asked` tier, decided in `settingReach`'s own file (`WATCH_REACH`) and enforced in the window:
-  `extensions.*.enabled` is `never` because turning an extension on imports somebody's code and
-  hands its tools to every agent, and a watch inside one already on widens nothing an agent may do
-  — it only lets a clock start work in a project already open, visibly, undoably. Off needs the
-  words most, not least, because the watches are what notice a red build. The check sits at the
-  one door every way of turning a watch on goes through (`Schedules.set`), so `tade_schedule` is
-  held to it too; what it does not hold is the queue's own pause and remove, and that is said in
-  `WATCH_REACH` rather than papered over.
-- **Tade tells the orchestrator; it never talks over it.** What happened waits and goes with the
-  next thing you say, under "What they said:"; what needs it now goes after its current turn
-  (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and
-  lost, so the pi adapter always says.
-- **A voice says words, and only the front of them.** Everything spoken goes through `speakable`
-  (`core/src/speech.ts`) first: a code fence waits for its other half and is then dropped, a path is
-  said as its file, and no ear ever hears a backtick. An answer from the model is summarised
-  (`spokenSummary`) — a few sentences of the finding, then "the rest is on screen", because it is,
-  and reading a whole answer out is how people learn to stop listening. And **mute is now**: the
-  sentence being said is cut off where it is (`Speaker.stop`) and what was queued behind it is
-  dropped (`VoiceSurface.silence`), because the moment you press it is the moment you needed it.
-- **Escape stops what is thinking; ctrl+c throws away what you typed; neither ever does the
-  other's job.** This is not Tade's invention — pi, Claude Code and Codex all answer these two keys
-  this way, each interrupting the turn and each leaving the editor exactly as it was — and a window
-  full of other people's panes is no place to invent a third convention. So escape never deletes a
-  character: it stops the orchestrator's turn (`Orchestrator.interrupt`), leaving the session id,
-  the conversation and everything already said alone — the orchestrator is never introduced again,
-  so interrupting it may never be a way of restarting it. What a harness can do mid-turn is declared
-  (`capabilities.abort`) and read through `offer()` (`thinkerOffers`); one that cannot says so in
-  its own words rather than swallowing the key, which looks exactly like a stop that did not work.
-  ctrl+c empties the line, the pictures going with it and a search part-way through, and with
-  nothing left to throw away does what it does everywhere else and closes Tade — "clear input, then
-  quit", which needs no timer, because the second press has nothing to clear however long you took
-  over it. And because escape already closes panels, what it means is decided in one pure place
-  (`escapeMeans`) and is always exactly one thing: a panel, then whatever else has the keyboard
-  (pi interrupts its own agent on escape and a shell's editor wants it too), then a history search,
-  then the turn, then stepping off the line — which only ever happens with nothing on it to lose.
-- **The line you type on is pi's editor; what is selected on it is Tade's own.** The editor holds
-  the text and the caret, and a window that reports its own mouse has to be told what a second
-  click means — so the selection is two offsets kept beside it (`app/src/input.ts`), and every
-  change to the line is made by pressing the keys a person would press (`putCaret`, `cutSpan`),
-  never by reaching into the editor's state. Slower, and right about everything reaching in would
-  have to be taught: a grapheme of four code points, a paste collapsed to one marker, a line that
-  wraps. The drawing is the editor's too — the selection is laid over the rows it drew, placed in
-  the text by matching them (`rowStarts`), because a second description of how it wraps would be
-  right until the day it was not.
-- **What is on that line is the orchestrator's, not the focus's.** Moving to an agent, a terminal,
-  a panel or a picture's question changes where the keyboard is and may never change what is
-  half-written at Tade — the same rule escape obeys, broken from the other side. So the text lives
-  in `orchestratorDraft` whether or not the line is open, `dictation` being null says only that it
-  is closed, and `leaveLine` and `openLine` (`model.ts`) are the only two doors: one keeps what was
-  on it, the other puts it back. A rule that each of a dozen call sites has to remember is a rule
-  half of them forgot, which is what "switching focus removes the things we typed" was. The editor
-  is not emptied either — a closed line is simply not drawn (`input` in `wire/keyboard.ts`), so the
-  caret and the selection are where they were left too. A panel is the one text a click may throw
-  away, because dismissing one is an act rather than a focus moving; the file you have open is not,
-  and `panelDismiss` asks what escape asks before it loses an unsaved edit.
-- **A project is a place you come back to, so where you were in it is remembered per project.**
-  Clicking an agent, going to another project and coming back put you at the top of the list, which
-  is somebody else's idea of where you were — the selection was one window's, where it is one
-  project's. So a `Spot` (`layout.ts`) is the agent in front and the tab below it, kept by project
-  in `spots`. The agent goes to `window.json` with the rest of the view, because coming back to it
-  tomorrow is the same courtesy as a second later; the tab does not, and `worthKeeping` is where
-  that is decided — a terminal is a lane of the window's own and under a driver whose lanes cannot
-  outlive it (`detach: false`, which the default `pty` is) closing Tade ends it, so a tab written
-  down is one nothing could ever go back to. Two doors and one rule: `whereYouWere` folds in
-  the project you are standing in, since that spot is the focus and the tab themselves and is kept
-  nowhere else — read wherever a project is left, its tab (`selectProject`), tabbing out of it
-  (`focusBy`), the beat every state passes through (`withTasks`), which is what catches a jump that
-  went through neither door, and the write on the way out of the window. `standingIn` is the other,
-  and everything it cannot find falls back the way the window fell back before any of this, which is
-  what stops a remembered place ever being worse than no memory: an agent that finished, was stopped
-  or went with its task, and a plan or schedule that stays behind in the project it is of, all come
-  back to the first agent, exactly as a project nobody has been in opens on it — only one with no
-  agents at all comes back to the orchestrator. Arriving is `focusTask`, so coming back to an agent
-  is the same act as clicking it. **The tab below had the same bug from the other side**, and it was
-  the worse one: the panel went on showing the terminal of the project you came from, under a row of
-  this project's tabs with none of them lit.
-- **The file you have open selects out of that same model, because two of them would drift.** A
-  word is the same run of letters in a file as on the line, shift and an arrow reach the same way,
-  and what a second press takes is not something anybody should have to learn twice — so `input.ts`
-  answers for both (`spanOf`, `wordAt`, `clickedSpan`, `lineKey`) and only who is pressed on behalf
-  of differs: at pi's editor every change is still made by pressing the keys a person would press
-  (`cutSpan`), because it is somebody else's object; the viewer's `Edited` is Tade's own, so the
-  press it needs lives in it (`cutSelection`, beside `back` and `joinUp`) — a selection taken out
-  is one operation, not one press per character, because the presses copy the file's lines and
-  four thousand of them was six hundred milliseconds. A test holds it to what those presses say,
-  case for case, so the two can never differ about what one press takes. Only the anchor is kept
-  (`FilePanel.anchor`); the other end is the caret the edit already holds, so the two can never
-  disagree about where the selection reaches. It is laid over what the viewer drew, in its cells
-  (`onLine`, `laidOver`), never in a second reading of how the body slid.
-- **A selection dragged over the window is bounded to the region it was started in.** The window is
-  regions side by side, not one flow of text, so a selection that took whole rows between its two
-  ends took whatever else was drawn on them: dragging over an agent came back with the sidebar's
-  queue and its agents down the left of every line but the first and the last. Which columns those
-  are is read off the map (`scrollAt`, then `extentOf` across), like everything else about where
-  something ended up.
-- **And it is anchored in the region's lines, never in the rows it was made on.** A region scrolls,
-  so an offset into the rows on screen means nothing the moment those rows go — which is what
-  "selecting over more than a page does not work" was: press, scroll, and the selection was made of
-  cells that no longer pointed at anything. So the drawing declares what it drew (`Drawn.regions`,
-  a `Region` in `selection.ts`: the region's own lines, which of them landed on its first row, and
-  which rows those are), for the same reason it declares the hits — where something ended up is the
-  drawing's to say, and a second reading of how a region slid would drift. The ends are lines of
-  that region and are projected back onto whatever is drawn now (`cellsIn`), an end that has
-  scrolled out of view taken at the edge it went past; and what is copied comes out of the lines
-  rather than off the screen (`spanText`), so it is the whole span and not the part still visible.
-  Three regions have one — the conversation, the agent's screen and the terminal — and the
-  conversation's lines are its own while a lane's are the scrollback the window is holding
-  (`Frame.held`), which is honest about the limit: **as far back as Tade has read, and no further.**
-  Everywhere else — the side, a panel, the ACTIONS page — a selection is still the rows it was made
-  on, because none of those is a thing people drag over pages of. The far end of a *live* drag is
-  deliberately not anchored: it follows the pointer, so the content moving under a hand that is
-  holding still is what **extends** the selection, which is what makes the wheel during a drag and
-  the scroll at an edge (`drag-region`, on a timer like the file's) do what a terminal does. It is
-  fixed where the drag is let go, so nothing slides afterwards.
-- **A link is a control and text, and which it was is only knowable on the way up.** Everything else
-  a click presses is something the window drew; a link or a file reference is a *reading* of
-  somebody else's words (`selectableText`), so a press on one starts a selection like a press on the
-  words around it and only a press that never moved opens it — a line with a URL in it was otherwise
-  a line no selection could be started at. `www.` counts as a link and is opened over https, which
-  is also what stops the path pattern claiming it as a file nobody has; a bare `example.com` does
-  not, because nothing tells it from `report.md`. Where it opens is the one seam that reaches the
-  machine (`AppOptions.open`), so a test is handed an opener that records the command instead of
-  running it.
-- **Tade does not sandbox anything, and says so rather than half-owning it.** There was a
-  `sandbox` on every route and on every MCP server — seatbelt on macOS, bwrap on Linux, and the
-  rule that one which could not be applied failed the run. Every default was `none`, so the
-  promise it read like was one almost nobody ever got; and what it was containing is a program the
-  person deliberately handed the machine to, under `approvals.mode: 'bypass'`, running as them in
-  their own checkout. Containment is **the harness's or the agent's** — Codex has its own
-  `--sandbox` and Tade passes `danger-full-access` because Tade's gate is what decides here — and
-  a thing Tade half-owns is worse than either end of it, which is the keystore's lesson again.
-  What is left is what was always doing the work: the approval tiers, the worktree as the policy
-  boundary, and saying plainly where somebody is deciding that an agent and an MCP server both run
-  as you (`KEYS_AND_AGENTS`, `SERVER_RUNS_AS_YOU`). A config that still names a sandbox is
-  **ignored and said** (`GONE` in `core/src/gone.ts`, beside the sentence that replaced it, so
-  that tidying one away takes the other with it), never refused: people have it written down, and
-  refusing the file takes away everything else they wrote at the same time.
-- **What Tade writes for itself is under git** (`recordAuthored`), committed as `Tade` and never
-  as the user. That is the fourth safety rail, with `--safe`, nothing loading unasked and no hot
-  reload: the other three let you stop an unwelcome change, and this is what lets you see and undo
-  one. Losing the history is never a reason to refuse the change itself.
-- **Extensions live in one folder, and being there is not being on.** `~/.tade/extensions/` is the
-  only place they live — yours, and the ones Tade writes for itself, which land there off and are
-  read before anybody runs them. One nobody turned on is *listed and never imported*, because
-  importing a module runs it; turning one on is a setting (`extensions.<name>.enabled`, the window,
-  `tade extensions enable`) and it loads **the next time Tade starts**, never as a hot reload.
-  Tade's own ship with it and are on unless turned off; everything else is off until somebody says
-  otherwise (`extensionEnabled`). `--safe` loads none of yours and must keep working with a broken
-  one sitting in the folder — safe mode that only works when nothing is wrong is not a recovery
-  path. Tade's own tools always load first, so a self-written one can never shadow `status` or
-  `approve`. Lessons are still proposed (`skills/proposed/`): a rule you did not agree to is a
-  different risk from a tool you did not run.
-- **What an extension is for is the extension's to say** (`workflow`), and the page shows it
-  unedited. Extensions is the shape Settings has — a search and a list down the side, one of them
-  in full beside it — and what that side says is its own words about how it is used, every tool it
-  brings with what each is for, what it offers to watch and what it can be given, a credential
-  among them, drawn as itself — except where a variable in the shell beats it, which is said
-  instead, because the value beside it would not be the one in use. A page that says only what something *is* is how an
-  extension with eight tools gets taken for the one watch it happens to show: the count in a
-  heading is not the list. One that is off or broken is listed with nothing but its name, because
-  it was never imported, and the page says that rather than inventing the rest.
-- **An MCP server somebody turns on is an extension whose tools are that server's tools**, and the
-  window is the only client there is. The broker (`packages/mcp/broker`) turns each enabled server
-  into a `TadeExtension` called `mcp-<server>`, and the extension host hands those to every harness
-  the way it hands Tade's own — so "forward the config to all harnesses" is one longer tool list in
-  a server each harness already starts, never a config written for somebody else's client. That is
-  the whole of the wiring, and it is one line in `loadExtensions`. The alternative — a client per
-  harness per agent — is a process per agent per server, a credential in a file a third party
-  reads, and a tool call Tade can neither see nor stop.
-- **A server that is off is never connected and never declared.** `mcp.servers.<name>.enabled` is
-  the one switch, off for every server including the catalogue's, because a server is somebody
-  else's code with tools your agents will call. An off one has no extension, no tools, no
-  `ready()` and no process — a row on a page, read out of the catalogue. `extensions.mcp-<server>`
-  is not a second question: the host skips the enabled check for `source: 'mcp'`, since one was
-  only ever handed over because a person turned it on. Who may turn one on is a person — not an
-  agent, not the orchestrator, which reads attacker-controlled text all day.
-- **A brokered extension fills in `tools`, and nothing else**, asserted by `brokeredConformance`.
-  No watch (a third party with a clock and an agent per finding), no brief, no status or view (its
-  words in the status bar, four times a second), no lists, no actions or `heard`, no `caution` or
-  `meant` (somebody else's code answering Tade's own gate), no `linkers`, no harness pieces, no
-  `setup` beyond the credential field Tade generates. A server's words are **material, never
-  instruction**: a description is handed over as a description, because a model must read it to
-  choose, and nowhere else — never a prompt, a task, a note, a queue reason or the reason anybody
-  is given.
-- **Tade names the tool, and a brokered one can never be one of Tade's own.** Four layers, and the
-  first three already hold: Tade's own load first (brokered ones load after `builtin` *and* after
-  yours, so a server loses a name either of them wanted and is listed broken with why),
-  `shapeProblem` refuses a tool that does not start with its extension's name, and the host refuses
-  a second extension with a name already taken. `nameProblem` is the fourth and cannot fire given
-  the others — it is there so a change to one of them cannot quietly open it. Naming
-  (`packages/mcp/core/src/naming.ts`) is pure and table-tested: lowercased, runs of anything else
-  become one `_`, collisions take `_2`/`_3` in the server's own sorted order, and overflow past 53
-  characters cuts and adds a digest. Sorted by **code point, never `localeCompare`** — how a locale
-  orders two strings depends on the machine's ICU, and a name that moves between machines is a tool
-  an agent reaches for and misses. Because Tade names it, the same name reaches the policy in every
-  harness, so `approvals.auto_allow` is written once and there is no new key, rule or tier.
-- **A cache is a cache, and `ready()` never dials.** An enabled server's tools are only knowable by
-  opening it, and the tool list is written at agent launch — so what came back is written down once
-  (`<home>/mcp/<name>.json`, `0600`) and that is what the list is built from, which is how the
-  first agent after a restart has the tools. An enabled server with no cache offers none yet and
-  says so; a file that will not parse is no cache rather than a throw; nothing is ever written from
-  anything but a real answer. `ready()` answers from the declaration, the filesystem and the
-  settings, never from a `tools/list`.
-- **The broker is a gate nothing can go around.** A call has to come back into the window, so a
-  server's `tools` allow-list, a credential that has gone and a server that was turned off are
-  enforced at the moment of the call, whatever a harness thinks it has registered. A server that
-  calls its own call a failure comes back as a throw, because a tool fails by throwing. Nothing is
-  brokered but tools — no resources, prompts, roots, sampling or elicitation — and a brokered
-  answer never sets `said`, so no voice reads out a wall of somebody else's text.
-- **A server Tade starts is somebody else's program, and is run like one.** The `stdio` transport
-  spawns it **detached, in its own process group** — so a signal to Tade's never sweeps it up, and
-  whoever started it ends its group — with an environment scrubbed to `PATH`, `HOME`, `TMPDIR`,
-  what the declaration itself names and the credential where `auth` says. It works in a scratch
-  directory of its own (`<home>/mcp/<name>/`), never in a project unless `scope: project` says so
-  and the call came from one; `${project}` is put in then, and never one per agent. That is the
-  whole of what holds it — it runs as you, and nothing contains it — which is why the sentence
-  saying so (`SERVER_RUNS_AS_YOU`) is on the server's row and on `tade mcp enable`, where a person
-  is deciding. Nothing waits without a deadline: a handshake
-  that does not answer is abandoned, a call can be given up on, and a program that dies is an
-  answer with the tail of what it said on the way out.
-- **Over HTTP the credential travels and nothing else does.** One transport speaks both shapes —
-  streamable (every message a POST) and the older stream-and-post-box, registered as `sse`, which
-  is a flag rather than something sniffed from an address — and the one copy of the key it is given
-  goes into the header `auth` names and nowhere else: not into a file of its own, not into a log. A credential the
-  server would not take is said as that rather than as a number. What every transport says and how
-  it reads what comes back is one pure file (`packages/mcp/core/src/protocol.ts`), table-tested,
-  because two hand-written copies of "what a tool list looks like" drift the first time a server
-  answers something neither expected.
-- **A server is a row on the Extensions page, not a page of its own.** It is a source of tools like
-  any other: one somebody decided about is a row among the extensions with its own state, the ones
-  nobody has decided about are the catalogue behind one group row (`MCP servers`), and the harness
-  group lists the servers `claude mcp add` and `~/.codex/config.toml` already load — **read, never
-  adopted**, the way a harness's own config is read. What a server's own row says is only what is
-  true: how Tade talks to it, every tool it offered with the server's own name beside Tade's, what
-  was dropped and why, and when it was last asked. One that is off was never connected, so the page
-  says that and nothing else. `tade mcp list | add | enable | disable | probe` is the same answer
-  from a terminal, and only `probe` dials; `tade extensions enable <a server>` refuses and says
-  which command it is.
-- **One package goes out, it is called `tade-sh`, and the command is still `tade`.** Thirty-eight
-  workspace packages, every one of them `private`, ship as a single npm package — `tade` was taken,
-  `tade-sh` is what the account has. The tarball keeps the `packages/<name>/src/` shape it has here,
-  the root manifest declares one `exports` entry per package **generated from that package's own**
-  (so a subpath added tomorrow is answered tomorrow, and `./conformance` is the one key dropped),
-  and `@tade/core` is rewritten to `tade-sh/core`, which Node answers by self-reference against the
-  nearest package scope. That is why the staged tree has **no nested `package.json`**: one would
-  become that scope and every cross-package import would stop resolving — which is also why
-  `version()` reads the root manifest three levels up, the same three in both layouts.
-  **The types come off at publish, and that is not a build step.** Node refuses, deliberately, to
-  strip types from any file under a `node_modules` path, and `npm i -g` puts the package under one —
-  so a tarball of `.ts` would be a tarball that cannot run, with no flag to ask otherwise. So
-  `scripts/release/stage.ts` runs Node's own `stripTypeScriptTypes` in `strip` mode, where types
-  become whitespace: every line of the published package is at the line it is at here, and a stack
-  trace a user sends back reads against this source. Nothing in the repository was rewritten to make
-  that work and `pnpm tade` still runs the `.ts`. Two rules do the rewriting and no others — a
-  `@tade/…` specifier, and a relative path ending `.ts`, which is not only the imports: `new
-  URL('./hook.ts', import.meta.url)` is how Claude Code, Codex and pi are told which file to run. A
-  bare `'extension.ts'` is left alone, because that one names a file in somebody's own
-  `~/.tade/extensions`, which is not in the tarball and not under `node_modules`.
-  Staging refuses rather than ships: no TypeScript left, no second manifest, every `exports` target
-  on disk, every relative path and every `tade-sh/…` specifier answered, a `bin` with a shebang, and
-  a dependency imported by something that ships and declared by nobody. `vitest` is the only thing
-  dropped, and only because the conformance suites that import it do not ship.
-  **A release is deliberate and rehearsable**, and the recipe is the `cut-a-release` skill.
-  Nothing publishes on a push to main: `pnpm release
-  <version>` writes the changelog, stamps the version, commits `Release <version>` and tags — then
-  `git push --follow-tags` is the one act that reaches anybody, and the tag is what starts
-  `.github/workflows/release.yml`. That workflow **calls `ci.yml`** rather than keeping a second copy
-  of the gate, packs this same tree, installs the tarball on both systems and runs the `tade` inside
-  it, and only then publishes — over OIDC, with provenance, so there is no npm token in this
-  repository and there must never be one. `pnpm release <version> --dry-run` is all of that except
-  the four writes, the install included, because the first publish cannot be taken back.
-- **What a user's install runs is node-pty, twice, and what a contributor needs is somewhere
-  else.** Both published scripts are about the one thing in the tarball that is a binary rather
-  than a file, and `ON_INSTALL` in `stage.ts` is the list. **`preinstall` is `check-build-tools`**:
-  node-pty ships prebuilds for darwin and win32 and for no Linux, so on Linux it is always
-  compiled, and on a machine with no toolchain the install used to end in forty lines of node-gyp
-  naming a Python that is not Tade's. npm runs a package's `preinstall` before it builds that
-  package's dependencies, and npm shows a script's output only when the script *fails* — so it
-  refuses, and the sentence is the whole of the error instead of a line above the wall. It may only
-  ever refuse where node-gyp would have failed anyway, so it looks for what node-gyp looks for and
-  is generous about it, and anything it cannot read is not a refusal. **`postinstall` is
-  `fix-pty-permissions`**: that same prebuilt `spawn-helper` comes out of a tarball without its
-  executable bit, and every lane then fails with `posix_spawnp failed.` and no other word — so the
-  pty driver's `available()` and `open()` both say which file and what to type, and `helperProblem`
-  is where that sentence lives. Nothing else ships and neither reaches the network. `install-hooks`
-  is `prepare`, which runs for this repository and for a git install and never for somebody
-  installing the published package: pointing a stranger's git at hooks in a repository of theirs is
-  not Tade's business. A dependency that did not load at all is caught once, in `bin.ts`, and
-  answered by `nativeTrouble` — which names the module, what the machine said, the toolchain a
-  build needs and the commands that approve an install script a package manager held rather than
-  ran, for each of the three that hold one. A relative file that is missing is Tade's own bug and
-  is never dressed up as somebody's install problem.
-- **A Node that cannot run Tade is turned away at the door.** `engines` is a warning npm prints
-  once and installs over, and what came next was a `TypeError` out of the middle of execa naming no
-  version at all — so `bin.ts` checks `nodeTooOld` before it loads anything, and the two files it
-  imports to do that are the only code that runs first. The floor is `engines.node` read back
-  through `needsNode`, because two numbers drift and the one that drifts is the one nobody runs.
-  It may only ever stop somebody, so it reads `>=x.y.z` and nothing else, compares as numbers —
-  22.9 is above 22.19 only in a dictionary — and treats a manifest it cannot read as no answer
-  rather than as a refusal.
-- **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
-  promise. If a config key has no reader, either wire it or delete it.
-- **What Tade needs of the machine is declared by whoever needs it.** Every driver, harness and
-  forge says which programs it shells out to and how to ask each its version (`programs`, a
-  `RequiredProgram[]`, held to shape by all three conformance suites), and Settings › Updates and
-  `tade update` fold those declarations together (`programsNeeded`) — so a new harness arrives with
-  its own requirement and no list anywhere else changes. How one got here is read off where it
-  actually is (`installOf`: a Cellar or a Caskroom, a global package's folder, a version manager's,
-  `/usr/bin`), because that, not its name, is what decides how it moves forward — and a formula is
-  not a cask, since the cask `claude` is a desktop app and the cask `claude-code` is the agent.
-  Something inside Tade's own tree is Tade's (`manager: 'tade'`): `npm install --global` on it
-  would install a second copy nothing would ever run. **Reading the machine is free and asking the
-  world is not**: what is installed is read when somebody opens the page, what is *current*
-  reaches the network and only when they press the button, and where nobody can be asked the
-  answer is `cannot tell` — never a guess, never a version invented out of half a string. Nothing
-  installs anything: the exact command is on the page before it runs, and running it types that
-  command into a terminal you are looking at. Reloading into a new Tade says what it costs in the
-  driver's own words (`capabilities.detach`, never its name) and what survives it — worktrees,
-  branches, the journal, queued work, schedules — before anybody chooses it.
-  **How to install one is declared the same way** (`install`, a `HowToInstall`), because the setup
-  wizard is the one place a list of install commands would go stale unnoticed: `installWith` picks
-  by what this machine actually has (its own package manager before a global npm install, and only
-  a manager that is on PATH), a program whose package nobody can vouch for declares `instead` and
-  says where to get it, and the conformance rule refuses an install that offers nothing. The wizard
-  offers only what something in use requires and *says* the rest — installing what nobody asked for
-  is the other way to get this wrong.
-- **Setting up ends with a lane.** Everything else `tade setup` does is a reading of a file, so it
-  can find git, find a model, write a config and say "all set" about a machine where no agent can
-  ever start: `posix_spawnp failed.` at the first lane is what that looks like from the outside. So
-  it finishes by opening a lane with the **configured** driver, running a command in it, reading
-  what came back and closing it (`proveALane`) — and `--check` does the same, because that is the
-  one somebody runs when they are not sure. It closes its own lane and then `detach`s, never
-  `shutdown`s: under tmux the lanes of one home share a session, and proving a lane can open must
-  never end every agent working in that checkout. It is deliberately **not** one of the readiness
-  steps: those are facts, this is an act, and the window folds readiness on every open. The two
-  native modules come first for the same reason the proof comes last — every question in between is
-  answered by running something, and node-pty is what runs it, which is also why the fix for a
-  helper whose permission bit is wrong is *said* and never run.
-- **Under the `pty` driver lanes are Tade's own children**, so they die with it; under `tmux` they
-  do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:
-  never report a lane as alive without evidence, and keep its spec so it can be relaunched.
-- **`detach()` closes the window; `shutdown()` stops the work.** Closing Tade must never be what
-  stops your agents, so the ordinary exit path detaches. Where lanes cannot outlive us and cannot be
-  found again (`detach: false`, `adopt: false`), releasing them *is* ending them — leaving processes
-  nobody can see, drive or stop is the one outcome worse than both.
-- **What Tade draws itself dies with Tade, however Tade ends.** The orchestrator has no lane to
-  carry on in and nobody could find it again, so a headless run is started through a watcher
-  (`reaped`, in `harnesses/core`) that ends it once Tade's pid is gone. An exit path only runs when
-  there is one: a window killed outright would otherwise leave a model process running that nothing
-  can reach. Agents are the opposite and stay that way — under a driver whose lanes outlive the
-  window they keep working, which is what makes closing Tade harmless.
-- **A lane is alive only if the driver hands it back.** A live pid proves something is running, not
-  that this driver can drive it: a fresh driver knows nothing about a window it did not open. Ask
-  the driver on open (`list` for what it already holds, `adopt` for what it can find) and take its
-  answer over the process table.
-- **One window per home, and questions never need it.** Opening the workbench takes a lock on
-  `TADE_HOME`, because two writers would interleave in one journal. So anything that only reads —
-  `status`, `logs`, `notes`, `summary`, `spend` — must read the files directly (`readJournal`,
-  `Memory.open`) and never open the workbench. A question you cannot ask while a window is open is a
-  question people stop asking.
-- **Extensions run in the window, and work happens in agents.** An extension's tools run in the
-  process that holds its settings and credentials; the orchestrator reaches them through the
-  `ToolHost` and agents through their supervision channel, so each harness sees them as its own
-  tools. A tool that changes a project starts an agent in a worktree (`ctx.tade.startAgent`), with
-  what it found in `.tade/context.md` — never the project's own checkout. Tool names start with the
-  extension's name, `ready()` never touches the network, and an extension that is broken is listed
-  as broken rather than stopping anything else.
-- **Tade stays light, and proves it.** What the window polls is cheap and shared — one `ps` for
-  the whole process table, cached between askers — and anything on a timer or drawn every frame has
-  a performance test. The resources extension is how you see what Tade and its agents cost.
-- **A probe that could not look is not a probe that found nothing.** Three cases and never one
-  (`problemWith`, `packages/status/src/processes.ts`): a program that is not installed, one that
-  failed and said why, and one that ran out of time — and a budget picked from how long something
-  takes *alone* is how the third came to be reported as the first, `ps unavailable` about a `ps`
-  sitting in `/bin` answering everybody else. So a probe is budgeted like a spawn on a machine
-  four agents are running a suite on, and a look that could not look degrades to the **last scan
-  that could**, kept to the pids that still exist, rather than to an empty list — because nothing
-  above reads empty as "nobody looked", it reads it as "nothing is running". What it says is one
-  stable sentence, since the window shows the same warning twice as once.
-- **Nothing the window runs waits on a child process.** It draws four times a second and answers
-  keys in between, on one thread: a program it waits on stops both, and no key ends that wait.
-  Saving a key used to be `execFileSync('security', …)` — read again on *every frame* while the
-  page was open — so a keychain that wanted a word about it stopped the whole window, and the only
-  way out was killing Tade. So everything in the packages the window loads spawns asynchronously
-  and every wait has a deadline (`inTime`), including the one nobody thinks of as a wait: an
-  extension's `ready()`, which is somebody else's code and is awaited from the Settings page. A
-  standalone script the window never imports is its own process and may be simple; it is named in
-  `test/modularity.test.ts`, which holds the rest to it — a guard, not a habit.
-- **Nothing inherited is written to disk.** A lane's spec keeps only the environment Tade set
-  (`withoutInherited`); the rest is everyone's shell environment, tokens included, and a relaunch
-  inherits it again. Tade's own files that could hold such things are written `0600`.
-- **A key is a setting, written in the config in plain sight.** Anything that needs one declares a
-  `secret` setting (`kind: 'secret'`, with the environment variable it has always read as `env`),
-  and what is pasted is written to `extensions.<name>.<key>` in `config.yaml` — as typed, drawn as
-  itself, copyable — like every other setting, by `writeSetting`, which used to refuse exactly
-  this. An account's API key is `accounts.<name>.key`, the same way. Twice before, the worry about
-  a key in a file was obeyed rather than answered: first by refusing credentials outright, which
-  moved the job to everybody's shell profile, then by the OS keychain, which put it where nobody
-  could look — a pasted key could not be read back and checked for a typo, could not be copied to
-  another machine, and on a Mac whose keychain wanted a word about it could not be written at all
-  without `security` stopping to ask, which is a question put to a window that has stopped drawing.
-  What answers the worry is the file, not the hiding: `config.yaml` lives in `TADE_HOME`, is
-  written `0600` and narrowed to its owner on every write (`ownerOnly`), and is not a project file
-  anybody commits. **The environment always wins** (`ctx.secret`, `findSecret` — one rule, one
-  place), so a machine that exports a variable today behaves exactly as it does, and a field whose
-  variable beats it says so where it is saved. A key is still never in the journal and never in
-  anything telemetry would send. Nothing is kept anywhere else: there is no keychain, no
-  `secrets.json` and no vault to choose between — a key pasted into an older Tade has to be pasted
-  again.
-- **`0600` keeps the file from other people, and an agent is not another person.** That is the whole
-  of what the mode buys, and there is no second user on the machine to buy it from: agents run as
-  you, in your checkout, with nothing containing them and nothing asked (`approvals.mode:
-  'bypass'`) unless somebody has turned approvals on — so **any agent can read `config.yaml` and
-  every key in it**.
-  The audit agent that found this did exactly that, incidentally, with no special access and no
-  prompt. Everything above stays true and stays worth having, and it is all containment of
-  *everywhere else*: a key is never in the journal (`set` or `not set`, `held` in
-  `wire/settings.ts`), never in anything telemetry would send (`KEPT`, and `leak.test.ts` is the
-  proof), never in a lane's stored spec (`withoutInherited`) and never in a launch line — a harness
-  is handed `secretCommand`, which prints the key at the moment it is needed. What is not contained
-  is the one program you deliberately handed the machine to, and no arrangement of the file can
-  contain that. So it is **a decision and not an oversight, and the rule is that it is said where
-  somebody is deciding**: the Extensions page above the field, the line under a credential on the
-  Settings page, the prompt that asks for an account's key, and `tade setup` before it asks anybody
-  to paste one — each of them the same sentence, written once (`KEYS_AND_AGENTS`, with
-  `SEEN_BY_AGENTS` as the clause a two-line note has room for, in `core/src/secrets.ts`) rather
-  than four wordings that drift. The README says it in its own words, being prose and not a
-  drawing, in a short section of its own under the first picture and where it talks about pasting
-  keys — above the features rather than down with install, because it is the one thing to know
-  before the first agent starts and not a step of setting up. It carries **the way out in
-  the same breath**, because a warning with nothing to do about it is one people learn to scroll
-  past: export the variable, which wins over the file and which Tade never writes down, or leave
-  that extension unset. And nothing anywhere may go back to saying the file is one *only you* can
-  read: fourteen sentences across eight files said exactly that, each of them true about the mode
-  and wrong about the machine, and each of them read by somebody at the moment they were deciding.
-  Containing an agent is deliberately not the answer here and is not Tade's to give: what an agent
-  may reach is the harness's or the agent's own, and approvals are never Tade's to change.
-- **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
-  that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
-  on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.
-- **Tade reports its own trouble, never your work.** `telemetry.dsn` — empty by default — sends
-  Tade's crashes and the warnings it writes down to a Sentry project of yours, with what happened
-  around them as logs and every agent turn as a trace, so the Sentry extension can watch Tade
-  itself and hand an agent its own bug. What may be sent is an allow-list (`KEPT` in
-  `telemetry/shape.ts`): names, counts and Tade's own words. What you said, what an agent wrote,
-  task titles, prompts and notes are never in it, paths are scrubbed to `~`, anything
-  credential-shaped is taken out, and the lines around a stack frame are kept only for Tade's own
-  files. A reporter never throws and never blocks: a window that crashed while reporting a crash is
-  worse than one that reported nothing.
-- **Watching for trouble never decides what it costs.** `watchProcess` answers Node's two
-  handovers differently, and only one of them is fatal: an uncaught exception still ends Tade, with
-  the terminal handed back before the exit, because a crash that left it in raw mode is a crash you
-  cannot read — and **a promise nobody awaited is reported and nothing else**. Registering that
-  listener is itself what turns Node's default off, so a `throw` in it is not Node's answer being
-  passed along, it is the reporter inventing one. It did: a dynamic `import()` in code compiled
-  while Tade ran — in neither Tade's own code nor the terminal library it draws with, neither of
-  which contains one — rejected on a Node with no callback for it, and took the window down. Under
-  the `pty` driver the lanes are the window's own children, so that was every agent in the
-  checkout, killed by somebody else's import. Nothing the drawing could have caught, either:
-  `import()` rejects, it never throws, so the frame was already drawn.
-- **A DSN is an endpoint, and the token is the credential.** `telemetry.dsn` is an ordinary string
-  in `config.yaml`, drawn as itself: Sentry publishes a DSN in the JavaScript of every page it
-  watches, and all one grants is the right to send events to one project. Marked `secret` it got
-  the worst of both — bullets in the field, so seventy characters somebody pasted could not be read
-  back and checked for a typo. `$TADE_TELEMETRY_DSN` is the fallback *under* the setting and never
-  over it, and the field's own fallback says so: a DSN typed into Settings is the one that is used,
-  because a setting Tade accepts and ignores is worse than one it does not have. What is genuinely
-  a credential — Sentry's auth token, the forge token, an extension's key — is `kind: 'secret'` and
-  now lives in the same file, drawn the same way, with the environment winning over it; what still
-  separates the two is that nothing wins over a DSN and that a key is a key.
-- **Leaving a field saves it; escape is how you throw it away.** The Settings page says "Saved as
-  you change it", and every other control keeps that promise the moment it is pressed — a switch, a
-  radio, an arrow. A field wrote on enter and on nothing else, so clicking Done, the next setting,
-  another category or the window behind the page dropped what had been typed and went on saying
-  "Saved" underneath it; with a masked field nothing on screen said so, which is how a pasted DSN
-  came to look like a value that resets itself. So every way out of a field but escape writes it
-  (`leavingField`, answered once in `settingsClick` rather than in each of a dozen cases), nothing
-  is written when nothing changed, and a write that fails leaves the page open with the reason on
-  it rather than closing over the top of a value that did not save.
-- **A statistic is derived, except the two that cannot be.** What the agents cost, how long they
-  ran, how many turns and tool calls they took are all folds over the journal (`spendFrom`,
-  `runtimeFrom`, `statsFrom`), because status is a query. Two things are not recoverable by asking
-  again: what a commit changed, since `git log` answers differently after every rebase and a
-  worktree takes its branch's history with it when it goes, and what a check run did, since
-  `.tade/checks.jsonl` rotates and dies with the worktree. So each is written down once at the
-  moment it is true — `commit_seen` keyed by sha, `check_ran` keyed by the run's id — the same way
-  a watch keeps every key it found. Both are *read* rather than written where they happen: `tade
-  check` runs with no window, and a second writer in one journal would interleave with it, so
-  whichever window opens next picks up what it missed. The first look at a project counts nothing
-  behind it, because a chart that spikes on the day you installed Tade is one nobody trusts again.
-- **A metric is split by project, and its dimensions are enums.** A task id is a slug made from a
-  title somebody wrote: unbounded as a series, and not Tade's to send. Anything that can be a
-  sentence — `because`, `reason`, `message` — is never a dimension either, for cardinality rather
-  than privacy: it would make a new series every time somebody worded something differently. What
-  was actually said still goes on the log line beside it. `DIMENSIONS` in `telemetry/shape.ts` is
-  that narrower list, and it is narrower than `KEPT` on purpose.
-- **Money that was priced and money that was guessed are never added up in silence.** A harness
-  declares which it can do (`capabilities.spend.usd`), and that word rides on every `usage` event
-  as `priced`, so a total can say which it is. pi prices each turn against its own catalog; Claude
-  Code against an API key estimates. A bucket keeps the two apart (`usdExact`, `usdEstimated`) and
-  `pricedOf` is the one word every surface says it with: a guessed figure is marked where it is
-  read (`~`), on the row and on the total, and nowhere else — a caveat true under every row is a
-  mark and never a footnote. Money nobody vouched for counts as guessed, never as priced, and a
-  bucket nobody reported money for is drawn `—` rather than `$0.00`, which reads as free.
-- **A plan is not money, so a harness on one reports none.** `capabilities.spend.usd` is `none`
-  for Claude Code's own sign-in and `estimate` for an account of it billed per token, because what
-  Claude Code keeps is its own guess at what an API would have charged and on a flat fee nobody is
-  charged it: $954 of it stood in this machine's total beside $78 that somebody was actually
-  billed. So the adapter reports no dollars at all there (`priceable`), and what it used up is its
-  plan's windows — their own type, their own list, their own bar, and in no total (`PlanWindow`).
-  Tokens and hours stay: unpriced effort is still effort, and is still where it went.
-- **What is true of a harness is true of its old lines too.** A journal is years long and holds
-  what every Tade that ever wrote it believed, so the provider a harness reaches and whether its
-  money is money are applied by the *reader* as well as the writer (`HARNESS_FACTS`, `isMoney`,
-  `runFactsOf`). A reader has an id and nothing else — the run is over and its adapter may not
-  exist here any more — so it is a table keyed by the id, held to the adapters by a test
-  (`workbench/test/harnesses.test.ts`) so the two can never drift. It only ever *corrects a wish*:
-  nothing is invented for a harness this Tade does not run, nothing for one that routes, and an
-  account beside a subscription keeps its own money, because it may be billed per token and the
-  plan says nothing about it. What this changes is said plainly rather than done quietly: in the
-  journal this was found in, eleven thousand Claude Code events say `provider: openrouter`, and the
-  money it adds up to went from $3,057 to $785 — every dollar of the difference a plan's own turns,
-  and not one dollar moved from one provider to another.
+
+### The journal, and what is told rather than derived
+
+- **`events.jsonl` is the truth**; the SQLite index is derived, must be rebuildable from it, and is
+  always safe to delete. Raw lane output never goes in the journal — only sampled byte counts. Under
+  subscriber backpressure, `trace` events drop first and `blocking` events never.
+- **Compaction drops samples, and only samples** (`SAMPLED_TYPES`) — by type, never by urgency, which
+  is about subscribers; nothing droppable left says so in a `warning` rather than deleting a record.
+- **Notes are the one thing Tade is told rather than derives**: verbatim in `<home>/memory.jsonl`,
+  append-only, a bad line skipped rather than thrown over. Never lowercase or reword one; a `summary`
+  may be written *beside* a note, never made out of its text. `intent_spoken` likewise.
+- **The registry keeps a dead lane's spec so the work can be put back**, so it forgets only one whose
+  task is gone (`forgettable`) — never a live one, never one marked `lost`.
+
+### Tasks, the queue and efforts
+
+- **A task is finished when the journal says so** (`task_done`); the rule is `done` in its task file.
+  Never infer it from a turn ending — an agent that asked a question looks the same — or from an agent
+  having stopped, which is `review`.
+- **Queued work is a task with `start` in its task file.** The window starts it by rule
+  (`readyToStart`), never a model deciding again, and writes why. **Evidence may only ever hold**: the
+  start-time look at the trees reaches that rule through `queueStateOf`, so it can never start what the
+  rule would not, jump a wait, unhold, or exceed `max_parallel` — and a written `order` is only a
+  preference among the ready.
+- **A task name is never used twice** (a new agent given an old one's name carries on its
+  conversation), and **a task's id is in its task file, not its branch** — Tade never renames a branch
+  it did not make.
+- **Whose a commit is, is read out of the `Tade-Task:` trailer, never guessed.** "Unattributed" is
+  always allowed; uncommitted work in a shared checkout is nobody's.
+- **An effort is the fold of the task files that name it** (`TaskFile.effort`, `effortsIn`) — one
+  ordinary task per repository, each with its own branch, checks, review and done rule; no
+  `Tade-Effort:` trailer and no effort-level rule or state. A plan may span repositories, so paths are
+  compared only inside one project, no ref is handed across one, and same effort is never permission.
+
+### Where agents work
+
+- **Agents work where the *project* says, and the machine's answer is only its default.**
+  `workspaceFor(config, project)` (`core/src/project.ts`) is the one reader; nothing asks the machine.
+  `checkout` (the default) is every agent in the project's own checkout, each task a folder under
+  `.tade/tasks/<name>`; `worktree` is a worktree and branch each. **Nothing that runs git on a task's
+  directory may assume the directory is the task's alone — ask `task.workspace`.**
+- **Everything Tade writes under a project is ignored, with no exception** (`ensureIgnored`, held by
+  `test/own-files.test.ts`): `/.tade/*` appended to the project's `.gitignore`, once, never edited,
+  never committed — and `.gitignore` rather than `.git/info/exclude`, because what went wrong is a push.
+- **Closing a project is not forgetting its work**: it leaves the folder, the branches and the journal,
+  and no tool removes a worktree, deletes a branch or deletes a folder.
+
+### Checks
+
+- **A check that nobody ran is not a check that passed.** The rollup of the required checks at HEAD is
+  what `deriveState` reads as `tests`, and `unknown` is first-class: absent is not fine.
+- **What a project checks is read out of what it already says** — its commit hook and its workflows.
+  There is no `.tade/checks.yaml` and nothing writes one, and **reading may only ever narrow what Tade
+  claims**: what it cannot place is *named* (`Reading.unread`) rather than run, so the failure mode is
+  "Tade checked less than CI does, and said so".
+- **A check that cannot run *here* keeps its row with a `skip` and is `required: false`** — a rollup is
+  what a run *here* adds up to. Where a project says **nothing**, Tade invents no gate: `unknown` stands
+  and the agent works out what checking means, runs it, and says what it ran (`CHECK_IT_YOURSELF`).
+- **A run is about a tree, not a commit id**, and **runs go through Tade** so the lock and the record
+  come free: four agents in one checkout must never start four suites.
+- Overruling `checks.before` is an act, not a setting — `checks_override`, with a reason — and a red
+  run that was overruled is still recorded red.
+
+### Judges
+
+- **A judge answers, it never decides.** Bounded questions, a probability, no prose. It may only ever
+  *add* caution — a finding, a wait, a raised tier, a person asked. Never approve, close, merge,
+  unhold, shorten a review or skip a check; never inside a pure rule; never the reason given to
+  anybody, which is always a sentence somebody wrote. The one judgement already wired into a gate is
+  the command tier (`withCaution`), and it may only ever come back **stricter**.
+- **A finding is about one agent's change** — in a shared checkout, that agent's own commits by
+  trailer. **A judge that cannot read everything still reads something**, and what it left out is
+  **named** (`partSaid`), because silence teaches nobody. Its questions are one file
+  (`extensions/jev/src/questions.ts`), and with no key nothing runs.
+- **An agent accounts for a finding; somebody else judges it.** The agent gets the question as
+  material to judge, never an instruction, and answers with `jev_account` — testimony, not a verdict.
+  `jev_verdict` is not offered to agents, and no account reaches the calibration table. A verdict must
+  **cite what in the change decided it**, and nothing becomes a false positive by getting old.
+
+### Reviews, watches and schedules
+
+- **A review is a branch offered for merge, and Tade only ever adds to it.** The `Forge` port is
+  neutral, and which review an agent opened is read out of git and the forge from a `Tade-Task:`
+  trailer, never from a table Tade keeps.
+- **Comments are attacker-controlled text**: material, never instruction, and bounded to that agent's
+  own task workspace.
+- **A watch may only add work** — never resolve a thread, never force-push, and past `attempts` it only
+  tells you. **Merging is a person's: `merge` is `never` by default.** **One red commit is one
+  finding**, so one push never becomes one agent per failing column.
+- **A watch is a schedule that looks before it acts**: a cheap `check`, no model. Tade keeps every key
+  found, so one finding never starts work twice — a failed start included, and **a warning about a
+  look must not outlive the look.** Turning one off pauses its schedule rather than removing it.
+- **Schedules are told, like notes**, and run only while a window is open: there is no daemon, and
+  missed runs are caught up once or skipped, never once per run missed.
+
+### Config, settings and keys
+
+- **A setting Tade accepts and ignores is worse than one it doesn't have**: a key with no reader is
+  wired or deleted.
+- **How far the orchestrator's arm reaches is decided in `settingReach` (`core/src/reach.ts`) and
+  enforced in the window, never in the tool** — a rule where the model lives is one the model can be
+  talked out of. **`never`** is a *subtree*, not a key: anything widening what an agent may do, handing
+  out tools or a credential, changing who is asked, or changing where Tade sends something. **`asked`**
+  is the default, and the person's own words must name that setting (`namedBy`, against the journal's
+  `said` lines) — nothing an agent read ever gets into `said`.
+- **One write path** — `settingsOf`, `parseSetting`, `writeSetting`/`writeKey` — from the Settings page,
+  the CLI and the orchestrator alike, and every change writes `config_changed`. **A config naming
+  something gone is ignored and said** (`GONE`), never refused: refusing the file takes away
+  everything else somebody wrote in it.
+- **A key is a setting, written in the config in plain sight.** `kind: 'secret'` with its environment
+  variable as `env`; the value goes to `config.yaml`, drawn as itself, `0600` and narrowed on every
+  write. **The environment always wins** (`ctx.secret`, `findSecret` — one rule, one place). No
+  keychain, no vault. A key is never in the journal, in what telemetry sends, in a lane's stored spec
+  (`withoutInherited`) or in a launch line — `secretCommand` prints it when it is needed.
+- **`0600` keeps the file from other people, and an agent is not another person.** Agents run as you,
+  with nothing containing them, so **any agent can read `config.yaml` and every key in it.** That is a
+  decision, and the rule is that it is **said where somebody is deciding**, in one sentence written
+  once (`KEYS_AND_AGENTS`, short clause `SEEN_BY_AGENTS`, `core/src/secrets.ts`), carrying the way out
+  in the same breath. **Nothing anywhere may go back to saying the file is one only you can read.**
+- **Tade does not sandbox anything, and says so rather than half-owning it.** Containment is the
+  harness's or the agent's; what does the work is the approval tiers, the worktree as the policy
+  boundary, and saying so where somebody is deciding (`SERVER_RUNS_AS_YOU`).
+
+### Telemetry and money
+
+- **Tade reports its own trouble, never your work.** What may be sent is an allow-list (`KEPT`,
+  `telemetry/shape.ts`): names, counts and Tade's own words. What you said, what an agent wrote, task
+  titles, prompts and notes are never in it; paths scrub to `~`. A reporter never throws or blocks.
+- **Watching for trouble never decides what it costs** (`watchProcess`): an uncaught exception ends
+  Tade, terminal handed back first; **a promise nobody awaited is reported and nothing else**.
+- **Money that was priced and money that was guessed are never added up in silence** (`pricedOf`, and
+  `capabilities.spend.usd` declared by the harness). **A plan is not money**, so a harness on one
+  reports no dollars and what it used up is its own type (`PlanWindow`), in no total.
 - **What a run was is written down, never read out of a model's name — and never out of a route's
-  wish.** Which harness it ran in, which sign-in it ran as and which provider it was reached
-  through go on `run_started` and on every `usage` event beside `priced`, for the same reason: they
-  are facts about the run, and a fact not recorded when it was true is a question nobody can answer
-  later. The provider is the **harness's** answer (`WorkerAdapter.provider`, declared: `anthropic`
-  for Claude Code, `openai` for Codex, null for pi, which really routes), and only then the
-  route's. A route is a wish: `workers.routes.default` held `provider: openrouter` beside
-  `harness: claude-code`, and Tade wrote that wish onto eleven thousand runs as a fact, filing
-  every one of them under a router Claude Code cannot reach. So the Spend page can
-  ask by harness, by sign-in and by provider as well as by agent, project and model — which is the
-  only thing that tells `claude-opus-5`, `anthropic/claude-opus-5` and
-  `openrouter/anthropic/claude-opus-5` apart, being one model on a subscription, an API key and a
-  router. The name is never parsed for it: `anthropic/claude-opus-5` reached through OpenRouter is
-  a real route, and a guess would file it under Anthropic and look certain. `UNRECORDED` is always
-  an allowed answer and is drawn as *not recorded*, never as a model called `unknown`.
-- **A model has one name, and the routing in front of it is not part of it.** One model is spelled
-  as many ways as there are ways of reaching it — `claude-opus-5` from Claude Code,
-  `anthropic/claude-opus-5` from a route against an API key, `openrouter/anthropic/claude-opus-5`
-  from pi through a router — so added up by the string one agent becomes four rows, which is what
-  the Spend page was doing with an agent's hours in one and its money in another. `modelIdentity`
-  (`core/src/spend.ts`) is the one rule: the **model is the last segment**, everything in front of
-  it is routing, and the routing is kept rather than thrown away — `id` is the spelling that reaches
-  it again, which is what starting an agent back up on it needs, and `provider` is what somebody
-  wrote down and is never read out of the name. Everything that writes a model into an event writes
-  it the same way (`modelDetail`: the name, and `modelId` only where they differ), and everything
-  that reads one reads `modelIn` — so a journal full of the old spellings folds into the same rows
-  rather than needing a migration nothing could write.
-- **A run is timed by what it turned out to be on, and says so itself.** A route asks for
-  `anthropic/claude-opus-5` and Claude Code answers `claude-opus-5`, so runtime taken from
-  `run_started` alone lands on a different model row from the money — one agent drawn as two. And a
-  route that asks for nothing leaves `run_started` with nothing to record at all: pi picks by what
-  you are signed in to, which was 86 of the 161 runs in the journal this was found in, every hour of
-  them attributed to nobody. So the harness saying which model it opened on is written down
-  (`run_model`, from the supervisor's `started` and `usage` signals — once, and again only when it
-  changes), `runtimeFrom` reads it inside the run it is timing, and `modelsSaid` is the fallback for
-  a journal written before it. A run nothing ever named is `UNRECORDED`, drawn as *not recorded*.
-- **How long the agents ran is added across them, and says that in as many words as it takes.**
-  `13d 3h` off a machine that has been on since breakfast reads as a bug and is not one: twenty
-  agents over an afternoon each ran for the whole of their own afternoon, and a run is wall clock
-  from start to stop, so one that finished at noon and sat in its lane until the window closed
-  counted the wait. Both are true and both are surprising, so both are said — `runtimeSays` in core
-  is the one sentence, read by `tade spend`, with `workedSays` beside it for the other half — and
-  neither may ever *explain* it differently from the window. `over 3 runs` is what makes a figure
-  that is not elapsed time readable, which is the whole of what the paragraph was for, so it is
-  drawn whenever the figure is and is never a step of a ladder that drops it. It sits on the line
-  **under** the head's figures rather than beside them, which is where that head already puts what
-  the money figure does not cover, and for the reason written there: the head now carries two times
-  where it carried one (`1h 32m working · 2h 5m open`), it has no columns to spare, and a clause one
-  line lower is still read every time — a footnote at the foot of a page is what this may never
-  become. The two words are the two the columns under them are headed with, so the page says which
-  is which once and in a word.
-- **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid
-  out from the room there is (`spendColumns`): the figures take what a figure takes, the share
-  meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`) and
-  only then ellipsises — and everything cut is cut with `cap`, which says so. Two names that stop
-  dead against the next column read as one unreadable row, which is how this was reported.
-- **A subscription is not money, and is never totalled with it.** Where a plan pays for the work
-  there is no price per turn, so what is used up is a share of a rolling window — and that lives in
-  its own type (`PlanWindow`, `core/src/limits.ts`), in its own list on the Spend page, in its own
-  indicator in the strip, and in no total anywhere. Every figure is what the *service* told the
-  harness and nothing Tade counted. When a harness can say is declared like everything else
-  (`capabilities.spend.limits`: `anytime`, `while-working`, `none`, each short of full carrying a
-  sentence in `why.limits`) and never sniffed: both subscription harnesses are told as their agents
-  run, so before one has, the honest answer is the harness's own sentence rather than zero.
-  `planStandings` is where that is decided, and it throws away a share whose window has already
-  started over — a percentage belonging to a window that is gone looks exactly like one that is
-  true, which is the one way this could be worse than saying nothing. Nothing here asks anybody
-  anything: the window draws it on its own beat, so `limits()` reads what the harness already holds.
-  What is used of a window is drawn as a bar, the way the context meter draws how much of a context
-  is gone, because it is the same kind of figure: on the Spend page a row per window per account,
-  and in the strip the windows of **one** account — `tightestPlan`, the account with the fullest
-  window anywhere, which is the one about to stop somebody working. One account and not the fullest
-  window of each, since one sign-in's session beside another's week is two answers to one question.
-  Short of room the strip gives up its trimmings before the controls beside it — when each window
-  comes back, then the window that is not the tightest, and the bars themselves last — because both
-  are said again one click away on the page it opens, and the model and how hard it thinks are said
-  nowhere else.
-- **An agent's turn is the work of a model, and is timed as one.** The supervisor sees a turn start,
-  the tools it calls and what it cost, so that is where it is timed (`agentTurns`): a
-  `gen_ai.invoke_agent` span per turn with `gen_ai.execute_tool` spans inside it, the model and the
-  tokens on it. Never from the journal, which knows when a turn ended but not when the agent was
-  waiting to be asked. Sampling is the reporter's one decision: turns are always kept, Tade's own
-  work is kept at `telemetry.traces`.
-- **Sentry's SDK, and nothing automatic.** The extension reads Sentry with plain requests; reporting
-  uses `@sentry/node`, because what is wanted is a tracer and the parts nobody should write twice.
-  It is imported only when there is a DSN, with `defaultIntegrations: false` and
-  `registerEsmLoaderHooks: false`: Tade names its own work where it happens, and a window must
-  never have its terminal written over by somebody else's deprecation warning.
-- **A tool fails by throwing.** pi reads a tool's `content` and marks a call failed only when it
-  throws; anything else reaches the model as an empty answer that looks like success.
-- **There is no server.** The one socket left is the `ToolHost`: a channel from the window to its
-  own child agents, undiscoverable and dead when the window closes. If something that is not our own
-  child would ever want to call it, it has become a daemon again — which is the thing we removed.
-- **An agent is a lane with pi in it**, named `<task>/agent`, talking in a pi session named after
-  the task. That session id never changes, which is what makes reopening ordinary: the same command
-  line starts the conversation the first time and continues it every time after — and why **a task
-  name is never used twice**: a new agent given an old one's name would carry on its conversation.
-- **A model is chosen per harness.** A route's model is for its own harness; what new agents of
-  another harness start on is kept beside it (`workers.routes.<route>.harnesses.<harness>`), and a
-  model is always resolved by the harness it is for (`resolveModel`) — never handed across. So a
-  picker only ever offers what one harness runs, asked of that harness (`modelsOffered`,
-  `agentModels`, `harnessModels`, `Orchestrator.models`), on the account it runs as, since a model
-  is reached through a sign-in. There is no everybody's list to fall back on: one that could not
-  say comes back with the sentence it declared for exactly that (`why.models`) and the window says
-  it in place of a list, because a model of another harness is a name that fails at the next
-  launch. Which harness a setting's model is for is part of the question (`{ kind: 'model',
-  harness }`), and how hard a thing can be told to think is its harness's too — the orchestrator
-  is a harness choice like any other, and pi thinks at `off` where Claude Code does not.
-  **Choosing a harness clears what was chosen for the one before it** (`clearedByHarness`): model,
-  provider and thinking level go back to unset, which is the harness deciding. Carrying them
-  across is how a route ends up asking for something that does not exist there — and the same rule
-  reaches backwards, so a run resumed in one harness is only ever told what *that* harness ran it
-  on (`modelLastRunOn`).
-- **Agents work where the *project* says, and the machine's answer is its default.**
-  `workspaceFor(config, project)` (`core/src/project.ts`) is the one reader: a project's own
-  `workspace` over `agents.workspace`, exactly the shape `checksFor` already had. `checkout` (the
-  default): every agent in the project's own checkout, on its branch, at once, each task a folder
-  under `.tade/tasks/<name>`; its state is its agent's, never the shared files' (`deriveState` with
-  `shared`), and removing it removes only that folder. `worktree`: a worktree and branch each.
-  It is a project's and not the machine's because **both are true at the same moment**: a
-  repository where agents work on one thing at a time wants one checkout, and two unrelated efforts
-  in another want a worktree each, and somebody running two repositories daily has both open. So
-  nothing asks the machine — not `createTask`'s default, not `checkPlan` (`PlanContext.workspace`
-  is asked per project, since `done: committed` and `done: merged` turn on it), and above all not
-  the start-time look at a tree (`lookAtTree`), which read the wrong project's answer and so read
-  the wrong tree: inert where it should have held, and holding where there was nothing to hold.
-  What a task that already exists is, is written in its own task file and stays true when somebody
-  changes the setting underneath it. Nothing that runs git on a task's directory may assume the
-  directory is the task's alone — ask `task.workspace`.
-- **A change that spans repositories is an effort: a name, the sentence, and one ordinary task per
-  repository.** Not a task with several workspaces — a lane has one `cwd`, a `Task` has one
-  worktree and one git snapshot, `done: merged` has no meaning across three branches, and the
-  `Tade-Task:` trailer would stop naming one history, so "what did this change" would stop having
-  an answer in the one place nothing can see that it has. Underneath an effort, each task keeps its
-  own branch, agent, checks, review and done rule exactly as tasks work today; git, the forge port
-  and the checks record learn no new word.
-  It lives **nowhere new**: `TaskFile.effort` is one optional field and an effort is the *fold* of
-  the task files that name it (`effortsIn`, `core/src/effort.ts`), so a removed task leaves it
-  correctly smaller and there is nothing to keep in sync — a table would be wrong the moment
-  somebody removed one. `effort_named` records the slug and the sentence verbatim, once, for the
-  same reason `intent_spoken` is journalled: nothing else can recover the sentence. There is **no
-  `Tade-Effort:` trailer** (derivable from the task, and the one place Tade could never correct a
-  mistake), no effort-level done rule, merge, review or branch — a fourth rule above three rules is
-  a rule that will disagree with them and nothing could say which was right — and **no state**:
-  until every task in it has finished it has a *list*, because "two of three" is not something
-  anybody can act on and *which one is not* is (`effortSays`).
-- **A plan may span repositories, and a wait across one is a wait on when, not on what.**
-  `PlannedAgent.project` defaults to the plan's, so every plan written before this means what it
-  meant; `checkPlan` gives each agent its own project's id, which is what lets one change land in
-  three repositories under one name. Three rules keep the widening honest. `overlaps` compares
-  paths **only inside one project** — two files called `src/index.ts` in two repositories are not
-  one file, and warning that they collide is a lie the widening would otherwise have invented.
-  `startFrom` takes the project it is starting in and **never hands a ref across one**: the
-  upstream map is flat because a wait is, so without it repo A's branch name went to `git worktree
-  add` in repo B, which fails in the good case and in the bad one finds a ref of that name that is
-  somebody else's work entirely. And the start-time tree evidence never learns the word *effort*:
-  it must not read "different effort" as collides harder and, the dangerous one, must never read
-  "same effort" as permission — an effort is a name for related work, not a lock on a file.
-- **A model or thinking level chosen for an agent is what new agents start on**, until another is
-  chosen: kept in the agent route (`workers.routes.<route>.model`, `.thinking`), which Settings shows.
-  Only new agents are given them — one coming back to its conversation keeps what its session was
-  on. Left unset, pi picks by what you are signed in to, which is how every agent once ran on the
-  same model whatever anyone chose. Nothing may ask pi anything while its extensions load: it
-  throws, and a throw there takes the agent down.
-- **A harness says how it does things, and why not.** Its capabilities are `live`, `idle`,
-  `restart` or `none` per thing a person can ask of a running agent, each short of full with a
-  sentence in `why`; every surface reads them through `offer()`, so none offers what another hides.
-  A lane records the harness it was started in, and whatever touches a harness's own records —
-  its conversation, its spend, its accounts — asks the adapter.
-- **An account is the harness's own sign-in, kept apart, and Tade never holds it.** Each harness
-  runs as its own default, or as an account added beside it (`accounts.<name>`, a folder under
-  `<home>/accounts`), chosen for its new agents (`workers.accounts`) or for one agent (`account` in
-  its task file). Signing in runs the harness's own sign-in in a terminal a person can see; a
-  subscription token never passes through Tade and is never stored by it, and an API key Tade keeps
-  is read by the harness through a command at the moment it is needed. An agent moved to another
-  account takes its conversation with it where the harness can carry it.
-- **The orchestrator is a harness choice like any other, and what it needs is declared.** It is
-  the same `Orchestrator` over the same signals whichever harness it runs in
-  (`orchestrator.harness`): what differs is asked of the harness, never branched on its name. It
-  must be one Tade can drive itself rather than one that draws its own terminal
-  (`capabilities.headless`) — pi's `--mode rpc`, Claude Code's stream-json — and it must take
-  Tade's own tools, as modules it loads (`nativeExtensions`) or as an MCP server it starts
-  (`mcp`). Those tools are declared once (`orchestratorTools`) and handed to each harness in its
-  own terms; two lists would be two tool surfaces, and the golden file would only ever protect one
-  of them. Nothing it does is gated — it is Tade's interface, and asking permission to answer
-  "where are we" is not a question anybody wants — so it runs unsupervised, and a harness that
-  cannot switch model in its session is started again on the same conversation instead.
-- **Harnesses come from one registry** (`HARNESS_ADAPTERS` in the workbench, `HARNESS_CHOICES` in
-  core for what to offer). A task may name its own (`harness` in its task file); the supervisor
-  keeps an adapter per harness and answers each run with the one it started in. Never `new` an
-  adapter at a call site.
-- **Opening the window starts nothing new, and brings back what was working.** An agent exists
-  because someone asked for one; a project whose agents were removed stays empty until asked again.
-  An agent that was running when Tade closed — not stopped, not removed, not ended on its own — is
-  marked `lost` in `lanes.json` when the next window cannot find it, and that window opens it again
-  where it left off. Stopping, removing or exiting clears the mark. Queued work and schedules are
-  asked for too: what came due while Tade was closed starts when it opens, and says why.
-- **An opening instruction is said once, and nothing that comes back says it again.** Starting an
-  agent with a first prompt (`startAgent`) and reattaching to the conversation it already has
-  (`reopenAgent`) are two acts, not one call with an empty string: the prompt reaches the harness as
-  `LaunchSpec.opening`, is appended at that launch only, and is never written into the lane's spec —
-  so relaunching a lane from what was stored, or reopening the window, reattaches in silence. Queued
-  work whose agent already has a conversation is brought back rather than told again (`reopened` in
-  `queue_started`): an agent that hears its first instruction twice does the work twice.
-- **The orchestrator picks its conversation back up, it is never introduced again.** It talks in one
-  session of its harness's own, whose id never changes (from `ORCHESTRATOR_TASK`, as every agent's
-  does from its task), so closing Tade and opening it again continues the same conversation, with
-  everything that was discussed still in it — never "continue the newest", which is how it once met
-  someone who had never heard of you. A model chosen for it restarts the process, not the conversation.
-  What a session cannot hold is the world, so every open also composes a briefing from the journal
-  (`composeBriefing`): when Tade was last open, which agents were still running, what finished, what
-  is held, what is queued and scheduled in the queue's own words, and the last things you said, in
-  yours. It is appended to its prompt as a snapshot with times on it and says so — status is still a
-  query, and what is true now is `tade_status`'s to answer, never the briefing's.
-  **The briefing has a shape rather than a budget**, because with five repositories open a flat cap
-  of six lines is one repository's worth and the other four vanish *without a word* — which reads
-  as "nothing is happening there", worse than a long briefing and the exact shape of bug that sends
-  somebody looking for this code. So it opens by saying how big the world is, caps per project, and
-  **counts what it left out** (`sentry: 9 more not listed`); an effort's one line replaces the task
-  lines it is made of and says more than they did; and what is held and the person's own words stay
-  global and uncapped, being the two that must never be lost to a per-project budget.
-  Two things the briefing may **never** say: which project you are looking at, and a branch or a
-  worktree path. Both go stale within the minute, and a remembered location is the same class of
-  bug as a remembered branch.
-- **Where you are is said every turn, as a fact, and is never remembered.** With several projects
-  open, "start an agent on the flaky test" is not a question anybody could answer — so `ask`
-  appends one line (`whereYouAre`, `app/src/inbox.ts`) the way `withNews` already appends what
-  happened: the project and the agent in front of you, and how many projects are open. Derived at
-  the moment of asking, never stored, never in the briefing, and **above** the `What they said:`
-  heading rather than inside it, because it is Tade's sentence and must never be recorded as
-  something the person said.
-- **Every agent is told it runs in Tade** (`composeAgentPrompt`): its task, where it works and
-  who else does, the commit rule (`agents.commit`), your own rules (`agents.instructions`), your
-  notes about the work, and its context file. Appended to the harness's own instructions, never
-  replacing them.
-- **A name a person gives an agent is kept** (`title_named` in its task file) and given to its
-  session; any other name is only a guess, replaced when a better one comes.
-- **Everything Tade starts runs detached, and the window's title is Tade's own.** A probe on a
-  timer — git, ps, lsof, tmux, an extension's commands — and anything long-lived that is not a lane
-  — a model process, the recorder — runs in its own process group, or the terminal names its window
-  after it: a window that flickered between `pi < node /the/whole/path` and `osascript`. What it
-  costs is that a group signal no longer reaches them, so whoever started one ends its group. The
-  title left over is written by the window alone (`windowTitle`): an indicator that turns, what the
-  agents and the orchestrator are doing, and where you are — re-asserted on the repaint's beat, so
-  a title something else took is taken back.
-- **A task's id is in its task file, not its branch.** In a worktree, an agent opened from the window
-  starts on no branch (a detached worktree) and is given `tade/<its title>` at its first change;
-  its lanes and session keep the id it was made with. Status finds a branchless worktree only by that
-  file, and never renames a branch it did not make.
-- **events.jsonl is the truth**; the SQLite index is derived and must be rebuildable from it. Raw
-  lane output never goes in the log (it lives in the lane's scrollback), only sampled byte counts.
-- Under subscriber backpressure, `trace` events are dropped first and `blocking` events never.
-- **The journal keeps what only it remembers, and forgets the samples when there is no room.**
-  Everything folds over all of `events.jsonl`, so its size is what every statistic costs to read —
-  and 86% of it was a byte count per lane per second that nothing anywhere reads back: 232,324 of
-  270,784 lines, 42 MB of 54, in eleven days. So past `journal.max_mb` (16 by default) a window
-  open drops the oldest of those until it fits (`compactJournal`), and **only** those: what may go
-  is `SAMPLED_TYPES` — `output` and `input`, named by type and never by urgency, because urgency
-  says what is dropped when a *subscriber* falls behind and reading the one as the other is
-  silently destructive. `reflected` is `trace` too and is the only record that a finished task was
-  looked back over; `commit_seen` and `check_ran` are written once precisely because `git log` and
-  a worktree's `checks.jsonl` cannot answer again. None of them is reachable from this code. A
-  journal that is still too big with nothing droppable left says so in a `warning` rather than
-  deleting a record to hit a number, and a compaction that dropped nothing says nothing at all.
-  Under the ceiling the whole check is one `stat`; over it, the file is rewritten to a temp file,
-  fsync'd and renamed, so a crash before the rename leaves the journal exactly as it was.
-  **Not a roll**: rolling bounds the file and not the fold, and either readers do not follow it —
-  and every total silently gets smaller on the day it happens — or they do, and the fold is exactly
-  as long as it was. What compaction cannot bound is the part nobody may delete, about a megabyte a
-  day, and that is said rather than quietly trimmed. **And the samples are cheaper at the source**:
-  a lane's output is summarised every `DEFAULT_OUTPUT_SAMPLE_MS` (30s, was 1s), which is a
-  thirtieth of the lines for the same trace, and paces nothing live — `lastOutputAt` is set on
-  every chunk. **The index is the one file that is always safe to delete**, and `tade logs --size`,
-  the Journal settings group and `event-index.ts` all say so, because a person who came looking
-  because a folder got big is the person nothing was telling.
-- **The lane registry keeps a dead lane's spec so the work can be put back**, so it forgets one
-  whose task is gone (`forgettable`) — never a live one, never one marked `lost`. That is the only
-  safe cut: a dead lane is evidence `deriveState` reads (a task with one is `review` or `failed`
-  where a task with none is `queued`), and a task with no task file has no state derived for it at
-  all. 117 of the 136 lanes on the machine this was measured on were dead agents of tasks removed
-  weeks earlier: 377 KB rewritten on every lane event, 51 KB of it about a lane anybody could
-  still do anything with.
-- `attach` puts the user's terminal in raw mode: every exit path, signals included, must run the
-  same `restore()`, and it must be safe to call twice.
+  wish**: the provider is the harness's declared answer (`WorkerAdapter.provider`).
+
+### Harnesses, lanes and drivers
+
+- **Under `pty` lanes are Tade's own children and die with it; under `tmux` they do not.** Which it is,
+  is `capabilities.detach` — never branch on the driver's name.
+- **A lane is alive only if the driver hands it back** — a live pid proves something is running, not
+  that this driver can drive it. Never report a lane alive without evidence, and keep its spec.
+- **`detach()` closes the window; `shutdown()` stops the work**, and **what Tade draws itself dies with
+  Tade** (`reaped`) — agents keep working, which is what makes closing Tade harmless.
+- **A harness says how it does things, and why not**: what a person may ask of a running agent is a
+  capability with a sentence in `why`, read everywhere through `offer()`, and whatever touches a
+  harness's own records asks its adapter.
+- **An agent is a lane with pi in it**, named `<task>/agent`, in a session whose id never changes. **A
+  model is chosen per harness and resolved by the harness it is for** (`resolveModel`), never handed
+  across, and only **new** agents start on it. **An account is the harness's own sign-in**: a
+  subscription token never passes through Tade. **Nothing may ask pi anything while its extensions
+  load** — a throw there takes the agent down.
+- **An opening instruction is said once** (`LaunchSpec.opening`), never written into the lane's spec,
+  so a relaunch or a reopen is silent. **Opening the window starts nothing new, and brings back what
+  was working**: an agent running when Tade closed is marked `lost` and reopened where it left off.
+- **A tool fails by throwing.** Anything else reaches the model as an empty answer that looks like
+  success.
+- **There is no server.** The one socket is the `ToolHost`: window to its own child agents,
+  undiscoverable, dead when the window closes. Anything else wanting to call it means a daemon again.
+  **Everything Tade starts runs detached**, in its own process group, so whoever started one ends it.
+- **One window per home, and questions never need it.** Opening the workbench locks `TADE_HOME`, so
+  anything that only reads — `status`, `logs`, `notes`, `summary`, `spend` — reads the files directly
+  (`readJournal`, `Memory.open`) and never opens the workbench. `attach` puts the terminal in raw
+  mode, so every exit path, signals included, runs the same `restore()`, safe to call twice.
+
+### The orchestrator
+
+- **Tade tells the orchestrator; it never talks over it.** What happened waits and goes with the next
+  thing you say, under "What they said:"; what needs it now goes after its current turn.
+- **The orchestrator is a harness choice like any other** (`orchestrator.harness`): the same
+  `Orchestrator` over the same signals, never branched on a harness's name. It must be drivable
+  headlessly (`capabilities.headless`) and take Tade's own tools (`orchestratorTools`, declared once).
+  Nothing it does is gated, so it runs unsupervised.
+- **It picks its conversation back up; it is never introduced again.** One session whose id never
+  changes — never "continue the newest". Interrupting it may never be a way of restarting it.
+- **`composeBriefing` has a shape rather than a budget**: it caps per project and **counts what it
+  left out**, because a flat cap loses four repositories *without a word*. Two things it may **never**
+  say: which project you are looking at, and a branch or worktree path — both go stale in a minute.
+- **Every agent is told it runs in Tade** (`composeAgentPrompt`): its task, where it works and who else
+  does, `agents.commit`, `agents.instructions`, your notes, its context file — appended to the
+  harness's own instructions, never replacing them.
+- **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn that
+  ended with nothing said — each reaches the transcript in words someone can act on. A conversation
+  that goes quiet is the worst failure it has, because it looks like thinking.
+- **Where you are is said every turn, as a fact, and never remembered** (`whereYouAre`), **above** the
+  `What they said:` heading — it is Tade's sentence and must never be recorded as the person's.
+
+### The window
+
+The whole of it is the `change-the-window` skill. The rules that break things quietly:
+
+- **Nothing the window runs waits on a child process.** It draws four times a second and answers keys
+  in between, on one thread, so everything in the packages it loads spawns asynchronously and **every
+  wait has a deadline** (`inTime`) — an extension's `ready()` included.
+- **The pure files** (`frame.ts`, `model.ts`, `view.ts`, `view/*`, `panels/*`, `skin.ts`, `ui.ts`, …)
+  **contain no `node:` import, no clock read and no `async`**, held by `test/modularity.test.ts`,
+  which also holds `app.ts` → `wire/*` one way only.
+- **Tade stays light, and proves it**: what it polls is cheap and shared, and anything on a timer or
+  drawn every frame has a performance test.
+- **Escape stops what is thinking; ctrl+c throws away what you typed; neither does the other's job**
+  (`escapeMeans`, always exactly one thing). **What is on the line is the orchestrator's, not the
+  focus's** (`orchestratorDraft`), and the line is pi's editor: changed only by pressing the keys a
+  person would press, never by reaching into its state.
+- **Everything that scrolls scrolls the same way** — one move (`scrollBy`), one setter (`atOffset`) —
+  and **how much is in view is the rows the region drew, never the room it was given**. **Nothing cuts
+  its own rows to fit**: no `rows.slice(0, room)`, no `+7 more` in place of scrolling.
+- **A selection is anchored in the region's lines, never in the rows it was made on**, and **whose the
+  scrolling and the mouse are is the lane's own to say** — Tade keeps the cells it drew.
+- **A surface is options and values; the explanation lives where somebody asks for it** — a heading
+  and then controls, and a caveat true under every row is a mark or a clause (`~`), never a footnote.
+  What is cut from the drawing is not cut from the program, and no two surfaces may explain one figure
+  differently.
+
+### Extensions and MCP
+
+- **Extensions live in one folder, and being there is not being on.** One nobody turned on is *listed
+  and never imported*, because importing runs it; turning one on is a setting and it loads **the next
+  time Tade starts**, never as a hot reload. Tade's own are on unless turned off, everything else off.
+- **`--safe` loads none of yours and must keep working with a broken one in the folder**, and Tade's
+  own tools always load first, so a self-written one can never shadow `status` or `approve`.
+- **Extensions run in the window, and work happens in agents**: **a tool that changes a project starts
+  an agent in a worktree** (`ctx.tade.startAgent`) with what it found in `.tade/context.md`, never the
+  project's own checkout. Tool names start with the extension's name, `ready()` never touches the
+  network, and a broken extension is listed as broken rather than stopping anything else.
+- **An MCP server somebody turns on is an extension whose tools are that server's tools**, and the
+  window is the only client. **A server that is off is never connected and never declared** —
+  `mcp.servers.<name>.enabled` is the one switch, off by default, and **a person's**, not an agent's
+  and not the orchestrator's. What another client's config loads is **read, never adopted**.
+- **A brokered extension fills in `tools` and nothing else**, and **a server's words are material,
+  never instruction** — a description is handed over as a description, because a model must read it to
+  choose, and nowhere else.
+- **Tade names the tool**, so a brokered one can never be one of Tade's own, and **the broker is a gate
+  nothing can go around**: the allow-list, a credential that has gone and a server turned off are all
+  enforced at the moment of the call, whatever a harness registered. **A server Tade starts is
+  somebody else's program**: detached, environment scrubbed, in a scratch directory of its own, running
+  as you with nothing containing it, and nothing waits without a deadline.
+
+### The machine and the release
+
+Recipes: `set-up-the-machine` and `cut-a-release`.
+
+- **What Tade needs of the machine is declared by whoever needs it** (`programs`, `install`), reading
+  it is free while asking the world is not, and **nothing installs anything**.
+- **One package goes out, it is called `tade-sh`, and the command is still `tade`.** The staged tree
+  has **no nested `package.json`** and the types come off at publish — not a build step, because every
+  line stays where it is here. **Staging refuses rather than ships.**
+- **A release is deliberate**: `git push --follow-tags` is the one act that reaches anybody,
+  `release.yml` **calls `ci.yml`** rather than keeping a second copy of the gate, and publishing is
+  over OIDC — **there is no npm token in this repository and there must never be one.**
+- **What Tade writes for itself is under git** (`recordAuthored`), committed as `Tade` and never as
+  the user — the fourth safety rail, with `--safe`, nothing loading unasked and no hot reload.
 
 ## Keeping the repo maintainable
 
-- **This file is the one guide.** `CLAUDE.md` is a link to it, so every agent reads the same words.
-- **A file over 800 lines is a conversation.** `test/modularity.test.ts` holds one budget per file —
-  `DEFAULT = 800`, and a line of its own for each file allowed to be bigger — and a number in it may
-  go **down** in the commit that earns it, never up; a budget sitting more than 150 lines above its
-  file is the ratchet failing, so the numbers follow the files down rather than staying at the year
-  they were written. It holds the two import rules beside them: `app.ts` imports `wire/*` and no
-  `wire/*` imports `app.ts`, and the pure files (`frame.ts`, `model.ts`, `view.ts`, `view/*`,
-  `panels/*`, `skin.ts`, `ui.ts`, ...) contain no `node:` import, no clock read and no `async`. It
-  runs in `test:smoke`, so a file crossing its line is said at the commit rather than in CI, and every
-  failure says what to do about it. `app.ts` reached 8,635 lines because adding the fortieth subject
-  to it was never once visibly a decision, and prose does not fail a build.
-- **A coverage floor per package, and never one number for the repository.**
-  `scripts/coverage-floors.ts` is the same ratchet in the other direction — one table, checked in, a
-  floor may go **up** in the commit that earns it and never down without an argument, and a floor
-  sitting more than `SLACK = 4` points under what a package covers is the ratchet failing. It is per
-  package because one number answers nothing: `packages/core` is pure functions and covers 97%, what
-  is left of `packages/cli` once the program itself is taken out covers 65%, and the 88% they
-  average to is true of nothing — and a single total can be held up by the cheap half of the
-  repository while the expensive half falls, silently. It is the `tests` check, because measuring
-  costs nothing worth naming (111.6s against 111.8s), so there is no version of the suite that is
-  the one where we also look; `test:smoke` and the commit hook do not measure, because whole-repo
-  floors against a sixth of the suite are red for reasons that have nothing to do with the change.
-  **A number is not the goal**: what it counts is lines that ran, so a test that executes a function
-  and asserts nothing raises every figure in it and is worse than no test, because it makes the
-  table lie — nothing mechanical tells the two apart, and a floor in the way is answered by covering
-  the thing or by lowering the floor and saying why. What the instrument **cannot see** is named
-  file by file with its reason (`UNSEEN`) rather than mocked around: a program that only ever runs
-  in another process reads zero however well it is tested — the `tade` binary, which twenty test
-  files drive by spawning it, and the hooks and MCP servers Claude Code and Codex start. Excluding
-  one is not a claim that it is covered, and the list cannot rot, because an excluded file that
-  shows a covered line fails the gate. One package's floor is the lower of two readings and says so:
-  `harnesses/claude` covers 89% where the `claude` binary is installed and 74% where it is not, and
-  a floor has to be true on both. The tables and the rules have no machine under them, so
-  `test/coverage-floors.test.ts` gives every rule a made-up reading that should fire it and one that
-  should not — a gate fails by quietly doing nothing, and `scripts/coverage.ts`, which runs the
-  suite, is only the running and the printing.
-- **A surface is options and values; the explanation lives where somebody asks for it.** Every
-  drawn surface — a settings group, a sidebar section, a panel, a footer — is a heading and then
-  controls, and no paragraph. A control whose name says what it is gets no sentence under it; where
-  the *consequence* is not guessable from the name, one short line, and only for the thing you are
-  on. A caveat that is true under every row of a page is a mark or a clause (`~`, `over 3 runs`,
-  `on this machine, not CI's matrix`), never a footnote read four hundred times. What is cut from
-  the drawing is not cut from the program: a setting's `means` is still what the search box matches
-  on and what `tade config` prints, `runtimeSays` still says the whole of it in `tade spend`, a
-  group's `about` is still searchable, and the panel that asks before an act is still where that
-  act's cost is spelled out. So the test of a line is not whether it is true — they were all true —
-  but whether *this* is the surface somebody would be reading it on.
-- **`README.md` is the showcase**, and the source a web page will be built from: a hero, a section per
-  feature, each a picture and a line or three, then install and setup — which must stay findable,
-  because they are the one thing a README may not lose. Explanations belong where they are used —
-  a command's `--help`, a setting's `means`, the shortcuts sheet, a tool's description — so they cannot
-  drift from the behaviour they describe; the README shows rather than tells. **Its pictures are
-  generated, never taken by hand**: `pnpm screens --assets` redraws `images/` — which sits beside
-  the README because that is what asks for it — from the golden screen scenarios
-  (`packages/app/scripts/pictures.ts`), so a change to how the window looks is a change to the
-  README. Add a picture by adding a scenario, and never advertise what is not built — what is not
-  built goes under Planned, named in a line and pointed at the port it would be built against.
-  **Changing how anything looks means redrawing them in the same commit** — the recipe is the
-  `redraw-the-pictures` skill. A page showing a window Tade no longer has was a lie every other test
-  passed, and a rule nothing fails on is a rule somebody skips on the day they are in a hurry, so it
-  is a test now (`packages/app/test/pictures.test.ts`): every picture is drawn again and held to the
-  bytes in `images/`, naming the stale one, for ~170ms of the suite. **In memory, never by
-  regenerating and looking for a dirty tree** — four agents share a checkout, so a dirty tree is
-  somebody else's uncommitted work as often as it is a stale picture, and a comparison can say
-  *which* picture. It is in `test:smoke`, so the answer arrives at the commit and not an hour later
-  in CI.
-- **What the pictures cannot prove, a photograph can.** They are the real renderer over made-up
-  state, which is what lets them show an agent at work without an agent — and is why they say
-  nothing about the program a person installs: between the two sit the alt screen, the frame loop
-  and the terminal's own idea of a colour. So `pnpm screens --live` runs the actual binary in a real
-  terminal — Tade's own pty driver — presses real keys at it and keeps what it painted. It reaches
-  only what a machine with no agents can reach, and that is the point of having both: it found the
-  window drawing the gap between two buttons in the colour of the button before it.
-- **There is no `docs/` folder, and adding one is going backwards.** Everything is documented where
-  it is used: this file for the invariants, `.claude/skills/` for the recipes, a command's
-  `--help`, a setting's `means`, a tool's description, the shortcuts sheet, the README for the showcase,
-  and a comment beside the code for why that code is the way it is. A design document is a plan,
-  and a plan that outlives its build is a second description of the system that nothing keeps
-  honest.
-- **A plan lives in the work, and what outlives the work lives in the thing that fails when it
-  stops being true.** The folder has now been removed twice — both times because the rule above
-  said where a plan may not go and never once said where it does, so the next long plan had
-  nowhere to be and invented `docs/` again. So, plainly, in the three places a plan is ever in:
-  **while it is being built**, the task — its prompt, its `.tade/context.md`, the agent's own
-  conversation. That is local and ignored and goes when the task goes, which is right for a thing
-  whose whole purpose ends at the last commit.
-  **Across sittings and across agents**, the commit and the review: a plan too long for a prompt
-  is the body of the review the work is opened under (`review_open`) or the message of the commit
-  that starts it. Both reach everybody, both are kept by git and the forge rather than by the
-  tree, so neither can be read by somebody who does not also see what became of it, and both stop
-  being in the way the moment the work merges — which is the whole of what a parked `docs/` file
-  was being asked for.
-  **After it is built**, wherever the thing it describes already is, in the same commit that makes
-  it true: an invariant here, a recipe in `.claude/skills/`, a why beside the code it explains, a
-  constraint as a test with a number in it. Work a plan named and did not do goes beside the thing
-  that will nag whoever next touches it — the budget line a split would lower, the comment at the
-  top of the file that would move — never in a list of intentions nobody is reading.
-  What has no home here is the fourth thing, and it is the only one that ever gets written: a file
-  that only describes, in a folder that only holds descriptions. Nothing reads it at the moment of
-  the change, nothing fails when it goes stale, and so it rots in place and is believed anyway.
-  **A plan that seems to need a file of its own is a plan whose reasoning has nowhere to be true
-  yet** — build the smallest piece that makes it true, and put the reasoning there.
-- **`.claude/skills/` holds step-by-step recipes** for recurring changes (a CLI command, a config
-  key, an extension, the window, ...). Use the matching skill, and add or update one when you create
-  a new extension point or a change teaches you something a recipe should have said. Do not confuse
-  them with `<TADE_HOME>/skills`, which is what Tade itself has learned.
-- **Third-party notices are generated, and they say what from.** After changing dependencies run
-  `pnpm notices`, which rewrites `THIRD_PARTY_NOTICES.md`; programs, services and data Tade uses
-  without installing are listed in `scripts/notices.ts`. Forgetting to run it leaves a licence page
-  that is wrong about what Tade ships and nothing going red, so the file carries a fingerprint of
-  the two things it is made of — the lockfile and that script — and a test fails while it is behind
-  them (`scripts/notices-stamp.ts`). Not the pictures' rule, and it does not pretend to be: the
-  package list is a reading of what is *installed*, so the file holds this machine's
-  `darwin-arm64` binaries and could never be regenerated byte for byte on an Ubuntu runner. What is
-  held is the question that was being got wrong — were these made after their inputs last moved? —
-  and not whether somebody edited them by hand afterwards.
+- **This file is the one guide, and it is held to a size** (`test/guide.test.ts`, which carries the
+  argument). `CLAUDE.md` is a link to it, so every agent reads the same words — and reads *all* of
+  them, which is why the budget may go **down** and never up.
+- **A file over 800 lines is a conversation.** `test/modularity.test.ts` holds one budget per file
+  (`DEFAULT = 800`, a line of its own for each file allowed to be bigger); a number goes **down** in the
+  commit that earns it, never up, and one sitting more than `SLACK` above its file is the ratchet
+  failing. **A coverage floor per package, and never one number for the repository**
+  (`scripts/coverage-floors.ts`) is the same ratchet the other way — up, never down without an
+  argument. **A number is not the goal**: a test that runs a function and asserts nothing raises every
+  figure and makes the table lie, and what the instrument cannot see is named with its reason
+  (`UNSEEN`) rather than mocked around.
+- **`README.md` is the showcase**: a hero, a section per feature each with a picture and a line or
+  three, then install and setup — which must stay findable. **Its pictures are generated, never taken
+  by hand** (`pnpm screens --assets`, held to their bytes by `packages/app/test/pictures.test.ts`), so
+  **changing how anything looks means redrawing them in the same commit** (`redraw-the-pictures`).
+  Never advertise what is not built — that goes under Planned, at its port.
+- **There is no `docs/` folder, and adding one is going backwards** (`test/guide.test.ts` fails if it
+  comes back, and carries the argument). A plan lives in the work — the task, its `.tade/context.md`,
+  the agent's conversation — then in the commit and the review that carry it across sittings, then in
+  whatever fails when it stops being true: an invariant here, a recipe, a why beside the code, a test
+  with a number in it. **A plan that seems to need a file of its own is a plan whose reasoning has
+  nowhere to be true yet** — build the smallest piece that makes it true, and put it there.
+- **`.claude/skills/` holds the recipes** (the table above). Add or update one when you create a new
+  extension point, or when a change teaches you something a recipe should have said — that, and a
+  comment beside the code, is where reasoning goes now. Not `<TADE_HOME>/skills`, which is what Tade
+  itself has learned.
+- **Third-party notices are generated**: after changing dependencies run `pnpm notices`, or a test
+  fails while the file is behind the lockfile and the script it is made from.
 
 ## Where things go
 
-Each subsystem is a folder: `core` holds the port and the conformance suite, the siblings are
-implementations of it.
+Every subsystem is a folder under `packages/` whose `core` holds the port and the conformance suite,
+with the siblings implementing it: `drivers/*` (`WorkspaceDriver` — `pty`, `tmux`), `harnesses/*`
+(`WorkerAdapter` — pi, Claude Code, Codex), `voice/*`, `judges/*` (`jev` answers), `forges/*`
+(`github`), `checks/*` (`Runner`), `mcp/*` (`McpTransport`, naming, the broker), `extensions/core`
+(`TadeExtension` and its host) and `telemetry` (`Reporter`). Most have a `scripted` sibling for tests.
 
-| Path | Contents |
-|---|---|
-| `packages/core` | the domain: object model, state machine, config, policy, memory, prompts |
-| `packages/status` | observing reality: git · processes · adoption · tests · liveness |
-| `packages/workbench` | what Tade holds while open: lane registry, journal, notes, agents |
-| `packages/drivers/core` | the `WorkspaceDriver` port + the suite every driver passes |
-| `packages/drivers/{pty,tmux}` | where lanes physically live |
-| `packages/harnesses/core` | the `WorkerAdapter` port: what an agent tells us, how we answer |
-| `packages/harnesses/{pi,claude,codex}` | runs and supervises pi · Claude Code · Codex |
-| `packages/voice/core` | the voice surface + the speech ports |
-| `packages/voice/{stt,tts}` | speech in · speech out |
-| `packages/judges/core` | the `Judge` port + the suite: bounded questions, answered with a number |
-| `packages/forges/core` | the `Forge` port + the suite: a branch offered for merge, and what is said about it |
-| `packages/forges/{github,scripted}` | GitHub, through one credential · a table, for tests and demos |
-| `packages/checks/core` | the `Runner` port + the suite, the manifest, the record and the run lock |
-| `packages/checks/{local,scripted}` | the commands, run here · a table, for tests and demos |
-| `packages/judges/{jev,scripted}` | who answers them · a table, for tests and demos |
-| `packages/extensions/core` | the `TadeExtension` port, the host that runs extensions, their suite |
-| `packages/mcp/core` | the `McpTransport` port + its suite, the naming rules, what is declared, the catalogue |
-| `packages/mcp/{stdio,http}` | a program on its pipes · one already running, streamable or over a stream |
-| `packages/mcp/scripted` | a table of tools and answers: no process, no network |
-| `packages/mcp/broker` | declared servers → `TadeExtension[]`, and the transport registry |
-| `packages/telemetry` | the `Reporter` port and its suite: where Tade's own trouble goes |
-| `packages/extensions/{checks,deps,jev,review,sentry,resources}` | the extensions that ship with Tade |
-| `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |
-| `packages/app` | the window: agents, files, terminals, the conversation, panels, push-to-talk |
-| `packages/cli` | the `tade` binary |
-| `test/fixtures` | `mkrepo.ts`, provider transcript samples |
-
-Exit codes: `0` ok, `1` runtime error, `2` invalid input/config.
+The rest: `core` is the domain (object model, state machine, config, policy, memory, prompts);
+`status` observes reality (git, processes, adoption, tests, liveness); `workbench` is what Tade holds
+while open (lanes, journal, notes, agents); `extensions/*` are the ones that ship; `orchestrator` is
+the thing you talk to; `app` is the window; `cli` is the `tade` binary. Outside `packages/`,
+`test/fixtures` has `mkrepo.ts` and the provider transcript samples.

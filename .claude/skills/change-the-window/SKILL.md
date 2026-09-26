@@ -1,6 +1,6 @@
 ---
 name: change-the-window
-description: Change what `tade app` shows, or which keys it claims — panes, the projects list, the orchestrator strip, dictation, focus rules. Use for any change to the window's behaviour or layout.
+description: Change what `tade app` shows, or which keys it claims — panes, the projects list, the orchestrator strip, the line you type on, panels, focus rules, scrolling and the wheel, selecting and copying text, a lane that draws its own screen, the drawing of the queue and a plan, and search. Use for any change to the window's behaviour or layout, and when something on screen scrolls, selects, clicks, folds, remembers or gives up room wrongly.
 ---
 
 # Changing the window
@@ -10,19 +10,31 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | File | Holds | Testable without |
 |---|---|---|
 | `model.ts` | What is shown, as data: panes, projects, focus, key meanings | a terminal |
+| `layout.ts` | How the window is divided, and where you were in each project when you closed it (`Spot`, `whereYouWere`, `standingIn`, `worthKeeping`) | a terminal |
+| `keys.ts` | Which keystrokes the window claims and what it calls them | a terminal |
+| `split.ts` | A pane cut in two: which lane the second half draws, which half types | a terminal |
 | `frame.ts` | `Frame`: the shape of what the window is handed to draw, and nothing else | — (types only) |
 | `view.ts` | `draw(state, frame) → { rows, hits }`, one row per line: the composition, and nothing else | a terminal |
 | `view/` | One file per region — `top`, `sidebar`, `main`, `queue`, `plan`, `schedule`, `actions`, `strip`, `foot` — over three shared ones: `text` (width, words, moments, numbers), `rows` (a tab, a section, a scrollbar) and `lane`/`split`, which two regions each reach for | a terminal |
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
-| `hits.ts` | What is where on the screen, so a click can mean something | a terminal |
+| `hits.ts` | What is where on the screen, so a click can mean something (`scrollAt`, `extentOf`, `selectableText`) | a terminal |
+| `pointer.ts` | What a press, a drag, a release and a notch mean at the cell they landed on | a terminal |
+| `scroll.ts` | What a notch is worth (`Wheel`, the ramp), how far a region reaches (`reachOf`), and the lines a lane's screen is cut out of (`HeldLines`, `cutFrom`, `keeping`) | a terminal |
+| `scrollbar.ts` | The bar down the right of anything that scrolls, and the one along the bottom of anything wider than its pane (`barAcross`) | a terminal |
+| `selection.ts` | `Region`: what a drawing says it drew, so a selection is anchored in lines and not in rows (`cellsIn`, `spanText`) | a terminal |
+| `input.ts` | What is selected in the line you type on and in the file you have open — one model for both (`spanOf`, `wordAt`, `clickedSpan`, `putCaret`, `cutSpan`, `rowStarts`) | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
 | `panels.ts` | The `Panel` union, `PanelInputs`, and the two dispatches — `panelKey` and `panelClick` — and nothing else | a terminal |
 | `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, and `small` for the ten that are one question each. Over four shared ones: `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow` — the shell every panel is drawn in), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
-| `spend.ts` | What the Spend panel shows, from `usage` events | a terminal |
+| `spend.ts` | What the Spend panel shows, from `usage` events, and which window a day is (`sinceOf`) | a terminal |
+| `queue-view.ts` | What the SMART QUEUE shows (`QueueView`, `shownBy`) and nothing about what is in it | a terminal |
+| `queue.ts` | What the queue says in words, including what an empty list says (`queueEmptySays`) | a terminal |
+| `plan-graph.ts` | A plan as boxes and lines: a column per step of the resolved tree (`drawPlan`, `treeStems`, `drawWhy`) | a terminal |
 | `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
 | `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
 | `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion, and the shortlist put to whoever reads a sentence | a disk or git |
 | `finder.ts` | What search looks through: `git ls-files` and `git grep`, and parsing both | — (a real repo) |
+| `happening.ts` | What is happening about each thing search can go to (`happeningOn`, `happeningIn`) | a terminal |
 | `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line | a terminal |
 | `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out, finding in it and typing into it | a terminal (not a disk) |
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
@@ -37,6 +49,10 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `wire/context.ts` | What a subject may reach (`Wiring`), and what it offers back (`Subject`: `facts`, `panel`, `inputs`, `actions`, `menus`, `submits`, `prompts`) | — |
 | `wire/frame.ts` | `frameOf` — the frame, folded out of the subjects that own each piece of it; `panelInputsOf` beside it | — |
 | `wire/actions.ts` | `Router`: a button's name, a menu's kind, a panel's answer and a slash command, each looked up in the table the subjects fill in | a terminal |
+| `pace.ts` | How often the window looks, and how soon after a lane prints it looks again | — |
+| `title.ts` | What the terminal window calls itself | — |
+| `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`) | — |
+| `settings.ts` | Reading and writing a setting from the window, through core's one writer | a real disk |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench, and the list of subjects | — |
 | `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 
@@ -87,6 +103,26 @@ regions in a cycle now.
   `shouldRaise` rather than adding a second path.
 - **Focus survives a refresh.** Status is polled constantly; `withTasks` keeps your place and only
   moves focus when the task is gone.
+- **A project is a place you come back to, so where you were in it is remembered per project.**
+  Clicking an agent, going to another project and coming back put you at the top of the list, which is
+  somebody else's idea of where you were — the selection was one *window's* where it is one *project's*.
+  So a `Spot` (`layout.ts`) is the agent in front and the tab below it, kept by project in `spots`. The
+  agent goes to `window.json` with the rest of the view, because coming back to it tomorrow is the same
+  courtesy as a second later; the tab does not, and `worthKeeping` is where that is decided — a terminal
+  is a lane of the window's own, and under a driver whose lanes cannot outlive it (`detach: false`, which
+  the default `pty` is) closing Tade ends it, so a tab written down is one nothing could ever go back to.
+  Two doors and one rule: `whereYouWere` folds in the project you are standing in, since that spot is the
+  focus and the tab themselves and is kept nowhere else — read wherever a project is left, its tab
+  (`selectProject`), tabbing out of it (`focusBy`), the beat every state passes through (`withTasks`),
+  which is what catches a jump that went through neither door, and the write on the way out of the
+  window. `standingIn` is the other, and everything it cannot find falls back the way the window fell
+  back before any of this, which is what stops a remembered place ever being worse than no memory: an
+  agent that finished, was stopped or went with its task, and a plan or schedule that stays behind in the
+  project it is of, all come back to the first agent, exactly as a project nobody has been in opens on
+  it — only one with no agents at all comes back to the orchestrator. Arriving is `focusTask`, so coming
+  back to an agent is the same act as clicking it. **The tab below had the same bug from the other side**,
+  and it was the worse one: the panel went on showing the terminal of the project you came *from*, under a
+  row of this project's tabs with none of them lit.
 - **Rows and hits come from one pass.** `draw` returns both. A second function working out where
   things ended up is a second layout to keep in step, and the first symptom of it drifting is a
   button that does what the one above it says. `chips()` lays a row of tabs or buttons out and
@@ -107,6 +143,181 @@ regions in a cycle now.
   for the reason.
 - **Every exchange shows its reasoning** (`→ verb · task · "why"`). A wrong guess must be visible and
   correctable, never silently obeyed.
+- **A surface is options and values; the explanation lives where somebody asks for it.** Every drawn
+  surface — a settings group, a sidebar section, a panel, a footer — is a heading and then controls,
+  and no paragraph. A control whose name says what it is gets no sentence under it; where the
+  *consequence* is not guessable from the name, one short line, and only for the thing you are on. A
+  caveat true under *every* row of a page is a mark or a clause (`~`, `over 3 runs`, `on this
+  machine, not CI's matrix`), never a footnote read four hundred times. Cutting a line from the
+  drawing does not cut it from the program: a setting's `means` is still what the search box matches
+  on and what `tade config` prints, `runtimeSays` still says the whole of it in `tade spend`, a
+  group's `about` is still searchable, and the panel that asks before an act is still where that
+  act's cost is spelled out. So the test of a line is not whether it is true — they were all true —
+  but whether *this* is the surface somebody would be reading it on.
+- **Nothing the window runs waits on a child process.** It draws four times a second and answers keys
+  in between, on one thread: a program it waits on stops both, and no key ends that wait. Saving a
+  key used to be `execFileSync('security', …)`, read again on *every frame* while the page was open,
+  so a keychain that wanted a word about it stopped the whole window and the only way out was killing
+  Tade. Everything in the packages the window loads spawns asynchronously and every wait has a
+  deadline — including the one nobody thinks of as a wait, an extension's `ready()`, which is somebody
+  else's code awaited from the Settings page and which the host holds to one with `inTime`
+  (`extensions/core/src/host.ts`). A standalone script the window never imports is its own process and
+  may be simple; it is named in `test/modularity.test.ts`, which holds the rest to it.
+- **What the window polls is cheap and shared.** One `ps` for the whole process table, cached between
+  askers; anything on a timer or drawn every frame has a performance test. If a change makes a frame
+  slow, cache what it formats (as the transcript and the file viewer do) rather than raising the
+  number the test holds.
+
+## Scrolling, and what a notch is worth
+
+- **Everything that scrolls scrolls the same way.** One move (`scrollBy` in `model.ts`) and one setter
+  (`atOffset`, the other half of `model.ts`'s `offsetOf`): the wheel, a key and a drag on the bar each work out the
+  offset they mean and land there, so none of them can disagree about where the end is. Seven surfaces
+  with five ideas of the end is what "not smooth" was — three of them counted on past the last line
+  there was, so a flick off the end bought a handful of notches that did nothing on the way back. A
+  region that goes through those two answers all three the day it is added; one that keeps an index of
+  its own answers one of them.
+- **Nothing lays a region out again to answer a notch.** How far a region goes is read off its own bar:
+  the `scrollbar` hit already carries `total` and `shown` because a drag needs them (`reachOf`).
+  Counting a conversation instead cost two milliseconds a notch.
+- **How much is in view is the rows the region drew, never the room it was given.** A pane is the one
+  place the two differ — an approval card sits at the bottom of the agent's own screen and takes five
+  rows off it (`rowsRead` and `carded` in `view/lane.ts`, read by the drawing *and* by the look). Sized
+  from the pane instead, a screen with more lines in it than fit reported everything in view and
+  answered the wheel with nothing at all, and only while the agent was waiting on you — which is what
+  made it look intermittent.
+- **What a notch is worth is a ramp, never a step** (`scroll.ts`). A terminal reports a notch and never
+  says whether the hand is on a wheel or a trackpad, so the rate is read. A step put the line at
+  `RUN_MS`, so an ordinary mouse wheel fell on the trackpad side of it and moved one row a detent while
+  the same wheel turned slowly moved three: four notches of one even turn came out `3, 1, 1, 1`.
+  Between `DRAG_MS` (a finger travelling) and `RUN_MS` (a detent on its own) it slides, and what
+  rounding leaves over is carried to the next notch (`Wheel`), so a run of them is even and adds up to
+  exactly what the hand asked for. A terminal grid moves by whole cells and that is the ceiling: even,
+  in step and predictable, never sub-cell.
+- **The wheel is swallowed wherever it lands, scrollable or not.** Tade draws exactly one screen and
+  never scrolls one, so a notch handed back is the terminal library moving a viewport of its own,
+  which is the window sliding under you.
+
+## Selecting text
+
+- **A selection is bounded to the region it was started in.** The window is regions side by side, not
+  one flow of text, so a selection that took whole rows between its two ends took whatever else was
+  drawn on them: dragging over an agent came back with the sidebar's queue and its agents down the
+  left of every line but the first and the last. Which columns those are is read off the map
+  (`scrollAt`, then `extentOf` across), like everything else about where something ended up.
+- **And it is anchored in the region's lines, never in the rows it was made on.** A region scrolls, so
+  an offset into the rows on screen means nothing the moment those rows go — which is what "selecting
+  over more than a page does not work" was: press, scroll, and the selection was made of cells that no
+  longer pointed at anything. So the drawing declares what it drew (`Drawn.regions`, a `Region` in
+  `selection.ts`: the region's own lines, which of them landed on its first row, and which rows those
+  are), for the same reason it declares the hits. The ends are lines of that region, projected back
+  onto whatever is drawn now (`cellsIn`), an end that has scrolled out of view taken at the edge it
+  went past; and what is copied comes out of the lines rather than off the screen (`spanText`), so it
+  is the whole span and not the part still visible.
+- **Three regions have one** — the conversation, the agent's screen and the terminal. The
+  conversation's lines are its own; a lane's are the scrollback the window is holding (`Frame.held`),
+  which is honest about the limit: **as far back as Tade has read, and no further.** Everywhere else —
+  the side, a panel, the ACTIONS page — a selection is still the rows it was made on, because none of
+  those is a thing people drag over pages of.
+- **The far end of a *live* drag is deliberately not anchored.** It follows the pointer, so content
+  moving under a hand that is holding still is what **extends** the selection — which is what makes the
+  wheel during a drag, and the scroll at an edge (`drag-region`, on a timer like the file's), do what a
+  terminal does. It is fixed where the drag is let go, so nothing slides afterwards.
+- **A link is a control and text, and which it was is only knowable on the way up.** Everything else a
+  click presses is something the window drew; a link or a file reference is a *reading* of somebody
+  else's words (`selectableText`), so a press on one starts a selection like a press on the words
+  around it, and only a press that never moved opens it — a line with a URL in it was otherwise a line
+  no selection could be started at. `www.` counts as a link and is opened over https, which is also
+  what stops the path pattern claiming it as a file nobody has; a bare `example.com` does not, because
+  nothing tells it from `report.md`. Where it opens is the one seam that reaches the machine
+  (`AppOptions.open`), so a test is handed an opener that records the command instead of running it.
+- **The line you type on and the file you have open select out of one model, because two would drift.**
+  A word is the same run of letters in a file as on the line, shift and an arrow reach the same way,
+  and what a second press takes is not something anybody should have to learn twice — so `input.ts`
+  answers for both (`spanOf`, `wordAt`, `clickedSpan`, `lineKey`, and its own `offsetOf`/`placeOf` into
+  the text) and only who is pressed
+  on behalf of differs. At pi's editor every change is made by **pressing the keys a person would
+  press** (`putCaret`, `cutSpan`), never by reaching into the editor's state: slower, and right about
+  everything reaching in would have to be taught — a grapheme of four code points, a paste collapsed to
+  one marker, a line that wraps. The drawing is the editor's too; the selection is laid over the rows
+  it drew, placed in the text by matching them (`rowStarts`), because a second description of how it
+  wraps would be right until the day it was not.
+- **The viewer's `Edited` is Tade's own, so the press it needs lives in it** (`cutSelection`, beside
+  `back` and `joinUp`): a selection taken out is one operation, not one press per character, because
+  the presses copy the file's lines and four thousand of them was six hundred milliseconds. A test
+  holds it to what those presses say, case for case, so the two can never differ about what one press
+  takes. Only the anchor is kept (`FilePanel.anchor`) — the other end is the caret the edit already
+  holds, so the two can never disagree about where the selection reaches — and it is laid over what the
+  viewer drew, in its cells (`onLine`, `laidOver`), never in a second reading of how the body slid.
+
+## Lanes that draw their own screen
+
+A program on the alternate screen — Claude Code, an editor a shell was pointed at — keeps no
+scrollback for anybody else to move, and draws its own controls where nothing in a capture says which
+cell is one. Both facts are **declared by the driver, per lane**, never guessed from what was launched:
+a shell with `vim` open in it is the same situation as an agent that draws its own conversation.
+
+- **Whose the scrolling is, is `LaneScreen.scrolling`** — `window`, `lane`, `nobody`. `lane` means the
+  program also asked for the mouse, so the notch goes to it (`wheel` on the driver, behind
+  `capabilities.pointer`) and it scrolls its own conversation; `nobody` means it took the screen and
+  wants no mouse, and then nothing moves, honestly. Before this, turning the wheel over one did nothing
+  at all and drew a bar with no thumb. The bytes are the program's own encoding and never a guess
+  (`wheelBytes`, `drivers/core/src/wheel.ts`): a report in the wrong one is not a scroll that misses,
+  it is characters typed into it.
+- **Such a lane gets a mark down its side rather than a bar.** A bar is drawn from three numbers — how
+  much there is, how much is in view, where in it you are — and the window has none of them. Drawn as
+  one anyway, `lines` is the height of the screen and the screen is what is in view, so it came out an
+  empty track that looks exactly like a bar that is broken; with an approval card over the pane the two
+  differed by five rows and a thumb appeared, saying something true about the capture and nothing about
+  where the program is in its conversation. So `gutterBeside` (`view/rows.ts`) reads
+  `LaneScreen.scrolling` and draws the column from it: the bar where the scrolling is the window's, a
+  dashed rule the whole height (`skin.scrollElsewhere`) where it is the lane's — never a thumb, because
+  a thumb is never the whole track — and the plain track where it is nobody's. Neither mark is ever
+  given a hit, so neither lights and neither can be dragged, and `reachOf` finds nowhere to go, which
+  is what keeps the keys honest too: a handle that moves nothing is worse than no handle.
+- **Tade keeps the cells it drew and the lane gets the cells it drew.** The only way to press the close
+  on Claude Code's files-changed panel is for the bytes to reach the program — but then Tade cannot
+  also use those cells for click-to-focus, drag-to-select and its reading of the paths in the text, and
+  a click that goes to the wrong one feels broken in both directions. What Tade drew is the header, the
+  column down the side, the approval card, the divider, the tabs; what the lane drew is its screen,
+  `place` and `link` included. So on such a lane Tade's own recognition of a path *steps aside* rather
+  than winning the cell (`laneLines` in `view/main.ts` is handed `null` for its linkers, which is not
+  `[]`): a path that lights up under the pointer and then hands the click to the program is a worse lie
+  than not offering it. A pane that has not got the keyboard still answers a click the way it always
+  has, by taking it — which is what makes sure one click always lands in Tade and nobody can be shut
+  out of their own window.
+- **Two declared facts and no guess.** It has to have taken the screen (`LaneScreen.scrolling`),
+  because only then are the rows the window drew the rows the program thinks it has; and it has to have
+  asked for the mouse (`LaneScreen.pointing` — `nobody`, `press`, `drag`), which is apart from
+  `scrolling` because one lane answers the two differently. `drag` is what decides **how you select**:
+  a program that asked about movement selects for itself and copies the way it copies, and one that
+  asked only about presses keeps Tade's drag — which is why the level is a level and not a flag. A
+  program that asked to be told about movement with no button held is `drag` too; the window never
+  sends that, because the pointer crosses a pane far faster than the window draws and its own hover is
+  made of those same moves.
+- **`pointedIn` and `screenRows`** (`view/lane.ts`, beside `rowsRead`) are the one reading of all of
+  it, because the rows a region draws are not the rows the program has: a lane is made the size of its
+  pane and then read back in what is left, so under an approval card drawn row 0 is row five of the
+  lane, and a press told otherwise lands five rows above what was pressed. Nothing is remembered about
+  what the program did with it; what it draws in answer is read on the next look, as the wheel's is.
+- **A lane's screen is read once and cut, not read again per notch.** A capture costs what it asks for,
+  so reading `rows + scroll` lines back on every look cost a millisecond per two hundred lines
+  scrolled, four times a second, for lines that had not changed since the agent printed them.
+  Scrollback above the live screen cannot change — an agent appends, it never rewrites — so the lines
+  are held with how deep the lane was when they were read (`HeldLines`) and the screen is cut out of
+  them (`cutFrom`); only the bottom is asked for again. That is also what puts the text and the bar
+  beside it on the same frame: the wheel cuts, where it used to move a number and leave the text until
+  the next look. **A cut that reached is the whole answer** — what a notch changed is where the window
+  is looking, not what the lane holds, so there is nothing to ask the driver at all (`reslice` says
+  whether it reached; only false asks for a look). Asking anyway cost a screen read a notch in every
+  lane in front of you: 81 ms of a 735 ms flick spent being told that nothing had changed.
+- **Lines are only held where the scrolling is the window's** (`keeping`), because that is the only
+  place the fact they rest on is true. A program on the alternate screen repaints every row in place
+  and never gets any deeper, so the depth the held lines are keyed by never moves: every look found the
+  lines it already had, and the pane froze on the first screen it ever read. That is what "the Claude
+  pane does not scroll" was once the notch was reaching the program — it scrolled, and the window went
+  on drawing a photograph of it. Nothing is lost by not holding them: such a lane has no scrollback to
+  ask for, so a capture is one screen.
 
 ## Controls and panels
 
@@ -114,6 +325,14 @@ regions in a cycle now.
   grey unless something wants you (amber: an extension to set up, sound that is off). Starting an
   agent and opening a project have their `+` where agents and projects are; search's key sits by
   the talk key. Don't colour a button for identity.
+- **A voice says words, and only the front of them.** Everything the window speaks goes through
+  `speakable` (`core/src/speech.ts`) first: a code fence waits for its other half and is then dropped, a
+  path is said as its file, and no ear ever hears a backtick. An answer from the model is summarised
+  (`spokenSummary`) — a few sentences of the finding, then "the rest is on screen", because it is, and
+  reading a whole answer out is how people learn to stop listening. And **mute is now**: the sentence
+  being said is cut off where it is (`Speaker.stop`) and what was queued behind it is dropped
+  (`VoiceSurface.silence`), because the moment you press it is the moment you needed it. Neither is the
+  window's own arithmetic — add to those rather than trimming a string before you hand it over.
 - **Build rows with `Row`, never by concatenating strings.** `new Row(width, skin, pointer)` then
   `.text()`, `.button()`, `.tab()`, `.keys()`, `.field()`, `.check()`… and `.right(r => …)` for the
   group pinned to the right edge. Each control records its own hit while it draws, measured before
@@ -131,17 +350,24 @@ regions in a cycle now.
   taking a folder — and the dispatch stays a dispatch: what a key does to your panel is a function
   in your own file, never a branch written out in `panels.ts`.
 - **Every panel is drawn in the same shell** (`panels/frame.ts`), and a panel that grows its own
-  answer to any of these four questions is the bug this file exists to stop. How big it is, is
+  answer to any of these four questions is the bug this file exists to stop: nine panels grew nine
+  answers to them, and only one of the nine was ever right. How big it is, is
   `panelSize` — the room there is, up to a `max` worth being wide, never over the strip at the foot,
   and a `needs` only where the body is fixed the whole time the panel is open (a menu); one whose
-  body changes under you takes the window, or it moves between two clicks. How its body scrolls and
+  body changes under you — a list being filtered, a form whose category switches — takes the window, or
+  it moves between the click that chose a row and the click that presses it. Never a number somebody
+  typed, which is what capped Settings at twenty-eight rows however tall the terminal was. How its body scrolls and
   where its bar goes, is `column` — the head above, the body with `bar` beside it, the two rows at
   the foot pinned under it — and the body keeps `scroll` in the panel's own state plus `following`
   wherever it has a selection to follow, because `atOffset` turns that off when the wheel or the bar
-  moves it. Two of them side by side is `beside`. How a row looks is `rowLook`: the marker says where
-  the keyboard is, the lighter ground says what the mouse is over, and they are never the same thing.
-  A search box is `searchRow`. Nothing cuts its own rows with `slice` to fit — that is what lost the
-  setup page's Save button and the Spend table's last seven rows.
+  moves it: the keyboard moving brings the body back to the row it is on, and scrolling yourself leaves
+  the keyboard where it was. The two rows at the foot are what it last said, then the keys with its
+  buttons. Two panels side by side is `beside`. How a row looks is `rowLook`: the marker says where
+  the keyboard is, the lighter ground says what the mouse is over, and they are never the same thing —
+  a menu drawing the pointed item as *chosen* made the keyboard appear to move when only the mouse had.
+  A search box is `searchRow`. Nothing cuts its own rows with `slice` to fit: `rows.slice(0, room)` is
+  what took the setup page's own Save button off the bottom, and a cap with `+7 more` under it is what
+  the Spend table said instead of scrolling — three times on one page.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
 - **Items down the side are tabs** (`tabList`, `tabbed` in `view/rows.ts`): an agent is two rows — its
@@ -166,8 +392,25 @@ regions in a cycle now.
   first, with both ends measured (a probe `Row` per end, the left memoised per detail level) before
   a step is taken. Two ladders would fit the two ends of one row against each other. Adding
   anything here means adding a field to `Fits` and a step to `LADDER`, never a width check of your
-  own. A tab's marks are `projectStandings`, one fold over the panes, and the talk key is the one
-  thing that may never be given up.
+  own. Two ladders would fit the two ends of one row against each other, so both ends are steps of
+  this one: the tabs from counts to marks to the one that matters most to nothing, the total from
+  words to figures to nothing. The talk key is the one thing that may never be given up.
+- **A project tab says what is happening in its project, and a figure that cannot be placed is not
+  drawn.** Two projects and two plain names said nothing at all — which of them the spinner at the
+  right belonged to, least of all — so each tab carries the marks the agent list carries
+  (`projectStandings`, `view/top.ts`): what wants you, what failed, what is working, what is queued,
+  what is sitting there, in that order, and `✓` where something finished and nothing is left, which is
+  the whole of "is everything I asked for done in there?" answered without going there. It is a fold
+  over the panes on every look and a tally nobody keeps — status is a query, and a count held anywhere
+  would be wrong the moment an agent finished. The marks go *inside* the tab, which costs them their
+  colour, because whose a mark is, is the entire point and a glyph outside the block belongs to the tab
+  on its left as much as the one on its right; every mark has a shape of its own (`markGlyph`, beside
+  `glyph`) for the same reason. The figures at the right stay everybody's — `next-waiting` goes to the
+  agent that wants you wherever it is — so with more than one project open they say whose in a clause:
+  the project where everything counted is in one, and how many otherwise, the way `over 3 runs` makes a
+  figure readable. That clause is **not** a step of the ladder: a total is drawn with it or it is not
+  drawn, and short of room what a narrow window gives up is the total, since the tabs are still counting
+  an inch to the left.
 - **A section's heading holds a set of controls, and the main one is a button.** `Section.actions`
   (`view/rows.ts`, fitted in `view/sidebar.ts`), the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
   block two columns narrower, so they read as the same set without reading as wide as the `+`.
@@ -242,14 +485,19 @@ regions in a cycle now.
   the pointer's capture on press so every movement is a `drag`, and `resizeTo` turns a cell into a
   size. `draw` clamps it through `resolveLayout`, and `App.remember` keeps it.
 - **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
-  (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
-  keeps `state.scroll`, a panel's list moves its own index.
+  (first, so everything drawn on top still wins), add the area to `ScrollArea`, and let the wheel, the
+  keys and the bar all land through `scrollBy` / `atOffset` — see **Scrolling**. An index of your own
+  is a fifth idea of where the end is.
 - **Anything that scrolls has a bar down its right** (`scrollbar.ts`, `barBeside` in `view/rows.ts`): a
   column the region gives up, a thumb saying how much is in view and where, and a
   `{ kind: 'scrollbar', area, total, shown }` hit on every row of it carrying what it was drawn
   from — so a drag becomes a line to scroll to (`grabBar`, `scrollBarTo`) without laying the region
-  out again. Where the region is a lane, the *window* owns that column: take it off the size in
-  `paneSize` / `captureTerminal` too, or the lane draws its last column under the bar.
+  out again. Anything *wider* than its pane gets the same bar lying along the bottom (`barAcross`),
+  drawn only where there is somewhere to go: one on a pane that fits costs a row to say there is more
+  when there is not. Where the region is a lane, the *window* owns that column: take it off the size in
+  `paneSize` / `captureTerminal` too, or the lane draws its last column under the bar — and reach for
+  `gutterBeside` rather than `barBeside`, because whose the scrolling is decides whether a bar is
+  honest at all (see **Lanes that draw their own screen**).
 - **The cursor is the window's to draw.** A capture is text; where typing lands comes from the
   driver (`Live.screen`, `Frame.paneScreen` / `terminal.view`) and is laid on the cell as a block
   (`blockAt`, `skin.cursor`) on whichever of the pane and the terminal has the keyboard — and never
@@ -267,9 +515,28 @@ regions in a cycle now.
   `ExtensionHost.statuses()` (polled in `tick`, never awaited by a frame) into `Frame.statuses`; a
   click opens the `extension-view` panel on `host.view()`. Add a hook to the extension port rather
   than a special case for one extension here.
-- **Every panel scrolls under the wheel.** `draw` lays a scroll hit under each panel, and the wheel
-  becomes ↑/↓ for it — so a list panel must keep its selection in view (window its rows around the
-  index) and use the height it has, rather than a fixed handful of rows.
+- **A page an extension writes may have tabs and a window, and both are declared.** An extension's `view`
+  is somebody else's document, so what shape it has is the extension's to say (`viewTabs`,
+  `viewWindowed`) and the window draws the tab row and the window row from *that answer* — never from
+  anything read off the text, and never on a page that offers neither, which is drawn exactly as every
+  page was before either existed. The keys are the Spend panel's, because a page with tabs and a window
+  is the same thing twice and nobody should have to learn it in two places: `tab` moves through the tabs,
+  ← → through the windows, and a page that offers one of them does not answer the other's keys at all.
+  **What a day is, is the window's** — `sinceOf` (`spend.ts`), the same three windows the Spend page has,
+  `today` by default — and what is handed over is the *moment* rather than the word, so nothing
+  downstream can invent a second idea of a day; "this window" means one moment everywhere, which is why
+  it is the window's own (`Wiring.openedAt`) and not a clock each subject reads in its own constructor. A
+  tab pressed is a different page, so it is asked for then and there rather than on the next status beat,
+  and the tab each extension was last on is remembered while the window is open — not across a close,
+  because a tab written down is one an extension may have renamed.
+- **Every panel scrolls under the wheel, as a region and not as a keypress.** `draw` lays a scroll hit
+  under each panel (`panel`, and `panel-side` for the list down the side of one that has one), and the
+  wheel, a key and a drag on its bar all land through `scrollBy` and `atOffset` with the rest. Settings
+  is why this rule is written down: it had no offset at all, so the wheel over it was answered by
+  *pressing its own down key* — a notch moved what is **chosen**, one setting at a time, jumping over
+  the ones between — and it drew no bar, because nothing knew how long the form was. One bug, twice. A
+  list panel must still keep its selection in view (window its rows around the index) and use the
+  height it has, never a fixed handful of rows.
 - **The orchestrator line is pi's own `Editor`** (cursor, wrapping, undo, paste markers), drawn by
   the app into `Frame.input` and boxed by `inputBox`. Keep `state.dictation` in step with it
   (`syncLine`) — everything else reads the dictation. Opening it never changes the panel's height.
@@ -278,6 +545,31 @@ regions in a cycle now.
   works out which character you meant.
 - **What you type to Tade is journaled** (`said` events) and comes back with ↑/↓ (the editor's
   history) and ctrl+r, only while the line is open — anywhere else those keys are the agent's.
+- **What is on that line is the orchestrator's, not the focus's.** Moving to an agent, a terminal, a
+  panel or a picture's question changes where the keyboard is and may never change what is half-written
+  at Tade. So the text lives in `orchestratorDraft` whether or not the line is open, `dictation` being
+  null says only that it is *closed*, and `leaveLine` and `openLine` (`model.ts`) are the only two
+  doors: one keeps what was on it, the other puts it back. A rule that each of a dozen call sites has to
+  remember is a rule half of them forgot, which is what "switching focus removes the things we typed"
+  was. The editor is not emptied either — a closed line is simply not drawn (`input` in
+  `wire/keyboard.ts`) — so the caret and the selection are where they were left too. A panel is the one
+  text a click may throw away, because dismissing one is an act rather than a focus moving; the file you
+  have open is not, and `panelDismiss` asks what escape asks before it loses an unsaved edit.
+- **Escape stops what is thinking; ctrl+c throws away what you typed; neither ever does the other's
+  job.** This is not Tade's invention — pi, Claude Code and Codex all answer these two keys this way,
+  each interrupting the turn and each leaving the editor exactly as it was — and a window full of other
+  people's panes is no place to invent a third convention. So escape never deletes a character: it stops
+  the orchestrator's turn (`Orchestrator.interrupt`), leaving the session id, the conversation and
+  everything already said alone, because the orchestrator is never introduced again and interrupting it
+  may never be a way of restarting it. What a harness can do mid-turn is declared
+  (`capabilities.abort`) and read through `offer()` (`thinkerOffers`); one that cannot says so in its own
+  words rather than swallowing the key, which looks exactly like a stop that did not work. ctrl+c empties
+  the line, the pictures going with it and a search part-way through, and with nothing left to throw away
+  closes Tade — "clear input, then quit", which needs no timer, because the second press has nothing to
+  clear however long you took over it. Because escape already closes panels, what it means is decided in
+  one pure place (`escapeMeans`) and is always exactly **one** thing: a panel, then whatever else has the
+  keyboard (pi interrupts its own agent on escape and a shell's editor wants it too), then a history
+  search, then the turn, then stepping off the line — which only ever happens with nothing on it to lose.
 - **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):
   `appKey` names them, `keyAction` gives them meaning, the shortcuts sheet and Shortcuts settings read the
   same list. A new shortcut is a binding there, never a literal key in `app.ts`.
@@ -293,7 +585,9 @@ regions in a cycle now.
   empty paste — what some terminals send for a picture — is taken as ctrl+v. Tests pass a stub
   `clipboard`: a developer's clipboard is not a test's to read.
 - **The mouse selects.** Dragging over anything that is not a control selects text and copies it on
-  release (`Painted.selection`); the terminal cannot, because the window reports the mouse.
+  release; the terminal cannot, because the window reports the mouse. The rules are in **Selecting
+  text** — a selection is bounded to its region's columns and anchored in its lines, never in the rows
+  it was made on.
 - **A region that scrolls says so, and gets selection across pages for free.** Return a `Region` in
   your drawing's `Drawn.regions` — the region's own lines, which of them landed on its first row,
   and where those rows are — and `view.ts` moves it with your rows the way it moves your hits. The
@@ -311,6 +605,116 @@ regions in a cycle now.
 - **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`
   sentence, and `live: false` if Tade only reads it at start — the panel draws the control and the
   *on restart* label from that.
+- **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid out
+  from the room there is (`spendColumns`, `panels/spend/view.ts`): the figures take what a figure takes,
+  the share meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`)
+  and only then ellipsises — and everything cut is cut with `cap`, which says so. Two names that stop
+  dead against the next column read as one unreadable row, which is how this was reported.
+- **A figure that is not elapsed time says so, and says it the same way everywhere.** `13d 3h` off a
+  machine that has been on since breakfast reads as a bug and is not one: twenty agents over an afternoon
+  each ran for the whole of their own afternoon, and a run is wall clock from start to stop, so one that
+  finished at noon and sat in its lane until the window closed counted the wait. Both are true and both
+  are surprising, so both are said — `runtimeSays` in core is the one sentence, read by `tade spend`, with
+  `workedSays` beside it for the other half — and the window may never *explain* it differently from
+  them. `over 3 runs` is what makes such a figure readable, so it is drawn whenever the figure is and is
+  never a step of a ladder that drops it. It sits on the line **under** the head's figures rather than
+  beside them: the head carries two times where it carried one (`1h 32m working · 2h 5m open`), it has no
+  columns to spare, and a clause one line lower is still read every time — a footnote at the foot of a
+  page is what this may never become. The two words are the two the columns under them are headed with,
+  so the page says which is which once and in a word.
+
+## Drawing the queue and a plan
+
+What waits on what, and what may start, is core's and the **change-the-queue** skill's. These are the
+rules for *drawing* it, and they live here because `queue-view.ts`, `queue.ts` and `plan-graph.ts` are
+the window's.
+
+- **Looking at queued work is never starting it.** Clicking it opens what it is — the chain it is in
+  drawn as boxes, every wait's reason, what its agent will be told, where it came from — and starting it
+  is its own act (`Start now`, its menu, `tade_queue_change`), which goes through the queue so that what
+  started it and why is written down.
+- **`next` is the front of the resolved tree, not everything that happens to be waiting** (`shownBy`,
+  `queue-view.ts`). The front is what starts as soon as what it waits on finishes: work behind one
+  running agent is next and says how much is ahead of it, the second piece of a chain is not, and work
+  that will not start by itself — held, paused — is not next either, it is *the reason* nothing is.
+- **An empty list says which of those it is, in the words of the reason it actually is**
+  (`queueEmptySays`, `queue.ts`). One sentence for every case reads as a bug the moment one of the
+  cases is untrue, which is what sent somebody looking for this code. And what a *control* emptied,
+  that control is the reason for — because it is the one thing that can be done about it, where
+  `release-notes waits for a time` reads as stuck and is one press from being in the list.
+- **What it shows is two questions, and so two controls** (`QueueView`). `all` and `next` are
+  *positions* in that tree and are a scope, one of the pair always on; waiting for a clock is a *kind*
+  of queued work, and is a switch beside them (`timed`). Drawn as a third exclusive choice it took the
+  slot the ordinary case wanted, so "everything that is not on a clock" — much the commonest thing to
+  want — had no button at all, and a fourth would have been a second spelling of `all` in every project
+  with no schedules in it. Split, the missing view is `timed` off at either scope, and `next` with it on
+  is the other thing three buttons could not say. So the switch is the **only** thing that hides a
+  clock. It is one project's and outlives the window, like where you were standing and what you folded,
+  and only a view that was narrowed is written down. **A control that is hiding something is always
+  drawn**, however little else is in the section: a switch you cannot reach is work hidden with no way
+  back to it.
+- **The section itself is always in the side**, whether or not anything is in it, because a place you
+  look is worth more than a row you save: with nothing queued it folds itself away (`sectionOpen`) and
+  its heading says that same reason — the shorter way of saying it where a narrow side has no room for
+  the sentence.
+- **A column is a priority, and a pane out of room scrolls rather than folds.** Every drawing of the
+  queue puts a piece in the column its depth in the resolved tree gives it (`treeStems`,
+  `plan-graph.ts`), so work that can run side by side lines up under work that can run side by side,
+  however long the chain is and whatever a filter leaves out. Folding the indent back at some level is
+  the one thing that may never happen: it puts two pieces that cannot run together in one column, and
+  the column is the whole of what the drawing says. So a deep chain reaches further right than its pane,
+  and that is answered sideways — the side and the picture of a plan are laid out in the room they need
+  and shown through the room there is (`slid`, `ui.ts`), with the bar lying along the bottom
+  (`barAcross`). What is pinned at the right of a row stays pinned to the **pane** and not to what
+  scrolls under it: a button a deep chain put out of reach is a button that is gone.
+- **`drawPlan` never gives up and says a chain as a list of names** — the boxes and the arrows are what
+  say what waits on what, and a list says none of it. Why a piece waits is drawn as that same tree
+  (`drawWhy`), never as a list of edges sorted by name: the reasons hang off the waits they explain,
+  wrapped rather than cut, and the lines that join them are the queue's own, because two drawings of
+  one relationship drift apart.
+
+## Search, and asking what a sentence meant
+
+- **Search matches letters; asking is what happens when the letters are not enough.** `ctrl+k` is a
+  pure ranking of what Tade already has (`searchResults`, `search.ts`), and that is what answers
+  instantly and what answers when nobody is set up. A sentence is not letters to match, so when what was
+  typed reads as one (`isSentence`) and no single row came back that is plainly the whole of it
+  (`worthAsking`), a shortlist drawn in code (`shortlist`) goes to whoever offers to read one (`meant`
+  on the extension port). Code does the recall, a judge does the precision, and what comes back is *rows
+  added under `MIGHT MEAN`*, never a reordering of what is there: the same entries, doing what they
+  always did when chosen. Only ids that were offered come back, nothing invented is shown, nothing is
+  run, and an answer that arrives after the box changed is dropped — somebody is watching it, and a list
+  that moves under their hands is worse than one that says nothing.
+- **"Nothing matched at all" was the wrong bar**, and it is the shape of bug that hides in a rule that
+  reads as careful: a sentence is long and a name is short, so what a sentence matches is never a name
+  and is always letters scattered down some long label — every letter of `what the run` is in
+  `Telemetry › What the brief counts`, in order, and means nothing by it. One of those was enough to
+  silence the question for good: over the three-word sentences somebody would actually type, 418 were
+  silenced that way. So what counts as an answer is every word of the sentence that carries meaning, in
+  one row's own name, and **more than one of them** (`answered`, `wordsIn`) — one word found is a word
+  found, and an agent called `coverage` answering "what is the coverage" is exactly the guess this was
+  built to stop making. Asking alongside is safe for the reason it always was: what comes back only ever
+  adds rows.
+- **What search matches is what is happening, not only what things are called.** Every entry carries it
+  (`SearchEntry.about`, composed by `happeningOn` and `happeningIn` in `happening.ts`): what the agent
+  is doing, what it was asked for *verbatim*, what queued work waits on and why and what its agent will
+  be told, how the checks stood at the commit in hand, and the notes about it. Derived on every look and
+  never a store of its own — what an agent is doing changes while you type — and out of what the window
+  has already polled, so it costs no disk, no git and no clock: the panes are status's last look, the
+  work is a fold over the journal in memory, and the checks are `seenActions`, which answers and never
+  goes looking.
+- **The two halves match it differently, and that is the whole of why it does not flood.** A **name** is
+  short, so letters in order are evidence. `about` is a paragraph, and letters in order through a
+  paragraph are evidence of nothing — so the letters only ever find it as a **whole run**, ranked below
+  every name match, with the line that said it shown as the row's `preview` so it says why it is there;
+  and the **shortlist** counts a word said outright in it far above a name that merely spells that word,
+  which is where `coverage` finding the agent raising it actually happens.
+- **`about` is the half that leaves the machine**, which is exactly the text telemetry may never send.
+  That is a trade somebody has to be able to see and undo, so the switch is the *window's*, not the
+  extension's (`surfaces.search.context`) — a rule that lives in the code that reads the text bounds one
+  reader, and a rule at the door bounds every reader. Off, each choice goes with its name and where it
+  is and nothing else; the letters go on matching all of it either way, because matching it here sends
+  nothing anywhere. On by default, said out loud where somebody is deciding.
 
 ## Checking it against a design
 
@@ -376,9 +780,15 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    does, `submits()` for carrying a panel out, `prompts()` for a one-line panel by what it is for.
    Never an `if` in `wire/actions.ts` — that file does not change when a button is added.
    Add or update a scenario, run `pnpm screens`, look, then accept the goldens.
-9. `pnpm screens --assets`, so the README shows the window you just changed — see
-   **redraw-the-pictures**.
-10. `pnpm check`.
+9. If it can outgrow its room, give it a `ScrollArea`, a `{ kind: 'scroll', area }` hit and a bar, and
+   let the wheel, the keys and the drag all land through `scrollBy` / `atOffset` — never an offset of
+   your own (**Scrolling**). If people will drag over pages of it, return a `Region` in your drawing's
+   `Drawn.regions` so the selection is anchored in your lines (**Selecting text**). If it draws a lane,
+   read `LaneScreen.scrolling` and `.pointing` rather than deciding for the program in it (**Lanes that
+   draw their own screen**).
+10. `pnpm screens --assets`, so the README shows the window you just changed — see
+    **redraw-the-pictures**.
+11. `pnpm check`.
 
 ## Gotchas
 
@@ -392,8 +802,9 @@ The window is drawn from state by a pure function, so how it looks is tested lik
 - `Component` requires `invalidate()` as well as `render(width)`; it is not optional. `handleMouse`
   is optional and receives coordinates *local to the component*; mouse reporting is on by default in
   `TuiAltScreen`.
-- A `Drawn` region's hits are row-relative. Shift them as you append the region, never afterwards
-  from a remembered offset.
+- A `Drawn` region's hits are row-relative, and so is the `row` of a `Region` it declares. `view.ts`
+  shifts both as it appends (`shiftRegions` beside the hits) — never afterwards from a remembered
+  offset, and never twice.
 - Constructor parameter properties are not erasable syntax: declare the field, then assign it.
 - Run the suite on its own. A monorepo `tsc` alongside it starves the tests that spawn real git and
   PTY processes, and they time out looking exactly like a regression.
