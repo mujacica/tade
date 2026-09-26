@@ -263,6 +263,24 @@ const CHOICES: readonly Choice[] = [
     },
   },
   {
+    // A task that writes something up rather than changing code has to *say*
+    // so, or the document it produces reaches nobody: the path is what lets
+    // Tade tell whoever is listening where to read it when the task finishes.
+    // Nothing in the sentence names the parameter, so this passes only if the
+    // description we wrote reads as being about exactly this kind of work.
+    what: 'says what a research task produces, so its document reaches somebody',
+    say: 'put an agent on app to work out everywhere we widen an oauth scope, and write it up for me — no code changes, just the findings',
+    reaches: 'tade_task_create',
+    also: async ({ world }) => {
+      const [created] = await world.tade.events({ types: ['task_created'] })
+      const produces = String(created?.detail.produces ?? '')
+      expect(produces).not.toBe('')
+      // Wherever it put it, it may not be somewhere that goes when the task
+      // does — which is the one thing the refusal already enforces.
+      expect(produces.startsWith('.tade/')).toBe(false)
+    },
+  },
+  {
     // Told a fact, not asked for work. The failure to guard against is the
     // eager one: a branch, a worktree and an agent, for a sentence.
     what: 'writes a note down rather than making a task out of it',

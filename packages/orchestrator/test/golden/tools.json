@@ -290,6 +290,10 @@
                 ],
                 "description": "how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand."
               },
+              "produces": {
+                "type": "string",
+                "description": "for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository. Tade tells you when it finishes, with this path, so you read it and decide what follows. Not under .tade/, which goes when the task does."
+              },
               "after": {
                 "type": "array",
                 "description": "what it waits on: other agents in this plan by name, or tasks Tade already has — in another project, as project/task",
@@ -843,6 +847,10 @@
             "manual"
           ],
           "description": "how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand."
+        },
+        "produces": {
+          "type": "string",
+          "description": "for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository. Tade tells you when it finishes, with this path, so you read it and decide what follows. Not under .tade/, which goes when the task does."
         }
       },
       "required": [

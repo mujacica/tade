@@ -142,6 +142,7 @@ export class ToolHost {
           ...(p.context ? { context: String(p.context) } : {}),
           ...(Array.isArray(p.links) ? { links: linksOf(p.links) } : {}),
           ...(p.done ? { done: doneRuleOf(p.done) } : {}),
+          ...(p.produces ? { produces: String(p.produces) } : {}),
           by: 'orchestrator',
         }),
       'task/done': async (p) => {
@@ -453,6 +454,7 @@ function planOf(p: Record<string, unknown>): Plan {
         said: text(agent.said),
         prompt: text(agent.prompt),
         ...(agent.done ? { done: doneRuleOf(agent.done) } : {}),
+        ...(agent.produces ? { produces: text(agent.produces) } : {}),
         after: (Array.isArray(agent.after) ? agent.after : []).map((dep) => {
           const one = (dep ?? {}) as Record<string, unknown>
           return { agent: text(one.agent), why: text(one.why) }

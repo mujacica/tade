@@ -72,6 +72,35 @@ describe('news for the orchestrator', () => {
     expect(eventNews({ ...done({}), type: 'turn_done' })).toBeNull()
   })
 
+  it('says the document a task produced, and that nobody has acted on it', () => {
+    // The whole point: a research task reaching the orchestrator as a path it
+    // can go and read, rather than one line saying a document exists.
+    const done = (detail: Record<string, unknown>) => ({
+      seq: 1,
+      ts: '2026-09-15T09:00:00Z',
+      type: 'task_done' as const,
+      urgency: 'notable' as const,
+      task: 'app/scope-audit',
+      lane: null,
+      run: null,
+      detail,
+    })
+    expect(
+      eventNews(
+        done({ by: 'agent', summary: 'Four call sites.', produces: 'notes/scope-audit.md' }),
+      ),
+    ).toBe(
+      'app/scope-audit finished (its agent said so): Four call sites. It produced notes/scope-audit.md, and nothing has been done about it yet',
+    )
+    // However it was finished — its rule being met says nothing about whether
+    // the agent wrote what the task was made to write.
+    expect(
+      eventNews(done({ by: 'rule', rule: 'idle', produces: 'notes/a.md', missing: true })),
+    ).toBe(
+      'app/scope-audit finished (its rule, idle, was met). It said it would produce notes/a.md and did not write it',
+    )
+  })
+
   it('says an agent is gone however it went', () => {
     // Stopped: the window's /stop, its cleanup, tade_run_stop, tade_run_cleanup.
     expect(agentEnded(event({ type: 'run_exited', detail: { stopped: true } }))).toEqual({

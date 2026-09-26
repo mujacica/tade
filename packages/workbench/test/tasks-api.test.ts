@@ -52,6 +52,49 @@ describe('task and run RPC', () => {
     expect(event?.detail.intent_spoken).toBe(INTENT)
   })
 
+  it('puts the document a task produced on the line that says it finished', async () => {
+    // The point of the whole mechanism: whoever hears that a research task
+    // finished hears where the document is, and the journal is what remembers
+    // — a window shut when the agent finished still knows on its way back up.
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'notes/scope-audit.md',
+    })
+    mkdirSync(join(task.worktree, 'notes'), { recursive: true })
+    writeFileSync(join(task.worktree, 'notes', 'scope-audit.md'), '# what I found\n')
+    // A lane is how the workbench knows where a task works; no prompt, so no model.
+    await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    await client.markDone(task.id, { by: 'you', summary: 'audit written up' })
+
+    const [done] = await client.events({ types: ['task_done'] })
+    expect(done?.detail).toMatchObject({
+      by: 'you',
+      summary: 'audit written up',
+      produces: 'notes/scope-audit.md',
+    })
+    expect(done?.detail.missing).toBeUndefined()
+    await client.stopAgent(task.id)
+  })
+
+  it('says a task named a document and did not write it, rather than sending anybody to it', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'notes/scope-audit.md',
+    })
+    await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    await client.markDone(task.id, { by: 'you' })
+
+    const [done] = await client.events({ types: ['task_done'] })
+    expect(done?.detail).toMatchObject({ produces: 'notes/scope-audit.md', missing: true })
+    await client.stopAgent(task.id)
+  })
+
   it('ignores its own bookkeeping the first time it works in a project, once', async () => {
     const path = join(repo.root, '.gitignore')
     expect(existsSync(path)).toBe(false)

@@ -110,6 +110,7 @@ export async function makePlan(
         by,
         ...(plan.effort ? { effort: plan.effort } : {}),
         ...(agent.done ? { done: agent.done } : {}),
+        ...(agent.produces ? { produces: agent.produces } : {}),
         start: {
           after: check.waitsOn.get(agentId(plan, agent)) ?? [],
           prompt: agent.prompt,

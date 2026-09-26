@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { PermissionNotPendingError } from '@tade/harnesses-core'
 import type { Reporter, Span, Work } from '@tade/telemetry'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
 import { WorkerSupervisor, type WorkerSupervisorOptions } from '../src/workers.ts'
@@ -742,7 +742,11 @@ describe('what an agent does, as the work of a model', () => {
 
   it('times a turn, the tools it called and what it cost, and nothing of what was said', async () => {
     const { report, spans } = timing()
-    const { adapter, supervisor } = await setup('bypass', report)
+    const { log, adapter, supervisor } = await setup('bypass', report)
+    // Closed here rather than left to the garbage collector: a journal handle
+    // nobody closes is an error Node raises whenever it happens to collect it,
+    // which reads as a flake in whichever test was running at the time.
+    onTestFinished(() => log.close())
     adapter.emit('r1', { type: 'started', sessionId: null, model: 'openrouter/opus' })
     adapter.emit('r1', { type: 'turn_started', at: 1_000 })
     adapter.emit('r1', {
@@ -803,7 +807,8 @@ describe('what an agent does, as the work of a model', () => {
 
   it('ends a turn its agent never finished, when the agent is gone', async () => {
     const { report, spans } = timing()
-    const { adapter, supervisor } = await setup('bypass', report)
+    const { log, adapter, supervisor } = await setup('bypass', report)
+    onTestFinished(() => log.close())
     adapter.emit('r1', { type: 'turn_started', at: 1_000 })
     adapter.emit('r1', { type: 'tool_call', callId: 'c1', tool: 'bash', input: {}, at: 1_100 })
     adapter.emit('r1', { type: 'exited', code: 1 })

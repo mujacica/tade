@@ -1,4 +1,5 @@
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { effectByName } from '@tade/core'
 import type {
   PermissionDecision,
@@ -207,6 +208,8 @@ export async function setup(
   mode: 'bypass' | 'policy',
   report?: Reporter,
   caution?: WorkerSupervisorOptions['caution'],
+  /** A real directory, for the one thing the supervisor reads off disk: what the task produces. */
+  cwd: string = WORKTREE,
 ) {
   const log = await EventLog.open({ path: join(tmp('tade-workers-'), 'events.jsonl') })
   const adapter = new FakeAdapter()
@@ -220,8 +223,32 @@ export async function setup(
   const handle = await supervisor.start({
     run: 'r1',
     task: 'app/refunds',
-    cwd: WORKTREE,
+    cwd,
     prompt: 'fix the refund flow',
   })
   return { log, adapter, supervisor, handle }
+}
+
+/**
+ * A worktree with a task file in it saying what the task produces, and the
+ * document beside it unless `wrote` says otherwise — the two cases the line
+ * that says a task finished has to tell apart.
+ */
+export function worktreeProducing(produces: string, wrote = true): string {
+  const worktree = tmp('tade-produces-')
+  mkdirSync(join(worktree, '.tade'), { recursive: true })
+  writeFileSync(
+    join(worktree, '.tade', 'task.yaml'),
+    [
+      'id: app/refunds',
+      'project: app',
+      'intent_spoken: work out where the token gets taken twice',
+      'created: 2026-09-15T09:00:00Z',
+      `produces: ${produces}`,
+    ].join('\n'),
+  )
+  if (!wrote) return worktree
+  mkdirSync(join(worktree, dirname(produces)), { recursive: true })
+  writeFileSync(join(worktree, produces), '# what I found\n')
+  return worktree
 }

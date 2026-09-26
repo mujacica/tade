@@ -224,4 +224,55 @@ describe('what it opens knowing with several repositories', () => {
     expect(said).not.toContain('- sentry/oauth-scopes:')
     expect(said).not.toContain('- sentry-cli/oauth-scopes:')
   })
+
+  it('says which documents finished tasks produced, so a shut window loses none of them', () => {
+    // The journal is the only thing that remembers: the window that heard the
+    // agent finish may have been closed for a day by the time anybody reads
+    // this, and the document is still sitting there unread.
+    const said =
+      composeBriefing({
+        now: NOW,
+        events: [
+          event('task_done', 'app/scope-audit', {
+            by: 'agent',
+            summary: 'Four call sites take the token twice.',
+            produces: 'notes/scope-audit.md',
+          }),
+        ],
+      }) ?? ''
+    expect(said).toContain(
+      '- app/scope-audit produced notes/scope-audit.md, and nothing has been done about it yet (finished 1h ago)',
+    )
+  })
+
+  it('stops saying nobody has acted on one once work is queued off it', () => {
+    const said =
+      composeBriefing({
+        now: NOW,
+        events: [
+          event('task_done', 'app/scope-audit', { by: 'agent', produces: 'notes/audit.md' }, 120),
+          event('task_created', 'app/fix-scopes', { after: ['app/scope-audit'] }, 60),
+        ],
+      }) ?? ''
+    expect(said).toContain(
+      '- app/scope-audit produced notes/audit.md, and app/fix-scopes was queued off it',
+    )
+    expect(said).not.toContain('nothing has been done about it yet')
+  })
+
+  it('leaves a document out once it is old news', () => {
+    const said =
+      composeBriefing({
+        now: NOW,
+        events: [
+          event(
+            'task_done',
+            'app/old-audit',
+            { by: 'agent', produces: 'notes/old.md' },
+            5 * 24 * 60,
+          ),
+        ],
+      }) ?? ''
+    expect(said).not.toContain('notes/old.md')
+  })
 })

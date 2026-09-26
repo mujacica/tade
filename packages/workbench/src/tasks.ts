@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import {
   type DoneRule,
   PROJECT_DIR,
+  producesProblem,
   type StartCondition,
   sharedTaskDir,
   TASK_CONTEXT_FILE,
@@ -77,6 +78,11 @@ export interface CreateTaskOptions {
   by?: string
   /** How it counts as finished, kept in the task file. */
   done?: DoneRule
+  /**
+   * The document it produces rather than a change to the code, at a path in
+   * the repository. Refused where it would not survive the task.
+   */
+  produces?: string
   /** When it starts, for queued work: kept in the task file until it does. */
   start?: StartCondition
   now?: Date
@@ -117,6 +123,11 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
   }
   const id = `${opts.project}/${opts.slug}`
   if (!TaskId.safeParse(id).success) throw new Error(`invalid task id: ${id}`)
+  // Refused here rather than at any one caller: this is the only write path
+  // into a repository, so the window, the orchestrator and a plan all get the
+  // same answer about a document that would not survive its task.
+  const bad = opts.produces === undefined ? null : producesProblem(opts.produces)
+  if (bad) throw new Error(`${id} cannot produce that: ${bad}`)
   if (opts.workspace === 'checkout') return createSharedTask(opts, id)
 
   const branch = opts.detached ? '' : `${TASK_BRANCH_PREFIX}${opts.slug}`
@@ -162,7 +173,13 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    { by: opts.by, done: opts.done, start: opts.start, effort: opts.effort },
+    {
+      by: opts.by,
+      done: opts.done,
+      produces: opts.produces?.trim(),
+      start: opts.start,
+      effort: opts.effort,
+    },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(worktree, TASK_CONTEXT_FILE), context)
@@ -197,7 +214,13 @@ async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<Ta
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    { by: opts.by, done: opts.done, start: opts.start, effort: opts.effort },
+    {
+      by: opts.by,
+      done: opts.done,
+      produces: opts.produces?.trim(),
+      start: opts.start,
+      effort: opts.effort,
+    },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(dir, 'context.md'), context)
@@ -231,6 +254,7 @@ async function writeTaskFile(
   kept: {
     by?: string | undefined
     done?: DoneRule | undefined
+    produces?: string | undefined
     start?: StartCondition | undefined
     effort?: string | undefined
   },
@@ -251,6 +275,7 @@ async function writeTaskFile(
       ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
       ...(kept.by ? { by: kept.by } : {}),
       ...(kept.done ? { done: kept.done } : {}),
+      ...(kept.produces ? { produces: kept.produces } : {}),
       ...(kept.start ? { start: kept.start } : {}),
     }),
   )
@@ -377,6 +402,33 @@ export async function setTitle(
       file.title = text
     }
   })
+}
+
+/**
+ * What a task said it produces, as the detail of the line that says it
+ * finished: nothing at all where it produces nothing, and otherwise the path
+ * it named plus whether the file was actually there.
+ *
+ * On `task_done` rather than looked up afterwards, because the journal is the
+ * only thing that remembers: the task's folder goes when the task does, and a
+ * window that was shut when an agent finished still has to be able to say, the
+ * next time it opens, that there is a document waiting to be read.
+ *
+ * `missing` is the same caution every probe here takes — a task that named a
+ * document and did not write one is a thing to go and ask about, and claiming
+ * a file exists without looking is how a briefing sends somebody to a path
+ * that is not there.
+ */
+export async function producedDetail(
+  worktree: string | undefined,
+  task: string | null,
+): Promise<{ produces?: string; missing?: true }> {
+  if (!worktree || !task) return {}
+  const produces = (await readTaskFile(worktree, task))?.produces?.trim()
+  // Checked again on the way into the journal: the file on disk is somebody's
+  // to hand-edit, and a path Tade would not have written is not one it reads.
+  if (!produces || producesProblem(produces)) return {}
+  return existsSync(join(worktree, produces)) ? { produces } : { produces, missing: true }
 }
 
 /** A task's file, read and checked; null when there is none or it will not read. */

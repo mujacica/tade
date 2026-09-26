@@ -45,6 +45,38 @@ describe('createTask', () => {
     expect(file.base).toBe(repo.head())
   })
 
+  it('keeps the document a task produces, so its agent and the journal both have it', async () => {
+    const { repo, worktreeRoot } = setup()
+    const task = await createTask({
+      project: 'checkout',
+      root: repo.root,
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      worktreeRoot,
+      produces: 'notes/scope-audit.md',
+    })
+    const file = parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8'))
+    expect(file.produces).toBe('notes/scope-audit.md')
+  })
+
+  it('refuses a document that would go when the task goes', async () => {
+    const { repo, worktreeRoot } = setup()
+    // Everything under .tade/ is ignored by git and removed with the task, so
+    // a document there is one nobody can read afterwards — which is the whole
+    // reason a task names one.
+    await expect(
+      createTask({
+        project: 'checkout',
+        root: repo.root,
+        slug: 'scope-audit',
+        intent: 'work out where the token gets taken twice',
+        worktreeRoot,
+        produces: '.tade/audit.md',
+      }),
+    ).rejects.toThrow(/git ignores/)
+    expect(existsSync(join(worktreeRoot, 'checkout-scope-audit'))).toBe(false)
+  })
+
   it('refuses a name that would not make a valid task id', async () => {
     const { repo, worktreeRoot } = setup()
     for (const slug of ['Refunds', 'has space', '-leading', '']) {

@@ -1,6 +1,7 @@
 import type { Finished } from './done.ts'
 import type { TadeEvent } from './events.ts'
 import type { DoneRule, StartCondition, TaskState } from './model.ts'
+import { producesProblem } from './produces.ts'
 
 // Work asked for now and started later.
 //
@@ -480,6 +481,11 @@ export interface PlannedAgent {
   /** What its agent is told first. */
   prompt: string
   done?: DoneRule
+  /**
+   * The document it writes rather than a change to the code, at a path in its
+   * own repository: how an agent sent to plan, audit or research says so.
+   */
+  produces?: string
   /** Other agents in the plan, or tasks already there, it waits on — with why. */
   after: { agent: string; why: string }[]
   touches: string[]
@@ -592,6 +598,8 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     if (agent.at !== undefined && Number.isNaN(Date.parse(agent.at))) {
       problems.push(`${agent.name} starts at "${agent.at}", which is not a time`)
     }
+    const produces = agent.produces === undefined ? null : producesProblem(agent.produces)
+    if (produces) problems.push(`${agent.name} cannot produce that: ${produces}`)
   }
 
   const byName = new Map<string, PlannedAgent[]>()

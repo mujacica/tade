@@ -1,4 +1,4 @@
-import type { TadeEvent } from '@tade/core'
+import { producedClause, type TadeEvent } from '@tade/core'
 import type { TaskSnapshot } from './model.ts'
 
 // What Tade tells the orchestrator without being asked.
@@ -145,7 +145,17 @@ export function taskNews(
   return out
 }
 
-/** What a journal event is worth telling, when it is: a task finishing, and who said so. */
+/**
+ * What a journal event is worth telling, when it is: a task finishing, who
+ * said so, and the document it produced.
+ *
+ * A task that was made to plan, audit or research says what it writes, and
+ * that path goes on the line that says it finished — so a research task
+ * reaching the orchestrator is a document it can go and read rather than one
+ * line about one, which is the step somebody used to have to ask for every
+ * time. Nothing has been done about it at this moment by construction: Tade
+ * tells, and starts nothing off a document by itself.
+ */
 export function eventNews(event: TadeEvent): string | null {
   if (event.type !== 'task_done' || !event.task) return null
   const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
@@ -157,7 +167,13 @@ export function eventNews(event: TadeEvent): string | null {
         : event.detail.by === 'orchestrator'
           ? 'you marked it'
           : 'the person marked it'
-  return `${event.task} finished (${who})${summary ? `: ${summary}` : ''}`
+  const head = `${event.task} finished (${who})${summary ? `: ${summary}` : ''}`
+  const path = typeof event.detail.produces === 'string' ? event.detail.produces.trim() : ''
+  if (!path) return head
+  const clause = producedClause({ path, missing: event.detail.missing === true })
+  // A summary is somebody's own sentence and may or may not end in a stop:
+  // two full stops in the middle of one line read as a bug.
+  return `${head}${/[.!?]$/.test(head) ? '' : '.'} It ${clause}`
 }
 
 /** The heading the person's own words go under, which the orchestrator is told to look for. */

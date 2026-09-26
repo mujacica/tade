@@ -1,4 +1,12 @@
-import { ago, type Effort, effortSays, historyFrom, type TadeEvent } from '@tade/core'
+import {
+  ago,
+  type Effort,
+  effortSays,
+  historyFrom,
+  producedClause,
+  producedIn,
+  type TadeEvent,
+} from '@tade/core'
 
 // Where things stood when the window opened, for an orchestrator picking its
 // conversation back up.
@@ -145,6 +153,23 @@ export function composeBriefing(input: BriefingInput): string | null {
           return `- ${task.task}: nothing written down since ${touched}`
         }),
         ...leftOut(moved.left),
+      ].join('\n'),
+    )
+  }
+
+  // Its own section, and uncapped, for the reason `held` is: it is a thing
+  // somebody has to act on, and the whole point of a task saying what it
+  // produces is that the document is not lost — least of all to a cap. The
+  // journal is what remembers it, so a window that was shut when the agent
+  // finished still opens knowing there is something to read.
+  const produced = producedIn(events, { since: input.now - STALE })
+  if (produced.length > 0) {
+    sections.push(
+      [
+        'Documents that finished tasks produced, and what has been done about each:',
+        ...produced.map(
+          (one) => `- ${one.task} ${producedClause(one)} (finished ${since(one.at)})`,
+        ),
       ].join('\n'),
     )
   }

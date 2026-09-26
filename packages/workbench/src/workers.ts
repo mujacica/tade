@@ -26,6 +26,7 @@ import {
 import { type AgentTurns, agentTurns, noReporter, type Reporter } from '@tade/telemetry'
 import type { EventLog } from './events.ts'
 import { adapterParts } from './harnesses.ts'
+import { producedDetail } from './tasks.ts'
 
 // Runs agents and decides what they may do. Every tool call arrives here held;
 // the approval policy answers it, and the log records what happened either
@@ -585,14 +586,12 @@ export class WorkerSupervisor {
         if (began) await this.log.append({ type: 'turn_started', task, run })
         return
       }
-      case 'done':
-        await this.log.append({
-          type: 'task_done',
-          task,
-          run,
-          detail: { by: 'agent', summary: signal.summary },
-        })
+      case 'done': {
+        const made = await producedDetail(state?.worktree, task)
+        const detail = { by: 'agent', summary: signal.summary, ...made }
+        await this.log.append({ type: 'task_done', task, run, detail })
         return
+      }
       case 'idle':
         this.turns.set(run, 'idle')
         return

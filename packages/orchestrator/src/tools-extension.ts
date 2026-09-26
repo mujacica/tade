@@ -210,6 +210,12 @@ export function orchestratorTools(
     description: 'where the work came from: an issue, a trace, a discussion',
     items: object({ title: string('what it is'), url: string('where it is') }, ['title', 'url']),
   }
+  // What a task made to plan, audit or research says about itself. The path is
+  // in the repository and never under .tade/, which git ignores and Tade
+  // removes with the task: the whole point is that somebody reads it later.
+  const produces = string(
+    'for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository. Tade tells you when it finishes, with this path, so you read it and decide what follows. Not under .tade/, which goes when the task does.',
+  )
 
   tool(
     'tade_task_create',
@@ -222,6 +228,7 @@ export function orchestratorTools(
         context,
         links,
         done,
+        produces,
       },
       ['project', 'name', 'intent'],
     ),
@@ -233,6 +240,7 @@ export function orchestratorTools(
         ...(p.context ? { context: String(p.context) } : {}),
         ...(Array.isArray(p.links) ? { links: p.links } : {}),
         ...(p.done ? { done: String(p.done) } : {}),
+        ...(p.produces ? { produces: String(p.produces) } : {}),
       }),
   )
 
@@ -279,6 +287,7 @@ export function orchestratorTools(
               said: string('the words of the request this agent covers, word for word'),
               prompt: string('what to tell the agent first'),
               done,
+              produces,
               after: {
                 type: 'array',
                 description:

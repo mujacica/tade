@@ -535,6 +535,34 @@ describe('a plan', () => {
     ])
   })
 
+  it('refuses a document that would go when the task goes, whole rather than half made', () => {
+    const check = checkPlan(
+      {
+        project: 'shop',
+        said: 'look at the refund flow and then fix it',
+        agents: [agent('audit', { produces: '.tade/audit.md' }), agent('fix')],
+      },
+      context,
+    )
+    expect(check.ok).toBe(false)
+    if (check.ok) return
+    expect(check.problems[0]).toContain('audit cannot produce that:')
+    expect(check.problems[0]).toContain('git ignores')
+  })
+
+  it('carries what each agent produces through to the tasks it makes', () => {
+    const check = checkPlan(
+      {
+        project: 'shop',
+        said: 'look at the refund flow',
+        agents: [agent('audit', { produces: 'notes/refund-audit.md' })],
+      },
+      context,
+    )
+    if (!check.ok) throw new Error(check.problems.join('; '))
+    expect(check.order[0]?.produces).toBe('notes/refund-audit.md')
+  })
+
   it('is made in an order where every agent comes after what it waits on', () => {
     const check = checkPlan(
       {

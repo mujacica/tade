@@ -91,6 +91,7 @@ import {
   branchSlug,
   createTask,
   nameTask,
+  producedDetail,
   type RemoveResult,
   readTaskFile,
   removeTask,
@@ -214,6 +215,11 @@ export interface CreateTaskRequest {
   by?: string
   /** How it counts as finished; `said` unless chosen. */
   done?: DoneRule
+  /**
+   * The document it produces rather than a change to the code, at a path in
+   * the repository: what an agent sent to plan, audit or research writes.
+   */
+  produces?: string
   /** When it starts: after other tasks, not before a time. Made now, started by the queue. */
   start?: StartCondition
 }
@@ -999,6 +1005,7 @@ export class Workbench {
       ...(req.links ? { links: req.links } : {}),
       ...(req.by ? { by: req.by } : {}),
       ...(req.done ? { done: req.done } : {}),
+      ...(req.produces ? { produces: req.produces } : {}),
       ...(req.start ? { start: req.start } : {}),
       ...(req.effort ? { effort: req.effort } : {}),
       workspace,
@@ -1016,6 +1023,7 @@ export class Workbench {
         ...(req.effort ? { effort: req.effort } : {}),
         ...(req.by ? { by: req.by } : {}),
         ...(req.done ? { done: req.done } : {}),
+        ...(req.produces ? { produces: req.produces } : {}),
         ...(req.start ? { after: req.start.after.map((dep) => dep.task) } : {}),
         ...(req.start?.at ? { at: req.start.at } : {}),
       },
@@ -1387,8 +1395,20 @@ export class Workbench {
         by: how.by,
         summary: how.summary?.trim() ?? '',
         ...(how.rule ? { rule: how.rule } : {}),
+        // Whatever finished it, the document it produced goes with the line:
+        // an agent saying so itself is only one of five ways a task ends.
+        ...(await producedDetail(this.worktreeOf(task), task)),
       },
     })
+  }
+
+  /**
+   * Where a task's agent works, from the lane it works in — the only record
+   * the workbench itself keeps of a task's directory, and one that outlives
+   * the agent, since a dead lane keeps its spec.
+   */
+  private worktreeOf(task: string): string | undefined {
+    return this.registry.list(task).find((lane) => lane.kind === 'agent')?.spec.cwd
   }
 
   /**
@@ -1625,20 +1645,22 @@ export class Workbench {
   private async taskFile(
     cwd: string,
     task?: string,
-  ): Promise<{ intent: string; chosen: string | null }> {
+  ): Promise<{ intent: string; chosen: string | null; produces: string }> {
     try {
       const file = parseYaml(await readFile(taskFilePath(cwd, task), 'utf8')) as {
         intent_spoken?: unknown
         title?: unknown
         title_named?: unknown
+        produces?: unknown
       } | null
       return {
         intent: typeof file?.intent_spoken === 'string' ? file.intent_spoken : '',
         chosen: file?.title_named === true && typeof file.title === 'string' ? file.title : null,
+        produces: typeof file?.produces === 'string' ? file.produces : '',
       }
     } catch {
       // No task file: an agent opened on a worktree Tade did not make.
-      return { intent: '', chosen: null }
+      return { intent: '', chosen: null, produces: '' }
     }
   }
 
@@ -1677,7 +1699,7 @@ export class Workbench {
   private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
     const configured = this.config.projects[project]
-    const { intent } = await this.taskFile(cwd, task)
+    const { intent, produces } = await this.taskFile(cwd, task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
     const context = taskContextPath(cwd, task)
     const shared = taskFilePath(cwd, task) !== join(cwd, '.tade', 'task.yaml')
@@ -1696,6 +1718,7 @@ export class Workbench {
       ...(agents.instructions ? { instructions: agents.instructions } : {}),
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
       ...(await this.checksTold(project, cwd)),
+      ...(produces ? { produces } : {}),
       canSayDone,
     })
   }

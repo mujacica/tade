@@ -129,6 +129,25 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   looks the same) or from a checkout agent having stopped (status calls that `review`). A branch
   that was squash-merged counts as merged: its commits are nowhere in the base, so when there is no
   ancestry to follow Tade asks whether merging it would still change anything.
+- **A task may say what it produces, and a document is not a change to the code.** An agent sent to
+  plan, audit or research writes one, and a task finishing reached the orchestrator as a single
+  line — the summary its agent wrote — with nothing saying a document existed or where, so a person
+  had to say "the research agent is done, go and read it" every single time. So a task names it
+  (`produces` in its task file, written when the task is made like `done` and `start`), its agent is
+  told where to write it, and the line that says it finished carries the path and whether the file
+  was actually there (`producedDetail`). On `task_done` rather than looked up afterwards, because
+  **the journal is the only thing that remembers**: the task's folder goes when the task does, and a
+  window that was shut when an agent finished still has to open knowing there is something to read
+  — which is what the briefing's own section is for, uncapped like `held`, because a document lost
+  to a per-project cap is the whole bug back again. What happens to it afterwards is answered by
+  where it may be: `producesProblem` refuses anything under `.tade/`, which git ignores and Tade
+  removes with the task, so it is an ordinary file the agent commits and that survives on its
+  branch. What has been done about one is **derived, never remembered** (`producedIn`): work made
+  since it finished that waits on it, and its own agent being started again — the two marks the two
+  useful answers leave — so "nothing has been done about it yet" stops being said the moment
+  something has. There is no research mode and no lifecycle of its own: a task is a task, and this
+  is one optional field on it. And Tade **tells, it never starts**: what to do about an analysis is
+  a judgement, and a rule that queued work off a document would fill the queue with guesses.
 - **Queued work is a task that has not started**, with `start` in its task file: what it waits on
   and why, not before when, and what its agent is told. The window starts it by rule
   (`readyToStart`) on every look at the tasks — never a model deciding again — as far as

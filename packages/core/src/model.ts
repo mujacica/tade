@@ -117,6 +117,19 @@ export const TaskFile = z.object({
   by: z.string().optional(),
   /** How it counts as finished; `said` unless chosen. */
   done: z.enum(DONE_RULES).optional(),
+  /**
+   * What it produces that is not a change to the code: a document at this
+   * path, relative to where its agent works. Named when the task is made, by
+   * whoever asked for the plan, the audit or the analysis — so that when the
+   * task finishes, the path goes with the summary and whoever reads it can
+   * read the document rather than be told one exists.
+   *
+   * A plain string and not refused by the schema: `producesProblem` refuses a
+   * bad one where a task is made and again where the journal records it, and a
+   * hand-edited file with nonsense in this field must not stop the whole task
+   * file parsing.
+   */
+  produces: z.string().optional(),
   /** When it starts, for work asked for now and started later. */
   start: StartCondition.optional(),
 })
@@ -283,6 +296,8 @@ export const Task = z.object({
   by: z.string().optional(),
   /** How it counts as finished, as its task file says. */
   done: z.enum(DONE_RULES).optional(),
+  /** The document it produces rather than a change to the code, as its task file says. */
+  produces: z.string().optional(),
   /** When it starts, when it is queued work. */
   start: StartCondition.optional(),
   created: z.string(),
