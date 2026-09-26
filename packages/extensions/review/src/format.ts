@@ -180,9 +180,17 @@ export function nothingPushedYet(branch: string, branchThere: boolean): string {
   return `nothing pushed yet: ${where}, so CI has had nothing to run. Push it, or fetch if it went up from somewhere else.`
 }
 
-/** The forge would not say who we are: the one trouble a credential fixes. */
-export function credentialRefused(host: string, said: string): string {
-  return `${host} would not say who we are (${said}): run \`gh auth login\`, or set $GITHUB_TOKEN to a token that can read it`
+/**
+ * The credential was refused: the one trouble signing in again fixes.
+ *
+ * The forge's own words are the whole of the first half, because what to do
+ * about it is forge-specific and this file is read whichever forge answered —
+ * GitHub's own 401 says `run \`gh auth login\``, and a sentence here naming `gh`
+ * would say that to somebody on GitLab too. What is added is only what could not
+ * be read as a result, which the forge has no way of knowing.
+ */
+export function credentialRefused(repo: string, said: string): string {
+  return `${said} — so nothing CI said about ${repo} can be read`
 }
 
 /** Asked, and no answer: unreachable, rate limited, or something it did not explain. */

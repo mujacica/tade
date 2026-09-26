@@ -425,6 +425,17 @@ describe('watching CI on the branch', () => {
     expect(looked.said).toBeNull()
   })
 
+  it('says a refused credential as that, and lets the forge say what to do about it', async () => {
+    // Four ways a look can go wrong and they are not one: this is the one that
+    // is fixed by signing in again, and the command for doing that is the
+    // forge's own words rather than this extension's — `gh` is GitHub's.
+    const { repo } = project()
+    const { host } = load({ root: repo.root, refused: true })
+    await expect(look(await host)).rejects.toThrow(
+      /did not accept the credential: run `gh auth login` — so nothing CI said about acme\/api can be read/,
+    )
+  })
+
   it('does not dress a commit the forge has never heard of as a commit nobody pushed', async () => {
     // git says a ref of origin here has it, and the forge says there is no such
     // commit. That is a repository somewhere it should not be — a fork, a

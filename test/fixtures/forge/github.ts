@@ -44,6 +44,12 @@ export interface ReplayOptions {
   signedOut?: boolean
   /** Every answer is a rate limit. */
   limited?: boolean
+  /**
+   * There is a credential and GitHub will not take it: `401`, which is a token
+   * that expired or never had the scope, and is a different thing to do about it
+   * from being rate limited or unreachable.
+   */
+  refused?: boolean
   /** The scopes the token answers with; writes are then refused as GitHub refuses them. */
   scopes?: string
   /** Who the token belongs to. */
@@ -109,6 +115,9 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
         'x-ratelimit-remaining': '0',
         'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 300),
       })
+    }
+    if (options.refused) {
+      return answer({ message: 'Bad credentials' }, 401)
     }
     if (url.endsWith('/user')) {
       return answer(

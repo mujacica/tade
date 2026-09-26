@@ -220,8 +220,9 @@ function trouble(err: unknown, where: Where, here: Standing): CommitCi {
   const host = hostOf(where.remote) ?? where.forge.id
   const said = err instanceof Error ? err.message : String(err)
   if (err instanceof ForgeError) {
-    if (err.trouble === 'auth')
-      return { kind: 'no credential', said: credentialRefused(host, said) }
+    if (err.trouble === 'auth') {
+      return { kind: 'no credential', said: credentialRefused(where.repo, said) }
+    }
     // Pushed, and the forge has never heard of it. Not "not pushed" — git says
     // it is there — so the thing to look at is whether this is the repository
     // that branch goes to at all: a fork, a mirror, a second remote.
