@@ -104,6 +104,38 @@ export function resolveLayout(
   }
 }
 
+/** The margin either side of the line when it is drawn in an empty project's screen. */
+const PROMPT_GUTTER = 3
+
+/**
+ * How wide the orchestrator's line is drawn in an empty project's screen.
+ *
+ * One function, because the editor wraps at the width it is *rendered* at and
+ * the box is drawn at the width this says: rendered at one and drawn at the
+ * other, a message long enough to wrap is cut at the box's edge. So the
+ * drawing asks this of the pane it is in, and the editor asks it of the same
+ * pane through `lineWidth` — never two arithmetics that happen to agree today.
+ */
+export function promptWidth(mainWidth: number): number {
+  return Math.max(MINIMUM.sidebar, mainWidth - PROMPT_GUTTER * 2)
+}
+
+/**
+ * How wide the line you type on is drawn: the window, at the foot where it
+ * lives, or the middle of the pane in a project with no agents in it.
+ *
+ * Where it is drawn is `linePlace`'s to say; this is only the arithmetic, and
+ * it is here rather than in the editor's own subject so the region that draws
+ * the box and the editor that wraps the text inside it are reading one number.
+ */
+export function lineWidth(place: 'strip' | 'splash', prefs: LayoutPrefs, width: number): number {
+  // How tall the window is has nothing to do with how wide its pane is: the
+  // sidebar is a share of the columns and the pane is what is left of them,
+  // so the height handed to `resolveLayout` here can be anything it accepts.
+  const pane = resolveLayout(prefs, { width, height: 0 }).mainWidth
+  return place === 'strip' ? width : promptWidth(pane)
+}
+
 /**
  * Where you were standing in a project: the agent whose pane was in front of
  * you, and the tab in the panel below it.

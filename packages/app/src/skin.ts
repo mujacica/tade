@@ -293,10 +293,58 @@ const GREY = {
 
 /**
  * The amber the big wordmark is shaded with, light at the crown: the corner
- * mark and the setup screen's wordmark are the same brand, so they are the
- * same five steps.
+ * mark, the setup screen's wordmark and the empty project's are the same
+ * brand, so they are the same five steps.
  */
 export const WORDMARK_SHADES = [223, 221, TONE.amber, 208, 166]
+
+/** The wordmark, in half blocks: curves in five rows rather than a wall of them. */
+const WORDMARK_LETTERS: Record<string, string[]> = {
+  T: [
+    '\u2588'.repeat(8),
+    '   \u2588\u2588   ',
+    '   \u2588\u2588   ',
+    '   \u2588\u2588   ',
+    '   \u2588\u2588   ',
+  ],
+  A: [
+    ' \u2584\u2588\u2588\u2588\u2588\u2584 ',
+    '\u2588\u2588\u2580  \u2580\u2588\u2588',
+    '\u2588'.repeat(8),
+    '\u2588\u2588    \u2588\u2588',
+    '\u2588\u2588    \u2588\u2588',
+  ],
+  D: [
+    '\u2588\u2588\u2588\u2588\u2588\u2588\u2584 ',
+    '\u2588\u2588   \u2580\u2588\u2588',
+    '\u2588\u2588    \u2588\u2588',
+    '\u2588\u2588   \u2584\u2588\u2588',
+    '\u2588\u2588\u2588\u2588\u2588\u2588\u2580 ',
+  ],
+  E: [
+    '\u2588'.repeat(8),
+    '\u2588\u2588      ',
+    '\u2588\u2588\u2588\u2588\u2588\u2588  ',
+    '\u2588\u2588      ',
+    '\u2588'.repeat(8),
+  ],
+}
+
+/**
+ * The wordmark drawn large, one string per row.
+ *
+ * One drawing of it, here beside the shades it is painted in and beside
+ * `markLabel`, which is the same four letters spelt out small: a second set of
+ * block letters somewhere else is a second brand, and it is the one that
+ * stops being changed when this one is. The setup screen draws it, and so does
+ * a project with no agents in it.
+ */
+export const WORDMARK: readonly string[] = [0, 1, 2, 3, 4].map((i) =>
+  [...'TADE'].map((letter) => WORDMARK_LETTERS[letter]?.[i] ?? '').join('  '),
+)
+
+/** How wide the wordmark is drawn, so a layout can ask before it asks for it. */
+export const WORDMARK_WIDTH = WORDMARK[0]?.length ?? 0
 
 /**
  * The six levels of the xterm colour cube, and what a number in it is worth.

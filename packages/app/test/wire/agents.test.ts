@@ -195,6 +195,86 @@ describe('the window, starting and ending agents', () => {
   })
 })
 
+describe('closing the last agent in a project', () => {
+  it('leaves you in that project, on its own screen, and never in the next one', async () => {
+    // The bug this is about: the window fell through to the first pane there
+    // was, of any project, so emptying one moved you into another nobody had
+    // asked to be in.
+    const one = mkrepo()
+    one.commit('first')
+    one.addTask('rounding', { project: 'one', intent: 'ledger rounding' })
+    const two = mkrepo()
+    two.commit('first')
+    two.addTask('retries', { project: 'two', intent: 'webhook retries' })
+    const home = tmp('tade-app-')
+    const client = await Workbench.open({ home })
+    const terminal = new FakeTerminal()
+    const speaker = await Speaker.create({
+      soundDir: tmp('tade-app-sound-'),
+      platform: 'darwin',
+      run: async () => {},
+    })
+    const app = await App.start({
+      client,
+      config: ConfigSchema.parse({
+        projects: { one: { root: one.root }, two: { root: two.root } },
+        agents: { workspace: 'worktree' },
+      }),
+      home,
+      cwd: two.root,
+      terminal,
+      speaker,
+      frameMs: 50,
+    })
+    const shown = () => screenOf(terminal.written)
+    // Down the side, never in the pane: the agent's name is in its own header
+    // too, and the × that closes it is only on the row in the list.
+    const at = (text: string, side = false) => {
+      const rows = shown()
+      const row = rows.findIndex((line) => {
+        const col = line.indexOf(text)
+        return col >= 0 && (!side || col < 26)
+      })
+      return row < 0 ? null : { row, col: rows[row]?.indexOf(text) ?? 0 }
+    }
+    try {
+      await until('both projects', () => at('one') !== null && at('two') !== null, 20_000)
+      // Stand in the second project, on its only agent.
+      const tab = at('two') as { row: number; col: number }
+      terminal.press(`\x1b[<0;${tab.col + 1};${tab.row + 1}M`)
+      terminal.press(`\x1b[<0;${tab.col + 1};${tab.row + 1}m`)
+      await until('its agent', () => at('retries', true) !== null, 20_000)
+      // Close it with its ×.
+      const agent = at('retries', true) as { row: number; col: number }
+      terminal.press(`\x1b[<35;${agent.col + 1};${agent.row + 1}M`)
+      await until('its buttons', () => (shown()[agent.row] ?? '').includes('×'), 20_000)
+      const cross = (shown()[agent.row] ?? '').indexOf('×')
+      terminal.press(`\x1b[<0;${cross + 1};${agent.row + 1}M`)
+      terminal.press(`\x1b[<0;${cross + 1};${agent.row + 1}m`)
+      await until(
+        'it to be removed',
+        async () =>
+          (await client.events({ types: ['task_removed'] })).some(
+            (event) => event.task === 'two/retries',
+          ),
+        20_000,
+      )
+      // What is on screen now is the empty project's own screen, in `two`,
+      // and the agent of the project next door is nowhere near it.
+      await until(
+        'the empty screen',
+        () => shown().join('\n').includes('Ask Tade for an agent, or anything'),
+        20_000,
+      )
+      expect(shown().join('\n')).toContain('in two')
+      expect(shown().join('\n')).not.toContain('rounding')
+    } finally {
+      await app.stop().catch(() => {})
+      await client.close().catch(() => {})
+    }
+  }, 60_000)
+})
+
 describe('a project with nothing in it', () => {
   it('starts agents in the checkout together, and in worktree mode names a branch at the first change', async () => {
     const repo = mkrepo()

@@ -5,7 +5,7 @@ import { chart, type Group, History, type Proc, sampleOf } from '@tade/extension
 import { sentryExtension } from '@tade/extension-sentry'
 import type { TadeExtension } from '@tade/extensions-core'
 import { CATALOGUE } from '@tade/mcp-core'
-import { toggleSection } from '../../../src/model.ts'
+import { focusTask, toggleSection } from '../../../src/model.ts'
 import { extensionSetupPanel, extensionViewPanel } from '../../../src/panels/extensions/setup.ts'
 import {
   type ExtensionView,
@@ -659,9 +659,7 @@ export const EXTENSION_SCREENS: Scenario[] = [
     about:
       'The brief, asked for: one paragraph, and what extensions found offered as something to ask.',
     state: {
-      ...base(),
-      focused: null,
-      chose: true,
+      ...focusTask(base(), 'checkout/refunds'),
       transcript: suggest(
         said(
           youSaid(emptyTranscript(), 'brief me', 0),

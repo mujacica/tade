@@ -12,7 +12,13 @@ import {
 import type { LaneId } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 import { type Hit, hitAt } from './hits.ts'
-import { COLOUR as COLOUR_SKIN, PLAIN as PLAIN_SKIN, type Skin, WORDMARK_SHADES } from './skin.ts'
+import {
+  COLOUR as COLOUR_SKIN,
+  PLAIN as PLAIN_SKIN,
+  type Skin,
+  WORDMARK,
+  WORDMARK_SHADES,
+} from './skin.ts'
 import { blank, box, type Drawn, Row, stack } from './ui.ts'
 
 // A screen for the things Tade asks you: setting up, and changing settings.
@@ -171,16 +177,6 @@ export function renderScreen(
   return drawScreen(state, frame).rows
 }
 
-/** The wordmark, in half blocks: curves in five rows rather than a wall of them. */
-const WORDMARK_LETTERS: Record<string, string[]> = {
-  T: ['████████', '   ██   ', '   ██   ', '   ██   ', '   ██   '],
-  A: [' ▄████▄ ', '██▀  ▀██', '████████', '██    ██', '██    ██'],
-  D: ['██████▄ ', '██   ▀██', '██    ██', '██   ▄██', '██████▀ '],
-  E: ['████████', '██      ', '██████  ', '██      ', '████████'],
-}
-export const WORDMARK = [0, 1, 2, 3, 4].map((i) =>
-  [...'TADE'].map((letter) => WORDMARK_LETTERS[letter]?.[i] ?? '').join('  '),
-)
 /** Five steps of the brand colour, light at the top: an amber terminal, warm at the crown. */
 const SHADES = WORDMARK_SHADES
 /** Below this the wordmark is taking room the questions need. */

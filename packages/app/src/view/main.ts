@@ -16,6 +16,7 @@ import type { Skin } from '../skin.ts'
 import { splitShown } from '../split.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { actionRows } from './actions.ts'
+import { renderEmpty } from './empty.ts'
 import {
   blockAt,
   carded,
@@ -53,7 +54,7 @@ export function renderMain(
   if (!pane && schedule) {
     return renderSchedule(state, frame, schedule, width, height, skin, pointer)
   }
-  if (!pane) return renderWelcome(state, frame, width, height, skin, pointer)
+  if (!pane) return renderEmpty(state, frame, width, height, skin, pointer)
   if (pane.queued) {
     return renderQueued(
       state,
@@ -558,44 +559,6 @@ function withApproval(
     skin,
     false,
   )
-}
-
-function renderWelcome(
-  state: AppState,
-  frame: Frame,
-  width: number,
-  height: number,
-  skin: Skin,
-  pointer: Pointer,
-): Drawn {
-  const voice = frame.voice ?? { keys: ['ctrl', 'space'], available: false }
-  const project = state.project
-  const rows = [
-    blank(width),
-    new Row(width, skin)
-      .space(3)
-      .text(project ? `Nothing is running in ${project}.` : 'No projects yet.', skin.you)
-      .build(),
-    blank(width),
-    new Row(width, skin, pointer)
-      .space(3)
-      .button('+ New agent', { kind: 'action', name: 'new-agent' }, project ? 'primary' : 'off')
-      .space()
-      .button(
-        'Open project',
-        { kind: 'action', name: 'open-project' },
-        project ? 'rest' : 'primary',
-      )
-      .build(),
-    blank(width),
-    new Row(width, skin)
-      .space(3)
-      .text('Or hold ', skin.hint)
-      .keys(voice.keys)
-      .text(' and say what you want.', skin.hint)
-      .build(),
-  ]
-  return stack(rows.slice(0, height))
 }
 
 function describeState(pane: AgentPane): string {

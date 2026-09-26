@@ -796,18 +796,38 @@ export function dropAgent(state: AppState): AppState {
  * pane. Before you have chosen anything, the first task is a better opening
  * view than an empty one. The distinction matters because this runs on a
  * timer: without it, tabbing to the orchestrator would last about two seconds.
+ *
+ * And falling back is always *within the project you are standing in*. Where
+ * you are is a place, and closing an agent is not asking to be somewhere else
+ * — but the fallback was the first pane there was, of any project, so closing
+ * the last agent in one moved the window to whatever happened to be open in
+ * the next. An empty project is a perfectly good place to be standing: with
+ * nothing here to fall back to the answer is nothing, which is the same
+ * `null` the orchestrator is, and `withTasks` then keeps the project you were
+ * in. Only the person switches projects.
  */
 function refocus(state: AppState, panes: AgentPane[]): string | null {
+  // Before there is a project there is nothing to be inside, so everything
+  // counts — which is the first look, where the first pane names the project.
+  const here =
+    state.project === null ? panes : panes.filter((pane) => pane.project === state.project)
   if (state.chose) {
-    // A task that has gone cannot keep focus; the orchestrator always can.
-    if (state.focused === null) return null
+    if (state.focused === null) {
+      // Nothing in front of you is what a plan or a schedule you opened looks
+      // like, and what an empty project looks like — and only the second of
+      // those ends. An agent arriving in the project you are standing in is
+      // the thing you were waiting for, so it goes in front of you: asking
+      // the orchestrator for work and being left looking at the empty
+      // project's own screen is the wrong end of the same bug.
+      return state.showingPlan || state.schedule !== null ? null : (here[0]?.task ?? null)
+    }
     return panes.some((pane) => pane.task === state.focused)
       ? state.focused
-      : (panes[0]?.task ?? null)
+      : (here[0]?.task ?? null)
   }
   return state.focused && panes.some((pane) => pane.task === state.focused)
     ? state.focused
-    : (panes[0]?.task ?? null)
+    : (here[0]?.task ?? null)
 }
 
 export function focusTask(state: AppState, task: string): AppState {
@@ -1442,6 +1462,50 @@ export function setListening(state: AppState, listening: boolean): AppState {
 /** An exchange Tade finished, into the conversation. */
 export function addTurn(state: AppState, turn: Turn): AppState {
   return { ...state, transcript: fromTurn(state.transcript, turn) }
+}
+
+/**
+ * Nothing in the project you are standing in: no agent, and nothing queued
+ * that would become one. What its screen shows is the wordmark and a line to
+ * type on (`view/empty.ts`).
+ *
+ * Read of the project rather than of the window, because the window is never
+ * empty — there is always another project with something in it, and that is
+ * exactly what used to be shown to somebody who had just closed their last
+ * agent here.
+ */
+export function emptyProject(state: AppState): boolean {
+  return !state.panes.some((pane) => pane.project === state.project)
+}
+
+/**
+ * Where the orchestrator's line is drawn.
+ *
+ * There is one line and one editor behind it. It lives at the foot, under the
+ * conversation, and every screen with something in the pane keeps it there.
+ * A project with no agents has nothing in the pane, so it draws the line in
+ * the middle of the screen instead, under the wordmark, where somebody with
+ * nothing to look at is looking — and the foot draws none, because two boxes
+ * saying `Ask Tade anything` is the window asking twice.
+ *
+ * Only while the bottom panel is on the orchestrator's own tab: with a
+ * terminal in front, what you type goes to the terminal, and a box drawn
+ * away from where the keystrokes land is a lie about where they land. And
+ * only while the pane really is drawing that screen — a plan or a schedule
+ * you opened is in front of you in a project that has nothing else in it,
+ * and answering `splash` there would take the line off both regions.
+ *
+ * Both regions read this, and so does the editor, which wraps at the width it
+ * is rendered at: three answers to where the line is would be three widths.
+ */
+export function linePlace(state: AppState): 'strip' | 'splash' {
+  const nothingInFront =
+    !state.panes.some((pane) => pane.task === state.focused) &&
+    !state.showingPlan &&
+    state.schedule === null
+  return nothingInFront && emptyProject(state) && activeTerminal(state) === null
+    ? 'splash'
+    : 'strip'
 }
 
 /**

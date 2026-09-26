@@ -87,7 +87,6 @@ export interface LanesDeps {
   /** How big the terminal is: every lane is sized from it. */
   size(): { columns: number; rows: number }
   /** Where the panes and the strip are. */
-  layout(): Parameters<typeof resolveLayout>[0]
   /** Whether a capture comes back coloured. */
   skin: Skin
   /** A lane printed something, or was typed into: look at it sooner than the next beat. */
@@ -756,7 +755,7 @@ export class Lanes implements Subject {
   /** The window as it is laid out now: what every lane in it is sized against. */
   private resolved(): ReturnType<typeof resolveLayout> {
     const { columns, rows } = this.deps.size()
-    return resolveLayout(this.deps.layout(), { width: columns, height: Math.max(6, rows) })
+    return resolveLayout(this.wire.layout(), { width: columns, height: Math.max(6, rows) })
   }
 
   /** The agent's part of the window: the pane, less its title and rule. */

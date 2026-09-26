@@ -60,8 +60,13 @@ export type PointerEvent =
    * Selecting text on the orchestrator's line: pressed at a column of one of
    * its rows, and dragged from there. `extend` is shift held, which takes the
    * selection from where the caret already is instead of starting a new one.
+   *
+   * `cell` is how far along the box the pointer landed, not how far along the
+   * window: the line is drawn at the foot on most screens and in the middle
+   * of the pane on an empty project's (`linePlace`), and the editor counts
+   * columns from its own left edge either way.
    */
-  | { kind: 'select'; line: number; x: number; extend: boolean; drag: boolean }
+  | { kind: 'select'; line: number; cell: number; extend: boolean; drag: boolean }
   /**
    * A drag that was selecting text on that line has been let go: what it
    * covers is copied, as a drag anywhere else on the window is.
@@ -373,7 +378,7 @@ export class Painted implements Component {
             render: this.onPointer({
               kind: 'select',
               line: target.line,
-              x: event.x,
+              cell,
               extend: false,
               drag: true,
             }),
@@ -487,7 +492,7 @@ export class Painted implements Component {
             render: this.onPointer({
               kind: 'select',
               line: target.line,
-              x: event.x,
+              cell,
               extend: event.shift,
               drag: false,
             }),

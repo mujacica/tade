@@ -92,7 +92,6 @@ export interface MouseDeps {
   /** Whether this terminal shows a pointer shape at all. */
   pointerShapes(): boolean
   /** Where the panes and the strip are, for a divider dragged to a cell. */
-  layout(): Parameters<typeof resolveLayout>[0]
   /** Where you left a divider, a fold or an order, written down as you leave it. */
   remember(): void
   /** What an open panel answers a click against, and what that answer changes. */
@@ -112,9 +111,9 @@ export interface MouseDeps {
   /** A lane that answers the wheel itself was turned in, so the window does not. */
   turnedInLane(event: Extract<PointerEvent, { kind: 'wheel' }>): boolean
   /** The orchestrator's line: its caret, what is selected on it, and a click in it. */
-  selectTo(line: number, x: number, extend: boolean, drag: boolean): void
+  selectTo(line: number, cell: number, extend: boolean, drag: boolean): void
   selectedOnLine(): string | null
-  clickedOn(line: number, x: number, clicks: number): void
+  clickedOn(line: number, cell: number, clicks: number): void
   /** How long the file you have open is, and how much of it a screen holds. */
   fileLines(): number
   fileBody(panel: FilePanel): { rows: number; columns: number }
@@ -316,7 +315,7 @@ export class Mouse {
         })
         return true
       case 'select':
-        this.deps.selectTo(event.line, event.x, event.extend, event.drag)
+        this.deps.selectTo(event.line, event.cell, event.extend, event.drag)
         return true
       case 'selected': {
         const selected = this.deps.selectedOnLine()
@@ -573,7 +572,7 @@ export class Mouse {
         // A click in what you have typed puts the caret there, as it does in
         // any text box; a second press takes the word it is in and a third
         // the whole line, which is what every other text box does too.
-        this.deps.clickedOn(target.line, at.x, at.clicks ?? 1)
+        this.deps.clickedOn(target.line, at.cell ?? 0, at.clicks ?? 1)
         break
       }
       case 'file':
@@ -626,7 +625,7 @@ export class Mouse {
   }
   /** A split's divider dragged to a cell: the first half takes up to there. */
   private dragSplit(which: 'split' | 'terminal-split', at: { x: number; y: number }): AppState {
-    const layout = resolveLayout(this.deps.layout(), {
+    const layout = resolveLayout(this.wire.layout(), {
       width: this.deps.size().columns,
       height: Math.max(6, this.deps.size().rows),
     })

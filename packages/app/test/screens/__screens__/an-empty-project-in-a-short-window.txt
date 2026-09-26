@@ -1,0 +1,18 @@
+   T A D E      checkout      +                 ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS           +    █│                   T A D E                   
+                         █│                                             
+   none yet — + starts on█│   ───────────────────────────────────────   
+                         ▕│    Ask Tade for an agent, or anything       
+ ▸ SMART QUEUE      none ▕│   ───────────────────────────────────────   
+ ▾ CHANGES               ▕│                                             
+   open an agent to see  ▕│  + New agent      Open project     in checko
+                         ▕│                                             
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                        
+                                                                       ▕
+                                                                       ▕
+                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools  ▕
+────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute               nothing spent today ▾ 

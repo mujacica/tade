@@ -27,12 +27,14 @@ import {
   withSelection,
 } from '../input.ts'
 import { appKey, normalKey } from '../keys.ts'
+import { lineWidth } from '../layout.ts'
 import {
   activeTerminal,
   focusBy,
   focusNumber,
   keyAction,
   leaveLine,
+  linePlace,
   matchActions,
   notice,
   ORCHESTRATOR_TAB,
@@ -548,9 +550,9 @@ export class Keyboard implements Subject {
    * one where it landed, shift held reaches there from where the caret
    * already was, and every drag after the press takes it further.
    */
-  selectTo(line: number, x: number, extend: boolean, drag: boolean): void {
+  selectTo(line: number, cell: number, extend: boolean, drag: boolean): void {
     const was = this.caretOffset()
-    this.caretAt(line, x)
+    this.caretAt(line, cell)
     if (drag) this.anchor = this.anchor ?? was
     else this.anchor = extend ? (this.anchor ?? was) : this.caretOffset()
   }
@@ -558,17 +560,19 @@ export class Keyboard implements Subject {
   /**
    * The caret at a column of one of the line's rows. The editor works the
    * column out itself, from the same rows it drew: it knows where its own
-   * padding and wrapping are.
+   * padding and wrapping are — so `cell` is from the box's own left edge and
+   * never the window's, which is not the same column once the box is in the
+   * middle of a pane rather than at the foot.
    */
-  private caretAt(line: number, x: number): void {
+  private caretAt(line: number, cell: number): void {
     const size = this.deps.size()
     this.editor.handleMouse({
       type: 'click',
       button: 'left',
-      x,
+      x: cell,
       // Its own rows: the rule it draws above the text, then the lines.
       y: line + 1,
-      screenX: x,
+      screenX: cell,
       screenY: 0,
       width: size.columns,
       height: size.rows,
@@ -692,12 +696,15 @@ export class Keyboard implements Subject {
     return this.input(width)
   }
 
-  input(width: number): Pick<Frame, 'input'> {
+  input(window: number): Pick<Frame, 'input'> {
     // A closed line is not drawn and is not emptied: the editor keeps the
     // text, the caret and what is selected on it, so coming back finds the
     // half-written message exactly where it was left. Syncing a closed line
     // would set it to '', which is the window throwing your words away.
     if (this.wire.state.dictation === null) return {}
+    // It wraps at the width its box is drawn at, which is the window at the
+    // foot and the middle of the pane in a project with no agents.
+    const width = lineWidth(linePlace(this.wire.state), this.wire.layout(), window)
     this.sync()
     this.editor.focused = true
     this.editor.borderColor = this.deps.skin.signal
@@ -738,8 +745,8 @@ export class Keyboard implements Subject {
    * text box; a second press takes the word it is in and a third the whole
    * line, which is what every other text box does too.
    */
-  clickedOn(line: number, x: number, clicks: number): void {
-    this.caretAt(line, x)
+  clickedOn(line: number, cell: number, clicks: number): void {
+    this.caretAt(line, cell)
     const taken = clickedSpan(this.editor.getText(), this.caretOffset(), clicks)
     this.anchor = taken.to > taken.from ? taken.from : null
     if (taken.to > taken.from) this.moveCaretTo(taken.to)

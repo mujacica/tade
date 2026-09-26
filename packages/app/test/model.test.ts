@@ -108,9 +108,43 @@ describe('tasks and focus', () => {
   })
 
   it('moves focus elsewhere only when the task is gone', () => {
+    const focused = focusTask(state(), 'checkout/refunds')
+    const fewer = withTasks(focused, [tasks[0] as TaskSnapshot, tasks[2] as TaskSnapshot])
+    expect(fewer.focused).toBe('checkout/stripe-v15')
+  })
+
+  it('stays in the project when its last agent closes, rather than moving you', () => {
+    // Where you are is a place, and an empty project is a perfectly good one
+    // to be standing in: closing the last agent here used to fall through to
+    // the first pane there was, which put the window in another project
+    // nobody had asked for.
     const focused = focusTask(state(), 'search/pagination')
     const fewer = withTasks(focused, tasks.slice(0, 2))
-    expect(fewer.focused).toBe('checkout/stripe-v15')
+    expect(fewer.focused).toBe(null)
+    expect(fewer.project).toBe('search')
+  })
+
+  it('falls back within the project when one of several closes', () => {
+    const focused = focusTask(state(), 'checkout/refunds')
+    const fewer = withTasks(focused, [tasks[0] as TaskSnapshot, tasks[2] as TaskSnapshot])
+    expect(fewer.project).toBe('checkout')
+  })
+
+  it('puts an agent arriving in the empty project you are standing in in front of you', () => {
+    // The other end of the same rule: you asked the orchestrator for work
+    // from the empty project's own screen, so being left looking at that
+    // screen once the work started is exactly what you did not ask for.
+    const empty = withTasks(focusTask(state(), 'search/pagination'), tasks.slice(0, 2))
+    expect(empty.focused).toBe(null)
+    const started = withTasks(empty, [...tasks.slice(0, 2), tasks[2] as TaskSnapshot])
+    expect(started.focused).toBe('search/pagination')
+    expect(started.project).toBe('search')
+  })
+
+  it('leaves a plan or a schedule you opened in front of you', () => {
+    const plan = withTasks(showPlan(state()), tasks)
+    expect(plan.focused).toBe(null)
+    expect(plan.showingPlan).toBe(true)
   })
 
   it('cycles through panes and the orchestrator, wrapping', () => {

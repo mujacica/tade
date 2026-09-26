@@ -174,6 +174,7 @@ export class App {
         return app.live
       },
       now: () => app.now(),
+      layout: () => app.window.layout(),
       openedAt: opts.now?.() ?? Date.now(),
       draw: () => app.draw(),
       note: (err) => {
@@ -286,7 +287,6 @@ export class App {
     })
     this.lanes = new Lanes(this.wire, {
       size: () => this.room(),
-      layout: () => this.window.layout(),
       skin: this.skin,
       soonTick: () => this.soonTick(),
       say: (said) => this.orchestrator.say(said),
@@ -358,7 +358,6 @@ export class App {
       size: () => this.room(),
       write: (data) => this.terminal.write(data),
       pointerShapes: () => this.pointerShapes,
-      layout: () => this.window.layout(),
       remember: () => this.window.remember(),
       panelInputs: () => this.router.panelInputs(),
       applyPanel: (outcome) => this.router.applyPanel(outcome),

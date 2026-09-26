@@ -4,6 +4,7 @@ import {
   initialState,
   setDictation,
   setListening,
+  type TaskSnapshot,
   toggleSection,
   withProjects,
   withTasks,
@@ -20,6 +21,36 @@ import {
   youSaid,
 } from '../../../src/transcript.ts'
 import { agentScreen, base, frame, NOW, type Scenario, tasks, utcDate } from './fixtures.ts'
+
+/**
+ * Standing on an agent whose screen is quiet, which is where you are whenever
+ * you are reading the conversation: focus is never nowhere in a project that
+ * has agents in it (`refocus`), so a scenario that put it nowhere to keep the
+ * pane out of the way was drawing a window nobody can be in.
+ */
+const quietPane = () => focusTask(base(), 'checkout/refunds')
+
+/** A project with nothing started in it: its own checkout, its files, no spend. */
+const emptyProjectFrame = frame({
+  screen: '',
+  changes: [],
+  notes: [],
+  base: null,
+  where: {
+    repo: '~/src/checkout',
+    branch: 'main',
+    base: null,
+    worktree: null,
+    path: '/Users/me/src/checkout',
+  },
+  files: [
+    { path: 'src', name: 'src', depth: 0, folder: true, open: false },
+    { path: 'test', name: 'test', depth: 0, folder: true, open: false },
+    { path: 'package.json', name: 'package.json', depth: 0, folder: false, open: false },
+    { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },
+  ],
+  spend: { tokens: 0, usd: 0, hasCost: false, byTask: {} },
+})
 
 // The window itself: the side, the middle, the terminals along the bottom,
 // and the line you talk to Tade on.
@@ -290,10 +321,7 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'typing-to-tade',
     about: 'The orchestrator line, open and being typed into.',
-    state: setDictation(
-      { ...base(), focused: null, chose: true },
-      'what is going on with checkout',
-    ),
+    state: setDictation(quietPane(), 'what is going on with checkout'),
     frame: frame({ screen: '' }),
   },
   {
@@ -301,9 +329,7 @@ export const WINDOW_SCREENS: Scenario[] = [
     about:
       'The conversation as it happens: what you said, each tool as it runs or fails with its reason, the answer arriving.',
     state: {
-      ...base(),
-      focused: null,
-      chose: true,
+      ...quietPane(),
       sizes: { stripHeight: 16 },
       transcript: [
         (t: Transcript) => youSaid(t, 'run the webhook tests and tell me what broke', 0),
@@ -355,9 +381,7 @@ export const WINDOW_SCREENS: Scenario[] = [
     name: 'orchestrator-did-not-start',
     about: 'The orchestrator failing to start, said where you would wait for it, with the reason.',
     state: {
-      ...base(),
-      focused: null,
-      chose: true,
+      ...quietPane(),
       transcript: problem(
         youSaid(emptyTranscript(), 'where are we', 0),
         'The orchestrator did not start: claude-opus-5 is not offered by anything you are signed in to (openrouter): pick one in Settings',
@@ -393,10 +417,7 @@ export const WINDOW_SCREENS: Scenario[] = [
     name: 'a-screenshot-attached',
     about: 'A picture waiting to go to the orchestrator with what you type next.',
     state: {
-      ...setDictation(
-        { ...base(), focused: null, chose: true },
-        'why does the refund button look like this',
-      ),
+      ...setDictation(quietPane(), 'why does the refund button look like this'),
       attached: ['/var/folders/T/tade-clipboard-1.png'],
     },
     frame: frame({ screen: '' }),
@@ -493,28 +514,53 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'first-open',
     about:
-      'A project and nothing running yet: its repository and files, and what to do next, as buttons.',
+      'A project and nothing running yet: the wordmark, the one line there is to type on, and what to do next as buttons.',
     state: withProjects(initialState(), ['checkout']),
-    frame: frame({
-      screen: '',
-      changes: [],
-      notes: [],
-      base: null,
-      where: {
-        repo: '~/src/checkout',
-        branch: 'main',
-        base: null,
-        worktree: null,
-        path: '/Users/me/src/checkout',
+    frame: emptyProjectFrame,
+  },
+  {
+    name: 'an-emptied-project',
+    about:
+      'The last agent here was closed, and the window stayed: the same screen a project that has never had one shows, because an empty project is one state and not two.',
+    // Closed through the door that closes them — `withTasks` without it —
+    // rather than by writing the state out, so what a golden holds is what
+    // closing the last agent actually leaves behind.
+    state: withTasks(
+      focusTask(
+        withTasks(withProjects(initialState(), ['checkout']), [tasks[1] as TaskSnapshot]),
+        'checkout/refunds',
+      ),
+      [],
+    ),
+    frame: emptyProjectFrame,
+  },
+  {
+    name: 'an-empty-project-being-typed-into',
+    about:
+      'Asking for work from the empty screen: the one line there is, drawn where you are looking rather than at the foot.',
+    state: setDictation(
+      withProjects(initialState(), ['checkout']),
+      'find out why the refund webhook retries twice',
+    ),
+    frame: {
+      ...emptyProjectFrame,
+      input: {
+        lines: ['', ' find out why the refund webhook retries twice', ''],
       },
-      files: [
-        { path: 'src', name: 'src', depth: 0, folder: true, open: false },
-        { path: 'test', name: 'test', depth: 0, folder: true, open: false },
-        { path: 'package.json', name: 'package.json', depth: 0, folder: false, open: false },
-        { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },
-      ],
-      spend: { tokens: 0, usd: 0, hasCost: false, byTask: {} },
-    }),
+    },
+  },
+  {
+    name: 'an-empty-project-in-a-short-window',
+    about:
+      'The same screen with no room: the wordmark gives ground to the mark the project tabs sit beside, and the line it is there for never does.',
+    state: withProjects(initialState(), ['checkout']),
+    frame: { ...emptyProjectFrame, width: 72, height: 18 },
+  },
+  {
+    name: 'an-empty-project-in-a-narrow-window',
+    about: 'And with no columns: the block letters go before anything you could press does.',
+    state: withProjects(initialState(), ['checkout']),
+    frame: { ...emptyProjectFrame, width: 64, height: 30 },
   },
   {
     name: 'pointing-at-a-link',

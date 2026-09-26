@@ -11,6 +11,7 @@ import type { Workbench } from '@tade/workbench'
 import type { Open } from '../editor.ts'
 import type { Frame } from '../frame.ts'
 import type { clipboardImage, clipboardState } from '../images.ts'
+import type { LayoutPrefs } from '../layout.ts'
 import type { Live } from '../live.ts'
 import { type AppState, notice } from '../model.ts'
 import type { McpServerShown } from '../panels/extensions/state.ts'
@@ -225,6 +226,17 @@ export interface Wiring {
    * the window that cannot change while the window is open.
    */
   readonly openedAt: number
+  /**
+   * How the window is divided right now: the config's sizes, then the ones
+   * dragged to, then how the bottom is shown.
+   *
+   * Here rather than in each subject's own `Deps` because it is derived from
+   * what this object already carries — the options and the state — and three
+   * subjects need it: what a lane is resized to, where a divider was dragged
+   * to, and how wide the line you type on is drawn. Three callbacks to one
+   * pure derivation is three chances for them to be handed different ones.
+   */
+  layout(): LayoutPrefs
   /** Ask for a frame. */
   draw(): void
   /**

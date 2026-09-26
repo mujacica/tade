@@ -1,0 +1,30 @@
+   T A D E      checkout      +         ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS           +    █│                                     
+                         █│                                     
+   none yet — + starts on█│                                     
+                         █│               T A D E               
+ ▸ SMART QUEUE      none █│                                     
+ ▾ CHANGES               █│           said, and done.           
+   open an agent to see  █│                                     
+                         █│   ───────────────────────────────   
+ ▾ FILES                 █│    Ask Tade for an agent, or anyt   
+   ▸ src/                █│   ───────────────────────────────   
+   ▸ test/               █│                                     
+     package.json        █│  + New agent      Open project     i
+     README.md           █│                                     
+                         █│                                     
+ ▸ NOTES            +    ▕│                                     
+ ▾ GIT                   ▕│                                     
+   repo     …/checkout   ▕│                                     
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                
+                                                               ▕
+                                                               ▕
+                                                               ▕
+                                                               ▕
+                                                               ▕
+                                                               ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its▕
+────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute       nothing spent today ▾ 
