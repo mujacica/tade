@@ -6,12 +6,24 @@ import {
   initialState,
   toggleCheck,
   toggleDone,
+  toggleSection,
   viewActions,
   withProjects,
   withTasks,
 } from '../../../src/model.ts'
 import { splitPane } from '../../../src/split.ts'
-import { actions, base, check, finished, frame, green, running, type Scenario } from './fixtures.ts'
+import { NOT_HERE } from '../../../src/view/actions.ts'
+import {
+  actions,
+  base,
+  check,
+  finished,
+  frame,
+  green,
+  NOW,
+  running,
+  type Scenario,
+} from './fixtures.ts'
 
 // An agent, its screen, and what it has actually done.
 //
@@ -36,6 +48,56 @@ function nothingYet(): ActionsView {
     ],
     rollup: 'unknown',
     running: null,
+  }
+}
+
+/**
+ * A project whose CI is mostly things this machine is not: two steps that run
+ * here, three that do not, and two the reading could not place as checks at all.
+ *
+ * What runs here is the whole of the top of the page; the rest is one fold with
+ * a count on it, and the reason for each row is inside it rather than printed at
+ * anybody. One of them is a person's own answer rather than the reading's.
+ */
+function ciCannotRunHere(): ActionsView {
+  return {
+    ...green(),
+    checks: [
+      check('format', {
+        run: 'pnpm exec biome ci .',
+        state: 'passed',
+        seconds: 2.4,
+        at: NOW - 6 * 60_000,
+        counts: [{ label: 'files checked', count: 493, tone: 'quiet' }],
+      }),
+      check('types', {
+        run: 'pnpm exec tsc --noEmit',
+        state: 'passed',
+        seconds: 31,
+        at: NOW - 60_000,
+      }),
+      check('integration', {
+        run: 'pnpm vitest run test/integration',
+        skip: 'its job needs service containers, which only CI has',
+        required: false,
+      }),
+      check('e2e', {
+        run: 'pnpm playwright test',
+        skip: 'it uses something only the runner knows',
+        required: false,
+      }),
+      check('coverage', {
+        run: 'pnpm coverage',
+        skip: 'you turned it off here',
+        chosen: false,
+        required: false,
+      }),
+    ],
+    unread: [
+      'release › publish is the action actions/setup-node@v4, which only the runner can run',
+      'release › npm publish ships something rather than checking it',
+    ],
+    source: 'read from .github/workflows/ci.yml',
   }
 }
 
@@ -154,7 +216,7 @@ export const AGENT_SCREENS: Scenario[] = [
   {
     name: 'checks-read-from-ci',
     about:
-      'What this project checks is read out of the workflow that runs on every change — nothing of Tade\u2019s is in the repository, and nothing had to be adopted. The last row is the honest half: a step CI runs and this machine cannot keeps its place, says so, and is left out of what a local run adds up to, because a rollup is what ran here.',
+      'What this project checks is read out of the workflow that runs on every change — nothing of Tade\u2019s is in the repository, and nothing had to be adopted. Two of the three run here and are the page; the third is a step CI runs and this machine cannot, which keeps its place behind the fold rather than a sentence on it, and is out of what a local run adds up to because a rollup is what ran here.',
     state: viewActions(base(), 'checkout/stripe-v15'),
     frame: frame({
       actions: {
@@ -171,6 +233,13 @@ export const AGENT_SCREENS: Scenario[] = [
         source: 'read from .github/workflows/ci.yml',
       },
     }),
+  },
+  {
+    name: 'checks-ci-cannot-run-here',
+    about:
+      'A project whose CI is mostly things this machine is not. What Tade runs here is the page; everything else is one fold, opened here, where each row says in a few words why it is not run — a job that needs service containers, a step that interpolates a secret, and one somebody turned off, which is the other reason and is a person’s. `run here` on any of them moves it across, and what it writes is one key in Tade’s own config under the project: nothing is ever put in the repository. The last two rows are steps the reading could not call checks at all, named because Tade checking less than CI does is only safe while it says so.',
+    state: toggleSection(viewActions(base(), 'checkout/stripe-v15'), NOT_HERE, true),
+    frame: frame({ actions: ciCannotRunHere() }),
   },
   {
     name: 'every-kind-of-agent',

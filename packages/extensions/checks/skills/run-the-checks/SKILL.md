@@ -27,10 +27,12 @@ description: How to run a project's own checks through Tade before committing or
    message rather than working around it.
 6. **Run only what you need while you iterate** (`checks_run` with `only`), and run all of them
    before you finish: a check you skipped is the one CI will run.
-7. **A check that says `cannot run here` is CI's, not yours.** A step needing a secret, a service
-   container or something only the runner knows keeps its row and says why, and it is left out of
-   what the local run adds up to. Do not try to make one pass; do not read its absence as green
-   either — the clause under every check (*on this machine, not CI's matrix*) is the rest of it.
+7. **A check that `does not run here` is not yours to make pass.** It keeps its row and says why in
+   a few words, and it is left out of what the local run adds up to. Two reasons, and neither is a
+   thing to work around: the reading found that nothing here can run it — a secret, a service
+   container, something only the runner knows — or somebody turned it off on this machine, which is
+   their decision and not an invitation to turn it back on. Do not read its absence as green either:
+   the clause beside the rollup (*on this machine, not CI's matrix*) is the rest of it.
 8. **Where a project says nothing at all, Tade will not invent a gate.** `checks_list` says so, and
    then working out what checking that project means is yours: run its tests, its type checker, its
    linter, and say in your last message what you ran and what it said. Nothing recorded a run, so

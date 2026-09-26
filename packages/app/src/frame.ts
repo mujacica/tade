@@ -102,8 +102,18 @@ export interface CheckView {
   state: string
   /** Merging waits on it. */
   required: boolean
-  /** Why it cannot be run here at all: `needs CI`. */
+  /**
+   * Why it does not run here, in a few words: what the reading found, or that
+   * somebody turned it off. Null is a check Tade runs on this machine, which
+   * is the whole of how the page tells its two categories apart.
+   */
   skip: string | null
+  /**
+   * What somebody said about running it here, over what the reading says —
+   * `checks.run_here`. Null where nobody has said anything, which is what the
+   * control on the row toggles between.
+   */
+  chosen: boolean | null
   /** Checks that must have passed first. */
   needs: readonly string[]
   /** One line, as the command said it last. Never invented. */
@@ -169,6 +179,14 @@ export interface ActionsView {
   rollup: 'pass' | 'fail' | 'unknown'
   /** Where the checks were read from, or what to do when there are none. */
   source: string
+  /**
+   * What the reading could not place as a check at all: somebody's action, an
+   * install, a job that deploys. Drawn beside the checks that do not run here,
+   * because that is what they are — and said rather than dropped, since a list
+   * that quietly holds less than CI does is how a tick here comes to be read
+   * as a tick there.
+   */
+  unread: readonly string[]
   /** A run going on in this worktree now, whoever started it. */
   running: { since: number; by: string; done: number; total: number } | null
   /** What this cannot say: no forge, no network, what a local run does not prove. */

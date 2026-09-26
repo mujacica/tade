@@ -8,15 +8,15 @@
    ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ───────────────────────────────────────────────────────  none yet 
      working                 █│  ◌ Nothing uncommitted.                                                                 
                              █│                                                                                         
- ▸ SMART QUEUE          none █│  CHECKS ──────────────────────────────────────────  no commit to check yet    Run all   
- ▾ CHANGES  3        vs main █│  ◦ format   not run          nobody has run it                                          
-  M package.json       +2 −1 █│      pnpm exec biome ci .                                                               
-  A …/webhooks.test.ts   +48 █│  ◦ types    not run          nobody has run it                                          
-  M src/webhooks.ts   +12 −4 █│      pnpm exec tsc --noEmit                                                             
-                             ▕│  ◦ tests    not run          nobody has run it                                          
- ▾ FILES                     ▕│      pnpm vitest run  (after types)                                                     
+ ▸ SMART QUEUE          none █│  CHECKS ──  ◦◦◦  no commit to check yet · on this machine, not CI’s matrix    Run all   
+ ▾ CHANGES  3        vs main █│  ◦ format              never run                                                      ▾ 
+  M package.json       +2 −1 █│  ◦ types               never run                                                      ▾ 
+  A …/webhooks.test.ts   +48 █│  ◦ tests               never run                                                      ▾ 
+  M src/webhooks.ts   +12 −4 █│                                                                                         
+                             ▕│                                                                                         
+ ▾ FILES                     ▕│                                                                                         
    ▾ src/                    ▕│                                                                                         
-       webhooks.test.ts      ▕│  on this machine, not CI’s matrix                                                       
+       webhooks.test.ts      ▕│                                                                                         
        webhooks.ts           ▕│                                                                                         
    ▸ test/                   ▕│                                                                                         
      package.json            ▕│                                                                                         

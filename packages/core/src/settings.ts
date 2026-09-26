@@ -590,6 +590,21 @@ export function settingsOf(
           live: true,
           keywords: [name, 'checks', 'parallel'],
         },
+        // One row per check somebody has answered about on the ACTIONS page —
+        // and only those, because a check id is only knowable by reading the
+        // repository and this function reads nothing. So this is where an
+        // override is seen, searched for and undone; making a new one is the
+        // page's, where the checks actually are.
+        ...Object.entries(project.checks?.run_here ?? {}).map(([id, runs]) => ({
+          path: `projects.${name}.checks.run_here.${id}`,
+          title: `${name} — run ${id} here`,
+          means: `whether Tade runs ${name}'s ${id} check on this machine, over what its own CI and commit hook say`,
+          value: String(runs),
+          fallback: 'what the project says',
+          type: { kind: 'flag' } as const,
+          live: true,
+          keywords: [name, 'checks', id, 'here', 'run'],
+        })),
       ]),
     },
     {

@@ -51,12 +51,24 @@ export async function readTests(worktree: string, head: string | null): Promise<
 export async function verifiedAt(
   worktree: string,
   head: string | null,
-  project?: { name: string; root: string; test?: string | undefined },
+  project?: {
+    name: string
+    root: string
+    test?: string | undefined
+    /**
+     * What somebody said about running each check here (`checks.run_here`).
+     * Read here for the same reason the page reads it: a check Tade does not
+     * run on this machine is out of what a run here adds up to, and a required
+     * one left in would hold every commit at `unknown` for good.
+     */
+    chosen?: Readonly<Record<string, boolean>> | undefined
+  },
 ): Promise<TestSignal> {
   const manifest = await readChecks({
     name: project?.name ?? 'project',
     root: worktree,
     ...(project?.test ? { test: project.test } : {}),
+    ...(project?.chosen ? { chosen: project.chosen } : {}),
   })
   if (manifest.checks.length === 0) return readTests(worktree, head)
   // Runs recorded under a step's earlier name still speak for it, as long as

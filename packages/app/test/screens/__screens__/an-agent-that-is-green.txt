@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
- ▌ ! stripe-v15   880k tok   █│                                                                                        █
- ▌   wants you to approve…   █│  tade/stripe-v15                                                      3 ahead of main  █
-                             █│                                                                                        █
-   ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ────────────────────────────────────────────────────  3 +203 −75 █
-     working                 █│  ● a1b2c3d move to the stripe v15 payment intents API        6 files +148 −62  12m ago █
-                             █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
- ▸ SMART QUEUE          none █│  ● 3ab77c1 name the webhook ids the way the docs do             3 files +31 −9  3m ago █
- ▾ CHANGES  3        vs main █│  ◌ Nothing uncommitted.                                                                █
-  M package.json       +2 −1 █│                                                                                        █
-  A …/webhooks.test.ts   +48 █│  CHECKS ───────────────────────────────────────────────  green at a1b2c3d    Run all   █
-  M src/webhooks.ts   +12 −4 █│  ✓ format   passed     2.4s  4m ago                                 493 files checked  █
-                             ▕│      pnpm exec biome ci .                                                              █
- ▾ FILES                     ▕│  ✓ types    passed     6.1s  4m ago                                                    █
-   ▾ src/                    ▕│      pnpm exec tsc --noEmit                                                            █
-       webhooks.test.ts      ▕│      ran at 9f0e1d2                                                                    █
-       webhooks.ts           ▕│  ✓ tests    passed   2m 28s  2m ago                           2559 passed · 3 skipped  █
-   ▸ test/                   ▕│      pnpm vitest run  (after types)                                                    ▕
-     package.json            ▕│                                                                                        ▕
-     README.md               ▕│  ALSO ON THIS BRANCH ────────────────────────────────────────────  2, not this agent’s ▕
+ ▌ ! stripe-v15   880k tok   █│                                                                                         
+ ▌   wants you to approve…   █│  tade/stripe-v15                                                       3 ahead of main  
+                             █│                                                                                         
+   ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ─────────────────────────────────────────────────────  3 +203 −75 
+     working                 █│  ● a1b2c3d move to the stripe v15 payment intents API         6 files +148 −62  12m ago 
+                             █│  ● 9f0e1d2 keep the old webhook shape working for a release      2 files +24 −4  1h ago 
+ ▸ SMART QUEUE          none █│  ● 3ab77c1 name the webhook ids the way the docs do              3 files +31 −9  3m ago 
+ ▾ CHANGES  3        vs main █│  ◌ Nothing uncommitted.                                                                 
+  M package.json       +2 −1 █│                                                                                         
+  A …/webhooks.test.ts   +48 █│  CHECKS ────────  ✓✓✓  green at a1b2c3d · on this machine, not CI’s matrix    Run all   
+  M src/webhooks.ts   +12 −4 █│  ✓ format    ▁   2.4s  4m ago                                      493 files checked  ▾ 
+                             ▕│  ✓ types     ▁   6.1s  ran at 9f0e1d2                                                 ▾ 
+ ▾ FILES                     ▕│  ✓ tests     █ 2m 28s  2m ago                                2559 passed · 3 skipped  ▾ 
+   ▾ src/                    ▕│                                                                                         
+       webhooks.test.ts      ▕│  ALSO ON THIS BRANCH ─────────────────────────────────────────────  2, not this agent’s 
+       webhooks.ts           ▕│  · 77c4ab0 a test for the refund path              checkout/refunds  1 file +31  2h ago 
+   ▸ test/                   ▕│  · 5510ee7 bump the sdk                                           2 files +8 −8  5h ago 
+     package.json            ▕│                                                                                         
+     README.md               ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

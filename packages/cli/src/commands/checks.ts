@@ -32,6 +32,8 @@ interface Where {
   project: string
   root: string
   test: string | undefined
+  /** What somebody said about running each check here, from Tade's own config. */
+  chosen: Readonly<Record<string, boolean>>
 }
 
 export function registerChecks(program: Command, io: Io, setExit: (code: number) => void): void {
@@ -52,6 +54,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
         name: where.project,
         root: where.root,
         test: where.test,
+        chosen: where.chosen,
       })
       const head = await headOf(where.root)
       const plan = planFor(read.checks)
@@ -182,6 +185,7 @@ async function locate(
       project: found[0],
       root: expandHome(found[1].root),
       test: found[1].test_command,
+      chosen: checksFor(loaded.config, found[0]).run_here,
     }
   }
   const here = process.cwd()
@@ -191,6 +195,7 @@ async function locate(
       project: inside[0],
       root: expandHome(inside[1].root),
       test: inside[1].test_command,
+      chosen: checksFor(loaded.config, inside[0]).run_here,
     }
   }
   const only = projects.length === 1 ? projects[0] : undefined
@@ -199,6 +204,7 @@ async function locate(
       project: only[0],
       root: expandHome(only[1].root),
       test: only[1].test_command,
+      chosen: checksFor(loaded.config, only[0]).run_here,
     }
   }
   // Not in a configured project: the directory you are in is what you meant.
@@ -213,6 +219,7 @@ async function locate(
     project: path.split('/').at(-1) ?? 'project',
     root: path,
     test: undefined,
+    chosen: {},
   }
 }
 

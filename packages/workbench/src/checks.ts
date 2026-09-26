@@ -74,6 +74,7 @@ export async function checksAt(opts: {
     name: opts.project,
     root: opts.worktree,
     test: opts.config.projects[opts.project]?.test_command,
+    chosen: rule.run_here,
   })
   const plan = planFor(read.checks, {
     ...(opts.changed ? { changed: opts.changed } : {}),
@@ -119,6 +120,7 @@ export async function runProjectChecks(opts: {
     name: opts.project,
     root: opts.worktree,
     test: opts.config.projects[opts.project]?.test_command,
+    chosen: rule.run_here,
   })
   const only = opts.only?.length ? opts.only : rule.only
   const plan = planFor(read.checks, {

@@ -116,7 +116,9 @@ export const checksExtension: TadeExtension = {
           lines.push(
             run
               ? `${checkLine(run)}${carriedNote(run, stood.carried.has(run.id))}`
-              : `- ◦ \`${check.id}\` has not run at this commit${check.skip ? ` (${check.skip})` : ''}${check.from ? ` — ${check.from}` : ''}`,
+              : check.skip
+                ? `- – \`${check.id}\` does not run here: ${check.skip}${check.from ? ` — ${check.from}` : ''}`
+                : `- ◦ \`${check.id}\` has not run at this commit${check.from ? ` — ${check.from}` : ''}`,
           )
         }
         // What CI does and Tade cannot is said every time rather than once: a

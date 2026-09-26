@@ -17,6 +17,7 @@ import {
   type TaskSnapshot,
   toggleCheck,
   toggleDone,
+  toggleSection,
   viewActions,
   withProjects,
   withTasks,
@@ -25,6 +26,7 @@ import {
 } from '../src/model.ts'
 import { COLOUR } from '../src/skin.ts'
 import { youSaid } from '../src/transcript.ts'
+import { NOT_HERE } from '../src/view/actions.ts'
 import { wrapPath } from '../src/view/text.ts'
 import { BUTTONS, draw, renderApp } from '../src/view.ts'
 
@@ -327,6 +329,7 @@ describe('the ACTIONS tab', () => {
     state: 'not run',
     required: true,
     skip: null,
+    chosen: null,
     needs: [],
     summary: null,
     seconds: null,
@@ -354,6 +357,7 @@ describe('the ACTIONS tab', () => {
     review: null,
     checks: [aCheck()],
     rollup: 'unknown',
+    unread: [],
     source: 'read from .github/workflows/ci.yml',
     running: null,
     notes: [],
@@ -364,6 +368,16 @@ describe('the ACTIONS tab', () => {
       ...frame(size),
       actions: view,
     }).join('\n')
+  /** The same page with its `tests` check opened: what it ran, and what it printed. */
+  const opened = (view: ActionsView, size: { width?: number; height?: number } = {}) =>
+    renderApp(
+      toggleCheck(
+        viewActions(focusTask(state(), 'checkout/refunds'), 'checkout/refunds'),
+        'checkout/refunds',
+        'tests',
+      ),
+      { ...frame(size), actions: view },
+    ).join('\n')
 
   it('keeps this agent’s commits apart from everybody else’s', () => {
     const text = page(
@@ -390,29 +404,32 @@ describe('the ACTIONS tab', () => {
     expect(text).not.toContain('green')
   })
 
-  it('says what ran, how long it took and what it counted', () => {
-    const text = page(
-      actions({
-        rollup: 'fail',
-        checks: [
-          aCheck({
-            state: 'failed',
-            seconds: 64,
-            at: 0,
-            counts: [
-              { label: 'failed', count: 4, tone: 'bad' },
-              { label: 'passed', count: 20, tone: 'good' },
-            ],
-            places: [{ path: 'test/view.test.ts', at: '37:5', note: 'a name' }],
-          }),
-        ],
-      }),
-      { width: 140, height: 30 },
-    )
-    expect(text).toContain('pnpm vitest run')
+  it('says how long it took and what it counted, and keeps the command for when it is asked for', () => {
+    const view = actions({
+      rollup: 'fail',
+      checks: [
+        aCheck({
+          state: 'failed',
+          seconds: 64,
+          at: 0,
+          counts: [
+            { label: 'failed', count: 4, tone: 'bad' },
+            { label: 'passed', count: 20, tone: 'good' },
+          ],
+          places: [{ path: 'test/view.test.ts', at: '37:5', note: 'a name' }],
+        }),
+      ],
+    })
+    const text = page(view, { width: 140, height: 30 })
     expect(text).toContain('1m 04s')
     expect(text).toContain('4 failed')
+    // What failed is what the page is opened for, so a red check keeps the
+    // first file it named without being asked.
     expect(text).toContain('test/view.test.ts:37:5')
+    // The command is a row every check would spend, and nobody reads it until
+    // they are asking what actually ran.
+    expect(text).not.toContain('pnpm vitest run')
+    expect(opened(view, { width: 140, height: 30 })).toContain('pnpm vitest run')
   })
 
   it('shows a run as it goes, and what it printed when a check is opened', () => {
@@ -422,7 +439,7 @@ describe('the ACTIONS tab', () => {
         checks: [aCheck({ state: 'running', startedAt: 0 })],
       }),
     )
-    expect(going).toContain('running')
+    expect(going).toContain('going now')
     expect(going).toContain('1 of 3')
 
     const view = actions({
@@ -433,15 +450,63 @@ describe('the ACTIONS tab', () => {
       { ...frame({ width: 140, height: 40 }), actions: view },
     ).join('\n')
     expect(shut).not.toContain('the last thing it printed')
-    const open = renderApp(
-      toggleCheck(
-        viewActions(focusTask(state(), 'checkout/refunds'), 'checkout/refunds'),
-        'checkout/refunds',
-        'tests',
-      ),
-      { ...frame({ width: 140, height: 40 }), actions: view },
-    ).join('\n')
+    const open = opened(view, { width: 140, height: 40 })
     expect(open).toContain('the last thing it printed')
+  })
+
+  // Two categories, and what Tade does not run here is folded away: every row
+  // of it carried a sentence about why, and together they were a wall.
+  it('folds away what it does not run here, with the reason a click from being read', () => {
+    const view = actions({
+      checks: [
+        aCheck({ id: 'format', state: 'passed', seconds: 2, at: 0 }),
+        aCheck({ id: 'integration', skip: 'its job needs service containers' }),
+      ],
+      unread: ['release › publish is the action actions/setup-node, which only the runner can run'],
+    })
+    const shut = page(view, { width: 140, height: 30 })
+    expect(shut).toContain('NOT RUN HERE')
+    // Two in it: the check nothing here can run, and the step that is not a
+    // check at all — named, because Tade checking less than CI does is only
+    // safe while it says so.
+    expect(shut).not.toContain('service containers')
+    expect(shut).not.toContain('setup-node')
+    const open = renderApp(
+      toggleSection(
+        viewActions(focusTask(state(), 'checkout/refunds'), 'checkout/refunds'),
+        NOT_HERE,
+        true,
+      ),
+      { ...frame({ width: 140, height: 30 }), actions: view },
+    ).join('\n')
+    expect(open).toContain('service containers')
+    expect(open).toContain('setup-node')
+    // And the one act that moves it across, on the row itself.
+    expect(open).toContain('run here')
+  })
+
+  it('offers turning a check off where somebody has opened it, and never on a row of the list', () => {
+    const view = actions({ checks: [aCheck({ state: 'passed', seconds: 2, at: 0 })] })
+    expect(page(view, { width: 140, height: 30 })).not.toContain('don’t run here')
+    expect(opened(view, { width: 140, height: 30 })).toContain('don’t run here')
+  })
+
+  it('says a run that carried over where it ran, rather than when', () => {
+    const text = page(
+      actions({
+        checks: [
+          aCheck({
+            state: 'passed',
+            seconds: 2,
+            at: 0,
+            carried: true,
+            commit: '9f0e1d2c3b4a5968777869',
+          }),
+        ],
+      }),
+      { width: 140, height: 30 },
+    )
+    expect(text).toContain('ran at 9f0e1d2')
   })
 
   it('fills the window exactly, however long the page is', () => {

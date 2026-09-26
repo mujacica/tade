@@ -230,11 +230,42 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the same way (`readOutcome`): the counts and the files are in the tail already, and a shape
   nothing here recognises reads as no counts rather than as an invented one.
 - **What an agent did and whether it holds up is one page** — the ACTIONS tab beside its screen
-  (`actionRows` in `packages/app/src/view.ts`). Its own commits are the ones whose `Tade-Task:`
-  trailer names it, drawn apart from everybody else's rather than counted in a header, and in a
-  shared checkout what is uncommitted is said to be nobody's to attribute rather than claimed as
-  this agent's. A check is what ran, when, against which commit, how long it took and what it
-  counted, with the tail of a failure read on the page — and `unknown` is drawn as `unknown`.
+  (`actionRows` in `packages/app/src/view/actions.ts`). Its own commits are the ones whose
+  `Tade-Task:` trailer names it, drawn apart from everybody else's rather than counted in a header,
+  and in a shared checkout what is uncommitted is said to be nobody's to attribute rather than
+  claimed as this agent's. A check is what ran, when, against which commit, how long it took and
+  what it counted, with the tail of a failure read on the page — and `unknown` is drawn as
+  `unknown`.
+- **And the checks on it are two categories, because one list was a wall.** Reading a project's own
+  CI and hook means every row carries where it came from, whether it can run here and why one is
+  skipped; each sentence is true and together they were what somebody asked to have taken away. So
+  the question is asked once — does Tade run this on *this machine*? — and `skip` is the whole of
+  the answer, whoever gave it. What runs here is the page: a tick, one cell of a mark for how long
+  it took beside the figure, when, what it counted, and the first file a failure named, because that
+  is what the page is opened for. What does not is **one fold** (`NOT_HERE`), shut unless somebody
+  opens it, with the reason a value beside a name rather than a sentence under one — in the same
+  `▸`/`▾` with a count the sidebar's sections use, through the same `sectionOpen`, because it is the
+  same act and nobody should learn it twice. A step the reading could not call a check at all is in
+  there too (`unread`), since that is exactly what it is. Everything a row could otherwise say is
+  behind the row instead: the command it runs, the rest of the files, the tail, the whole log. A
+  caveat true under *every* row — a local run is the commands CI runs and never CI's matrix — is a
+  clause on the heading and gives ground in the heading's own ladder, before the rollup and long
+  before the button.
+- **Which of them run here is a person's answer, and it lives where every other preference does.**
+  The reading says what a repository says and which of it cannot run here, which is a fact about the
+  machine and is right nearly always; the two things it cannot know are a decision — not running a
+  check here that the project runs, and running one the reading gave up on. Both are
+  `projects.<name>.checks.run_here.<id>` in Tade's own config, applied in one pure function
+  (`withChoices`, `packages/checks/core/src/choice.ts`) inside `readChecks`, so the window, the CLI,
+  the state machine and the runner cannot come to four answers. Turning one off gives it a `skip`
+  like any other and takes it out of `required`: a rollup is what a run *here* adds up to, and a
+  required check nothing ever runs would leave every commit `unknown` for good. Turning one on lifts
+  the skip and nothing else, because `required: false` was set for two reasons and only one of them
+  is what anybody just answered. Only what **differs** from the reading is written down
+  (`chosenAfter`), so pressing twice leaves the file as it was found and a step added to CI tomorrow
+  is checked here tomorrow. It is never a file in the repository — that is `.tade/checks.yaml` back
+  under another name — and the write goes through the Settings page's own door (`writeKey`), so the
+  schema still refuses a bad value and `config_changed` still records what changed.
 - **What a project checks is read out of what it already says, and Tade has no list of its own.**
   There is no `.tade/checks.yaml` and nothing writes one: a project already says what it checks
   twice — the hook that runs before a commit (`readHooks`) and the workflows that run on every

@@ -103,7 +103,7 @@ export class App {
   private readonly wire: Wiring
   /** Reading a note, copying it, taking it back. */
   private readonly notes: Notes
-  /** Adopting a project's checks, running a task's, reading what one printed. */
+  /** Running a task's checks, reading what one printed, saying which run here. */
   private readonly checks: Checks
   /** Push-to-talk, what is said back, and the mute that is now. */
   private readonly voice: Voice
@@ -254,6 +254,7 @@ export class App {
     this.checks = new Checks(this.wire, {
       sections: () => this.extensions.lists(),
       callId: () => this.extensions.callId(),
+      writeKey: (key, value, was) => this.settings.writeKey(key, value, was),
     })
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
@@ -785,10 +786,9 @@ function kittyActive(terminal: Terminal): boolean {
 
 /**
  * The alternate screen claims page up and down, home and end, ctrl+up and
- * down and ctrl+shift+f to scroll and search a viewport of its own — before
- * any listener sees them. Tade
- * draws exactly one screen and never scrolls one, so those keys belong to the
- * panel that is open or the agent you are typing at.
+ * down and ctrl+shift+f to scroll and search a viewport of its own — before any
+ * listener sees them. Tade draws exactly one screen and never scrolls one, so
+ * those keys belong to the panel that is open or the agent you are typing at.
  */
 export function freeViewportKeys(): void {
   const bindings = getKeybindings()

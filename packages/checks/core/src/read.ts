@@ -1,3 +1,4 @@
+import { withChoices } from './choice.ts'
 import type { Reading } from './ci.ts'
 import { readWorkflows } from './ci.ts'
 import { readHooks } from './hooks.ts'
@@ -19,6 +20,12 @@ import type { Check, ProjectRef } from './port.ts'
 //   3. `projects.<name>.test_command` — one line in Tade's own config, for a
 //      project that has neither
 //   4. nothing, and `unknown` stands, which is true
+//
+// And then what somebody said about running each of them *here* (choice.ts),
+// which is the one thing the reading cannot know: it reads a repository, and
+// whether this machine should be running a check is a decision about this
+// machine. Applied here rather than at each caller, so the window, the CLI,
+// the state machine and the runner can never come to four answers.
 //
 // The escape hatch for a project whose CI cannot be read is deliberately a
 // config key and not a file in that repository: a file Tade writes into
@@ -48,31 +55,34 @@ const NONE: ChecksRead = { checks: [], source: 'none', from: null, problems: [] 
  * no processes, no network, safe to call from a draw-adjacent poll or from the
  * CLI with the window closed.
  */
-export async function readChecks(
-  project: ProjectRef & { test?: string | undefined },
-): Promise<ChecksRead> {
+export async function readChecks(project: ProjectRef): Promise<ChecksRead> {
   const [hook, ci] = await Promise.all([readHooks(project.root), readWorkflows(project.root)])
-  const found = joined(hook, ci)
-  if (found) return found
-  if (project.test) {
-    return {
-      checks: [
-        {
-          id: 'tests',
-          title: 'Tests',
-          run: project.test,
-          alone: true,
-          minutes: DEFAULT_MINUTES,
-          required: true,
-          from: 'test_command',
-        },
-      ],
-      source: 'test command',
-      from: null,
-      problems: [],
-    }
+  const read = joined(hook, ci) ?? (project.test ? fromCommand(project.test) : NONE)
+  const chosen = project.chosen ?? {}
+  // Nothing to apply is the common case and is handed straight back, so a
+  // project nobody has answered about is byte-for-byte what it always was.
+  if (Object.keys(chosen).length === 0) return read
+  return { ...read, checks: withChoices(read.checks, chosen) }
+}
+
+/** The one line in Tade's own config, for a project whose CI and hook say nothing. */
+function fromCommand(test: string): ChecksRead {
+  return {
+    checks: [
+      {
+        id: 'tests',
+        title: 'Tests',
+        run: test,
+        alone: true,
+        minutes: DEFAULT_MINUTES,
+        required: true,
+        from: 'test_command',
+      },
+    ],
+    source: 'test command',
+    from: null,
+    problems: [],
   }
-  return NONE
 }
 
 /**

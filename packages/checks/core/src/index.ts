@@ -2,6 +2,7 @@
 // The suite every implementation must pass is a subpath
 // (`@tade/checks-core/conformance`) so that importing the port does not drag a
 // test runner into production code.
+export * from './choice.ts'
 export * from './ci.ts'
 export * from './coverage.ts'
 export * from './hooks.ts'

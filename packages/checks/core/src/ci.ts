@@ -56,11 +56,18 @@ import type { Check } from './port.ts'
 //
 // A step that **is** a check and cannot run *here* — it interpolates something
 // only the runner knows, its job needs a database — is a check with a `skip`
-// and `required: false`. It keeps its row, which says *cannot run here* and
-// why; and it is out of the rollup, because a rollup is what a run *here* adds
-// up to, and a project with one `${{ secrets.… }}` step would otherwise be
-// unknown for ever. `required` means merging waits on it: CI still holds on
-// these, and Tade never claimed to be CI.
+// and `required: false`. It keeps its row, drawn apart from what does run here
+// with the reason beside it; and it is out of the rollup, because a rollup is
+// what a run *here* adds up to, and a project with one `${{ secrets.… }}` step
+// would otherwise be unknown for ever. `required` means merging waits on it:
+// CI still holds on these, and Tade never claimed to be CI.
+//
+// The `skip` is the bare reason and never a sentence that frames it — "its job
+// needs service containers, which only CI has", not "cannot run here: …" — so
+// that every surface can frame it in its own words. One of them has no frame
+// at all, because it draws these under a heading that already says it; and the
+// one thing a fixed frame could not have said is the other reason a check does
+// not run here, which is that somebody turned it off (`choice.ts`).
 
 /** A reading of somebody else's config: what it found, from where, and what it left. */
 export interface Reading {
@@ -276,7 +283,7 @@ function readSteps(
       // it is drawn, and it is out of what a local run adds up to.
       required: step?.['continue-on-error'] !== true && cannot === null,
       from: where,
-      ...(cannot ? { skip: `cannot run here: ${cannot}` } : {}),
+      ...(cannot ? { skip: cannot } : {}),
     })
   }
 }

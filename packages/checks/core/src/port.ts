@@ -1,3 +1,5 @@
+import type { Chosen } from './choice.ts'
+
 // The Runner port: what runs a project's own checks here, on this machine,
 // before anybody else has to look at them.
 //
@@ -24,6 +26,13 @@ export interface ProjectRef {
    * the duplication all of this removes.
    */
   test?: string | undefined
+  /**
+   * What somebody said about running each check here, over what the reading
+   * says — `checks.run_here`, from that same config and for that same reason.
+   * Absent is the reading's own answer, which is what nearly every project
+   * has; `choice.ts` is where the two meet.
+   */
+  chosen?: Chosen | undefined
 }
 
 /**

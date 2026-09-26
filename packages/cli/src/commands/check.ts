@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import { glyphOf, RunnerError, readChecks } from '@tade/checks-core'
-import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
+import { checksFor, defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
 import { collectStatus, writeTests } from '@tade/status'
 import { runProjectChecks } from '@tade/workbench/checks'
 import { laneLivenessFromFile } from '@tade/workbench/lane-liveness'
@@ -53,7 +53,12 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
       const head = found.task.git?.head ?? null
       const project = found.project.name
       const test = cfg.config.projects[project]?.test_command
-      const read = await readChecks({ name: project, root: worktree, test })
+      const read = await readChecks({
+        name: project,
+        root: worktree,
+        test,
+        chosen: checksFor(cfg.config, project).run_here,
+      })
 
       if (read.checks.length === 0) {
         io.err(`${project} says nothing about what checking it means.`)

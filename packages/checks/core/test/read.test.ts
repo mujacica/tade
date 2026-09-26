@@ -129,6 +129,16 @@ describe('what a project checks', () => {
     expect(read.source).toBe('CI')
   })
 
+  it('applies what somebody said about running each of them here', async () => {
+    // Read here rather than at each caller, so the window, the CLI, the state
+    // machine and the runner can never come to four answers about one check.
+    const root = repoWith({ '.github/workflows/ci.yml': GATE })
+    const read = await readChecks({ name: 'demo', root, chosen: { format: false } })
+    const byId = new Map(read.checks.map((check) => [check.id, check]))
+    expect(byId.get('format')?.skip).toBe('you turned it off here')
+    expect(byId.get('tests')?.skip).toBeUndefined()
+  })
+
   it('says nothing rather than inventing a gate', async () => {
     const read = await readChecks({ name: 'demo', root: repoWith({ 'README.md': 'hi\n' }) })
     expect(read).toEqual({ checks: [], source: 'none', from: null, problems: [] })

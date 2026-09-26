@@ -34,6 +34,8 @@ function wiring(
     host?: { answer?: string; fails?: string } | null
     live?: Partial<Live>
     now?: number
+    /** The config this window holds, for the preference that says what runs here. */
+    config?: Record<string, unknown>
   } = {},
 ) {
   const calls: Call[] = []
@@ -51,7 +53,7 @@ function wiring(
         }
   const wire = {
     opts: {
-      config: ConfigSchema.parse({}),
+      config: ConfigSchema.parse(over.config ?? {}),
       extensions: host,
       extensionWorkbench: null,
     },
@@ -88,9 +90,15 @@ const sections =
       ? never
       : ReturnType<ConstructorParameters<typeof Checks>[1]['sections']>
 
+/** Every config key this subject wrote, so a press can be held to one key and one value. */
+const written: { key: string; value: boolean | undefined; was: string }[] = []
+
 const deps = (rows: unknown[] = []) => ({
   sections: sections(rows),
   callId: () => 'call-1',
+  writeKey: async (key: string, value: boolean | undefined, was: string) => {
+    written.push({ key, value, was })
+  },
 })
 
 const seen = (over: Partial<ActionsView> = {}): ActionsView =>
@@ -301,6 +309,7 @@ describe('the actions it answers', () => {
   it('names one action per button the ACTIONS tab draws', () => {
     const world = wiring()
     expect(Object.keys(new Checks(world.wire, deps()).actions()).sort()).toEqual([
+      'check-here:',
       'check-log:',
       'checks-run:',
     ])
@@ -322,5 +331,66 @@ describe('the actions it answers', () => {
   it('offers the ACTIONS tab for whatever is in front of you, and nothing before the first look', () => {
     const world = wiring()
     expect((new Checks(world.wire, deps()).facts() as Partial<Frame>).actions).toBeNull()
+  })
+})
+
+// Which of a project's checks Tade runs on this machine is a person's answer
+// over the reading's, and it goes in Tade's own config under the project —
+// never a file in the repository, which is the duplication all of this removed.
+describe('saying which checks run here', () => {
+  const live = (checks: unknown[]) =>
+    ({
+      actions: () => seen({ checks: checks as never }),
+      worktreeOf: () => null,
+      hurryUp: () => {},
+    }) as never
+
+  it('turns off a check that runs here, as one key under the project', async () => {
+    written.length = 0
+    const world = wiring({ live: live([{ id: 'tests', skip: null }]) })
+    await new Checks(world.wire, deps()).actions()['check-here:']?.('shop/refunds\u0000tests')
+    expect(written).toEqual([{ key: 'projects.shop.checks.run_here.tests', value: false, was: '' }])
+    expect(world.at().notice).toContain('tests will not run here')
+  })
+
+  it('turns on one the reading gave up on, and says so', async () => {
+    written.length = 0
+    const world = wiring({
+      live: live([{ id: 'integration', skip: 'its job needs service containers' }]),
+    })
+    await new Checks(world.wire, deps()).actions()['check-here:']?.('shop/refunds\u0000integration')
+    expect(written).toEqual([
+      { key: 'projects.shop.checks.run_here.integration', value: true, was: '' },
+    ])
+    expect(world.at().notice).toContain('integration will run here')
+  })
+
+  it('takes the key away rather than writing an answer that agrees with the reading', async () => {
+    written.length = 0
+    const world = wiring({
+      config: { projects: { shop: { root: '/tmp/shop', checks: { run_here: { tests: false } } } } },
+      live: live([{ id: 'tests', skip: 'you turned it off here', chosen: false }]),
+    })
+    await new Checks(world.wire, deps()).actions()['check-here:']?.('shop/refunds\u0000tests')
+    expect(written).toEqual([
+      { key: 'projects.shop.checks.run_here.tests', value: undefined, was: 'false' },
+    ])
+  })
+
+  it('writes nothing about a check this project does not have', async () => {
+    written.length = 0
+    const world = wiring({ live: live([{ id: 'tests', skip: null }]) })
+    await new Checks(world.wire, deps()).actions()['check-here:']?.('shop/refunds\u0000nope')
+    expect(written).toEqual([])
+  })
+
+  it('refuses an id that would not be one segment of a dotted key', async () => {
+    // An id is a step's name put through `slug`, so it always is one — but it
+    // came out of somebody's CI file, and a key written somewhere nobody meant
+    // is worse than a button that does nothing.
+    written.length = 0
+    const world = wiring({ live: live([{ id: 'a.b.root', skip: null }]) })
+    await new Checks(world.wire, deps()).actions()['check-here:']?.('shop/refunds\u0000a.b.root')
+    expect(written).toEqual([])
   })
 })

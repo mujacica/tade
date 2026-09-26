@@ -853,6 +853,7 @@ export class Live {
         state: live ? live.state : (run?.state ?? 'not run'),
         required: check.required,
         skip: check.skip ?? null,
+        chosen: stood.rule.run_here[check.id] ?? null,
         needs: check.needs ?? [],
         summary: run?.summary ?? null,
         seconds: live ? null : seconds,
@@ -894,6 +895,7 @@ export class Live {
       review: null,
       checks,
       rollup: stood.rollup.state,
+      unread: stood.read.problems,
       // Read, not configured: so it says which file said so, and where nothing
       // did, that nothing did — which is the answer, not a gap in the page.
       source:

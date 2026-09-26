@@ -157,10 +157,17 @@ Every file an agent touches, marked the way git marks it, with the diff a click 
 Nothing to configure: a project already says what it checks, in the workflows that run on every
 change and in the hook that runs before a commit, and Tade reads those. It runs them here, one set
 at a time per checkout, and records each against the commit it ran on. A push with nothing green
-behind it is held, with what is missing. A step only CI can run — a secret, a service container —
-keeps its row, says so, and is left out of what a local run adds up to.
+behind it is held, with what is missing.
 
-![The ACTIONS tab: the commits this agent made, what is not committed, and each check with what it ran, how long it took and what it counted](images/work.svg)
+![The ACTIONS tab: the commits this agent made, what is not committed, and each check with how long it took and what it counted](images/work.svg)
+
+Two categories, because a step only CI can run — a secret, a service container — is not a step that
+passed. What runs here is the page; what does not is a fold with the reason on each row, and it is
+out of what a local run adds up to. Which category a check is in is yours: turn one off, turn a
+skipped one on, and the answer goes in Tade's own config under the project — never a file in your
+repository.
+
+![The checks as two categories: what runs here, and under a fold the ones that do not, each saying why](images/checks-here.svg)
 
 ## Reviews, and the loop around them
 

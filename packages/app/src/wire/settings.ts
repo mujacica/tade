@@ -365,6 +365,41 @@ export class Settings implements Subject {
   }
 
   /**
+   * Write a key that has no field on this page, and say nothing on screen
+   * about it: which of a project's checks Tade runs here is decided on the page
+   * that draws them, and is an ordinary config key underneath.
+   *
+   * The same door as every field — into the file, read back, handed to
+   * everywhere a config is held, and written down as `config_changed`, because
+   * a change nobody watched still has to be one somebody can find and undo. A
+   * config that would not load is put back exactly as it was, and the reason
+   * is thrown to whoever asked.
+   *
+   * `undefined` takes the key away, which is how a preference stops being one.
+   */
+  async writeKey(key: string, value: boolean | undefined, was: string): Promise<void> {
+    let before: string | null = null
+    try {
+      before = readFileSync(this.path, 'utf8')
+    } catch {
+      // No file yet: this write starts one, and there is nothing to put back.
+    }
+    writeSetting(this.path, key, value)
+    const loaded = await loadConfig(this.path)
+    if (!loaded.ok) {
+      if (before !== null) writeFileSync(this.path, before)
+      throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
+    }
+    this.use(loaded.config)
+    void this.wire.opts.client.log
+      .append({
+        type: 'config_changed',
+        detail: { path: key, was, now: value === undefined ? '' : String(value), by: 'window' },
+      })
+      .catch(() => {})
+  }
+
+  /**
    * The one path a setting is written by: write it, read the config back, use
    * what loaded, and say what it means for it to have applied.
    *

@@ -56,6 +56,26 @@ describe('what there is to change', () => {
     ).toContain('approvals.mode policy')
   })
 
+  it('shows a check somebody answered about here, and nothing for the rest', () => {
+    // A check id is only knowable by reading the repository, which this reads
+    // nothing of — so an override is seen, searched for and undone here, and
+    // making a new one is the ACTIONS page's, where the checks actually are.
+    const over = {
+      projects: { shop: { root: '/tmp/shop', checks: { run_here: { coverage: false } } } },
+    }
+    const row = find('projects.shop.checks.run_here.coverage', over)
+    expect(row.type).toEqual({ kind: 'flag' })
+    expect(row.value).toBe('false')
+    expect(row.fallback).toBe('what the project says')
+    // `false` is what the schema wants, and the flag is what parses to it.
+    expect(parseSetting(row, 'no')).toBe(false)
+    expect(parseSetting(row, '')).toBeUndefined()
+    const bare = settingsOf(config({ projects: { shop: { root: '/tmp/shop' } } }))
+      .flatMap((group) => group.settings)
+      .filter((one) => one.path.includes('run_here'))
+    expect(bare).toEqual([])
+  })
+
   it('offers only values the schema would accept', () => {
     const driver = find('workspace.driver')
     expect(driver.type).toEqual({ kind: 'choice', options: ['pty', 'tmux'] })

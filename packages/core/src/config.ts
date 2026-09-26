@@ -106,8 +106,26 @@ export const ChecksConfigSchema = z.strictObject({
   before: z.enum(['off', 'commit', 'push', 'commit and push']).default('push'),
   /** What a failed required check does: hold it and hand back the tail, say so, or only write it down. */
   on_red: z.enum(['hold', 'tell', 'note']).default('hold'),
-  /** Run only these check ids; everything the project defines when empty. */
+  /**
+   * Run only these check ids; everything the project defines when empty. A
+   * blunt narrowing, and not where the ACTIONS page writes what somebody said
+   * about one check — that is `run_here`, which says the opposite of the
+   * reading for the one check it names and goes on following the reading for
+   * everything else, including whatever CI gains tomorrow.
+   */
   only: z.array(z.string()).default([]),
+  /**
+   * Which of them Tade runs on *this* machine, by check id, over what the
+   * project's own CI and commit hook say: `false` is one it does not run here,
+   * `true` is one the reading gave up on and somebody wants anyway.
+   *
+   * Only what differs from the reading is written down, so a step added to CI
+   * tomorrow is checked here tomorrow. Set from the ACTIONS page, and belongs
+   * under `projects.<name>.checks` rather than here — a check id is one
+   * project's own, and one written here applies to every project on the
+   * machine.
+   */
+  run_here: z.record(z.string(), z.boolean()).default({}),
   /** How many may run at once here. One marked `alone` still runs by itself. */
   parallel: z.int().positive().default(2),
   /** How many finished runs a worktree keeps a record of. */

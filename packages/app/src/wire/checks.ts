@@ -1,3 +1,4 @@
+import { chosenAfter } from '@tade/checks-core'
 import { checksFor } from '@tade/core'
 import type { ListSection } from '@tade/extensions-core'
 import type { ActionsView, Frame } from '../frame.ts'
@@ -18,6 +19,12 @@ import type { Actions, Subject, Wiring } from './context.ts'
 // `checks_run` the orchestrator and `tade check` use, so the worktree's lock,
 // the record and the row come free — four agents in one checkout must never
 // start four suites.
+//
+// What this does decide is nothing about a check either: which of them Tade
+// runs on *this machine* is a person's answer over the reading's, and it is
+// kept where every other preference is — Tade's own config, under the project.
+// Never a file in the repository, which is the duplication that taking
+// `.tade/checks.yaml` away was for.
 
 /** What this subject needs from the rest of the window. */
 export interface ChecksDeps {
@@ -25,6 +32,13 @@ export interface ChecksDeps {
   sections(): readonly ListSection[]
   /** The id the next extension call runs under: each action gets its own line. */
   callId(): string
+  /**
+   * Write one config key and hand the loaded config to everywhere that holds
+   * one. The Settings page's own door, because a second way of writing the
+   * config is a second thing to keep in step with the schema — and it is what
+   * leaves the `config_changed` line that makes a change undoable.
+   */
+  writeKey(key: string, value: boolean | undefined, was: string): Promise<void>
 }
 
 export class Checks implements Subject {
@@ -55,6 +69,10 @@ export class Checks implements Subject {
       'check-log:': async (rest) => {
         const [task, check] = rest.split('\u0000')
         if (task && check) await this.show(task, check)
+      },
+      'check-here:': async (rest) => {
+        const [task, check] = rest.split('\u0000')
+        if (task && check) await this.here(task, check)
       },
     }
   }
@@ -147,6 +165,51 @@ export class Checks implements Subject {
       this.running.delete(task)
       this.wire.draw()
     }
+  }
+
+  /**
+   * Turn one check on or off on this machine.
+   *
+   * One key — `projects.<project>.checks.run_here.<id>` — so the line the
+   * journal keeps names exactly what changed, and pressing it again takes the
+   * key away rather than writing an answer that merely agrees with the
+   * reading. Nothing in the project is touched: its CI and its hook go on
+   * saying what they say, and this is Tade's answer about here.
+   */
+  async here(task: string, check: string): Promise<void> {
+    const project = task.split('/')[0] ?? task
+    const live = this.wire.live
+    const seen = live ? this.actionsFor(live, task) : null
+    const found = seen?.checks.find((one) => one.id === check)
+    if (!found) return
+    // A check id is a step's own name put through `slug`, so it is always one
+    // segment — but it came out of somebody's CI file and this is about to be a
+    // dotted path, and a key written somewhere nobody meant is worse than a
+    // button that does nothing. The project is the same shape every other
+    // `projects.<name>.…` setting is written with.
+    if (!/^[a-z0-9-]+$/.test(check)) return
+    const chosen = checksFor(this.wire.opts.config, project).run_here
+    const runs = found.skip === null
+    const next = chosenAfter(chosen, check, runs)
+    try {
+      await this.deps.writeKey(
+        `projects.${project}.checks.run_here.${check}`,
+        next,
+        chosen[check] === undefined ? '' : String(chosen[check]),
+      )
+      this.wire.put(
+        notice(
+          this.wire.state,
+          runs ? `${check} will not run here` : `${check} will run here from now on`,
+        ),
+      )
+      // The page is a query, so it says the new answer on its next look — and
+      // a page somebody is watching has to move within the second.
+      live?.hurryUp(task)
+    } catch (err) {
+      this.wire.note(err)
+    }
+    this.wire.draw()
   }
 
   /** What one check printed the last time it ran here, in the conversation. */

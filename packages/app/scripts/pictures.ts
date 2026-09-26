@@ -74,8 +74,19 @@ export const PICTURES: readonly Picture[] = [
     about:
       'The ACTIONS tab beside an agent: the commits that carry its own task’s trailer with what ' +
       'each touched, what is changed and not committed and whose that is, the pull request it is ' +
-      'out for, and the project’s own checks run here — what each ran, how long it took, and ' +
-      'what it counted, with the tests red.',
+      'out for, and the project’s own checks run here — a tick each, a mark for how long it took ' +
+      'beside the figure, and what it counted, with the tests red and the file they failed in.',
+  },
+  {
+    file: 'checks-here.svg',
+    scenario: 'checks-ci-cannot-run-here',
+    crop: { top: 12, left: 29, height: 11 },
+    about:
+      'The checks on the ACTIONS tab as two categories: what Tade runs on this machine, each with ' +
+      'a tick, how long it took and what it counted; and under a fold, the five it does not — a ' +
+      'job that needs service containers, a step that needs a secret, one somebody turned off, ' +
+      'and two steps the reading could not call checks at all. Each says why in a few words, and ' +
+      '`run here` on any of them moves it across.',
   },
   {
     file: 'reviews.svg',

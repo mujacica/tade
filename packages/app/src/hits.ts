@@ -16,7 +16,7 @@ export type Target =
   | { kind: 'lane'; task: string; lane: string }
   /** The tab beside an agent's, showing what it has done rather than its screen. */
   | { kind: 'pane-tab'; task: string; tab: 'actions' }
-  /** A check on the ACTIONS tab: clicking it opens what it printed, there on the page. */
+  /** A check on the ACTIONS tab: clicking it opens what it ran and what it printed, on the page. */
   | { kind: 'check'; task: string; check: string }
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
