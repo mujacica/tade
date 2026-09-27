@@ -38,7 +38,7 @@ import { draw, renderApp } from '../src/view.ts'
 const plain = (row: string) =>
   row.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
 
-const frame = (over: Partial<{ width: number; height: number; screen: string }> = {}) => ({
+const frame = (over: Partial<Frame> = {}): Frame => ({
   width: 80,
   height: 24,
   screen: '',
@@ -96,43 +96,37 @@ describe('what the smart queue holds', () => {
     )
   })
 
-  it('shows how much of the tree and whether the clocks are in it, apart', () => {
+  it('shows how much of the tree, and work on a clock is work', () => {
     const state = withTasks(initialState(), plan)
     const shown = (view: Partial<QueueView>) =>
       queueOf(showQueue(state, view)).map((task) => task.name)
-    // The scope is a position in the tree. `next` is its front: the one with
-    // room, the one whose only wait is an agent working now — it starts when
-    // that agent finishes — and the two waiting for a clock, which start by
-    // themselves too. Held and paused work will not, so neither is next.
+    // The scope is a position in the tree, and the only question there is.
+    // `next` is its front: the one with room, the one whose only wait is an
+    // agent working now — it starts when that agent finishes — and the two
+    // waiting for a clock, which start by themselves too. Held and paused work
+    // will not, so neither is next.
     expect(shown({})).toEqual(['stuck', 'next', 'after', 'soon', 'later', 'stopped'])
     expect(shown({ scope: 'next' })).toEqual(['next', 'after', 'soon', 'later'])
-    // The switch is a kind of work, and answers on its own at either scope.
-    // `all` without the clocks is the view three exclusive buttons had no room
-    // for: everything queued that is waiting for us.
-    expect(shown({ timed: false })).toEqual(['stuck', 'next', 'after', 'stopped'])
-    expect(shown({ scope: 'next', timed: false })).toEqual(['next', 'after'])
-    // Left out is not gone: the count is still all of it.
-    expect(queuedCount(showQueue(state, { timed: false }))).toBe(6)
+    // And nothing hides work waiting for a time: it starts once, when its time
+    // comes, which is what everything else in this list does. The switch that
+    // used to hide it was there because the schedules were listed beside it.
+    expect(queuedCount(state)).toBe(6)
   })
 
   it('remembers what each project is showing, and only what was narrowed', () => {
     const state = withTasks(withProjects(initialState(), ['app', 'infra']), plan)
     expect(queueViewOf(state)).toEqual(WHOLE_QUEUE)
-    const narrowed = showQueue(showQueue(state, { scope: 'next' }), { timed: false })
-    expect(queueViewOf(narrowed)).toEqual({ scope: 'next', timed: false })
+    const narrowed = showQueue(state, { scope: 'next' })
+    expect(queueViewOf(narrowed)).toEqual({ scope: 'next' })
     // One project's choice is that project's: the other is untouched.
     expect(queueViewOf({ ...narrowed, project: 'infra' })).toEqual(WHOLE_QUEUE)
     expect(narrowing(WHOLE_QUEUE)).toBe(false)
-    expect(narrowing({ scope: 'all', timed: false })).toBe(true)
-    expect(narrowing({ scope: 'next', timed: true })).toBe(true)
+    expect(narrowing({ scope: 'next' })).toBe(true)
   })
 
   it('says why nothing is next in the words of the reason there is nothing', () => {
-    const says = (
-      tasks: TaskSnapshot[],
-      view: Partial<QueueView> = { scope: 'next' },
-      schedules: { project: string }[] = [],
-    ) => queueEmptySays(showQueue(withTasks(initialState(), tasks), view), schedules)
+    const says = (tasks: TaskSnapshot[], view: Partial<QueueView> = { scope: 'next' }) =>
+      queueEmptySays(showQueue(withTasks(initialState(), tasks), view))
     expect(says([{ task: 'app/working', state: 'working' }])).toBe('nothing is queued')
     expect(
       says([
@@ -150,39 +144,21 @@ describe('what the smart queue holds', () => {
     expect(says([queued('app/stopped', { kind: 'paused', all: false })])).toBe(
       'nothing is next: stopped is paused',
     )
-    // The switch is the one thing that can be done about what the switch hid,
-    // so where it is what emptied the list it is what is said — by name where
-    // there is one thing it is about, and counted where there is not.
+    // Work waiting for a time is next like the rest of the front — it starts by
+    // itself — so it is in the list, and this is never asked about it.
     expect(
-      says([queued('app/soon', { kind: 'scheduled', at: 1_000 }, 1_000)], { timed: false }),
-    ).toBe('timed is off, and soon waits for a time')
-    // Where the switch and a hold could both be said, the switch wins: it is
-    // the one of the two that pressing something undoes.
-    expect(
-      says(
-        [
-          queued('app/stuck', { kind: 'held', on: 'app/gone', because: 'it failed' }),
-          queued('app/soon', { kind: 'scheduled', at: 1_000 }, 1_000),
-        ],
-        { scope: 'next', timed: false },
-      ),
-    ).toBe('nothing is next: timed is off, and soon waits for a time')
-    expect(
-      says(
-        [
-          queued('app/soon', { kind: 'scheduled', at: 1_000 }, 1_000),
-          queued('app/later', { kind: 'scheduled', at: 2_000 }, 2_000),
-        ],
-        { timed: false },
-      ),
-    ).toBe('timed is off, and 2 here wait for a time')
-    // A project whose only clocks are schedules would otherwise be told
-    // "nothing is queued" about a list its own control had emptied.
-    expect(says([], { timed: false }, [{ project: 'app' }])).toBe(
-      'timed is off, and what is here waits for a time',
-    )
-    expect(says([], { timed: false })).toBe('nothing is queued')
-    // `all` with the clocks shown leaves nothing out, so an empty list is empty.
+      queueOf(
+        showQueue(
+          withTasks(initialState(), [queued('app/soon', { kind: 'scheduled', at: 1_000 }, 1_000)]),
+          { scope: 'next' },
+        ),
+      ).map((task) => task.name),
+    ).toEqual(['soon'])
+    // And nothing here counts the schedules any more: they are their own
+    // section, so a queue with nothing queued in it says so whatever is on a
+    // clock next door.
+    expect(says([])).toBe('nothing is queued')
+    // `all` leaves nothing out, so an empty list is empty.
     expect(says(plan, {})).toBe('nothing is queued')
   })
 
@@ -270,7 +246,7 @@ describe('the smart queue down the side', () => {
     ...over,
   })
 
-  /** One clock in the project, which is all the `timed` switch needs to matter. */
+  /** A schedule in the project, which after the split is never in the queue's list. */
   const nightly: ScheduleView = {
     id: 'perf-nightly',
     name: 'perf nightly',
@@ -288,65 +264,42 @@ describe('the smart queue down the side', () => {
     runs: [],
   }
 
-  it('draws the scope as a pair and the clocks as a switch, apart', () => {
+  it('draws the scope as a pair, and nothing else over the queue', () => {
     const controls = (over: Partial<AppState> = {}, over2: Partial<Frame> = {}) =>
       renderApp(queued(over), frame({ width: 100, height: 40, ...over2 }))
         .map(plain)
         .find((row) => row.includes('all') && row.includes('next')) ?? ''
-    // Nothing in this plan is on a clock and there are no schedules, so there
-    // is nothing for the switch to show or hide and it is not drawn.
+    // One question, one pair, one of them always on.
     expect(controls()).toContain('<all> [next]')
-    expect(controls()).not.toContain('timed')
-    // A schedule is a clock, so the switch has something to do and appears.
-    const clocks = { schedules: [nightly] }
-    expect(controls({}, clocks)).toContain('timed')
-    // Off, it is drawn whether or not there is a clock in the project: it is
-    // the only way back to whatever it is hiding.
-    const off = { queueViews: { checkout: { scope: 'all' as const, timed: false } } }
-    expect(controls(off)).toContain('[timed]')
-    // The scope is a pair with one of them always on; the switch is its own
-    // set, so the blank before it is wider than the blank inside the pair —
-    // which is the whole of how a row twenty columns wide says they answer two
-    // questions rather than one.
-    const row = controls({}, clocks)
-    const gap = (from: string, to: string) => row.indexOf(to) - (row.indexOf(from) + from.length)
-    expect(gap('next', 'timed')).toBeGreaterThan(gap('all', 'next'))
+    // And the switch that used to sit beside it is gone: a schedule in the
+    // project is not something the queue has a control over any more.
+    expect(controls({}, { schedules: [nightly] })).not.toContain('timed')
   })
 
-  it('says why the switch emptied the list, and never that nothing is queued', () => {
-    // A project whose only queued work is on a clock, with the switch off: the
-    // reason is the control, because pressing it is the whole of the answer.
-    const timed: TaskSnapshot[] = [
-      // An agent to be looking at, since the piece you have open is listed
-      // whatever the view says — a list that leaves out the thing in front of
-      // you is a list you cannot trust.
-      { task: 'checkout/bump-mailer', state: 'working', lane: 'checkout/bump-mailer/agent' },
-      {
-        task: 'checkout/release-notes',
-        state: 'queued',
-        queued: {
-          state: { kind: 'scheduled', at: 2_000 },
-          after: [],
-          prompt: 'draft the notes',
-          touches: [],
-          at: 2_000,
-        },
-      },
-    ]
-    const rows = renderApp(
-      {
-        ...withTasks(withProjects(initialState(), ['checkout']), timed),
-        project: 'checkout',
-        folded: ['changes', 'files', 'notes', 'where'],
-        queueViews: { checkout: { scope: 'all', timed: false } },
-      },
-      frame({ width: 100, height: 40 }),
-    ).map(plain)
-    const said = rows.join('\n')
-    expect(said).toContain('timed is off')
-    expect(said).not.toContain('nothing is queued')
-    // And the switch is still there to press, with nothing else in the section.
-    expect(rows.some((row) => row.includes('[timed]'))).toBe(true)
+  it('keeps the schedules out of the queue and in a section of their own', () => {
+    const rows = renderApp(queued(), frame({ width: 100, height: 60, schedules: [nightly] })).map(
+      plain,
+    )
+    const at = (text: string) => rows.findIndex((row) => row.includes(text))
+    // Two headings, in this order, and the schedule is under the second.
+    expect(at('SMART QUEUE')).toBeGreaterThan(-1)
+    expect(at('SCHEDULES')).toBeGreaterThan(at('SMART QUEUE'))
+    // Its name is cut to the side's room, as every name down the side is.
+    expect(at('↻ perf night')).toBeGreaterThan(at('SCHEDULES'))
+    // The queue's own count is work, and only work: three pieces, not four.
+    expect(rows[at('SMART QUEUE')]).toMatch(/SMART QUEUE +\(?3\)?/)
+    expect(rows[at('SCHEDULES')]).toMatch(/SCHEDULES +\(?1\)?/)
+    // What it does when it fires, which is the thing worth a column of its own.
+    expect(rows[at('↻ perf night') + 1]).toContain('agents')
+  })
+
+  it('is there with no clockwork in it, folded, and says so', () => {
+    const rows = renderApp(queued(), frame({ width: 160, height: 40 })).map(plain)
+    const heading = rows.find((row) => row.includes('SCHEDULES')) ?? ''
+    expect(heading).toContain('▸ SCHEDULES')
+    expect(heading).toContain('nothing on a clock')
+    // Folded is one row and no more.
+    expect(rows.filter((row) => row.includes('SCHEDULES')).length).toBe(1)
   })
 
   it('shifts each piece right of what it waits on, and joins them with a line', () => {

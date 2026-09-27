@@ -8,8 +8,8 @@
    ⠋ bump-mailer             ▕│    Wait for a retry     Start anyway     Remove                                         
      working                 ▕│                                                                                         
                              ▕│  THE CHAIN IT IS IN                                                                     
- ▾ SMART QUEUE  8      plan  ▕│  FIRST                         THIS ONE                      AFTER IT                   
-   all   next    timed       ▕│  ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓      ╭──────────────────────╮   
+ ▾ SMART QUEUE  5      plan  ▕│  FIRST                         THIS ONE                      AFTER IT                   
+   all   next                ▕│  ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓      ╭──────────────────────╮   
                              ▕│  │ ✕ fix-charge         │─────▶┃ ! add-refunds   held ┃─────▶│ ◌ refund-emails      │   
  ▌ ! add-refunds      held   ▕│  │   tests failed twice │      ┃   ◆ fix-charge fail… ┃      │   ◆ after add-refun… │   
  ▌ │ ◆ fix-charge failed:…   ▕│  ╰──────────────────────╯      ┗━━━━━━━━━━━━━━━━━━━━━━┛      ╰──────────────────────╯   
@@ -26,21 +26,21 @@
    ‖ perf-check     paused   ▕│  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
      ❯ paused                ▕│                                                                                         
                              ▕│  TOUCHES    src/refunds.ts, src/charge.ts                                               
-   ↻ morning brief   08:45   ▕│  FINISHES   its agent says so                                                           
-     ◆ every weekday at 0…   ▕│  FROM       the orchestrator                                                            
+ ▾ SCHEDULES  3              ▕│  FINISHES   its agent says so                                                           
+                             ▕│  FROM       the orchestrator                                                            
+   ↻ morning brief   08:45   ▕│                                                                                         
+     every weekday … tells   ▕│                                                                                         
                              ▕│                                                                                         
    ↻ deps weekly     09:00   ▕│                                                                                         
-     ❯ every Monday at 09…   ▕│                                                                                         
+     every Monday … agents   ▕│                                                                                         
                              ▕│                                                                                         
    ‖ perf nightly   paused   ▕│                                                                                         
-     ❯ every day at 02:00    ▕│                                                                                         
+     every day at … agents   ▕│                                                                                         
                              ▕│                                                                                         
  ▸ CHANGES  3        vs main ▕│                                                                                         
  ▸ FILES                     ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
  ▸ GIT                       ▕│                                                                                         
-                             ▕│                                                                                         
-                             ▕│                                                                                         
                              ▕│                                                                                         
                              ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━

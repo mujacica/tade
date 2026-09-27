@@ -5,18 +5,18 @@
    none yet — + starts on█│                                     
                          █│               T A D E               
  ▸ SMART QUEUE      none █│                                     
- ▾ CHANGES               █│           said, and done.           
-   open an agent to see  █│                                     
-                         █│   ───────────────────────────────   
- ▾ FILES                 █│    Ask Tade for an agent, or anyt   
-   ▸ src/                █│   ───────────────────────────────   
-   ▸ test/               █│                                     
-     package.json        █│  + New agent      Open project     i
-     README.md           █│                                     
-                         █│                                     
+ ▸ SCHEDULES        none █│           said, and done.           
+ ▾ CHANGES               █│                                     
+   open an agent to see  █│   ───────────────────────────────   
+                         █│    Ask Tade for an agent, or anyt   
+ ▾ FILES                 █│   ───────────────────────────────   
+   ▸ src/                █│                                     
+   ▸ test/               █│  + New agent      Open project     i
+     package.json        █│                                     
+     README.md           ▕│                                     
+                         ▕│                                     
  ▸ NOTES            +    ▕│                                     
  ▾ GIT                   ▕│                                     
-   repo     …/checkout   ▕│                                     
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                 
                                                                ▕

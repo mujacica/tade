@@ -312,6 +312,11 @@ export function asRemembered(value: unknown): RememberedWindow | null {
   // would leave a project showing something no control could undo. The words
   // are `QUEUE_SCOPES`', and `layout.test.ts` holds this list to that one, so
   // a scope added there and not here fails at the commit.
+  //
+  // A file written before the schedules got a section of their own has a
+  // `timed` beside its scope. It is ignored rather than refused: a key with no
+  // control behind it is not a view, and throwing the row away would lose the
+  // scope that was written with it.
   const queueViews: Record<string, QueueView> = {}
   if (
     typeof raw.queueViews === 'object' &&
@@ -320,11 +325,11 @@ export function asRemembered(value: unknown): RememberedWindow | null {
   ) {
     for (const [project, value] of Object.entries(raw.queueViews)) {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) continue
-      const view = value as { scope?: unknown; timed?: unknown }
+      const view = value as { scope?: unknown }
       const scope: QueueScope | null =
         view.scope === 'all' ? 'all' : view.scope === 'next' ? 'next' : null
-      if (scope === null || typeof view.timed !== 'boolean') continue
-      queueViews[project] = { scope, timed: view.timed }
+      if (scope === null) continue
+      queueViews[project] = { scope }
     }
   }
   return {

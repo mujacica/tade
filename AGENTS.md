@@ -126,9 +126,8 @@ attached to the decision it governs. Load the matching one rather than working f
   done about one is derived (`producedIn`), never remembered.
 - **Queued work is a task with `start` in its task file.** The window starts it by rule
   (`readyToStart`), never a model deciding again, and writes why. **Evidence may only ever hold**: the
-  start-time look at the trees reaches that rule through `queueStateOf`, so it can never start what the
-  rule would not, jump a wait, unhold, or exceed `max_parallel` — and a written `order` is only a
-  preference among the ready.
+  start-time look at the trees reaches that rule through `queueStateOf`, and a written `order` is only
+  a preference among the ready.
 - **A task name is never used twice** (a new agent given an old one's name carries on its
   conversation), and **a task's id is in its task file, not its branch** — Tade never renames a branch
   it did not make.
@@ -194,9 +193,11 @@ attached to the decision it governs. Load the matching one rather than working f
   finding**, so one push never becomes one agent per failing column.
 - **A watch is a schedule that looks before it acts**: a cheap `check`, no model. Tade keeps every key
   found, so one finding never starts work twice — a failed start included, and **a warning about a
-  look must not outlive the look.** Turning one off pauses its schedule rather than removing it.
+  look must not outlive the look**; hushing one hushes its reason, not its mark. Turning one off
+  pauses its schedule rather than removing it.
 - **Schedules are told, like notes**, and run only while a window is open — no daemon, and missed
-  runs are caught up once or skipped, never once per run missed.
+  runs are caught up once or skipped, never once per run missed. **They are their own section**
+  (`schedulesSection`), never listed among the queued work.
 
 ### Config, settings and keys
 

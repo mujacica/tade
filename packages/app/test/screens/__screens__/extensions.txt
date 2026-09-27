@@ -9,13 +9,13 @@
    │ ◐ Sentry             ! ▕│                                                                                     █│   
    │ ✗ standup            ! ▕│   Settings…     What Jev flagged     Review the latest commits     Turn off         █│   
  ▸ │ ● GitHub               ▕│                                                                                     █│   
- ▾ │ ○ release-notes        ▕│ HOW IT IS USED                                                                      █│   
-  M│ · Written by Tade    1 ▕│ · Reads branches that go quiet against the review pack, once its watch is on.       █│   
-  A│ · MCP servers        4 ▕│ · Hands what it flagged to the agent that wrote it, which answers with              █│   
-  M│ · Harnesses' own     2 ▕│   jev_account.                                                                      █│   
-   │                        ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict         █│   
- ▾ │                        ▕│   (jev_verdict).                                                                    ▕│   
-   │                        ▕│ · Says which questions earn their place, and why each open finding is still open.   ▕│   
+ ▸ │ ○ release-notes        ▕│ HOW IT IS USED                                                                      █│   
+ ▾ │ · Written by Tade    1 ▕│ · Reads branches that go quiet against the review pack, once its watch is on.       █│   
+  M│ · MCP servers        4 ▕│ · Hands what it flagged to the agent that wrote it, which answers with              █│   
+  A│ · Harnesses' own     2 ▕│   jev_account.                                                                      █│   
+  M│                        ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict         █│   
+   │                        ▕│   (jev_verdict).                                                                    ▕│   
+ ▾ │                        ▕│ · Says which questions earn their place, and why each open finding is still open.   ▕│   
    │                        ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something pasted.       ▕│   
    │                        ▕│ · Reads things back before somebody guesses: a request, a plan, a queue order.      ▕│   
    │                        ▕│ · Answers a sentence typed into search that matched no letters.                     ▕│   

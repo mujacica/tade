@@ -9,8 +9,8 @@
    │  Checks        █│▌Reporter                  ↻ ▕│   
    │  Voice         █│▌  ◉ sentry                  ▕│   
  ▸ │  Search        █│▌  ○ none                    ▕│   
- ▾ │  Window        █│▌  sentry sends through      ▕│   
-  M│  Projects   3  █│▌  Sentry’s own SDK, import… ▕│   
+ ▸ │  Window        █│▌  sentry sends through      ▕│   
+ ▾ │  Projects   3  █│▌  Sentry’s own SDK, import… ▕│   
 ━  │  Checks per p… █│                             ▕│  ━
    │  Budgets   ● 1 █│ Crashes and warnings      ↻ ▕│   
    │  Journal       ▕│ ● Saved as you change it.    │  ▕

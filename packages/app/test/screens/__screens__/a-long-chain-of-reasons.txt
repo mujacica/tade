@@ -23,11 +23,11 @@
        ╰─◌ release-guide     ▕│      ╰─◌ refund-emails  after refund-flow                                               
            ◆ after refund-…  ▕│        │ it emails what refund() returns                                                
                              ▕│        ╰─◌ release-guide  after refund-emails                                           
- ▸ CHANGES  3        vs main ▕│            the guide screenshots the email it sends                                     
- ▸ FILES                     ▕│                                                                                         
- ▸ NOTES  4             +    ▕│  WILL BE TOLD                                                                           
- ▸ GIT                       ▕│  │ Email the customer when a refund goes through: say how much came back, and when.     
-                             ▕│                                                                                         
+ ▸ SCHEDULES            none ▕│            the guide screenshots the email it sends                                     
+ ▸ CHANGES  3        vs main ▕│                                                                                         
+ ▸ FILES                     ▕│  WILL BE TOLD                                                                           
+ ▸ NOTES  4             +    ▕│  │ Email the customer when a refund goes through: say how much came back, and when.     
+ ▸ GIT                       ▕│                                                                                         
 ███████████████████████████▕▕ │  TOUCHES    src/mail/refund.ts                                                          
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         

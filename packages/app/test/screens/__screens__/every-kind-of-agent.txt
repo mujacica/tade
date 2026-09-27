@@ -10,7 +10,7 @@
                              █│                                                                                         
    ! stripe-v15      ×  ≡    █│                                                                                         
      wants you to approve…   █│                                                                                         
-                             █│                                                                                         
+                             ▕│                                                                                         
    ✕ reload                  ▕│                                                                                         
      agent exited with co…   ▕│                                                                                         
                              ▕│                                                                                         

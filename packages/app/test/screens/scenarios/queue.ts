@@ -9,11 +9,14 @@ import {
 } from '../../../src/model.ts'
 import { base, frame, type Scenario, showing, utcClock } from './fixtures.ts'
 
-// Work that has not started: the SMART QUEUE, and the plans behind it.
+// Work that has not started: the SMART QUEUE, the SCHEDULES under it, and the
+// plans behind both.
 //
 // Every way queued work can be waiting — held, ready, after another, at a
 // time, paused — and the chains that put it in columns, including the ones
-// too deep for the side and too wide for the pane.
+// too deep for the side and too wide for the pane. Then the two sections
+// against each other: work and no clockwork, clockwork and no work, both, and
+// neither.
 
 /** A plan under way: two agents working, the rest queued in every way queued work can be. */
 export const queueTasks: TaskSnapshot[] = [
@@ -312,11 +315,86 @@ export const queueSchedules: ScheduleView[] = [
   },
 ]
 
+/**
+ * Two watches beside the schedules: one looking happily and starting an agent on
+ * what it finds, one that could not look at all — which several real ones are
+ * doing at any moment, and the reason a row has to be able to say so and then
+ * be told to stop saying it.
+ */
+export const queueWatches: ScheduleView[] = [
+  {
+    id: 'vulnerable-dependencies',
+    name: 'Vulnerable dependencies',
+    project: 'checkout',
+    said: '',
+    kind: 'watch',
+    does: 'looks with deps.vulnerabilities, and starts work on what it finds',
+    prompt: '',
+    when: 'every day at 07:00',
+    once: false,
+    next: [Date.parse('2026-09-14T07:00:00Z')],
+    paused: false,
+    by: 'extension:deps',
+    missed: 'once',
+    runs: [],
+    watch: {
+      id: 'deps.vulnerabilities',
+      turnedOnBy: 'you',
+      found: 'agent',
+      most: 1,
+      looks: [
+        {
+          at: Date.parse('2026-09-13T07:00:00Z'),
+          found: 0,
+          fresh: 0,
+          left: 0,
+          problem: 'the npm registry answered 503: Service Unavailable',
+          said: null,
+        },
+      ],
+      findings: [],
+    },
+  },
+  {
+    id: 'ci-on-this-branch',
+    name: 'CI on this branch',
+    project: 'checkout',
+    said: '',
+    kind: 'watch',
+    does: 'looks with review.branch-ci, and tells the orchestrator what it finds',
+    prompt: '',
+    when: 'every 10 minutes',
+    once: false,
+    next: [Date.parse('2026-09-13T14:10:00Z')],
+    paused: false,
+    by: 'extension:review',
+    missed: 'skip',
+    runs: [],
+    watch: {
+      id: 'review.branch-ci',
+      turnedOnBy: 'you',
+      found: 'ask',
+      most: 2,
+      looks: [
+        {
+          at: Date.parse('2026-09-13T14:00:00Z'),
+          found: 2,
+          fresh: 1,
+          left: 0,
+          problem: null,
+          said: null,
+        },
+      ],
+      findings: [],
+    },
+  },
+]
+
 export const QUEUE_SCREENS: Scenario[] = [
   {
     name: 'a-smart-queue',
     about:
-      'Work planned together: two agents working, and under them the SMART QUEUE in the order the resolved tree gives — held because what it waited on failed, with what waits on it shifted right and joined to it by a line, then next, at a time, and paused — told apart by shape, with its two controls over it: the scope, `all` or `next`, and the `timed` switch beside it in its own set. The held one is open: it will not start by itself, it says what can be done, and the chain it is in is drawn with its own box the heavy one.',
+      'Work planned together: two agents working, and under them the SMART QUEUE in the order the resolved tree gives — held because what it waited on failed, with what waits on it shifted right and joined to it by a line, then next, at a time, and paused — told apart by shape, with its one control over it: how much of the tree, `all` or `next`. Under that, SCHEDULES: the standing rules, apart from the work, each saying how often it fires and whether firing makes work or tells somebody. The held piece of work is open: it will not start by itself, it says what can be done, and the chain it is in is drawn with its own box the heavy one.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), queueTasks),
@@ -330,7 +408,7 @@ export const QUEUE_SCREENS: Scenario[] = [
   {
     name: 'what-is-next-in-the-queue',
     about:
-      'The queue under NEXT: the front of the resolved tree — the one only waiting for room, and the one whose single wait is an agent working now, which says how much is ahead of it. The rest of the chain is behind those two and left out. Nothing here is on a clock, so the `timed` switch is not drawn at all: the scope is the only choice there is to make. The chip showing is filled in the brand’s amber and the pointer is on the other, which lights.',
+      'Work and no clockwork: the queue under NEXT — the front of the resolved tree, the one only waiting for room and the one whose single wait is an agent working now, which says how much is ahead of it. The rest of the chain is behind those two and left out. The chip showing is filled in the brand’s amber and the pointer is on the other, which lights. SCHEDULES under it is folded, and its heading says why: nothing here runs on a clock.',
     state: {
       ...withTasks(withProjects(initialState(), ['checkout']), chainTasks),
       project: 'checkout',
@@ -343,7 +421,7 @@ export const QUEUE_SCREENS: Scenario[] = [
   {
     name: 'nothing-is-next',
     about:
-      'NEXT with nothing in it, and why in the words of the actual reason: the work at the front is held and needs a decision, so what waits behind it is behind that rather than next. Not one sentence for every case — nothing queued, everything paused, and a list its own `timed` switch emptied each say their own.',
+      'NEXT with nothing in it, and why in the words of the actual reason: the work at the front is held and needs a decision, so what waits behind it is behind that rather than next. Not one sentence for every case — nothing queued, everything paused, and everything at the front held each say their own.',
     state: {
       ...withTasks(
         withProjects(initialState(), ['checkout']),
@@ -361,34 +439,62 @@ export const QUEUE_SCREENS: Scenario[] = [
     frame: frame({ screen: '', height: 30, clock: utcClock }),
   },
   {
-    name: 'the-queue-without-the-clocks',
+    name: 'a-watch-that-cannot-look',
     about:
-      'The queue with the timed switch off: the ordinary case, and the one three exclusive buttons had no room for — everything queued that is waiting for us, with the piece due at 18:00 and all three schedules left out. `all` is still the scope, because leaving the clocks out is not a scope; the switch beside it is grey, and the pointer is on it.',
+      'The two sections apart, with the clockwork in trouble: SMART QUEUE is the work, and SCHEDULES under it is the five standing rules — how often each fires, and pinned at the right whether firing makes work or tells somebody, which is the difference between an agent at three in the morning and a sentence to read. A watch has a third row for its last look: `14:00 · 1 new` for the one looking happily, and for the one that could not look the reason in Tade’s own words with a `×` to say you have read it. The heading counts it while it is failing, so folding the section away cannot hide it. The pointer is on the `×`.',
     state: {
       ...withTasks(withProjects(initialState(), ['checkout']), queueTasks),
       project: 'checkout',
       folded: ['changes', 'files', 'notes', 'where'],
-      ...showing('checkout', { timed: false }),
-      hover: { kind: 'action', name: 'queue-timed' },
+      hover: { kind: 'action', name: 'schedule-hush:vulnerable-dependencies' },
     },
-    frame: frame({ screen: '', height: 44, clock: utcClock, schedules: queueSchedules }),
+    frame: frame({
+      screen: '',
+      height: 62,
+      clock: utcClock,
+      schedules: [...queueSchedules, ...queueWatches],
+    }),
   },
   {
-    name: 'next-including-the-clocks',
+    name: 'a-watch-hushed',
     about:
-      'NEXT with the timed switch on — the view three buttons could not say at all: the front of the resolved tree and the clocks that will fire, in one list. The piece due at 18:00 stands behind nothing and starts by itself, so it is next like the rest of the front, and the schedules are under it. Both chips are lit, and the gap between the pair and the switch is what says they answer different questions.',
+      'The same watch, hushed: the sentence and its `×` are gone, and nothing else is. The `!` on its mark stays, because the watch still cannot look, and so does `1 not looking` on the heading — hushing a reason is being told you have read it, never being told it is fine. It comes back if the reason changes, and if a look works and then it breaks again.',
     state: {
       ...withTasks(withProjects(initialState(), ['checkout']), queueTasks),
       project: 'checkout',
       folded: ['changes', 'files', 'notes', 'where'],
-      ...showing('checkout', { scope: 'next' }),
+      hushed: ['vulnerable-dependencies\u0000the npm registry answered 503: Service Unavailable'],
     },
-    frame: frame({ screen: '', height: 44, clock: utcClock, schedules: queueSchedules }),
+    frame: frame({
+      screen: '',
+      height: 62,
+      clock: utcClock,
+      schedules: [...queueSchedules, ...queueWatches],
+    }),
   },
   {
-    name: 'the-clocks-are-hidden',
+    name: 'clockwork-and-no-queue',
     about:
-      'A queue emptied by its own control, saying so: everything here waits for a time and the timed switch is off, which is a different answer from “nothing is queued” and is one press from being undone. The switch stays drawn however little else is here, because it is the only way back to what it is hiding.',
+      'Clockwork and no work: nothing is queued, so SMART QUEUE is folded and its heading says so, and SCHEDULES under it has all five rules in it — two schedules on repeat, one paused, and two watches with their last look under them. A project can be entirely standing rules, and then this is the whole of what is waiting. The window has two projects and the side has been dragged wide, so each row says which project’s rule it is: the same watch runs in both under the same name, and a row that cannot be placed is the confusion this section was split out to end. Where the side is narrower the project is what goes, never how often it fires.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['checkout', 'search']), [
+        { task: 'checkout/bump-mailer', state: 'working', lane: 'checkout/bump-mailer/agent' },
+      ]),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      sizes: { sidebarWidth: 52 },
+    },
+    frame: frame({
+      screen: '',
+      height: 44,
+      clock: utcClock,
+      schedules: [...queueSchedules, ...queueWatches],
+    }),
+  },
+  {
+    name: 'work-on-a-clock-is-still-the-queue',
+    about:
+      'A piece of work due at 18:00, in the queue where it belongs: it starts once, when its time comes, which is what every other row here does. There was a switch to hide it while the schedules were listed beside it and crowding it out; with those in their own section it is one row of ordinary queued work, and a switch over it would have been a second way of saying what the heading already says.',
     state: {
       ...withTasks(
         withProjects(initialState(), ['checkout']),
@@ -398,21 +504,20 @@ export const QUEUE_SCREENS: Scenario[] = [
       ),
       project: 'checkout',
       folded: ['changes', 'files', 'notes', 'where'],
-      ...showing('checkout', { timed: false }),
     },
     frame: frame({ screen: '', height: 30, clock: utcClock, schedules: queueSchedules }),
   },
   {
     name: 'an-empty-smart-queue',
     about:
-      'The SMART QUEUE with nothing in it: there, as it always is, and folded by itself — its heading saying why in the words of the reason it actually is, rather than the section being gone from the side altogether.',
+      'Neither: the SMART QUEUE and SCHEDULES both with nothing in them — there, as they always are, and each folded by itself with its heading saying why in the words of the reason it actually is, rather than either section being gone from the side altogether.',
     state: base(),
     frame: frame({ width: 160 }),
   },
   {
     name: 'the-smart-queue-collapsed',
     about:
-      'A queue with eight pieces of work in it, folded shut by the person looking at it: the count stays on the heading, so what was put away is still said to be there. The choice is theirs and outlives the window.',
+      'A queue with five pieces of work in it, folded shut by the person looking at it: the count stays on the heading, so what was put away is still said to be there. The choice is theirs and outlives the window, and it is the queue’s alone — SCHEDULES under it folds and remembers on its own.',
     state: {
       ...withTasks(withProjects(initialState(), ['checkout']), queueTasks),
       project: 'checkout',

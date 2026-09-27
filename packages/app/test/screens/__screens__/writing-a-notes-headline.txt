@@ -9,18 +9,18 @@
      working            ╭─ Headline ───────────────────────────────────────────────────── esc ─╮                        
                         │                                                                      │                        
  ▸ SMART QUEUE          │ the staging key rotates on the 1st                                   │                        
- ▸ CHANGES  3        vs │                                                                      │                        
- ▸ FILES                │ WHAT IT IS ABOUT AND WHAT IT DOES                                    │                        
- ▾ NOTES  4             │  ▏                                                                   │                        
-                        │                                                                      │                        
-   the staging key      │                                                  Cancel     Save ⏎   │                        
-   rotates on the 1st   ╰──────────────────────────────────────────────────────────────────────╯                        
-                             █│  ▸ bash npm i stripe@15                                                                 
-   Pin dependencies          ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   we pin major versions     ▕│  │ bash  npm i stripe@15                                        │                       
-                             ▕│  │   Allow once     Deny                                        │                       
-   Refunds via the ledger    ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-   refunds go through…       ▕│                                                                                         
+ ▸ SCHEDULES            │                                                                      │                        
+ ▸ CHANGES  3        vs │ WHAT IT IS ABOUT AND WHAT IT DOES                                    │                        
+ ▸ FILES                │  ▏                                                                   │                        
+ ▾ NOTES  4             │                                                                      │                        
+                        │                                                  Cancel     Save ⏎   │                        
+   the staging key      ╰──────────────────────────────────────────────────────────────────────╯                        
+   rotates on the 1st        █│  ▸ bash npm i stripe@15                                                                 
+                             ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   Pin dependencies          ▕│  │ bash  npm i stripe@15                                        │                       
+   we pin major versions     ▕│  │   Allow once     Deny                                        │                       
+                             ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   Refunds via the ledger    ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

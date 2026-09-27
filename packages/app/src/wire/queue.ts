@@ -13,14 +13,7 @@ import {
   readyToStart,
   startFrom,
 } from '@tade/core'
-import {
-  notice,
-  queueViewOf,
-  type ScheduleView,
-  showPlan,
-  showQueue,
-  withTranscript,
-} from '../model.ts'
+import { notice, type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
 import { describeQueue, describeSchedule, heldMessage, planAnswer, whyStarting } from '../queue.ts'
 import { QUEUE_SCOPES } from '../queue-view.ts'
 import { tadeDid } from '../transcript.ts'
@@ -107,16 +100,12 @@ export class Queue implements Subject {
         this.wire.put(showPlan(this.wire.state))
         this.wire.draw()
       },
-      // Two controls, because the queue is showing the answers to two
-      // questions: how much of the tree, and whether what is on a clock is in
-      // it. Each is remembered for the project it was pressed in.
+      // How much of the tree the queue is showing, remembered for the project
+      // it was pressed in. The `timed` switch that stood beside it went with
+      // the split: the argument is `QueueView`'s.
       'queue-scope:': (name) => {
         const scope = QUEUE_SCOPES.find((one) => one === name)
         if (scope) this.wire.put(showQueue(this.wire.state, { scope }))
-        this.wire.draw()
-      },
-      'queue-timed': () => {
-        this.wire.put(showQueue(this.wire.state, { timed: !queueViewOf(this.wire.state).timed }))
         this.wire.draw()
       },
     }

@@ -9,18 +9,18 @@
      working            │                                                                      │                        
                         │ Refunds via the ledger                                               │                        
  ▸ SMART QUEUE          │ About checkout/refunds                                               │                        
- ▸ CHANGES  3        vs │ Said by the orchestrator · Thu 3 Sep 09:00                           │                        
- ▸ FILES                │                                                                      │                        
- ▾ NOTES  4             │ NOTE                                                                 │                        
-                        │  refunds go through the ledger service, never the gateway▏           │                        
-   the staging key      │                                                                      │                        
-   rotates on the 1st   │   Forget     Copy     Headline…             Cancel     Save note ⏎   │                        
-                        ╰──────────────────────────────────────────────────────────────────────╯                        
-   Pin dependencies          ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   we pin major versions     ▕│  │ bash  npm i stripe@15                                        │                       
-                             ▕│  │   Allow once     Deny                                        │                       
-   Refunds via the ledger    ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-   refunds go through…       ▕│                                                                                         
+ ▸ SCHEDULES            │ Said by the orchestrator · Thu 3 Sep 09:00                           │                        
+ ▸ CHANGES  3        vs │                                                                      │                        
+ ▸ FILES                │ NOTE                                                                 │                        
+ ▾ NOTES  4             │  refunds go through the ledger service, never the gateway▏           │                        
+                        │                                                                      │                        
+   the staging key      │   Forget     Copy     Headline…             Cancel     Save note ⏎   │                        
+   rotates on the 1st   ╰──────────────────────────────────────────────────────────────────────╯                        
+                             ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   Pin dependencies          ▕│  │ bash  npm i stripe@15                                        │                       
+   we pin major versions     ▕│  │   Allow once     Deny                                        │                       
+                             ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   Refunds via the ledger    ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

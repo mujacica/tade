@@ -159,8 +159,7 @@ describe('the window, remembering itself', () => {
         })),
       ],
     })
-    // Nothing here is on a clock, so the switch is not drawn at all and the
-    // scope is the whole of the row.
+    // The scope is the whole of the row: one question, one pair.
     const rowOf = (label: string) => headingRow(label).row + 1
     await until('the queue on screen', () =>
       (screenOf(terminal.written)[rowOf('SMART QUEUE')] ?? '').includes('<all> [next]'),
@@ -175,14 +174,12 @@ describe('the window, remembering itself', () => {
     // because it was narrowed: a project showing the whole of its queue never
     // said anything, and a default written down is a default frozen.
     const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
-    expect(kept.queueViews).toEqual({ app: { scope: 'next', timed: true } })
+    expect(kept.queueViews).toEqual({ app: { scope: 'next' } })
 
-    // Opened again: it is showing what it was showing, and the switch it left
-    // alone is still not drawn.
+    // Opened again: it is showing what it was showing.
     await start()
     await until('the window again', () => sidebar().includes('refunds'))
     await until('next still showing', () => sidebar().includes('<next>'))
-    expect(sidebar()).not.toContain('timed')
   }, 60_000)
 
   it('keeps the SMART QUEUE open once you open it, with nothing in it to open it for', async () => {

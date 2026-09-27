@@ -9,18 +9,18 @@
   │  Mark finished             ▕│                                                                                       
   │  Show changes      3 files ▕│                                                                                       
  ▸│  Rename…                   ▕│                                                                                       
- ▾│  Change model…             ▕│                                                                                       
-  │  Run as account…           ▕│● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▸│  Change model…             ▕│                                                                                       
+ ▾│  Run as account…           ▕│● Upgrading stripe to v15. The webhook signature API changed,                          
   │  Open in editor            ▕│  so src/webhooks.ts needs the new constructEvent signature.                           
   │  Copy branch name          ▕│                                                                                       
   │────────────────────────────▕│▸ Read src/webhooks.ts                                                                 
- ▾│  Park                      ▕│▸ Edit src/webhooks.ts  +12 −4                                                         
-  │  Remove agent…             ▕│▸ bash npm i stripe@15                                                                 
+  │  Park                      ▕│▸ Edit src/webhooks.ts  +12 −4                                                         
+ ▾│  Remove agent…             ▕│▸ bash npm i stripe@15                                                                 
   ╰─────────────────────────────╯╭─ wants approval ─────────────────────────────────────────────╮                       
-       webhooks.ts           ▕│  │ bash  npm i stripe@15                                        │                       
-   ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
-     package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-     README.md               ▕│                                                                                         
+       webhooks.test.ts      ▕│  │ bash  npm i stripe@15                                        │                       
+       webhooks.ts           ▕│  │   Allow once     Deny                                        │                       
+   ▸ test/                   ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+     package.json            ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

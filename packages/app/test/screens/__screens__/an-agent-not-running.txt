@@ -6,6 +6,7 @@
  ▌   finished                █│  Ready for review, and no agent is running.                                             
                              █│                                                                                         
  ▸ SMART QUEUE          none █│    Open its agent   where it stopped                                                    
+ ▸ SCHEDULES            none █│                                                                                         
  ▾ CHANGES           vs main █│                                                                                         
    nothing changed           █│                                                                                         
                              █│                                                                                         
@@ -14,13 +15,12 @@
        webhooks.test.ts      █│                                                                                         
        webhooks.ts           █│                                                                                         
    ▸ test/                   █│                                                                                         
-     package.json            █│                                                                                         
-     README.md               █│                                                                                         
+     package.json            ▕│                                                                                         
+     README.md               ▕│                                                                                         
                              ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
  ▾ GIT                       ▕│                                                                                         
    repo     ~/src/checkout   ▕│                                                                                         
-   branch   …de/stripe-v15   ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

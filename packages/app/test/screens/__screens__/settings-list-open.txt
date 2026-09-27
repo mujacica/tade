@@ -9,18 +9,18 @@
      wor│  Approvals      bypass ▕│ Mode            ◉ Hold to talk   ○ Press to start, press to stop          ▕│        
         │  Checks                ▕│                                                                           ▕│        
  ▸ SMART│▌ Voice                 ▕│▌Speech to text   whisper · base.en · on this machine  ▾      ↻ on restart ▕│        
- ▾ CHANG│  Search                ▕│                 ╭─  ───────────────────────────────────── ▴ ─╮            ▕│        
-  M pack│  Window                ▕│ Microphone      │  ▏                                         │ on restart ▕│        
-  A …/we│  Projects           3  ▕│                 │ ON THIS MACHINE            private, no key │            ▕│        
-  M src/│  Checks per project    ▕│                 │▌ whisper · base.en · on this machine     ✓ │            ▕│        
-        │  Budgets           ● 1 ▕│ Muted           │ IN THE CLOUD                   needs a key │            ▕│        
- ▾ FILES│  Journal               ▕│                 │  OpenAI · whisper-1                        │            ▕│        
-   ▾ src│  Telemetry             ▕│ Spoken replies  │  Groq · whisper-large-v3                   │            ▕│        
-       w│  Shortcuts             ▕│                 ╰────────────────────────────────────────────╯            ▕│        
+ ▸ SCHED│  Search                ▕│                 ╭─  ───────────────────────────────────── ▴ ─╮            ▕│        
+ ▾ CHANG│  Window                ▕│ Microphone      │  ▏                                         │ on restart ▕│        
+  M pack│  Projects           3  ▕│                 │ ON THIS MACHINE            private, no key │            ▕│        
+  A …/we│  Checks per project    ▕│                 │▌ whisper · base.en · on this machine     ✓ │            ▕│        
+  M src/│  Budgets           ● 1 ▕│ Muted           │ IN THE CLOUD                   needs a key │            ▕│        
+        │  Journal               ▕│                 │  OpenAI · whisper-1                        │            ▕│        
+ ▾ FILES│  Telemetry             ▕│ Spoken replies  │  Groq · whisper-large-v3                   │            ▕│        
+   ▾ src│  Shortcuts             ▕│                 ╰────────────────────────────────────────────╯            ▕│        
        w│  Accounts          ● 2 ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
-   ▸ tes│  Updates               ▕│                                                                           ▕│        
-     pac│                        ▕│ Quiet hours      22:00    to  07:00                          ↻ on restart ▕│        
-     REA│                        ▕│                                                                           ▕│        
+       w│  Updates               ▕│                                                                           ▕│        
+   ▸ tes│                        ▕│ Quiet hours      22:00    to  07:00                          ↻ on restart ▕│        
+     pac│                        ▕│                                                                           ▕│        
 ━   orch│                        ▕│                                                                           ▕│   ▾   ━
         │                        ▕│                                                                           ▕│        
         │                        ▕│                                                                           ▕│       ▕

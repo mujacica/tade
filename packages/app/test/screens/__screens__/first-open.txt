@@ -5,22 +5,22 @@
    none yet — + starts one   ▕│                                                                                         
                              ▕│                         ████████   ▄████▄   ██████▄   ████████                          
  ▸ SMART QUEUE          none ▕│                            ██     ██▀  ▀██  ██   ▀██  ██                                
- ▾ CHANGES                   ▕│                            ██     ████████  ██    ██  ██████                            
-   open an agent to see      ▕│                            ██     ██    ██  ██   ▄██  ██                                
-                             ▕│                            ██     ██    ██  ██████▀   ████████                          
- ▾ FILES                     ▕│                                                                                         
-   ▸ src/                    ▕│                                     said, and done.                                     
-   ▸ test/                   ▕│                                                                                         
-     package.json            ▕│   ───────────────────────────────────────────────────────────────────────────────────   
-     README.md               ▕│    Ask Tade for an agent, or anything            type, or hold    ctrl   +   space      
-                             ▕│   ───────────────────────────────────────────────────────────────────────────────────   
- ▸ NOTES                +    ▕│                                                                                         
- ▾ GIT                       ▕│                       + New agent      Open project     in checkout                     
+ ▸ SCHEDULES            none ▕│                            ██     ████████  ██    ██  ██████                            
+ ▾ CHANGES                   ▕│                            ██     ██    ██  ██   ▄██  ██                                
+   open an agent to see      ▕│                            ██     ██    ██  ██████▀   ████████                          
+                             ▕│                                                                                         
+ ▾ FILES                     ▕│                                     said, and done.                                     
+   ▸ src/                    ▕│                                                                                         
+   ▸ test/                   ▕│   ───────────────────────────────────────────────────────────────────────────────────   
+     package.json            ▕│    Ask Tade for an agent, or anything            type, or hold    ctrl   +   space      
+     README.md               ▕│   ───────────────────────────────────────────────────────────────────────────────────   
+                             ▕│                                                                                         
+ ▸ NOTES                +    ▕│                       + New agent      Open project     in checkout                     
+ ▾ GIT                       ▕│                                                                                         
    repo     ~/src/checkout   ▕│                                                                                         
    branch   main             ▕│                                                                                         
    path     /Users/me/src/   ▕│                                                                                         
             checkout         ▕│                                                                                         
-                             ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

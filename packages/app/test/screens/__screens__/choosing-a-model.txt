@@ -9,13 +9,13 @@
    │▌   anthropic/claude-sonnet-5                   $3     $15   $0.30   Claude Sonnet 5 · openrouter              ▕│   
    │    moonshotai/kimi-k2.6                     $0.95      $4   $0.16   Kimi K2.6 · openrouter                    ▕│   
  ▸ │    nvidia/nemotron-3-super-120b-a12b:free    free                   Nemotron 3 Super (free) · openrouter      ▕│   
- ▾ │    claude-opus-5                               $5     $25   $0.50   Claude Opus 5 · anthropic                 ▕│   
+ ▸ │    claude-opus-5                               $5     $25   $0.50   Claude Opus 5 · anthropic                 ▕│   
+ ▾ │                                                                                                               ▕│   
   M│                                                                                                               ▕│   
   A│                                                                                                               ▕│   
   M│                                                                                                               ▕│   
    │                                                                                                               ▕│   
  ▾ │                                                                                                               ▕│   
-   │                                                                                                               ▕│   
    │                                                                                                               ▕│   
    │                                                                                                               ▕│   
    │                                                                                                               ▕│   

@@ -6,7 +6,6 @@ import {
   type AgentPane,
   type AppState,
   chainOf,
-  clocksHere,
   glyph,
   MARK_TONES,
   markOf,
@@ -15,7 +14,6 @@ import {
   type QueueRow,
   queueRows,
   queueViewOf,
-  schedulesShown,
   shownName,
 } from '../model.ts'
 import { drawPlan, drawWhy, layoutPlan, type PlanBox, treeStems } from '../plan-graph.ts'
@@ -36,7 +34,6 @@ import {
   tabList,
   toneOf,
 } from './rows.ts'
-import { scheduleRow } from './schedule.ts'
 import {
   askedBy,
   askedMark,
@@ -186,6 +183,12 @@ function queueSays(pane: AgentPane & { queued: QueuedView }): string {
  * piece whatever waits on it — each piece shifted right of what it waits on
  * and joined to it by a line, so the side says the same shape the plan does.
  *
+ * Only work, now: the standing rules are SCHEDULES' (`schedulesSection`). Each
+ * piece of this is one thing that will start once, and everything the section
+ * draws is about that — where it stands in the tree, the columns that say what
+ * waits on what, the reason it waits. None of which a rule that fires every
+ * hour has any of, which is what made the two of them together unreadable.
+ *
  * It is drawn whether or not there is anything in it. With nothing waiting it
  * folds itself away, and then its heading is what says so — in the words of
  * the reason there is nothing, because a heading saying only its own name is
@@ -220,21 +223,18 @@ export function queueSection(
       : {}),
     // Folded with nothing in it, the heading is the only place left to say
     // why there is nothing, so that is what it says.
-    ...(quiet && !open ? { note: queueEmptySays(state, frame.schedules), brief: 'none' } : {}),
+    ...(quiet && !open ? { note: queueEmptySays(state), brief: 'none' } : {}),
     rows: (row) => {
       const view = queueViewOf(state)
       const entries = queueRows(state)
-      const here = frame.schedules ?? []
-      const schedules = schedulesShown(here, state)
       // Where there is a choice, and always where the view is leaving something
       // out: one nothing can widen again is work hidden with no way back to it.
-      const controls =
-        all > 1 || narrowing(view) ? [queueControls(row(), view, clocksHere(state, here))] : []
-      if (entries.length === 0 && schedules.length === 0) {
+      const controls = all > 1 || narrowing(view) ? [queueControls(row(), view)] : []
+      if (entries.length === 0) {
         // Why there is nothing, in the words of the reason there is nothing:
         // wrapped rather than cut, because the reason is the whole of what
         // this row is for.
-        const none = wrapWords(queueEmptySays(state, here), Math.max(10, width - 6)).slice(0, 4)
+        const none = wrapWords(queueEmptySays(state), Math.max(10, width - 6)).slice(0, 4)
         return [
           ...controls,
           blank(width),
@@ -247,14 +247,9 @@ export function queueSection(
       return [
         ...controls,
         ...tabList(
-          [
-            ...entries.map((one, i) =>
-              queueRow(width, skin, pointer, one, stems[i] ?? { stem: '', bars: '' }, frame, tree),
-            ),
-            ...schedules.map((one) =>
-              scheduleRow(width, skin, pointer, one, state.schedule === one.id, frame),
-            ),
-          ],
+          entries.map((one, i) =>
+            queueRow(width, skin, pointer, one, stems[i] ?? { stem: '', bars: '' }, frame, tree),
+          ),
           width,
         ),
       ]
@@ -263,36 +258,30 @@ export function queueSection(
 }
 
 /**
- * The controls over the SMART QUEUE: the set of small controls every other
+ * The control over the SMART QUEUE: the set of small controls every other
  * heading has, whatever is on filled in the brand's amber — what being on looks
  * like everywhere else in the window, taken from the skin so it moves when the
  * palette does — and each lighting under the pointer, since a control that never
  * answers the pointer reads as a label.
  *
- * Two sets, because the queue answers two questions (`QueueView`): the scope,
- * one of its pair always on, then a gap wider than the one inside that pair,
- * then the `timed` switch. Both look the same on — amber, as `H` beside AGENTS
- * does, which is a switch too — because the gap already says which is which, and
- * a fourth look would be a fourth thing to learn about a row twenty columns
- * wide. It is drawn where there is a clock to show or hide and wherever it is off:
- * with none it does nothing, and off it is the only way back to what it hid.
+ * One question and one pair, with one of them always on: where in the resolved
+ * tree to look. There was a `timed` switch beside it, and the schedules moving
+ * out is what earned its removal — the argument is `QueueView`'s.
  *
  * Nothing here pauses anything: pausing is something you do to one piece of
  * work, beside its name — in its tab, its menu, or on the card it opens — so
  * it is never in doubt which one you are pausing.
  */
-function queueControls(row: Row, view: QueueView, clocks: boolean): { text: string; hits: Hit[] } {
-  const chip = (label: string, name: string, on: boolean) =>
-    row.chip(label, { kind: 'action', name }, on ? 'primary' : 'rest')
+function queueControls(row: Row, view: QueueView): { text: string; hits: Hit[] } {
   row.space(2)
   QUEUE_SCOPES.forEach((scope, i) => {
     if (i > 0) row.space()
-    chip(scope, `queue-scope:${scope}`, scope === view.scope)
+    row.chip(
+      scope,
+      { kind: 'action', name: `queue-scope:${scope}` },
+      scope === view.scope ? 'primary' : 'rest',
+    )
   })
-  if (clocks || !view.timed) {
-    row.space(2)
-    chip('timed', 'queue-timed', view.timed)
-  }
   return row.build()
 }
 

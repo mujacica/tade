@@ -5,22 +5,22 @@
    none yet — + starts one   █│                                                                                         
                              █│                         ████████   ▄████▄   ██████▄   ████████                          
  ▸ SMART QUEUE          none █│                            ██     ██▀  ▀██  ██   ▀██  ██                                
- ▾ CHANGES           vs main █│                            ██     ████████  ██    ██  ██████                            
-   open an agent to see      █│                            ██     ██    ██  ██   ▄██  ██                                
-                             █│                            ██     ██    ██  ██████▀   ████████                          
- ▾ FILES                     █│                                                                                         
-   ▾ src/                    █│                                     said, and done.                                     
-       webhooks.test.ts      █│                                                                                         
-       webhooks.ts           █│   ───────────────────────────────────────────────────────────────────────────────────   
-   ▸ test/                   █│    Ask Tade for an agent, or anything            type, or hold    ctrl   +   space      
-     package.json            █│   ───────────────────────────────────────────────────────────────────────────────────   
-     README.md               █│                                                                                         
-                             █│                       + New agent      Open project     in checkout                     
- ▸ N╭─ main ──────────────────────╮                                                                                     
- ▾ G│▌ Switch branch…            ▕│                                                                                     
-   r│  New branch…               ▕│                                                                                     
-   b│  Pull         fast-forward ▕│                                                                                     
-   p│────────────────────────────▕│                                                                                     
+ ▸ SCHEDULES            none █│                            ██     ████████  ██    ██  ██████                            
+ ▾ CHANGES           vs main █│                            ██     ██    ██  ██   ▄██  ██                                
+   open an agent to see      █│                            ██     ██    ██  ██████▀   ████████                          
+                             █│                                                                                         
+ ▾ FILES                     █│                                     said, and done.                                     
+   ▾ src/                    █│                                                                                         
+       webhooks.test.ts      █│   ───────────────────────────────────────────────────────────────────────────────────   
+       webhooks.ts           █│    Ask Tade for an agent, or anything            type, or hold    ctrl   +   space      
+   ▸ test/                   █│   ───────────────────────────────────────────────────────────────────────────────────   
+     package.json            █│                                                                                         
+     README.md               █│                       + New agent      Open project     in checkout                     
+    ╭─ main ──────────────────────╮                                                                                     
+ ▸ N│▌ Switch branch…            ▕│                                                                                     
+ ▾ G│  New branch…               ▕│                                                                                     
+   r│  Pull         fast-forward ▕│                                                                                     
+   b│────────────────────────────▕│                                                                                     
 ━   │  Copy branch name          ▕│━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
     │  Copy path                 ▕│                                                                                     
     ╰─────────────────────────────╯                                                                                    ▕

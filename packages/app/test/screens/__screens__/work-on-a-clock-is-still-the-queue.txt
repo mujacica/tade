@@ -1,22 +1,22 @@
    T A D E      checkout ⠋ ◌      +                 ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  1            +    ▕│ checkout › bump-mailer    agent    actions     +     claude-opus-5 ▾     high ▾     ×   
-                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
- ▌ ⠋ bump-mailer             ▕│                                                                                         
- ▌   working                 ▕│                                                                                         
+ ▾ AGENTS  1            +    █│ checkout › bump-mailer    agent    actions     +     claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ⠋ bump-mailer             █│                                                                                         
+ ▌   working                 █│                                                                                         
+                             █│                                                                                         
+ ▾ SMART QUEUE  1            █│                                                                                         
+                             █│                                                                                         
+   ◷ release-notes   18:00   █│                                                                                         
+     ❯ waits for its time    █│                                                                                         
+                             █│                                                                                         
+ ▾ SCHEDULES  3              █│                                                                                         
                              ▕│                                                                                         
- ▾ SMART QUEUE  4            ▕│                                                                                         
-   all   next    timed       ▕│                                                                                         
+   ↻ morning brief   08:45   ▕│                                                                                         
+     every weekday … tells   ▕│                                                                                         
                              ▕│                                                                                         
-   timed is off, and 4       ▕│                                                                                         
-   here wait for a time      ▕│                                                                                         
-                             ▕│                                                                                         
- ▸ CHANGES  3        vs main ▕│                                                                                         
- ▸ FILES                     ▕│                                                                                         
- ▸ NOTES  4             +    ▕│                                                                                         
- ▸ GIT                       ▕│                                                                                         
-                             ▕│                                                                                         
-                             ▕│                                                                                         
+   ↻ deps weekly     09:00   ▕│                                                                                         
+     every Monday … agents   ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

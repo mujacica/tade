@@ -15,20 +15,19 @@ import {
 import { type AppState, type QueueRow, queueTree, queueViewOf, type ScheduleView } from './model.ts'
 import { shownBy } from './queue-view.ts'
 
-// What the queue says, in words: to the journal when it starts something, to
-// the orchestrator when something is held or it asks, to you in the transcript,
-// and — where its own controls have left the list empty — in the side. The
-// rules themselves are core's; this is how they are told.
+// What the queue and the schedules say, in words: to the journal when something
+// starts, to the orchestrator when something is held or it asks, to you in the
+// transcript, and — where a list in the side has come out empty — in its
+// heading. The rules themselves are core's; this is how they are told.
 //
 // Pure: queued work and facts in, sentences out.
 
 /**
  * Why queued work at the front of the queue is not starting, in a word.
  *
- * Waiting for a time is not one of them any more, and that is the switch's
- * whole point: work on a clock at the front of the tree *is* next, and what
- * keeps it out of the list is a control one press away — so it is said as
- * that, below, rather than filed here beside the two that need a person.
+ * Waiting for a time is not one of them: work on a clock at the front of the
+ * tree *is* next, and starts by itself when its time comes. Nobody is needed,
+ * so there is nothing here to say about it.
  */
 type QueueHold = 'held' | 'paused' | 'stuck'
 
@@ -54,45 +53,20 @@ function holdOf(row: QueueRow): QueueHold {
 
 /**
  * Why the SMART QUEUE is showing nothing, in the words of the reason it
- * actually is — the switch is off and what is here is on a clock, everything
- * at the front is held, everything is paused, or nothing is queued at all. One
- * sentence for every case reads as a bug the moment one of the cases is not
- * true: "nothing is next" beside work that plainly is queued is what sent
- * somebody looking for this code.
+ * actually is — everything at the front is held, everything is paused, or
+ * nothing is queued at all. One sentence for every case reads as a bug the
+ * moment one of the cases is not true: "nothing is next" beside work that
+ * plainly is queued is what sent somebody looking for this code.
  *
- * The schedules come in because the switch hides those too, and a project
- * whose only clocks are schedules would otherwise be told "nothing is queued"
- * about a list its own control had emptied.
- *
- * Where a control is what emptied the list, that control is the reason given:
- * it is the one thing that can be done about it, and `release-notes waits for
- * a time` reads as stuck when it is one press from being in the list.
+ * Nothing about the clocks any more, in either direction. The schedules used
+ * to be counted here, because the switch over them could empty a list that had
+ * something in it; they have a section of their own now, and a queue with
+ * nothing queued in it says so whatever is on a clock next door.
  */
-export function queueEmptySays(
-  state: AppState,
-  schedules: readonly { project: string }[] = [],
-): string {
+export function queueEmptySays(state: AppState): string {
   const view = queueViewOf(state)
   const rows = queueTree(state)
-  const clocks = schedules.filter((one) => one.project === (state.project ?? one.project)).length
-  if (rows.length === 0 && clocks === 0) return 'nothing is queued'
-  const lead = view.scope === 'next' ? 'nothing is next: ' : ''
-  if (!view.timed) {
-    const of = (row: QueueRow) => ({ queued: row.pane.queued, parent: row.parent })
-    const hidden = rows.filter(
-      (row) => !shownBy(view, of(row)) && shownBy({ ...view, timed: true }, of(row)),
-    )
-    const all = hidden.length + clocks
-    if (all > 0) {
-      const only = clocks === 0 && hidden.length === 1 ? hidden[0]?.pane.name : null
-      const what = only
-        ? `${only} waits for a time`
-        : all === 1
-          ? 'what is here waits for a time'
-          : `${all} here wait for a time`
-      return `${lead}timed is off, and ${what}`
-    }
-  }
+  if (rows.length === 0) return 'nothing is queued'
   if (view.scope === 'all') return 'nothing is queued'
   // Nothing shown under `next` means the front of the tree is what is stopping
   // it: what waits behind held or paused work is not next, it is behind that.
@@ -116,7 +90,40 @@ export function queueEmptySays(
   return `nothing is next: what is at the front is ${list}`
 }
 
-/** A schedule as the SMART QUEUE shows it, from what was set and what the journal says it did. */
+/**
+ * Why SCHEDULES is showing nothing, in the room a heading has. There is one
+ * reason, and it has no control to blame: nothing in this project runs on a
+ * clock. The section is still there, and folded, so a person looking for the
+ * clockwork finds where it would be rather than finding nothing at all.
+ */
+export function schedulesEmptySays(): string {
+  return 'nothing on a clock'
+}
+
+/**
+ * The same, with the one thing there is to do about it, in the room the open
+ * section has. A watch is turned on from the Extensions page or by asking, and
+ * an empty list that does not say so is a dead end.
+ */
+export function schedulesEmptyMeans(): string {
+  return 'nothing here runs on a clock — the Extensions page turns a watch on'
+}
+
+/**
+ * What a standing rule makes each time it fires, in a word: work, or a
+ * sentence for somebody.
+ *
+ * The difference between a watch queueing an agent at three in the morning and
+ * one telling you in the morning, which is the thing about a standing rule
+ * worth a column of its own on its row. A watch answers with what it does about
+ * what it *finds* — looking costs nothing and is not the news.
+ */
+export function scheduleMakes(view: ScheduleView): 'agents' | 'tells' {
+  if (view.watch) return view.watch.found === 'agent' ? 'agents' : 'tells'
+  return view.kind === 'agent' ? 'agents' : 'tells'
+}
+
+/** A schedule as SCHEDULES shows it, from what was set and what the journal says it did. */
 export function scheduleView(
   schedule: Schedule & { paused: boolean },
   runs: readonly { due: number; ran: boolean; missed: number; task: string | null }[],
@@ -172,13 +179,21 @@ export function scheduleView(
   }
 }
 
-/** A schedule and when it next runs, in a line, for the orchestrator; a watch with how it last looked. */
+/**
+ * A schedule and when it next runs, in a line, for the orchestrator; a watch
+ * with how it last looked.
+ *
+ * With its project, because this list is every project's at once and the same
+ * watch runs in several of them under the same name: two lines reading "New
+ * Sentry errors" are two lines nobody can tell apart, and an id somebody has
+ * never seen is not an answer to which repository a thing is watching.
+ */
 export function describeSchedule(view: ScheduleView, clock: (at: number) => string): string {
   const next =
     view.next.length > 0 ? `next ${view.next.map(clock).join(', ')}` : 'nothing left to run'
   const look = view.watch?.looks[0]
   const looked = look ? `; last looked ${clock(look.at)}: ${describeLook(look)}` : ''
-  return `- ${view.id} (${view.name}) — ${view.when}, ${view.does}; ${view.paused ? 'paused' : next}${looked}`
+  return `- ${view.id} (${view.name}, in ${view.project}) — ${view.when}, ${view.does}; ${view.paused ? 'paused' : next}${looked}`
 }
 
 /**

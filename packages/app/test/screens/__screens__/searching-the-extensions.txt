@@ -9,9 +9,9 @@
    │                  ▕│ an agent’s worktree.                              █│   
    │                  ▕│                                                   ▕│╮  
  ▸ │                  ▕│   Settings…     Check dependencies                ▕││  
- ▾ │                  ▕│                                                   ▕││  
-  M│                  ▕│   Update dependencies (minor)                     ▕│╯  
-  A│                  ▕│                                                   ▕│   
+ ▸ │                  ▕│                                                   ▕││  
+ ▾ │                  ▕│   Update dependencies (minor)                     ▕│╯  
+  M│                  ▕│                                                   ▕│   
 ━  │                  ▕│   Update dependencies (major)     Turn off        ▕│  ━
    │                  ▕│                                                   ▕│   
    │                  ▕│ HOW IT IS USED                                    ▕│  ▕

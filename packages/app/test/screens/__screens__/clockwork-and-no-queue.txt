@@ -1,0 +1,44 @@
+   T A D E      checkout ⠋    search      +                          ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  1                                  +    ▕│ bump-ma…    agent    actions     +        claude-opus-5 ▾     ×   
+                                                   ▕│───────────────────────────────────────────────────────────────────
+ ▌ ⠋ bump-mailer                                   ▕│                                                                   
+ ▌   working                                       ▕│                                                                   
+                                                   ▕│                                                                   
+ ▸ SMART QUEUE                   nothing is queued ▕│                                                                   
+ ▾ SCHEDULES  5                      1 not looking ▕│                                                                   
+                                                   ▕│                                                                   
+   ◎ CI on this branch                     14:10   ▕│                                                                   
+     checkout · every 10 minutes           tells   ▕│                                                                   
+     14:00 · 1 new                                 ▕│                                                                   
+                                                   ▕│                                                                   
+   ! Vulnerable dependencies               07:00   ▕│                                                                   
+     checkout · every day at 07:00        agents   ▕│                                                                   
+     could not look 07:00                          ▕│                                                                   
+     the npm registry answered 503: Service…  ×    ▕│                                                                   
+                                                   ▕│                                                                   
+   ↻ morning brief                         08:45   ▕│                                                                   
+     checkout · every weekday at 08:45     tells   ▕│                                                                   
+                                                   ▕│                                                                   
+   ↻ deps weekly                           09:00   ▕│                                                                   
+     checkout · every Monday at 09:00     agents   ▕│                                                                   
+                                                   ▕│                                                                   
+   ‖ perf nightly                         paused   ▕│                                                                   
+     checkout · every day at 02:00        agents   ▕│                                                                   
+                                                   ▕│                                                                   
+ ▸ CHANGES  3                              vs main ▕│                                                                   
+ ▸ FILES                                           ▕│                                                                   
+ ▸ NOTES  4                                   +    ▕│                                                                   
+ ▸ GIT                                             ▕│                                                                   
+                                                   ▕│                                                                   
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

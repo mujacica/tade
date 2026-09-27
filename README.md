@@ -89,6 +89,10 @@ When something upstream fails, the work it feeds is **held**, not lost — and T
 record of every run. There is no daemon — what came due while Tade was closed is caught up when it
 opens, or skipped, as the schedule says.
 
+Down the side the clockwork has a section of its own, under the queue: a rule that fires again and
+again is not a piece of work waiting its turn, and each row says how often it fires, whether firing
+starts an agent or only tells you, and — for a watch — when it last looked and what it came to.
+
 ![A schedule: every Monday at 09:00 it starts an agent, what it is told, when it runs next, and every run so far](images/schedules.svg)
 
 ## Watches

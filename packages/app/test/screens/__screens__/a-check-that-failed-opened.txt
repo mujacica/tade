@@ -9,18 +9,18 @@
      working                 █│  ✗ tests     █ 1m 04s  12m ago                   4 failed · 2072 passed · 3 skipped  ▴ ▕
                              █│      $ pnpm vitest run                                                    after types  █
  ▸ SMART QUEUE          none █│      packages/app/test/screens.test.ts:37:5  what-an-agent-has-done                    █
- ▾ CHANGES  3        vs main █│      src/webhooks.test.ts:18:3  keeps the old shape                                    █
-  M package.json       +2 −1 █│      and 2 more                                                                        █
-  A …/webhooks.test.ts   +48 █│      │  ❯ packages/app/test/screens.test.ts:37:5                                       █
-  M src/webhooks.ts   +12 −4 █│      │       35|   it(‘looks the way it did’, async () => {                            █
-                             ▕│      │       36|     const plain = drawn.rows.map((row) => stripTerminalSequences(…    █
- ▾ FILES                     ▕│      │       37|     await expect(plain.join()).toMatchFileSnapshot(nameOf(scenari…    █
-   ▾ src/                    ▕│      │         |     ^                                                                 █
-       webhooks.test.ts      ▕│      │   Snapshots  4 failed                                                           █
-       webhooks.ts           ▕│      │  Test Files  1 failed | 131 passed | 1 skipped (133)                            █
-   ▸ test/                   ▕│      │       Tests  4 failed | 2072 passed | 3 skipped (2079)                          █
-     package.json            ▕│       the whole log  in the conversation   don’t run here                              ▕
-     README.md               ▕│                                                                                        ▕
+ ▸ SCHEDULES            none █│      src/webhooks.test.ts:18:3  keeps the old shape                                    █
+ ▾ CHANGES  3        vs main █│      and 2 more                                                                        █
+  M package.json       +2 −1 █│      │  ❯ packages/app/test/screens.test.ts:37:5                                       █
+  A …/webhooks.test.ts   +48 █│      │       35|   it(‘looks the way it did’, async () => {                            █
+  M src/webhooks.ts   +12 −4 ▕│      │       36|     const plain = drawn.rows.map((row) => stripTerminalSequences(…    █
+                             ▕│      │       37|     await expect(plain.join()).toMatchFileSnapshot(nameOf(scenari…    █
+ ▾ FILES                     ▕│      │         |     ^                                                                 █
+   ▾ src/                    ▕│      │   Snapshots  4 failed                                                           █
+       webhooks.test.ts      ▕│      │  Test Files  1 failed | 131 passed | 1 skipped (133)                            █
+       webhooks.ts           ▕│      │       Tests  4 failed | 2072 passed | 3 skipped (2079)                          █
+   ▸ test/                   ▕│       the whole log  in the conversation   don’t run here                              ▕
+     package.json            ▕│                                                                                        ▕
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

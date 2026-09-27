@@ -5,9 +5,9 @@
    none yet — + starts on█│   ───────────────────────────────────────   
                          ▕│    Ask Tade for an agent, or anything       
  ▸ SMART QUEUE      none ▕│   ───────────────────────────────────────   
- ▾ CHANGES               ▕│                                             
-   open an agent to see  ▕│  + New agent      Open project     in checko
-                         ▕│                                             
+ ▸ SCHEDULES        none ▕│                                             
+ ▾ CHANGES               ▕│  + New agent      Open project     in checko
+   open an agent to see  ▕│                                             
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                         
                                                                        ▕

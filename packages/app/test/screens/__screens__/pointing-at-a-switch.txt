@@ -9,18 +9,18 @@
      wor│  Approvals      bypass ▕│                                                                           █│        
         │  Checks                ▕│ Reporter                   ◉ sentry   ○ none                 ↻ on restart █│        
  ▸ SMART│  Voice                 ▕│                                                                           █│        
- ▾ CHANG│  Search                ▕│ Crashes and warnings       ──██ on                           ↻ on restart █│        
-  M pack│  Window                ▕│                                                                           █│        
-  A …/we│  Projects           3  ▕│ What happened around them  ──██ on                           ↻ on restart █│        
-  M src/│  Checks per project    ▕│                                                                           █│        
-        │  Budgets           ● 1 ▕│ Numbers                    ──██ on                           ↻ on restart █│        
- ▾ FILES│  Journal               ▕│                                                                           █│        
-   ▾ src│▌ Telemetry             ▕│ What agents do             ──██ on                           ↻ on restart █│        
-       w│  Shortcuts             ▕│                                                                           █│        
+ ▸ SCHED│  Search                ▕│ Crashes and warnings       ──██ on                           ↻ on restart █│        
+ ▾ CHANG│  Window                ▕│                                                                           █│        
+  M pack│  Projects           3  ▕│ What happened around them  ──██ on                           ↻ on restart █│        
+  A …/we│  Checks per project    ▕│                                                                           █│        
+  M src/│  Budgets           ● 1 ▕│ Numbers                    ──██ on                           ↻ on restart █│        
+        │  Journal               ▕│                                                                           █│        
+ ▾ FILES│▌ Telemetry             ▕│ What agents do             ──██ on                           ↻ on restart █│        
+   ▾ src│  Shortcuts             ▕│                                                                           █│        
        w│  Accounts          ● 2 ▕│ How much of Tade is timed   ‹  0.1  ›                        ↻ on restart █│        
-   ▸ tes│  Updates               ▕│                                                                           █│        
-     pac│                        ▕│ Which Tade this is          laptop                           ↻ on restart ▕│        
-     REA│                        ▕│                                                                           ▕│        
+       w│  Updates               ▕│                                                                           █│        
+   ▸ tes│                        ▕│ Which Tade this is          laptop                           ↻ on restart ▕│        
+     pac│                        ▕│                                                                           ▕│        
 ━   orch│                        ▕│ Read Sentry back           ──██ on                           ↻ on restart ▕│   ▾   ━
         │                        ▕│                                                                           ▕│        
         │                        ▕│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default          ▕│       ▕

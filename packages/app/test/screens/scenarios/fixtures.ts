@@ -82,9 +82,9 @@ export const finished = (): AppState =>
   )
 
 /**
- * A project's SMART QUEUE showing what its controls were left showing: the
- * scope, the `timed` switch, or both. Spread into a scenario's state, since the
- * choice is that project's.
+ * A project's SMART QUEUE showing what its control was left showing: how much
+ * of the resolved tree. Spread into a scenario's state, since the choice is
+ * that project's.
  */
 export const showing = (project: string, view: Partial<QueueView>): Partial<AppState> => ({
   queueViews: { [project]: { ...WHOLE_QUEUE, ...view } },

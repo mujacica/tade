@@ -9,6 +9,7 @@
      worki│  ● stripe-v15  in checkout                                                       waiting on you ▕│          
           │                                                                                                 ▕│          
  ▸ SMART Q│                                                                                                 ▕│          
+ ▸ SCHEDUL│                                                                                                 ▕│          
  ▾ CHANGES│                                                                                                 ▕│          
   M packag│                                                                                                 ▕│          
   A …/webh│                                                                                                 ▕│          
@@ -20,7 +21,6 @@
        web│                                                                                                 ▕│          
    ▸ test/│                                                                                                 ▕│          
      packa│                                                                                                 ▕│          
-     READM│                                                                                                 ▕│          
 ━   orches│                                                                                                 ▕│     ▾   ━
           │                                                                                                 ▕│          
           │                                                                                                 ▕│         ▕

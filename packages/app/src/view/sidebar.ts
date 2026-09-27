@@ -9,6 +9,7 @@ import {
   groupedTasks,
   queuedCount,
   queueRows,
+  schedulesShown,
   sectionOpen,
 } from '../model.ts'
 import { BAR, barAcross } from '../scrollbar.ts'
@@ -29,7 +30,7 @@ import {
   tabbed,
   tabList,
 } from './rows.ts'
-import { schedulesHere } from './schedule.ts'
+import { schedulesSection } from './schedule.ts'
 import { cutAtWord, inProject, saidShort, shortened, shortPath, tailOf, wrapPath } from './text.ts'
 
 // Down the side: where you are, the agents, what they changed, the files and
@@ -56,10 +57,14 @@ export function renderSidebar(
   // whether the side has anywhere to scroll sideways to. Worked out before
   // anything is drawn, because a bar along the bottom costs the list a row.
   const entries = queueRows(state)
-  // With nothing waiting and nothing scheduled the queue is quiet: still
-  // there, still a heading you can open, and folded until you do.
-  const waiting = queuedCount(state) + schedulesHere(state, frame)
+  // With nothing waiting the queue is quiet: still there, still a heading you
+  // can open, and folded until you do. Only work — the standing rules are
+  // SCHEDULES', which is quiet or not on its own.
+  const waiting = queuedCount(state)
   const queueOpen = sectionOpen(state, 'queue', waiting === 0)
+  // The project's standing rules, read once: the section is handed them, the way
+  // the queue is handed its count, because the side draws four times a second.
+  const clocks = schedulesShown(frame.schedules ?? [], state)
   const spread = queueOpen ? queueSpread(queueStems(entries), width) : { wide: 0, shown: 0 }
   const sideways = Math.max(0, spread.wide - spread.shown)
   const across = Math.min(Math.max(0, state.across), sideways)
@@ -150,6 +155,19 @@ export function renderSidebar(
     // Always, so the queue is somewhere you can look rather than something
     // that appears: with nothing in it, its heading is all it costs the side.
     queueSection(state, frame, width, skin, pointer, tree, waiting, queueOpen),
+    // And the clockwork under it, its own section: a standing rule fires again
+    // and again and nothing waits on it, which is not what a queue is. Always
+    // too, and for the same reason — a watch failing every ten minutes must be
+    // somewhere a person can find without having set one first.
+    schedulesSection(
+      state,
+      frame,
+      width,
+      skin,
+      pointer,
+      clocks,
+      sectionOpen(state, 'schedules', clocks.length === 0),
+    ),
     // What an extension keeps here — reviews, most of all — between the work
     // that is waiting and the work in front of you. A section with no rows
     // and nothing wrong is not drawn at all.

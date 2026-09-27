@@ -9,18 +9,18 @@
      working  │ Talk to Tade                 ctrl   +   /    type to the orchestrator                   █│              
               │ Next waiting agent           ctrl   +   q    the agent waiting on you                   █│              
  ▸ SMART QUEUE│ New agent                    ctrl   +   n    start one in the project you are in        █│              
- ▾ CHANGES  3 │ New terminal                 ctrl   +   t    a terminal in the bottom panel             █│              
-  M package.js│ Open project                 ctrl   +   o    add or go to a repository                  █│              
-  A …/webhooks│ Mute                         ctrl   +   m    quiet now, and back                        █│              
-  M src/webhoo│ Extensions                   ctrl   +   shift   +   e    turn them on and off           █│              
-              │ Settings                     ctrl   +   ,    this panel                                 █│              
- ▾ FILES      │ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window      █│              
-   ▾ src/     │ Shortcuts                    F1    the sheet of every shortcut                          █│              
-       webhook│ Reload                       ctrl   +   shift   +   r    restart with your changes      █│              
+ ▸ SCHEDULES  │ New terminal                 ctrl   +   t    a terminal in the bottom panel             █│              
+ ▾ CHANGES  3 │ Open project                 ctrl   +   o    add or go to a repository                  █│              
+  M package.js│ Mute                         ctrl   +   m    quiet now, and back                        █│              
+  A …/webhooks│ Extensions                   ctrl   +   shift   +   e    turn them on and off           █│              
+  M src/webhoo│ Settings                     ctrl   +   ,    this panel                                 █│              
+              │ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window      █│              
+ ▾ FILES      │ Shortcuts                    F1    the sheet of every shortcut                          █│              
+   ▾ src/     │ Reload                       ctrl   +   shift   +   r    restart with your changes      █│              
        webhook│ Allow                        a    allow what an agent asks, while one waits             █│              
-   ▸ test/    │ Deny                         d    deny what an agent asks, while one waits              █│              
-     package.j│                                                                                         █│              
-     README.md│ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│              
+       webhook│ Deny                         d    deny what an agent asks, while one waits              █│              
+   ▸ test/    │                                                                                         █│              
+     package.j│ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│              
 ━   orchestrat│ Stop the orchestrator        esc    stops the turn it is on · what you typed stays      █│   ⤢     ▾   ━
               │ Discard what you typed       ctrl   +   c    the line and the pictures with it          ▕│              
               │ Quit                         ctrl   +   c    once there is nothing left to discard      ▕│             ▕

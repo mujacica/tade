@@ -5,22 +5,22 @@
    none yet — + starts one   ▕│                                                                                         
                              ▕│                         ████████   ▄████▄   ██████▄   ████████                          
  ▸ SMART QUEUE          none ▕│                            ██     ██▀  ▀██  ██   ▀██  ██                                
- ▾ CHANGES                   ▕│                            ██     ████████  ██    ██  ██████                            
-   open an agent to see      ▕│                            ██     ██    ██  ██   ▄██  ██                                
-                             ▕│                            ██     ██    ██  ██████▀   ████████                          
- ▾ FILES                     ▕│                                                                                         
-   ▸ src/                    ▕│                                     said, and done.                                     
-   ▸ test/                   ▕│                                                                                         
-     package.json            ▕│   ────────────────  enter sends · shift+enter new line · ctrl+c clears, again quits ─   
-     README.md               ▕│    find out why the refund webhook retries twice                                        
-                             ▕│   ───────────────────────────────────────────────────────────────────────────────────   
- ▸ NOTES                +    ▕│                                                                                         
- ▾ GIT                       ▕│                       + New agent      Open project     in checkout                     
+ ▸ SCHEDULES            none ▕│                            ██     ████████  ██    ██  ██████                            
+ ▾ CHANGES                   ▕│                            ██     ██    ██  ██   ▄██  ██                                
+   open an agent to see      ▕│                            ██     ██    ██  ██████▀   ████████                          
+                             ▕│                                                                                         
+ ▾ FILES                     ▕│                                     said, and done.                                     
+   ▸ src/                    ▕│                                                                                         
+   ▸ test/                   ▕│   ────────────────  enter sends · shift+enter new line · ctrl+c clears, again quits ─   
+     package.json            ▕│    find out why the refund webhook retries twice                                        
+     README.md               ▕│   ───────────────────────────────────────────────────────────────────────────────────   
+                             ▕│                                                                                         
+ ▸ NOTES                +    ▕│                       + New agent      Open project     in checkout                     
+ ▾ GIT                       ▕│                                                                                         
    repo     ~/src/checkout   ▕│                                                                                         
    branch   main             ▕│                                                                                         
    path     /Users/me/src/   ▕│                                                                                         
             checkout         ▕│                                                                                         
-                             ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

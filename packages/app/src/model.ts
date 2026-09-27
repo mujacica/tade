@@ -11,7 +11,7 @@ import type { Turn } from '@tade/voice-core'
 import type { ScrollArea, Target } from './hits.ts'
 import { type Spot, standingIn, whereYouWere } from './layout.ts'
 import type { Panel } from './panels.ts'
-import { onAClock, type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
+import { type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
 import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
 import { emptyTranscript, fromTurn, type Transcript, tadeDid } from './transcript.ts'
@@ -197,6 +197,11 @@ export interface AppState {
    * project name, with `''` for a window that has no project at all.
    */
   queueViews: Record<string, QueueView>
+  /**
+   * Watch failures somebody has read and hushed — the argument, and what hushing
+   * may and may not take away, is `schedules-view.ts`'.
+   */
+  hushed: string[]
   /** The plan is drawn where an agent's screen would be, while no agent is in front. */
   showingPlan: boolean
   /** The schedule open where an agent's screen would be, while no agent is in front. */
@@ -335,6 +340,7 @@ export function initialState(): AppState {
     opened: [],
     hidingDone: false,
     queueViews: {},
+    hushed: [],
     showingPlan: false,
     schedule: null,
     expanded: [],
@@ -682,19 +688,6 @@ export function queueRows(state: AppState): QueueRow[] {
   )
 }
 
-/**
- * Whether anything in the project in front of you waits for a clock rather
- * than for us — queued work with a time on it, or a schedule. What the `timed`
- * switch is about, and so whether there is any point drawing it.
- */
-export function clocksHere(state: AppState, schedules: readonly { project: string }[]): boolean {
-  const mine = (project: string) => project === (state.project ?? project)
-  return (
-    schedules.some((one) => mine(one.project)) ||
-    queueTree(state).some((row) => onAClock(row.pane.queued))
-  )
-}
-
 /** What the SMART QUEUE shows in the project in front of you. */
 export function queueViewOf(state: AppState): QueueView {
   return state.queueViews[state.project ?? ''] ?? WHOLE_QUEUE
@@ -865,20 +858,18 @@ export function openSchedule(state: AppState, id: string): AppState {
 }
 
 /**
- * The schedules the SMART QUEUE shows for the project in front of you, as the
- * view has it: soonest first, then paused ones, then ones with nothing left to
- * run. A schedule is the clearest thing there is waiting for a clock, so the
- * switch is the whole of what decides whether it is drawn — and at `next` as
- * much as at `all`, because a schedule stands behind nothing and starts by
- * itself, which is what `next` asks. It was the scope that hid a schedule
- * before, and having two controls answer the one question is what left the
- * ordinary case with no control at all.
+ * The standing rules in the project in front of you — what SCHEDULES lists:
+ * soonest first, then paused ones, then ones with nothing left to run.
+ *
+ * No filter of its own, and none to add. The queue's scope is a position in a
+ * dependency tree, and a standing rule has no place in one: nothing waits on
+ * it, it stands behind nothing, and it fires again whatever the queue is doing.
+ * Which is the whole reason it stopped being listed among the queued work.
  */
 export function schedulesShown(
   schedules: readonly ScheduleView[],
   state: AppState,
 ): ScheduleView[] {
-  if (!queueViewOf(state).timed) return []
   const rank = (one: ScheduleView) => (one.next.length === 0 ? 2 : one.paused ? 1 : 0)
   return schedules
     .filter((one) => one.project === (state.project ?? one.project))

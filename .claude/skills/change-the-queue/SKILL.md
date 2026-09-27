@@ -25,8 +25,10 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
 | `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `mayWatch`, `turnWatch`, `writeStanding` |
 | `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told, why an empty list is empty (`queueEmptySays`) |
-| `packages/app/src/queue-view.ts` | what the SMART QUEUE shows: the scope, the `timed` switch, `shownBy` |
-| `packages/app/src/view/queue.ts`, `view/plan.ts`, `view/schedule.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
+| `packages/app/src/queue-view.ts` | what the SMART QUEUE shows: the scope, `shownBy` |
+| `packages/app/src/schedules-view.ts` | a watch's trouble and when it may stop being drawn: `hush`, `unhush`, `wasHushed` |
+| `packages/app/src/view/queue.ts`, `view/plan.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
+| `packages/app/src/view/schedule.ts` | SCHEDULES: the section, a rule's row, a watch's card |
 | `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_queue`, `tade_queue_change`, `tade_schedule` |
 | `packages/extensions/core/src/port.ts`, `host.ts` | `ExtensionWatch`, and the host that looks with one |
 | `packages/extensions/deps/src/updates.ts` | the worked example of a watch that edits a project |
@@ -110,11 +112,28 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 - **The queue is shown as the tree it resolves to.** `queueTree` (`app/src/model.ts`) orders queued
   work by the path it is on — what comes next first, and under each piece whatever waits on it —
   from the states the rules derived, never from the plan alone; `queueRows` is that list as the
-  view has it (`queue-view.ts`) — a scope, `all` or `next`, and a `timed` switch for what waits on a
-  clock, which are two questions and never one control. The side shifts each piece right of what it
-  waits on (`queueStems`), and a card draws the whole chain with `chainOf` + `drawPlan`, the same
+  view has it (`queue-view.ts`), which asks one question: a scope, `all` or `next`, a position in that
+  tree. The side shifts each piece right of what it waits on (`queueStems`), and a card draws the chain with `chainOf` + `drawPlan`, the same
   drawing the plan view uses. **Clicking queued work opens its card, never starts it**: starting is
   `queue-start` through `queueTools().change`, so the journal says who started it and why.
+- **Queued work and standing rules are two sections, and the split is what makes either readable.**
+  SMART QUEUE (`queueSection`) is work: one thing that will start once, with a place in the tree, a
+  reason it waits and an agent that will be told something. SCHEDULES (`schedulesSection`,
+  `view/schedule.ts`) is rules: each fires again and again, has no place in the tree and nothing waits
+  on it. They shared a section because both are "things that have not happened yet", which is the
+  whole of what they share — with eight schedules across two projects the queue was mostly not a
+  queue, and the two kinds were told apart only by a glyph. **So the queue has no control over what
+  is on a clock.** There was a `timed` switch, invented because the schedules crowded out the work
+  waiting on us; what is left on a clock in the queue is one-off work waiting on a time instead of on
+  another task, as much the queue's as anything in it, and a switch over it would be a second way of
+  saying what the section boundary says. A rule's row holds: how often, whether firing makes work or
+  tells somebody (`scheduleMakes` — the difference between an agent at 3am and a sentence to read),
+  when it next fires, when it last looked and what that came to, and its project where the list is
+  more than one project's. **A look that failed says so in words and may be hushed** — keyed by the
+  reason (`hush`, `wasHushed`), dropped by a look that worked (`unhush`, in `doLookWith`), so a watch
+  failing the same way every ten minutes is said once rather than every ten minutes — and hushing
+  takes the sentence, never the `!` or the heading's count, because a broken watch a person cannot see
+  is what a section exists to prevent.
 - **Write it down, then do it.** `schedule_fired` before a schedule's task is made, so a window that
   stops half way never runs it twice; `watch_found` for every finding, a failed start included, so
   one finding never makes work twice; `watch_checked` for every look — how much it found, which was
@@ -199,9 +218,10 @@ refuses `committed` and `merged` in a shared checkout), and add it to the `done`
 button (`queueMenuItems`, the `queue-*` actions in `App.run`).
 
 **A kind of schedule.** Add it to `ScheduleDoes`, do it in `fireSchedule` (workbench) and `fire`
-(window), word it in `scheduleView`, take it in `tade_schedule` and `queue/schedule`, draw it on
-the card (`renderSchedule`) and in `tade schedules`. Test it in `workbench/test/schedules.test.ts`
-and through the window in `test/wire/schedules.test.ts`.
+(window), word it in `scheduleView`, say whether firing makes work or tells somebody
+(`scheduleMakes`), take it in `tade_schedule` and `queue/schedule`, draw it on the row
+(`scheduleRow`) and the card (`renderSchedule`) and in `tade schedules`. Test it in
+`workbench/test/schedules.test.ts` and through the window in `test/wire/schedules.test.ts`.
 
 **A watch.** It belongs to an extension: follow `add-extension`. Tade's side — turning it on,
 looking, the journal, the queue, telling people — needs nothing new. Three places offer it and all

@@ -9,13 +9,13 @@
    │ ◐ Sentry             ! ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
    │ ✗ standup            ! ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
  ▸ │ ● GitHub               ▕│                                                                                     ▕│   
- ▾ │ ○ release-notes        ▕│                                                                                     ▕│   
-  M│▌· Written by Tade    1 ▕│                                                                                     ▕│   
-  A│ · MCP servers        4 ▕│                                                                                     ▕│   
-  M│ · Harnesses' own     2 ▕│                                                                                     ▕│   
+ ▸ │ ○ release-notes        ▕│                                                                                     ▕│   
+ ▾ │▌· Written by Tade    1 ▕│                                                                                     ▕│   
+  M│ · MCP servers        4 ▕│                                                                                     ▕│   
+  A│ · Harnesses' own     2 ▕│                                                                                     ▕│   
+  M│                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   
  ▾ │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   

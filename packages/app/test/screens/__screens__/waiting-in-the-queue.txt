@@ -9,7 +9,7 @@
      working                 ▕│  FIRST                         THEN                          THIS ONE                   
                              ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓   
  ▾ SMART QUEUE  5      plan  ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶┃ ◌ refund-emails      ┃   
-   all   next    timed       ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
+   all   next                ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
                              ▕│  ╰──────────────────────╯      ╰──────────────────────╯ │    ┗━━━━━━━━━━━━━━━━━━━━━━┛   
  ▌   ◌ refund-emails         ▕│                                                         │                               
  ▌     ◆ after add-refund…   ▕│  ╭──────────────────────╮                               │                               
@@ -20,11 +20,11 @@
    ◷ release-notes   18:00   ▕│                                                                                         
      ❯ waits for its time    ▕│  WHY IT WAITS                                                                           
                              ▕│  ✕ fix-charge                                                                           
- ▸ CHANGES  3        vs main ▕│  ╰─! add-refunds  after fix-charge                                                      
- ▸ FILES                     ▕│    │ both change src/charge.ts                                                          
- ▸ NOTES  4             +    ▕│    ╰─◌ refund-emails  after add-refunds                                                 
- ▸ GIT                       ▕│        it emails what refund() returns                                                  
-                             ▕│        also after bump-mailer                                                           
+ ▸ SCHEDULES            none ▕│  ╰─! add-refunds  after fix-charge                                                      
+ ▸ CHANGES  3        vs main ▕│    │ both change src/charge.ts                                                          
+ ▸ FILES                     ▕│    ╰─◌ refund-emails  after add-refunds                                                 
+ ▸ NOTES  4             +    ▕│        it emails what refund() returns                                                  
+ ▸ GIT                       ▕│        also after bump-mailer                                                           
                              ▕│        the mailer’s send() changes in v4                                                
                              ▕│                                                                                         
                              ▕│  WILL BE TOLD                                                                           

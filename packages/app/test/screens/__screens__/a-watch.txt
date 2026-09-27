@@ -11,8 +11,8 @@
    ⠋ fix-checkout-3e         █│  FROM       sentry · turned on by you                                                   
      working                 █│                                                                                         
                              █│  FOUND                                                                                  
- ▾ SMART QUEUE  9      plan  █│  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
-   all   next    timed       █│                    Sentry answered 502: Bad Gateway                                     
+ ▾ SMART QUEUE  5      plan  █│  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
+   all   next                █│                    Sentry answered 502: Bad Gateway                                     
                              █│  Mon 14 Sep 09:00  ⠋ fix-checkout-3e · CHECKOUT-3E: TypeError: Cannot read properties…  
    ◌ docs-typos       next   █│  Sun 13 Sep 16:00  fix-checkout-3a · CHECKOUT-3A: RangeError: Invalid currency code     
      ◆ waiting for room      █│                                                                                         
@@ -20,17 +20,17 @@
    ◷ release-notes   18:00   █│  Mon 14 Sep 09:00  found 3, 3 new, 1 waits for the next look                            
      ❯ waits for its time    █│  Mon 14 Sep 08:00  found 1, nothing new                                                 
                              █│  Mon 14 Sep 07:00  could not look: Sentry is rate limiting these requests (429): try …  
+ ▾ SCHEDULES  4              █│                                                                                         
+                             █│                                                                                         
    ↻ morning brief   08:45   █│                                                                                         
-     ◆ every weekday at 0…   █│                                                                                         
-                             █│                                                                                         
-   ↻ deps weekly     09:00   █│                                                                                         
-     ❯ every Monday at 09…   █│                                                                                         
-                             █│                                                                                         
- ▌ ◎ New Sentry err… 10:00   ▕│                                                                                         
- ▌   sentry · every hour     ▕│                                                                                         
+     every weekday … tells   █│                                                                                         
                              ▕│                                                                                         
-   ‖ perf nightly   paused   ▕│                                                                                         
-     ❯ every day at 02:00    ▕│                                                                                         
+   ↻ deps weekly     09:00   ▕│                                                                                         
+     every Monday … agents   ▕│                                                                                         
+                             ▕│                                                                                         
+ ▌ ◎ New Sentry err… 10:00   ▕│                                                                                         
+ ▌   every hour     agents   ▕│                                                                                         
+ ▌   09:00 · 3 new           ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

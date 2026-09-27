@@ -8,8 +8,14 @@
    ⠋ bump-mailer             ▕│    Open its agent   where it stopped                                                    
      working                 ▕│                                                                                         
                              ▕│                                                                                         
- ▾ SMART QUEUE  8      plan  ▕│                                                                                         
-   all   next    timed       ▕│                                                                                         
+ ▾ SMART QUEUE  5      plan  ▕│                                                                                         
+   all   next                ▕│                                                                                         
+                             ▕│                                                                                         
+   ! add-refunds      held   ▕│                                                                                         
+   │ ◆ fix-charge failed:…   ▕│                                                                                         
+   │                         ▕│                                                                                         
+   ╰─◌ refund-emails         ▕│                                                                                         
+       ◆ after add-refund…   ▕│                                                                                         
                              ▕│                                                                                         
    ◌ docs-typos       next   ▕│                                                                                         
      ◆ waiting for room      ▕│                                                                                         
@@ -17,14 +23,26 @@
    ◷ release-notes   18:00   ▕│                                                                                         
      ❯ waits for its time    ▕│                                                                                         
                              ▕│                                                                                         
+   ‖ perf-check     paused   ▕│                                                                                         
+     ❯ paused                ▕│                                                                                         
+                             ▕│                                                                                         
+ ▾ SCHEDULES  5           !1 ▕│                                                                                         
+                             ▕│                                                                                         
+   ◎ CI on this bra… 14:10   ▕│                                                                                         
+     every 10 minut… tells   ▕│                                                                                         
+     14:00 · 1 new           ▕│                                                                                         
+                             ▕│                                                                                         
+   ! Vulnerable dep… 07:00   ▕│                                                                                         
+     every day at … agents   ▕│                                                                                         
+                             ▕│                                                                                         
    ↻ morning brief   08:45   ▕│                                                                                         
-     ◆ every weekday at 0…   ▕│                                                                                         
+     every weekday … tells   ▕│                                                                                         
                              ▕│                                                                                         
    ↻ deps weekly     09:00   ▕│                                                                                         
-     ❯ every Monday at 09…   ▕│                                                                                         
+     every Monday … agents   ▕│                                                                                         
                              ▕│                                                                                         
    ‖ perf nightly   paused   ▕│                                                                                         
-     ❯ every day at 02:00    ▕│                                                                                         
+     every day at … agents   ▕│                                                                                         
                              ▕│                                                                                         
  ▸ CHANGES  3        vs main ▕│                                                                                         
  ▸ FILES                     ▕│                                                                                         

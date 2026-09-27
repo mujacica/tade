@@ -9,13 +9,13 @@
    │ ◐ Sentry             ! ▕│ jev_verdict           Write down what a finding turned out to be… orchestrator only ▕│   
    │ ✗ standup            ! ▕│ jev_read_request      A second, independent reading of what some… orchestrator only ▕│   
  ▸ │ ● GitHub               ▕│ jev_plan_check        Read a plan before you keep it, and say wh… orchestrator only ▕│   
- ▾ │ ○ release-notes        ▕│ jev_queue_order       Suggest what should come first out of what… orchestrator only ▕│   
-  M│ · Written by Tade    1 ▕│                                                                                     ▕│   
-  A│ · MCP servers        4 ▕│ WATCHES  none on until you turn one on                                              ▕│   
-  M│ · Harnesses' own     2 ▕│ ◎ Review what agents change  every 10m                                    Turn on   ▕│   
-   │                        ▕│   reads each agent’s own change once it has stopped moving, and reports what it     ▕│   
- ▾ │                        ▕│   flags                                                                             █│   
-   │                        ▕│ ◎ Agents going in circles  every 10m                                      Turn on   █│   
+ ▸ │ ○ release-notes        ▕│ jev_queue_order       Suggest what should come first out of what… orchestrator only ▕│   
+ ▾ │ · Written by Tade    1 ▕│                                                                                     ▕│   
+  M│ · MCP servers        4 ▕│ WATCHES  none on until you turn one on                                              ▕│   
+  A│ · Harnesses' own     2 ▕│ ◎ Review what agents change  every 10m                                    Turn on   ▕│   
+  M│                        ▕│   reads each agent’s own change once it has stopped moving, and reports what it     ▕│   
+   │                        ▕│   flags                                                                             █│   
+ ▾ │                        ▕│ ◎ Agents going in circles  every 10m                                      Turn on   █│   
    │                        ▕│   reads the agents that keep making the same failing call, and says which           █│   
    │                        ▕│ ◎ Findings nobody has answered  every 1h                                  Turn on   █│   
    │                        ▕│   looks for findings an agent has accounted for and nobody has judged, and ones     █│   

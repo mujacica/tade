@@ -9,17 +9,17 @@
      │                                                                                                           ▕│     
      │ Where they stand                                                                                          ▕│     
  ▸ SM│                                                                                                           ▕│     
- ▾ CH│   ✗ told, no verdict  1                                                                                   ▕│     
-  M p│   ◐ its agent         1                                                                                   ▕│     
-  A …│   ● judged            2                                                                                   ▕│     
-  M s│                                                                                                           ▕│     
-     │ 2 findings with no verdict. The oldest has waited 6h.                                                     ▕│     
- ▾ FI│                                                                                                           ▕│     
-   ▾ │ Worth running                                                                                             ▕│     
+ ▸ SC│   ✗ told, no verdict  1                                                                                   ▕│     
+ ▾ CH│   ◐ its agent         1                                                                                   ▕│     
+  M p│   ● judged            2                                                                                   ▕│     
+  A …│                                                                                                           ▕│     
+  M s│ 2 findings with no verdict. The oldest has waited 6h.                                                     ▕│     
      │                                                                                                           ▕│     
+ ▾ FI│ Worth running                                                                                             ▕│     
+   ▾ │                                                                                                           ▕│     
      │   ◐ precision  1 of 2, too few to call                                                                    ▕│     
-   ▸ │                                                                                                           ▕│     
-     │ 2 verdict(s) is not a rate. Under 5 the counts are said and the percentage is not, because one verdict    ▕│     
+     │                                                                                                           ▕│     
+   ▸ │ 2 verdict(s) is not a rate. Under 5 the counts are said and the percentage is not, because one verdict    ▕│     
      │ moving a figure by a quarter is not a trend.                                                              ▕│     
      │                                                                                                           ▕│     
 ━   o│ Loudest questions                                                                                         ▕│▾   ━

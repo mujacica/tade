@@ -123,22 +123,24 @@ describe('asRemembered', () => {
       asRemembered({
         focused: null,
         queueViews: {
-          app: { scope: 'next', timed: false },
-          infra: { scope: 'all', timed: true },
+          app: { scope: 'next' },
+          // Written before the schedules got a section of their own, so it has
+          // a `timed` beside its scope. Ignored rather than refused: throwing
+          // the row away would lose the scope that was written with it.
+          infra: { scope: 'all', timed: false },
           // None of these is a view, and none is a reason to open the window
           // on no preferences at all. A scope nothing offers matters most: read
           // back as one, it would leave a project showing something no control
           // could put right.
-          made_up: { scope: 'timed', timed: true },
-          missing: { scope: 'next' },
+          made_up: { scope: 'timed' },
           bad: 'next',
         },
       }),
     ).toEqual({
       focused: null,
       queueViews: {
-        app: { scope: 'next', timed: false },
-        infra: { scope: 'all', timed: true },
+        app: { scope: 'next' },
+        infra: { scope: 'all' },
       },
     })
   })
@@ -148,9 +150,9 @@ describe('asRemembered', () => {
     // the two lists together: add a scope to `QUEUE_SCOPES` and forget this
     // file, and a project set to it comes back as no preference at all.
     for (const scope of QUEUE_SCOPES) {
-      expect(
-        asRemembered({ focused: null, queueViews: { app: { scope, timed: true } } })?.queueViews,
-      ).toEqual({ app: { scope, timed: true } })
+      expect(asRemembered({ focused: null, queueViews: { app: { scope } } })?.queueViews).toEqual({
+        app: { scope },
+      })
     }
   })
 

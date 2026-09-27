@@ -9,18 +9,18 @@
      working               │                                                                │                           
                            │ Its worktree has work that isn't merged:                       │                           
  ▸ SMART QUEUE          non│   M package.json                                               │                           
- ▾ CHANGES  3        vs mai│   A src/webhooks.test.ts                                       │                           
-  M package.json       +2 −│   M src/webhooks.ts                                            │,                          
-  A …/webhooks.test.ts   +4│   3 commits on tade/stripe-v15 that main doesn't have          │                           
-  M src/webhooks.ts   +12 −│                                                                │                           
-                           │ Deletes the worktree and branch; the conversation stays.       │                           
- ▾ FILES                   │                                                                │                           
-   ▾ src/                  │                                    Keep it     Remove anyway   │                           
-       webhooks.test.ts    ╰────────────────────────────────────────────────────────────────╯───╮                       
-       webhooks.ts           ▕│  │ bash  npm i stripe@15                                        │                       
-   ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
-     package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-     README.md               ▕│                                                                                         
+ ▸ SCHEDULES            non│   A src/webhooks.test.ts                                       │                           
+ ▾ CHANGES  3        vs mai│   M src/webhooks.ts                                            │,                          
+  M package.json       +2 −│   3 commits on tade/stripe-v15 that main doesn't have          │                           
+  A …/webhooks.test.ts   +4│                                                                │                           
+  M src/webhooks.ts   +12 −│ Deletes the worktree and branch; the conversation stays.       │                           
+                           │                                                                │                           
+ ▾ FILES                   │                                    Keep it     Remove anyway   │                           
+   ▾ src/                  ╰────────────────────────────────────────────────────────────────╯───╮                       
+       webhooks.test.ts      ▕│  │ bash  npm i stripe@15                                        │                       
+       webhooks.ts           ▕│  │   Allow once     Deny                                        │                       
+   ▸ test/                   ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+     package.json            ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

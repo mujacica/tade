@@ -9,9 +9,9 @@
    │  Approvals       █│▌  sentry sends through Sentry’s own SDK, imported █│   
    │  Checks          █│▌  only when there is a DSN; none sends nothing    █│╮  
  ▸ │  Voice           █│                                                   ▕││  
- ▾ │  Search          █│ Crashes and warnings    ──██ on                 ↻ ▕││  
-  M│  Window          █│                                                   ▕│╯  
-  A│  Projects     3  █│ What happened around …  ──██ on                 ↻ ▕│   
+ ▸ │  Search          █│ Crashes and warnings    ──██ on                 ↻ ▕││  
+ ▾ │  Window          █│                                                   ▕│╯  
+  M│  Projects     3  █│ What happened around …  ──██ on                 ↻ ▕│   
 ━  │  Checks per pro… █│                                                   ▕│  ━
    │  Budgets     ● 1 █│ Numbers                 ──██ on                 ↻ ▕│   
    │  Journal         █│                                                   ▕│  ▕

@@ -9,13 +9,13 @@
    │ ◐ Sentry             ! ▕│                                                                                     █│   
    │ ✗ standup            ! ▕│ ▲ no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read,           █│   
  ▸ │ ● GitHub               ▕│   project:read, event:read, event:write), or log in with sentry-cli                 █│   
- ▾ │ ○ release-notes        ▕│                                                                                     █│   
-  M│ · Written by Tade    1 ▕│ Not read: extensions.sentry.orgg                                                    █│   
-  A│ · MCP servers        4 ▕│                                                                                     █│   
-  M│ · Harnesses' own     2 ▕│   Set up…     Turn off                                                              █│   
-   │                        ▕│                                                                                     █│   
- ▾ │                        ▕│ HOW IT IS USED                                                                      █│   
-   │                        ▕│ · Says what is breaking in production (sentry_issues, sentry_issue, sentry_trace).  █│   
+ ▸ │ ○ release-notes        ▕│                                                                                     █│   
+ ▾ │ · Written by Tade    1 ▕│ Not read: extensions.sentry.orgg                                                    █│   
+  M│ · MCP servers        4 ▕│                                                                                     █│   
+  A│ · Harnesses' own     2 ▕│   Set up…     Turn off                                                              █│   
+  M│                        ▕│                                                                                     █│   
+   │                        ▕│ HOW IT IS USED                                                                      █│   
+ ▾ │                        ▕│ · Says what is breaking in production (sentry_issues, sentry_issue, sentry_trace).  █│   
    │                        ▕│ · Turns an error into work (sentry_fix): an agent with the stack already in hand.   █│   
    │                        ▕│ · Lets new errors find you: the new-errors watch starts an agent on each.           ▕│   
    │                        ▕│ · Says something back — resolve, ignore, assign — only when you asked for it.       ▕│   

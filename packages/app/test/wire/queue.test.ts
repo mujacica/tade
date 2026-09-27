@@ -176,9 +176,9 @@ describe('the window, and the work waiting in it', () => {
       ],
     })
     // The scope, as the plain skin draws it: the one showing is a chip that is
-    // on, the other a chip at rest. Nothing here is on a clock, so the `timed`
-    // switch is not drawn at all — a control that could neither show nor hide
-    // anything reads as a label.
+    // on, the other a chip at rest. One question and one pair, and nothing else
+    // over the queue — what is on a clock is SCHEDULES', and the `timed` switch
+    // that used to hide it went with the split.
     await until('the queue on screen', () =>
       screenOf(terminal.written).some((row) => row.includes('<all> [next]')),
     )

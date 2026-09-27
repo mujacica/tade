@@ -236,10 +236,23 @@ describe('the window, and what it watches', () => {
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(wrong()).toBe(1)
     terminal.press('\x1b')
-    await until('marked in the queue', () =>
+    await until('marked in the schedules', () =>
       screenOf(terminal.written).some((row) => /! Rain/.test(row)),
     )
-    expect(screenOf(terminal.written).some((row) => row.includes('weather · could not'))).toBe(true)
+    // The reason on its own row down the side, in words, with a `×` to say you
+    // have read it. Down the side, and not the transcript line saying the same
+    // thing: the whole point is a warning that stops being drawn.
+    const side = () => screenOf(terminal.written).map((one) => one.slice(0, 32))
+    const said = () => side().findIndex((one) => one.includes('the radar is down'))
+    await until('the reason down the side', () => said() >= 0)
+    const at = said()
+    click((side()[at] ?? '').indexOf('×'), at)
+    // Hushed, the reason goes and the mark does not: the watch still cannot
+    // look, and the heading still counts it.
+    await until('hushed', () => said() < 0)
+    expect(side().some((one) => /! Rain/.test(one))).toBe(true)
+    // And the heading still counts it, in the room a narrow side leaves for it.
+    expect(side().some((one) => /SCHEDULES.*!1/.test(one))).toBe(true)
   }, 90_000)
 
   it('writes a standing watch once, and never again over somebody removing it', async () => {

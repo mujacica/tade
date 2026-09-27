@@ -25,6 +25,7 @@ import { notice, openSchedule, type ScheduleView, withTranscript } from '../mode
 import { scheduleMenuItems } from '../panels/menu/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import { foundMessage, scheduleView } from '../queue.ts'
+import { hush, unhush } from '../schedules-view.ts'
 import { problem, tadeDid } from '../transcript.ts'
 import {
   type Actions,
@@ -119,9 +120,23 @@ export class Schedules implements Subject {
    * what there is, and a regular expression says only what it happens to match.
    */
   actions(): Actions {
-    return Object.fromEntries(
-      CHANGES.map((change) => [`schedule-${change}:`, (id: string) => this.onSchedule(id, change)]),
-    )
+    return {
+      ...Object.fromEntries(
+        CHANGES.map((change) => [
+          `schedule-${change}:`,
+          (id: string) => this.onSchedule(id, change),
+        ]),
+      ),
+      // Reading a watch's trouble and saying so. Nothing about the watch
+      // changes: what is hushed is the sentence on its row, for as long as the
+      // reason stays that reason — so the reason is read here rather than
+      // passed in, and the row can never hush one failure by naming another.
+      'schedule-hush:': (id: string) => {
+        const reason = this.views().find((one) => one.id === id)?.watch?.looks[0]?.problem
+        if (reason) this.wire.put(hush(this.wire.state, id, reason))
+        this.wire.draw()
+      },
+    }
   }
 
   menus(): Menus {
@@ -472,6 +487,9 @@ export class Schedules implements Subject {
       if (asked || watched.looks[0]?.problem !== reason) return say(said, true)
       return said
     }
+    // It looked. Whatever was hushed about it was hushed about trouble that is
+    // over, so the same words coming back later are news again.
+    this.wire.put(unhush(this.wire.state, one.id))
     const { fresh, acting, left } = newFindings(looked.found, watched.seen, does.most)
     await client.watchChecked(one.id, {
       found: looked.found.length,

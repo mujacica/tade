@@ -9,18 +9,18 @@
      working                 █│                                                                                        ▕
                              █│                                                                                        ▕
  ▸ SMART QUEUE          none █│                                                                                        ▕
- ▾ CHANGES  3        vs main █│                                                                                        ▕
-  M package.json       +2 −1 █│  ● Upgrading stripe to v15. The webhook signature API changed,                         ▕
-  A …/webhooks.test.ts   +48 █│    so src/webhooks.ts needs the new constructEvent signature.                          ▕
-  M src/webhooks.ts   +12 −4 █│                                                                                        ▕
-                             ▕│  ▸ Read src/webhooks.ts                                                                ▕
- ▾ FILES                     ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                        ▕
-   ▾ src/                    ▕│  ▸ bash npm i stripe@15                                                                ▕
-       webhooks.test.ts      ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                      ▕
-       webhooks.ts           ▕│  │ bash  npm i stripe@15                                        │                      ▕
-   ▸ test/                   ▕│  │   Allow once     Deny                                        │                      ▕
-     package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                      ▕
-     README.md               ▕│                                                                                        █
+ ▸ SCHEDULES            none █│                                                                                        ▕
+ ▾ CHANGES  3        vs main █│  ● Upgrading stripe to v15. The webhook signature API changed,                         ▕
+  M package.json       +2 −1 █│    so src/webhooks.ts needs the new constructEvent signature.                          ▕
+  A …/webhooks.test.ts   +48 █│                                                                                        ▕
+  M src/webhooks.ts   +12 −4 ▕│  ▸ Read src/webhooks.ts                                                                ▕
+                             ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                        ▕
+ ▾ FILES                     ▕│  ▸ bash npm i stripe@15                                                                ▕
+   ▾ src/                    ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                      ▕
+       webhooks.test.ts      ▕│  │ bash  npm i stripe@15                                        │                      ▕
+       webhooks.ts           ▕│  │   Allow once     Deny                                        │                      ▕
+   ▸ test/                   ▕│  ╰──────────────────────────────────────────────────────────────╯                      ▕
+     package.json            ▕│                                                                                        █
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

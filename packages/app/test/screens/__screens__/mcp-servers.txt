@@ -9,13 +9,13 @@
    │ ◐ Sentry             ! ▕│                                                                                     █│   
    │ ✗ standup            ! ▕│ ○ Postgres  postgres                                         Install…     Turn on   █│   
  ▸ │ ● GitHub               ▕│   Read a database's schema and query it.                                            █│   
- ▾ │ ○ release-notes        ▕│   mcp-server-postgres ${project}                                                    █│   
-  M│ · Written by Tade    1 ▕│   postgres needs a credential: paste one                                            █│   
-  A│▌· MCP servers        4 ▕│   install: npm install --global @modelcontextprotocol/server-postgres               █│   
-  M│ · Harnesses' own     2 ▕│   Its credential is a connection string, kept where credentials are kept.           █│   
-   │                        ▕│                                                                                     █│   
- ▾ │                        ▕│ ○ GitHub  github                                                          Turn on   █│   
-   │                        ▕│   Issues, pull requests and code search on GitHub.                                  █│   
+ ▸ │ ○ release-notes        ▕│   mcp-server-postgres ${project}                                                    █│   
+ ▾ │ · Written by Tade    1 ▕│   postgres needs a credential: paste one                                            █│   
+  M│▌· MCP servers        4 ▕│   install: npm install --global @modelcontextprotocol/server-postgres               █│   
+  A│ · Harnesses' own     2 ▕│   Its credential is a connection string, kept where credentials are kept.           █│   
+  M│                        ▕│                                                                                     █│   
+   │                        ▕│ ○ GitHub  github                                                          Turn on   █│   
+ ▾ │                        ▕│   Issues, pull requests and code search on GitHub.                                  █│   
    │                        ▕│   https://api.githubcopilot.com/mcp/                                                █│   
    │                        ▕│   github needs a credential: paste one                                              █│   
    │                        ▕│   Reviews, checks and merges are the Forge port’s, not this server’s.               █│   
