@@ -1,10 +1,9 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { noSpend, PRICES_TAKEN } from '@tade/core'
+import { PRICES_TAKEN } from '@tade/core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { pricedSays } from '../src/commands/spend.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
@@ -98,6 +97,22 @@ it('groups what it cost by harness, sign-in and provider, and says which money i
       provider: 'anthropic',
     },
   })
+  // Codex counts tokens and prices none of them, and this one is on an API
+  // key: billed per token, with nobody who ran it able to say what it cost.
+  await window.log.append({
+    type: 'usage',
+    task: 'app/logs',
+    run: 'app/logs/agent',
+    detail: {
+      model: 'gpt-5.3-codex',
+      input: 1_000_000,
+      tokens: 1_000_000,
+      usd: 0,
+      priced: 'none',
+      harness: 'codex',
+      account: 'work',
+    },
+  })
   await window.log.append({
     type: 'usage',
     task: 'app/queue',
@@ -137,25 +152,14 @@ it('groups what it cost by harness, sign-in and provider, and says which money i
   // the API key's estimate is a bill somebody gets, and is counted and marked.
   expect(result.stdout).not.toContain('954')
   expect(result.stdout).toContain('$1.60 priced by the harness, $0.40 estimated')
+  // And the third kind: a rate off a published page, named apart from both and
+  // carrying the day it was taken, because a price is a fact with a date on it.
+  expect(result.stdout).toContain(`$1.75 at list prices of ${PRICES_TAKEN}`)
+  // Filed under the provider the harness declares, not under a guess at one.
+  expect(result.stdout).toMatch(/openai\s+\$1\.75\s+1\.0M tokens/)
   // And that the figure does not cover everything under it. Claude Code's own
   // sign-in has no price per turn at all, so its thousand tokens are effort
   // this total says nothing about — and a figure missing an agent's cost is
   // worse than one marked incomplete.
   expect(result.stdout).toContain('1k of these tokens nothing here could price')
 }, 30_000)
-
-it('says what a rate off a published page is, and never calls it a bill', () => {
-  // The window says this with a mark and a word; here somebody asked, so here
-  // it is a sentence — and the date rides with it, because a price is a fact
-  // with a date on it.
-  const spend = { ...noSpend(), usd: 1.75, usdListed: 1.75, hasCost: true }
-  const said = pricedSays(spend)
-  expect(said).toContain('$1.75 at list prices')
-  expect(said).toContain(PRICES_TAKEN)
-  expect(said).not.toContain('priced by the harness')
-  // And beside a bill it is named apart from it rather than folded in.
-  const both = pricedSays({ ...spend, usd: 2.75, usdExact: 1 })
-  expect(both).toContain('of $2.75')
-  expect(both).toContain('$1.00 priced by the harness')
-  expect(both).toContain('$1.75 at list prices')
-})
