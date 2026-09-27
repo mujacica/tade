@@ -83,6 +83,17 @@ interface Lane {
    * into the program.
    */
   tail: string
+  /**
+   * The last capture of a lane that draws its own screen that was a whole
+   * frame, and the question it answered, so a capture that caught one half
+   * drawn has something whole to give back.
+   *
+   * Null once it has been given back: held for one capture and no more. Two
+   * frames of a lane nobody can catch settled is a pane that has stopped, and
+   * a pane that has stopped is worse than a torn one — that is the bug
+   * `frame.probe.test.ts` exists about.
+   */
+  whole: { lines: number; styled: boolean; rows: string } | null
 }
 
 const DEFAULTS = {
@@ -194,6 +205,7 @@ export class PtyDriver implements WorkspaceDriver {
       closed: false,
       encoding: 'legacy',
       tail: '',
+      whole: null,
     }
     // Only once the new one is running: a launch that fails leaves the old
     // screen where it was, to be read.
@@ -234,10 +246,22 @@ export class PtyDriver implements WorkspaceDriver {
     lane.pty.write(Buffer.from(data).toString('utf8'))
   }
 
+  /**
+   * A capture is a whole frame, and where the newest one is half drawn it is
+   * the one before it — a frame one beat old reads as smooth where two frames
+   * mixed read as broken. The choice is made here because whether the shutter
+   * caught a whole frame is known (`settled`) and cannot be read off the rows.
+   */
   async capture(id: LaneId, opts: CaptureOptions): Promise<string> {
     const lane = this.live(id)
-    await settled(lane.term)
+    const whole = await settled(lane)
     if (lane.closed) throw new LaneClosedError(id)
+    const styled = opts.styled ?? false
+    if (!whole && lane.whole?.lines === opts.lines && lane.whole.styled === styled) {
+      const held = lane.whole.rows
+      lane.whole = null
+      return held
+    }
     const buffer = lane.term.buffer.active
     // From the bottom up: past the blank rows under the last thing written,
     // then only the rows asked for. Above them can be ten thousand lines of
@@ -251,12 +275,24 @@ export class PtyDriver implements WorkspaceDriver {
         row ? (opts.styled ? styledLine(row, lane.term.cols) : row.translateToString(true)) : '',
       )
     }
-    return rows.join('\n')
+    const screen = rows.join('\n')
+    // Kept only for a lane that draws its own screen: the only one whose rows
+    // can be two frames mixed, and the only one every capture of asks the same
+    // question of — one screen, no scrollback — so the frame held is one the
+    // next capture can use. The find box asks for two thousand lines, which is
+    // most of a megabyte a lane for a frame nobody will ask for again.
+    lane.whole =
+      whole && buffer.type === 'alternate' ? { lines: opts.lines, styled, rows: screen } : null
+    return screen
   }
 
   async screen(id: LaneId): Promise<LaneScreen> {
     const lane = this.live(id)
-    await settled(lane.term)
+    // Settled for the same reason a capture is, and its answer dropped on
+    // purpose: these are the numbers a capture is measured against, and a
+    // frame half drawn has not moved any of them — the rows it rewrote are the
+    // rows it already had, so the depth and the cursor are where they were.
+    await settled(lane)
     if (lane.closed) throw new LaneClosedError(id)
     const buffer = lane.term.buffer.active
     // Measured exactly as `capture` measures it, from the same last row it
@@ -395,16 +431,56 @@ export class PtyDriver implements WorkspaceDriver {
 const FRAME_WAIT_MS = 50
 
 /**
+ * How long a lane has to have stopped writing before its screen is read as a
+ * whole frame, where the program never said where its frames begin.
+ *
+ * Measured off Claude Code answering a wheel at 120x40: it rewrites every row,
+ * the repaint reaches the pty as three to six writes over two to seven
+ * milliseconds with gaps of 1.1ms to 3.9ms inside it, and then some twenty
+ * milliseconds of quiet. Five is past every gap inside a frame and well short
+ * of the gap between two, which is what makes "it has stopped writing" mean
+ * "it has finished drawing" without ever having been told.
+ */
+const QUIET_MS = 5
+
+/**
+ * How long a screen still being written is waited on, at most.
+ *
+ * Its own bound rather than `FRAME_WAIT_MS`, because the two failures are not
+ * the same. A synchronized update that never ends is a program misbehaving and
+ * fifty milliseconds is the price of finding out. A lane that never goes quiet
+ * is a program *streaming* rather than drawing frames, which is an ordinary
+ * thing for one to do — and then there is no frame to wait for and being late
+ * is the only thing waiting buys. Three of the longest repaints measured.
+ */
+const QUIET_WAIT_MS = 20
+
+/**
  * Wait until the screen is one its program meant to show: everything that has
  * arrived parsed — the emulator parses in the background — and no redraw half
- * applied. A program that draws in synchronized updates (pi does, every frame)
- * says where a frame begins and ends, and read in between, the screen is the
- * last frame torn by the next: a line blinking, text interleaved with what was
- * there. Bounded, so a program that begins an update and never ends it cannot
- * freeze the window.
+ * applied. Read in between, the screen is the last frame torn by the next: a
+ * line blinking, text interleaved with what was there. Bounded both ways, so
+ * neither a program that begins an update and never ends it nor one that never
+ * stops printing can freeze the window.
+ *
+ * Where a frame begins is **declared** by a program that draws in synchronized
+ * updates (DEC 2026 — pi does, every frame), and then the boundary is a fact
+ * and this waits for it. One that repaints the whole screen in place and says
+ * nothing (Claude Code emits no 2026 at all, checked at 2.1.267) leaves no
+ * boundary to honour, and the only one left is the write itself stopping —
+ * `QUIET_MS`. That is a guess, so it is made only where a tear is possible at
+ * all: on the alternate screen, where rows are rewritten under each other. A
+ * lane that prints and keeps what it printed cannot tear — mid-append it shows
+ * a part-written last line, which its own terminal shows too — and pays none
+ * of this.
+ *
+ * True when the screen is a whole frame, false when the wait ran out and it
+ * may be two frames mixed.
  */
-async function settled(term: XTerm, ms = FRAME_WAIT_MS): Promise<void> {
+async function settled(lane: Lane & { term: XTerm }, ms = FRAME_WAIT_MS): Promise<boolean> {
+  const { term } = lane
   const deadline = Date.now() + ms
+  const quietBy = Date.now() + QUIET_WAIT_MS
   for (;;) {
     const left = Math.max(0, deadline - Date.now())
     // The deadline is taken back the moment the parse wins the race, which is
@@ -430,9 +506,22 @@ async function settled(term: XTerm, ms = FRAME_WAIT_MS): Promise<void> {
     } finally {
       if (late) clearTimeout(late)
     }
-    if (Date.now() >= deadline || !term.modes.synchronizedOutputMode) return
-    await new Promise((resolve) => setTimeout(resolve, 2))
+    if (Date.now() >= deadline) return false
+    if (term.modes.synchronizedOutputMode) {
+      await pause(2)
+      continue
+    }
+    if (term.buffer.active.type !== 'alternate') return true
+    const since = Date.now() - (lane.handle.lastOutputAt ?? 0)
+    if (since >= QUIET_MS) return true
+    if (Date.now() >= quietBy) return false
+    await pause(QUIET_MS - since)
   }
+}
+
+/** A wait with nothing racing it, so the timer goes when it fires. */
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
@@ -520,6 +609,7 @@ function release(lane: Lane): void {
   lane.term = null
   lane.replay = []
   lane.replayBytes = 0
+  lane.whole = null
   lane.outputs.clear()
   lane.exits.clear()
 }

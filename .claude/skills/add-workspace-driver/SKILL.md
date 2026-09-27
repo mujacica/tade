@@ -49,6 +49,27 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   no cursor moves, no clears — because the window draws them straight into a pane. A backend with a
   screen model (tmux `capture-pane -e`) gives this for free; one without has to build it from cells,
   as the pty driver does from its headless xterm.
+- **A capture is a whole frame, and where the newest one is half drawn it is the one before it.** A
+  window draws what it is handed four times a second on a beat that has nothing to do with the
+  program's, so a capture taken while a repaint is arriving is the top of the new frame over the
+  bottom of the old — rows from two moments on one screen, which is tearing, and which nothing in
+  the rows can be inspected for afterwards. **Where a frame begins is declared by a program that
+  uses synchronized output (DEC 2026) and by no other, so both cases have to be answered**: for the
+  declared one, wait for the end of the update; for the rest, the only boundary left is the write
+  itself stopping (`QUIET_MS`, five milliseconds, measured off Claude Code — which emits no 2026 at
+  all — repainting in three to six writes over two to seven milliseconds with twenty of quiet after
+  them). Wait for quiet **only on the alternate screen**: a lane that prints and keeps what it
+  printed cannot tear, because a part-written last line is what the terminal it is in shows too, and
+  making it wait is latency bought for nothing. Both waits are bounded, and past the bound hand back
+  the last capture known whole — **once**, and then draw what there is, because two frames of a lane
+  nobody can catch settled is a pane that has stopped, which is worse than a torn one
+  (`packages/app/test/wire/frame.probe.test.ts` is the argument). Held to it by
+  `packages/drivers/pty/test/capture.test.ts`, which counts torn frames rather than looking at them:
+  every row carries its frame number, so a capture whose rows disagree is proof. It was one capture
+  in six, one in five with four lanes repainting under load, and one in twenty of the real program
+  scrolled at forty notches a second; all three are none now, for two thirds of a millisecond more a
+  capture. Not in the conformance suite, because a driver reading somebody else's screen (tmux's)
+  cannot keep the promise.
 - **`screen()` is what the text cannot say.** How many lines the lane holds — screen and
   scrollback together, which is the most `capture` can return — and where the cursor is, as a
   column and how many lines *back from the last line `capture` returns* it sits (negative when it is

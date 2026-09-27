@@ -165,7 +165,17 @@ export interface WorkspaceDriver {
   available(): Promise<Availability>
   open(spec: LaneSpec): Promise<LaneHandle>
   write(lane: LaneId, data: Uint8Array): Promise<void>
-  /** A rendered snapshot of the screen, not a soup of escape sequences. */
+  /**
+   * A rendered snapshot of the screen, not a soup of escape sequences — and of
+   * **one** frame of it, never two mixed.
+   *
+   * A window draws what it is handed on a beat of its own, which has nothing to
+   * do with the program's: rows of two frames on one screen is what tearing is,
+   * and it is not something the rows can be inspected for afterwards. So it is
+   * the driver's to avoid, and only a driver that owns the emulator can — where
+   * the screen is somebody else's (tmux's own), a capture is as whole as that
+   * program made it and no promise here can improve on it.
+   */
   capture(lane: LaneId, opts: CaptureOptions): Promise<string>
   /** How far back that snapshot can go, where typing appears in it, and whose the scrolling is. */
   screen(lane: LaneId): Promise<LaneScreen>
