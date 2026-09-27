@@ -57,6 +57,14 @@ function weather(sky: Sky): TadeExtension {
 
 const TICK = 10 * 60_000 + 1_000
 
+/** What this machine answers about its own network, and whether it answers at all. */
+interface Machine {
+  routes: boolean
+  reaches: boolean
+  /** It will not say: a bug in the asking, which must never be read as an outage. */
+  refuses?: boolean
+}
+
 describe('the window, and a machine that cannot reach a network', () => {
   let terminal: FakeTerminal
   let client: Workbench
@@ -70,7 +78,7 @@ describe('the window, and a machine that cannot reach a network', () => {
   })
 
   /** A window with both watches on, its own clock, and its own answer about the network. */
-  async function watching(sky: Sky, machine: { routes: boolean; reaches: boolean }) {
+  async function watching(sky: Sky, machine: Machine) {
     terminal.columns = 140
     terminal.rows = 50
     const told: string[] = []
@@ -83,7 +91,16 @@ describe('the window, and a machine that cannot reach a network', () => {
     const window = await start({
       extensions,
       now: () => clock.at,
-      network: { route: () => machine.routes, reaches: async () => machine.reaches },
+      network: {
+        route: () => {
+          if (machine.refuses) throw new Error('the machine would not say')
+          return machine.routes
+        },
+        reaches: async () => {
+          if (machine.refuses) throw new Error('the machine would not say')
+          return machine.reaches
+        },
+      },
       thinker: {
         ask: async () => 'ok',
         tell: async (text: string) => {
@@ -108,7 +125,7 @@ describe('the window, and a machine that cannot reach a network', () => {
 
   it('holds a watch that needs a network, says so once, and catches up when it is back', async () => {
     const sky: Sky = { looked: [], found: [], unreachable: null }
-    const machine = { routes: true, reaches: true }
+    const machine: Machine = { routes: true, reaches: true }
     const { clock, told } = await watching(sky, machine)
 
     clock.at += TICK
@@ -156,7 +173,7 @@ describe('the window, and a machine that cannot reach a network', () => {
 
   it('never mistakes one endpoint being down for the machine being offline', async () => {
     const sky: Sky = { looked: [], found: [], unreachable: null }
-    const machine = { routes: true, reaches: true }
+    const machine: Machine = { routes: true, reaches: true }
     const { clock } = await watching(sky, machine)
 
     // The radar is down and the machine is fine. That is the radar's news, and
@@ -187,5 +204,18 @@ describe('the window, and a machine that cannot reach a network', () => {
     clock.at += TICK
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(sky.looked.filter((one) => one === 'rain')).toHaveLength(held + 1)
+
+    // And a machine that will not answer about itself is not an outage. It
+    // looks, whatever it then cannot reach is said in the watch's own words,
+    // and the pass every other schedule is on does not end on a throw nobody
+    // catches.
+    machine.refuses = true
+    const asked = sky.looked.filter((one) => one === 'rain').length
+    clock.at += TICK
+    await until('looking again', () => times('back online') === 1)
+    await until(
+      'and every schedule still ran',
+      () => sky.looked.filter((one) => one === 'rain').length > asked,
+    )
   }, 60_000)
 })

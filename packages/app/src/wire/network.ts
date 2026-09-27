@@ -126,7 +126,7 @@ export class Network {
    */
   async looks(now: number): Promise<boolean> {
     if (this.reach.online) {
-      if (!this.machine.route()) this.settle(false, now)
+      if (!this.route()) this.settle(false, now)
       return this.reach.online
     }
     if (shouldLook(this.reach, now)) await this.probe(now)
@@ -156,11 +156,32 @@ export class Network {
 
   private async look(now: number, host?: string): Promise<void> {
     const hosts = host ? [host, ...this.reach.hosts] : this.reach.hosts
-    // A look that threw is not a machine that is offline: erring the other way
-    // would pause every watch on a bug in here, which is the one failure worse
-    // than the noise this exists to stop.
-    const online = this.machine.route() && (await this.machine.reaches(hosts).catch(() => true))
+    // Both halves err the same way, for the reason under `route()`: a lookup
+    // that threw is a lookup that said nothing, and saying nothing is not
+    // saying no.
+    const online = this.route() && (await this.machine.reaches(hosts).catch(() => true))
     this.settle(online, now, host)
+  }
+
+  /**
+   * Whether there is a way off this machine — and never a throw.
+   *
+   * A machine that will not answer is not a machine that is offline. Erring
+   * the other way would pause every watch on a bug in here, and it would do it
+   * without a word; erring this way, the watch looks and whatever it then
+   * cannot reach is reported in the watch's own words, exactly as it was
+   * before any of this existed. Nothing goes unsaid either way — what changes
+   * is only who says it.
+   *
+   * It is also the one call on the schedules pass, which nothing catches: a
+   * throw from here would end that pass, silently, for every schedule behind it.
+   */
+  private route(): boolean {
+    try {
+      return this.machine.route()
+    } catch {
+      return true
+    }
   }
 
   private settle(online: boolean, now: number, host?: string): void {
