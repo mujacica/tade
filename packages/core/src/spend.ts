@@ -1,25 +1,29 @@
 import type { TadeEvent } from './events.ts'
+import { estimateUsd, type PriceTable, priceFor } from './prices.ts'
 
 // What the agents have cost, and whether that is more than you meant.
 //
 // The numbers come from the harness, which prices each message against its own
-// model catalog — the only thing that knows what was actually charged. Nothing
-// here estimates: a budget built on a guess is worse than no budget, because
-// you would trust it.
+// model catalog — the only thing that knows what was actually charged.
 //
-// A harness that can only estimate says so, every time, and what it said is
-// kept apart from what was priced (`usdExact`, `usdEstimated`). A total may
-// still add them — a person asking what the morning cost wants one number —
-// but never in silence: `pricedOf` is what every surface says it with.
+// Where a harness declares it cannot price a turn at all and the work was
+// still billed per token, Tade prices it itself from the tokens and the model
+// (`prices.ts`) rather than leaving a hole in the money column — the hole is
+// why people go and run `ccusage`. Three kinds of dollar, and they are never
+// added in silence: priced by the harness (`usdExact`), guessed by the harness
+// (`usdEstimated`), and worked out here from a published rate (`usdListed`). A
+// total may still add all three — a person asking what the morning cost wants
+// one number — but `pricedOf` is the word every surface says which it is with.
 //
 // A subscription reports tokens and no money at all, and what a harness on one
-// once guessed a turn would have cost is not money either (`isMoney`). That is
-// not zero spend, it is unknown spend, and a dollar budget cannot police it —
-// so a token budget exists too, and `hasCost` says which you are looking at.
-// How much of a bucket's effort that was is kept beside the money
-// (`tokensUnpriced`), because a bucket holding both reads as a complete
-// figure with one agent's cost missing from it, and every surface that totals
-// money has to be able to say so.
+// once guessed a turn would have cost is not money either (`isMoney`). Nor is
+// it something to price here: a plan pays a flat fee, so there is no per-token
+// cost to find. That is not zero spend, it is unknown spend, and a dollar
+// budget cannot police it — so a token budget exists too, and `hasCost` says
+// which you are looking at. How much of a bucket's effort no dollar covers is
+// kept beside the money (`tokensUnpriced`), because a bucket holding both
+// reads as a complete figure with one agent's cost missing from it, and every
+// surface that totals money has to be able to say so.
 // What a plan has left is the other thing entirely: `PlanWindow`, its own list,
 // in no total here.
 //
@@ -104,10 +108,11 @@ export function modelDetail(said: unknown): Record<string, unknown> {
 }
 
 /**
- * How the money in a bucket was arrived at, as the harnesses that reported it
- * declared: priced against a catalog, estimated, both, or none reported at all.
+ * How the money in a bucket was arrived at: priced against the harness's own
+ * catalog, estimated by the harness, worked out here from a published rate
+ * (`listed`), more than one of those, or no money reported at all.
  */
-export type Priced = 'exact' | 'estimate' | 'mixed' | 'none'
+export type Priced = 'exact' | 'estimate' | 'listed' | 'mixed' | 'none'
 
 export interface Spend {
   input: number
@@ -121,16 +126,22 @@ export interface Spend {
   /** Of `usd`, what a harness could only estimate. */
   usdEstimated: number
   /**
-   * Of `tokens`, what ran where nothing reports a price at all.
+   * Of `usd`, what Tade worked out from the tokens and a published rate,
+   * because the harness that spent it declared it prices nothing.
+   */
+  usdListed: number
+  /**
+   * Of `tokens`, what no dollar figure here covers.
    *
-   * A harness whose own sign-in is a plan has no price per turn, so its
-   * agents run up tokens and never a dollar — and added to a bucket beside
-   * work that *was* priced, the figure comes out looking complete with one
-   * agent's cost missing from it. A figure missing an agent is worse than one
-   * marked incomplete, so this is counted rather than flagged: `some of this
-   * was not priced` is a caveat, and `880k of 1.9M` is a fact. What that
-   * effort used up is its plan's windows, which are their own list and in no
-   * total here.
+   * Two ways that happens and one answer to both. A harness whose own sign-in
+   * is a plan has no price per turn, so its agents run up tokens and never a
+   * dollar; and a model nothing has a published rate for cannot be priced
+   * either way. Added to a bucket beside work that *was* priced, the figure
+   * comes out looking complete with one agent's cost missing from it. A figure
+   * missing an agent is worse than one marked incomplete, so this is counted
+   * rather than flagged: `some of this was not priced` is a caveat, and
+   * `880k of 1.9M` is a fact. What a plan's share of it used up is its own
+   * windows, which are their own list and in no total here.
    */
   tokensUnpriced: number
   /** Whether anything reported money. Distinguishes free from unpriced. */
@@ -147,6 +158,7 @@ export function noSpend(): Spend {
     usd: 0,
     usdExact: 0,
     usdEstimated: 0,
+    usdListed: 0,
     tokensUnpriced: 0,
     hasCost: false,
   }
@@ -158,12 +170,12 @@ export function noSpend(): Spend {
  * zeroes is not an estimate — it is no money at all.
  */
 export function pricedOf(spend: Spend): Priced {
-  const exact = spend.usdExact > 0
-  const guessed = spend.usdEstimated > 0
-  if (exact && guessed) return 'mixed'
-  if (exact) return 'exact'
-  if (guessed) return 'estimate'
-  return 'none'
+  const kinds: Priced[] = []
+  if (spend.usdExact > 0) kinds.push('exact')
+  if (spend.usdEstimated > 0) kinds.push('estimate')
+  if (spend.usdListed > 0) kinds.push('listed')
+  if (kinds.length > 1) return 'mixed'
+  return kinds[0] ?? 'none'
 }
 
 export interface Budget {
@@ -366,6 +378,12 @@ export interface SpendWindow {
    * rebuilt per question: a window redraws four times a second.
    */
   runs?: ReadonlyMap<string, RunFacts>
+  /**
+   * Prices per model beyond the checked-in table, as `config.prices` holds
+   * them. Somebody on a rate this repository does not ship gets their own
+   * figure without waiting for a release.
+   */
+  prices?: PriceTable
 }
 
 export interface SpendReport {
@@ -430,13 +448,82 @@ export function spendFrom(
       into(report.byProvider, facts.provider),
     ]
     if (task) buckets.push(into(report.byTask, task))
-    // Whether the dollars on it are money at all, decided once for the event
-    // and given to every bucket it counts towards, so the total and the
+    // What this turn's money is and who worked it out, decided once for the
+    // event and given to every bucket it counts towards, so the total and the
     // per-provider figure can never disagree about what money is.
-    const money = isMoney(facts)
-    for (const bucket of buckets) add(bucket, event, money)
+    const charge = chargeOf(event, facts, model, window.prices)
+    for (const bucket of buckets) add(bucket, event, charge)
   }
   return report
+}
+
+/** What one turn's money is, and whether any price could be put on it at all. */
+interface Charged {
+  usd: number
+  /** Which of the three it counts as; null where there is no money to count. */
+  kind: 'exact' | 'estimate' | 'listed' | null
+  /**
+   * Whether anything could price this turn. False leaves its tokens in
+   * `tokensUnpriced` — effort the money figure beside them says nothing about.
+   */
+  priced: boolean
+}
+
+/**
+ * What one turn cost, and who worked that out.
+ *
+ * Three answers in one place, because they are one decision. A plan has no
+ * per-token cost, so there is nothing to price and nothing to total. A harness
+ * that reported a figure is the thing that knows, and a second figure beside
+ * its own would be two answers to one question. Only a harness that declared
+ * it prices nothing leaves a hole, and only then does a published rate fill it.
+ */
+function chargeOf(
+  event: TadeEvent,
+  facts: RunFacts,
+  model: string,
+  over: PriceTable | undefined,
+): Charged {
+  const count = (key: string) => {
+    const value = event.detail[key]
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0
+  }
+  // A subscription pays a flat fee, so its turns are effort and never money.
+  if (!isMoney(facts)) return { usd: 0, kind: null, priced: false }
+  const reported = count('usd')
+  // Money nobody vouched for counts as guessed, never as priced — so the split
+  // reads the word on the event itself and never falls back to the harness.
+  if (reported > 0) {
+    return {
+      usd: reported,
+      kind: event.detail.priced === 'exact' ? 'exact' : 'estimate',
+      priced: true,
+    }
+  }
+  // Whether the harness *could* have priced it. That is a fact about the
+  // harness, so a line written before the word rode on every event is read
+  // through `HARNESS_FACTS` like every other fact about one.
+  const said = event.detail.priced
+  const declared =
+    said === 'exact' || said === 'estimate' || said === 'none'
+      ? said
+      : HARNESS_FACTS[facts.harness]?.usd
+  // One that prices and reported nought has priced it at nought.
+  if (declared !== 'none') return { usd: 0, kind: null, priced: true }
+  // And a model nothing has a rate for stays unknown: an invented price would
+  // look exactly like a real one.
+  const price = priceFor(model, over)
+  if (!price) return { usd: 0, kind: null, priced: false }
+  const usd = estimateUsd(
+    {
+      input: count('input'),
+      output: count('output'),
+      cacheRead: count('cacheRead'),
+      cacheWrite: count('cacheWrite'),
+    },
+    price,
+  )
+  return { usd, kind: usd > 0 ? 'listed' : null, priced: true }
 }
 
 /** The bucket for this key, made on first sight. */
@@ -446,7 +533,7 @@ function into(buckets: Record<string, Spend>, key: string): Spend {
   return found
 }
 
-function add(spend: Spend, event: TadeEvent, money: boolean): void {
+function add(spend: Spend, event: TadeEvent, charge: Charged): void {
   const number = (key: string) => {
     const value = event.detail[key]
     return typeof value === 'number' && Number.isFinite(value) ? value : 0
@@ -456,22 +543,20 @@ function add(spend: Spend, event: TadeEvent, money: boolean): void {
   spend.cacheRead += number('cacheRead')
   spend.cacheWrite += number('cacheWrite')
   spend.tokens += number('tokens')
-  // A plan's own sign-in reported a figure before anybody asked whether it
-  // was money; the tokens it spent are real and the dollars were never a
-  // bill, so the tokens stay and the dollars are not counted anywhere — and
-  // how much effort that is, is kept, because a total that quietly leaves an
-  // agent's cost out is the one thing a money figure may never do.
-  if (!money) spend.tokensUnpriced += number('tokens')
-  const usd = money ? number('usd') : 0
-  spend.usd += usd
-  if (usd > 0) {
-    spend.hasCost = true
-    // Which kind of dollar this was, as the harness declared it when the turn
-    // happened. A harness that never said is counted as an estimate: money
-    // nobody vouched for is not money anybody priced.
-    if (event.detail.priced === 'exact') spend.usdExact += usd
-    else spend.usdEstimated += usd
-  }
+  // A plan's own sign-in reported a figure before anybody asked whether it was
+  // money; the tokens it spent are real and the dollars were never a bill, so
+  // the tokens stay and the dollars are not counted anywhere. The same holds
+  // for a model nothing could price. Either way how much effort it was, is
+  // kept, because a total that quietly leaves an agent's cost out is the one
+  // thing a money figure may never do.
+  if (!charge.priced) spend.tokensUnpriced += number('tokens')
+  spend.usd += charge.usd
+  if (charge.usd > 0) spend.hasCost = true
+  // And which of the three kinds of dollar it was, decided once where the
+  // whole of that question is answered.
+  if (charge.kind === 'exact') spend.usdExact += charge.usd
+  else if (charge.kind === 'estimate') spend.usdEstimated += charge.usd
+  else if (charge.kind === 'listed') spend.usdListed += charge.usd
 }
 
 /** Whether this is within what you said, and what to say if it is not. */

@@ -16,7 +16,8 @@ never totalled together, and each has its own type, its own list and its own bar
 
 | Path | What |
 |---|---|
-| `packages/core/src/spend.ts` | the fold: `spendFrom`, `Spend`, `noSpend`, `usdExact` / `usdEstimated`, `hasCost`, `pricedOf`, `checkBudget`, `modelIdentity`, `modelIn`, `modelDetail`, `modelsSaid`, `modelLastRunOn`, `UNRECORDED`, `HARNESS_FACTS`, `isMoney`, `runFactsOf`, `runFactsFrom`, `accountBucket` |
+| `packages/core/src/spend.ts` | the fold: `spendFrom`, `Spend`, `noSpend`, `usdExact` / `usdEstimated` / `usdListed`, `hasCost`, `pricedOf`, `checkBudget`, `modelIdentity`, `modelIn`, `modelDetail`, `modelsSaid`, `modelLastRunOn`, `UNRECORDED`, `HARNESS_FACTS`, `isMoney`, `runFactsOf`, `runFactsFrom`, `accountBucket` |
+| `packages/core/src/prices.ts` | what a model costs where nobody will say: `PRICES`, `PRICES_TAKEN`, `priceFor`, `priceKey`, `estimateUsd`, `pricesFrom` — and `config.prices`, the override |
 | `packages/core/src/runtime.ts` | how long: `runtimeFrom`, `RUNTIME_EVENTS`, `Runtime`, `workedOf`, `runtimeSays`, `workedSays`, `duration` |
 | `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `resetsIn`, `planLabel`, `cannotTell` |
 | `packages/core/src/stats.ts` | what it bought: `statsFrom`, `Produced`, `STATS_EVENTS` |
@@ -51,21 +52,51 @@ counting things may never be why a window fails to open.
 If you want a new statistic, the question is always whether the journal can be asked again. If it
 can, fold; if it cannot, write it once, keyed by the thing that makes it unique, and read it back.
 
-### Money that was priced and money that was guessed are never added up in silence
+### Three kinds of dollar, never added up in silence
 
 A harness declares which it can do (`capabilities.spend.usd`: `exact`, `estimate`, `none`), and that
 word rides on every `usage` event as `priced`, so a total can say which it is. pi prices each turn
-against its own catalog; Claude Code against an API key estimates.
+against its own catalog; Claude Code against an API key estimates; Codex counts tokens and prices
+none of them, and **that last case Tade prices itself** (`listedUsd`, `prices.ts`).
 
-- A bucket keeps the two apart (`usdExact`, `usdEstimated`).
-- `pricedOf` is **the one word every surface says it with**: a guessed figure is marked where it is
-  read (`~`), on the row and on the total, and nowhere else. A caveat true under every row is a mark
-  and never a footnote.
+- A bucket keeps the three apart (`usdExact`, `usdEstimated`, `usdListed`).
+- `pricedOf` is **the one word every surface says it with**, and each kind has its own mark where it
+  is read — nothing for a bill, `~` for the harness's guess, `≈` for Tade's — on the row and on the
+  total, and nowhere else. A caveat true under every row is a mark and never a footnote.
+- The total says **what it is made of in a word** (`MADE_OF`: `billed`, `estimated`, `list prices`,
+  `mixed`), under the figure rather than beside it: the head has no columns to spare.
 - Money nobody vouched for counts as **guessed, never as priced**.
-- A bucket nobody reported money for is drawn `—` rather than `$0.00`, which reads as free.
+- A bucket nobody reported money for and nothing could price is drawn `—` rather than `$0.00`, which
+  reads as free.
 
-A total may still add the two — a person asking what the morning cost wants one number — but never in
-silence.
+A total may still add the three — a person asking what the morning cost wants one number — but never
+in silence.
+
+### What a harness will not price, Tade prices — and only where there is a price to find
+
+`ccusage` exists because a money column with a hole in it sends people to a second program. So where
+a harness declares it prices nothing (`priced: 'none'`, or `HARNESS_FACTS` for a line written before
+that rode on every event) **and the work was billed per token** (`isMoney`), `spendFrom` prices the
+turn itself from its tokens and its model.
+
+- **Only there.** A harness that priced a turn is the thing that knows, and a second figure beside
+  its own would be two answers to one question.
+- **Never a plan.** A subscription pays a flat fee, so its turns have no per-token cost at all:
+  `isMoney` decides that before anything reaches `prices.ts`, and $954 of list price standing beside
+  $78 somebody was billed is the figure that rule exists to refuse.
+- **Four rates, not one.** A cache read is a tenth of a fresh prompt and an agent's day is mostly
+  cache reads, so `estimateUsd` charges each kind of token at its own rate. Off the input rate alone
+  a long run comes out several times what it was.
+- **A model with no rate stays unknown** — `priceFor` answers `null`, the tokens count towards
+  `tokensUnpriced`, and nothing is invented. A price on a page is indistinguishable from a real one.
+
+**Where the prices live, and why.** A table checked in with the day it was read off the providers'
+pages (`PRICES_TAKEN`), overridable per model in `config.prices`, and **never fetched**. A network
+lookup breaks the rule that nothing on a timer touches the network and makes reading an old journal
+ask the internet what last March cost; a table every user has to fill in is the same hole with extra
+steps. The cost is that it goes stale, which the date says out loud and the override fixes without a
+release. `priceKey` strips a snapshot stamp (`-20251001`, `@2025-11-01`) and nothing else — a prefix
+match would file `gpt-5-mini` under `gpt-5` and charge five times over.
 
 ### A plan is not money, so a harness on one reports none
 
@@ -212,6 +243,23 @@ already puts what the money figure does not cover: the head now carries two time
 every time — a footnote at the foot of a page is what this may never become. The two words are the two
 the columns under them are headed with, so the page says which is which once and in a word.
 
+### Nothing on this page is a sentence
+
+Prose has been cut out of the Spend page **three times**, the last of it
+`over 15 runs · 35.0M tokens here ran in a harness that reports no money`, and each time it grew back
+because whoever added it was answering a real question. The rule that stops the fourth is the one in
+the guide — *a surface is options and values; the explanation lives where somebody asks* — applied
+literally here: **the page is marks, figures and headings, and nothing else.**
+
+- A caveat true under every row is a **mark** on the figure (`~`, `≈`, `≥`, `—`).
+- Something a mark cannot carry is a **figure and at most a word** — `880k tokens unpriced`,
+  `over 3 runs`, `list prices`, `cannot tell` — on the line under the head, where the money's and the
+  runtime's caveats already live.
+- The sentence version of all of it lives in `tade spend` (`pricedSays`, `runtimeSays`, `workedSays`)
+  and in `why` on the harness, which is where somebody has asked the question.
+
+If a figure needs explaining and cannot be explained in a word, the figure is wrong.
+
 ### A name is the one column that cannot be abbreviated without lying
 
 So the Spend table is laid out from the room there is (`spendColumns`, `panels/spend/view.ts`): the
@@ -236,6 +284,10 @@ things.
 **A new way to group it.** Add the id to `SpendBy` and `SPEND_BY` (`app/src/spend.ts`), and make the
 bucket key in `spendFrom` out of something that was **written down** — `runFactsOf` is how a run's
 harness, account and provider are read back. Never parse a name for it.
+
+**A model whose price has changed, or one the table has never had.** Edit `PRICES` and move
+`PRICES_TAKEN` to the day you read it, in the same commit — a rate with somebody else's date on it is
+worse than no rate. Somebody on a rate Tade does not ship writes it in `config.prices` instead.
 
 **A harness that reports money differently.** Change the adapter's `capabilities.spend.usd`, and then
 change `HARNESS_FACTS` in `core/src/spend.ts` in the same commit: `workbench/test/harnesses.test.ts`

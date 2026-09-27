@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TadeEvent } from '../src/events.ts'
+import { estimateUsd, type ModelPrice, PRICES_TAKEN, priceFor, pricesFrom } from '../src/prices.ts'
 import {
   checkBudget,
   modelDetail,
@@ -16,8 +17,9 @@ import {
 } from '../src/spend.ts'
 
 // Money is the one thing here that is not derived from git, so the rule is
-// that nothing is estimated: a budget built on a guess is worse than none,
-// because you would trust it.
+// that no two kinds of it are ever added in silence: what a provider billed,
+// what a harness guessed and what a published rate makes of the tokens are
+// three claims, and a bucket says which of them it holds.
 
 const NOW = Date.parse('2026-09-13T12:00:00Z')
 
@@ -498,5 +500,172 @@ describe('one name for one model', () => {
     expect(said.get('r1')).toBe('claude-opus-5')
     expect(said.get('r2')).toBe('kimi-k2.6')
     expect(said.has('r3')).toBe(false)
+  })
+})
+
+// What the harnesses will not price, Tade prices — and what has no per-token
+// cost at all it may never price. The three rules below are the whole of it.
+describe('pricing what a harness will not', () => {
+  /** A Codex turn on an API key: billed per token, and Codex prices nothing. */
+  const codex = (detail: Record<string, unknown> = {}): TadeEvent =>
+    usage({
+      run: 'r9',
+      task: 'checkout/refunds',
+      detail: {
+        model: 'gpt-5.3-codex',
+        harness: 'codex',
+        account: 'work',
+        priced: 'none',
+        input: 1_000_000,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        tokens: 1_000_000,
+        usd: 0,
+        ...detail,
+      },
+    })
+
+  it('prices a run whose harness reports nothing, from its tokens and its model', () => {
+    const report = spendFrom([codex()], { since: 0 })
+    // A million input tokens of gpt-5.3-codex at $1.75 per million.
+    expect(report.total.usd).toBeCloseTo(1.75, 6)
+    expect(report.total.usdListed).toBeCloseTo(1.75, 6)
+    expect(report.total.usdExact).toBe(0)
+    expect(report.total.usdEstimated).toBe(0)
+    expect(pricedOf(report.total)).toBe('listed')
+    // And it is no longer effort the money figure says nothing about.
+    expect(report.total.tokensUnpriced).toBe(0)
+    expect(report.total.hasCost).toBe(true)
+  })
+
+  it('charges each kind of token at its own rate', () => {
+    // A cache read is a tenth of input, which is most of an agent's day: at
+    // the input rate this run would be ten times the bill it is.
+    const report = spendFrom([codex({ input: 0, cacheRead: 1_000_000, tokens: 1_000_000 })], {
+      since: 0,
+    })
+    expect(report.total.usd).toBeCloseTo(0.175, 6)
+  })
+
+  it('leaves a model nothing has a rate for unknown, rather than inventing one', () => {
+    const report = spendFrom([codex({ model: 'some-model-nobody-published' })], { since: 0 })
+    expect(report.total.usd).toBe(0)
+    expect(report.total.usdListed).toBe(0)
+    expect(pricedOf(report.total)).toBe('none')
+    expect(report.total.hasCost).toBe(false)
+    // The tokens are still effort no figure of money covers, and say so.
+    expect(report.total.tokensUnpriced).toBe(1_000_000)
+  })
+
+  it('never turns a subscription’s turns into dollars', () => {
+    // Claude Code on its own sign-in is a plan: a flat fee, no price per turn,
+    // and $954 of list price standing beside $78 somebody was billed is the
+    // figure this rule exists to refuse. The tokens stay, the dollars do not.
+    const report = spendFrom(
+      [
+        usage({
+          run: 'r8',
+          detail: {
+            model: 'claude-opus-5',
+            harness: 'claude-code',
+            priced: 'none',
+            input: 10_000_000,
+            tokens: 10_000_000,
+            usd: 0,
+          },
+        }),
+      ],
+      { since: 0 },
+    )
+    expect(report.total.usd).toBe(0)
+    expect(report.total.usdListed).toBe(0)
+    expect(pricedOf(report.total)).toBe('none')
+    expect(report.total.tokensUnpriced).toBe(10_000_000)
+  })
+
+  it('never prices over a harness that priced it itself', () => {
+    // pi says `exact`, so what pi said is the figure — a second one beside it
+    // would be two answers to one question.
+    const report = spendFrom(
+      [
+        usage({
+          detail: { model: 'claude-opus-5', harness: 'pi', priced: 'exact', usd: 0.25 },
+        }),
+      ],
+      { since: 0 },
+    )
+    expect(report.total.usd).toBe(0.25)
+    expect(report.total.usdListed).toBe(0)
+    expect(pricedOf(report.total)).toBe('exact')
+  })
+
+  it('reads an old line by what its harness is, not by what it failed to say', () => {
+    // Written before `priced` rode on every usage event. Codex has never been
+    // able to price a turn, and that is true of its old lines too.
+    const report = spendFrom([codex({ priced: undefined })], { since: 0 })
+    expect(report.total.usdListed).toBeCloseTo(1.75, 6)
+  })
+
+  it('takes a price somebody wrote down over the one Tade ships', () => {
+    const report = spendFrom([codex()], {
+      since: 0,
+      prices: pricesFrom({ 'gpt-5.3-codex': { input: 0.5, output: 4 } }),
+    })
+    expect(report.total.usd).toBeCloseTo(0.5, 6)
+  })
+
+  it('says three kinds of money apart, and calls a bucket of more than one mixed', () => {
+    const report = spendFrom(
+      [
+        usage({ run: 'r1', detail: { usd: 1, priced: 'exact' } }),
+        usage({ run: 'r2', detail: { usd: 0.5, priced: 'estimate' } }),
+        codex({ run: 'r9' }),
+      ],
+      { since: 0 },
+    )
+    expect(report.total.usdExact).toBe(1)
+    expect(report.total.usdEstimated).toBe(0.5)
+    expect(report.total.usdListed).toBeCloseTo(1.75, 6)
+    expect(pricedOf(report.total)).toBe('mixed')
+  })
+})
+
+describe('the price table', () => {
+  it('carries the day it was taken, so a figure off it can be checked', () => {
+    expect(PRICES_TAKEN).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('reads a snapshot stamp as the model it is a build of', () => {
+    expect(priceFor('claude-haiku-4-5-20251001')).toEqual(priceFor('claude-haiku-4-5'))
+    expect(priceFor('claude-opus-4-6@2025-11-01')).toEqual(priceFor('claude-opus-4-6'))
+  })
+
+  it('never shortens a name towards a cheaper neighbour', () => {
+    // `gpt-5-mini` is its own model at its own rate: filed under `gpt-5` it
+    // would be charged five times over.
+    expect(priceFor('gpt-5-mini')?.input).not.toBe(priceFor('gpt-5')?.input)
+    expect(priceFor('claude-opus')).toBeNull()
+    expect(priceFor('')).toBeNull()
+  })
+
+  it('fills in a cache rate nobody wrote down with the input rate', () => {
+    // Two figures is what somebody writing down a price actually knows, and
+    // filling the other two with nought prices most of an agent's day free.
+    const table = pricesFrom({ 'my-model': { input: 3, output: 15 } })
+    expect(table['my-model']).toEqual({
+      input: 3,
+      output: 15,
+      cacheRead: 3,
+      cacheWrite: 3,
+    })
+  })
+
+  it('costs nothing for no tokens', () => {
+    const price = priceFor('claude-opus-5')
+    expect(price).not.toBeNull()
+    expect(
+      estimateUsd({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, price as ModelPrice),
+    ).toBe(0)
   })
 })

@@ -1,4 +1,4 @@
-import { planStandings } from '@tade/core'
+import { planStandings, pricesFrom } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { projects } from '../model.ts'
 import { spendPanel } from '../panels/spend/state.ts'
@@ -57,6 +57,10 @@ export class Spend implements Subject {
       runs: live.runs,
       made: live.produced,
       plan: this.wire.opts.client.planUsage(),
+      // What somebody says their models cost, over what Tade ships. Read off
+      // the config each draw rather than kept: it is a handful of entries, and
+      // a price held in a field is one that goes stale the moment it changes.
+      prices: pricesFrom(this.wire.opts.config.prices),
       budgets: Object.fromEntries(
         Object.entries(this.wire.opts.config.projects).map(([name, project]) => [
           name,

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
 import { z } from 'zod'
 import { dropGone } from './gone.ts'
+import { ModelPriceSchema } from './prices.ts'
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
 // error rather than a silently ignored setting.
@@ -578,6 +579,13 @@ export const ConfigSchema = z
       .prefault({}),
     /** When a project's own checks run, and what a red one does. */
     checks: ChecksConfigSchema.prefault({}),
+    /**
+     * What a model costs per million tokens, for anybody on a rate Tade does
+     * not ship. Read only where the harness that spent it prices nothing, keyed
+     * by the model's own name with no routing in front of it, and never
+     * fetched — `core/src/prices.ts` is the table, its date and the reasoning.
+     */
+    prices: z.record(z.string().min(1), ModelPriceSchema).default({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
     /**
      * The MCP servers this machine is set up to reach, by name. One that

@@ -234,9 +234,10 @@ attached to the decision it governs. Load the matching one rather than working f
   prompts and notes are never in it; paths scrub to `~`. A reporter never throws or blocks.
 - **Watching for trouble never decides what it costs** (`watchProcess`): an uncaught exception ends
   Tade with the terminal handed back, and **a promise nobody awaited is reported and nothing else**.
-- **Money that was priced and money that was guessed are never added up in silence** (`pricedOf`, and
-  `capabilities.spend.usd` declared by the harness). **A plan is not money**, so a harness on one
-  reports no dollars and what it used up is its own type (`PlanWindow`), in no total.
+- **Priced, guessed by the harness, and priced here from tokens are three claims never added in
+  silence** (`pricedOf`, a mark each; rates dated in `core/src/prices.ts`, overridden in
+  `config.prices`, never fetched). **A plan is not money and its turns are never priced**: a harness
+  on one reports none, and what it used up is its own type (`PlanWindow`), in no total.
 - **What a run was is written down, never read out of a model's name — and never out of a route's
   wish**: the provider is the harness's declared answer (`WorkerAdapter.provider`).
 
@@ -312,9 +313,9 @@ The whole of it is the `change-the-window` skill. The rules that break things qu
   its own rows to fit**: no `rows.slice(0, room)`, no `+7 more` in place of scrolling.
 - **A selection is anchored in the region's lines, never in the rows it was made on**, and **whose the
   scrolling and the mouse are is the lane's own to say** — Tade keeps the cells it drew.
-- **A surface is options and values; the explanation lives where somebody asks for it** — a heading
-  and then controls, and a caveat true under every row is a mark or a clause (`~`), never a footnote.
-  What is cut from the drawing is not cut from the program.
+- **A surface is options and values; the explanation lives where somebody asks** — a heading, then
+  controls and figures; a caveat true under every row is a mark or a word (`~`, `billed`), never a
+  sentence. What is cut from the drawing is not cut from the program.
 
 ### Extensions and MCP
 
@@ -357,9 +358,8 @@ Recipes: `set-up-the-machine` and `cut-a-release`.
 
 ## Keeping the repo maintainable
 
-- **This file is the one guide, and it is held to a size** (`test/guide.test.ts`, which carries the
-  argument). `CLAUDE.md` is a link to it, so every agent reads the same words — and reads *all* of
-  them, which is why the budget may go **down** and never up.
+- **`CLAUDE.md` is a link to this file**, so every agent reads the same words — and *all* of them,
+  which is why its budget (`test/guide.test.ts`) may go **down** and never up.
 - **A file over 800 lines is a conversation.** `test/modularity.test.ts` holds one budget per file
   (`DEFAULT = 800`, a line of its own for each file allowed to be bigger); a number goes **down** in the
   commit that earns it, never up, and one sitting more than `SLACK` above its file is the ratchet

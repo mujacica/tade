@@ -8,6 +8,7 @@ import {
   noSpend,
   type PlanSource,
   type Priced,
+  type PriceTable,
   type Produced,
   planLabel,
   planStandings,
@@ -38,9 +39,11 @@ import {
 //
 // An agent that ran and reported no money still gets a row: the question the
 // panel answers is where the effort went, and unpriced effort is still effort.
-// The total above it says how much of it there was (`tokensUnpriced`), because
-// a harness with no price per turn — Codex, Claude Code on its own sign-in —
-// puts its work in the token figure and none of it in the money one.
+// Where the work was billed per token and the harness declared it prices
+// nothing, the fold prices it from a published rate and the row carries the
+// mark that says so. What is left over — a plan's flat fee, a model no rate
+// knows — is counted in `tokensUnpriced` and said as a figure, because a total
+// that quietly leaves an agent's cost out is worse than one marked incomplete.
 
 export type SpendWindow = 'today' | 'window' | 'week'
 
@@ -84,7 +87,9 @@ export interface SpendRow {
   usdExact: number
   /** Of `usd`, what a harness could only estimate. */
   usdEstimated: number
-  /** Which of those this row's money is, so no column adds the two in silence. */
+  /** Of `usd`, what Tade priced itself from the tokens and a published rate. */
+  usdListed: number
+  /** Which of those this row's money is, so no column adds them in silence. */
   priced: Priced
   /** How long it ran in this window. Null for the orchestrator, which has no run of its own. */
   runtime: Runtime | null
@@ -122,15 +127,17 @@ export interface SpendView {
   by: SpendBy
   tokens: number
   usd: number
-  /** Of `usd`, what was priced against a catalog and what was only estimated. */
+  /** Of `usd`, what a catalog priced, what a harness guessed, and what a rate here made. */
   usdExact: number
   usdEstimated: number
-  /** Which of those the total is. Said in the footer, never left for the reader to assume. */
+  usdListed: number
+  /** Which of those the total is. Said as a word beside it, never left to be assumed. */
   priced: Priced
   /**
-   * Of `tokens`, what ran where nothing reports a price. Said under the total
-   * whenever there is money for it to be missing from: a figure that quietly
-   * leaves an agent's cost out is worse than one marked incomplete.
+   * Of `tokens`, what no dollar here covers — a plan's flat fee, a model no
+   * rate knows. Said as a figure under the total whenever there is money for
+   * it to be missing from: one that quietly leaves an agent's cost out is
+   * worse than one marked incomplete.
    */
   tokensUnpriced: number
   /** Whether any price was reported. Subscription providers report none. */
@@ -178,6 +185,8 @@ export function spendView(
     made?: readonly TadeEvent[]
     /** What each harness account can say about its plan, and what it last said. */
     plan?: readonly PlanSource[]
+    /** Prices per model beyond the ones Tade ships, as `config.prices` holds them. */
+    prices?: PriceTable
   },
 ): SpendView {
   const since = sinceOf(opts.window, opts.now, opts.openedAt)
@@ -189,7 +198,7 @@ export function spendView(
   // Built once and asked three times: the panel redraws four times a second,
   // and rebuilding it per question is a pass over the whole journal each time.
   const facts = runFactsFrom(runEvents)
-  const report = spendFrom(usage, { since, runs: facts })
+  const report = spendFrom(usage, { since, runs: facts, prices: opts.prices })
   const models = lastModels(usage)
   // What each run turned out to be on, so the hours and the dollars of one
   // agent land on one row. A route asks for `anthropic/claude-opus-5` and
@@ -225,7 +234,7 @@ export function spendView(
   } else {
     const orchestrator = spendFrom(
       usage.filter((event) => event.task === null && event.detail.by === 'orchestrator'),
-      { since, runs: facts },
+      { since, runs: facts, prices: opts.prices },
     ).total
     rows = [
       ...(orchestrator.tokens > 0 || orchestrator.usd > 0
@@ -263,7 +272,7 @@ export function spendView(
 
   const today = spendFrom(
     events.filter((event) => event.type === 'usage'),
-    { since: startOfToday(opts.now), runs: facts },
+    { since: startOfToday(opts.now), runs: facts, prices: opts.prices },
   )
   const budgets = opts.projects.map((project): BudgetRow => {
     const spent = today.byProject[project] ?? noSpend()
@@ -290,6 +299,7 @@ export function spendView(
     usd: report.total.usd,
     usdExact: report.total.usdExact,
     usdEstimated: report.total.usdEstimated,
+    usdListed: report.total.usdListed,
     tokensUnpriced: report.total.tokensUnpriced,
     priced: pricedOf(report.total),
     hasCost: report.total.hasCost,
@@ -354,6 +364,7 @@ function rowOf(of: {
     usd: spend.usd,
     usdExact: spend.usdExact,
     usdEstimated: spend.usdEstimated,
+    usdListed: spend.usdListed,
     priced: pricedOf(spend),
     runtime: of.runtime,
   }

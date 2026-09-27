@@ -12,6 +12,7 @@ import {
   historyFrom,
   type KnownTask,
   type Note,
+  pricesFrom,
   type Queued,
   type QueueFacts,
   queueStanding,
@@ -1047,7 +1048,10 @@ export class Live {
     const since = startOfToday(this.now())
     const spent = this.spent
     if (spent && spent.since === since && spent.of === this.usage.length) return spent.report
-    const report = spendFrom(this.usage, { since })
+    // Priced the same way the Spend page prices it, so the strip's figure and
+    // the page's are one number: a harness that says it prices nothing still
+    // has a rate for the model it ran on.
+    const report = spendFrom(this.usage, { since, prices: pricesFrom(this.opts.config.prices) })
     this.spent = { since, of: this.usage.length, report }
     return report
   }

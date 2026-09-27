@@ -10,8 +10,9 @@ import { BAR, column, type Line, panelSize } from '../frame.ts'
 import type { SpendPanel } from './state.ts'
 
 // What the Spend panel looks like. The table is laid out from the room there
-// is — a name is the one column that cannot be abbreviated without lying — and
-// money that was priced is never totalled with money that was guessed.
+// is — a name is the one column that cannot be abbreviated without lying — a
+// bill, a harness's guess and a rate off a published page each carry their own
+// mark, and nothing on this page is a sentence.
 
 /**
  * The Spend panel: what it cost, what is left of each plan, what it bought.
@@ -69,34 +70,37 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     r.space()
   })
   head.push(top.build())
-  // What the figure above does not cover, in the gap under it rather than in a
-  // row of its own: a harness whose own sign-in is a plan has no price per
-  // turn, so its agents put their work in the token figure and nothing at all
-  // in the money one, and a total that adds up the rest and stops there is a
-  // figure with an agent's cost missing from it. Said only where there is
-  // money for it to be missing from — where nothing was priced the `—` beside
-  // it has already said it — and here rather than beside the figure because
-  // the head has no columns to spare and a tab you cannot press costs more
-  // than a sentence one line lower.
-  // Everything the figures above need said about them, in the gap under them
-  // rather than in rows of their own. Two things can want it. `over 3 runs` is
-  // what makes a time that is not elapsed time readable: twenty agents over an
-  // afternoon each ran for the whole of their own afternoon, so `13d 3h` off a
-  // machine that has been on since breakfast reads as a bug and is not one.
-  // And a harness whose own sign-in is a plan has no price per turn, so its
-  // agents put their work in the token figure and nothing at all in the money
-  // one — a total that adds up the rest and stops there is a figure with an
-  // agent's cost missing from it.
+  // Everything the figures above need said about them, in the gap under them:
+  // marks, figures and the one word each is short for, in the order of the
+  // figures they sit under. Three things can want it, and none of them is a
+  // sentence — what a page explains, it explains once and then forever, and
+  // this one has had prose cut out of it three times.
+  //
+  // `made of` is the word the mark on the total is short for, so a figure that
+  // adds a bill, a harness's guess and a rate off a published page can never
+  // do it in silence. `over 3 runs` is what makes a time that is not elapsed
+  // time readable: twenty agents over an afternoon each ran for the whole of
+  // their own afternoon, so `13d 3h` off a machine on since breakfast reads as
+  // a bug and is not one. And `880k unpriced` is what no dollar above covers —
+  // a plan's flat fee, a model no rate knows — because a total that adds up
+  // the rest and stops there is a figure with an agent's cost missing from it.
+  // Said only where there is money for it to be missing from: with none at all
+  // the `—` beside it has said it already.
+  const madeOf = view && view.priced !== 'none' ? MADE_OF[view.priced] : ''
   const runs = ran && ran.runs > 1 ? `over ${ran.runs} runs` : ''
-  // The runs clause keeps its room and the money sentence gives ground, which
-  // is what that sentence already does when it is short of it: the figure in
-  // it is the part that may never go, and the words around it are not.
   const unpriced =
     view && view.tokensUnpriced > 0 && view.usd > 0
-      ? missingFrom(view.tokensUnpriced, inner - 1 - (runs ? runs.length + 3 : 0))
+      ? `${tokenCount(view.tokensUnpriced)} unpriced`
       : ''
-  const under = [runs, unpriced].filter(Boolean).join(' · ')
-  head.push(under ? row().space().text(under, skin.hint).build() : blank(inner))
+  const under = [madeOf, runs, unpriced].filter(Boolean).join(' · ')
+  head.push(
+    under
+      ? row()
+          .space()
+          .text(cap(under, inner - 1), skin.hint)
+          .build()
+      : blank(inner),
+  )
 
   // Six facets is more than a narrow panel fits on one line, and a tab that
   // ran off the edge is a grouping nobody can reach. So they wrap, under the
@@ -370,7 +374,7 @@ const TOKENS_W = 6
  */
 const WORKING_W = 7
 const OPEN_W = 6
-/** Room for the figure and the mark that says whether anybody priced it. */
+/** Room for the figure and the mark that says who priced it. */
 const COST_W = 9
 
 /** What the first column is, in the words of the facet it is grouped by. */
@@ -472,28 +476,44 @@ function working(ran: Runtime | null): string {
 }
 
 /**
- * What the money figure does not cover, in the room there is: the whole of it,
- * and the figure alone where a narrow panel has no room for the sentence.
+ * What a total is made of, in the word its mark is short for.
  *
- * The figure is the part that may never go — it is what says the total is
- * missing something — so the words around it are what gives ground, and what
- * is cut past that is cut with `cap`, which says so.
+ * Under the figure rather than beside it: the head has no columns to spare,
+ * and a word one line lower is read every time. A bill needs no word — a
+ * figure with no mark on it is the plain answer to what something cost.
  */
-function missingFrom(tokens: number, room: number): string {
-  const said = `${tokenCount(tokens)} here ran in a harness that reports no money`
-  return cap(said.length <= room ? said : `${tokenCount(tokens)} unpriced`, room)
+const MADE_OF: Readonly<Record<Priced, string>> = {
+  exact: 'billed',
+  estimate: 'estimated',
+  listed: 'list prices',
+  mixed: 'mixed',
+  none: '',
 }
 
 /**
- * A figure of money, and the one character that says nobody priced it.
+ * A figure of money, and the one character that says who worked it out.
  *
- * `—` where no money was reported at all, never `$0.00`: a plan pays a flat
- * fee and has no price per turn, and drawing that as nothing spent reads as
- * free. What it used up is the plan's windows, in their own list below.
+ * Three kinds and three marks, because they are three different claims: no
+ * mark is what somebody was charged, `~` is the harness's own guess at it, and
+ * `≈` is Tade's, off the published rate for the model in `prices.ts`. A column
+ * that mixed them without saying is the one thing this page may never draw.
+ *
+ * `—` where no money was reported and none could be worked out, never `$0.00`:
+ * a plan pays a flat fee and has no price per turn, and drawing that as
+ * nothing spent reads as free. What it used up is the plan's windows, in their
+ * own list below.
  */
 function cost(priced: Priced, usd: number): string {
   if (priced === 'none') return '—'
-  return `${priced === 'exact' ? '' : '~'}${money(usd)}`
+  return `${MARK[priced]}${money(usd)}`
+}
+
+const MARK: Readonly<Record<Priced, string>> = {
+  exact: '',
+  estimate: '~',
+  listed: '≈',
+  mixed: '~',
+  none: '',
 }
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {

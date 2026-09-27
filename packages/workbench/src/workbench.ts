@@ -26,6 +26,7 @@ import {
   type PlanSource,
   PROJECT_DIR,
   parseConfig,
+  pricesFrom,
   type QueueChange,
   resolveRoute,
   routeIn,
@@ -2371,15 +2372,16 @@ export class Workbench {
 
   /**
    * Refuse to start a run that would take a project past what it may spend in
-   * a day, and say so before it gets close. A long run that dies at 100% with
-   * no warning is how people lose work.
+   * a day, and say so before it gets close: a long run that dies at 100% with
+   * no warning is how people lose work. Priced as the Spend page prices it.
    */
   private async guardBudget(task: string): Promise<void> {
     const project = task.split('/')[0] ?? ''
     const budget = this.config.projects[project]?.budget
     if (!budget) return
     const events = await this.log.read({ types: ['usage'] }).catch(() => [])
-    const spent = spendFrom(events, { since: startOfToday(Date.now()) }).byProject[project]
+    const prices = pricesFrom(this.config.prices)
+    const spent = spendFrom(events, { since: startOfToday(Date.now()), prices }).byProject[project]
     const state = checkBudget(spent ?? noSpend(), budget)
     if (state.verdict === 'over') {
       throw new Error(`${project} has spent its budget for today: ${state.reason}`)

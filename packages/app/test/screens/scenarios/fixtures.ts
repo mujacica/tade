@@ -212,29 +212,44 @@ export const usage = (
   model: string,
   tokens: number,
   usd: number,
-  on: { harness: string; provider?: string; priced: 'exact' | 'estimate' },
-): TadeEvent => ({
-  seq: ++seq,
-  ts: '2026-09-13T13:00:00.000Z',
-  type: 'usage',
-  urgency: 'routine',
-  task,
-  lane: null,
-  // An agent's spend belongs to its run, which is how the hours and the
-  // dollars of one agent land on one row. The orchestrator has no run of its
-  // own — it lives as long as the window — so it has none here either.
-  run: task ? `${task}/agent` : null,
-  detail: {
-    model,
-    tokens,
-    usd,
-    // Which harness, through which provider, and whether that dollar was
-    // priced or guessed — a real morning has both, and the page may never add
-    // the two without saying which it did.
-    ...on,
-    ...(task ? {} : { by: 'orchestrator' }),
+  on: {
+    harness: string
+    provider?: string
+    account?: string
+    priced: 'exact' | 'estimate' | 'none'
+    /**
+     * How those tokens divide, for a turn nobody priced. A cache read costs a
+     * tenth of a fresh prompt, so what Tade makes of a run depends on the
+     * split and not on the total.
+     */
+    parts?: { input: number; output: number; cacheRead: number }
   },
-})
+): TadeEvent => {
+  const { parts, ...facts } = on
+  return {
+    seq: ++seq,
+    ts: '2026-09-13T13:00:00.000Z',
+    type: 'usage',
+    urgency: 'routine',
+    task,
+    lane: null,
+    // An agent's spend belongs to its run, which is how the hours and the
+    // dollars of one agent land on one row. The orchestrator has no run of its
+    // own — it lives as long as the window — so it has none here either.
+    run: task ? `${task}/agent` : null,
+    detail: {
+      model,
+      tokens,
+      usd,
+      ...parts,
+      // Which harness, through which provider, and whether that dollar was
+      // priced, guessed or never given — a real morning has all three, and the
+      // page may never add them without saying which it did.
+      ...facts,
+      ...(task ? {} : { by: 'orchestrator' }),
+    },
+  }
+}
 
 const runEvent = (
   type: 'run_started' | 'run_exited' | 'turn_started' | 'turn_done',
@@ -304,7 +319,6 @@ export const made = [
   checkRan('types', 'passed', 19_900),
   checkRan('tests', 'failed', 46_200),
   checkRan('tests', 'passed', 44_800),
-  checkRan('format', 'passed', 1_900),
 ]
 
 /** The same morning's runs: two agents still going, one that finished. */

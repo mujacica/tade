@@ -1,4 +1,4 @@
-import { type PlanSource, planStandings } from '@tade/core'
+import { noRuntime, type PlanSource, planStandings } from '@tade/core'
 import { spendPanel } from '../../../src/panels/spend/state.ts'
 import { spendView } from '../../../src/spend.ts'
 import { base, frame, made, NOW, ran, type Scenario, usage } from './fixtures.ts'
@@ -39,6 +39,16 @@ const spent = [
     harness: 'pi',
     provider: 'anthropic',
     priced: 'exact',
+  }),
+  // Codex counts tokens and prices none of them, and this one is on an API
+  // key, so the work was billed per token and nobody who ran it will say what
+  // it cost. Tade prices it off the published rate for the model and marks it
+  // `≈` — its own claim, never a bill, and never added to one in silence.
+  usage('search/reindex', 'gpt-5.3-codex', 620_000, 0, {
+    harness: 'codex',
+    account: 'work',
+    priced: 'none',
+    parts: { input: 60_000, output: 20_000, cacheRead: 540_000 },
   }),
 ]
 
@@ -81,6 +91,26 @@ const plans: PlanSource[] = [
   },
 ]
 
+/**
+ * What the strip says this morning cost, for the two screens that also draw
+ * the page. The same morning as `spent` and the same total: a strip and a page
+ * on one screen saying two different things about one figure is the bug both
+ * of them exist to prevent. Only here, because only here is the page open —
+ * every other screen keeps the base fixture's simpler morning.
+ */
+const strip = {
+  tokens: 2_520_000,
+  usd: 1.88,
+  hasCost: true,
+  byTask: {
+    'checkout/stripe-v15': { tokens: 880_000, usd: 0 },
+    'checkout/refunds': { tokens: 460_000, usd: 0.62 },
+    'search/pagination': { tokens: 148_000, usd: 0.2 },
+    'search/reindex': { tokens: 620_000, usd: 0.48 },
+  },
+  runtime: { ...noRuntime(), ms: 7_500_000, runs: 3, running: true, workingMs: 3_100_000 },
+}
+
 export const SPEND_SCREENS: Scenario[] = [
   {
     name: 'spend',
@@ -88,6 +118,7 @@ export const SPEND_SCREENS: Scenario[] = [
       'The Spend panel: the orchestrator and every agent today, each project against its budget, and how much of each subscription is left.',
     state: { ...base(), panel: spendPanel() },
     frame: frame({
+      spend: strip,
       plan: planStandings(plans, NOW),
       spendView: spendView(spent, {
         window: 'today',
@@ -110,6 +141,7 @@ export const SPEND_SCREENS: Scenario[] = [
       'groupings beside it are what tell the three bills apart.',
     state: { ...base(), panel: { ...spendPanel(), by: 'model' as const } },
     frame: frame({
+      spend: strip,
       plan: planStandings(plans, NOW),
       spendView: spendView(spent, {
         window: 'today',

@@ -106,6 +106,15 @@ describe('what an ordinary request reaches', () => {
     // cosmetic annoyance they are looking at, so it is not `open` either.
     expect(settingReach('journal.max_mb').reach).toBe('asked')
   })
+
+  it('does not include what a model is said to cost', () => {
+    // A price is only ever a figure on a page — it widens nothing an agent may
+    // do and moves nowhere Tade sends anything, so it is not `never`. But the
+    // money figure it feeds is what a daily budget is checked against, and a
+    // rate written down as nought is a budget that never trips again, which is
+    // not a cosmetic annoyance somebody is looking at.
+    expect(settingReach('prices.claude-opus-5.input').reach).toBe('asked')
+  })
 })
 
 describe('the shape of the rule', () => {
@@ -124,6 +133,7 @@ describe('the shape of the rule', () => {
       'journal',
       'mcp',
       'orchestrator',
+      'prices',
       'projects',
       'surfaces',
       'telemetry',

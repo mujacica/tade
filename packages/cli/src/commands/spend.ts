@@ -5,7 +5,9 @@ import {
   loadConfig,
   modelsSaid,
   noSpend,
+  PRICES_TAKEN,
   pricedOf,
+  pricesFrom,
   RUNTIME_EVENTS,
   type Runtime,
   runFactsFrom,
@@ -27,10 +29,13 @@ import type { Io } from '../io.ts'
 // What the agents have cost, and how long they were at it.
 //
 // Read out of the journal, priced by the harness against its own model
-// catalog. Nothing here estimates: a provider that reports no money leaves the
-// money column empty rather than showing a plausible zero. Runtime is the same
-// answer read from the same place — when each run started and when it ended —
-// so a subscription that reports no price still says where the hours went.
+// catalog — and, where a harness declares it prices nothing and the work was
+// still billed per token, off the published rate for the model (`prices.ts`).
+// A plan is never priced that way and a model nothing has a rate for stays
+// unknown: the money column is left empty rather than showing a plausible
+// zero. Runtime is the same answer read from the same place — when each run
+// started and when it ended — so a subscription that reports no price still
+// says where the hours went.
 // A question, so it reads the journal itself: asking what today cost must work
 // with a window open.
 //
@@ -60,7 +65,11 @@ export function registerSpend(program: Command, io: Io): void {
       // What each run was — harness, sign-in, provider — read off the
       // `run_started` that opened it, so usage written before it carried its
       // own still lands in the right bucket.
-      const report = spendFrom(events, { since, runs: runFactsFrom(runs) })
+      const report = spendFrom(events, {
+        since,
+        runs: runFactsFrom(runs),
+        prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
+      })
       // Timed by what each run turned out to be on rather than by what its
       // route asked for, so one agent is one model row and not two.
       const ran = runtimeFrom(runs, { since, now, said: modelsSaid(events) })
@@ -221,34 +230,48 @@ function shown(key: string): string {
 }
 
 /**
- * Which kind of money this was. Priced and estimated both go in the total and
- * neither goes in silently: a harness that can only guess at what a turn cost
- * says so every turn, and a total that hid that is a total nobody can defend.
+ * Which kind of money this was. Three go in the total and none goes in
+ * silently: a harness that can only guess at what a turn cost says so every
+ * turn, a rate off a published page is not a bill, and a total that hid either
+ * is a total nobody can defend.
+ *
+ * The window says the same thing in a word (`MADE_OF`) and a mark, because a
+ * page is options and values. Here somebody asked the question, so here it is
+ * answered in as many words as it takes.
  */
 export function pricedSays(spend: Spend): string {
   const exact = `$${spend.usdExact.toFixed(2)} priced by the harness`
   const guessed = `$${spend.usdEstimated.toFixed(2)} estimated`
+  const listed = `$${spend.usdListed.toFixed(2)} at list prices of ${PRICES_TAKEN}`
   const said = (() => {
     switch (pricedOf(spend)) {
       case 'mixed':
-        return `of $${spend.usd.toFixed(2)}: ${exact}, ${guessed}`
+        return `of $${spend.usd.toFixed(2)}: ${[
+          spend.usdExact > 0 ? exact : '',
+          spend.usdEstimated > 0 ? guessed : '',
+          spend.usdListed > 0 ? listed : '',
+        ]
+          .filter(Boolean)
+          .join(', ')}`
       case 'exact':
         return `${exact}, against its own catalog`
       case 'estimate':
         return `${guessed} — this harness cannot price a turn, only guess at it`
+      case 'listed':
+        return `${listed} — this harness prices nothing, so Tade priced the tokens`
       default:
         // Zero dollars from a subscription is not the same as free.
         return 'no prices reported — a subscription plan bills you, not per token'
     }
   })()
-  // And what no figure above covers. A harness whose own sign-in is a plan
-  // has no price per turn at all — Codex and Claude Code both say so
-  // (`capabilities.spend.usd: 'none'`) — so its agents ran up tokens and no
-  // dollars, and a total that adds the rest up and stops there is a figure
-  // with an agent's cost missing from it. Only said where there is money for
-  // it to be missing from: with none at all the sentence above has said it.
+  // And what no figure above covers: a plan, which has no price per turn at
+  // all, and a model nothing here has a rate for. Either way the tokens are
+  // effort no dollar above accounts for, and a total that adds the rest up and
+  // stops there is a figure with an agent's cost missing from it. Only said
+  // where there is money for it to be missing from: with none at all the
+  // sentence above has said it.
   if (spend.tokensUnpriced > 0 && spend.usd > 0) {
-    return `${said} — and ${count(spend.tokensUnpriced)} of these tokens ran in a harness that reports no money at all, which no figure here covers`
+    return `${said} — and ${count(spend.tokensUnpriced)} of these tokens nothing here could price, which no figure above covers`
   }
   return said
 }

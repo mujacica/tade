@@ -540,28 +540,74 @@ describe('a long name at any width', () => {
     expect(rows).not.toContain('priced by the harness')
   })
 
-  it('says what the total does not cover, in the gap under the figure', () => {
+  it('says what the total does not cover as a figure, never as a sentence', () => {
     // Claude Code's own sign-in has no price per turn, so its 400k tokens are
     // in the token figure and in no figure of money beside it. A total that
     // adds up the rest and stops there is a figure with an agent's cost
-    // missing from it, which is worse than one marked incomplete.
+    // missing from it, which is worse than one marked incomplete — and the
+    // way it is marked is a figure and a word, because this is a page.
     const rows = drawn('harness', 96).join('\n')
-    expect(rows).toContain('400k tokens here ran in a harness that reports no money')
+    expect(rows).toContain('400k tokens unpriced')
+    expect(rows).not.toContain('ran in a harness')
     // The money in it is untouched: this only ever adds what to say.
     expect(rows).toMatch(/\$2\.00/)
-    // And a narrow panel keeps the figure and gives up the words, rather than
-    // cutting the sentence off where nobody can tell what it was about.
+    // And it still fits where the panel is narrow, because it is short.
     expect(drawn('harness', 48).join('\n')).toContain('400k tokens unpriced')
+  })
+
+  it('says what the total is made of, in a word under the figure', () => {
+    // Three kinds of dollar can be in one figure and each is a different
+    // claim, so the total never adds them without saying which it holds.
+    // Two harnesses that both priced their own turns: a bill and nothing else.
+    expect(drawn('harness', 96).join('\n')).toContain('billed')
+    // And one that could only guess beside them.
+    const mixed = drawn('harness', 96, [
+      ...THREE_ROUTES,
+      usage({
+        run: 'r4',
+        detail: {
+          harness: 'claude-code',
+          account: 'billed',
+          tokens: 50_000,
+          usd: 0.5,
+          priced: 'estimate',
+        },
+      }),
+    ]).join('\n')
+    expect(mixed).toContain('mixed')
+  })
+
+  it('prices what a harness will not, and marks it as its own kind of figure', () => {
+    // Codex on an API key is billed per token and prices nothing, so Tade
+    // prices it off the rate for the model — marked `≈`, never as a bill.
+    const rows = drawn('harness', 96, [
+      usage({
+        run: 'r1',
+        detail: {
+          model: 'gpt-5.3-codex',
+          harness: 'codex',
+          account: 'work',
+          priced: 'none',
+          input: 1_000_000,
+          tokens: 1_000_000,
+          usd: 0,
+        },
+      }),
+    ]).join('\n')
+    expect(rows).toMatch(/≈\$1\.75/)
+    expect(rows).toContain('list prices')
+    expect(rows).not.toContain('unpriced')
   })
 
   it('says nothing about what it misses when there is no money for it to miss', () => {
     // Nothing was priced at all, so the `—` beside the token figure has
-    // already said it, and a sentence under it would be the same fact twice.
+    // already said it, and a word under it would be the same fact twice.
     const rows = drawn('harness', 96, [
       usage({ run: 'r1', detail: { harness: 'claude-code', tokens: 900_000, usd: 954.51 } }),
     ]).join('\n')
-    expect(rows).not.toContain('reports no money')
     expect(rows).not.toContain('unpriced')
+    expect(rows).not.toContain('list prices')
+    expect(rows).not.toContain('billed')
   })
 
   it('says no money at all as that, rather than as a zero somebody could trust', () => {
