@@ -237,6 +237,10 @@ morning. Ticked in the first minute is only ever a watch that tells you somethin
 nothing — pressing enter without reading has to mean being told, never four agents in four lanes by
 morning.
 
+Tests: the queue's own list is `packages/app/test/queue-view.test.ts`, the standing rules are
+`packages/app/test/schedules-view.test.ts` — two files because they are two subjects, which is the
+same reason they are two sections.
+
 Then: a screen scenario for anything drawn (`test/screens/scenarios/queue.ts`, `pnpm screens`, accept on
 purpose), one line of invariant in `AGENTS.md` if a rule changed — with its argument here rather than
 there — and `pnpm check` on its own.

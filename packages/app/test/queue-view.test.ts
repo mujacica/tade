@@ -276,30 +276,15 @@ describe('the smart queue down the side', () => {
     expect(controls({}, { schedules: [nightly] })).not.toContain('timed')
   })
 
-  it('keeps the schedules out of the queue and in a section of their own', () => {
+  it('keeps a schedule out of its list: the clockwork is SCHEDULES’', () => {
     const rows = renderApp(queued(), frame({ width: 100, height: 60, schedules: [nightly] })).map(
       plain,
     )
     const at = (text: string) => rows.findIndex((row) => row.includes(text))
-    // Two headings, in this order, and the schedule is under the second.
-    expect(at('SMART QUEUE')).toBeGreaterThan(-1)
-    expect(at('SCHEDULES')).toBeGreaterThan(at('SMART QUEUE'))
-    // Its name is cut to the side's room, as every name down the side is.
-    expect(at('↻ perf night')).toBeGreaterThan(at('SCHEDULES'))
-    // The queue's own count is work, and only work: three pieces, not four.
+    // Its own count is work, and only work: three pieces, not four — and what
+    // the section under it does with the fourth is `schedules-view.test.ts`'.
     expect(rows[at('SMART QUEUE')]).toMatch(/SMART QUEUE +\(?3\)?/)
-    expect(rows[at('SCHEDULES')]).toMatch(/SCHEDULES +\(?1\)?/)
-    // What it does when it fires, which is the thing worth a column of its own.
-    expect(rows[at('↻ perf night') + 1]).toContain('agents')
-  })
-
-  it('is there with no clockwork in it, folded, and says so', () => {
-    const rows = renderApp(queued(), frame({ width: 160, height: 40 })).map(plain)
-    const heading = rows.find((row) => row.includes('SCHEDULES')) ?? ''
-    expect(heading).toContain('▸ SCHEDULES')
-    expect(heading).toContain('nothing on a clock')
-    // Folded is one row and no more.
-    expect(rows.filter((row) => row.includes('SCHEDULES')).length).toBe(1)
+    expect(at('↻ perf night')).toBeGreaterThan(at('SCHEDULES'))
   })
 
   it('shifts each piece right of what it waits on, and joins them with a line', () => {
