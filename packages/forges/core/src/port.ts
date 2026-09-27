@@ -158,7 +158,14 @@ export type ForgeTrouble =
   | 'unsupported'
   /** The forge said no: protected branch, review already merged. */
   | 'refused'
-  /** Could not be reached. */
+  /**
+   * It answered, and the answer was trouble of its own: a 5xx, a gateway, an
+   * outage. Something was reached, which is what keeps it apart from `network`
+   * — one endpoint being down is never the machine being offline, and only the
+   * second of those may pause anything.
+   */
+  | 'server'
+  /** Could not be reached: nothing came back at all. */
   | 'network'
 
 export class ForgeError extends Error {

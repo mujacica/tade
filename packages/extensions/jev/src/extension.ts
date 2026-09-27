@@ -849,6 +849,9 @@ export const jevExtension: TadeExtension = {
       title: 'Agents going in circles',
       means: 'reads the agents that keep making the same failing call, and says which',
       every: '10m',
+      // The counting is this machine's; the judgement is a model somewhere
+      // else, and nothing here reports without one. Offline, it holds.
+      network: true,
       // There is nothing to start work on: the work is already going, and
       // badly. This is for telling somebody.
       offers: 'ask',

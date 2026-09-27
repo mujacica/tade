@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ExtensionContext, ProjectRef } from '@tade/extensions-core'
+import { type ExtensionContext, type ProjectRef, Unreachable } from '@tade/extensions-core'
 import type { Forge, Review, ReviewRef } from '@tade/forges-core'
-import { ForgeError, repoOf } from '@tade/forges-core'
+import { ForgeError, hostOf, repoOf } from '@tade/forges-core'
 import { forgeFor } from '@tade/status'
 
 // Finding the forge a project's work goes to, and asking it as little as
@@ -264,6 +264,18 @@ export function refFrom(said: string, only: Where | null): ReviewRef {
   throw new Error(
     `"${said}" is not a review: say it as owner/repo#412, as its URL${only ? ', or as #412' : ''}`,
   )
+}
+
+/**
+ * A look's failure as something the scheduler's reach can read: nothing having
+ * come back is `Unreachable` and names the host, and everything the forge
+ * actually answered — a 401, a 404, a rate limit, a 500 — stays what it was.
+ * One endpoint being down is never the machine being offline.
+ */
+export function asLookFailed(err: unknown, remote: string): unknown {
+  return err instanceof ForgeError && err.trouble === 'network'
+    ? new Unreachable(hostOf(remote) ?? '', err.message)
+    : err
 }
 
 function hostOfWhere(where: Where): string {

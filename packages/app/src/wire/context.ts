@@ -19,6 +19,7 @@ import type { MenuItem, MenuSubject, ThinkerOffers } from '../panels/menu/state.
 import type { PromptPanel } from '../panels/small/state.ts'
 import type { Panel, PanelInputs } from '../panels.ts'
 import type { ThinkerEvent } from '../transcript.ts'
+import type { MachineNetwork } from './network.ts'
 
 // What a subject of the window may reach, and nothing more.
 //
@@ -139,6 +140,13 @@ export interface AppOptions {
    * are, because turning one on is a setting like any other.
    */
   mcpServers?: (config: Config) => readonly McpServerShown[]
+  /**
+   * How the machine is asked whether it can reach a network at all — the one
+   * thing that decides whether the watches look. The machine's own unless
+   * given, for the reason `clipboard` is: a test suite may never reach the
+   * network it runs on.
+   */
+  network?: MachineNetwork
   now?: () => number
   frameMs?: number
 }

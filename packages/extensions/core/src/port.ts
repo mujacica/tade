@@ -172,6 +172,30 @@ export interface Finding {
   links?: readonly Link[]
 }
 
+/**
+ * A look that could not reach the host it needs: nothing came back at all.
+ *
+ * Thrown by a watch instead of an ordinary error, and read by the one thing
+ * that is allowed to have an opinion about connectivity — the scheduler's own
+ * reach for a network. It names the host so that reach can ask about that
+ * host, and the hosts it asks about are only ever ones a watch already needed.
+ *
+ * **Only for nothing coming back.** A 404, a 500, an auth failure, a rate
+ * limit or a provider saying no is an answer: something was reached, and one
+ * endpoint being down is not the machine being offline. Those stay ordinary
+ * errors and keep exactly the behaviour they have.
+ */
+export class Unreachable extends Error {
+  /** The host that did not answer: `github.com`, `sentry.io`. */
+  readonly host: string
+
+  constructor(host: string, said: string) {
+    super(said)
+    this.name = 'Unreachable'
+    this.host = host
+  }
+}
+
 /** What a watch looks with. */
 export interface WatchContext extends ExtensionContext {
   /** The project it watches. */
@@ -254,6 +278,23 @@ export interface ExtensionWatch {
    * (`offers: 'agent'`) should leave this alone.
    */
   most?: number
+  /**
+   * Whether its look reaches off this machine.
+   *
+   * Declared, never sniffed. With no network there is nothing for one of these
+   * to look with, so the scheduler does not start it at all — no request, no
+   * timeout, no red line, and where its last look left off is untouched, so
+   * the first look once the network is back finds everything since. A watch
+   * that reads this machine and nothing else says nothing here and keeps
+   * looking through an outage, which is the point of telling them apart: an
+   * agent going in circles is still going in circles with the wifi off.
+   *
+   * A watch that says this should also throw `Unreachable` when the host it
+   * needs is the thing that did not answer, so that an outage which leaves the
+   * interfaces up — a router whose own uplink is down — is found on the first
+   * failed look rather than on every look all night.
+   */
+  network?: boolean
   /**
    * Look, and say what there is. No model: it runs on a clock, and a look that
    * finds nothing costs nothing. Nothing found is an empty list, never a throw;

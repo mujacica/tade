@@ -339,6 +339,10 @@ export const reviewWatch: ExtensionWatch = {
   // and no schedule is written at all, so a fresh install gets no look, no
   // error and no bill.
   standing: true,
+  // What it reads a change with is a model somewhere else, so an offline
+  // machine holds it: what it could not read comes round again, which is what
+  // it already does with a change it could not read for any other reason.
+  network: true,
   // And what it finds is told, not acted on. It still has an `agent` to offer,
   // so somebody who turns it on and says `found: 'agent'` gets a second agent
   // on each finding — but that is a decision, and a watch that is on for

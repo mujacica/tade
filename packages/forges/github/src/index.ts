@@ -144,7 +144,10 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       )
     }
     if (answer.status >= 400) {
-      throw new ForgeError('network', `${host} answered ${answer.status}`, {
+      // It answered, so this is never connectivity however badly it answered:
+      // `network` is kept for nothing coming back, which is the only thing
+      // that may put the machine offline.
+      throw new ForgeError('server', `${host} answered ${answer.status}`, {
         said: said(body) || text.slice(0, 200),
       })
     }

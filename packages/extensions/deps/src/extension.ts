@@ -193,6 +193,8 @@ export const depsExtension: TadeExtension = {
       title: 'Vulnerable dependencies',
       means: 'checks against OSV, and starts an agent per vulnerable package',
       every: '1d',
+      // It asks OSV, so an offline machine holds it rather than asking anyway.
+      network: true,
       input: object({
         level: oneOf(
           ['patch', 'minor', 'major'],

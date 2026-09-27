@@ -183,6 +183,23 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   what the first minute turned on; and that id is how a watch remembers what it has found, which is
   why turning one off **pauses** it rather than removing it — remade, it would come back with no
   memory and start work on everything it had already dealt with.
+- **Whether the machine has a network is one answer, held once, and never a watch's to guess.**
+  A watch that reaches off this machine says so (`ExtensionWatch.network`, carried onto
+  `WatchOffer`), and the scheduler asks its reach before it runs one (`mayRun`, `Network` in
+  `app/src/wire/network.ts`, over the pure fold in `core/src/network.ts`). Offline, the look **does
+  not happen**: no request, no `watch_checked`, no red line, and `since` untouched — so the first
+  look once the network is back finds everything since and the missed runs catch up like any
+  schedule's. It went in because four watches on four timers each discovered one night's outage by
+  making a request and waiting for it to fail, a dozen times from one watch alone. Two rules hold it
+  honest. **One endpoint being down is never the machine being offline**: nothing a service *said* —
+  a 404, a 500, an auth failure, a rate limit — may pause anything, which is why `ForgeError`
+  separates `server` (it answered) from `network` (nothing came back), `commit.ts` separates
+  `would not answer` from `unreachable`, and only the second is thrown as `Unreachable`. And the
+  failure is never the evidence, only the prompt: what decides is a look at *this machine* — an
+  interface that is a way out (`anyRoute`), then a name lookup of the host that watch needed
+  (`reachedResolver`, `dns.resolve` and never `lookup`, whose cache answers the wrong question).
+  The one line is said on the edge and only there (`reachSaid`), because a window that has quietly
+  stopped looking must still be legible.
 - **A watch that edits the project is defined by what it will not do.** `deps.updates` is the worked
   example, and every decision in it is about the morning after, because a daily robot that edits
   manifests is the kind of thing people turn off after one bad morning. **Patch and minor, never

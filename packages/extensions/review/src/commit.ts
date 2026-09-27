@@ -116,7 +116,10 @@ export type Ran =
  * it was got from. Of the rest, four are quiet facts about a branch nothing is
  * wrong with — `passed`, `running`, `nothing ran`, `not pushed` — and the ones
  * with a `said` that `cannotLook` names are a look that went wrong, which is
- * said once and not every ten minutes for as long as it stays wrong.
+ * said once and not every ten minutes for as long as it stays wrong. Two of
+ * those are told apart by whether anything came back — `unreachable` and
+ * `would not answer` — because only the first could be this machine having no
+ * network, and a forge answering a 500 must never read as one.
  */
 export type CommitCi =
   | { kind: 'red'; runs: readonly CheckRun[]; where: Where }
@@ -129,8 +132,14 @@ export type CommitCi =
   | { kind: 'no forge'; said: string }
   /** The forge would not say who we are. */
   | { kind: 'no credential'; said: string }
-  /** It was asked and would not answer: unreachable, rate limited, anything else. */
-  | { kind: 'unreachable'; said: string }
+  /**
+   * Nothing came back at all. The one answer that may be about this machine
+   * rather than about that host, so it is the one that names the host: the
+   * scheduler's reach asks about it before anything concludes anything.
+   */
+  | { kind: 'unreachable'; host: string; said: string }
+  /** It answered, and the answer was trouble: a 5xx, a rate limit, something it did not explain. */
+  | { kind: 'would not answer'; said: string }
   /** A ref of origin here has it and the forge has never heard of it. */
   | { kind: 'unknown commit'; said: string }
   /** Nobody here could answer: git refused, or this forge cannot answer about a commit. */
@@ -140,6 +149,7 @@ export type CommitCi =
 const CANNOT_LOOK = [
   'no credential',
   'unreachable',
+  'would not answer',
   'unknown commit',
   'cannot tell',
 ] as const satisfies readonly CommitCi['kind'][]
@@ -229,8 +239,16 @@ function trouble(err: unknown, where: Where, here: Standing): CommitCi {
     if (err.trouble === 'missing') {
       return { kind: 'unknown commit', said: commitUnknownTo(host, where.repo, here.commit) }
     }
+    // Nothing came back at all, which is the only trouble here that could be
+    // about this machine rather than about that host. It is still only a
+    // *could*: what decides is the scheduler's reach, which asks about this
+    // host before it concludes anything, so a forge having a bad afternoon
+    // never reads as an outage.
+    if (err.trouble === 'network') {
+      return { kind: 'unreachable', host, said: couldNotReach(host, said) }
+    }
   }
-  return { kind: 'unreachable', said: couldNotReach(host, said) }
+  return { kind: 'would not answer', said: couldNotReach(host, said) }
 }
 
 /** Git, with its answer trimmed and its failure kept. Never throws: a failure is a sentence. */

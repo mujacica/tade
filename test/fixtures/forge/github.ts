@@ -74,6 +74,17 @@ export interface ReplayOptions {
    * one Tade is reading looks like too.
    */
   missingCommit?: boolean
+  /**
+   * Nothing comes back at all: `fetch` rejects, which is what an offline
+   * machine, a dead DNS or a dropped connection actually looks like.
+   *
+   * Its own option because it is a different fact from every other one here —
+   * each of those is GitHub answering, and this is nobody answering. Told
+   * apart, because only one of them could be about this machine.
+   */
+  unreachable?: boolean
+  /** GitHub answers, badly: a 500. It was reached, so it is nothing to do with the network. */
+  serverError?: boolean
 }
 
 export function githubReplay(options: ReplayOptions = {}): GithubReplay {
@@ -110,6 +121,16 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     const asked = /\/actions\/runs\?head_sha=([^&]+)/.exec(url)
     if (asked?.[1]) lastHeadSha = asked[1]
     if (init?.body) bodies.push(JSON.parse(String(init.body)))
+    if (options.unreachable) {
+      throw Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND api.github.com'), {
+          code: 'ENOTFOUND',
+        }),
+      })
+    }
+    if (options.serverError) {
+      return answer({ message: 'Server Error' }, 500)
+    }
     if (options.limited) {
       return answer({ message: 'API rate limit exceeded' }, 403, {
         'x-ratelimit-remaining': '0',

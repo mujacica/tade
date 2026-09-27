@@ -13,4 +13,5 @@ export {
   type WatchOffer,
 } from './host.ts'
 export type * from './port.ts'
+export { Unreachable } from './port.ts'
 export { boolean, inputProblem, list, number, object, oneOf, string } from './schema.ts'

@@ -173,6 +173,8 @@ export interface WatchOffer {
   offers: 'ask' | 'agent'
   /** Whether it is on without anybody turning it on, once its extension can look. */
   standing: boolean
+  /** Whether its look reaches off this machine, so an offline machine may hold it. */
+  network: boolean
   /** How many of one look's findings to act on, where the watch says two is wrong for it. */
   most: number | null
   /** Why it cannot look now — its extension needs setting up, is off, is broken — or null. */
@@ -763,6 +765,7 @@ export class ExtensionHost {
         input: watch.input ?? null,
         offers: watch.offers ?? 'agent',
         standing: watch.standing === true,
+        network: watch.network === true,
         most: watch.most ?? null,
         problem: notReady(entry),
       })),

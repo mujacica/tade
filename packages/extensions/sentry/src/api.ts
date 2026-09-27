@@ -1,3 +1,4 @@
+import { Unreachable } from '@tade/extensions-core'
 import type { SentryAccess } from './auth.ts'
 
 // Sentry's REST API, the parts Tade reads: issues and their events, traces,
@@ -11,11 +12,15 @@ import type { SentryAccess } from './auth.ts'
 // Sentry itself sends them.
 
 export class SentryError extends Error {
+  /** What Sentry answered; `0` where nothing came back at all. */
   readonly status: number
-  constructor(status: number, message: string) {
+  /** The host nothing came back from, where `status` is `0`. Empty otherwise. */
+  readonly host: string
+  constructor(status: number, message: string, host = '') {
     super(message)
     this.name = 'SentryError'
     this.status = status
+    this.host = host
   }
 }
 
@@ -78,9 +83,14 @@ export class SentryApi {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
     } catch (err) {
+      // Nothing came back — as against a status, which is Sentry answering.
+      // The host is kept because the one thing allowed to have an opinion
+      // about connectivity, the scheduler's reach, asks about the host a watch
+      // could not get to and never about one it invented.
       throw new SentryError(
         0,
         `could not reach Sentry at ${base}: ${err instanceof Error ? err.message : String(err)}`,
+        hostOf(base),
       )
     }
     const text = await response.text()
@@ -298,6 +308,27 @@ function explain(status: number, said: string, access: SentryAccess): string {
     default:
       return `Sentry answered ${status}: ${said}`
   }
+}
+
+/** A URL's host, or empty where it is not one. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * A look's failure as something the scheduler's reach can read: nothing having
+ * come back is `Unreachable`, and everything Sentry actually answered — a 401,
+ * a 404, a rate limit, a 500 — stays exactly what it was. One endpoint being
+ * down is never the machine being offline.
+ */
+export function asLookFailed(err: unknown): unknown {
+  return err instanceof SentryError && err.status === 0 && err.host
+    ? new Unreachable(err.host, err.message)
+    : err
 }
 
 /** The cursor for the next page, from Sentry's `Link` header. */

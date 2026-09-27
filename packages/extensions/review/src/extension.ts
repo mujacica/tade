@@ -15,6 +15,7 @@ import type { Review, ReviewDetail, ReviewRef } from '@tade/forges-core'
 import { ForgeError } from '@tade/forges-core'
 import { branchChecks } from './branch.ts'
 import {
+  asLookFailed,
   credentialProblem,
   everywhere,
   forget,
@@ -745,10 +746,17 @@ export const reviewExtension: TadeExtension = {
       title: 'Failing checks on your reviews',
       means: 'looks at what CI says about the reviews you opened, and starts work on what is red',
       every: '10m',
+      // It asks a forge, so an offline machine holds it rather than letting it
+      // find that out with a request that times out once every ten minutes.
+      network: true,
       async check(ctx) {
         const where = await whereOf(ctx, ctx.watching)
         if ('problem' in where) throw new Error(where.problem)
-        const mine = await where.forge.reviews({ who: 'mine', state: ['open', 'draft'], limit: 20 })
+        const mine = await where.forge
+          .reviews({ who: 'mine', state: ['open', 'draft'], limit: 20 })
+          .catch((err: unknown) => {
+            throw asLookFailed(err, where.remote)
+          })
         const findings: Finding[] = []
         for (const review of mine.items) {
           if (review.checks !== 'failed') continue

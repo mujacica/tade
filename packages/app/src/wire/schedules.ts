@@ -37,6 +37,7 @@ import {
   whenShort,
   why,
 } from './context.ts'
+import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 
 /** What a schedule's row and its menu offer to do to it. */
 const CHANGES = ['open', 'run', 'pause', 'resume', 'remove', 'rename'] as const
@@ -48,6 +49,10 @@ const CHANGES = ['open', 'run', 'pause', 'resume', 'remove', 'rename'] as const
 // as the schedule says, never once per run missed. A watch is a schedule that
 // looks before it acts — Tade keeps where each look left off and every key
 // found, so one finding never starts work twice, a start that failed included.
+//
+// A watch that reaches the network also reads one thing it does not own: the
+// machine's reach for a network (`network.ts`). With none, its look does not
+// happen at all — not a failed look, and not a red line per watch per timer.
 
 /** What the orchestrator's watch tools do, answered from this window. */
 export interface WatchTools {
@@ -104,10 +109,13 @@ export class Schedules implements Subject {
   private readonly fired = new Map<string, number>()
   /** Watches looking now, so a slow look is never started twice. */
   private readonly lookingWith = new Map<string, Promise<string>>()
+  /** Whether this machine can reach a network: one answer, for every watch. */
+  private readonly network: Network
 
   constructor(wire: Wiring, deps: SchedulesDeps) {
     this.wire = wire
     this.deps = deps
+    this.network = networkOf(wire, (said) => deps.news(said))
   }
 
   /** Every schedule, as the SMART QUEUE shows it. */
@@ -360,6 +368,7 @@ export class Schedules implements Subject {
     if (!live) return
     await this.writeStanding()
     const now = this.wire.now()
+    const watches = this.wire.opts.extensions?.watches() ?? []
     for (const one of this.wire.opts.client.schedules()) {
       if (one.paused) continue
       const runs = live.runsOf(one.id)
@@ -374,6 +383,7 @@ export class Schedules implements Subject {
         now,
       )
       if (!due) continue
+      if (due.run && !(await mayRun(this.network, one.does, watches, now))) continue
       await this.fire(one, due).catch((err) => {
         this.wire.put(
           withTranscript(
@@ -481,6 +491,11 @@ export class Schedules implements Subject {
         tade: this.wire.opts.extensionWorkbench ?? null,
       })
     } catch (err) {
+      // No network is not a failed look: nothing written, nothing said beyond
+      // the one line the reach has already said about being offline.
+      if (await wasOffline(this.network, err, this.wire.now())) {
+        return `${one.name} did not look: this machine cannot reach a network`
+      }
       const reason = why(err)
       await client.watchChecked(one.id, { problem: reason }).catch(() => {})
       const said = `${one.name} could not look: ${reason}`

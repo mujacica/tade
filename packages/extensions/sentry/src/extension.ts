@@ -11,7 +11,7 @@ import {
   type TadeExtension,
   type ToolContext,
 } from '@tade/extensions-core'
-import { type Json, SentryApi } from './api.ts'
+import { asLookFailed, type Json, SentryApi } from './api.ts'
 import { findAccess, findCredentials, type SentryAccess } from './auth.ts'
 import {
   issueDetails,
@@ -490,6 +490,9 @@ export const sentryExtension: TadeExtension = {
       title: 'New Sentry errors',
       means: 'starts an agent on each issue first seen since its last look',
       every: '1h',
+      // It asks Sentry, so an offline machine holds it rather than letting it
+      // find that out once an hour, against two endpoints, all night.
+      network: true,
       input: object({
         query: string(
           "a Sentry search narrowing what counts, like 'level:error' or '!culprit:*vendor*'; every unresolved issue unless said",
@@ -502,13 +505,11 @@ export const sentryExtension: TadeExtension = {
         const from = ctx.since && !Number.isNaN(Date.parse(ctx.since)) ? ctx.since : ctx.turnedOn
         const narrower = typeof ctx.input.query === 'string' ? ctx.input.query.trim() : ''
         const query = ['is:unresolved', narrower, `firstSeen:>=${from}`].filter(Boolean).join(' ')
-        const page = await sentry.issues({
-          projects: slugs,
-          query,
-          sort: 'new',
-          period: '14d',
-          limit: 25,
-        })
+        const page = await sentry
+          .issues({ projects: slugs, query, sort: 'new', period: '14d', limit: 25 })
+          .catch((err: unknown) => {
+            throw asLookFailed(err)
+          })
         return {
           found: page.items.map((found) => ({
             key: String(found.id ?? shortIdOf(found)),

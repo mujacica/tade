@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { CheckRun, CheckState } from '@tade/checks-core'
 import { newFindings } from '@tade/core'
-import { ExtensionHost } from '@tade/extensions-core'
+import { ExtensionHost, Unreachable } from '@tade/extensions-core'
 import { makeScriptedForge } from '@tade/forge-scripted'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
@@ -434,6 +434,36 @@ describe('watching CI on the branch', () => {
     await expect(look(await host)).rejects.toThrow(
       /did not accept the credential: run `gh auth login` — so nothing CI said about acme\/api can be read/,
     )
+  })
+
+  it('names the host when nothing came back at all, so the machine can be asked about it', async () => {
+    // The one failure here that might not be about this repository. It is
+    // thrown as `Unreachable` and not as an ordinary error, because that is
+    // the only way the scheduler's reach gets to ask whether this machine has
+    // a network before anybody draws a red line about github.com.
+    const { repo } = project()
+    const { host } = load({ root: repo.root, unreachable: true })
+    const err = await look(await host).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    )
+    expect(err).toBeInstanceOf(Unreachable)
+    expect((err as Unreachable).host).toBe('github.com')
+  })
+
+  it('keeps a forge that answered badly as the forge’s own trouble, never the machine’s', async () => {
+    // A 500 is an answer, which means something was reached. Reading it as
+    // "no network" would pause every watch on the machine over one endpoint
+    // having a bad afternoon.
+    const { repo } = project()
+    const { host } = load({ root: repo.root, serverError: true })
+    const err = await look(await host).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    )
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(Unreachable)
+    expect((err as Error).message).toMatch(/could not say what ran/)
   })
 
   it('does not dress a commit the forge has never heard of as a commit nobody pushed', async () => {

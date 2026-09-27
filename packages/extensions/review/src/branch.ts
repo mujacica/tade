@@ -1,5 +1,10 @@
 import { checkLine } from '@tade/checks-core'
-import type { ExtensionWatch, Finding, WatchAgent } from '@tade/extensions-core'
+import {
+  type ExtensionWatch,
+  type Finding,
+  Unreachable,
+  type WatchAgent,
+} from '@tade/extensions-core'
 import { hostOf } from '@tade/forges-core'
 import { type CommitCi, cannotLook, ciOn, saidOf, standingOn } from './commit.ts'
 import { settingsOf, whereOf } from './forge.ts'
@@ -57,6 +62,9 @@ export const branchChecks: ExtensionWatch = {
   means:
     'watches what CI says about the commit the project’s branch is on — a push straight to main included — and puts one agent on each commit it finds red',
   every: '10m',
+  // It asks a forge, so an offline machine holds it rather than letting it
+  // find that out with a request that times out once every ten minutes.
+  network: true,
   // On without anybody turning it on: it reads one commit's checks with the
   // credential the extension already has, tells nobody anything, and a look
   // that finds nothing costs one request — none at all where the commit is not
@@ -190,9 +198,14 @@ export const branchChecks: ExtensionWatch = {
  * wrong with. So they are `found: []`, with a sentence where there is one worth
  * saying — kept with the look and said when it starts being true, not at every
  * look while it stays true. A look that could not look throws, which is the one
- * of these that needs a person.
+ * of these that needs a person — and where nothing came back at all it throws
+ * `Unreachable`, which is the one that might need nobody.
  */
 function quietly(ci: CommitCi, since: string): { found: Finding[]; since: string; said?: string } {
+  // Nothing came back at all is the one of these that might not be about this
+  // repository: thrown as `Unreachable` so the scheduler's reach gets to ask
+  // whether the machine has a network before anybody sees a red line about it.
+  if (ci.kind === 'unreachable') throw new Unreachable(ci.host, ci.said)
   if (cannotLook(ci)) throw new Error(ci.said)
   const said = saidOf(ci)
   return { found: [], since, ...(said ? { said } : {}) }

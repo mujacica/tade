@@ -109,6 +109,14 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   work already going — an agent stuck — where there is nothing to start. A watch that reads what
   Tade is running gets the window as `ctx.tade`, and says it cannot look without one rather than
   finding nothing.
+- **A watch that reaches off this machine says so** (`network: true`): with no network the
+  scheduler does not start its look at all — no request, no timeout, no red line, and `since`
+  untouched, so the first look once it is back finds everything since. Say it wherever `check`
+  dials anything, and also throw `Unreachable(host, said)` from `check` where **nothing came back**
+  — never for a 404, a 500, an auth failure or a rate limit, which are answers and keep the
+  behaviour they have. One endpoint being down is never the machine being offline: the throw is
+  only the prompt, and what decides is the reach (`change-the-queue`). A watch that reads this
+  machine and nothing else leaves it alone and keeps looking through an outage.
 - **A watch may be on without anybody turning it on** (`standing: true`): the window writes its
   schedule once per project, the first time its extension can look (`standingSchedules`), and from
   then on it is an ordinary schedule — pausable, changeable, removable, and removed it stays
