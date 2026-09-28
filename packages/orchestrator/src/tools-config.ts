@@ -107,7 +107,13 @@ export function configTools(
 
   tool(
     'tade_project_open',
-    'Open a project: a repository Tade already knows, one on disk it does not, or — with create — a folder that is not there yet, which is made and `git init`ed. Tade needs git to work in a project at all, so a folder that is not a repository is refused unless create says to make it one. It writes the project into the config, goes to it in the window, and writes a line in the journal saying who asked. It never points an existing project somewhere else: a name Tade already uses is refused, because moving a project would move where every agent in it works — that is closing it and opening it again, which is two acts.',
+    [
+      'Open a project: a repository Tade already knows, one on disk it does not, or — with create — a folder that is not there yet, which is made and `git init`ed.',
+      'This is how Tade comes to work somewhere new, so somebody saying to open a project, to start working in a repository or to add one is this tool and not a terminal: a folder Tade has not been opened in is one nothing can be queued, checked or watched in, and `git init` typed into a lane leaves it just as invisible.',
+      'Tade needs git to work in a project at all, so a folder that is not a repository is refused unless create says to make it one, and so is a path with nothing at it; a home folder or the top of a disk is refused however it is asked for.',
+      'It writes the project into the config, goes to it in the window, and writes a line in the journal saying who asked.',
+      'It never points an existing project somewhere else: a name Tade already uses is refused, because moving a project would move where every agent in it works — that is closing it and opening it again, which is two acts.',
+    ].join(' '),
     object(
       {
         path: string('where the repository is, or is to be, like ~/src/payments'),
@@ -134,6 +140,7 @@ export function configTools(
     'tade_project_close',
     [
       'Stop working in a project: its entry is taken out of the config, so Tade no longer lists it, nothing queued or scheduled starts in it, and it does not come back when Tade opens.',
+      'It needs the person to have asked for this project in their own words: pass their sentence as `said`, and Tade checks it against what they actually said. If nothing they have said names the project, do not call this — say which project it would be and ask them.',
       'Nothing on disk is touched. The folder stays, git keeps every commit, branch and worktree, everything under .tade stays, and the journal still says what happened there — opening the same path again brings all of it back. Say that when you say it is closed.',
       'It destroys nothing and there is no tool that does: removing worktrees, deleting branches or deleting the folder are a person’s, with git in a terminal. Closing a project and forgetting its work are not the same act.',
       'A project with an agent still running in it is refused, and says which: stop them first with tade_run_stop if that is what they meant.',

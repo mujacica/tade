@@ -149,6 +149,36 @@ describe('what it is told about this machine', () => {
   })
 })
 
+describe('what it is told about the projects it works in', () => {
+  const prompt = composePrompt({ config: config({ shop: { root: '~/src/shop' } }) })
+
+  it('names the two acts as its own, with the tools that do them', () => {
+    expect(prompt).toContain('tade_project_open')
+    expect(prompt).toContain('tade_project_close')
+  })
+
+  it('says somewhere new is that tool before a plan and before a terminal', () => {
+    // What it did instead, twice in one week: reached for a terminal to run
+    // git, and made a plan for work in a project Tade could not see.
+    expect(prompt).toContain('before any plan and before any terminal')
+    expect(prompt).toContain('`git init`s and opens')
+  })
+
+  it('says what the reach is, which is not the same for both halves', () => {
+    // Guessed at, this comes out as "I am not allowed to" — and closing is
+    // checked against what somebody said while opening cannot be, because
+    // what they say is a repository and what the tool takes is a path.
+    expect(prompt).toContain('Closing takes the person’s own words naming that project')
+    expect(prompt).toContain('Opening takes an ordinary request of theirs')
+  })
+
+  it('offers the door to somebody with nothing configured at all', () => {
+    expect(composePrompt({ config: config() })).toContain(
+      'tade_project_open is how the first one is opened',
+    )
+  })
+})
+
 describe('what it is told to do about a document a task produced', () => {
   const prompt = composePrompt({ config: ConfigSchema.parse({}) })
 

@@ -108,6 +108,21 @@ describe('the tools the orchestrator has', () => {
     }
   })
 
+  it('says in its own description when it is gated on the person’s own words', () => {
+    // The gate itself is in the window, and what a model reads while it is
+    // choosing is the description: `tade_project_close` said it only in the
+    // parameter, which is a refusal and a wasted turn away from where the
+    // model needed it.
+    for (const tool of toolSurface()) {
+      const properties = (
+        tool.parameters as { properties: Record<string, { description?: string }> }
+      ).properties
+      const said = properties.said?.description ?? ''
+      if (!said.includes('Tade checks it against what they actually said')) continue
+      expect(tool.description, tool.name).toContain('in their own words')
+    }
+  })
+
   it('refuses to accept arguments it does not know', () => {
     for (const tool of toolSurface()) {
       expect((tool.parameters as { additionalProperties: boolean }).additionalProperties).toBe(

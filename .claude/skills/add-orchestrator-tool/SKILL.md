@@ -39,6 +39,14 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   `.tade/tasks/<name>/context.md` in a shared checkout) for the agent to read first. Everything
   under `.tade/` is ignored by the project, so what you write there is the agent's to read and
   nobody's to commit — if it has to outlive the task, it goes where the thing it describes is.
+- **A tool somebody asks for by name needs a rule in the prompt, and not only a description.**
+  `tade_project_open` had a full description for a year and the orchestrator still reached for a
+  terminal when somebody said "open the X project" — twice in one week — because nothing in `RULES`
+  said that opening a project was one of its own acts, so the model answered out of what it knows
+  about shells. A rule earns its place by saying which words mean that tool and what it is reached
+  for *instead of*, and by saying what the reach actually is: a model left to guess at that comes
+  out with "I am not allowed to" about something it may do. `RULES` in
+  `packages/core/src/compose.ts`, and the golden is the diff somebody reviews.
 - **Answer with `content`; fail by throwing.** pi reads a tool's `{ content: [{ type: 'text', text }] }`
   and nothing else, and marks a call failed only when it throws — the thrown message is what the
   model reads, so make it say what to do instead. The `tool()` helper does both: return a string or
@@ -73,6 +81,7 @@ these: it is an extension (see `add-extension`), which agents can use too and th
    fake model in `test/fixtures/fake-model.ts` issues the tool call, and the assertion is that the
    effect really happened (an event in the log, a worktree on disk), not merely that pi accepted it —
    and that the model was told the answer (`model.requests[1]` holds the tool message).
-4. If the prompt should mention it, change `ROLE` or `RULES` in `packages/core/src/compose.ts`, and
-   accept the golden with `TADE_UPDATE_GOLDEN=1 pnpm vitest run packages/orchestrator/test/golden.test.ts`.
+4. If the prompt should mention it — and anything a person asks for by name should, per the rule
+   above — change `ROLE` or `RULES` in `packages/core/src/compose.ts`, and accept the golden with
+   `TADE_UPDATE_GOLDEN=1 pnpm vitest run packages/orchestrator/test/golden.test.ts`.
 5. `pnpm check`.
