@@ -528,6 +528,40 @@ export function testWorkspaceDriver(
       expect(typing.cursor).toEqual({ back: 0, column: 2 })
     })
 
+    // A full-screen program draws a rectangle, and the window draws that
+    // rectangle into a pane of the same height. What it left blank is part of
+    // it — the space under a short menu, the gap above a status bar, the blank
+    // last line every full-screen editor keeps — because on the alternate
+    // screen there is no scrollback for anything else to be.
+    //
+    // Cropped to its last non-blank row instead, a capture comes back shorter
+    // than the pane, and shorter by a different amount every frame as the
+    // content changes: the picture slides up and down under itself, and the
+    // cursor is reported *below* the last row returned. Both drivers did this,
+    // and every fixture here was kinder than a real one — `screen` leaves
+    // twenty-three rows blank and nothing asked how many came back.
+    it('captures a program that took the screen as the whole rectangle it drew', async () => {
+      const s = spec({ rows: 24 })
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      await driver.write(s.id, line('screen'))
+      await waitFor(s.id, 'own screen')
+      await until(async () => (await driver.screen(s.id)).scrolling === 'lane')
+
+      // One line of content at the top; the rest of the rectangle is blank and
+      // is still the rectangle.
+      const drawn = await capture(s.id, 24)
+      expect(drawn.split('\n')).toHaveLength(24)
+      expect(drawn).toContain('own screen')
+
+      const view = await driver.screen(s.id)
+      expect(view.lines).toBe(24)
+      // Where typing lands is somewhere in what was captured. Below it is not
+      // a place: it is the arithmetic of a cropped screen showing through.
+      expect(view.cursor.back).toBeGreaterThanOrEqual(0)
+      expect(view.cursor.back).toBeLessThan(24)
+    })
+
     // Who scrolls a lane is the program in it to decide, and the only way to
     // know is to ask the lane: a window that guessed from what it launched
     // would be wrong the moment somebody opened an editor in a shell.

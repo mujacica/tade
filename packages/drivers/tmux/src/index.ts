@@ -19,18 +19,16 @@ import {
   type LaneHandle,
   LaneNotFoundError,
   type LaneOutputListener,
-  type LanePointing,
   type LaneScreen,
-  type LaneScrolling,
   type LaneSpec,
   type PointerReport,
   pointerBytes,
-  type WheelEncoding,
   type WheelTurn,
   type WorkspaceCapabilities,
   type WorkspaceDriver,
   wheelBytes,
 } from '@tade/drivers-core'
+import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
 
 // execFile, never exec: tmux is invoked with an argument array and no shell.
 // The one place a shell is involved is inside tmux, which runs a lane's
@@ -119,77 +117,6 @@ const SPEC_OPTION = '@tade-spec'
  * and the spec is whatever is left of the row.
  */
 const FIELD = '|'
-
-/**
- * What a pane is like, in one ask: where the cursor is, how tall it is, and
- * what its program has done to the screen and the mouse.
- *
- * One `display-message` for all of it, because every one of these is a
- * process, and the window asks for a pane four times a second.
- */
-const PANE_FORMAT =
-  '#{cursor_x} #{cursor_y} #{pane_height} #{alternate_on} ' +
-  '#{mouse_any_flag} #{mouse_button_flag} #{mouse_standard_flag} #{mouse_sgr_flag} ' +
-  '#{mouse_all_flag}'
-
-/** What `PANE_FORMAT` came back with. */
-interface Pane {
-  x: number
-  y: number
-  height: number
-  /** The program took the whole screen for itself, so tmux keeps no history of it. */
-  own: boolean
-  /** It asked for the mouse, in any of the ways there are to ask. */
-  mouse: boolean
-  /**
-   * It asked to be told about movement, not only about presses. Never
-   * `mouse_any_flag`, which is tmux's word for "in any of the mouse modes"
-   * rather than for mode 1003 — that one is `mouse_all_flag`, and read the
-   * other way it says a pane that asked only about presses wants movement
-   * too, which is a program typed at rather than pointed at.
-   */
-  drag: boolean
-  encoding: WheelEncoding
-}
-
-function readPane(said: string): Pane {
-  const fields = said.trim().split(/\s+/).map(Number)
-  const [x = 0, y = 0, height = 0, alternate = 0, any = 0, button = 0] = fields
-  const [standard = 0, sgr = 0, all = 0] = fields.slice(6)
-  return {
-    x,
-    y,
-    height,
-    own: alternate === 1,
-    mouse: any === 1 || button === 1 || standard === 1,
-    drag: button === 1 || all === 1,
-    encoding: sgr === 1 ? 'sgr' : 'legacy',
-  }
-}
-
-/**
- * Whose the scrolling is, from what the pane's program has done to it.
- *
- * The alternate screen is what decides, because it is what says there is no
- * history: a program that prints keeps every line it printed whether or not
- * it also wants the mouse, and those lines are the window's to move.
- */
-function scrollingOf(pane: Pane): LaneScrolling {
-  if (!pane.own) return 'window'
-  return pane.mouse ? 'lane' : 'nobody'
-}
-
-/**
- * How much of the pointer the pane's program has asked for. tmux keeps a flag
- * per way of asking, so this is a reading of its answer rather than a guess:
- * the standard flag is presses, and either of the other two is movement with
- * a button held — `any` asks for movement with none, which the window never
- * sends and so is handed over as the same thing.
- */
-function pointingOf(pane: Pane): LanePointing {
-  if (pane.drag) return 'drag'
-  return pane.mouse ? 'press' : 'nobody'
-}
 
 export class TmuxDriver implements WorkspaceDriver {
   readonly id = 'tmux'
@@ -354,7 +281,17 @@ export class TmuxDriver implements WorkspaceDriver {
 
   async capture(id: LaneId, opts: CaptureOptions): Promise<string> {
     const lane = this.live(id)
+    // Both questions in one invocation — tmux takes `;` between commands, and
+    // answers them in order — because whether the pane took the screen decides
+    // where this reading ends, and a capture runs several times a second in
+    // front of you. Asked apart it would be a second process spawn a look.
     const out = await this.tmux([
+      'display-message',
+      '-p',
+      '-t',
+      lane.window,
+      '#{alternate_on}',
+      ';',
       'capture-pane',
       '-p',
       ...(opts.styled ? ['-e'] : []),
@@ -364,8 +301,18 @@ export class TmuxDriver implements WorkspaceDriver {
       `-${this.opts.scrollback}`,
     ])
     const all = out.split('\n')
-    while (all.length > 0 && all.at(-1)?.trim() === '') all.pop()
-    return all.slice(Math.max(0, all.length - opts.lines)).join('\n')
+    // `#{alternate_on}` is `0` or `1` and nothing else, so anything else is not
+    // an answer to that question: it stays where it is and the pane is read as
+    // the normal screen. Taken off regardless, a surprise from tmux — a
+    // warning, a format it stopped understanding — would cost the top row of
+    // every capture, and quietly, which is worse than reading it the old way.
+    const said = all[0]?.trim()
+    if (said === '0' || said === '1') all.shift()
+    const own = said === '1'
+    // tmux ends its output with a newline; that is not a row of anything.
+    if (all.at(-1) === '') all.pop()
+    const rows = drawn(all, own)
+    return rows.slice(Math.max(0, rows.length - opts.lines)).join('\n')
   }
 
   async screen(id: LaneId): Promise<LaneScreen> {
@@ -383,20 +330,20 @@ export class TmuxDriver implements WorkspaceDriver {
     // tmux ends its output with a newline; that is not a row of anything.
     if (all.at(-1) === '') all.pop()
     const captured = all.length
-    while (all.length > 0 && all.at(-1)?.trim() === '') all.pop()
     const pane = readPane(where)
+    const rows = drawn(all, pane.own)
     const scrolling = scrollingOf(pane)
     const pointing = pointingOf(pane)
     const { x, y, height } = pane
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(height) || height <= 0) {
-      return { lines: all.length, cursor: { back: 0, column: 0 }, scrolling, pointing }
+      return { lines: rows.length, cursor: { back: 0, column: 0 }, scrolling, pointing }
     }
     // Where the visible screen starts in what was captured: everything above
     // it is scrollback, and the cursor's row is counted from there.
     const top = captured - height
     return {
-      lines: all.length,
-      cursor: { back: all.length - 1 - (top + y), column: x },
+      lines: rows.length,
+      cursor: { back: rows.length - 1 - (top + y), column: x },
       scrolling,
       pointing,
     }

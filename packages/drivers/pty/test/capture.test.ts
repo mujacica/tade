@@ -179,4 +179,51 @@ describe('a program that repaints in place and says nothing', () => {
     const was = framesIn(await driver.capture(lane, { lines: 40 }))[0]
     await until(async () => framesIn(await driver.capture(lane, { lines: 40 }))[0] !== was, 5_000)
   }, 30_000)
+
+  // The numbers beside a screen — how far back it goes, where typing lands,
+  // whose the scrolling is — are read without waiting for a whole frame.
+  //
+  // A capture waits, because two frames mixed is a picture nobody drew. None
+  // of these is a picture: a frame half drawn rewrote the rows it already had,
+  // so the depth is where it was, and on the alternate screen the depth is the
+  // height of the screen whatever is being painted on it. So the wait bought
+  // nothing here — and cost the whole of its bound on the one lane shape that
+  // can never satisfy it, twice in every look, because the window asks for
+  // these numbers and then captures the screen beside them.
+  //
+  // What that came to, measured through the window on a lane of this shape: a
+  // graphical CLI redrawn 20 times a second against a floor of 30.
+  it('reads the numbers beside a screen without waiting for a whole frame', async () => {
+    driver = new PtyDriver()
+    // The same never-quiet shape as above: no gap between two repaints for the
+    // wait to find, so it ran to its bound every time.
+    await script(
+      driver,
+      'read/flatout',
+      [
+        `process.stdout.write('${ESC}[?1049h${ESC}[?1000h')`,
+        'let n = 0',
+        'setInterval(() => {',
+        '  n++',
+        `  let out = '${ESC}[H'`,
+        `  for (let r = 0; r < 40; r++) out += '${ESC}[' + (r + 1) + ';1H${ESC}[2Kframe ' + n + ' row ' + r`,
+        '  process.stdout.write(out)',
+        '}, 0)',
+      ].join('\n'),
+    )
+    const lane = 'read/flatout' as LaneId
+    await until(async () => (await driver.screen(lane)).scrolling === 'lane')
+
+    const deep = new Set<number>()
+    const started = performance.now()
+    for (let i = 0; i < 20; i++) deep.add((await driver.screen(lane)).lines)
+    const each = (performance.now() - started) / 20
+
+    // However the shutter fell, the screen was forty rows deep: that is what a
+    // half-drawn frame cannot move, and the whole reason none of this waits.
+    expect([...deep]).toEqual([40])
+    // A ceiling rather than a rate — a loaded machine takes longer to say the
+    // same thing — but nowhere near the 20ms of quiet this used to sit out.
+    expect(each, `${each.toFixed(1)}ms a read`).toBeLessThan(10)
+  }, 30_000)
 })

@@ -290,11 +290,23 @@ export class PtyDriver implements WorkspaceDriver {
 
   async screen(id: LaneId): Promise<LaneScreen> {
     const lane = this.live(id)
-    // Settled for the same reason a capture is, and its answer dropped on
-    // purpose: these are the numbers a capture is measured against, and a
-    // frame half drawn has not moved any of them — the rows it rewrote are the
-    // rows it already had, so the depth and the cursor are where they were.
-    await settled(lane)
+    // Parsed, and never waited on for a whole frame.
+    //
+    // A capture waits for one because two frames mixed is a picture nobody
+    // drew. None of these is a picture: a frame half drawn has not moved any
+    // of them — the rows it rewrote are the rows it already had, so the depth
+    // and the cursor are where they were, and on the alternate screen the
+    // depth is the height of the screen whatever is on it.
+    //
+    // It waited anyway, and that was most of what a look cost. A lane
+    // repainting in place never goes quiet, so the wait ran to its bound every
+    // time: 22ms here and 22ms again in the capture beside it, for an answer
+    // that came back the same thirty times out of thirty. The window reads the
+    // pane and then the terminal, one after the other, and an agent's pane is
+    // a program that repaints in place — so two lanes in front of you spent 90
+    // of every 100ms being told nothing had changed, and the terminal under
+    // them redrew eleven times a second.
+    await parsed(lane)
     if (lane.closed) throw new LaneClosedError(id)
     const buffer = lane.term.buffer.active
     // Measured exactly as `capture` measures it, from the same last row it
@@ -484,30 +496,7 @@ async function settled(lane: Lane & { term: XTerm }, ms = FRAME_WAIT_MS): Promis
   const deadline = Date.now() + ms
   const quietBy = Date.now() + QUIET_WAIT_MS
   for (;;) {
-    const left = Math.max(0, deadline - Date.now())
-    // The deadline is taken back the moment the parse wins the race, which is
-    // nearly every time. Left to expire on its own it is a timer and a closure
-    // per capture — and a capture is two of these per lane, several times a
-    // second, every one of them sitting in the timer list for the fifty
-    // milliseconds it takes to find out nobody needed it.
-    let late: NodeJS.Timeout | null = null
-    try {
-      // A lane closed meanwhile never answers: the wait is bounded either way.
-      await Promise.race([
-        new Promise<void>((resolve) => {
-          try {
-            term.write('', resolve)
-          } catch {
-            resolve()
-          }
-        }),
-        new Promise((resolve) => {
-          late = setTimeout(resolve, left)
-        }),
-      ])
-    } finally {
-      if (late) clearTimeout(late)
-    }
+    await parsed(lane, deadline)
     if (Date.now() >= deadline) return false
     if (term.modes.synchronizedOutputMode) {
       await pause(2)
@@ -521,6 +510,42 @@ async function settled(lane: Lane & { term: XTerm }, ms = FRAME_WAIT_MS): Promis
   }
 }
 
+/**
+ * Everything that has arrived, parsed — the emulator parses in the background,
+ * so a screen read without this is one missing whatever is still queued.
+ *
+ * Bounded, so a parser that never drains cannot freeze the window. This is the
+ * whole of what a reading needs to be *current*; waiting for it to be a whole
+ * *frame* is `settled`, and only a capture needs that.
+ */
+async function parsed(lane: Lane & { term: XTerm }, until?: number): Promise<void> {
+  const deadline = until ?? Date.now() + FRAME_WAIT_MS
+  const left = Math.max(0, deadline - Date.now())
+  // The deadline is taken back the moment the parse wins the race, which is
+  // nearly every time. Left to expire on its own it is a timer and a closure
+  // per capture — and a capture is two of these per lane, several times a
+  // second, every one of them sitting in the timer list for the fifty
+  // milliseconds it takes to find out nobody needed it.
+  let late: NodeJS.Timeout | null = null
+  try {
+    // A lane closed meanwhile never answers: the wait is bounded either way.
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        try {
+          lane.term.write('', resolve)
+        } catch {
+          resolve()
+        }
+      }),
+      new Promise((resolve) => {
+        late = setTimeout(resolve, left)
+      }),
+    ])
+  } finally {
+    if (late) clearTimeout(late)
+  }
+}
+
 /** A wait with nothing racing it, so the timer goes when it fires. */
 function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -530,9 +555,25 @@ function pause(ms: number): Promise<void> {
  * The last row with anything on it, counting the scrollback: where a capture
  * ends, and what the cursor and the depth are both measured against. Read from
  * the bottom up, because under the last thing written is usually blank screen.
+ *
+ * Except on the alternate screen, where the blank rows are the picture. A
+ * program that took the screen is drawing a rectangle exactly `rows` tall and
+ * chose what to leave empty in it: the space under a short menu, the gap above
+ * a status bar, the blank last line every full-screen editor keeps. Trimmed,
+ * that rectangle comes back shorter than the pane it is drawn into, and
+ * shorter by a different amount every frame as the content changes — so the
+ * whole screen slides up and down under itself. Measured on a twelve-row
+ * pane: every capture short, every one of them reporting a cursor *below* the
+ * last row it returned.
+ *
+ * On the normal screen the rule stands as it was. Under the last line a
+ * program printed is screen it has not used, drawing it would waste the rows,
+ * and the cursor sitting one row into it is what `cursor.back` of -1 means.
  */
 function lastWritten(buffer: import('@xterm/headless').IBuffer, rows: number): number {
-  let last = buffer.baseY + rows - 1
+  const bottom = buffer.baseY + rows - 1
+  if (buffer.type === 'alternate') return bottom
+  let last = bottom
   while (last >= 0 && (buffer.getLine(last)?.translateToString(true).trim() ?? '') === '') last--
   return last
 }
