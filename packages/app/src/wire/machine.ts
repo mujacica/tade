@@ -346,7 +346,12 @@ export class Machine implements Subject {
 
   /** Who each provider is paid by, and what an agent could start on. */
   async loadAccounts(): Promise<void> {
-    this.paid = (await this.wire.opts.credentials?.().catch(() => ({}))) ?? {}
+    // A look that could not be taken is not a look that found nothing: what was
+    // read last stands. It used to become an empty answer, which said nothing
+    // while nothing was drawn for an absent credential — and now that an absent
+    // one is drawn as "not signed in", an empty answer would tell somebody they
+    // are signed out of a provider they are talking through.
+    this.paid = (await this.wire.opts.credentials?.().catch(() => null)) ?? this.paid
     await this.deps.refreshModels()
     this.wire.draw()
   }

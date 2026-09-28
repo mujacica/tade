@@ -226,6 +226,22 @@ describe('who Tade runs as', () => {
     expect(subject.credentialProblem(null)).toBeNull()
   })
 
+  it('keeps what it read when the credentials cannot be read again', async () => {
+    const world = wiring({ credentials: { anthropic: 'signed-in' } })
+    const subject = machine(world)
+    await subject.loadAccounts()
+    ;(world.wire.opts as unknown as { credentials: () => Promise<never> }).credentials =
+      async () => {
+        throw new Error('the keys could not be read')
+      }
+    await subject.loadAccounts()
+    // A look that failed is not a look that found nothing. An empty answer here
+    // would tell somebody they are signed out of the provider they are talking
+    // through, which is the one thing worse than saying nothing.
+    expect(subject.credential('anthropic')).toBe('signed in')
+    expect(subject.credentialProblem('anthropic')).toBeNull()
+  })
+
   it('reads the models again after signing in, because signing in changes them', async () => {
     const world = wiring({ credentials: { anthropic: 'signed-in' } })
     await machine(world).loadAccounts()
