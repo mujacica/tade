@@ -11,11 +11,11 @@
                         │                                                                     ▕│                        
  ▾ FILES                │                                                                     ▕│                        
    ▾ src/               │                                                                     ▕│                        
-       webhooks.test.ts │                                                                     ▕│─────────────────────   
-       webhooks.ts      │                                                                     ▕│  ctrl   +   space      
-   ▸ test/              │                                                                     ▕│─────────────────────   
+       webhooks.test.ts │                                                                     ▕│                        
+       webhooks.ts      │                                                                     ▕│                        
+   ▸ test/              │                                                                     ▕│out                     
      package.json       │                                                                     ▕│                        
-     README.md          │                                                                     ▕│out                     
+     README.md          │                                                                     ▕│                        
                         │                                                                     ▕│                        
  ▸ NOTES  4             │                                                                     ▕│                        
  ▾ GIT                  │                                                                     ▕│                        
@@ -27,8 +27,8 @@
                         │                                                                     ▕│                       ▕
                         │                                                                      │                       ▕
                         │ ↑↓ choose · enter switches · a new name creates it         Cancel    │                       ▕
-                        ╰──────────────────────────────────────────────────────────────────────╯                       ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+ ❯ what you say   ◆ the ╰──────────────────────────────────────────────────────────────────────╯                       ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

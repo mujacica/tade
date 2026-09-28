@@ -261,27 +261,23 @@ describe('closing the last agent in a project', () => {
       )
       // What is on screen now is the empty project's own screen, in `two`,
       // and the agent of the project next door is nowhere near it.
-      await until(
-        'the empty screen',
-        () => shown().join('\n').includes('Ask Tade for an agent, or anything'),
-        20_000,
-      )
+      await until('the empty screen', () => shown().join('\n').includes('+ New agent'), 20_000)
       expect(shown().join('\n')).toContain('in two')
       expect(shown().join('\n')).not.toContain('rounding')
+      // The wordmark, and nothing above the foot that takes what you type:
+      // emptying a project does not move the orchestrator's line onto it.
+      expect(shown().join('\n')).toContain('Ask Tade anything')
 
-      // And typing there goes to the orchestrator's line, which that screen
-      // draws itself. The editor wraps at the width it is rendered at, so a
-      // sentence longer than the box is where the two widths would disagree:
-      // rendered at the window's 80 and drawn in a box of 47, the first line
-      // would be cut at the box's edge and the tail of the sentence would be
-      // nowhere on screen.
-      const said = 'check every webhook retry path and say which ones are not idempotent'
+      // And typing from here goes to that line, which is where it always is.
+      // The editor wraps at the width it is rendered at, so a sentence longer
+      // than the window is where a wrong width would show: the tail of it
+      // would be cut off rather than carried onto the next row.
+      const said =
+        'check every webhook retry path in the billing worker and say which ones are not idempotent'
       for (const key of said) terminal.press(key)
       await until('what was typed', () => shown().join('\n').includes('check every'), 20_000)
       const screen = shown().join('\n')
       expect(screen).toContain('idempotent')
-      // One box, not two: the foot draws none while this screen holds it.
-      expect(screen).not.toContain('Ask Tade anything')
     } finally {
       await app.stop().catch(() => {})
       await client.close().catch(() => {})

@@ -1,6 +1,5 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { hitAt } from '../src/hits.ts'
 import {
   type AppState,
   focusTask,
@@ -9,8 +8,8 @@ import {
   withProjects,
   withTasks,
 } from '../src/model.ts'
-import { PLAIN, WORDMARK } from '../src/skin.ts'
-import { draw, renderApp } from '../src/view.ts'
+import { WORDMARK } from '../src/skin.ts'
+import { renderApp } from '../src/view.ts'
 
 // A project with nothing in it: where the window stays when you close the
 // last agent, and what it draws there.
@@ -20,6 +19,12 @@ import { draw, renderApp } from '../src/view.ts'
 // they were the two halves of one bug: falling through to another project's
 // agent was never noticed as *wrong* while the screen you fell through from
 // said only `Nothing is running in checkout.`
+//
+// What this screen is *not* is the orchestrator's line. It was drawn here for
+// a while, and moving somebody's prompt to wherever the window happens to be
+// empty is a prompt they have to look for, so it went back: the line is the
+// orchestrator's and it is in the orchestrator's pane on every screen there
+// is. The last two tests here are what holds that.
 
 const plain = (row: string) => stripTerminalSequences(row)
 
@@ -55,24 +60,17 @@ describe('what an empty project draws', () => {
     ...over,
   })
 
-  it('draws the wordmark and one line to type on, and no second one at the foot', () => {
+  it('draws the wordmark and the two things there are to press', () => {
     const text = plain(renderApp(empty(), frame({ width: 120, height: 34 })).join('\n'))
-    // The block letters, and the invitation that says what typing here does.
+    // The block letters, the tagline under them, and what to do next.
     expect(text).toContain('████████')
-    expect(text).toContain('Ask Tade for an agent, or anything')
-    // One line and one editor: the foot's own placeholder is nowhere on it.
-    expect(text).not.toContain('Ask Tade anything')
+    expect(text).toContain('said, and done.')
     expect(text).toContain('+ New agent')
+    expect(text).toContain('Open project')
     expect(text).toContain('in checkout')
   })
 
-  it('keeps the line at the foot the moment there is an agent to look at', () => {
-    const text = plain(renderApp(state(), frame({ width: 120, height: 34 })).join('\n'))
-    expect(text).toContain('Ask Tade anything')
-    expect(text).not.toContain('Ask Tade for an agent, or anything')
-  })
-
-  it('gives the wordmark up in steps rather than clipping it, and never the line', () => {
+  it('gives the wordmark up in steps rather than clipping it, and never the buttons', () => {
     for (const size of [
       { width: 200, height: 60 },
       { width: 120, height: 34 },
@@ -85,23 +83,14 @@ describe('what an empty project draws', () => {
       const text = plain(rows.join('\n'))
       expect(rows.length).toBe(size.height)
       for (const row of rows) expect(visibleWidth(row)).toBe(size.width)
-      // The one thing this screen is for survives every size — in as many of
-      // its own words as the columns allow, which is the row's own rule.
-      // Half a letter of a wordmark is what stepping down exists to avoid, so
-      // the block letters are only ever every row of them or none.
-      expect(text).toContain('Ask Tade')
+      // The one thing on this screen that does anything survives every size:
+      // it is the only way off it for somebody using the mouse. Half a letter
+      // of a wordmark is what stepping down exists to avoid, so the block
+      // letters are only ever every row of them or none.
+      expect(text).toContain('+ New agent')
       const letters = WORDMARK.filter((line) => text.includes(line.trimEnd())).length
       expect([0, WORDMARK.length]).toContain(letters)
     }
-  })
-
-  it('is a place you can click into, as the line at the foot is', () => {
-    const { rows, hits } = draw(empty(), { ...frame({ width: 120, height: 34 }), skin: PLAIN })
-    const row = rows.findIndex((line) => plain(line).includes('Ask Tade for an agent'))
-    const at = plain(rows[row] ?? '').indexOf('Ask Tade')
-    // Clicking the box takes the keyboard to the line, wherever it is drawn:
-    // a prompt you have to know to type at is a prompt with no way in.
-    expect(hitAt(hits, at, row)?.kind).toBe('orchestrator')
   })
 
   it('is the same screen whether agents were closed here or never started', () => {
@@ -117,5 +106,29 @@ describe('what an empty project draws', () => {
       frame({ width: 120, height: 34 }),
     )
     expect(plain(closed.join('\n'))).toBe(plain(never.join('\n')))
+  })
+
+  it("draws no line of its own: there is one, and it is the orchestrator's", () => {
+    const rows = plain(renderApp(empty(), frame({ width: 120, height: 34 })).join('\n')).split('\n')
+    const said = rows.filter((row) => row.includes('Ask Tade')).length
+    expect(said).toBe(1)
+    // Below the pane, in the panel the orchestrator's conversation is in —
+    // never under the wordmark, which is where it used to be moved to.
+    const line = rows.findIndex((row) => row.includes('Ask Tade'))
+    const logo = rows.findIndex((row) => row.includes('████████'))
+    expect(logo).toBeGreaterThan(-1)
+    expect(line).toBeGreaterThan(logo)
+    expect(rows.findIndex((row) => row.includes('orchestrator'))).toBeLessThan(line)
+  })
+
+  it('leaves the line in the row it is in on every other screen', () => {
+    // The whole of what was asked for, as one number: emptying a project must
+    // not move the prompt. A window with agents in it and a window with none
+    // draw the line you type on in the same row.
+    const size = frame({ width: 120, height: 34 })
+    const rowOf = (drawn: string[]) =>
+      drawn.map(plain).findIndex((row) => row.includes('Ask Tade anything'))
+    expect(rowOf(renderApp(empty(), size))).toBe(rowOf(renderApp(state(), size)))
+    expect(rowOf(renderApp(empty(), size))).toBeGreaterThan(-1)
   })
 })

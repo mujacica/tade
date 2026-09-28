@@ -1,6 +1,6 @@
 import type { Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, shift } from '../hits.ts'
-import { type AppState, activeTerminal, isAction, linePlace, matchActions } from '../model.ts'
+import { type AppState, activeTerminal, isAction, matchActions } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
@@ -185,14 +185,10 @@ export function renderStrip(
   // the box upward into the conversation, never off the edge.
   // Its bottom rule is the footer's, just below.
   //
-  // Unless a project with no agents in it has it: then the whole of this is
-  // the conversation, and the one box is under the wordmark in the middle of
-  // the screen, where somebody with nothing else to look at is looking. One
-  // box, one editor — `linePlace` is what says which region draws it.
-  const holding = linePlace(state) === 'strip'
-  const inputHeight = holding
-    ? Math.min(Math.max(2, room - 1), inputRows(state, frame).length + 1)
-    : 0
+  // It is here on every screen, including the one an empty project draws: the
+  // line is the orchestrator's and this is the orchestrator's pane, so there
+  // is one box, in one place, and nothing above it ever borrows it.
+  const inputHeight = Math.min(Math.max(2, room - 1), inputRows(state, frame).length + 1)
   const bodyRoom = Math.max(0, room - inputHeight)
   // Scrolled back through the conversation, the newest lines wait below; the
   // box's top rule says so, and takes you back to them.
@@ -244,14 +240,12 @@ export function renderStrip(
     hits.push(...shift(row.hits, rows.length))
     rows.push(row.text)
   }
-  if (holding) {
-    const box = inputBox(state, frame, width, inputHeight, skin, pointer, voice.keys, scroll)
-    for (let i = 0; i < box.rows.length; i++) {
-      hits.push(rowHit(rows.length + i, width, { kind: 'orchestrator' }))
-    }
-    hits.push(...shift(box.hits, rows.length))
-    rows.push(...box.rows)
+  const box = inputBox(state, frame, width, inputHeight, skin, pointer, voice.keys, scroll)
+  for (let i = 0; i < box.rows.length; i++) {
+    hits.push(rowHit(rows.length + i, width, { kind: 'orchestrator' }))
   }
+  hits.push(...shift(box.hits, rows.length))
+  rows.push(...box.rows)
   return { rows: rows.slice(0, height), hits, regions: region }
 }
 

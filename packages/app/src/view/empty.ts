@@ -1,35 +1,22 @@
-import type { Frame } from '../frame.ts'
-import type { Hit, Target } from '../hits.ts'
-import { promptWidth } from '../layout.ts'
-import { type AppState, linePlace } from '../model.ts'
+import type { Hit } from '../hits.ts'
+import type { AppState } from '../model.ts'
 import { type Skin, WORDMARK, WORDMARK_SHADES, WORDMARK_WIDTH } from '../skin.ts'
 import { blank, type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
-import { inputBox, inputRows } from './line.ts'
 
-// The screen with no agent in front of you: the wordmark, a line to type on,
-// and the two things there are to press.
+// The screen with no agent in front of you: the wordmark, and the two things
+// there are to press.
 //
 // A project you closed the last agent in is a place, not a gap — the window
 // stays in it — so this is what that place looks like, and it is the first
 // thing anybody sees on a machine where nothing has been started yet.
 //
-// **Typing here goes to the orchestrator**, which is the thing that makes
-// tasks: it reads what you asked for, decides how many agents it wants and
-// where they work, and starts them. Starting one directly is the other
-// reading and it is still here, as the button it already was — `+ New agent`
-// makes `agent-N` and opens it, which is the right act when you have no
-// sentence to say. Nothing new is claimed for either: a printable key on a
-// screen with no agent focused already opened the orchestrator's line
-// (`wire/keyboard.ts`), so this screen only had to *show* the line it was
-// already typing into, and enter, ctrl+space and ctrl+k still mean what they
-// mean everywhere else.
-//
-// So the line is drawn here rather than copied here: `linePlace` says which of
-// the two regions owns it, the foot draws none while this one does, and the
-// editor behind it is the same single editor. See `view/line.ts`.
-
-/** Clicking the box takes the keyboard to the line, wherever the line is drawn. */
-const LINE: Target = { kind: 'orchestrator' }
+// **The line you type on is not here.** It is the orchestrator's, it lives in
+// the orchestrator's own pane at the foot, and it stays there on every screen
+// including this one: a prompt that moves is a prompt you have to look for.
+// Typing here still reaches it — a printable key with no agent focused opens
+// the line (`wire/keyboard.ts`) — and enter, ctrl+space and ctrl+k mean what
+// they mean everywhere else. What this screen offers is the other reading,
+// the one a mouse can take: `+ New agent` makes `agent-N` and opens it.
 
 /** What is drawn, richest first: the ladder's own vocabulary. */
 interface Shown {
@@ -51,31 +38,32 @@ interface Shown {
  * spelt-out mark the project tabs sit beside rather than a second, smaller set
  * of block letters, since two drawings of a wordmark are two brands.
  *
- * The line is in no step. It is this screen's talk key: the one thing that
- * must survive a window with four rows in it, because it is the only way off
- * this screen that does not need a mouse.
+ * The buttons give ground last, and are in every step but the empty one. They
+ * are the only thing on this screen that *does* anything, and the only way off
+ * it for somebody using the mouse — a keyboard reaches the line at the foot,
+ * which this screen never takes away.
  */
 const LADDER: readonly Shown[] = [
   { logo: 'block', tagline: true, buttons: true },
   { logo: 'block', tagline: false, buttons: true },
   { logo: 'mark', tagline: true, buttons: true },
   { logo: 'mark', tagline: false, buttons: true },
-  { logo: 'mark', tagline: false, buttons: false },
-  { logo: 'none', tagline: false, buttons: false },
+  { logo: 'none', tagline: false, buttons: true },
 ]
 
-/** The last step: the line, and nothing else at all. */
+/** The last step, for a pane with no rows to give at all. */
 const LAST: Shown = { logo: 'none', tagline: false, buttons: false }
 
 /**
- * Rows a step takes, including the clear row under each part and the rules
- * either side of the line. Counted rather than sliced off at the bottom: a
+ * Rows a step takes. Each part above the buttons brings the clear row under
+ * itself, so the buttons are the one row they are and the screen never holds
+ * two blank rows in a stack. Counted rather than sliced off at the bottom: a
  * step that does not fit gives up a part, where cutting takes the buttons off
  * a screen that still says it has them.
  */
-function rowsFor(shown: Shown, box: number): number {
+function rowsFor(shown: Shown): number {
   const logo = shown.logo === 'block' ? WORDMARK.length + 1 : shown.logo === 'mark' ? 2 : 0
-  return logo + (shown.tagline ? 2 : 0) + box + (shown.buttons ? 2 : 0)
+  return logo + (shown.tagline ? 2 : 0) + (shown.buttons ? 1 : 0)
 }
 
 /** Whether a step has the columns it needs: only the block letters ask for any. */
@@ -94,32 +82,13 @@ function centred(built: { text: string; hits: Hit[] }, used: number, width: numb
 
 export function renderEmpty(
   state: AppState,
-  frame: Frame,
   width: number,
   height: number,
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
   const project = state.project
-  const voice = frame.voice ?? { keys: ['ctrl', 'space'], available: false }
-  // The line, where this screen is the one holding it. A project with agents
-  // in it that you have merely stepped off keeps its line at the foot, where
-  // every other screen has it.
-  const mine = linePlace(state) === 'splash'
-  const lineWidth = promptWidth(width)
-  // Its top rule, the lines the editor drew, and the rule that closes it.
-  const boxHeight = mine ? inputRows(state, frame).length + 2 : 0
-  // The step is chosen against a *closed* line, so the picture stays where it
-  // is while you type: a block centred on its own height rises half a row for
-  // every line you add, under a pointer that is not moving.
-  const shut = mine ? 3 : 0
-  const fits =
-    LADDER.find(
-      (shown) =>
-        fitsWidth(shown, width) &&
-        rowsFor(shown, shut) <= height &&
-        rowsFor(shown, boxHeight) <= height,
-    ) ?? LAST
+  const fits = LADDER.find((shown) => fitsWidth(shown, width) && rowsFor(shown) <= height) ?? LAST
 
   const rows: { text: string; hits: Hit[] }[] = []
   if (fits.logo === 'block') {
@@ -144,48 +113,7 @@ export function renderEmpty(
     rows.push(blank(width))
   }
 
-  if (mine) {
-    const left = Math.max(0, Math.floor((width - lineWidth) / 2))
-    // What typing here does, said where the question is asked: the
-    // orchestrator is what makes tasks, so an agent is the first thing it
-    // offers and the general case is still the general case.
-    const box = inputBox(
-      state,
-      frame,
-      lineWidth,
-      boxHeight - 1,
-      skin,
-      pointer,
-      voice.keys,
-      0,
-      'Ask Tade for an agent, or anything',
-    )
-    // Its bottom rule: at the foot the footer's own rule closes the box, and
-    // out here there is nothing under it to do that.
-    const closed = [
-      ...box.rows,
-      state.dictation !== null
-        ? skin.signal('─'.repeat(lineWidth))
-        : skin.chrome('─'.repeat(lineWidth)),
-    ]
-    closed.forEach((line, i) => {
-      rows.push({
-        text: fit(`${' '.repeat(left)}${line}`, width),
-        hits: [
-          // The whole box opens the line, as it does at the foot — under the
-          // box's own hits, so a click inside what you have typed still puts
-          // the caret where it landed rather than only taking the keyboard.
-          { row: 0, from: left, to: left + lineWidth - 1, target: LINE },
-          ...box.hits
-            .filter((hit) => hit.row === i)
-            .map((hit) => ({ ...hit, row: 0, from: hit.from + left, to: hit.to + left })),
-        ],
-      })
-    })
-  }
-
   if (fits.buttons) {
-    rows.push(blank(width))
     const row = new Row(width, skin, pointer)
       .button('+ New agent', { kind: 'action', name: 'new-agent' }, project ? 'primary' : 'off')
       .space(2)
@@ -200,13 +128,8 @@ export function renderEmpty(
 
   // A picture sits a little above the middle of what it is in: dead centre in
   // a tall window reads as low, because the eye takes the top of the pane as
-  // the top of the page. Measured against a closed line and then held off the
-  // bottom, so a message that wraps grows downwards into the room under it
-  // rather than lifting the wordmark a half-row at a time.
-  const above = Math.max(
-    0,
-    Math.min(Math.floor((height - rowsFor(fits, shut)) * 0.42), height - rowsFor(fits, boxHeight)),
-  )
+  // the top of the page.
+  const above = Math.max(0, Math.floor((height - rowsFor(fits)) * 0.42))
   const drawn = stack([...Array.from({ length: above }, () => blank(width)), ...rows])
   const room = drawn.rows.slice(0, height)
   return {

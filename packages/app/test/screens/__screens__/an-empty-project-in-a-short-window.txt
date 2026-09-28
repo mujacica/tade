@@ -1,18 +1,18 @@
    T A D E      checkout      +                 ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS           +    █│                   T A D E                   
-                         █│                                             
-   none yet — + starts on█│   ───────────────────────────────────────   
-                         ▕│    Ask Tade for an agent, or anything       
- ▸ SMART QUEUE      none ▕│   ───────────────────────────────────────   
+ ▾ AGENTS           +    █│   ████████   ▄████▄   ██████▄   ████████    
+                         █│      ██     ██▀  ▀██  ██   ▀██  ██          
+   none yet — + starts on█│      ██     ████████  ██    ██  ██████      
+                         ▕│      ██     ██    ██  ██   ▄██  ██          
+ ▸ SMART QUEUE      none ▕│      ██     ██    ██  ██████▀   ████████    
  ▸ SCHEDULES        none ▕│                                             
  ▾ CHANGES               ▕│  + New agent      Open project     in checko
    open an agent to see  ▕│                                             
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                         
                                                                        ▕
-                                                                       ▕
-                                                                       ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools  ▕
+────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute     Keep awake                      

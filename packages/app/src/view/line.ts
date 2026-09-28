@@ -6,12 +6,15 @@ import { type Drawn, fit, type Pointer, Row } from '../ui.ts'
 
 // The line you type to Tade on, and the box drawn around it.
 //
-// Its own file because two regions draw it. It lives at the foot, under the
-// conversation, on every screen that has an agent in front of you; and in the
-// middle of the screen, under the wordmark, in a project with no agents,
-// because that is where you are looking when there is nothing else to look at.
-// Where it is drawn is `linePlace`'s to say — there is exactly one of these,
-// one editor behind it, and moving it must never become copying it.
+// It is the orchestrator's, and it is drawn in the orchestrator's own pane at
+// the foot — on every screen, including the one an empty project draws, where
+// nothing above it borrows it. There is exactly one of these and one editor
+// behind it, and a prompt that moves about the window is a prompt somebody has
+// to look for before they can say anything.
+//
+// Its own file because the box is a subject of its own: what a rule carries,
+// what an empty line invites, and where a click in it puts the caret — none of
+// which is the conversation above it (`view/strip.ts`).
 
 /** What the input box holds, one row each: the editor's lines while typing, or one line saying what it is. */
 export function inputRows(state: AppState, frame: Frame): string[] {
@@ -29,13 +32,6 @@ export function inputBox(
   pointer: Pointer,
   talkKeys: readonly string[],
   newer: number,
-  /**
-   * What an empty line invites, where the screen it is on wants to say
-   * something more particular than "anything". A project with no agents is
-   * the one such screen: it is the only place where what typing *does* —
-   * start work, through the orchestrator — is the question being asked.
-   */
-  invites = 'Ask Tade anything',
 ): Drawn {
   const open = state.dictation !== null
   const rule = open ? skin.signal : skin.chrome
@@ -84,9 +80,8 @@ export function inputBox(
   controls(probe)
   // One short of meeting them: a right-hand group needs a column of room to
   // sit in — and only where there is one, or the rule stops a column short of
-  // the edge for nothing. That column shows: at the foot it left a notch
-  // above the footer's own full-width rule, and under the wordmark, where the
-  // box is closed by a rule of its own, it made the two ends disagree.
+  // the edge for nothing. That column shows: with the line closed it left a
+  // notch above the footer's own full-width rule, just below.
   const gap = probe.used > 0 ? 1 : 0
   top.text('─'.repeat(Math.max(0, width - top.used - probe.used - gap)), rule)
   top.right(controls)
@@ -118,7 +113,7 @@ export function inputBox(
     } else if (state.held) {
       line.text(`◌ ${state.held}▏`, skin.hint)
     } else {
-      line.text(invites, skin.hint)
+      line.text('Ask Tade anything', skin.hint)
       line.right((r) => r.text('type, or hold ', skin.hint).keys(talkKeys).space())
     }
     const built = line.build()

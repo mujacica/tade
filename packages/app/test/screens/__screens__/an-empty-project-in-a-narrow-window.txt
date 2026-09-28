@@ -3,15 +3,15 @@
  ▾ AGENTS           +    █│                                     
                          █│                                     
    none yet — + starts on█│                                     
-                         █│               T A D E               
+                         █│                                     
  ▸ SMART QUEUE      none █│                                     
- ▸ SCHEDULES        none █│           said, and done.           
+ ▸ SCHEDULES        none █│               T A D E               
  ▾ CHANGES               █│                                     
-   open an agent to see  █│   ───────────────────────────────   
-                         █│    Ask Tade for an agent, or anyt   
- ▾ FILES                 █│   ───────────────────────────────   
+   open an agent to see  █│           said, and done.           
+                         █│                                     
+ ▾ FILES                 █│  + New agent      Open project     i
    ▸ src/                █│                                     
-   ▸ test/               █│  + New agent      Open project     i
+   ▸ test/               █│                                     
      package.json        █│                                     
      README.md           ▕│                                     
                          ▕│                                     
@@ -23,8 +23,8 @@
                                                                ▕
                                                                ▕
                                                                ▕
-                                                               ▕
-                                                               ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its▕
+────────────────────────────────────────────────────────────────
+ Ask Tade anything          type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute     Keep awake              

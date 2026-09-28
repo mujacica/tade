@@ -3,19 +3,19 @@
  ▾ AGENTS               +    ▕│                                                                                         
                              ▕│                                                                                         
    none yet — + starts one   ▕│                                                                                         
-                             ▕│                         ████████   ▄████▄   ██████▄   ████████                          
- ▸ SMART QUEUE          none ▕│                            ██     ██▀  ▀██  ██   ▀██  ██                                
- ▸ SCHEDULES            none ▕│                            ██     ████████  ██    ██  ██████                            
- ▾ CHANGES                   ▕│                            ██     ██    ██  ██   ▄██  ██                                
-   open an agent to see      ▕│                            ██     ██    ██  ██████▀   ████████                          
                              ▕│                                                                                         
- ▾ FILES                     ▕│                                     said, and done.                                     
+ ▸ SMART QUEUE          none ▕│                                                                                         
+ ▸ SCHEDULES            none ▕│                         ████████   ▄████▄   ██████▄   ████████                          
+ ▾ CHANGES                   ▕│                            ██     ██▀  ▀██  ██   ▀██  ██                                
+   open an agent to see      ▕│                            ██     ████████  ██    ██  ██████                            
+                             ▕│                            ██     ██    ██  ██   ▄██  ██                                
+ ▾ FILES                     ▕│                            ██     ██    ██  ██████▀   ████████                          
    ▸ src/                    ▕│                                                                                         
-   ▸ test/                   ▕│   ───────────────────────────────────────────────────────────────────────────────────   
-     package.json            ▕│    Ask Tade for an agent, or anything            type, or hold    ctrl   +   space      
-     README.md               ▕│   ───────────────────────────────────────────────────────────────────────────────────   
+   ▸ test/                   ▕│                                     said, and done.                                     
+     package.json            ▕│                                                                                         
+     README.md               ▕│                       + New agent      Open project     in checkout                     
                              ▕│                                                                                         
- ▸ NOTES                +    ▕│                       + New agent      Open project     in checkout                     
+ ▸ NOTES                +    ▕│                                                                                         
  ▾ GIT                       ▕│                                                                                         
    repo     ~/src/checkout   ▕│                                                                                         
    branch   main             ▕│                                                                                         
@@ -27,8 +27,8 @@
                                                                                                                        ▕
                                                                                                                        ▕
                                                                                                                        ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute     Keep awake        claude-opus-5 ▾ · openrouter │ high ▾ │ nothing spent today ▾ 

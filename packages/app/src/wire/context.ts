@@ -247,10 +247,10 @@ export interface Wiring {
    * dragged to, then how the bottom is shown.
    *
    * Here rather than in each subject's own `Deps` because it is derived from
-   * what this object already carries — the options and the state — and three
-   * subjects need it: what a lane is resized to, where a divider was dragged
-   * to, and how wide the line you type on is drawn. Three callbacks to one
-   * pure derivation is three chances for them to be handed different ones.
+   * what this object already carries — the options and the state — and more
+   * than one subject needs it: what a lane is resized to, and where a divider
+   * was dragged to. A callback each to one pure derivation is a chance for
+   * them to be handed different ones.
    */
   layout(): LayoutPrefs
   /** Ask for a frame. */

@@ -518,7 +518,7 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'first-open',
     about:
-      'A project and nothing running yet: the wordmark, the one line there is to type on, and what to do next as buttons.',
+      "A project and nothing running yet: the wordmark, what to do next as buttons under it, and the orchestrator's line at the foot where it is on every other screen too.",
     state: withProjects(initialState(), ['checkout']),
     frame: emptyProjectFrame,
   },
@@ -541,7 +541,7 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'an-empty-project-being-typed-into',
     about:
-      'Asking for work from the empty screen: the one line there is, drawn where you are looking rather than at the foot.',
+      "Asking for work with nothing running: the wordmark keeps its place and the line stays in the orchestrator's own pane, which is where it was before the project emptied.",
     state: setDictation(
       withProjects(initialState(), ['checkout']),
       'find out why the refund webhook retries twice',
@@ -556,7 +556,7 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'an-empty-project-in-a-short-window',
     about:
-      'The same screen with no room: the wordmark gives ground to the mark the project tabs sit beside, and the line it is there for never does.',
+      'The same screen with no room: the wordmark gives ground to the mark the project tabs sit beside, and the buttons, which are the only thing here a mouse can use, never do.',
     state: withProjects(initialState(), ['checkout']),
     frame: { ...emptyProjectFrame, width: 72, height: 18 },
   },

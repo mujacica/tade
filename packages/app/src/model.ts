@@ -1460,50 +1460,6 @@ export function addTurn(state: AppState, turn: Turn): AppState {
 }
 
 /**
- * Nothing in the project you are standing in: no agent, and nothing queued
- * that would become one. What its screen shows is the wordmark and a line to
- * type on (`view/empty.ts`).
- *
- * Read of the project rather than of the window, because the window is never
- * empty — there is always another project with something in it, and that is
- * exactly what used to be shown to somebody who had just closed their last
- * agent here.
- */
-export function emptyProject(state: AppState): boolean {
-  return !state.panes.some((pane) => pane.project === state.project)
-}
-
-/**
- * Where the orchestrator's line is drawn.
- *
- * There is one line and one editor behind it. It lives at the foot, under the
- * conversation, and every screen with something in the pane keeps it there.
- * A project with no agents has nothing in the pane, so it draws the line in
- * the middle of the screen instead, under the wordmark, where somebody with
- * nothing to look at is looking — and the foot draws none, because two boxes
- * saying `Ask Tade anything` is the window asking twice.
- *
- * Only while the bottom panel is on the orchestrator's own tab: with a
- * terminal in front, what you type goes to the terminal, and a box drawn
- * away from where the keystrokes land is a lie about where they land. And
- * only while the pane really is drawing that screen — a plan or a schedule
- * you opened is in front of you in a project that has nothing else in it,
- * and answering `splash` there would take the line off both regions.
- *
- * Both regions read this, and so does the editor, which wraps at the width it
- * is rendered at: three answers to where the line is would be three widths.
- */
-export function linePlace(state: AppState): 'strip' | 'splash' {
-  const nothingInFront =
-    !state.panes.some((pane) => pane.task === state.focused) &&
-    !state.showingPlan &&
-    state.schedule === null
-  return nothingInFront && emptyProject(state) && activeTerminal(state) === null
-    ? 'splash'
-    : 'strip'
-}
-
-/**
  * Whether the conversation with the orchestrator is going on — being typed or
  * spoken to, or answering — so the bottom panel should make room to read it.
  */

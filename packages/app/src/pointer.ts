@@ -62,9 +62,8 @@ export type PointerEvent =
    * selection from where the caret already is instead of starting a new one.
    *
    * `cell` is how far along the box the pointer landed, not how far along the
-   * window: the line is drawn at the foot on most screens and in the middle
-   * of the pane on an empty project's (`linePlace`), and the editor counts
-   * columns from its own left edge either way.
+   * window: the editor counts columns from its own left edge, which is what
+   * the hit the press landed in already measures.
    */
   | { kind: 'select'; line: number; cell: number; extend: boolean; drag: boolean }
   /**

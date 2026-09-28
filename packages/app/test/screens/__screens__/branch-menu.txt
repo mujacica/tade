@@ -3,19 +3,19 @@
  ▾ AGENTS               +    █│                                                                                         
                              █│                                                                                         
    none yet — + starts one   █│                                                                                         
-                             █│                         ████████   ▄████▄   ██████▄   ████████                          
- ▸ SMART QUEUE          none █│                            ██     ██▀  ▀██  ██   ▀██  ██                                
- ▸ SCHEDULES            none █│                            ██     ████████  ██    ██  ██████                            
- ▾ CHANGES           vs main █│                            ██     ██    ██  ██   ▄██  ██                                
-   open an agent to see      █│                            ██     ██    ██  ██████▀   ████████                          
                              █│                                                                                         
- ▾ FILES                     █│                                     said, and done.                                     
+ ▸ SMART QUEUE          none █│                                                                                         
+ ▸ SCHEDULES            none █│                         ████████   ▄████▄   ██████▄   ████████                          
+ ▾ CHANGES           vs main █│                            ██     ██▀  ▀██  ██   ▀██  ██                                
+   open an agent to see      █│                            ██     ████████  ██    ██  ██████                            
+                             █│                            ██     ██    ██  ██   ▄██  ██                                
+ ▾ FILES                     █│                            ██     ██    ██  ██████▀   ████████                          
    ▾ src/                    █│                                                                                         
-       webhooks.test.ts      █│   ───────────────────────────────────────────────────────────────────────────────────   
-       webhooks.ts           █│    Ask Tade for an agent, or anything            type, or hold    ctrl   +   space      
-   ▸ test/                   █│   ───────────────────────────────────────────────────────────────────────────────────   
+       webhooks.test.ts      █│                                     said, and done.                                     
+       webhooks.ts           █│                                                                                         
+   ▸ test/                   █│                       + New agent      Open project     in checkout                     
      package.json            █│                                                                                         
-     README.md               █│                       + New agent      Open project     in checkout                     
+     README.md               █│                                                                                         
     ╭─ main ──────────────────────╮                                                                                     
  ▸ N│▌ Switch branch…            ▕│                                                                                     
  ▾ G│  New branch…               ▕│                                                                                     
@@ -27,8 +27,8 @@
                                                                                                                        ▕
                                                                                                                        ▕
                                                                                                                        ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
