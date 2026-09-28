@@ -229,6 +229,13 @@ export interface RememberedWindow {
   /** By project, the agents in the order they were dragged into. */
   order?: Record<string, string[]>
   /**
+   * The project tabs in the order they were moved into. Written down beside
+   * the agents' order and for the same reason: where a tab sits is a view, and
+   * a project closed and opened again would otherwise come back at the end of
+   * a row somebody had arranged.
+   */
+  projectOrder?: string[]
+  /**
    * By project, what the SMART QUEUE was showing — only where that is not the
    * whole of it, exactly as a dragged size is only written when it was dragged.
    */
@@ -265,6 +272,7 @@ export function asRemembered(value: unknown): RememberedWindow | null {
       : null
   const folded = names('folded')
   const opened = names('opened')
+  const projectOrder = names('projectOrder')
   // A spot is only as good as what is still in it, and `standingIn` is what
   // checks that — so what is asked of the file is only that it has the shape.
   const spots: Record<string, Spot> = {}
@@ -308,6 +316,10 @@ export function asRemembered(value: unknown): RememberedWindow | null {
     ...(folded ? { folded } : {}),
     ...(opened ? { opened } : {}),
     ...(Object.keys(order).length > 0 ? { order } : {}),
+    // A project in here that has since been closed is dropped where the order
+    // is read (`projects`), not here: it may be opened again this afternoon,
+    // and a place thrown away on the way in is one nobody can get back.
+    ...(projectOrder && projectOrder.length > 0 ? { projectOrder } : {}),
     ...(Object.keys(spots).length > 0 ? { spots } : {}),
     ...(Object.keys(queueViews).length > 0 ? { queueViews } : {}),
   }

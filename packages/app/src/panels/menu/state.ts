@@ -33,6 +33,8 @@ export type MenuSubject =
   | { kind: 'thinking'; task: string; current: string | null }
   /** A schedule in the SMART QUEUE. */
   | { kind: 'schedule'; id: string }
+  /** A project's tab along the top. `project` is its name, which is its id. */
+  | { kind: 'project'; project: string }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -80,6 +82,54 @@ export function terminalMenuItems(split = false): MenuItem[] {
       : { id: 'split-beside', label: 'Split: a new terminal beside', divider: true },
     ...(split ? [] : [{ id: 'split-below', label: 'Split: a new terminal below' }]),
     { id: 'close', label: 'Close', danger: true, divider: true },
+  ]
+}
+
+/**
+ * What can be done with a project, from its tab: what it is called here, where
+ * its tab sits, everything it is set up with, and closing it.
+ *
+ * Four acts and one omission worth saying out loud. **Nothing here removes
+ * anything.** Close takes the project out of the config and touches nothing on
+ * disk — the folder, every commit, branch and worktree, everything under
+ * `.tade/` and every line of the journal stay exactly as they are — so it is
+ * offered plainly, and the item says so rather than asking a question nobody
+ * can answer from a menu. Deleting any of that is a person's, with git, in a
+ * terminal, and there is no item for it because there is no tool for it.
+ *
+ * Rename is a label (`ProjectConfigSchema.title`): it says so in the item,
+ * because somebody reading a menu is deciding, and "will this break my task
+ * ids" is the question a rename raises the moment it is offered.
+ */
+export function projectMenuItems(opts: {
+  /** How many agents are running in it: closing is refused while any is. */
+  running: number
+  first: boolean
+  last: boolean
+}): MenuItem[] {
+  const ends = opts.first && opts.last ? 'it is the only project' : undefined
+  return [
+    { id: 'rename', label: 'Rename…', note: 'what it is called here' },
+    {
+      id: 'move-left',
+      label: 'Move left',
+      divider: true,
+      ...(opts.first ? { off: ends ?? 'it is first' } : {}),
+    },
+    { id: 'move-right', label: 'Move right', ...(opts.last ? { off: ends ?? 'it is last' } : {}) },
+    { id: 'configure', label: 'Configure…', divider: true, note: 'settings for this project' },
+    {
+      id: 'close',
+      label: 'Close',
+      note: 'nothing is deleted',
+      danger: true,
+      divider: true,
+      ...(opts.running > 0
+        ? {
+            off: `${opts.running === 1 ? 'an agent is' : `${opts.running} agents are`} still running in it`,
+          }
+        : {}),
+    },
   ]
 }
 

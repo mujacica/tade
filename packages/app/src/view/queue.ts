@@ -15,6 +15,7 @@ import {
   queueRows,
   queueViewOf,
   shownName,
+  shownProject,
 } from '../model.ts'
 import { drawPlan, drawWhy, layoutPlan, type PlanBox, treeStems } from '../plan-graph.ts'
 import { queueEmptySays } from '../queue.ts'
@@ -502,7 +503,8 @@ export function renderPlan(
   const working = tasks.filter((pane) => !pane.queued && markOf(pane) === 'working').length
   const queued = tasks.filter((pane) => pane.queued).length
   const header = new Row(width, skin, pointer).space()
-  header.text(`${state.project ?? ''} › plan`, skin.you).space(2)
+  const inProjectName = state.project === null ? '' : shownProject(state, state.project)
+  header.text(`${inProjectName} › plan`, skin.you).space(2)
   header.text(`${tasks.length} tasks · ${working} working · ${queued} waiting to start`, skin.hint)
   const rows: { text: string; hits: Hit[] }[] = [
     header.build(),
@@ -640,7 +642,7 @@ export function renderQueued(
   controls(probe)
   const header = new Row(width, skin, pointer).space()
   const word = `${look.glyph} ${queueWord(queued.state)}`
-  const title = `${pane.project} › ${shownName(pane)}`
+  const title = `${shownProject(state, pane.project)} › ${shownName(pane)}`
   header
     .text(shortened(title, Math.max(8, width - probe.used - visibleWidth(word) - 5)), skin.you)
     .space(2)

@@ -1,5 +1,5 @@
 import type { Hit } from '../hits.ts'
-import type { AppState } from '../model.ts'
+import { type AppState, shownProject } from '../model.ts'
 import { type Skin, WORDMARK, WORDMARK_SHADES, WORDMARK_WIDTH } from '../skin.ts'
 import { blank, type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
 
@@ -122,7 +122,7 @@ export function renderEmpty(
         { kind: 'action', name: 'open-project' },
         project ? 'rest' : 'primary',
       )
-    if (project) row.space(3).text(`in ${project}`, skin.hint)
+    if (project) row.space(3).text(`in ${shownProject(state, project)}`, skin.hint)
     rows.push(centred(row.build(), row.used, width))
   }
 

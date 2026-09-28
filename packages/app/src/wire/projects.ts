@@ -6,10 +6,21 @@ import {
   LINES_LOOKED_BACK,
   loadConfig,
   namedBy,
+  PROJECT_ORDER_REACH,
+  titlesOf,
   writeSetting,
 } from '@tade/core'
 import type { Frame } from '../frame.ts'
-import { notice, selectProject, withProjects } from '../model.ts'
+import {
+  moveProject,
+  notice,
+  projects,
+  selectProject,
+  shownProject,
+  withProjectOrder,
+  withProjects,
+} from '../model.ts'
+import { projectMenuItems } from '../panels/menu/state.ts'
 import {
   nameFrom,
   type OpenProjectPanel,
@@ -17,6 +28,7 @@ import {
   type OpenRowView,
   openProjectPanel,
 } from '../panels/project/state.ts'
+import { promptPanel } from '../panels/small/state.ts'
 import {
   ago,
   branchOf,
@@ -37,6 +49,8 @@ import { addProject } from '../settings.ts'
 import {
   type Actions,
   configPathOf,
+  type Menus,
+  type Prompts,
   type Subject,
   type Submits,
   saidLately,
@@ -60,13 +74,61 @@ import {
 export interface ProjectTools {
   openProject(req: { path: string; name?: string; create: boolean }): Promise<string>
   closeProject(req: { project: string; said: string }): Promise<string>
+  renameProject(req: { project: string; name: string; said: string }): Promise<string>
+  reorderProjects(req: { order: readonly string[] }): Promise<string>
+  configureProject(req: {
+    project: string
+    setting: string
+    value: string
+    said: string
+  }): Promise<string>
 }
 
 /** What this subject needs from the rest of the window. */
 export interface ProjectsDeps {
   /** A project added is a config written: everything that holds one reads it back. */
   useConfig(config: Config): void
+  /**
+   * The one path a setting is written by, with its reach checked and its line
+   * in the journal: renaming and configuring are settings acts, and a second
+   * writer for them would be a second set of rules about what may be written.
+   */
+  changeSetting(req: { path: string; value: string; said: string }): Promise<string>
+  /** The same write, from the window, where nobody has to be asked. */
+  writeSetting(path: string, value: string): Promise<string>
+  /** Open Settings on everything matching these words. */
+  openSettings(category: string, search: string): Promise<string>
+  /** Written down on the way out, so a row somebody arranged survives a close. */
+  rememberWindow(): void
 }
+
+/**
+ * The per-project settings Configure reaches, by the short name the
+ * orchestrator's tool takes — and `root` is deliberately not among them.
+ *
+ * Moving a root moves where every agent in the project works, which is the one
+ * thing `settingReach` refuses outright; it is named here with that reason
+ * rather than left to fall through as "no such setting", because a refusal
+ * that says what to do instead is the difference between a model asking a
+ * person and a model trying the next thing.
+ */
+const CONFIGURABLE = [
+  'title',
+  'brief',
+  'workspace',
+  'worker',
+  'max_parallel',
+  'test_command',
+  'budget.usd_per_day',
+  'budget.tokens_per_day',
+  'checks.before',
+  'checks.on_red',
+  'checks.parallel',
+] as const
+
+/** Whether one of those, or an override for a named check, which is any id. */
+const configurable = (setting: string): boolean =>
+  (CONFIGURABLE as readonly string[]).includes(setting) || /^checks\.run_here\.[^.]+$/.test(setting)
 
 export class Projects implements Subject {
   private readonly wire: Wiring
@@ -100,11 +162,115 @@ export class Projects implements Subject {
         this.wire.put({ ...this.wire.state, panel: openProjectPanel(homedir()) })
         this.wire.draw()
       },
+      // The `×` on a tab. It asks nothing first, because there is nothing to
+      // ask about: closing destroys nothing, and the notice says so. Refused
+      // while an agent is running, in its own words, where notices go.
+      //
+      // The only one of a project's acts with a button of its own — the rest
+      // are in the menu beside it, which is where something that needs a name
+      // typed, a direction chosen or a page opened belongs.
+      'close-project:': (project) => this.closeFromWindow(project),
     }
   }
 
   submits(): Submits {
     return { 'open-project': (panel) => this.open(panel) }
+  }
+
+  menus(): Menus {
+    return {
+      project: {
+        title: (subject) => shownProject(this.wire.state, subject.project),
+        items: (subject) => {
+          const order = projects(this.wire.state)
+          const at = order.indexOf(subject.project)
+          return projectMenuItems({
+            running: this.agentsIn(subject.project).length,
+            first: at <= 0,
+            last: at === order.length - 1,
+          })
+        },
+        choose: (subject, item) => this.fromProjectMenu(subject.project, item),
+      },
+    }
+  }
+
+  prompts(): Prompts {
+    return {
+      'rename-project': async (panel, text) => {
+        if (!panel.target) return
+        const project = panel.target
+        try {
+          const name = await this.renameTo(project, text)
+          // The short of it on the notice line, where a sentence does not fit.
+          // What it did *not* move is still said in full where somebody is
+          // reading rather than glancing: the tool's answer, and the setting's
+          // own `means` on the page this rename is a shortcut to.
+          this.wire.put(
+            notice(
+              { ...this.wire.state, panel: null },
+              name === '' ? `${project} is ${project} again` : `${project} shows as ${name}`,
+            ),
+          )
+        } catch (err) {
+          this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error: why(err) } })
+        }
+      },
+    }
+  }
+
+  /** What a project's menu does: its name here, where its tab sits, its settings, or closing it. */
+  private async fromProjectMenu(project: string, item: string): Promise<void> {
+    switch (item) {
+      case 'rename':
+        return this.askName(project)
+      case 'move-left':
+        return this.move(project, -1)
+      case 'move-right':
+        return this.move(project, 1)
+      case 'configure':
+        await this.deps.openSettings('projects', project)
+        return
+      case 'close':
+        return this.closeFromWindow(project)
+    }
+  }
+
+  /** Close it from the window, and put the reason where notices go if it will not. */
+  private async closeFromWindow(project: string): Promise<void> {
+    await this.closeProject(project, 'window').catch((err) => this.wire.note(err))
+    this.wire.draw()
+  }
+
+  /** The one line asked for, filled in with whatever it is called now. */
+  private askName(project: string): void {
+    this.wire.put({
+      ...this.wire.state,
+      panel: {
+        ...promptPanel(
+          'rename-project',
+          `Call ${project}`,
+          'NAME',
+          this.wire.opts.config.projects[project]?.title ?? '',
+        ),
+        target: project,
+      },
+    })
+    this.wire.draw()
+  }
+
+  /**
+   * Move a tab one place, and write the whole row down.
+   *
+   * Written here and not only on the way out, exactly as hiding the finished
+   * agents is: the window you arrange is the window you leave open for days,
+   * and one that was killed rather than closed would forget it every time.
+   */
+  private move(project: string, by: -1 | 1): void {
+    const order = moveProject(this.wire.state, project, by)
+    this.wire.put(withProjectOrder(this.wire.state, order))
+    this.deps.rememberWindow()
+    this.wire.draw()
   }
 
   /**
@@ -117,6 +283,58 @@ export class Projects implements Subject {
   tools(): ProjectTools {
     return {
       openProject: (req) => this.openAt({ ...req, by: 'orchestrator' }),
+      // Through the one writer, so the reach, the person's own words and the
+      // line in the journal are the settings page's and not a second set of
+      // rules written here. What this adds on top of `tade_setting_change` is
+      // the thing that tool has no idea it is looking at: two tabs reading the
+      // same word.
+      renameProject: async (req) => {
+        const project = this.mustHave(req.project)
+        const name = this.checkedName(project, req.name)
+        await this.deps.changeSetting({
+          path: `projects.${project}.title`,
+          value: name,
+          said: req.said,
+        })
+        return this.renamed(project, name)
+      },
+      reorderProjects: async (req) => {
+        this.mayReorder()
+        const known = projects(this.wire.state)
+        const unknown = req.order.filter((name) => !known.includes(name))
+        if (unknown.length > 0) {
+          throw new Error(
+            `Tade has no project called ${unknown.join(', ')}. tade_status says which there are.`,
+          )
+        }
+        // What was left out keeps its place after what was named, rather than
+        // being dropped: a tool given three of five projects is somebody
+        // saying where those three go, never that the other two are gone.
+        const order = [...req.order, ...known.filter((name) => !req.order.includes(name))]
+        this.wire.put(withProjectOrder(this.wire.state, order))
+        this.deps.rememberWindow()
+        this.wire.draw()
+        return `The tabs are now ${order.join(', ')}. That is the order along the top of this window and nothing else — no project moved on disk, and nothing about the work changed.`
+      },
+      configureProject: async (req) => {
+        const project = this.mustHave(req.project)
+        const setting = req.setting.trim().replace(/^projects\.[a-z0-9-]+\./, '')
+        if (setting === 'root') {
+          throw new Error(
+            `Where ${project} lives is not mine to change: moving a root moves where every agent in it works. A person moves it in Settings (ctrl+,) or with \`tade config\`, or it is closing it and opening it again, which is two acts each asked for.`,
+          )
+        }
+        if (!configurable(setting)) {
+          throw new Error(
+            `${project} has no setting called ${setting}. It has ${CONFIGURABLE.join(', ')}, and checks.run_here.<check> for one check; tade_settings lists them with what each one is now.`,
+          )
+        }
+        return this.deps.changeSetting({
+          path: `projects.${project}.${setting}`,
+          value: req.value,
+          said: req.said,
+        })
+      },
       closeProject: async (req) => {
         // Closing is checked where checking is precise: what somebody would
         // say to ask for it is the project's own name, so a line of theirs
@@ -322,7 +540,9 @@ export class Projects implements Subject {
     if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
     this.deps.useConfig(loaded.config)
     noteRecent(this.wire.opts.home, name, tilde(full), this.wire.now())
-    this.wire.put(withProjects(this.wire.state, Object.keys(loaded.config.projects)))
+    this.wire.put(
+      withProjects(this.wire.state, Object.keys(loaded.config.projects), titlesOf(loaded.config)),
+    )
     // Written down once it is true: a project in the config, where it is, and
     // who put it there. `was` is empty because there was nothing — which is
     // what says this is an opening rather than a move.
@@ -340,6 +560,101 @@ export class Projects implements Subject {
     this.wire.put(notice(selectProject(this.wire.state, name), `opened ${name}`))
     await this.wire.live?.refresh()
     return `Opened ${name} at ${tilde(full)}${made ? ', a new git repository' : ''}.`
+  }
+
+  /**
+   * What a project is to be called here, checked — or the empty string, which
+   * puts its own name back.
+   *
+   * The one thing a rename can do that is worse than nothing: leave two tabs
+   * reading the same word. What a tab says is how somebody knows which project
+   * they are in, so a name another project already answers to — as its own
+   * name or as the name it was given — is refused rather than drawn.
+   */
+  private checkedName(project: string, name: string): string {
+    const wanted = name.trim()
+    // Its own name back is the way to undo one, and is not a collision with
+    // itself: it clears the key rather than writing the name in twice.
+    if (wanted === '' || wanted === project) return ''
+    const same = wanted.toLowerCase()
+    for (const [other, config] of Object.entries(this.wire.opts.config.projects)) {
+      if (other === project) continue
+      if (other.toLowerCase() === same || (config.title ?? '').toLowerCase() === same) {
+        throw new Error(
+          `${other} is already called ${wanted}, and two tabs with one name is somebody working in the wrong repository. Choose another.`,
+        )
+      }
+    }
+    return wanted
+  }
+
+  /**
+   * Whether the orchestrator may move the tabs.
+   *
+   * The rule is `PROJECT_ORDER_REACH` in core, beside the one for a watch and
+   * for the same reason: the order is not a config key, and answering "how far
+   * does its arm reach" anywhere but there is how two answers to it come to
+   * exist. It is `open`, which is the whole of the decision and why this asks
+   * nothing.
+   *
+   * Raised to anything else it refuses outright rather than guessing what
+   * words would authorise it: nobody has worked out what a person says to ask
+   * for this, and a gate that invents the answer is worse than one that says
+   * it has not got it. Whoever raises the tier writes the check.
+   */
+  private mayReorder(): void {
+    const { reach, because } = PROJECT_ORDER_REACH
+    if (reach === 'open') return
+    throw new Error(
+      `The order of the tabs is not mine to change: ${because}. A person moves one from its own menu.`,
+    )
+  }
+
+  /** A project Tade has, by name, or why that name is not one. */
+  private mustHave(name: string): string {
+    const project = name.trim()
+    // `hasOwn` rather than a truthy lookup, for the reason `closeProject`
+    // gives: `projects.__proto__` is truthy on any plain object.
+    if (!Object.hasOwn(this.wire.opts.config.projects, project))
+      throw new Error(`There is no project called ${project}.`)
+    return project
+  }
+
+  /** The agents running in a project: what closing it is refused for. */
+  private agentsIn(name: string): string[] {
+    return this.wire.opts.client
+      .runs()
+      .map((run) => run.task)
+      .filter((task) => task === name || task.startsWith(`${name}/`))
+  }
+
+  /**
+   * Rename from the window: the same write, with nobody to ask, and the state
+   * caught up so the tab says it on the next frame.
+   */
+  private async renameTo(project: string, name: string): Promise<string> {
+    const wanted = this.checkedName(this.mustHave(project), name)
+    await this.deps.writeSetting(`projects.${project}.title`, wanted)
+    this.renamed(project, wanted)
+    return wanted
+  }
+
+  /**
+   * What a rename did, said in full — because what it *didn't* do is the half
+   * somebody needs, and they are deciding whether to do it again.
+   */
+  private renamed(project: string, name: string): string {
+    this.wire.put(
+      withProjects(
+        this.wire.state,
+        Object.keys(this.wire.opts.config.projects),
+        titlesOf(this.wire.opts.config),
+      ),
+    )
+    this.wire.draw()
+    return name === ''
+      ? `${project} is called ${project} again.`
+      : `${project} is called ${name} on screen. Its name is still ${project} everywhere it is an id — every task in it is still ${project}/<task>, every commit its agents made still carries Tade-Task: ${project}/…, the journal still says ${project}, and nothing on disk moved.`
   }
 
   /**
@@ -363,10 +678,7 @@ export class Projects implements Subject {
       ? this.wire.opts.config.projects[name]
       : undefined
     if (!project) throw new Error(`There is no project called ${name}.`)
-    const working = this.wire.opts.client
-      .runs()
-      .map((run) => run.task)
-      .filter((task) => task === name || task.startsWith(`${name}/`))
+    const working = this.agentsIn(name)
     if (working.length > 0) {
       throw new Error(
         `${name} still has ${working.length === 1 ? 'an agent' : 'agents'} running: ${working.join(', ')}. Stop them first if that is what they meant.`,
@@ -387,7 +699,7 @@ export class Projects implements Subject {
       ...(said ? { said } : {}),
     })
     const left = Object.keys(loaded.config.projects)
-    const state = withProjects({ ...this.wire.state, known: left }, left)
+    const state = withProjects({ ...this.wire.state, known: left }, left, titlesOf(loaded.config))
     const elsewhere = this.wire.state.project === name ? (left[0] ?? null) : this.wire.state.project
     this.wire.put(
       notice(

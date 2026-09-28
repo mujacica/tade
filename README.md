@@ -244,6 +244,14 @@ figures at the right are everybody's, and say whose.
 
 ![The tabs along the top, each saying what is happening in its own project](images/project-tabs.svg)
 
+Each tab has an `×` and a `≡` of its own, like a terminal's. The menu is where a project is renamed
+— what it is called here, never its name, which every task id, every `Tade-Task:` trailer and every
+line of the journal keeps — moved along the row, configured, or closed. **Closing one deletes
+nothing**: the folder, the git history, the branches, the worktrees and the journal all stay, and
+opening that path again brings them back.
+
+![A project's menu: rename, move, configure and close](images/project-menu.svg)
+
 An agent in a project you are not looking at can still reach you — and be answered from where you
 are.
 

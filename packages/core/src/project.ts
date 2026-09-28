@@ -25,3 +25,19 @@ import type { AgentWorkspace, Config } from './config.ts'
 export function workspaceFor(config: Config, project: string | null): AgentWorkspace {
   return (project ? config.projects[project]?.workspace : undefined) ?? config.agents.workspace
 }
+
+/**
+ * What each project is called on screen, by its name — and only the ones that
+ * have been given a name of their own.
+ *
+ * Every project is in `Config.projects` and most of them are called what they
+ * are called, so this is a map of the exceptions rather than of everything: a
+ * reader falls back to the name (`shownProject`), which is the same answer a
+ * config written before this key existed gives.
+ */
+export function titlesOf(config: Config): Record<string, string> {
+  const titles: Record<string, string> = {}
+  for (const [name, project] of Object.entries(config.projects))
+    if (project.title) titles[name] = project.title
+  return titles
+}

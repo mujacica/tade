@@ -149,7 +149,18 @@ export function updateActions(look: UpdatesShown | null, busy: boolean): UpdateA
   return actions
 }
 
-export function settingsPanel(category = 'agents'): SettingsPanel {
+/**
+ * The Settings page, on a category — or, given words, on everything that
+ * matches them, whatever category each of those lives in.
+ *
+ * The second form is how somewhere else in the window sends you here: a
+ * project's Configure is its name typed into this box, which is one page
+ * showing that project's root, its name, its brief, where its agents work,
+ * its own answers to the check rules and its budget — the same rows, in the
+ * same place, written by the same writer. A third page that configured a
+ * project would be a third answer to what a project's settings are.
+ */
+export function settingsPanel(category = 'agents', search = ''): SettingsPanel {
   return {
     kind: 'settings',
     category,
@@ -158,7 +169,7 @@ export function settingsPanel(category = 'agents'): SettingsPanel {
     listScroll: 0,
     following: true,
     focus: 'form',
-    search: '',
+    search,
     editing: null,
     dropdown: null,
     capture: null,

@@ -66,6 +66,11 @@ export interface PromptPanel {
     | 'run-command'
     | 'rename-agent'
     | 'rename-schedule'
+    /**
+     * What a project is called on screen: `target` is its name, which is its
+     * id and which this never changes.
+     */
+    | 'rename-project'
     /** An account to add: `target` is its harness and its kind, joined by a NUL. */
     | 'account-name'
     /** An API-key account's key: `target` is the account. Never drawn as typed. */

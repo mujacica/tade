@@ -1,4 +1,4 @@
-   T A D E      checkout ! ⠋    search ✓    infra      +         ! 1 waiting  ⠋ 1 working   in checkout      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout ! ⠋   ×  ≡   search ✓   ×  ≡   infra   ×  ≡     +       ! 1  ⠋ 1   in checkout      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2                  +    █│ checkout › stripe-v15    agent    shell    actions     +       pi ▾     claude-opus-5 ▾     high ▾   ctx ██░░░░ 41%   ×   
                                    █│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

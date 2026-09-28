@@ -1,5 +1,5 @@
 import type { Frame } from '../frame.ts'
-import { sameTarget, type Target } from '../hits.ts'
+import { pointingIn, sameTarget, type Target } from '../hits.ts'
 import { keyCaps } from '../keys.ts'
 import {
   type AgentMark,
@@ -9,6 +9,7 @@ import {
   markOf,
   projects,
   shownName,
+  shownProject,
   spinner,
 } from '../model.ts'
 import type { Skin } from '../skin.ts'
@@ -51,7 +52,7 @@ export function toastFor(
   const inner = cardWidth - 2
   const seconds = Math.max(0, Math.floor(((frame.now ?? toast.at) - toast.at) / 1000))
   const card = box(
-    `${skin.waiting('●')} ${pane.project} › ${shownName(pane)}`,
+    `${skin.waiting('●')} ${shownProject(state, pane.project)} › ${shownName(pane)}`,
     [
       new Row(inner, skin)
         .space()
@@ -194,14 +195,14 @@ type TabDetail = 'counts' | 'marks' | 'busiest' | 'none'
  * anyway, which is why every mark has a shape of its own.
  */
 function tabLabel(
-  project: string,
+  shown: string,
   standing: ProjectStanding | undefined,
   detail: TabDetail,
   now: number,
 ): string {
-  if (standing === undefined || detail === 'none') return project
+  if (standing === undefined || detail === 'none') return shown
   const says = tabSays(standing, detail, now)
-  return says === '' ? project : `${project} ${says}`
+  return says === '' ? shown : `${shown} ${says}`
 }
 
 /**
@@ -260,6 +261,8 @@ const countedBy = (counts: Counts): readonly ProjectMark[] =>
 
 interface Fits {
   tabs: TabDetail
+  /** Each tab's own `×` and `≡`, in the six columns kept for them. */
+  manage: boolean
   search: boolean
   counts: Counts
   word: boolean
@@ -270,7 +273,7 @@ interface Fits {
  * to drop, and it is the caps that say what to press — a bar that gave up the
  * talk key to keep the word `talk` would have it backwards.
  */
-const LAST: Fits = { tabs: 'none', search: false, counts: 'none', word: false }
+const LAST: Fits = { tabs: 'none', manage: false, search: false, counts: 'none', word: false }
 
 /**
  * Everything along the top, in the order it gives ground.
@@ -287,17 +290,28 @@ const LAST: Fits = { tabs: 'none', search: false, counts: 'none', word: false }
  * the two ends of one row against each other.
  */
 const LADDER: readonly Fits[] = [
-  { tabs: 'counts', search: true, counts: 'full', word: true },
-  { tabs: 'counts', search: true, counts: 'short', word: true },
-  { tabs: 'counts', search: true, counts: 'waiting', word: true },
-  { tabs: 'marks', search: true, counts: 'waiting', word: true },
+  { tabs: 'counts', manage: true, search: true, counts: 'full', word: true },
+  { tabs: 'counts', manage: true, search: true, counts: 'short', word: true },
+  { tabs: 'counts', manage: true, search: true, counts: 'waiting', word: true },
+  // Then the buttons, and giving them up buys the whole right-hand group
+  // back — the same trade giving up the search key makes further down. They go
+  // here, after the total at the right has shortened as far as it shortens and
+  // before a tab gives up a single mark, because six columns *a tab* is the
+  // most expensive thing on this row the moment more than one project is open,
+  // and they are the only thing here that is a second way to something: the
+  // menu is a right-click on the tab either way, and closing is in it. What a
+  // mark says is not reachable any other way, so every mark outlives them.
+  { tabs: 'counts', manage: false, search: true, counts: 'full', word: true },
+  { tabs: 'counts', manage: false, search: true, counts: 'short', word: true },
+  { tabs: 'counts', manage: false, search: true, counts: 'waiting', word: true },
+  { tabs: 'marks', manage: false, search: true, counts: 'waiting', word: true },
   // Giving up search buys the working count back, as it always did: down here
   // the counts are worth more than a key that has a shortcut of its own.
-  { tabs: 'marks', search: false, counts: 'short', word: true },
-  { tabs: 'marks', search: false, counts: 'waiting', word: true },
-  { tabs: 'busiest', search: false, counts: 'waiting', word: true },
-  { tabs: 'busiest', search: false, counts: 'none', word: true },
-  { tabs: 'none', search: false, counts: 'none', word: true },
+  { tabs: 'marks', manage: false, search: false, counts: 'short', word: true },
+  { tabs: 'marks', manage: false, search: false, counts: 'waiting', word: true },
+  { tabs: 'busiest', manage: false, search: false, counts: 'waiting', word: true },
+  { tabs: 'busiest', manage: false, search: false, counts: 'none', word: true },
+  { tabs: 'none', manage: false, search: false, counts: 'none', word: true },
   LAST,
 ]
 
@@ -327,24 +341,34 @@ export function renderTop(
   // The wordmark, a tab per project, then the `+`. Built as a function of how
   // much a tab says, because what fits is decided by trying, and neither end
   // of the row can be measured without the other.
-  const left = (tabs: TabDetail) => (r: Row) => {
+  //
+  // A tab's own `×` and `≡` are drawn the way a terminal's are, and the
+  // argument is that file's (`bottomTabs`, `view/foot.ts`): always there, so
+  // the room is paid for once rather than taken out from under the hand
+  // sweeping along the row, and the tab stays lit while the pointer is on
+  // either of them, so reaching for a close is never leaving the tab.
+  const left = (fits: Pick<Fits, 'tabs' | 'manage'>) => (r: Row) => {
     r.space().mark('TADE').space(2)
-    for (const project of open)
-      r.tab(
-        tabLabel(project, standings.get(project), tabs, now),
-        { kind: 'project', project },
-        project === state.project,
-      )
+    for (const project of open) {
+      const target: Target = { kind: 'project', project }
+      const menu: Target = { kind: 'menu', subject: { kind: 'project', project } }
+      const close: Target = { kind: 'action', name: `close-project:${project}` }
+      const label = tabLabel(shownProject(state, project), standings.get(project), fits.tabs, now)
+      const within = fits.manage && pointingIn(state.hover, [target, menu, close])
+      r.tab(label, target, project === state.project, within)
+      if (fits.manage) r.icon('×', close, 'danger').icon('≡', menu)
+    }
     r.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
   }
-  // Four widths at most, and the ladder asks for them ten times.
-  const measured: Partial<Record<TabDetail, number>> = {}
-  const leftWidth = (tabs: TabDetail): number => {
-    const already = measured[tabs]
+  // Six widths at most, and the ladder asks for them thirteen times.
+  const measured = new Map<string, number>()
+  const leftWidth = (fits: Pick<Fits, 'tabs' | 'manage'>): number => {
+    const key = `${fits.tabs}\u0000${fits.manage}`
+    const already = measured.get(key)
     if (already !== undefined) return already
     const probe = new Row(width, skin)
-    left(tabs)(probe)
-    measured[tabs] = probe.used
+    left(fits)(probe)
+    measured.set(key, probe.used)
     return probe.used
   }
 
@@ -376,10 +400,10 @@ export function renderTop(
     LADDER.find((show) => {
       const probe = new Row(width, skin)
       right(show)(probe)
-      return leftWidth(show.tabs) + 1 + probe.used <= width
+      return leftWidth(show) + 1 + probe.used <= width
     }) ?? LAST
   const row = new Row(width, skin, pointer)
-  left(fits.tabs)(row)
+  left(fits)(row)
   row.right(right(fits))
   return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
 }

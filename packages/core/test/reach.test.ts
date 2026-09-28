@@ -256,6 +256,30 @@ describe('whether the person themselves named it', () => {
     expect(namedBy(setting, ['how are the agents getting on?'])).toBeNull()
   })
 
+  it('never counts a project’s own name inside that project, for the same reason', () => {
+    // A project is a section like `agents` is. Its budget is titled after it
+    // and its workspace carries it as a keyword, so before this rule "how is
+    // the app project getting on?" named every setting the project has — and
+    // what the orchestrator does with a setting it has been named is change
+    // it. What is left is the half that says which setting.
+    const budget = { path: 'projects.app.budget.usd_per_day', title: 'app' }
+    expect(wordsFor(budget)).not.toContain('app')
+    expect(namedBy(budget, ['how is the app project getting on?'])).toBeNull()
+    expect(namedBy(budget, ['give the app project a budget of 20 dollars a day'])).not.toBeNull()
+    const workspace = {
+      path: 'projects.app.workspace',
+      title: 'app — where agents work',
+      keywords: ['app', 'workspace', 'worktree', 'checkout'],
+    }
+    expect(wordsFor(workspace)).not.toContain('app')
+    expect(namedBy(workspace, ['what is the app doing?'])).toBeNull()
+    expect(namedBy(workspace, ['give app a worktree each'])).not.toBeNull()
+    // The dotted path itself always counts, which is what keeps this usable
+    // for a thing whose whole path is its name: closing a project is checked
+    // that way, against the project's own name and nothing else.
+    expect(namedBy({ path: 'app', title: 'app' }, ['close the app project'])).not.toBeNull()
+  })
+
   it('is empty-handed with nothing to look at', () => {
     expect(namedBy(setting, [])).toBeNull()
   })

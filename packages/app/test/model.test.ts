@@ -22,6 +22,7 @@ import {
   laneShown,
   leaveLine,
   markOf,
+  moveProject,
   noteTyping,
   onEvent,
   openLine,
@@ -38,6 +39,7 @@ import {
   selectProject,
   setDictation,
   setListening,
+  shownProject,
   showOrchestrator,
   showPlan,
   showTerminal,
@@ -50,6 +52,7 @@ import {
   toggleDone,
   toggleSection,
   whichProject,
+  withProjectOrder,
   withProjects,
   withTasks,
   withTerminals,
@@ -434,6 +437,35 @@ describe('which project you are in', () => {
     // task in it gets made. The order is yours: the tabs follow the config.
     const known = withProjects(state(), ['search', 'infra', 'checkout'])
     expect(projects(known)).toEqual(['search', 'infra', 'checkout'])
+  })
+
+  it('puts a tab where it was moved to, and leaves the rest where the config had them', () => {
+    const known = withProjects(state(), ['search', 'infra', 'checkout'])
+    const move = (from: AppState, name: string, by: -1 | 1) =>
+      projects(withProjectOrder(from, moveProject(from, name, by)))
+    // One moved, and the two nobody touched keep the order the config gave
+    // them — a preference nobody expressed is never written over one they did.
+    expect(move(known, 'checkout', -1)).toEqual(['search', 'checkout', 'infra'])
+    // Off either end is the order unchanged, never a wrap: a tab that jumped
+    // to the far side of a row is one nobody finds with the hand that moved it.
+    expect(move(known, 'search', -1)).toEqual(['search', 'infra', 'checkout'])
+    expect(move(known, 'checkout', 1)).toEqual(['search', 'infra', 'checkout'])
+    // A project in the remembered row that has since been closed — no config
+    // entry, nothing of its left — is not a tab. Its place is kept in the file
+    // rather than here, so opening it again puts it back where it was.
+    const left = withProjects(initialState(), ['search', 'infra'])
+    expect(projects(withProjectOrder(left, ['checkout', 'infra']))).toEqual(['infra', 'search'])
+  })
+
+  it('calls a project what it was named, and is the only place that does', () => {
+    const named = withProjects(state(), ['checkout', 'search'], { checkout: 'Payments' })
+    expect(shownProject(named, 'checkout')).toBe('Payments')
+    expect(shownProject(named, 'search')).toBe('search')
+    // Everything else goes on using the name — the ids are untouched, which is
+    // what makes a rename safe to offer.
+    expect(projects(named)).toEqual(['checkout', 'search'])
+    const ids = tasksOf(named).map((one) => one.task)
+    expect(ids).toEqual(['checkout/stripe-v15', 'checkout/refunds'])
   })
 
   it('shows only the tasks of that project down the side', () => {

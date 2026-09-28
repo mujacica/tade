@@ -70,6 +70,8 @@ function subjectOf(target: Target): MenuSubject | null {
       return { kind: 'change', task: target.task, path: target.path }
     case 'branch':
       return { kind: 'branch' }
+    case 'project':
+      return { kind: 'project', project: target.project }
     case 'menu':
       return target.subject
     case 'bottom-tab':

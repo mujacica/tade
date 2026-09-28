@@ -1,4 +1,4 @@
-   T A D E      checkout ! ✕ ⠋2 ◌3 ‖      +            ! 1  ⠋ 2      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout ! ✕ ⠋2 ◌3 ‖   ×  ≡     +      ! 1  ⠋ 2      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  3            +    █│ checkout › New Sentry err…  ◎ every hour              Run now     ‖ Pause     ≡     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────

@@ -255,6 +255,18 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             if (!settings) throw opening()
             return settings.closeProject(req)
           },
+          renameProject: async (req) => {
+            if (!settings) throw opening()
+            return settings.renameProject(req)
+          },
+          reorderProjects: async (req) => {
+            if (!settings) throw opening()
+            return settings.reorderProjects(req)
+          },
+          configureProject: async (req) => {
+            if (!settings) throw opening()
+            return settings.configureProject(req)
+          },
         },
         watches: {
           list: async (find) => {

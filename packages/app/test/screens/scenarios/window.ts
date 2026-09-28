@@ -10,7 +10,7 @@ import {
   withTasks,
   withTerminals,
 } from '../../../src/model.ts'
-import { imageMenuItems, menuPanel } from '../../../src/panels/menu/state.ts'
+import { imageMenuItems, menuPanel, projectMenuItems } from '../../../src/panels/menu/state.ts'
 import { findPanel, keysPanel, notePanel } from '../../../src/panels/small/state.ts'
 import {
   emptyTranscript,
@@ -499,6 +499,23 @@ export const WINDOW_SCREENS: Scenario[] = [
       'The figures at the right are everybody’s, and say so.',
     state: focusTask(inFourProjects(), 'checkout/refunds'),
     frame: frame({ width: 160, height: 34 }),
+  },
+  {
+    name: 'a-projects-menu',
+    about:
+      "A project's own menu, opened from the `≡` on its tab: what it is called here, where its " +
+      'tab sits, its settings, and closing it — which takes it out of the config and deletes ' +
+      'nothing. Moving left is off because this is the first tab, and closing says what is ' +
+      'still running in it.',
+    state: {
+      ...focusTask(inFourProjects(), 'checkout/refunds'),
+      panel: menuPanel({ kind: 'project', project: 'checkout' }, 'checkout', { row: 1, col: 14 }),
+    },
+    frame: frame({
+      width: 160,
+      height: 34,
+      panel: { items: projectMenuItems({ running: 1, first: true, last: false }) },
+    }),
   },
   {
     name: 'projects-in-a-narrow-window',

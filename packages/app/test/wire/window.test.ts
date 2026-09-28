@@ -1,8 +1,9 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { ConfigSchema } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
-import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 // What the window keeps of itself across a close — the pane you were
@@ -13,10 +14,12 @@ describe('the window, remembering itself', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let home: string
+  let repo: { root: string }
   const { start, newTerminal, click, find, sidebar, headingRow } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     home = wired.home
+    repo = wired.repo
   })
 
   it('names its own window after what is happening', async () => {
@@ -180,6 +183,57 @@ describe('the window, remembering itself', () => {
     await start()
     await until('the window again', () => sidebar().includes('refunds'))
     await until('next still showing', () => sidebar().includes('<next>'))
+  }, 60_000)
+
+  it('keeps the project tabs in the order you moved them into', async () => {
+    terminal.columns = 200
+    terminal.rows = 40
+    // Two projects, so there is a row to arrange at all. The second is its own
+    // repository: a project is somewhere agents work, and two names pointed at
+    // one checkout is not a case Tade has.
+    const second = mkrepo()
+    const config = ConfigSchema.parse({
+      projects: { app: { root: repo.root }, infra: { root: second.root } },
+    })
+    const first = await start({ config })
+    await until('the tabs', () => screenOf(terminal.written)[0]?.includes('infra') === true)
+    const tabs = () => screenOf(terminal.written)[0] ?? ''
+    expect(tabs().indexOf('app')).toBeLessThan(tabs().indexOf('infra'))
+
+    // Moved from the tab's own menu, opened from the `≡` beside it — the same
+    // two buttons a terminal's tab has, in the same place.
+    const row = tabs()
+    const menu = row.indexOf('≡', row.indexOf('infra'))
+    expect(row.indexOf('×', row.indexOf('infra'))).toBeGreaterThan(0)
+    expect(menu).toBeGreaterThan(0)
+    click(menu, 0)
+    await until('the menu', () => terminal.written.includes('Move left'))
+    const move = find('Move left')
+    click(move.col, move.row)
+    await until('the tab moved', () => tabs().indexOf('infra') < tabs().indexOf('app'))
+    await first.stop()
+
+    // Written down on the way out — and on the move itself, since a window
+    // that is killed rather than closed would otherwise forget it every time.
+    const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
+    expect(kept.projectOrder).toEqual(['infra', 'app'])
+
+    // Opened again, same home: the row is as it was left, not as the config
+    // lists it.
+    terminal = newTerminal()
+    terminal.columns = 200
+    terminal.rows = 40
+    await start({ config })
+    await until('the window again', () => (screenOf(terminal.written)[0] ?? '').includes('infra'))
+    const back = screenOf(terminal.written)[0] ?? ''
+    expect(back.indexOf('infra')).toBeLessThan(back.indexOf('app'))
+
+    // And the `×` beside it closes that project — out of the config, and not
+    // a byte of the repository touched, which is what makes it the reversible
+    // act and `rm -rf` somebody else's.
+    click(back.indexOf('×', back.indexOf('infra')), 0)
+    await until('the tab gone', () => !(screenOf(terminal.written)[0] ?? '').includes('infra'))
+    expect(statSync(join(second.root, '.git')).isDirectory()).toBe(true)
   }, 60_000)
 
   it('keeps the SMART QUEUE open once you open it, with nothing in it to open it for', async () => {

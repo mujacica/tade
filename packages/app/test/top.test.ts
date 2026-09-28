@@ -128,7 +128,9 @@ describe('the project tabs', () => {
 
   it('says nothing about a project nothing has been asked of', () => {
     const text = strip(world([working]))
-    expect(text).toMatch(/infra\s+\+/)
+    // Its own buttons after it and then the `+`, and nothing between the name
+    // and them: no mark, no count, no tick.
+    expect(text).toMatch(/infra\s+×\s+≡\s+\+/)
   })
 
   it('counts where a count is a number you could not have guessed', () => {

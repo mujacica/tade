@@ -191,6 +191,18 @@ async function ask(
         asked.config.push({ method: 'closeProject', ...req })
         return `closed ${req.project}`
       },
+      renameProject: async (req) => {
+        asked.config.push({ method: 'renameProject', ...req })
+        return `${req.project} shows as ${req.name}`
+      },
+      reorderProjects: async (req) => {
+        asked.config.push({ method: 'reorderProjects', order: [...req.order] })
+        return `the tabs are now ${req.order.join(', ')}`
+      },
+      configureProject: async (req) => {
+        asked.config.push({ method: 'configureProject', ...req })
+        return `${req.project}.${req.setting} is now ${req.value}`
+      },
     },
   })
   const orchestrator = await Orchestrator.start({

@@ -134,9 +134,13 @@ export class Window implements Subject {
     return join(this.wire.opts.home, 'window.json')
   }
 
-  /** What was written down last time, read once as the window opens. */
-  recall(): RememberedWindow | null {
-    this.kept = this.read()
+  /**
+   * What was written down last time, read once as the window opens — and a
+   * window that has never been opened reads as "no preferences", which is
+   * exactly right and is what every caller wants rather than a null.
+   */
+  recall(): RememberedWindow {
+    this.kept = this.read() ?? { focused: null }
     return this.kept
   }
 
@@ -178,6 +182,12 @@ export class Window implements Subject {
           : { folded: this.wire.state.folded }),
         ...(this.wire.state.opened.length > 0 ? { opened: this.wire.state.opened } : {}),
         ...(Object.keys(this.wire.state.order).length > 0 ? { order: this.wire.state.order } : {}),
+        // Empty is a row nobody has arranged, which is the config's order and
+        // not a choice — written down it would freeze today's list the way
+        // writing `FOLDED_AT_START` down would.
+        ...(this.wire.state.projectOrder.length > 0
+          ? { projectOrder: this.wire.state.projectOrder }
+          : {}),
         ...(Object.keys(spots).length > 0 ? { spots } : {}),
         ...(Object.keys(queueViews).length > 0 ? { queueViews } : {}),
       }

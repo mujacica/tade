@@ -218,7 +218,7 @@ export class Settings implements Subject {
   tools(): SettingTools {
     return {
       settings: async (find) => this.listed(find),
-      change: async (req) => this.asked(req),
+      change: async (req) => this.change(req),
     }
   }
 
@@ -286,7 +286,7 @@ export class Settings implements Subject {
    * become one. A page can tell a model to turn the checks off. It cannot put
    * "turn the checks off" in somebody's mouth.
    */
-  private async asked(req: { path: string; value: string; said: string }): Promise<string> {
+  async change(req: { path: string; value: string; said: string }): Promise<string> {
     const path = req.path.trim()
     const setting = this.rows()
       .flatMap((group) => group.settings)
@@ -323,9 +323,9 @@ export class Settings implements Subject {
     return configPathOf(this.wire.opts)
   }
 
-  /** Open the Settings page, on a category. */
-  async open(category = 'agents'): Promise<string> {
-    this.wire.put({ ...this.wire.state, panel: settingsPanel(category) })
+  /** Open the Settings page, on a category — or on everything matching `search`. */
+  async open(category = 'agents', search = ''): Promise<string> {
+    this.wire.put({ ...this.wire.state, panel: settingsPanel(category, search) })
     this.wire.draw()
     // Asked each time the page opens: a sign-in made in another terminal counts.
     this.deps.loadAccounts()
@@ -417,7 +417,7 @@ export class Settings implements Subject {
    * the page puts it on the field, and a tool hands it to whoever asked. A
    * config that would not load is put back exactly as it was first.
    */
-  private async write(
+  async write(
     path: string,
     value: string,
     by: 'window' | 'orchestrator' = 'window',

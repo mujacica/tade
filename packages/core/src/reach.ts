@@ -125,8 +125,20 @@ const NEVER: readonly (readonly [string, string])[] = [
  * A route is the same shape: its model, how hard it thinks and which harness
  * it opens are ordinary settings, and `provider` is the one left that a
  * sentence I read must not reach, because it is where the work is sent.
+ *
+ * **`title` is `asked` and deliberately not `open`**, which is the one here
+ * somebody will argue about, because a display name moves nothing: the id
+ * stays, every task id stays, every trailer stays, and the worst a bad one
+ * does is sit on a tab. That is exactly the shape `open` is for, and it is
+ * still wrong — because what a tab says is how somebody knows *which project
+ * they are in*. A label is the one cosmetic thing that is read as a fact:
+ * `payments` written over the `docs` tab is somebody approving work in the
+ * wrong repository, and it is a sentence a page would like obeyed for that
+ * reason. So it takes the person's own words, like every other ordinary
+ * setting, and the confusion has to be asked for out loud.
  */
 const ALLOWED_UNDER: readonly RegExp[] = [
+  /^projects\.[a-z0-9-]+\.title$/,
   /^projects\.[a-z0-9-]+\.brief$/,
   /^projects\.[a-z0-9-]+\.budget\./,
   /^projects\.[a-z0-9-]+\.checks\./,
@@ -203,6 +215,35 @@ export const WATCH_REACH: Reaches = {
 }
 
 /**
+ * How far the orchestrator reaches into the order the project tabs are in.
+ *
+ * The second thing decided here that is not a config key — the order is one
+ * person's view on one machine, in `window.json` beside the sizes they dragged
+ * the dividers to — and it is here for the same reason a watch is: the
+ * question is the same question, and answering it where the tools live is how
+ * two answers to it come to exist.
+ *
+ * `open`, which is the tier almost nothing is in, and the argument is the one
+ * `OPEN` already makes for the sidebar's width and the strip's height: the
+ * worst case is a cosmetic annoyance the person is looking at and can undo in
+ * one sentence. Moving a tab widens nothing an agent may do, hands nobody
+ * tools or a credential, changes who is asked about nothing, and moves nowhere
+ * Tade sends anything — the four things an injected sentence wants.
+ *
+ * **And it is `open` where a rename is `asked`, which is the line worth
+ * seeing.** Both are "only what is on screen". The difference is that a rename
+ * changes what a tab *says*, and what a tab says is how somebody knows which
+ * project they are in; moving one changes only where it is, and the tab still
+ * says what it always said. Nothing is misread by being second rather than
+ * first — the worst an injected page buys itself is a tab somewhere the person
+ * did not put it, in a window they are looking at.
+ */
+export const PROJECT_ORDER_REACH: Reaches = {
+  reach: 'open',
+  because: 'the order the tabs are in is a view, on one machine, undone by moving one back',
+}
+
+/**
  * The words that identify one watch: what a person would have to say for a
  * line of theirs to be about it.
  *
@@ -239,6 +280,18 @@ export function watchNamedBy(
  * somebody asking for the commit rule to be changed. That is not hypothetical
  * — it is what the first run of this rule's own test did.
  *
+ * **And a project's name never counts inside that project**, for exactly the
+ * same reason and with exactly the same evidence. `projects.app.budget.…` is
+ * titled `app` and `projects.app.workspace` carries `app` as a keyword, so
+ * every one of a project's settings was named by any sentence with the
+ * project's name in it — "how is the app project getting on?" authorised
+ * changing what it may spend a day. A project is a section like `agents` is,
+ * so its name is dropped wherever it appears as a word of its own, and what is
+ * left is the half that says *which* setting: `app budget`, `app brief`,
+ * `workspace`, `checks`. The dotted path itself always counts, however, which
+ * is what keeps `namedBy` usable for a thing whose whole path is its name —
+ * closing a project is checked that way.
+ *
  * The title always counts however short it is: it is the name the setting
  * actually has, and somebody who says it has named it. Which is also the shape
  * of the ordinary conversation here — the orchestrator says the setting back
@@ -252,13 +305,18 @@ export function watchNamedBy(
  * only change when Tade runs checks unasked, or what it times.
  */
 export function wordsFor(setting: Pick<Setting, 'path' | 'title' | 'keywords'>): string[] {
-  const segments = setting.path
-    .split('.')
-    .slice(1)
-    .filter((part) => part.length >= 5)
-  return [setting.path, setting.title, ...(setting.keywords ?? []), ...segments]
+  const parts = setting.path.split('.')
+  const section = parts[0] ?? ''
+  const sections = new Set(
+    [section, section === 'projects' ? (parts[1] ?? '') : '']
+      .filter((part) => part !== '')
+      .map((part) => part.toLowerCase()),
+  )
+  const segments = parts.slice(1).filter((part) => part.length >= 5)
+  const rest = [setting.title, ...(setting.keywords ?? []), ...segments]
     .map((word) => word.trim().toLowerCase())
-    .filter((word) => word !== '')
+    .filter((word) => word !== '' && !sections.has(word))
+  return [setting.path.trim().toLowerCase(), ...rest]
 }
 
 /** Whether `phrase` appears in `line` on its own, rather than inside a longer word. */

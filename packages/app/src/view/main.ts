@@ -9,6 +9,7 @@ import {
   offsetOf,
   showingActions,
   shownName,
+  shownProject,
 } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
@@ -155,7 +156,7 @@ export function renderMain(
   const forTitle = Math.max(8, width - 3 - measure(tabs) - least)
   // Short of room the project gives way before the agent's own name does:
   // which agent you are looking at is the one thing this line has to say.
-  const full = `${pane.project} › ${shownName(pane)}`
+  const full = `${shownProject(state, pane.project)} › ${shownName(pane)}`
   const title = visibleWidth(full) <= forTitle ? full : shownName(pane)
   header.text(shortened(title, forTitle), skin.you).space(2)
   tabs(header)

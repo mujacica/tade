@@ -8,6 +8,7 @@ import {
   type ThinkingLevel,
 } from './config.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
+import { projectGroups } from './settings-projects.ts'
 import { KEEP_AWAKE_MEANS } from './sleep.ts'
 
 // The settings a person actually changes, and what each one means.
@@ -143,7 +144,6 @@ export function settingsOf(
   const agentHarness = route?.harness ?? 'pi'
   const thinkerHarness = config.orchestrator.harness
   const thinksAt = (harness: string): readonly ThinkingLevel[] => levels[harness] ?? THINKING_LEVELS
-  const projects = Object.entries(config.projects)
   // The Sentry extension's own settings, shown beside the reporting ones:
   // where Tade sends its trouble and where it reads it back are one decision,
   // and looking for “Sentry” should not end in two different panels.
@@ -525,115 +525,7 @@ export function settingsOf(
         },
       ],
     },
-    {
-      id: 'projects',
-      title: 'Projects',
-      about: 'The repositories Tade can start work in.',
-      settings: projects.flatMap(([name, project]) => [
-        {
-          path: `projects.${name}.root`,
-          title: name,
-          means: 'where the repository is',
-          value: project.root,
-          fallback: '',
-          type: { kind: 'text', placeholder: '~/src/app' } as const,
-          live: false,
-        },
-        {
-          path: `projects.${name}.brief`,
-          title: `${name} brief`,
-          means: 'one line the orchestrator is told about this project',
-          value: project.brief ?? '',
-          fallback: 'none',
-          type: { kind: 'text', placeholder: 'Payments. Stripe, Postgres, Node.' } as const,
-          live: false,
-        },
-        {
-          // Empty follows the Agents setting: two projects on one machine want
-          // different answers — agents side by side where work is sequential,
-          // a worktree each where two efforts are unrelated — and tasks that
-          // already exist keep the answer they were made with.
-          path: `projects.${name}.workspace`,
-          title: `${name} — where agents work`,
-          means: `checkout: all of ${name}'s agents in its own checkout at once; worktree: one each`,
-          value: project.workspace ?? '',
-          fallback: config.agents.workspace,
-          type: { kind: 'choice', options: ['', ...AGENT_WORKSPACES] } as const,
-          live: true,
-          keywords: [name, 'workspace', 'worktree', 'checkout'],
-        },
-      ]),
-    },
-    {
-      // The schema has always allowed `projects.<name>.checks`, and `checksFor`
-      // has always read it; until this group there was no way to set one, which
-      // made it a key that read like a promise Tade did not keep.
-      id: 'project-checks',
-      title: 'Checks per project',
-      about:
-        "One project's own answer to the Checks rules. Left empty it follows the rule above; what a project actually checks is read from its own workflows and commit hook, which Settings does not hold because they live in the repository.",
-      settings: projects.flatMap(([name, project]) => [
-        {
-          path: `projects.${name}.checks.before`,
-          title: `${name} — needed before`,
-          means: `when Tade runs ${name}'s checks unasked, whatever the rule above says; holding a push still needs approvals.mode policy`,
-          value: project.checks?.before ?? '',
-          fallback: config.checks.before,
-          type: { kind: 'choice', options: ['', 'off', 'commit', 'push', 'commit and push'] },
-          live: true,
-          keywords: [name, 'checks', 'gate', 'push'],
-        },
-        {
-          path: `projects.${name}.checks.on_red`,
-          title: `${name} — when one is red`,
-          means: `what a failed required check does in ${name}`,
-          value: project.checks?.on_red ?? '',
-          fallback: config.checks.on_red,
-          type: { kind: 'choice', options: ['', 'hold', 'tell', 'note'] },
-          live: true,
-          keywords: [name, 'checks', 'red', 'fail'],
-        },
-        {
-          path: `projects.${name}.checks.parallel`,
-          title: `${name} — at once`,
-          means: `how many of ${name}'s checks may run at once here`,
-          value: project.checks?.parallel === undefined ? '' : String(project.checks.parallel),
-          fallback: String(config.checks.parallel),
-          type: { kind: 'number' } as const,
-          live: true,
-          keywords: [name, 'checks', 'parallel'],
-        },
-        // One row per check somebody has answered about on the ACTIONS page —
-        // and only those, because a check id is only knowable by reading the
-        // repository and this function reads nothing. So this is where an
-        // override is seen, searched for and undone; making a new one is the
-        // page's, where the checks actually are.
-        ...Object.entries(project.checks?.run_here ?? {}).map(([id, runs]) => ({
-          path: `projects.${name}.checks.run_here.${id}`,
-          title: `${name} — run ${id} here`,
-          means: `whether Tade runs ${name}'s ${id} check on this machine, over what its own CI and commit hook say`,
-          value: String(runs),
-          fallback: 'what the project says',
-          type: { kind: 'flag' } as const,
-          live: true,
-          keywords: [name, 'checks', id, 'here', 'run'],
-        })),
-      ]),
-    },
-    {
-      id: 'budgets',
-      title: 'Budgets',
-      about: 'How much each project may spend a day before new agents are refused.',
-      settings: projects.map(([name, project]) => ({
-        path: `projects.${name}.budget.usd_per_day`,
-        title: name,
-        means: 'dollars a day; agents are warned at 80% and refused past it',
-        value: project.budget?.usd_per_day === undefined ? '' : String(project.budget.usd_per_day),
-        fallback: 'no budget',
-        type: { kind: 'number' } as const,
-        live: false,
-      })),
-    },
+    ...projectGroups(config),
     {
       id: 'journal',
       title: 'Journal',

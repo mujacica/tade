@@ -98,6 +98,20 @@ describe('asRemembered', () => {
     ).toEqual({ focused: null, order: { app: ['app/b', 'app/a'] } })
   })
 
+  it('reads back the order the project tabs were moved into, and keeps one that is closed', () => {
+    // A project in the row that the config no longer has is not dropped here:
+    // it may be opened again this afternoon, and a place thrown away on the
+    // way in is one nobody can get back. `projects` is what leaves it out of
+    // the tabs while it is gone.
+    expect(asRemembered({ focused: null, projectOrder: ['infra', 7, 'app'] })).toEqual({
+      focused: null,
+      projectOrder: ['infra', 'app'],
+    })
+    // A row nobody arranged is not written down, so nothing is read back.
+    expect(asRemembered({ focused: null, projectOrder: [] })).toEqual({ focused: null })
+    expect(asRemembered({ focused: null, projectOrder: 'app' })).toEqual({ focused: null })
+  })
+
   it('reads back where you were standing in each project, and skips what is not one', () => {
     expect(
       asRemembered({

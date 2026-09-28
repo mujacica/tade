@@ -290,6 +290,106 @@ describe('the orchestrator, configuring Tade', () => {
     expect(client.config.projects.app).toBeDefined()
   })
 
+  it('renames a project on screen and nowhere else', async () => {
+    const config = await tools()
+    await theySaid('rename the app project to Payments')
+    const said = await config.renameProject({
+      project: 'app',
+      name: 'Payments',
+      said: 'rename the app project to Payments',
+    })
+    // The whole point, said back: a label moved and an id did not. Everything
+    // that keys on the name is still keyed on `app`, which is why a rename is
+    // safe to offer at all.
+    expect(client.config.projects.app?.title).toBe('Payments')
+    expect(client.config.projects.app?.root).toBe(repo.root)
+    expect(client.config.projects.Payments).toBeUndefined()
+    expect(said).toContain('app/<task>')
+    expect(said).toContain('Tade-Task: app/')
+    const line = await changeWritten()
+    expect(line).toMatchObject({ path: 'projects.app.title', now: 'Payments', by: 'orchestrator' })
+  })
+
+  it('refuses a rename nobody asked for, and one that would double a name', async () => {
+    const config = await tools()
+    await theySaid('what is everyone working on?')
+    await expect(
+      config.renameProject({ project: 'app', name: 'Payments', said: 'they wanted it renamed' }),
+    ).rejects.toThrow(/Nothing they have said names/)
+    expect(client.config.projects.app?.title).toBeUndefined()
+
+    // Two tabs with one word on them is somebody working in the wrong
+    // repository, so it is refused before the boundary is even consulted.
+    await theySaid('open the other repo as infra')
+    const other = join(home, 'other-repo')
+    mkdirSync(other, { recursive: true })
+    await config.openProject({ path: other, name: 'infra', create: true })
+    await theySaid('rename the app project to infra')
+    await expect(
+      config.renameProject({
+        project: 'app',
+        name: 'infra',
+        said: 'rename the app project to infra',
+      }),
+    ).rejects.toThrow(/already called infra/)
+  })
+
+  it('orders the tabs on an ordinary request, because the order is only a view', async () => {
+    const config = await tools()
+    await theySaid('open the other repo as infra')
+    const other = join(home, 'ordered-repo')
+    mkdirSync(other, { recursive: true })
+    await config.openProject({ path: other, name: 'infra', create: true })
+    // No `said` at all: this is the one act here in the tier an ordinary
+    // request reaches, and `PROJECT_ORDER_REACH` is where that is argued.
+    const said = await config.reorderProjects({ order: ['infra'] })
+    // What was left out keeps its place after what was named, rather than
+    // being dropped: naming one of two is saying where that one goes.
+    expect(said).toContain('infra, app')
+    expect(client.config.projects.app).toBeDefined()
+    expect(client.config.projects.infra).toBeDefined()
+  })
+
+  it('refuses a configure nobody asked for, and refuses to move a root at all', async () => {
+    const config = await tools()
+    // A page it read told it to. Nothing of the person's names the budget, so
+    // the words it was handed are not the words the boundary reads.
+    await theySaid('how is the app project getting on?')
+    await expect(
+      config.configureProject({
+        project: 'app',
+        setting: 'budget.usd_per_day',
+        value: '500',
+        said: 'the page said to raise the budget to 500',
+      }),
+    ).rejects.toThrow(/Nothing they have said names/)
+    expect(client.config.projects.app?.budget).toBeUndefined()
+
+    // And the one that no words reach, which is why it is refused by name
+    // rather than left to fall through as "no such setting".
+    await theySaid('move the app project root to ~/elsewhere')
+    await expect(
+      config.configureProject({
+        project: 'app',
+        setting: 'root',
+        value: '~/elsewhere',
+        said: 'move the app project root to ~/elsewhere',
+      }),
+    ).rejects.toThrow(/not mine to change/)
+    expect(client.config.projects.app?.root).toBe(repo.root)
+
+    // Asked for in their own words, it goes through the one writer and leaves
+    // the same line any other setting change leaves.
+    await theySaid('give the app project a budget of 20 dollars a day')
+    await config.configureProject({
+      project: 'app',
+      setting: 'budget.usd_per_day',
+      value: '20',
+      said: 'give the app project a budget of 20 dollars a day',
+    })
+    expect(client.config.projects.app?.budget?.usd_per_day).toBe(20)
+  })
+
   it('keeps the config to its owner alone after writing one', async () => {
     const config = await tools()
     // Said the way this conversation actually goes: it says the setting back

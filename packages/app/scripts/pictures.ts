@@ -323,6 +323,14 @@ export const PICTURES: readonly Picture[] = [
       'everybody’s, and say which projects they come from.',
   },
   {
+    file: 'project-menu.svg',
+    scenario: 'a-projects-menu',
+    crop: 'panel',
+    about:
+      "A project's own menu, from the `≡` on its tab: what it is called here, where its tab " +
+      'sits, its settings, and closing it — which takes it out of the config and deletes nothing.',
+  },
+  {
     file: 'projects.svg',
     scenario: 'another-project-needs-you',
     crop: { top: 0, height: 9 },

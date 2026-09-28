@@ -1,4 +1,4 @@
-   T A D E      checkout ⠋ ◌5      +                ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout ⠋ ◌5   ×  ≡     +          ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  1            +    ▕│ checkout › plan  6 tasks · 1 working · 5 waiting to start                               
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────

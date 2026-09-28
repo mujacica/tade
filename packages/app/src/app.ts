@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
-import { DEFAULT_ATTENTION, parseQuietHours } from '@tade/core'
+import { DEFAULT_ATTENTION, parseQuietHours, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -385,7 +385,11 @@ export class App {
       openAgent: () => void this.agents.openAgent(),
     })
     this.projects = new Projects(this.wire, {
-      useConfig: (config) => this.settings.use(config),
+      useConfig: (loaded) => this.settings.use(loaded),
+      changeSetting: (req) => this.settings.change(req),
+      writeSetting: (path, value) => this.settings.write(path, value),
+      openSettings: (page, find) => this.settings.open(page, find),
+      rememberWindow: () => this.window.remember(),
     })
     this.spend = new Spend(this.wire)
     this.subjects = [
@@ -524,28 +528,29 @@ export class App {
   }
 
   private async begin(): Promise<void> {
-    const { sidebarWidth, stripHeight, order, spots, hidingDone, folded, opened, queueViews } =
-      this.window.recall() ?? {}
+    const { sidebarWidth, stripHeight, order, projectOrder, spots, ...view } = this.window.recall()
     this.state = {
       ...this.state,
       sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
       order: order ?? {},
+      projectOrder: projectOrder ?? [],
       // Where you were in each project, so coming back to one tomorrow is the
       // same as coming back to it a second after leaving. Whatever it names
       // may have gone since; `standingIn` is what checks that, at the tab.
       spots: spots ?? {},
       // Here rather than on the first tasks: the view you left is what the
       // first frame draws, never a flash of what you had put away.
-      hidingDone: hidingDone ?? this.state.hidingDone,
-      folded: folded ?? this.state.folded,
-      opened: opened ?? this.state.opened,
-      queueViews: queueViews ?? this.state.queueViews,
+      hidingDone: view.hidingDone ?? this.state.hidingDone,
+      folded: view.folded ?? this.state.folded,
+      opened: view.opened ?? this.state.opened,
+      queueViews: view.queueViews ?? this.state.queueViews,
     }
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.machine.loadAccounts()
     // Every project, before any of them has a task: an empty one is still a
     // tab you can be standing in when you start work.
-    this.state = withProjects(this.state, Object.keys(this.opts.config.projects))
+    const config = this.opts.config
+    this.state = withProjects(this.state, Object.keys(config.projects), titlesOf(config))
     // Held as a local as well as a field: the surface below closes over it, so
     // it never has to wonder whether there is one.
     const live = await Live.start({

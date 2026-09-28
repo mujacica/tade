@@ -424,6 +424,18 @@ describe('changing how Tade is set up', () => {
           asked.push({ close: req })
           return 'Closed payments.'
         },
+        renameProject: async (req) => {
+          asked.push({ rename: req })
+          return 'payments shows as Payments.'
+        },
+        reorderProjects: async (req) => {
+          asked.push({ reorder: req })
+          return 'The tabs are now payments, docs.'
+        },
+        configureProject: async (req) => {
+          asked.push({ configure: req })
+          return 'Saved.'
+        },
       },
     })
     expect((await call(path, 'config/settings', { find: 'commit' })).result).toContain(

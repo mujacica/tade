@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
 import { cap, sideWidth } from '../src/panels/cells.ts'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
-import { type SettingsPanel, settingsPanel } from '../src/panels/settings/state.ts'
+import { type SettingsPanel, settingsPanel, visibleSettings } from '../src/panels/settings/state.ts'
 import { formLayout } from '../src/panels/settings/view.ts'
 import { COLOUR } from '../src/skin.ts'
 import type { Drawn } from '../src/ui.ts'
@@ -215,6 +215,30 @@ const readAcross = (rows: readonly string[], value: string): string => {
 
 /** The widths worth trying: from a terminal nobody should use to a wide one. */
 const WIDTHS = [40, 48, 56, 64, 72, 80, 96, 104, 120, 160]
+
+describe('Settings, opened for one project', () => {
+  it('shows that project’s settings, wherever each of them is grouped', () => {
+    // What Configure on a project's tab does: the same rows, in the same
+    // place, written by the same writer. A third page that configured a
+    // project would be a third answer to what a project's settings are.
+    const groups = settingsOf(config)
+    const shown = visibleSettings(settingsPanel('projects', 'checkout'), groups).map(
+      (setting) => setting.path,
+    )
+    expect(shown).toEqual(
+      expect.arrayContaining([
+        'projects.checkout.root',
+        'projects.checkout.title',
+        'projects.checkout.brief',
+        'projects.checkout.workspace',
+        'projects.checkout.checks.before',
+        'projects.checkout.budget.usd_per_day',
+      ]),
+    )
+    // And only that project's: the row beside it is somebody else's budget.
+    expect(shown).not.toContain('projects.search.budget.usd_per_day')
+  })
+})
 
 describe('the settings form at any width', () => {
   it('draws a box of one width, whatever the terminal is', () => {

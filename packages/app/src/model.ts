@@ -132,6 +132,17 @@ export interface AppState {
    * where the first task in it gets made.
    */
   known: string[]
+  /**
+   * What each project is called on screen, where that is not its name: the
+   * whole of what a rename is, since its id is still its name everywhere else.
+   */
+  titles: Record<string, string>
+  /**
+   * The tabs along the top, in the order they were moved into — the shape
+   * `order` has for the agents, written down beside it: where a tab sits is a
+   * view, not a decision about work.
+   */
+  projectOrder: string[]
   /** The project whose tasks are down the side. */
   project: string | null
   /** Task id of the focused pane, or null when only the orchestrator is up. */
@@ -321,6 +332,8 @@ export function initialState(): AppState {
   return {
     panes: [],
     known: [],
+    titles: {},
+    projectOrder: [],
     project: null,
     focused: null,
     transcript: emptyTranscript(),
@@ -436,21 +449,61 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
   return { ...next, spots: whereYouWere(next) }
 }
 
-/** The projects from the config, which is the only place empty ones exist. */
-export function withProjects(state: AppState, names: readonly string[]): AppState {
+/** The projects from the config — the only place empty ones exist — and their names there. */
+export function withProjects(
+  state: AppState,
+  names: readonly string[],
+  titles: Readonly<Record<string, string>> = {},
+): AppState {
   const known = [...names]
-  return { ...state, known, project: state.project ?? known[0] ?? null }
+  return { ...state, known, titles: { ...titles }, project: state.project ?? known[0] ?? null }
+}
+
+/** The tabs in the order they were moved into (`moveProject`). */
+export function withProjectOrder(state: AppState, order: readonly string[]): AppState {
+  return { ...state, projectOrder: [...order] }
 }
 
 /**
- * Every project, in the order your config lists them — the tabs are yours to
- * arrange — then any a task belongs to that the config does not name.
+ * Every project: the ones you moved where you moved them, then the rest as
+ * your config lists them, then any a task belongs to that it does not name —
+ * the shape `inOrder` gives the agents, for its reason. A project you never
+ * moved keeps the place the config gave it: a preference nobody expressed is
+ * never written over one they did.
  */
 export function projects(state: AppState): string[] {
   const extra = new Set<string>()
   for (const pane of state.panes) if (!state.known.includes(pane.project)) extra.add(pane.project)
-  return [...state.known, ...[...extra].sort((a, b) => a.localeCompare(b))]
+  const rest = [...state.known, ...[...extra].sort((a, b) => a.localeCompare(b))]
+  const put = state.projectOrder.filter((name) => rest.includes(name))
+  return [...put, ...rest.filter((name) => !put.includes(name))]
 }
+
+/**
+ * Where a project would be moved one place that way, as the whole order: a
+ * list half preference and half config is not one anything can be moved
+ * through. Off either end is the order unchanged rather than a wrap — a tab
+ * that jumped to the far side of a row is one nobody finds again.
+ */
+export function moveProject(state: AppState, project: string, by: -1 | 1): string[] {
+  const order = projects(state)
+  const at = order.indexOf(project)
+  const to = at + by
+  if (at < 0 || to < 0 || to >= order.length) return order
+  const moved = order.filter((name) => name !== project)
+  moved.splice(to, 0, project)
+  return moved
+}
+
+/**
+ * What a project is called on screen: the name it was given, or its own name.
+ * One reading wherever a project is drawn as a label, because two would
+ * disagree the moment somebody renamed one — while everywhere it is an *id* (a
+ * task, a trailer, a path, a line of the journal) goes on using the name,
+ * which is what makes a rename safe to offer at all.
+ */
+export const shownProject = (state: { titles: Readonly<Record<string, string>> }, name: string) =>
+  state.titles[name] ?? name
 
 /**
  * Go to a project, and stand where you left it (`standingIn`).

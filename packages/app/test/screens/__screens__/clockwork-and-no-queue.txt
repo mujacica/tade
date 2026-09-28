@@ -1,4 +1,4 @@
-   T A D E      checkout ⠋    search      +                          ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout ⠋   ×  ≡   search   ×  ≡     +              ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  1                                  +    ▕│ bump-ma…    agent    actions     +        claude-opus-5 ▾     ×   
                                                    ▕│───────────────────────────────────────────────────────────────────

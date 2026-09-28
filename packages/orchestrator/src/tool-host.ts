@@ -88,6 +88,14 @@ export interface ToolHostOptions {
     change(req: { path: string; value: string; said: string }): Promise<string>
     openProject(req: { path: string; name?: string; create: boolean }): Promise<string>
     closeProject(req: { project: string; said: string }): Promise<string>
+    renameProject(req: { project: string; name: string; said: string }): Promise<string>
+    reorderProjects(req: { order: readonly string[] }): Promise<string>
+    configureProject(req: {
+      project: string
+      setting: string
+      value: string
+      said: string
+    }): Promise<string>
   }
   /**
    * What Tade is watching for, and turning one watch on or off.
@@ -221,6 +229,24 @@ export class ToolHost {
       'project/close': async (p) =>
         configOf(opts).closeProject({
           project: String(p.project ?? ''),
+          said: String(p.said ?? ''),
+        }),
+      'project/rename': async (p) =>
+        configOf(opts).renameProject({
+          project: String(p.project ?? ''),
+          name: String(p.name ?? ''),
+          said: String(p.said ?? ''),
+        }),
+      'project/reorder': async (p) => {
+        if (!Array.isArray(p.order))
+          throw new Error('order is the projects, first to last: a list of their names')
+        return configOf(opts).reorderProjects({ order: p.order.map((name) => String(name)) })
+      },
+      'project/configure': async (p) =>
+        configOf(opts).configureProject({
+          project: String(p.project ?? ''),
+          setting: String(p.setting ?? ''),
+          value: String(p.value ?? ''),
           said: String(p.said ?? ''),
         }),
       // Where each sign-in stands against its plan. Read from what the
