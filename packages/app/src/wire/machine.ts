@@ -351,7 +351,16 @@ export class Machine implements Subject {
     // while nothing was drawn for an absent credential — and now that an absent
     // one is drawn as "not signed in", an empty answer would tell somebody they
     // are signed out of a provider they are talking through.
-    this.paid = (await this.wire.opts.credentials?.().catch(() => null)) ?? this.paid
+    //
+    // And it is said rather than swallowed. Nothing else in the window notices
+    // this failing: the strip draws what the last good read said, so without a
+    // line in the strip a machine whose keys have become unreadable looks
+    // exactly like one whose keys are fine.
+    const read = await this.wire.opts.credentials?.().catch((err: unknown) => {
+      this.wire.note(err)
+      return null
+    })
+    this.paid = read ?? this.paid
     await this.deps.refreshModels()
     this.wire.draw()
   }

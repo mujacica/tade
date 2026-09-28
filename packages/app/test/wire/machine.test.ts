@@ -226,7 +226,7 @@ describe('who Tade runs as', () => {
     expect(subject.credentialProblem(null)).toBeNull()
   })
 
-  it('keeps what it read when the credentials cannot be read again', async () => {
+  it('keeps what it read when the credentials cannot be read again, and says so', async () => {
     const world = wiring({ credentials: { anthropic: 'signed-in' } })
     const subject = machine(world)
     await subject.loadAccounts()
@@ -240,6 +240,9 @@ describe('who Tade runs as', () => {
     // through, which is the one thing worse than saying nothing.
     expect(subject.credential('anthropic')).toBe('signed in')
     expect(subject.credentialProblem('anthropic')).toBeNull()
+    // And the failure itself reaches the strip in words: nothing else in the
+    // window would notice, since what is drawn is the last good read.
+    expect(world.at().notice).toBe('the keys could not be read')
   })
 
   it('reads the models again after signing in, because signing in changes them', async () => {
