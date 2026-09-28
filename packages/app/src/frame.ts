@@ -1,4 +1,4 @@
-import type { PlanStanding, Runtime } from '@tade/core'
+import type { OnPlan, PlanStanding, Runtime } from '@tade/core'
 import type { LanePointing, LaneScrolling } from '@tade/drivers-core'
 import type { FileEntry } from './files.ts'
 import type { LayoutPrefs } from './layout.ts'
@@ -442,6 +442,21 @@ export interface Spend {
   tokens: number
   usd: number
   hasCost: boolean
+  /**
+   * What the turns a plan paid for would have cost at list price, and not a
+   * bill: a flat fee has no price per turn, so nobody is charged this and it is
+   * in no figure above. The strip draws it marked as the estimate it is — in the
+   * cost slot where there is no bill at all, beside the plan bar where there is
+   * — because it is the figure `ccusage` gives, and without it a subscription's
+   * whole day reads as `—`.
+   */
+  usdOnPlan?: number
+  /**
+   * Whether a rate covered all a plan's turns, some of them, or there were none
+   * — absent, like `runtime`, in a frame assembled by something that is not
+   * asking about money. Nothing to say and nothing on a plan draw the same.
+   */
+  onPlan?: OnPlan
   byTask: Readonly<Record<string, { tokens: number; usd: number }>>
   /** How long the agents have run today, all of them added together. */
   runtime?: Runtime

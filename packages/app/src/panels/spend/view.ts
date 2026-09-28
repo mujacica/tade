@@ -1,5 +1,12 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { duration, type Priced, planPressure, type Runtime, workedOf } from '@tade/core'
+import {
+  duration,
+  type OnPlan,
+  type Priced,
+  planPressure,
+  type Runtime,
+  workedOf,
+} from '@tade/core'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
@@ -92,7 +99,14 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     view && view.tokensUnpriced > 0 && view.usd > 0
       ? `${tokenCount(view.tokensUnpriced)} unpriced`
       : ''
-  const under = [madeOf, runs, unpriced].filter(Boolean).join(' · ')
+  // And what the plan's share of that would have cost at the published rate,
+  // which is the figure people leave for `ccusage` and the reason this line
+  // exists rather than a `—` and nothing else. Beside the tokens no dollar
+  // covers rather than beside the total, because it is not part of the total
+  // and never will be: `at list` is the word that says whose figure it is, and
+  // the mark on it is the one this page already uses for a rate off a page.
+  const onPlan = view ? atList(view) : ''
+  const under = [madeOf, runs, unpriced, onPlan].filter(Boolean).join(' · ')
   head.push(
     under
       ? row()
@@ -204,6 +218,11 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   }
   for (const standing of standings) {
     const drawn: Line[] = []
+    // What its turns in the window above would have cost at list price, on the
+    // sign-in's own first line: a figure of the same kind `ccusage` gives, and
+    // a plan pays a flat fee, so nobody is billed it. It sits in this list and
+    // never in the COST column, because that column is money.
+    const listed = atList(standing)
     if (standing.cannotTell === null) {
       let top = true
       for (const window of standing.windows) {
@@ -231,8 +250,9 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         // the last agent that ran, and a share that has not moved in an hour
         // is an hour-old share rather than one that stopped growing.
         if (top && standing.saidAgo !== null) {
-          line.text(`said ${duration(standing.saidAgo)} ago`, skin.hint)
+          line.text(pad(`said ${duration(standing.saidAgo)} ago`, 16), skin.hint)
         }
+        if (top && listed) line.text(listed, skin.hint)
         drawn.push(line.build())
         top = false
       }
@@ -241,12 +261,18 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
       // show is the fact; *why* — it prices each turn instead, it has not
       // been told yet — is a sentence read once and then read every time the
       // page is opened, and it is still on the harness (`why.limits`).
+      // And the estimate even here: a harness that has not yet said how full
+      // its plan is has still run the turns, and what they would have cost is
+      // answerable when the share is not.
       drawn.push(
         row()
           .space()
           .text(padTo(standing.label, whose))
           .space()
-          .text('cannot tell', skin.hint)
+          // Padded to where the bars' own `said … ago` ends, so a figure on this
+          // row and a figure on one that could tell stand in one column.
+          .text(padTo('cannot tell', 54), skin.hint)
+          .text(listed, skin.hint)
           .build(),
       )
     }
@@ -492,6 +518,22 @@ const MADE_OF: Readonly<Record<Priced, string>> = {
   listed: 'list prices',
   mixed: 'mixed',
   none: '',
+}
+
+/**
+ * What a plan's turns would have cost at the published rate, and the word that
+ * says it is not a bill. Empty where there is nothing to say.
+ *
+ * `at list` is the whole of the explanation, and it is the word `MADE_OF`
+ * already uses for a rate taken off a provider's page — the difference being
+ * that there somebody is billed and here nobody is, which is why this figure
+ * appears only where the page is not money: under the total, beside the plan's
+ * own bars. A floor (`≥`) where some of a plan's turns ran on a model no rate
+ * knows, which is the mark the working column uses for the same reason.
+ */
+function atList(of: { usdOnPlan: number; onPlan: OnPlan }): string {
+  if (of.onPlan === 'none') return ''
+  return `${of.onPlan === 'partly' ? '≥' : ''}${MARK.listed}${money(of.usdOnPlan)} at list`
 }
 
 /**

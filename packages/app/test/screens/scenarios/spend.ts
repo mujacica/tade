@@ -18,7 +18,9 @@ import { base, frame, made, NOW, ran, type Scenario, usage } from './fixtures.ts
  * The subscription's line still carries the dollars an older Tade wrote onto
  * it, because a journal is append-only and every journal has them. They are
  * not money and are in no total: what that agent used up is its plan's
- * windows, in the list below.
+ * windows, in the list below — and what the same tokens would have cost at the
+ * published rate is the figure beside them, which is neither of those two and
+ * is nobody's bill.
  */
 const spent = [
   usage(null, 'openrouter/anthropic/claude-opus-5', 412_000, 0.58, {
@@ -29,6 +31,10 @@ const spent = [
   usage('checkout/stripe-v15', 'claude-opus-5', 880_000, 1.26, {
     harness: 'claude-code',
     priced: 'estimate',
+    // How they divide, which is the whole of what the estimate beside the plan
+    // is made of: at the input rate alone this morning would be a fifth of what
+    // it was, and most of an agent's day is the cheap kind.
+    parts: { input: 80_000, output: 120_000, cacheRead: 680_000 },
   }),
   usage('checkout/refunds', 'anthropic/claude-opus-5', 460_000, 0.62, {
     harness: 'pi',
@@ -108,6 +114,11 @@ const strip = {
   tokens: 2_520_000,
   usd: 1.88,
   hasCost: true,
+  // And what the subscription's share of it would have cost at list price: the
+  // same figure the page works out from the same events, because a strip and a
+  // page disagreeing about one number is the bug both of them prevent.
+  usdOnPlan: 3.74,
+  onPlan: 'listed' as const,
   byTask: {
     'checkout/stripe-v15': { tokens: 880_000, usd: 0 },
     'checkout/refunds': { tokens: 460_000, usd: 0.62 },
@@ -127,6 +138,11 @@ const unpriced = {
   tokens: 2_520_000,
   usd: 0,
   hasCost: false,
+  // Nobody is billed a plan per turn, and the morning still had a list price:
+  // the one dollar figure a subscription's day has, marked as somebody else's
+  // arithmetic and standing in no total.
+  usdOnPlan: 11.4,
+  onPlan: 'listed' as const,
   byTask: {
     'checkout/stripe-v15': { tokens: 880_000, usd: 0 },
     'checkout/refunds': { tokens: 460_000, usd: 0 },
@@ -187,7 +203,8 @@ export const SPEND_SCREENS: Scenario[] = [
       'A morning on a subscription: the tokens and the hours are there and the money is not, so the ' +
       'strip draws \u2014 where the figure goes \u2014 never $0.00, which reads as free, and never the ' +
       'word beside it on its own, which reads as a figure that failed to load. What is left of the ' +
-      'plan is the figure that means anything here.',
+      'plan is the figure that means anything here, beside what the morning would have cost at ' +
+      'list price, which is nobody\u2019s bill.',
     state: base(),
     frame: frame({ spend: unpriced, plan: planStandings(plans, NOW) }),
   },

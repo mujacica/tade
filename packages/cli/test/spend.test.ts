@@ -163,3 +163,47 @@ it('groups what it cost by harness, sign-in and provider, and says which money i
   // worse than one marked incomplete.
   expect(result.stdout).toContain('1k of these tokens nothing here could price')
 }, 30_000)
+
+it('says what a plan’s own turns would have cost, and that nobody is billed it', async () => {
+  const home = tmp('tade-cli-spend-plan-')
+  window = await Workbench.open({ home })
+  // Claude Code on its own sign-in: a subscription, so tokens broken down by
+  // kind and no money at all. Two million input tokens of claude-opus-5 at $5
+  // per million, and a million cache reads at a tenth of that.
+  await window.log.append({
+    type: 'usage',
+    task: 'app/refunds',
+    run: 'app/refunds/agent',
+    detail: {
+      model: 'claude-opus-5',
+      harness: 'claude-code',
+      priced: 'none',
+      input: 2_000_000,
+      output: 0,
+      cacheRead: 1_000_000,
+      cacheWrite: 0,
+      tokens: 3_000_000,
+      usd: 0,
+    },
+  })
+  const result = await new Promise<{ code: number | null; stdout: string }>((resolve) => {
+    const child = spawn(process.execPath, [bin, 'spend'], {
+      env: { ...process.env, TADE_HOME: home, HOME: home },
+    })
+    let stdout = ''
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.on('exit', (code) => resolve({ code, stdout }))
+  })
+  expect(result.code).toBe(0)
+  // The money column is still empty: a plan has no price per turn.
+  expect(result.stdout).toContain('no prices reported')
+  // And the figure beside it, with the day the rates were read off the page,
+  // said plainly as what it is — because somebody asked in full here.
+  expect(result.stdout).toContain(
+    `a plan's own turns would have cost $10.50 at list prices of ${PRICES_TAKEN}`,
+  )
+  expect(result.stdout).toContain('nobody is billed that and no figure above holds it')
+}, 30_000)

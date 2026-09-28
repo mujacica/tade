@@ -1,4 +1,5 @@
 import {
+  accountBucket,
   type Budget,
   type BudgetVerdict,
   type CheckTally,
@@ -6,6 +7,8 @@ import {
   modelIn,
   modelsSaid,
   noSpend,
+  type OnPlan,
+  onPlanOf,
   type PlanSource,
   type Priced,
   type PriceTable,
@@ -44,6 +47,12 @@ import {
 // mark that says so. What is left over — a plan's flat fee, a model no rate
 // knows — is counted in `tokensUnpriced` and said as a figure, because a total
 // that quietly leaves an agent's cost out is worse than one marked incomplete.
+//
+// And what a plan's turns would have cost at that same published rate is its
+// own figure (`usdOnPlan`), in none of the money above: on the total line as a
+// caveat, and beside each sign-in's own plan bar, where somebody looking at a
+// subscription is already looking. Never in the COST column, which is money —
+// a plan's row there is still `—`, because nobody is billed this.
 
 export type SpendWindow = 'today' | 'window' | 'week'
 
@@ -109,6 +118,18 @@ export interface PlanRow {
   saidAgo: number | null
   /** Why there is nothing to show, in the harness's words. Null when there is. */
   cannotTell: string | null
+  /**
+   * What this sign-in's turns in the window the page is showing would have cost
+   * at list price. Nought where nothing ran on it, or where it is billed per
+   * token — there the money columns above have already said what it cost.
+   *
+   * Beside the bar rather than in the table, because this is the one figure a
+   * plan has that looks like money and is not one: here it sits in the list
+   * that is already not money, under a heading that says so.
+   */
+  usdOnPlan: number
+  /** Whether a rate covered all of its turns, or only some. */
+  onPlan: OnPlan
 }
 
 export interface BudgetRow {
@@ -140,6 +161,14 @@ export interface SpendView {
    * worse than one marked incomplete.
    */
   tokensUnpriced: number
+  /**
+   * What the turns a plan paid for would have cost at list price, and not a
+   * bill: nobody is charged it, and it is in none of the figures above. Said on
+   * the line under the total, beside what that total does not cover.
+   */
+  usdOnPlan: number
+  /** Whether a rate covered all of a plan's turns, some of them, or there are none. */
+  onPlan: OnPlan
   /** Whether any price was reported. Subscription providers report none. */
   hasCost: boolean
   /** Every agent's time in this window added up: two running at once count as two. */
@@ -301,11 +330,13 @@ export function spendView(
     usdEstimated: report.total.usdEstimated,
     usdListed: report.total.usdListed,
     tokensUnpriced: report.total.tokensUnpriced,
+    usdOnPlan: report.total.usdOnPlan,
+    onPlan: onPlanOf(report.total),
     priced: pricedOf(report.total),
     hasCost: report.total.hasCost,
     runtime: ran.total,
     rows,
-    plan: planRows(opts.plan ?? [], opts.now),
+    plan: planRows(opts.plan ?? [], opts.now, report),
     budgets,
     produced: made.produced,
     checks: made.checks,
@@ -383,17 +414,30 @@ function signIn(key: string): string {
  * itself is `planStandings`' to decide, and this only turns the moments in it
  * into the lengths of time a person reads.
  */
-function planRows(sources: readonly PlanSource[], now: number): PlanRow[] {
-  return planStandings(sources, now).map((standing) => ({
-    label: planLabel(standing),
-    windows: standing.windows.map((window) => ({
-      label: window.label,
-      used: window.used,
-      resetsIn: resetsIn(window, now),
-    })),
-    saidAgo: standing.at === null ? null : Math.max(0, now - standing.at),
-    cannotTell: standing.cannotTell,
-  }))
+function planRows(sources: readonly PlanSource[], now: number, report: SpendReport): PlanRow[] {
+  return planStandings(sources, now).map((standing) => {
+    // Its own turns, found the way the Spend table finds a sign-in's row: one
+    // spelling for both, so what the bar says and what the table says about the
+    // same sign-in can never be two different agents' work.
+    const bucket = accountBucket({
+      harness: standing.harness,
+      account: standing.account,
+      provider: UNRECORDED,
+    })
+    const spent = report.byAccount[bucket] ?? noSpend()
+    return {
+      label: planLabel(standing),
+      windows: standing.windows.map((window) => ({
+        label: window.label,
+        used: window.used,
+        resetsIn: resetsIn(window, now),
+      })),
+      saidAgo: standing.at === null ? null : Math.max(0, now - standing.at),
+      cannotTell: standing.cannotTell,
+      usdOnPlan: spent.usdOnPlan,
+      onPlan: onPlanOf(spent),
+    }
+  })
 }
 
 /** Every bucket either side knows about, in the order money found them. */

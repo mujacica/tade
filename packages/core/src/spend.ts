@@ -1,5 +1,5 @@
 import type { TadeEvent } from './events.ts'
-import { estimateUsd, type PriceTable, priceFor } from './prices.ts'
+import { estimateUsd, type PriceTable, priceFor, type Tokens } from './prices.ts'
 
 // What the agents have cost, and whether that is more than you meant.
 //
@@ -16,16 +16,26 @@ import { estimateUsd, type PriceTable, priceFor } from './prices.ts'
 // one number — but `pricedOf` is the word every surface says which it is with.
 //
 // A subscription reports tokens and no money at all, and what a harness on one
-// once guessed a turn would have cost is not money either (`isMoney`). Nor is
-// it something to price here: a plan pays a flat fee, so there is no per-token
-// cost to find. That is not zero spend, it is unknown spend, and a dollar
-// budget cannot police it — so a token budget exists too, and `hasCost` says
-// which you are looking at. How much of a bucket's effort no dollar covers is
-// kept beside the money (`tokensUnpriced`), because a bucket holding both
-// reads as a complete figure with one agent's cost missing from it, and every
-// surface that totals money has to be able to say so.
-// What a plan has left is the other thing entirely: `PlanWindow`, its own list,
-// in no total here.
+// once guessed a turn would have cost is not money either (`isMoney`). That is
+// not zero spend, it is unknown spend, and a dollar budget cannot police it —
+// so a token budget exists too, and `hasCost` says which you are looking at.
+//
+// **What a plan's turns would have cost is a fourth figure** (`usdOnPlan`), and
+// it is in none of the three above. A flat fee has no per-token cost, so this
+// is not money and never becomes money: it is what those same tokens would have
+// come to at the published rate — the figure `ccusage` gives, and the one
+// people leave to go and run it for. Kept rather than left out, because the two
+// answer different questions — what did this cost, and what did it use up of
+// the plan — and kept apart, because a counterfactual added to a bill puts $954
+// nobody was charged beside $78 somebody was.
+//
+// How much of a bucket's effort no dollar covers is kept beside the money
+// (`tokensUnpriced`), because a bucket holding both reads as a complete figure
+// with one agent's cost missing from it, and every surface that totals money
+// has to be able to say so. A plan's tokens are in that figure and stay in it:
+// the estimate above is not money, so the money beside them still covers none
+// of them. What a plan has *left* is the other thing entirely: `PlanWindow`,
+// its own list, in no total here.
 //
 // The same dollar is added to several buckets — the project, the task, the
 // model, the harness it ran in, the sign-in it ran as, the provider it was
@@ -131,6 +141,34 @@ export interface Spend {
    */
   usdListed: number
   /**
+   * What the turns a plan paid for would have cost at a published rate, and
+   * **in no money figure here**: not in `usd`, not in any of the three kinds
+   * above, not in `hasCost`, and in no budget.
+   *
+   * A subscription pays a flat fee, so nobody is charged this and it is not a
+   * bill — it is the same arithmetic `ccusage` does, over the same tokens, at
+   * the same list prices (`prices.ts`, dated by `PRICES_TAKEN`). Worth having
+   * because a plan's agents otherwise cost a row of `—` and people go to a
+   * second program for the one number this is; worth keeping out of every
+   * total because the moment it is added it claims somebody owes it.
+   *
+   * What the plan *used up* is the other question entirely, and is answered by
+   * its own windows (`PlanWindow`) — this neither replaces nor explains those.
+   */
+  usdOnPlan: number
+  /**
+   * Of the tokens a plan paid for, those nothing here could put a price on, so
+   * `usdOnPlan` is a floor and is drawn as one (`onPlanOf`).
+   *
+   * Two ways a turn lands here: a model no published rate knows, and a line
+   * written before usage carried its tokens broken down by kind — a total with
+   * no input, output or cache counts in it cannot be priced at four rates, and
+   * a journal is years long. Counted rather than flagged, for the reason
+   * `tokensUnpriced` is: an estimate quietly missing a morning's turns reads
+   * as a complete one.
+   */
+  tokensOnPlanUnrated: number
+  /**
    * Of `tokens`, what no dollar figure here covers.
    *
    * Two ways that happens and one answer to both. A harness whose own sign-in
@@ -159,6 +197,8 @@ export function noSpend(): Spend {
     usdExact: 0,
     usdEstimated: 0,
     usdListed: 0,
+    usdOnPlan: 0,
+    tokensOnPlanUnrated: 0,
     tokensUnpriced: 0,
     hasCost: false,
   }
@@ -176,6 +216,22 @@ export function pricedOf(spend: Spend): Priced {
   if (spend.usdListed > 0) kinds.push('listed')
   if (kinds.length > 1) return 'mixed'
   return kinds[0] ?? 'none'
+}
+
+/**
+ * What a plan's own estimate is worth: nothing to say, a figure off a published
+ * rate, or a floor because some of its turns ran on a model no rate knows.
+ *
+ * The shape `pricedOf` has for money and `workedOf` has for time, for the same
+ * reason — a figure made of some turns that could be priced and some that could
+ * not is a floor, and drawn as a total it is simply wrong.
+ */
+export type OnPlan = 'none' | 'listed' | 'partly'
+
+/** Which of those this bucket's plan estimate is. Never money, whichever it is. */
+export function onPlanOf(spend: Spend): OnPlan {
+  if (spend.usdOnPlan <= 0) return 'none'
+  return spend.tokensOnPlanUnrated > 0 ? 'partly' : 'listed'
 }
 
 export interface Budget {
@@ -467,6 +523,30 @@ interface Charged {
    * `tokensUnpriced` — effort the money figure beside them says nothing about.
    */
   priced: boolean
+  /**
+   * What a plan's turn would have cost at a published rate. Never money, and
+   * never added to `usd`: see `Spend.usdOnPlan`.
+   */
+  onPlan: number
+  /**
+   * Whether nothing could be put on it at all: no rate for the model, or no
+   * tokens broken down by kind to charge at one.
+   */
+  onPlanUnrated: boolean
+}
+
+/** How many tokens of each kind one turn used, as a `usage` event records them. */
+function tokensIn(event: TadeEvent): Tokens {
+  const count = (key: string) => {
+    const value = event.detail[key]
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0
+  }
+  return {
+    input: count('input'),
+    output: count('output'),
+    cacheRead: count('cacheRead'),
+    cacheWrite: count('cacheWrite'),
+  }
 }
 
 /**
@@ -488,13 +568,23 @@ function chargeOf(
     const value = event.detail[key]
     return typeof value === 'number' && Number.isFinite(value) ? value : 0
   }
-  // A subscription pays a flat fee, so its turns are effort and never money.
-  if (!isMoney(facts)) return { usd: 0, kind: null, priced: false }
+  const nothing = { usd: 0, kind: null, onPlan: 0, onPlanUnrated: false } as const
+  // A subscription pays a flat fee, so its turns are effort and never money —
+  // and the money side of this stops here, exactly where it always did. What
+  // those same tokens would have cost at a published rate is still a fact worth
+  // having, and is the one people leave for `ccusage`, so it is worked out and
+  // handed back as its own figure, in no total (`Spend.usdOnPlan`).
+  if (!isMoney(facts)) {
+    const price = priceFor(model, over)
+    const onPlan = price ? estimateUsd(tokensIn(event), price) : 0
+    return { ...nothing, priced: false, onPlan, onPlanUnrated: onPlan <= 0 }
+  }
   const reported = count('usd')
   // Money nobody vouched for counts as guessed, never as priced — so the split
   // reads the word on the event itself and never falls back to the harness.
   if (reported > 0) {
     return {
+      ...nothing,
       usd: reported,
       kind: event.detail.priced === 'exact' ? 'exact' : 'estimate',
       priced: true,
@@ -509,21 +599,13 @@ function chargeOf(
       ? said
       : HARNESS_FACTS[facts.harness]?.usd
   // One that prices and reported nought has priced it at nought.
-  if (declared !== 'none') return { usd: 0, kind: null, priced: true }
+  if (declared !== 'none') return { ...nothing, priced: true }
   // And a model nothing has a rate for stays unknown: an invented price would
   // look exactly like a real one.
   const price = priceFor(model, over)
-  if (!price) return { usd: 0, kind: null, priced: false }
-  const usd = estimateUsd(
-    {
-      input: count('input'),
-      output: count('output'),
-      cacheRead: count('cacheRead'),
-      cacheWrite: count('cacheWrite'),
-    },
-    price,
-  )
-  return { usd, kind: usd > 0 ? 'listed' : null, priced: true }
+  if (!price) return { ...nothing, priced: false }
+  const usd = estimateUsd(tokensIn(event), price)
+  return { ...nothing, usd, kind: usd > 0 ? 'listed' : null, priced: true }
 }
 
 /** The bucket for this key, made on first sight. */
@@ -550,6 +632,12 @@ function add(spend: Spend, event: TadeEvent, charge: Charged): void {
   // kept, because a total that quietly leaves an agent's cost out is the one
   // thing a money figure may never do.
   if (!charge.priced) spend.tokensUnpriced += number('tokens')
+  // What a plan's turns would have come to at list price, kept where no total
+  // of money can reach it — and, where a turn of one ran on a model no rate
+  // knows, how much of it the figure is missing, so it is drawn as the floor it
+  // is rather than as a total.
+  spend.usdOnPlan += charge.onPlan
+  if (charge.onPlanUnrated) spend.tokensOnPlanUnrated += number('tokens')
   spend.usd += charge.usd
   if (charge.usd > 0) spend.hasCost = true
   // And which of the three kinds of dollar it was, decided once where the

@@ -235,9 +235,9 @@ attached to the decision it governs. Load the matching one rather than working f
 - **Watching for trouble never decides what it costs** (`watchProcess`): an uncaught exception ends
   Tade with the terminal handed back, and **a promise nobody awaited is reported and nothing else**.
 - **Priced, guessed by the harness, and priced here from tokens are three claims never added in
-  silence** (`pricedOf`, a mark each; rates dated in `core/src/prices.ts`, overridden in
-  `config.prices`, never fetched). **A plan is not money and its turns are never priced**: a harness
-  on one reports none, and what it used up is its own type (`PlanWindow`), in no total.
+  silence** (`pricedOf`, a mark each; rates in `core/src/prices.ts`, dated, overridable, never
+  fetched). **A plan is not money**: a harness on one reports none, what it used up is `PlanWindow`,
+  what it would have cost at list is `usdOnPlan`, and neither is in a total.
 - **What a run was is written down, never read out of a model's name — and never out of a route's
   wish**: the provider is the harness's declared answer (`WorkerAdapter.provider`).
 

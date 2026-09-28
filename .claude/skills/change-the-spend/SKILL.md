@@ -12,11 +12,13 @@ every figure on the Spend page and in the strip is the same fold read again on t
 
 Two currencies with no rate between them run through all of it: **money** (`Spend`, what somebody was
 charged) and **a plan's windows** (`PlanWindow`, what a subscription used up). They are never added,
-never totalled together, and each has its own type, its own list and its own bar.
+never totalled together, and each has its own type, its own list and its own bar. Beside them sits a
+third thing that is neither: **what a plan's turns would have cost at list price** (`usdOnPlan`) —
+arithmetic over the same tokens, in no total of money and no budget, and nobody's bill.
 
 | Path | What |
 |---|---|
-| `packages/core/src/spend.ts` | the fold: `spendFrom`, `Spend`, `noSpend`, `usdExact` / `usdEstimated` / `usdListed`, `hasCost`, `pricedOf`, `checkBudget`, `modelIdentity`, `modelIn`, `modelDetail`, `modelsSaid`, `modelLastRunOn`, `UNRECORDED`, `HARNESS_FACTS`, `isMoney`, `runFactsOf`, `runFactsFrom`, `accountBucket` |
+| `packages/core/src/spend.ts` | the fold: `spendFrom`, `Spend`, `noSpend`, `usdExact` / `usdEstimated` / `usdListed`, `usdOnPlan` / `tokensOnPlanUnrated` / `onPlanOf`, `hasCost`, `pricedOf`, `checkBudget`, `modelIdentity`, `modelIn`, `modelDetail`, `modelsSaid`, `modelLastRunOn`, `UNRECORDED`, `HARNESS_FACTS`, `isMoney`, `runFactsOf`, `runFactsFrom`, `accountBucket` |
 | `packages/core/src/prices.ts` | what a model costs where nobody will say: `PRICES`, `PRICES_TAKEN`, `priceFor`, `priceKey`, `estimateUsd`, `pricesFrom` — and `config.prices`, the override |
 | `packages/core/src/runtime.ts` | how long: `runtimeFrom`, `RUNTIME_EVENTS`, `Runtime`, `workedOf`, `runtimeSays`, `workedSays`, `duration` |
 | `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanPays`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `planShown`, `nextPlan`, `PLAN_WARM`/`PLAN_TIGHT`/`planPressure`, `planReport`, `resetsIn`, `planLabel`, `cannotTell` |
@@ -83,9 +85,10 @@ turn itself from its tokens and its model.
 
 - **Only there.** A harness that priced a turn is the thing that knows, and a second figure beside
   its own would be two answers to one question.
-- **Never a plan.** A subscription pays a flat fee, so its turns have no per-token cost at all:
-  `isMoney` decides that before anything reaches `prices.ts`, and $954 of list price standing beside
-  $78 somebody was billed is the figure that rule exists to refuse.
+- **Never a plan — as money.** A subscription pays a flat fee, so its turns have no per-token cost
+  at all: `isMoney` decides that before any figure becomes money, and $954 of list price standing in
+  a total beside $78 somebody was billed is the figure that rule exists to refuse. What those same
+  tokens *would* have cost is worked out anyway, into `usdOnPlan` — see below.
 - **Four rates, not one.** A cache read is a tenth of a fresh prompt and an agent's day is mostly
   cache reads, so `estimateUsd` charges each kind of token at its own rate. Off the input rate alone
   a long run comes out several times what it was.
@@ -110,6 +113,37 @@ in `packages/harnesses/claude/src/adapter.ts`), and what it used up is its plan'
 type, their own list, their own bar, and in no total (`PlanWindow`).
 
 Tokens and hours stay: unpriced effort is still effort, and is still where it went.
+
+### What a plan's turns would have cost is a fourth figure, and is not a bill
+
+The money column being empty on a subscription is exactly the hole `ccusage` fills, and the answer is
+the same one as for a harness that prices nothing: price the tokens off the published rate. The
+difference is what may then be done with the answer. A harness that *is* billed per token has a real
+bill, estimated — that is `usdListed`, and it is money. A plan has no bill at all, so its figure is a
+**counterfactual**: what the same tokens would have come to at list price, which is the number
+`ccusage` prints and the number people leave Tade to go and get.
+
+So it is worked out and kept apart, in `usdOnPlan`:
+
+- **In no total of money, ever** — not `usd`, not the three kinds, not `hasCost`, and **not in
+  `checkBudget`**: refusing an agent over dollars nobody is charged is a stop nobody can argue with.
+  `chargeOf` returns it as its own field for exactly this reason, so no fold can add it by accident.
+- **`tokensUnpriced` does not move.** A plan's tokens are still tokens no *money* figure covers, and
+  the page still says so. The estimate is beside that fact and not instead of it.
+- **It is a floor when it has to be** (`onPlanOf`: `none` / `listed` / `partly`, drawn `≥`). Two ways
+  a turn cannot be priced — a model no rate knows, and a line written before usage carried its tokens
+  broken down by kind, which a years-long journal is full of — and both count into
+  `tokensOnPlanUnrated` rather than quietly shrinking the figure.
+- **Drawn only where the surface is not money.** Under the Spend page's total (`≈$3.74 at list`),
+  beside each sign-in's own plan bars, and in the strip — where it takes the cost slot when there is
+  no bill at all, and its own shedable slot when there is, so no row ever shows it twice. **Never in
+  the COST column**, which is money: a plan's row there is still `—`. `tade spend` says the whole
+  sentence (`onPlanSays`), because there somebody asked. The head's line is the one that survives a
+  narrow panel and the shed ladder; the copies beside the bars and in the strip go first, which is
+  why the figure a person came for is the total's.
+- **`at list` is the word, `≈` is the mark.** Both already mean "a rate off a published page" here;
+  what makes this one not a bill is that it never appears in a total, and the word says so wherever
+  there is room for a word.
 
 ### A subscription is its own currency
 
@@ -274,8 +308,8 @@ literally here: **the page is marks, figures and headings, and nothing else.**
 
 - A caveat true under every row is a **mark** on the figure (`~`, `≈`, `≥`, `—`).
 - Something a mark cannot carry is a **figure and at most a word** — `880k tokens unpriced`,
-  `over 3 runs`, `list prices`, `cannot tell` — on the line under the head, where the money's and the
-  runtime's caveats already live.
+  `over 3 runs`, `list prices`, `at list`, `cannot tell` — on the line under the head, where the
+  money's and the runtime's caveats already live.
 - The sentence version of all of it lives in `tade spend` (`pricedSays`, `runtimeSays`, `workedSays`)
   and in `why` on the harness, which is where somebody has asked the question.
 
@@ -325,7 +359,8 @@ else: `planSources` walks every sign-in there is.
 **A new figure about a plan.** Fold it in `limits.ts` beside the others and read it from all three
 readers — the strip, the page and `planReport` — rather than working it out in one of them. Anything
 a harness could not say is `null` there and drawn as *cannot tell*; `0` is a figure somebody looked
-at.
+at. If the figure is in **dollars**, it is not one of those: it goes in `Spend` beside `usdOnPlan`,
+never in a total of money, and every surface that draws it says in a word that nobody is billed it.
 
 **A new event carrying a model.** Write it with `modelDetail` and read it with `modelIn`. A model
 written as a bare string is a fifth spelling and a fifth row.

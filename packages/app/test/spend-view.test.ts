@@ -1,5 +1,5 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
-import type { TadeEvent } from '@tade/core'
+import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import { type SpendPanel, spendPanel } from '../src/panels/spend/state.ts'
@@ -91,7 +91,12 @@ const THREE_ROUTES: TadeEvent[] = [
   }),
 ]
 
-const viewBy = (by: SpendBy, events: readonly TadeEvent[] = THREE_ROUTES, runs: TadeEvent[] = []) =>
+const viewBy = (
+  by: SpendBy,
+  events: readonly TadeEvent[] = THREE_ROUTES,
+  runs: TadeEvent[] = [],
+  plan: PlanSource[] = [],
+) =>
   spendView(events, {
     window: 'today',
     by,
@@ -100,7 +105,43 @@ const viewBy = (by: SpendBy, events: readonly TadeEvent[] = THREE_ROUTES, runs: 
     projects: ['checkout', 'search'],
     budgets: {},
     runs,
+    plan,
   })
+
+/**
+ * A subscription's turn with its tokens broken down by kind, which is what a
+ * harness on a plan actually writes: the four counts, no money at all, and the
+ * word that says it could not price one.
+ */
+const onPlan = (over: Record<string, unknown> = {}): TadeEvent =>
+  usage({
+    run: 'r7',
+    task: 'checkout/refunds',
+    detail: {
+      model: 'claude-opus-5',
+      harness: 'claude-code',
+      priced: 'none',
+      input: 200_000,
+      output: 40_000,
+      cacheRead: 660_000,
+      cacheWrite: 0,
+      tokens: 900_000,
+      usd: 0,
+      ...over,
+    },
+  })
+
+/** Claude Code's own sign-in, most of a five-hour window gone. */
+const claudePlan: PlanSource[] = [
+  {
+    harness: 'claude-code',
+    account: null,
+    can: 'while-working',
+    pays: 'plan',
+    why: null,
+    said: { at: NOW - 60_000, windows: [{ label: '5h', used: 78, resetsAt: NOW + 3_600_000 }] },
+  },
+]
 
 const context = (over: Partial<PanelContext> = {}): PanelContext =>
   ({
@@ -369,6 +410,121 @@ describe('grouping what it cost', () => {
     // The effort is still effort, and is still where it went.
     expect(view.tokens).toBe(900_000)
     expect(view.rows.map((row) => [row.label, row.tokens])).toEqual([['claude-code', 900_000]])
+  })
+})
+
+// What a subscription's turns would have cost at list price. The figure people
+// leave Tade to go and run `ccusage` for — and the one thing it may never be is
+// a bill, because a plan pays a flat fee and nobody is charged this.
+describe('what a plan’s turns would have cost', () => {
+  it('estimates them from the tokens, and puts none of it in the money', () => {
+    const view = viewBy('harness', [onPlan()], [], claudePlan)
+    // 200k input at $5, 40k output at $25, 660k cache reads at 50¢ — each kind
+    // at its own rate, which is where a long run's figure actually comes from.
+    expect(view.usdOnPlan).toBeCloseTo(1 + 1 + 0.33, 6)
+    expect(view.onPlan).toBe('listed')
+    // And every money figure on the page is untouched by it.
+    expect(view.usd).toBe(0)
+    expect(view.usdListed).toBe(0)
+    expect(view.hasCost).toBe(false)
+    expect(view.priced).toBe('none')
+  })
+
+  it('gives a Codex subscription the same figure, for the same reason', () => {
+    const view = viewBy(
+      'harness',
+      [
+        onPlan({
+          model: 'gpt-5.3-codex',
+          harness: 'codex',
+          input: 1_000_000,
+          output: 0,
+          cacheRead: 0,
+          tokens: 1_000_000,
+        }),
+      ],
+      [],
+      claudePlan,
+    )
+    expect(view.usdOnPlan).toBeCloseTo(1.75, 6)
+    expect(view.usd).toBe(0)
+  })
+
+  it('leaves an API-key run the harness’s own figure, and estimates nothing beside it', () => {
+    const view = viewBy(
+      'harness',
+      [onPlan({ account: 'work', priced: 'estimate', usd: 2.5 })],
+      [],
+      claudePlan,
+    )
+    expect(view.usd).toBe(2.5)
+    expect(view.usdEstimated).toBe(2.5)
+    expect(view.priced).toBe('estimate')
+    expect(view.usdOnPlan).toBe(0)
+    expect(view.onPlan).toBe('none')
+  })
+
+  it('puts each sign-in’s own figure beside its own bar, and leaves the bar alone', () => {
+    const view = viewBy('harness', [onPlan()], [], claudePlan)
+    const row = view.plan.find((one) => one.label === 'claude-code')
+    expect(row?.usdOnPlan).toBeCloseTo(2.33, 6)
+    expect(row?.onPlan).toBe('listed')
+    // The plan's own currency is untouched: the same windows, the same share,
+    // the same reset. Money and a plan have no rate between them, and a figure
+    // in dollars appearing beside one may not change what it says.
+    expect(row?.windows).toEqual([{ label: '5h', used: 78, resetsIn: 3_600_000 }])
+    expect(row?.cannotTell).toBeNull()
+  })
+
+  it('draws a plan’s estimate as a floor where some of its turns had no rate', () => {
+    const view = viewBy(
+      'harness',
+      [onPlan(), onPlan({ model: 'some-model-nobody-published', tokens: 5_000 })],
+      [],
+      claudePlan,
+    )
+    expect(view.onPlan).toBe('partly')
+    expect(view.usdOnPlan).toBeCloseTo(2.33, 6)
+  })
+
+  it('says it on the page and never in the COST column, which is money', () => {
+    const rows = drawn('harness', 96, [onPlan()]).join('\n')
+    // Under the total, with the word that says whose arithmetic it is.
+    expect(rows).toContain('≈$2.33 at list')
+    // Beside the plan's own bar, which is the other place somebody looking at a
+    // subscription is already looking. (`drawn` passes no plan sources, so the
+    // list says so — what matters here is that the money column did not move.)
+    expect(rows).toContain('No plan reported.')
+    // And the row for it still reads `—`: nobody is billed a plan per turn, and
+    // a column of dollars that quietly held one that is not a bill is the one
+    // thing this page may never draw.
+    const row = drawn('harness', 96, [onPlan()]).find(
+      (one) => one.includes('claude-code') && one.includes('900k'),
+    )
+    expect(row).toContain('—')
+    expect(row).not.toContain('$')
+  })
+
+  it('draws the estimate beside the bar of the sign-in it belongs to', () => {
+    const panel: SpendPanel = { ...spendPanel(), by: 'harness' }
+    const rows = drawPanel(
+      panel,
+      context({ width: 96, spend: viewBy('harness', [onPlan()], [], claudePlan) }),
+    ).panel.rows.map((row) => stripTerminalSequences(row))
+    const bar = rows.find((row) => row.includes('claude-code') && row.includes('78%'))
+    expect(bar).toContain('≈$2.33 at list')
+  })
+
+  it('keeps the figure where the panel is narrow, because it is short', () => {
+    // The head's line survives every width the table is drawn at; the one
+    // beside a plan's bars is past where a narrow panel ends, the way `resets
+    // in …` already is. So the figure a person came for is always the total's.
+    expect(drawn('harness', 48, [onPlan()]).join('\n')).toContain('≈$2.33 at list')
+  })
+
+  it('says nothing at all where no plan ran anything', () => {
+    const rows = drawn('harness', 96).join('\n')
+    expect(rows).not.toContain('at list')
   })
 })
 

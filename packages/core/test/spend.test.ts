@@ -9,6 +9,7 @@ import {
   modelLastRunOn,
   modelsSaid,
   noSpend,
+  onPlanOf,
   pricedOf,
   runFactsFrom,
   spendFrom,
@@ -558,30 +559,125 @@ describe('pricing what a harness will not', () => {
     expect(report.total.tokensUnpriced).toBe(1_000_000)
   })
 
-  it('never turns a subscription’s turns into dollars', () => {
-    // Claude Code on its own sign-in is a plan: a flat fee, no price per turn,
-    // and $954 of list price standing beside $78 somebody was billed is the
-    // figure this rule exists to refuse. The tokens stay, the dollars do not.
+  /** Claude Code on its own sign-in: a plan, so a flat fee and no price per turn. */
+  const onPlan = (detail: Record<string, unknown> = {}): TadeEvent =>
+    usage({
+      run: 'r8',
+      detail: {
+        model: 'claude-opus-5',
+        harness: 'claude-code',
+        priced: 'none',
+        input: 10_000_000,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        tokens: 10_000_000,
+        usd: 0,
+        ...detail,
+      },
+    })
+
+  it('never turns a subscription’s turns into money', () => {
+    // $954 of list price standing in a total beside $78 somebody was billed is
+    // the figure this rule exists to refuse. The tokens stay, the money does
+    // not, and no figure a budget or a total reads may move.
+    const report = spendFrom([onPlan()], { since: 0 })
+    expect(report.total.usd).toBe(0)
+    expect(report.total.usdExact).toBe(0)
+    expect(report.total.usdEstimated).toBe(0)
+    expect(report.total.usdListed).toBe(0)
+    expect(pricedOf(report.total)).toBe('none')
+    expect(report.total.hasCost).toBe(false)
+    // And the money figure still covers none of those tokens, because the
+    // estimate below is not money.
+    expect(report.total.tokensUnpriced).toBe(10_000_000)
+  })
+
+  it('estimates a subscription’s turns beside the money, from its tokens', () => {
+    // Ten million input tokens of claude-opus-5 at $5 per million. Nobody is
+    // billed it; it is what `ccusage` would say the morning came to.
+    const report = spendFrom([onPlan()], { since: 0 })
+    expect(report.total.usdOnPlan).toBeCloseTo(50, 6)
+    expect(onPlanOf(report.total)).toBe('listed')
+    // In every bucket the tokens went to, so the page can ask by sign-in.
+    expect(report.byHarness['claude-code']?.usdOnPlan).toBeCloseTo(50, 6)
+    expect(report.byAccount['claude-code']?.usdOnPlan).toBeCloseTo(50, 6)
+    expect(report.byTask['checkout/refunds']?.usdOnPlan).toBeCloseTo(50, 6)
+  })
+
+  it('estimates a Codex subscription’s turns the same way', () => {
+    // Codex declares it prices nothing on any account, and on its own sign-in
+    // a plan pays: the same two answers as Claude Code, for the same reasons.
+    // Written the way Codex writes one — no `account` key at all, which is what
+    // its own sign-in looks like in the journal.
     const report = spendFrom(
       [
-        usage({
-          run: 'r8',
-          detail: {
-            model: 'claude-opus-5',
-            harness: 'claude-code',
-            priced: 'none',
-            input: 10_000_000,
-            tokens: 10_000_000,
-            usd: 0,
-          },
+        onPlan({
+          model: 'gpt-5.3-codex',
+          harness: 'codex',
+          input: 1_000_000,
+          output: 0,
+          cacheRead: 0,
+          tokens: 1_000_000,
         }),
       ],
       { since: 0 },
     )
     expect(report.total.usd).toBe(0)
-    expect(report.total.usdListed).toBe(0)
-    expect(pricedOf(report.total)).toBe('none')
-    expect(report.total.tokensUnpriced).toBe(10_000_000)
+    expect(report.total.hasCost).toBe(false)
+    expect(report.total.usdOnPlan).toBeCloseTo(1.75, 6)
+    expect(onPlanOf(report.total)).toBe('listed')
+  })
+
+  it('leaves an API-key run’s own figure alone, and estimates nothing beside it', () => {
+    // Claude Code against an API key declares `estimate`: somebody is billed,
+    // the harness is the thing that knows, and a second figure beside its own
+    // would be two answers to one question.
+    const report = spendFrom(
+      [usage({ detail: { harness: 'claude-code', account: 'work', priced: 'estimate', usd: 3 } })],
+      { since: 0 },
+    )
+    expect(report.total.usd).toBe(3)
+    expect(report.total.usdEstimated).toBe(3)
+    expect(report.total.usdOnPlan).toBe(0)
+    expect(onPlanOf(report.total)).toBe('none')
+  })
+
+  it('draws a plan’s estimate as a floor where some of its turns had no rate', () => {
+    const report = spendFrom(
+      [onPlan(), onPlan({ model: 'some-model-nobody-published', tokens: 40_000 })],
+      { since: 0 },
+    )
+    expect(report.total.usdOnPlan).toBeCloseTo(50, 6)
+    expect(report.total.tokensOnPlanUnrated).toBe(40_000)
+    expect(onPlanOf(report.total)).toBe('partly')
+  })
+
+  it('cannot price a plan’s turn that recorded no tokens by kind, and says so', () => {
+    // A journal is years long, and a line written before usage carried input,
+    // output and cache counts has a total and nothing to charge at four rates.
+    // Guessing one rate for all of them is where a plausible figure comes from.
+    const report = spendFrom([onPlan({ input: undefined, output: undefined, tokens: 1_000 })], {
+      since: 0,
+    })
+    expect(report.total.usdOnPlan).toBe(0)
+    expect(onPlanOf(report.total)).toBe('none')
+    expect(report.total.tokensOnPlanUnrated).toBe(1_000)
+  })
+
+  it('keeps a plan’s estimate out of a dollar budget', () => {
+    // The one figure a budget may never read: refusing an agent over money
+    // nobody is charged is a stop nobody can argue with.
+    const spend = spendFrom([onPlan()], { since: 0 }).total
+    expect(checkBudget(spend, { usd_per_day: 10 }).verdict).toBe('ok')
+  })
+
+  it('takes a price somebody wrote down for a plan’s model too', () => {
+    const report = spendFrom([onPlan()], {
+      since: 0,
+      prices: pricesFrom({ 'claude-opus-5': { input: 1, output: 5 } }),
+    })
+    expect(report.total.usdOnPlan).toBeCloseTo(10, 6)
   })
 
   it('never prices over a harness that priced it itself', () => {

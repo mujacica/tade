@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2  ╭─ Spend ─────────────────────────────────────────────────────────────────────────── esc ─╮high ▾     ×   
               │ ~$1.88  2.5M tokens  1h 32m working · 2h 5m open      Today    This window    7 days    │───────────────
- ▌ ! stripe-v1│ mixed · over 3 runs · 880k tokens unpriced                                              │               
+ ▌ ! stripe-v1│ mixed · over 3 runs · 880k tokens unpriced · ≈$3.74 at list                             │               
  ▌   wants you│ by   Agent    Project    Model    Harness    Sign-in    Provider                        │               
               │                                                                                         │               
    ⠋ refunds  │   AGENT                    MODEL               TOKENS  SHARE    WORKING   OPEN     COST │               
@@ -13,7 +13,7 @@
  ▾ CHANGES  3 │ ! stripe-v15               claude-opus-5         880k  ███░░░░░     41m    55m        —█│               
   M package.js│                                                                                        █│               
   A …/webhooks│ PLAN                                                                                   █│               
-  M src/webhoo│ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago                    █│               
+  M src/webhoo│ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list █│               
               │                   7d  ███░░░░░░░  31%  resets in 3d                                    █│               
  ▾ FILES      │ codex             5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago                   █│               
    ▾ src/     │ pi                cannot tell                                                          █│               

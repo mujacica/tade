@@ -1,4 +1,4 @@
-import { nextPlan, planStandings, pricesFrom } from '@tade/core'
+import { nextPlan, onPlanOf, planStandings, pricesFrom } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { projects } from '../model.ts'
 import { spendPanel } from '../panels/spend/state.ts'
@@ -34,6 +34,11 @@ export class Spend implements Subject {
         tokens: spent?.total.tokens ?? 0,
         usd: spent?.total.usd ?? 0,
         hasCost: spent?.total.hasCost ?? false,
+        // What today's plan turns would have cost at list price, which is the
+        // only dollar figure a subscription's day has — and never money, so it
+        // is its own field and goes nowhere near `usd`.
+        usdOnPlan: spent?.total.usdOnPlan ?? 0,
+        onPlan: spent ? onPlanOf(spent.total) : 'none',
         byTask: spent?.byTask ?? {},
         ...(live ? { runtime: live.runtimeToday().total } : {}),
       },

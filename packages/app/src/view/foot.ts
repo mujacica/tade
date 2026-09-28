@@ -393,6 +393,11 @@ export function renderFoot(
   // said: the reason is on the Spend page, and a strip is no place for a
   // sentence.
   const plan = planShown(frame.plan ?? [], state.planShown)
+  // What today's plan turns would have cost at list price. Its own slot only
+  // where there is a bill in the slot that never sheds: with no money at all
+  // this *is* that slot's figure (`costToday`), and saying it twice on one row
+  // is a row that looks like it is adding up to something.
+  const listed = spend?.hasCost ? atList(spend) : null
   // Where pressing the name goes next, and null where there is nowhere: with
   // one sign-in reporting anything there is nothing to move between, so the
   // name and the control are both left off rather than drawn doing nothing.
@@ -426,12 +431,19 @@ export function renderFoot(
     both: true,
     bars: true,
     reset: true,
+    listed: true,
   }
+  // `listed` goes after the plan's own trimmings and before the controls: it is
+  // a dollar figure, so it outlasts the tokens and the reset times, and it is
+  // one click away on the page it opens, so it goes before anything that cannot
+  // be clicked any more. Before the bars, too — what a plan has *left* is what
+  // stops somebody working, and that is the more urgent of the two.
   const shed: Array<keyof typeof full> = [
     'account',
     'tokens',
     'reset',
     'both',
+    'listed',
     'thinking',
     'model',
     'runtime',
@@ -509,6 +521,16 @@ export function renderFoot(
       })
       r.text(' │ ', skin.chrome, target)
     }
+    // What those turns would have cost at the published rate, beside the plan
+    // that paid for them: the figure `ccusage` gives, and not a bill — nobody is
+    // charged a plan per turn. Marked and worded as somebody else's arithmetic
+    // (`≈`, `at list`) and in the hint's tone, because the headline figure to
+    // the right of it is money and this is not. Drawn whether or not a plan bar
+    // could be: a harness that has not said how full its plan is has still run
+    // the turns.
+    if (listed && show.listed) {
+      r.text(`${listed} at list`, money, target).text(' │ ', skin.chrome, target)
+    }
     if (spent && show.tokens) {
       r.text(tokens(spend.tokens), money, target).text(' │ ', skin.chrome, target)
     }
@@ -535,18 +557,29 @@ export function renderFoot(
 }
 
 /**
+ * What a plan's turns would have cost at the published rate, in the shape the
+ * Spend page draws it in — `≈` for Tade's own arithmetic, `≥` where some of them
+ * ran on a model no rate knows — and null where there is nothing to say.
+ */
+function atList(spend: Frame['spend']): string | null {
+  if (!spend || spend.onPlan === undefined || spend.onPlan === 'none') return null
+  return `${spend.onPlan === 'partly' ? '≥' : ''}≈${dollars(spend.usdOnPlan ?? 0)}`
+}
+
+/**
  * What today cost, as the one slot in the strip that is drawn whatever else is
  * given up: the figure, and the words beside it.
  *
- * Three answers, and they are three different claims about the same day. A
- * figure is what somebody was charged. `—` is effort no dollar here covers — a
- * plan pays a flat fee and has no price per turn, and a model nothing has a
- * rate for cannot be worked out either — which is the mark the Spend page puts
- * on that same figure and `tade spend` puts in that same column, because this
- * is that figure drawn smaller and two rules for it would disagree the day one
- * of them moved. And a day where nothing was counted and nothing ran is a
- * nought, which is a figure somebody looked at, said in the words there is
- * room for.
+ * Four answers, and they are four different claims about the same day. A
+ * figure is what somebody was charged. `≈$11.40 at list` is what a day a plan
+ * paid for would have cost at the published rate, which is nobody's bill and
+ * says so in a word. `—` is effort no dollar here covers — a model nothing has
+ * a rate for, a plan whose turns could not be priced either — which is the mark
+ * the Spend page puts on that same figure and `tade spend` puts in that same
+ * column, because this is that figure drawn smaller and two rules for it would
+ * disagree the day one of them moved. And a day where nothing was counted and
+ * nothing ran is a nought, which is a figure somebody looked at, said in the
+ * words there is room for.
  *
  * The two it may never collapse are the last two. Nothing *reported* is not
  * nothing *spent*: a harness whose sign-in is a plan runs up tokens and never a
@@ -558,6 +591,14 @@ export function renderFoot(
  */
 function costToday(spend: Frame['spend']): { figure: string | null; said: string } {
   if (spend?.hasCost) return { figure: dollars(spend.usd), said: 'today ▾' }
+  // A day a plan paid for has no bill and is not nothing: what those same turns
+  // would have cost at the published rate is a figure, and this slot is the one
+  // place on the row that is never given up — a subscription's whole day drawn
+  // as `—` while that figure exists is the hole people leave to run `ccusage`.
+  // `at list` is the word that keeps it from reading as money: nobody is billed
+  // a plan per turn, so this is arithmetic and not a bill.
+  const onPlan = atList(spend)
+  if (onPlan) return { figure: onPlan, said: 'at list today ▾' }
   const ran = spend?.runtime
   const nothing =
     spend !== undefined && spend.tokens === 0 && ran !== undefined && ran.ms === 0 && ran.runs === 0

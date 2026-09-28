@@ -26,10 +26,14 @@ import { z } from 'zod'
 // invented price would be indistinguishable from a real one on the page, and
 // a wrong dollar figure is worse than a missing one.
 //
-// A plan is not priced here and must never be: a subscription pays a flat fee,
-// so the tokens under it have no per-token cost at all and turning them into
-// dollars puts $954 nobody was billed beside $78 somebody was. `isMoney`
-// (`spend.ts`) is where that is decided, before anything reaches this file.
+// A plan's tokens are priced here too, and the figure is never money. A
+// subscription pays a flat fee, so nobody is billed what this table makes of
+// its turns — turning that into money puts $954 nobody was billed beside $78
+// somebody was. So it is worked out and kept apart: `isMoney` (`spend.ts`)
+// decides which side of that line a turn falls on, and a plan's answer lands in
+// `Spend.usdOnPlan`, in no total of money anywhere. It is the same arithmetic
+// `ccusage` does, and it answers the same question — what would this have cost
+// at list price — which is a different question from what anybody was charged.
 
 /**
  * The day the table below was read off each provider's own pricing page.

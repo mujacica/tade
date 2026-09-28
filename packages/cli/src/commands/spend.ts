@@ -5,6 +5,7 @@ import {
   loadConfig,
   modelsSaid,
   noSpend,
+  onPlanOf,
   PRICES_TAKEN,
   pricedOf,
   pricesFrom,
@@ -31,13 +32,17 @@ import type { Io } from '../io.ts'
 // Read out of the journal, priced by the harness against its own model
 // catalog — and, where a harness declares it prices nothing and the work was
 // still billed per token, off the published rate for the model (`prices.ts`).
-// A plan is never priced that way and a model nothing has a rate for stays
-// unknown: the money column is left empty rather than showing a plausible
-// zero. Runtime is the same answer read from the same place — when each run
-// started and when it ended — so a subscription that reports no price still
-// says where the hours went.
+// A model nothing has a rate for stays unknown: the money column is left empty
+// rather than showing a plausible zero. Runtime is the same answer read from the
+// same place — when each run started and when it ended — so a subscription that
+// reports no price still says where the hours went.
 // A question, so it reads the journal itself: asking what today cost must work
 // with a window open.
+//
+// A plan's turns are never money here either, and what they would have cost at
+// those same published rates is said as its own line at the foot, in as many
+// words as it takes: the question is asked in full here, so it is answered in
+// full — nobody is charged it, and it is in none of the figures above it.
 //
 // The same six groupings the window has, and for the same reason: three rows
 // of `claude-opus-5`, `anthropic/claude-opus-5` and
@@ -201,6 +206,10 @@ export function registerSpend(program: Command, io: Io): void {
       }
       io.out('')
       io.out(pricedSays(report.total))
+      // And what a plan's share of those tokens would have come to at the same
+      // rates, which is the number people leave to go and run `ccusage` for.
+      const onPlan = onPlanSays(report.total)
+      if (onPlan) io.out(onPlan)
       // And what the runtime column has been adding up: `13d 3h` off a machine
       // that has been on since breakfast reads as a bug and is not one, and a
       // figure nobody can defend is one nobody looks at twice.
@@ -274,6 +283,30 @@ export function pricedSays(spend: Spend): string {
     return `${said} — and ${count(spend.tokensUnpriced)} of these tokens nothing here could price, which no figure above covers`
   }
   return said
+}
+
+/**
+ * What a plan's own turns would have cost at a published rate, and empty where
+ * no plan ran any.
+ *
+ * Its own line beside `pricedSays`, the way `runtimeSays` and `workedSays` are
+ * their own lines: it is a different claim about a different currency, and a
+ * clause tacked onto the money sentence would read as part of the money.
+ *
+ * Said in full because somebody asked in full. A subscription pays a flat fee,
+ * so this is the arithmetic and not the bill — what `ccusage` gives for the same
+ * tokens — and the sentence carries that rather than leaving it to a mark, which
+ * is what the window does where there is no room for a sentence.
+ */
+export function onPlanSays(spend: Spend): string {
+  const onPlan = onPlanOf(spend)
+  if (onPlan === 'none') return ''
+  const floor = onPlan === 'partly' ? 'at least ' : ''
+  const missing =
+    onPlan === 'partly'
+      ? `, and ${count(spend.tokensOnPlanUnrated)} of its tokens ran on a model nothing here has a rate for`
+      : ''
+  return `a plan's own turns would have cost ${floor}$${spend.usdOnPlan.toFixed(2)} at list prices of ${PRICES_TAKEN} — a subscription pays a flat fee, so nobody is billed that and no figure above holds it${missing}`
 }
 
 function line(name: string, width: number, spend?: Spend, ran?: Runtime): string {
