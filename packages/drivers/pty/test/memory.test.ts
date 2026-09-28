@@ -61,7 +61,10 @@ describe('what a lane holds', () => {
           `let out = ''`,
           `for (let i = 0; i < 10000; i++) out += i + ' ' + line + '\\r\\n'`,
           `process.stdout.write(out)`,
-          `setInterval(() => {}, 1000)`,
+          // Still printing when the lane is closed, which is what a lane
+          // being closed is usually doing, and what leaves the emulator
+          // something unparsed to be holding.
+          `setInterval(() => process.stdout.write(out.slice(0, 20000)), 10)`,
         ].join('\n'),
       ],
       cols: 200,
@@ -74,6 +77,18 @@ describe('what a lane holds', () => {
     // never filled and the rest of this test would pass while proving nothing.
     expect(full).toBeGreaterThan(10)
 
+    // Closed on a chunk the emulator has been handed and has not parsed: the
+    // driver writes to it before it tells anybody, so inside a listener there
+    // is always one queued, on any machine. That is the case that broke —
+    // `dispose()` leaves the backlog, and the backlog holds the screen — and
+    // waiting for the lane to go quiet instead would only reach it on a runner
+    // slow enough to still be behind, which is how this arrived as a flake.
+    await new Promise<void>((resolve) => {
+      const stop = driver.onOutput(lane, () => {
+        stop()
+        resolve()
+      })
+    })
     await driver.close(lane)
     const after = heldMb()
 

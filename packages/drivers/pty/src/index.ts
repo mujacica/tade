@@ -58,7 +58,9 @@ interface Lane {
    * the window's width is thirty megabytes of typed arrays per lane — and
    * `dispose()` does not give it back, because the buffer stays reachable
    * from the terminal object. A lane that closed can never be captured
-   * again (`live` throws first), so the reference is what has to go.
+   * again (`live` throws first), so the reference is what has to go — and
+   * the reference alone is not enough while the emulator still has anything
+   * queued, which is what `release` is careful about.
    */
   term: XTerm | null
   outputs: Set<LaneOutputListener>
@@ -605,6 +607,16 @@ const PRIVATE_MODE = new RegExp(`${String.fromCharCode(27)}\\[\\?([0-9;]+)([hl])
  * replay to a subscriber that will never arrive now.
  */
 function release(lane: Lane): void {
+  // `reset()` before `dispose()`, because disposing does not drop what has
+  // been written to the emulator and not yet parsed, and a queued chunk holds
+  // the whole screen behind it: xterm parses in the background off a chain of
+  // `setTimeout(() => this._innerWrite())`, and that closure reaches the write
+  // buffer, its parse action, the input handler and every `Uint32Array` of the
+  // buffer. Letting go of Tade's own reference is then not letting go of
+  // anything — 1KB still queued kept 24MB of screen alive here, until the
+  // backlog happened to drain. Resetting empties the buffers first, so what
+  // the leftover parse holds is a fresh, empty one.
+  lane.term?.reset()
   lane.term?.dispose()
   lane.term = null
   lane.replay = []
