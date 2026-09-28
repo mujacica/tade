@@ -31,4 +31,4 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute           claude-opus-5 ▾ · openrouter · signed in │ high ▾ │ nothing spent today ▾ 
+   Extensions     Settings     Mute                       claude-opus-5 ▾ · openrouter │ high ▾ │ nothing spent today ▾ 

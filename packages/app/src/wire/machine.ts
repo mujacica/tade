@@ -31,7 +31,7 @@ export interface MachineDeps {
   refreshModels(): Promise<void>
 }
 
-/** How a provider is paid for, the way the status bar says it. */
+/** How a provider is paid for, the way a page that asked says it. */
 function credentialLabel(kind: 'signed-in' | 'api-key' | 'env-key' | undefined): string | null {
   if (kind === 'signed-in') return 'signed in'
   if (kind === 'api-key') return 'API key'
@@ -55,8 +55,12 @@ export class Machine implements Subject {
    * background, and again after anything is done to one.
    */
   private views: AccountView[] = []
-  /** How each provider is paid for, once read. */
-  private paid: Record<string, 'signed-in' | 'api-key' | 'env-key'> = {}
+  /**
+   * How each provider is paid for, once read. Null until it has been, which is
+   * not the same as none: a warning drawn before anybody looked is a warning
+   * about nothing.
+   */
+  private paid: Record<string, 'signed-in' | 'api-key' | 'env-key'> | null = null
 
   constructor(wire: Wiring, deps: MachineDeps) {
     this.wire = wire
@@ -139,12 +143,26 @@ export class Machine implements Subject {
 
   /** How a provider is paid for, or undefined where there is no credential for it. */
   paidBy(provider: string): 'signed-in' | 'api-key' | 'env-key' | undefined {
-    return this.paid[provider]
+    return this.paid?.[provider]
   }
 
-  /** How a provider is paid for, in the words the status bar says it in. */
+  /** How a provider is paid for, in the words a page that asked says it in. */
   credential(provider: string | null): string | null {
-    return provider ? credentialLabel(this.paid[provider]) : null
+    return provider ? credentialLabel(this.paid?.[provider]) : null
+  }
+
+  /**
+   * What is wrong with how a provider is paid for, for a surface that has room
+   * only for what needs somebody.
+   *
+   * Nothing at all where a credential was found — that a thing is working is
+   * not news — and nothing while none have been read yet, because "not signed
+   * in" and "nobody has looked" are two answers and only one of them is worth
+   * a person's attention.
+   */
+  credentialProblem(provider: string | null): string | null {
+    if (!provider || this.paid === null) return null
+    return this.paid[provider] ? null : 'not signed in'
   }
 
   /**

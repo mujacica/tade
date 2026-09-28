@@ -31,4 +31,4 @@
                                                                                                                        ▕
 ~/src/checkout (main) $                                                                                                █
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute            claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

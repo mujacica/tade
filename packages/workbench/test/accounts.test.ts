@@ -127,6 +127,26 @@ describe('accounts', () => {
     expect(claude.map((one) => one.account).sort()).toEqual([null, 'work'])
   })
 
+  it('reports every sign-in there is, before anything has run as one', async () => {
+    await client.addAccount({ name: 'reviews', harness: 'claude-code' })
+    await client.addAccount({ name: 'paid', harness: 'codex', kind: 'api-key' })
+    // Nothing has been started as either. An account that exists and has said
+    // nothing is somewhere somebody could go when a plan is nearly gone, and an
+    // absent row is one nobody can suggest.
+    const usage = client.planUsage()
+    expect(usage.map((one) => `${one.harness}${one.account ? `@${one.account}` : ''}`)).toEqual([
+      'pi',
+      'claude-code',
+      'claude-code@reviews',
+      'codex',
+      'codex@paid',
+    ])
+    // What pays for each: the harness's own declaration, never the name. A
+    // subscription is charged nothing per turn, which is the only kind of thing
+    // a rolling window can be used up of; an API-key account is money instead.
+    expect(usage.map((one) => one.pays)).toEqual(['per-token', 'plan', 'plan', 'plan', 'per-token'])
+  })
+
   it('writes an API-key account’s key beside the account, and hands out a command', async () => {
     await client.addAccount({ name: 'paid', harness: 'claude-code', kind: 'api-key' })
     expect(client.saveAccountKey('paid', '  sk-ant-0123456789  ')).toBe('config.yaml')

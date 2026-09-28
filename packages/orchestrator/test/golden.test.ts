@@ -60,6 +60,7 @@ describe('the tools the orchestrator has', () => {
       'tade_approve',
       'tade_deny',
       'tade_done',
+      'tade_limits',
       'tade_logs',
       'tade_notes',
       'tade_orchestrator_model',

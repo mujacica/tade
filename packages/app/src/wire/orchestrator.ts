@@ -99,8 +99,11 @@ export interface OrchestratorDeps {
   remember(said: string): void
   /** The config was written by this subject's own hand: read it back. */
   useConfig(config: Config): void
-  /** How the provider paying for it is paid: signed in, or a key. */
-  credential(provider: string | null): string | null
+  /**
+   * What is wrong with how the provider paying for it is paid, or null where
+   * nothing is — which is the usual answer, and the strip draws nothing for it.
+   */
+  credentialProblem(provider: string | null): string | null
   /**
    * Scrolled back, the lines you are reading stay where they are while new
    * ones arrive below.
@@ -562,7 +565,7 @@ export class Orchestrator implements Subject {
     const paying = provider ?? (model?.includes('/') ? (model.split('/')[0] ?? null) : null)
     return {
       provider: paying,
-      credential: this.deps.credential(paying),
+      problem: this.deps.credentialProblem(paying),
     }
   }
 

@@ -172,6 +172,16 @@
     }
   },
   {
+    "name": "tade_limits",
+    "description": "Where every sign-in stands against its plan: each account of each harness, how much of each rolling window it has used, what is left of it and when it starts over — with the ones at their limit named, and what else there is to run as. Use it when somebody asks whether they are about to run out, when an agent has stopped or slowed and a plan could be the reason, and before telling somebody they can keep working. Suggest, never switch: which sign-in agents run as is a sign-in decision, whose money and whose permissions the work runs with, and it is a person’s alone — so say what you would move to and let them do it, whether that is another account of the same harness, another harness, or an API key rather than a subscription. A sign-in that reports nothing has not reported nothing used: the harnesses that only hear about a plan while one of their agents is working say so in their own words, and that reads as cannot tell, never as zero. None of it is money — a subscription has no price per turn — so never add a plan to what anything cost.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_logs",
     "description": "What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing. It is what was decided, never what was said: an agent's own words are not in it, and what it printed is counted there in bytes.",
     "parameters": {

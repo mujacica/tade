@@ -285,8 +285,12 @@ export interface Frame {
   /** Today's spend, in total and by task. */
   spend?: Spend
   /**
-   * How much of each account's plan is used, as its harness last said — and
+   * How much of every sign-in's plan is used, as its harness last said — and
    * for the ones that cannot say, why not.
+   *
+   * All of them, whatever the strip has room to draw: which one it shows is the
+   * window's to choose from these (`planShown`), and what is offered as
+   * somewhere else to go is read from the ones it is not showing.
    *
    * Never money. A subscription is not charged per turn, so what is used up is
    * a share of a rolling window, and it is drawn as its own thing rather than
@@ -364,8 +368,17 @@ export interface Frame {
   voice?: { keys: readonly string[]; available: boolean }
   /** Tade's home, as you would type it, for showing where worktrees go. */
   home?: string
-  /** Who pays for the orchestrator's model: its provider, and how you are signed in to it. */
-  orchestratorAccount?: { provider: string | null; credential: string | null }
+  /**
+   * Who pays for the orchestrator's model: its provider, and what is wrong with
+   * how it is paid for.
+   *
+   * `problem` is null in the ordinary case and nothing is drawn for it. The
+   * strip used to say `signed in` there, which is the answer nobody needs: it
+   * cost three columns to tell somebody that the thing they are talking to is
+   * working. What belongs in a strip is what needs them — a provider with no
+   * credential for it, which is a turn that will fail.
+   */
+  orchestratorAccount?: { provider: string | null; problem: string | null }
   /** Nothing is said or played. */
   muted?: boolean
   /** A picture is on the clipboard, and has not been taken or turned down. */

@@ -318,7 +318,7 @@ export class App {
       },
       remember: (said) => this.keyboard.remember(said),
       useConfig: (config) => this.settings.use(config),
-      credential: (provider) => this.machine.credential(provider),
+      credentialProblem: (provider) => this.machine.credentialProblem(provider),
     })
     this.agents = new Agents(this.wire, {
       useConfig: (config) => this.settings.use(config),

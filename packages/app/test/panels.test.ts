@@ -128,6 +128,7 @@ describe('the Spend panel', () => {
           harness: 'claude-code',
           account: null,
           can: 'while-working',
+          pays: 'plan',
           why: 'says it while an agent replies',
           said: {
             at: now - 4 * 60_000,
@@ -153,6 +154,7 @@ describe('the Spend panel', () => {
           harness: 'pi',
           account: null,
           can: 'none',
+          pays: 'per-token',
           why: 'is never told what a plan has left: it prices every turn instead',
           said: null,
         },
@@ -166,10 +168,60 @@ describe('the Spend panel', () => {
 
     it('names the account beside the harness, so two of one are told apart', () => {
       const rows = view([
-        { harness: 'codex', account: 'work', can: 'none', why: 'nothing yet', said: null },
-        { harness: 'codex', account: null, can: 'none', why: 'nothing yet', said: null },
+        { harness: 'codex', account: 'work', can: 'none', pays: 'plan', why: 'none', said: null },
+        { harness: 'codex', account: null, can: 'none', pays: 'plan', why: 'none', said: null },
       ]).plan
       expect(rows.map((row) => row.label)).toEqual(['codex @work', 'codex'])
+    })
+
+    it('lists every sign-in there is, and never draws a window that has gone as a share', () => {
+      const rows = view([
+        {
+          harness: 'claude-code',
+          account: null,
+          can: 'while-working',
+          pays: 'plan',
+          why: 'says it while an agent replies',
+          said: { at: now - 60_000, windows: [{ label: '5h', used: 94, resetsAt: now + HOUR }] },
+        },
+        {
+          harness: 'codex',
+          account: 'work',
+          can: 'while-working',
+          pays: 'plan',
+          why: 'says it as each turn ends',
+          said: { at: now, windows: [{ label: '5h', used: 20, resetsAt: now + 2 * HOUR }] },
+        },
+        {
+          harness: 'claude-code',
+          account: 'reviews',
+          can: 'while-working',
+          pays: 'plan',
+          why: 'says it while an agent replies',
+          said: { at: now - 6 * HOUR, windows: [{ label: '5h', used: 41, resetsAt: now - HOUR }] },
+        },
+        {
+          harness: 'pi',
+          account: null,
+          can: 'none',
+          pays: 'per-token',
+          why: 'prices every turn instead',
+          said: null,
+        },
+      ]).plan
+      // Two accounts across two harnesses, one that reports nothing, and one
+      // whose window started over: 41% belonged to a window that is gone, so
+      // the row says it cannot tell rather than drawing a figure that is wrong
+      // and looks exactly like one that is right.
+      expect(rows.map((row) => row.label)).toEqual([
+        'claude-code',
+        'codex @work',
+        'claude-code @reviews',
+        'pi',
+      ])
+      expect(rows.slice(2).map((row) => row.windows)).toEqual([[], []])
+      expect(rows[2]?.cannotTell).toContain('started over')
+      expect(JSON.stringify(rows)).not.toContain('41')
     })
 
     it('has nothing to say when no harness was read', () => {

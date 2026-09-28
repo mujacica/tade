@@ -196,6 +196,89 @@ describe('where everything stands', () => {
   })
 })
 
+describe('where every sign-in stands against its plan', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+  })
+
+  it('reads every login, and never turns one that could not say into nothing used', async () => {
+    const NOW = Date.now()
+    const path = join(tmp('tade-limits-'), 'tools.sock')
+    host = await ToolHost.listen({
+      tade: {
+        // Two accounts across two harnesses, one that reports nothing, and a
+        // window that has already started over.
+        planUsage: () => [
+          {
+            harness: 'claude-code',
+            account: null,
+            can: 'while-working',
+            pays: 'plan',
+            why: 'reports it as one of its agents replies',
+            said: {
+              at: NOW - 60_000,
+              windows: [{ label: '5h', used: 94, resetsAt: NOW + 900_000 }],
+            },
+          },
+          {
+            harness: 'codex',
+            account: 'work',
+            can: 'while-working',
+            pays: 'plan',
+            why: 'says it as each turn ends',
+            said: { at: NOW, windows: [{ label: '5h', used: 20, resetsAt: NOW + 3_600_000 }] },
+          },
+          {
+            harness: 'claude-code',
+            account: 'reviews',
+            can: 'while-working',
+            pays: 'per-token',
+            why: 'reports it as one of its agents replies',
+            said: {
+              at: NOW - 6 * 3_600_000,
+              windows: [{ label: '5h', used: 41, resetsAt: NOW - 1 }],
+            },
+          },
+          {
+            harness: 'pi',
+            account: null,
+            can: 'none',
+            pays: 'per-token',
+            why: 'prices every turn instead',
+            said: null,
+          },
+        ],
+      } as unknown as Workbench,
+      path,
+    })
+    const report = (await call(path, 'plan/limits', {})).result as {
+      signIns: Array<{ label: string; windows: unknown[]; pressure: string | null }>
+      pressed: Array<{ label: string }>
+      instead: Array<{ label: string }>
+    }
+    expect(report.signIns.map((one) => one.label)).toEqual([
+      'claude-code',
+      'codex @work',
+      'claude-code @reviews',
+      'pi',
+    ])
+    // The one at its limit is named, and the two that could not say have no
+    // figure at all rather than a zero that would read as a plan with room.
+    expect(report.pressed.map((one) => one.label)).toEqual(['claude-code'])
+    expect(report.signIns.slice(2).map((one) => one.windows)).toEqual([[], []])
+    expect(report.signIns.slice(2).map((one) => one.pressure)).toEqual([null, null])
+    // And what else there is, which is what somebody can be told to move to.
+    expect(report.instead.map((one) => one.label)).toEqual([
+      'codex @work',
+      'claude-code @reviews',
+      'pi',
+    ])
+  })
+})
+
 describe('a plan that spans repositories, as it reaches the window', () => {
   let host: ToolHost | null = null
 

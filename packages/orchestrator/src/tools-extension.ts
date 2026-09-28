@@ -173,6 +173,15 @@ export function orchestratorTools(
   )
 
   tool(
+    'tade_limits',
+    'Where every sign-in stands against its plan: each account of each harness, how much of each rolling window it has used, what is left of it and when it starts over \u2014 with the ones at their limit named, and what else there is to run as. Use it when somebody asks whether they are about to run out, when an agent has stopped or slowed and a plan could be the reason, and before telling somebody they can keep working. Suggest, never switch: which sign-in agents run as is a sign-in decision, whose money and whose permissions the work runs with, and it is a person\u2019s alone \u2014 so say what you would move to and let them do it, whether that is another account of the same harness, another harness, or an API key rather than a subscription. A sign-in that reports nothing has not reported nothing used: the harnesses that only hear about a plan while one of their agents is working say so in their own words, and that reads as cannot tell, never as zero. None of it is money \u2014 a subscription has no price per turn \u2014 so never add a plan to what anything cost.',
+    object({}),
+    // From the window: only the process holding the harnesses knows what each
+    // last said, and nothing asks anybody on the way.
+    async () => rpc('plan/limits', {}),
+  )
+
+  tool(
     'tade_write_extension',
     'Write a new tool for yourself. It is saved in the extensions folder turned off, and does nothing until a human reads it and turns it on — in Extensions, or `tade extensions enable` — after which it loads the next time Tade starts. Never assume a tool you wrote is available.',
     object(

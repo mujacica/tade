@@ -1,5 +1,13 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
-import { duration, type PlanWindow, planLabel, resetsIn, tightestPlan } from '@tade/core'
+import {
+  duration,
+  nextPlan,
+  type PlanWindow,
+  planLabel,
+  planPressure,
+  planShown,
+  resetsIn,
+} from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, shift, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
@@ -341,11 +349,17 @@ export function renderFoot(
   // it: the two halves of the same question.
   const ran = spend?.runtime && spend.runtime.ms > 0 ? spend.runtime : null
   // What a subscription has left, which is the only figure that means anything
-  // when nothing is priced. One account — the one with the fullest window
-  // anywhere, which is the one about to stop somebody working — and every
-  // window it named. Nothing at all when no harness has said: the reason is on
-  // the Spend page, and a strip is no place for a sentence.
-  const plan = tightestPlan(frame.plan ?? [])
+  // when nothing is priced. One account — the one somebody moved to, or the one
+  // with the fullest window anywhere, which is the one about to stop somebody
+  // working — and every window it named. Nothing at all when no harness has
+  // said: the reason is on the Spend page, and a strip is no place for a
+  // sentence.
+  const plan = planShown(frame.plan ?? [], state.planShown)
+  // Where pressing the name goes next, and null where there is nowhere: with
+  // one sign-in reporting anything there is nothing to move between, so the
+  // name and the control are both left off rather than drawn doing nothing.
+  const along = nextPlan(frame.plan ?? [], state.planShown)
+  const flip: Target = { kind: 'action', name: 'plan-next' }
   // Everything here is clickable, and says so under the pointer the way a
   // link does: lit and underlined, rather than a block of background that
   // would read as a button in a strip that has none.
@@ -405,7 +419,13 @@ export function renderFoot(
       const look = lit(switcher, skin.hint)
       r.text(`${thinker ? shortModel(thinker) : 'no model'} ▾`, look, switcher)
       if (show.account && account?.provider) r.text(` · ${account.provider}`, look, switcher)
-      if (show.account && account?.credential) r.text(` · ${account.credential}`, look, switcher)
+      // Only what needs somebody. How a provider is paid for used to be said
+      // here in full — `signed in` beside every model, every draw — which is
+      // three columns spent saying that the thing you are talking to works.
+      // A provider with no credential for it is the other case, and it is the
+      // one somebody has to do something about, so it keeps its room whatever
+      // else is shed.
+      if (account?.problem) r.text(` · ${account.problem}`, skin.bad, switcher)
       r.text(' │ ', skin.chrome)
       // How hard it thinks, changed like an agent's: a dropdown of the same
       // levels, beside the model it applies to.
@@ -423,9 +443,11 @@ export function renderFoot(
     if (plan && show.plan) {
       // Whose plan, only where more than one account has one to speak of: with
       // a single sign-in the name is noise, and with two the figure is a
-      // riddle without it.
-      const whose = (frame.plan ?? []).filter((one) => one.windows.length > 0).length > 1
-      if (whose) r.text(`${planLabel(plan)} `, money, target)
+      // riddle without it. It is also the control that moves to the next of
+      // them — the name of what you are looking at is the thing to press to
+      // look at another — so both appear exactly when `nextPlan` has somewhere
+      // to go, and a person who moved stays where they moved to.
+      if (along) r.text(`${planLabel(plan)} ⇄ `, lit(flip, skin.hint), flip)
       // A bar each, the way the context meter says how much of a window is
       // gone: the session first and the longer one after it, in the order the
       // harness named them. Short of room it is the fullest alone — the one
@@ -437,7 +459,9 @@ export function renderFoot(
         // The Spend page's own thresholds and the Spend page's own colours:
         // this is the same figure drawn smaller, and two rules for when a
         // plan is worrying would disagree the day one of them moved.
-        const tone = used >= 90 ? skin.bad : used >= 75 ? skin.waiting : skin.done
+        const pressure = planPressure(used)
+        const tone =
+          pressure === 'tight' ? skin.bad : pressure === 'warm' ? skin.waiting : skin.done
         r.text(`${window.label} `, money, target)
         if (show.bars) r.meter(share(window), PLAN_CELLS, lit(target, tone), target).space()
         r.text(`${used}%`, lit(target, tone), target)

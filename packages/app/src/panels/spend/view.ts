@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { duration, type Priced, type Runtime, workedOf } from '@tade/core'
+import { duration, type Priced, planPressure, type Runtime, workedOf } from '@tade/core'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
@@ -208,7 +208,11 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
       let top = true
       for (const window of standing.windows) {
         const used = Math.round(window.used)
-        const tone = used >= 90 ? skin.bad : used >= 75 ? skin.waiting : skin.done
+        // One rule for when a plan is worrying, in core, because the strip and
+        // what the orchestrator is told read the same two numbers.
+        const pressure = planPressure(used)
+        const tone =
+          pressure === 'tight' ? skin.bad : pressure === 'warm' ? skin.waiting : skin.done
         const left = window.resetsIn
         const line = row()
           .space()

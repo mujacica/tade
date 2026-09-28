@@ -46,6 +46,7 @@ describe('what a subscription has left, in the strip', () => {
   const standing = (over: Partial<PlanStanding> = {}): PlanStanding => ({
     harness: 'claude-code',
     account: null,
+    pays: 'plan',
     at: NOW - 60_000,
     cannotTell: null,
     windows: [
@@ -145,27 +146,75 @@ describe('what a subscription has left, in the strip', () => {
     expect(quiet).not.toContain('has not said')
   })
 
+  /** Two harnesses that can say, a third sign-in that cannot, and a fourth nobody read. */
+  const four = [
+    standing(),
+    standing({
+      harness: 'codex',
+      account: 'work',
+      windows: [{ label: '5h', used: 91, resetsAt: NOW + HOUR }],
+    }),
+    // Its window started over since it last said, so `planStandings` has
+    // nothing true left to draw and it is not one of the ones to move between.
+    standing({
+      harness: 'claude-code',
+      account: 'reviews',
+      windows: [],
+      cannotTell: 'started over',
+    }),
+    standing({ harness: 'pi', windows: [], at: null, cannotTell: 'prices every turn instead' }),
+  ]
+
   it('names whose plan it is only when more than one account has one', () => {
     expect(plain(foot(strip()))).not.toContain('claude-code 5h')
-    const two = plain(
-      foot(
-        strip({
-          plan: [
-            standing(),
-            standing({
-              harness: 'codex',
-              account: 'work',
-              windows: [{ label: '5h', used: 91, resetsAt: NOW + HOUR }],
-            }),
-          ],
-        }),
-      ),
-    )
+    const two = plain(foot(strip({ plan: four })))
     // The fullest is the one that stops somebody working, and it is named.
-    expect(two).toContain('codex @work 5h █████░ 91%')
+    expect(two).toContain('codex @work ⇄ 5h █████░ 91%')
     // One account's windows, never the fullest of each: the 7d beside it is
     // the one that account named, and codex named none.
     expect(two).not.toContain('7d')
+  })
+
+  it('offers no way to move between accounts when only one reports anything', () => {
+    // A control that moves between a single thing is a control that lies about
+    // there being somewhere to go, so there is none — and nothing to press.
+    const one = strip({ plan: [standing(), standing({ harness: 'pi', windows: [], at: null })] })
+    expect(plain(foot(one))).not.toContain('⇄')
+    expect(
+      one.hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'plan-next'),
+    ).toBe(false)
+  })
+
+  it('moves to the sign-in somebody chose, and keeps it while it can still say', () => {
+    const chosen = strip({ plan: four }, { planShown: { harness: 'claude-code', account: null } })
+    const row = plain(foot(chosen))
+    // Not the tightest any more: 91% is somebody else's, and a person who went
+    // to look at this one did not ask to be moved back.
+    expect(row).toContain('claude-code ⇄ 5h █████░ 78%')
+    expect(row).not.toContain('91%')
+  })
+
+  it('goes back to the tightest when the sign-in somebody chose has nothing true to say', () => {
+    // Its every window has started over. A stale share is the one thing worse
+    // than somebody else's figure, so the choice heals rather than pins.
+    const gone = plain(
+      foot(strip({ plan: four }, { planShown: { harness: 'claude-code', account: 'reviews' } })),
+    )
+    expect(gone).toContain('codex @work ⇄ 5h █████░ 91%')
+    expect(gone).not.toContain('reviews')
+  })
+
+  it('makes the name the thing you press, and lights it on its own', () => {
+    const pointed = strip({ plan: four }, { hover: { kind: 'action', name: 'plan-next' } })
+    expect(linked(foot(pointed), 'codex @work')).toBe(true)
+    const hit = pointed.hits.find(
+      (one) => one.target.kind === 'action' && one.target.name === 'plan-next',
+    )
+    expect(hit).toBeDefined()
+    // And the bars beside it still open the page that says the rest.
+    expect(
+      pointed.hits.some((one) => one.target.kind === 'action' && one.target.name === 'spend'),
+    ).toBe(true)
   })
 
   it('gives up its trimmings before the controls beside it', () => {

@@ -117,7 +117,9 @@ export const frame = (over: Partial<Frame> = {}): Frame => ({
   home: '~/.tade',
   orchestratorModel: 'openrouter/anthropic/claude-opus-5',
   orchestratorThinking: 'high',
-  orchestratorAccount: { provider: 'openrouter', credential: 'signed in' },
+  // Nothing wrong with how it is paid for, which is the ordinary case and draws
+  // nothing at all: the strip says what needs somebody, not that things work.
+  orchestratorAccount: { provider: 'openrouter', problem: null },
   files: [
     { path: 'src', name: 'src', depth: 0, folder: true, open: true },
     {

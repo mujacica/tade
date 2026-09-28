@@ -195,7 +195,7 @@ describe('the Updates page’s buttons', () => {
 })
 
 describe('who Tade runs as', () => {
-  it('says how a provider is paid for, in the words the strip says it in', async () => {
+  it('says how a provider is paid for, in the words a page that asked says it in', async () => {
     const world = wiring({
       credentials: { anthropic: 'signed-in', openai: 'api-key', openrouter: 'env-key' },
     })
@@ -208,6 +208,22 @@ describe('who Tade runs as', () => {
     // Nothing recorded is nothing said, rather than a guess at how it is paid for.
     expect(subject.credential('mistral')).toBeNull()
     expect(subject.credential(null)).toBeNull()
+  })
+
+  it('says nothing is wrong where a credential was found, and nothing before any was read', async () => {
+    const world = wiring({ credentials: { anthropic: 'signed-in' } })
+    const subject = machine(world)
+    // Nobody has looked yet. "Not signed in" and "nobody has looked" are two
+    // answers, and a warning drawn before anybody looked is about nothing.
+    expect(subject.credentialProblem('anthropic')).toBeNull()
+    expect(subject.credentialProblem('mistral')).toBeNull()
+
+    await subject.loadAccounts()
+    // That a thing works is not news, and the strip only has room for what
+    // needs somebody.
+    expect(subject.credentialProblem('anthropic')).toBeNull()
+    expect(subject.credentialProblem('mistral')).toBe('not signed in')
+    expect(subject.credentialProblem(null)).toBeNull()
   })
 
   it('reads the models again after signing in, because signing in changes them', async () => {

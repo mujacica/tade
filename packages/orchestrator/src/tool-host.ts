@@ -1,7 +1,7 @@
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
-import { DONE_RULES, type DoneRule, type LaneId, type Plan, When } from '@tade/core'
+import { DONE_RULES, type DoneRule, type LaneId, type Plan, planReport, When } from '@tade/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
 import { clipped, type Workbench } from '@tade/workbench'
 
@@ -223,6 +223,11 @@ export class ToolHost {
           project: String(p.project ?? ''),
           said: String(p.said ?? ''),
         }),
+      // Where each sign-in stands against its plan. Read from what the
+      // harnesses already hold, so it asks nobody anything; it changes nothing
+      // and there is no method here that would, because which sign-in agents
+      // run as is a person's.
+      'plan/limits': async () => planReport(tade.planUsage(), Date.now()),
       'status/read': async () => {
         if (!opts.status) throw new Error('this Tade has no window to ask')
         return opts.status()

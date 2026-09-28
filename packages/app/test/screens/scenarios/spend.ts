@@ -53,16 +53,20 @@ const spent = [
 ]
 
 /**
- * What the harnesses last said about their plans: Claude Code on a
- * subscription with most of a five-hour window gone, a second account of it
- * barely touched, and pi, which prices every turn and never hears about a
- * plan at all.
+ * What every sign-in there is says about its plan: the list the strip's toggle
+ * moves along, and what somebody is told when one of them is nearly gone.
+ *
+ * Two harnesses that can say, and one that cannot. Claude Code's own sign-in
+ * has most of a five-hour window gone, Codex's own is barely touched — which is
+ * what the strip has a name and a toggle for rather than one bar — and pi prices
+ * every turn and never hears about a plan at all.
  */
 const plans: PlanSource[] = [
   {
     harness: 'claude-code',
     account: null,
     can: 'while-working',
+    pays: 'plan',
     why: 'reports it as one of its agents replies, so there is nothing to show until one has',
     said: {
       at: NOW - 6 * 60_000,
@@ -73,10 +77,11 @@ const plans: PlanSource[] = [
     },
   },
   {
-    harness: 'claude-code',
-    account: 'reviews',
+    harness: 'codex',
+    account: null,
     can: 'while-working',
-    why: 'reports it as one of its agents replies, so there is nothing to show until one has',
+    pays: 'plan',
+    why: 'says it as each turn ends, so nothing shows until an agent has worked',
     said: {
       at: NOW - 41 * 60_000,
       windows: [{ label: '5h', used: 12, resetsAt: NOW + 7_200_000 }],
@@ -86,6 +91,7 @@ const plans: PlanSource[] = [
     harness: 'pi',
     account: null,
     can: 'none',
+    pays: 'per-token',
     why: 'is never told what a plan has left; it prices each turn instead',
     said: null,
   },

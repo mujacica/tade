@@ -1,4 +1,4 @@
-import { planStandings, pricesFrom } from '@tade/core'
+import { nextPlan, planStandings, pricesFrom } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { projects } from '../model.ts'
 import { spendPanel } from '../panels/spend/state.ts'
@@ -74,6 +74,19 @@ export class Spend implements Subject {
     return {
       spend: () => {
         this.wire.put({ ...this.wire.state, panel: spendPanel() })
+        this.wire.draw()
+      },
+      // Move the strip's plan bar to the next sign-in that has something to
+      // say. What the strip shows is the one thing kept here rather than asked
+      // again each draw: the tightest account is whichever is fullest now, and
+      // a person who went to look at another one did not ask to be moved back
+      // the moment somebody else's window filled up.
+      'plan-next': () => {
+        const standings = planStandings(this.wire.opts.client.planUsage(), this.wire.now())
+        this.wire.put({
+          ...this.wire.state,
+          planShown: nextPlan(standings, this.wire.state.planShown),
+        })
         this.wire.draw()
       },
     }

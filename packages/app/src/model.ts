@@ -1,6 +1,7 @@
 import {
   type DoneRule,
   IDLE_REASON,
+  type PlanChoice,
   type QueueState,
   type TadeEvent,
   type TaskState,
@@ -291,6 +292,8 @@ export interface AppState {
   reordering: { project: string; task: string; to: number } | null
   /** The keyboard is on the second half of a split, not the first. */
   splitFocus: boolean
+  /** The sign-in the strip's plan bar was moved to; null draws the tightest, whichever it is. */
+  planShown: PlanChoice | null
 }
 
 /** Two lanes in one place: which is the second, which way it sits, and how much the first takes. */
@@ -368,6 +371,7 @@ export function initialState(): AppState {
     spots: {},
     reordering: null,
     splitFocus: false,
+    planShown: null,
     orchestratorDraft: '',
   }
 }

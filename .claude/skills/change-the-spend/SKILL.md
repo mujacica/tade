@@ -19,15 +19,17 @@ never totalled together, and each has its own type, its own list and its own bar
 | `packages/core/src/spend.ts` | the fold: `spendFrom`, `Spend`, `noSpend`, `usdExact` / `usdEstimated` / `usdListed`, `hasCost`, `pricedOf`, `checkBudget`, `modelIdentity`, `modelIn`, `modelDetail`, `modelsSaid`, `modelLastRunOn`, `UNRECORDED`, `HARNESS_FACTS`, `isMoney`, `runFactsOf`, `runFactsFrom`, `accountBucket` |
 | `packages/core/src/prices.ts` | what a model costs where nobody will say: `PRICES`, `PRICES_TAKEN`, `priceFor`, `priceKey`, `estimateUsd`, `pricesFrom` — and `config.prices`, the override |
 | `packages/core/src/runtime.ts` | how long: `runtimeFrom`, `RUNTIME_EVENTS`, `Runtime`, `workedOf`, `runtimeSays`, `workedSays`, `duration` |
-| `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `resetsIn`, `planLabel`, `cannotTell` |
+| `packages/core/src/limits.ts` | a plan: `LimitsSupport`, `PlanPays`, `PlanWindow`, `PlanStanding`, `planStandings`, `tightestPlan`, `planShown`, `nextPlan`, `PLAN_WARM`/`PLAN_TIGHT`/`planPressure`, `planReport`, `resetsIn`, `planLabel`, `cannotTell` |
 | `packages/core/src/stats.ts` | what it bought: `statsFrom`, `Produced`, `STATS_EVENTS` |
 | `packages/harnesses/core/src/port.ts` | what a harness declares: `capabilities.spend` (`usd`, `tokens`, `limits`), `why.limits`, `WorkerAdapter.provider`, `limits()` |
+| `packages/workbench/src/accounts.ts` | which sign-ins there are and what each says about its plan: `signIns`, `planSources`, `planWindows` |
+| `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_limits`, over `plan/limits` |
 | `packages/workbench/src/workers.ts` | what is written down: `usage`, `run_started`, `run_model`, and `agentTurns` for the reporter |
 | `packages/workbench/src/workbench.ts` | the two that cannot be re-derived: `lookAtCommits` → `commit_seen`, `lookAtChecks` → `check_ran` |
 | `packages/app/src/spend.ts` | `spendView`, `SpendRow`, `PlanRow`, `BudgetRow`, `SPEND_BY`, `SPEND_WINDOWS`, `sinceOf` |
 | `packages/app/src/wire/spend.ts` | the `Spend` subject: the fold on the window's beat, `planUsage` read from what each harness already holds |
 | `packages/app/src/panels/spend/state.ts`, `view.ts` | the page: its tabs, `spendColumns`, `nameLines` |
-| `packages/app/src/view/foot.ts` | the strip: `tightestPlan`, the bars, and what it gives up first |
+| `packages/app/src/view/foot.ts` | the strip: `planShown`, `nextPlan`, the bars, and what it gives up first |
 | `packages/cli/src/commands/spend.ts` | `tade spend`, which reads the journal directly and never opens the workbench |
 | `packages/core/test/spend.test.ts`, `limits.test.ts`, `runtime.test.ts`, `stats.test.ts` | the rules |
 | `packages/workbench/test/harnesses.test.ts` | `HARNESS_FACTS` held to the adapters, so the two can never drift |
@@ -125,12 +127,31 @@ Tade counted.
   one that is true, which is the one way this could be worse than saying nothing.
 - Nothing here asks anybody anything: the window draws it on its own beat, so `limits()` reads what
   the harness already holds rather than reaching for the network four times a second.
-- The strip draws the windows of **one** account — `tightestPlan`, the account with the fullest window
-  anywhere, which is the one about to stop somebody working. One account and not the fullest window of
-  each, since one sign-in's session beside another's week is two answers to one question. Short of
-  room it gives up its trimmings before the controls beside it — when each window comes back, then the
-  window that is not the tightest, and the bars themselves last — because both are said again one
-  click away on the page it opens, and the model and how hard it thinks are said nowhere else.
+- **Every sign-in is gathered, not only the ones something has run as** (`planSources`, over
+  `signIns`): an account that exists and has said nothing is somewhere somebody could go when a plan
+  is nearly gone, and an absent row is one nobody can suggest. What pays for each rides along
+  (`PlanPays`) — an added account by the kind a person wrote down for it, a harness's own sign-in by
+  its own `spend.usd` — because Codex declares it prices nothing on *any* account, which is true of
+  Codex and says nothing about who is billed.
+- The strip draws the windows of **one** account: the one somebody moved to, and `tightestPlan` until
+  they do, which is the one about to stop somebody working. One account and not the fullest window of
+  each, since one sign-in's session beside another's week is two answers to one question. Its name is
+  the control that moves along (`nextPlan`, `plan-next`), and both the name and the control exist
+  exactly where more than one sign-in has something to say — a control that moves between a single
+  thing lies about there being somewhere to go. A choice **heals rather than pins** (`planShown`):
+  where the account somebody chose has nothing true left to say, the tightest is drawn instead,
+  because a stale share is worse than somebody else's figure. Short of room it gives up its trimmings
+  before the controls beside it — when each window comes back, then the window that is not the
+  tightest, and the bars themselves last — because both are said again one click away on the page it
+  opens, and the model and how hard it thinks are said nowhere else.
+- **When a plan is worrying is one rule** (`planPressure`, `PLAN_WARM`, `PLAN_TIGHT`): the strip's
+  colours, the page's colours and what the orchestrator is told all read it, and it was two copies of
+  the same literal before the third reader arrived.
+- **The orchestrator reads where every sign-in stands and never moves one** (`planReport`,
+  `tade_limits`): used, what is left, when it comes back, who is at their limit, and what else there
+  is — ordered by what is known and never by a guess, since "cannot tell" is not "has room". Which
+  sign-in agents run as is `never` its to write (`settingReach`: *which sign-in agents run as is a
+  sign-in decision*), so the tool says that in its own words and suggests.
 
 ### What is true of a harness is true of its old lines too
 
@@ -298,7 +319,13 @@ corrects them for every reader.
 **A harness that can say what is left of a plan.** Declare `capabilities.spend.limits` and a sentence
 in `why.limits` for anything short of `anytime`, answer `limits()` from what the harness already
 holds, and let `planStandings` decide whether the figure is still true. Never total it with money, and
-never turn a window that has started over into a percentage.
+never turn a window that has started over into a percentage. A harness with accounts needs nothing
+else: `planSources` walks every sign-in there is.
+
+**A new figure about a plan.** Fold it in `limits.ts` beside the others and read it from all three
+readers — the strip, the page and `planReport` — rather than working it out in one of them. Anything
+a harness could not say is `null` there and drawn as *cannot tell*; `0` is a figure somebody looked
+at.
 
 **A new event carrying a model.** Write it with `modelDetail` and read it with `modelIn`. A model
 written as a bare string is a fifth spelling and a fifth row.

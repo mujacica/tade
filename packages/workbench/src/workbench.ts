@@ -70,17 +70,11 @@ import {
 import { git, readCommits } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
-import { type AccountView, harnessAccount, listAccounts, planWindows } from './accounts.ts'
+import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
 import { recordAuthored } from './authored.ts'
 import { checksAt, checksGate } from './checks.ts'
 import { EventLog, readJournal } from './events.ts'
-import {
-  accountKey,
-  adapterKey,
-  adapterParts,
-  HARNESS_ADAPTERS,
-  type HarnessOptions,
-} from './harnesses.ts'
+import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { ensureIgnored, IGNORE_PATH } from './ignore.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
@@ -729,31 +723,12 @@ export class Workbench {
   }
 
   /**
-   * How much of each account's plan is used, as its harness last said, beside
-   * what that harness is able to say at all.
-   *
-   * Never asks anybody: a harness that is told its own limits keeps the last
-   * answer it was given, and this reads it. Anything that reached out here
-   * would be a network call on the window's beat, which is the thing that must
-   * not happen.
-   *
-   * Every account that has an adapter is reported, the ones with nothing to
-   * say included: "none used" and "cannot know" are different answers, only
-   * one of them is good news, and which it is, is `planStandings`' to decide
-   * from the harness's own declaration rather than from an empty figure. An
-   * account nothing has needed yet has no adapter and is absent, which says
-   * the same thing — nothing has run as it, so nothing has been said.
+   * How much of every sign-in's plan is used, as its harness last said. Which
+   * sign-ins those are, and why none of it asks anybody, is `planSources`'.
    */
   planUsage(): PlanSource[] {
-    return Object.entries(this.adapters).map(([key, adapter]) => {
-      const can = adapter.capabilities.spend.limits
-      const said = can === 'none' ? null : adapter.limits()
-      return {
-        ...adapterParts(key),
-        can,
-        why: adapter.capabilities.why.limits ?? null,
-        said: said ? { at: said.at, windows: planWindows(said) } : null,
-      }
+    return planSources(this.config, {
+      adapterFor: (harness, name) => this.adapterFor(harness, name ?? undefined),
     })
   }
 
