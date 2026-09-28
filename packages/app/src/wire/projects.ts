@@ -66,8 +66,6 @@ export interface ProjectTools {
 export interface ProjectsDeps {
   /** A project added is a config written: everything that holds one reads it back. */
   useConfig(config: Config): void
-  /** A project with no agents gets one, so the window opens on something. */
-  ensureAgent(project: string): void
 }
 
 export class Projects implements Subject {
@@ -336,9 +334,11 @@ export class Projects implements Subject {
       ...(req.said ? { said: req.said } : {}),
       ...(made ? { made: true } : {}),
     })
+    // Opened, and nothing started. A project with no agents lands on the empty
+    // screen, which is a place rather than a gap; an agent comes from a task or
+    // from somebody asking for one.
     this.wire.put(notice(selectProject(this.wire.state, name), `opened ${name}`))
     await this.wire.live?.refresh()
-    this.deps.ensureAgent(name)
     return `Opened ${name} at ${tilde(full)}${made ? ', a new git repository' : ''}.`
   }
 

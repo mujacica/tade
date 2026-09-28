@@ -386,7 +386,6 @@ export class App {
     })
     this.projects = new Projects(this.wire, {
       useConfig: (config) => this.settings.use(config),
-      ensureAgent: (project) => this.agents.ensureAgent(project),
     })
     this.spend = new Spend(this.wire)
     this.subjects = [

@@ -1,12 +1,19 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, type TaskId } from '@tade/core'
 import { Speaker } from '@tade/voice-tts'
 import { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { App } from '../../src/app.ts'
-import { FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
+import {
+  FakeTerminal,
+  type Repo,
+  SPAWNING_MS,
+  screenOf,
+  until,
+  windowUnderTest,
+} from './harness.ts'
 
 // An agent asked for, opened, told it is finished, and closed — and what its
 // own page says about what it did.
@@ -356,6 +363,108 @@ describe('a project with nothing in it', () => {
     } finally {
       await app.stop().catch(() => {})
       await client.close().catch(() => {})
+    }
+  }, 60_000)
+})
+
+describe('a project opened, and the window opened again', () => {
+  let terminal: FakeTerminal
+  let client: Workbench
+  let repo: Repo
+  let home: string
+  const { start, newTerminal } = windowUnderTest((wired) => {
+    terminal = wired.terminal
+    client = wired.client
+    repo = wired.repo
+    home = wired.home
+  })
+
+  /** Every agent lane the workbench knows of, running or not. */
+  const agentLanes = (of: Workbench) => of.lanes().filter((lane) => lane.kind === 'agent')
+
+  /** Where one of the fixture's tasks works, and the branch it is on. */
+  const taskAt = (name: string) => ({
+    worktree: join(repo.root, '..', 'worktrees', `app-${name}`),
+    branch: `tade/${name}`,
+    task: `app/${name}`,
+  })
+
+  /**
+   * Adding a project used to make an agent in it so there was somewhere to
+   * type. The empty screen is that somewhere now, and it says what is true —
+   * a project with nothing started in it — where `agent-1` said a person had
+   * asked for an agent nobody had.
+   */
+  it('opens a project on its empty screen, and starts nothing in it', async () => {
+    const app = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // A repository Tade has never worked in, which is what adding one is.
+    const fresh = mkrepo()
+    fresh.commit('first')
+    terminal.written = ''
+    await app.configTools().openProject({ path: fresh.root, name: 'payments', create: false })
+    await until('the empty screen', () => terminal.written.includes('+ New agent'), SPAWNING_MS)
+    expect(screenOf(terminal.written).join('\n')).toContain('in payments')
+
+    // And nothing was started to fill it. Given a second of frames to change
+    // its mind, which is many times longer than making a task ever took: the
+    // agent this used to fabricate was on screen well inside the first one.
+    const settle = Date.now() + 1_000
+    while (Date.now() < settle) {
+      expect(await client.events({ types: ['task_created'] })).toEqual([])
+      expect(agentLanes(client)).toEqual([])
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+  }, 30_000)
+
+  it('opens again with none, in a project whose agents you took away', async () => {
+    const first = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Both of them gone, which is a choice the next window must not undo.
+    for (const name of ['refunds', 'search']) {
+      await client.removeTask({ root: repo.root, ...taskAt(name), force: true })
+    }
+    await until('the empty screen', () => terminal.written.includes('+ New agent'), SPAWNING_MS)
+    await first.stop()
+
+    terminal = newTerminal()
+    await start()
+    await until(
+      'the empty screen again',
+      () => terminal.written.includes('+ New agent'),
+      SPAWNING_MS,
+    )
+    expect(await client.events({ types: ['task_created'] })).toEqual([])
+    expect(agentLanes(client)).toEqual([])
+  }, 60_000)
+
+  it('brings back the agent that was working when Tade closed, and only that one', async () => {
+    const first = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const refunds = taskAt('refunds')
+    await client.startAgent({ task: refunds.task as TaskId, cwd: refunds.worktree, prompt: '' })
+    await first.stop()
+    // Closing lets go of the lanes rather than writing them off, so the next
+    // window finds the registry saying alive and the driver unable to hand
+    // the lane back. That is what `lost` means, and it is the one thing
+    // opening the window is allowed to start.
+    await client.close()
+    const after = await Workbench.open({ home })
+    try {
+      expect(after.lanes().find((lane) => lane.task === refunds.task)?.lost).toBe(true)
+      terminal = newTerminal()
+      await start({ client: after })
+      await until(
+        'it back where it left off',
+        () => agentLanes(after).some((lane) => lane.task === refunds.task && lane.alive),
+        SPAWNING_MS,
+      )
+      // Only that one: the agent nobody had started is still not started, and
+      // no `agent-1` was invented beside them.
+      expect(agentLanes(after).map((lane) => lane.task)).toEqual([refunds.task])
+      expect(await after.events({ types: ['task_created'] })).toEqual([])
+    } finally {
+      await after.close().catch(() => {})
     }
   }, 60_000)
 })

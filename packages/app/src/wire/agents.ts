@@ -36,9 +36,18 @@ import { type Waker, wakerOf } from './sleep.ts'
 // agent already has and says nothing to it; the opening instruction belongs
 // to the launch that created it, and an agent told its first instruction a
 // second time does the work twice. The two sets that guard it — what is being
-// opened now, and what this window has already opened by itself — are here
+// opened now, and what this window has already reopened by itself — are here
 // for that reason, and so is the promise that an agent stopped on purpose is
 // never started again behind your back.
+//
+// **Nothing here starts an agent nobody asked for.** Adding a project used to
+// make one so there was somewhere to type; the empty screen (`view/empty.ts`)
+// is that somewhere now, and it is the whole of what a project with no agents
+// shows. So an agent comes from a task, from `+ New agent`, or from the
+// orchestrator — never from a project existing. What that buys is the promise
+// the old one had to carve out by hand: a project whose agents you removed
+// stays without one, and closing the window and opening it again brings back
+// what was *working* (`reopenLost`) and nothing else.
 
 /** What this subject needs from the rest of the window. */
 export interface AgentsDeps {
@@ -69,8 +78,6 @@ export class Agents implements Subject {
   private starting = false
   /** Tasks whose agent is being opened right now. */
   private readonly opening = new Set<string>()
-  /** Projects this window has already opened an agent in on its own. */
-  private readonly opened = new Set<string>()
   /** Agents this window has opened again on its own, so it never does it twice. */
   private readonly reopened = new Set<string>()
   /** Agents whose branch is being named, so a slow git is not asked twice. */
@@ -485,19 +492,6 @@ export class Agents implements Subject {
       return task.id
     }
     throw new Error(`every name like ${stem} is taken in ${project}`)
-  }
-
-  /**
-   * An agent in a project you have just added, so there is somewhere to type.
-   * Only then: a project whose agents you removed stays without one — opening
-   * the window again must never bring back what you took away.
-   */
-  ensureAgent(project: string | null): void {
-    if (!project || !this.wire.live || this.opened.has(project)) return
-    if (!this.wire.opts.config.projects[project]) return
-    this.opened.add(project)
-    if (this.wire.state.panes.some((pane) => pane.project === project)) return
-    void this.newAgent('')
   }
 
   /**

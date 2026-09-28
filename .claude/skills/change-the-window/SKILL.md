@@ -458,6 +458,12 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
 - **Don't ask when a sensible default exists.** **+ New agent** makes `agent-N` and opens pi at once
   rather than opening a form — the agent's own prompt is where you say what it is for. A panel is
   for a question only you can answer.
+- **A project existing is not somebody asking for an agent.** Adding one, and opening the window on
+  one, start nothing: a project with no agents draws the empty screen (`view/empty.ts`), which is a
+  place rather than a gap. Adding one used to make `agent-1` so there was somewhere to type, before
+  that screen existed — and it was never used, because it stood for nobody's work. An agent comes
+  from a task, from **+ New agent**, or from the orchestrator. The one thing opening *does* start is
+  what was working when Tade closed (`reopenLost`), which was interrupted rather than taken away.
 - **A panel keeps its height while you use it.** Panels are centred, so one that grows by a row
   moves under the pointer and the next click lands on the row below. Reserve the space for a
   warning, and give a list a fixed number of rows — Open project did both after a double-click
