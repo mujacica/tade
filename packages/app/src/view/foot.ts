@@ -423,8 +423,8 @@ export function renderFoot(
       // here in full — `signed in` beside every model, every draw — which is
       // three columns spent saying that the thing you are talking to works.
       // A provider with no credential for it is the other case, and it is the
-      // one somebody has to do something about, so it keeps its room whatever
-      // else is shed.
+      // one somebody has to do something about, so it is never one of the
+      // trimmings: it stays for as long as the model it belongs to does.
       if (account?.problem) r.text(` · ${account.problem}`, skin.bad, switcher)
       r.text(' │ ', skin.chrome)
       // How hard it thinks, changed like an agent's: a dropdown of the same
