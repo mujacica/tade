@@ -238,9 +238,14 @@ export class ToolHost {
           said: String(p.said ?? ''),
         }),
       'project/reorder': async (p) => {
+        // The window first, then the argument, like every other method here:
+        // with nothing holding the config there is nothing to reorder whatever
+        // was passed, and answering about the argument instead sends whoever
+        // asked off to fix a list that was never the problem.
+        const config = configOf(opts)
         if (!Array.isArray(p.order))
           throw new Error('order is the projects, first to last: a list of their names')
-        return configOf(opts).reorderProjects({ order: p.order.map((name) => String(name)) })
+        return config.reorderProjects({ order: p.order.map((name) => String(name)) })
       },
       'project/configure': async (p) =>
         configOf(opts).configureProject({

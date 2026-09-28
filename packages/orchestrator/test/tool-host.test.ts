@@ -460,19 +460,65 @@ describe('changing how Tade is set up', () => {
     expect(
       (await call(path, 'project/close', { project: 'payments', said: 'close payments' })).result,
     ).toBe('Closed payments.')
+    expect(
+      (
+        await call(path, 'project/rename', {
+          project: 'payments',
+          name: 'Payments',
+          said: 'call payments Payments',
+        })
+      ).result,
+    ).toBe('payments shows as Payments.')
+    expect((await call(path, 'project/reorder', { order: ['payments', 'docs'] })).result).toBe(
+      'The tabs are now payments, docs.',
+    )
+    // An order that is not a list is refused here rather than reaching the
+    // window as `[object Object]`: what comes over this socket is whatever a
+    // model put in a tool call, and every other argument is read as text.
+    expect((await call(path, 'project/reorder', { order: 'payments' })).error?.message).toMatch(
+      /a list of their names/,
+    )
+    expect(
+      (
+        await call(path, 'project/configure', {
+          project: 'payments',
+          setting: 'budget.usd_per_day',
+          value: '20',
+          said: 'give payments a budget of 20 a day',
+        })
+      ).result,
+    ).toBe('Saved.')
     expect(asked).toEqual([
       { settings: 'commit' },
       { change: { path: 'agents.commit', value: 'as-you-go', said: 'commit as you go' } },
       { change: { path: 'approvals.mode', value: 'bypass', said: '' } },
       { open: { path: '~/src/payments', create: true } },
       { close: { project: 'payments', said: 'close payments' } },
+      { rename: { project: 'payments', name: 'Payments', said: 'call payments Payments' } },
+      { reorder: { order: ['payments', 'docs'] } },
+      {
+        configure: {
+          project: 'payments',
+          setting: 'budget.usd_per_day',
+          value: '20',
+          said: 'give payments a budget of 20 a day',
+        },
+      },
     ])
   })
 
   it('says there is nothing to configure with when no window is holding the config', async () => {
     const path = join(tmp('tade-tools-'), 'tools.sock')
     host = await ToolHost.listen({ tade: {} as Workbench, path })
-    for (const method of ['config/settings', 'config/change', 'project/open', 'project/close']) {
+    for (const method of [
+      'config/settings',
+      'config/change',
+      'project/open',
+      'project/close',
+      'project/rename',
+      'project/reorder',
+      'project/configure',
+    ]) {
       expect((await call(path, method, {})).error?.message, method).toMatch(/window open/)
     }
   })
