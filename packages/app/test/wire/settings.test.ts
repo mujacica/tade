@@ -19,11 +19,13 @@ describe('the window, and its settings', () => {
   let client: Workbench
   let repo: Repo
   let home: string
+  let awake: { took: string[]; dropped: () => number }
   const { start, newTerminal, click, find } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
     home = wired.home
+    awake = wired.awake
   })
 
   it('opens Settings from its button, with its categories and controls', async () => {
@@ -51,6 +53,27 @@ describe('the window, and its settings', () => {
     await until('saved', () => terminal.written.includes('applies now'))
     // The workbench's own copy is the one that decides where a task is made.
     expect(client.config.agents.workspace).toBe('worktree')
+  })
+
+  it('holds the machine awake from the button in the strip, and says the machine is held', async () => {
+    // The whole way through, because the interesting part is the wiring: the
+    // press writes the setting, the setting comes back through the one door
+    // every setting comes back through, and the hold is taken *there* — so
+    // the button and the Settings page cannot do two different things. The
+    // assertion is the harness's own; no test asks this laptop to stay awake.
+    await start()
+    await until('the first frame', () => terminal.written.includes('Keep awake'))
+    const button = find('Keep awake ')
+    click(button.col + 1, button.row)
+    await until('the hold', () => awake.took.length === 1)
+    expect(client.config.agents.keep_awake).toBe(true)
+    // And the button says what is true of the machine now, not what was asked.
+    await until('the way out', () => terminal.written.includes('Let it sleep'))
+
+    const again = find('Let it sleep ')
+    click(again.col + 1, again.row)
+    await until('the hold dropped', () => awake.dropped() === 1)
+    expect(client.config.agents.keep_awake).toBe(false)
   })
 
   it('clears the model when the harness is reselected, so the new one decides', async () => {

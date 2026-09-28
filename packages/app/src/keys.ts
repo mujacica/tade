@@ -1,4 +1,4 @@
-import { isKeyRelease, parseKey } from '@earendil-works/pi-tui'
+import { getKeybindings, isKeyRelease, parseKey, TUI_KEYBINDINGS } from '@earendil-works/pi-tui'
 
 // Which keystrokes the shell claims, and what it calls them.
 //
@@ -198,4 +198,19 @@ export function keyCaps(name: string): string[] {
 
 function capital(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/**
+ * The alternate screen claims page up and down, home and end, ctrl+up and
+ * down and ctrl+shift+f to scroll and search a viewport of its own — before any
+ * listener sees them. Tade draws exactly one screen and never scrolls one, so
+ * those keys belong to the panel that is open or the agent you are typing at.
+ */
+export function freeViewportKeys(): void {
+  const bindings = getKeybindings()
+  const freed: Record<string, never[]> = {}
+  for (const id of Object.keys(TUI_KEYBINDINGS)) {
+    if (id.startsWith('tui.altScreen.')) freed[id] = []
+  }
+  bindings.setUserBindings({ ...bindings.getUserBindings(), ...freed })
 }

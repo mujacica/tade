@@ -19,6 +19,7 @@ import type { MenuItem, MenuSubject, ThinkerOffers } from '../panels/menu/state.
 import type { PromptPanel } from '../panels/small/state.ts'
 import type { Panel, PanelInputs } from '../panels.ts'
 import type { ThinkerEvent } from '../transcript.ts'
+import type { Hold } from './awake.ts'
 import type { MachineNetwork } from './network.ts'
 
 // What a subject of the window may reach, and nothing more.
@@ -83,6 +84,13 @@ export interface AppOptions {
    * runs on, and one that opens Finder is worse than one that opens a socket.
    */
   open?: Open
+  /**
+   * How sleep is held off, for the same reason `open` and `clipboard` are
+   * given: a suite may not ask the machine it runs on to stay awake, and could
+   * assert nothing about it afterwards. The machine's `caffeinate` unless
+   * given.
+   */
+  hold?: Hold
   /** Tade's state directory, where generated earcons are kept. */
   home: string
   cwd?: string

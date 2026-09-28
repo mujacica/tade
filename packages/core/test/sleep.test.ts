@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   AWAKE,
   AWAY_AFTER_MS,
+  awakeArgs,
+  awakeSaid,
   beat,
   CONTINUE,
   couldNotContinue,
+  KEEP_AWAKE_MEANS,
   type Napping,
+  NO_HOLD_HERE,
   toContinue,
   wokeSaid,
 } from '../src/sleep.ts'
@@ -143,5 +147,50 @@ describe('what is said', () => {
   it('says why an agent could not be told, which is a person to fix rather than another nudge', () => {
     expect(couldNotContinue('app/refunds', 'no such run: r_1')).toContain('app/refunds')
     expect(couldNotContinue('app/refunds', 'no such run: r_1')).toContain('no such run: r_1')
+  })
+})
+
+describe('holding the sleep off in the first place', () => {
+  it('asks for the machine and never for the display', () => {
+    // The whole of the security argument: the screen dims and locks on its own
+    // timer, so a machine held up to work is no more readable by somebody
+    // walking past than one that is not.
+    const args = awakeArgs(4_242)
+    expect(args).not.toContain('-d')
+    expect(args).not.toContain('-u')
+  })
+
+  it('asks for both assertions, because one of them does nothing on battery', () => {
+    // `-s` is valid only on AC power, so it alone is a hold that quietly stops
+    // holding the moment somebody unplugs — a button saying it is holding and
+    // not. `-i` is what covers that, and neither touches the display.
+    const args = awakeArgs(4_242)
+    expect(args).toContain('-s')
+    expect(args).toContain('-i')
+  })
+
+  it('waits on Tade’s own process, so nothing outlives the window', () => {
+    // Tied to a pid and not to a clock: a timeout would have to be renewed by
+    // something on a timer, and a renewal nobody watched failing is a machine
+    // that never sleeps again. This way a crash releases it too.
+    expect(awakeArgs(4_242)).toEqual(['-s', '-i', '-w', '4242'])
+  })
+
+  it('says both halves of the answer wherever either is described', () => {
+    // The two features are one answer: the hold prevents the sleep, and the
+    // wake picks up whatever slept anyway. Said together, or somebody reads
+    // them as two things to choose between.
+    expect(KEEP_AWAKE_MEANS).toContain('agents keep running while Tade is open')
+    expect(KEEP_AWAKE_MEANS).toContain('picked up when the machine wakes')
+    expect(NO_HOLD_HERE).toContain('caffeinate')
+    expect(NO_HOLD_HERE).toContain('carry on when it wakes')
+  })
+
+  it('says what the press changed, in the terms it changed them', () => {
+    expect(awakeSaid(true)).toContain('stays awake while Tade is open')
+    // And what it does not change, which is the question somebody turning it
+    // on is actually asking.
+    expect(awakeSaid(true)).toContain('screen still locks')
+    expect(awakeSaid(false)).toContain('told to carry on when the machine wakes')
   })
 })

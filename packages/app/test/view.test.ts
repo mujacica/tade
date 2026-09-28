@@ -910,21 +910,36 @@ describe('agent spend', () => {
   })
 
   it('keeps the cost and the runtime when the window is too narrow for the rest', () => {
-    const rows = renderApp(state(), {
-      ...frame({ width: 64 }),
-      spend: {
-        tokens: 1_500,
-        usd: 0.351,
-        hasCost: true,
-        byTask: {},
-        runtime: { ...noRuntime(), ms: 80 * 60_000, runs: 2, running: true },
-      },
-    })
+    const spend = {
+      tokens: 1_500,
+      usd: 0.351,
+      hasCost: true,
+      byTask: {},
+      runtime: { ...noRuntime(), ms: 80 * 60_000, runs: 2, running: true },
+    }
+    const rows = renderApp(state(), { ...frame({ width: 80 }), spend })
     const footer = plain(rows[rows.length - 1] ?? '')
     // The tokens go first, the time and the money stay.
     expect(footer).not.toContain('tok')
     expect(footer).toContain('1h 20m')
     expect(footer).toContain('$0.35')
+  })
+
+  it('gives the figures up to the controls before it gives up a control', () => {
+    // Narrower than the four buttons and one figure together. The shedding
+    // order inside the status is what `costToday` is about and it still holds
+    // — the money is the last of those to go — but the status as a whole comes
+    // after the controls, because what is cut from the drawing is not cut from
+    // the program: every figure here is one click away on the page this opens,
+    // and a control that is not drawn cannot be reached at all.
+    const rows = renderApp(state(), {
+      ...frame({ width: 56 }),
+      spend: { tokens: 1_500, usd: 0.351, hasCost: true, byTask: {} },
+    })
+    const footer = plain(rows[rows.length - 1] ?? '')
+    expect(footer).toContain('Mute')
+    expect(footer).toContain('Keep awake')
+    expect(footer).not.toContain('today')
   })
 
   it('shows in the task list when an agent has spent money', () => {

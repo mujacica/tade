@@ -15,7 +15,7 @@ import { type AppState, activeTerminal, ORCHESTRATOR_TAB, terminalsOf } from '..
 import type { HeldLines } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
-import type { Skin } from '../skin.ts'
+import type { Look, Skin } from '../skin.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
 import { blockAt, laneRegion, pointedIn, screenRows, scrolledBar, typingIn } from './lane.ts'
 import { gutterBeside } from './rows.ts'
@@ -31,18 +31,64 @@ import { dollars, shortModel, tokens } from './text.ts'
  * one and opening a project have their own `+` where agents and projects are,
  * and search has ctrl+k beside the talk key.
  *
- * A button's colour here is what pressing it does. Two of them open a page
- * and do nothing else, so they are the window's own grey and look alike,
- * because they are alike. The third turns the sound off or back on, which is
- * a thing done to the window rather than a page to look at, so it is the
- * stop-and-go pair `danger` and `go` — and what it has to say beyond that, it
- * says in its label.
+ * Two of them open a page and do nothing else, so they are the window's own
+ * grey and look alike, because they are alike. The other two are things done
+ * to the window's own world rather than pages to look at — the sound, and the
+ * anti-sleep hold beside it — and both carry state, so what each says and
+ * wears is `labelled` below, which carries the reasons.
  */
 export const BUTTONS: readonly { label: string; action: string }[] = [
   { label: 'Extensions', action: 'extensions' },
   { label: 'Settings', action: 'settings' },
   { label: 'Mute', action: 'mute' },
+  { label: 'Keep awake', action: 'awake' },
 ]
+
+/**
+ * What one of them says and wears, given what is true now.
+ *
+ * **Sound.** Red to cut it off, green to bring it back. That way round
+ * because the label is a verb and the colour is the same sentence — a red
+ * button stops something, a green one starts it — and because the loud one is
+ * then on screen only while there is sound to lose, with the green appearing
+ * exactly when you are muted and looking for the way out.
+ *
+ * **The hold.** Red while it is held, for the same reason and the same pair:
+ * pressing it lets the machine sleep again, and the loud one is on screen
+ * exactly while sleep is being held off, which is the state worth seeing from
+ * across the room. What it is *not* is green while it is off, which is the
+ * one place this departs from the sound beside it. `go` is the press the
+ * window would like next, and an anti-sleep hold is deliberately not one Tade
+ * asks anybody for — it is a choice somebody makes about their own machine.
+ * So off it is the window's own grey, like the two pages: an ordinary control,
+ * wanted by nobody until it is.
+ *
+ * **Where it cannot be held**, the label says so rather than the grey
+ * pretending: a button that cannot do what it says is worse than one that is
+ * not there, and pressing it answers with what is missing and what happens
+ * instead. Still grey and still lit under the pointer, because it is still
+ * something to press and the strip's rule is that everything in it says so.
+ *
+ * Black letters on every ground: the grounds are bright, and which ink a
+ * ground takes is `inkOn`'s to decide.
+ */
+export function labelled(
+  button: { label: string; action: string },
+  frame: Pick<Frame, 'muted' | 'awake'>,
+): { label: string; look: Look } {
+  if (button.action === 'mute') {
+    return frame.muted === true
+      ? { label: 'Unmute', look: 'go' }
+      : { label: 'Mute', look: 'danger' }
+  }
+  if (button.action === 'awake') {
+    if (frame.awake?.problem != null) return { label: 'No caffeinate', look: 'rest' }
+    return frame.awake?.held === true
+      ? { label: 'Let it sleep', look: 'danger' }
+      : { label: 'Keep awake', look: 'rest' }
+  }
+  return { label: button.label, look: 'rest' }
+}
 
 /**
  * Columns a plan window's bar takes. The context meter's own width, because it
@@ -314,17 +360,9 @@ export function renderFoot(
   const row = new Row(width, skin, pointer).space()
   for (const button of BUTTONS) {
     const press: Target = { kind: 'action', name: button.action }
-    // The sound button is the one here that carries state, and what it wears
-    // is what the press will do: red to cut the sound off, green to bring it
-    // back. That way round because the label is a verb and the colour is the
-    // same sentence — a red button stops something, a green one starts it —
-    // and because the loud one is then on screen only while there is sound to
-    // lose, with the green appearing exactly when you are muted and looking
-    // for the way out. Black letters on both: the grounds are bright, and
-    // which ink a ground takes is `inkOn`'s to decide, not this loop's.
-    const sound = button.action === 'mute'
-    const muted = sound && frame.muted === true
-    row.button(muted ? 'Unmute' : button.label, press, sound ? (muted ? 'go' : 'danger') : 'rest')
+    // What each one says and wears is `labelled`'s, which carries the reasons.
+    const { label, look } = labelled(button, frame)
+    row.button(label, press, look)
     // Extensions is a page like Settings and is drawn as one — the same grey,
     // the same ink, the same weight. How many of them need setting up or are
     // broken is a count, and a count is said the way every other count in the

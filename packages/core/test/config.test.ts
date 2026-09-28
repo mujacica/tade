@@ -144,6 +144,20 @@ projects:
     expect(notepad.issues[0]?.path).toBe('surfaces.window.editor')
   })
 
+  it('holds the machine awake only when somebody has said so', () => {
+    // Off is the decision rather than the absence of one: an anti-sleep hold
+    // is somebody deciding about their own laptop, and Tade never decides it
+    // for them because it happens to suit the agents.
+    const none = parseConfig('')
+    expect(none.ok && none.config.agents.keep_awake).toBe(false)
+    const on = parseConfig('agents:\n  keep_awake: true\n')
+    expect(on.ok && on.config.agents.keep_awake).toBe(true)
+    const bad = parseConfig('agents:\n  keep_awake: sometimes\n')
+    expect(bad.ok).toBe(false)
+    if (bad.ok) return
+    expect(bad.issues[0]?.path).toBe('agents.keep_awake')
+  })
+
   it('puts what is happening in front of a reader unless somebody says not to', () => {
     // On, because without it a sentence is answered out of names — and said
     // out loud where the key that would read it is pasted, not only here.

@@ -221,7 +221,14 @@ describe('what a subscription has left, in the strip', () => {
     // At the width the window is drawn at, the model and how hard it thinks
     // are said nowhere else; when each window comes back, and the window that
     // is not the tightest, are both on the page this opens.
-    const narrow = plain(foot(strip({ width: 120 })))
+    //
+    // The widths in this file and the three below each went up by 14 — the
+    // columns the fourth button in the strip takes — when the anti-sleep hold
+    // arrived beside the sound. What is held here is the *order* things are
+    // given up in and never the number: a control is kept over a figure,
+    // because what is cut from the drawing is not cut from the program and
+    // every figure here is one click away on the page this opens.
+    const narrow = plain(foot(strip({ width: 134 })))
     expect(narrow).toContain('claude-opus-5 ▾')
     expect(narrow).toContain('high ▾')
     expect(narrow).toContain('5h █████░ 78%')
@@ -230,7 +237,7 @@ describe('what a subscription has left, in the strip', () => {
   })
 
   it('is the last figure it gives up as the window narrows', () => {
-    const narrow = plain(foot(strip({ width: 80 })))
+    const narrow = plain(foot(strip({ width: 94 })))
     expect(narrow).not.toContain('tok')
     expect(narrow).not.toContain('7d')
     // The bar goes before the share does: a percent with no bar is still the
@@ -240,8 +247,8 @@ describe('what a subscription has left, in the strip', () => {
   })
 
   it('gives up the bar before the share, and the share last of all', () => {
-    expect(plain(foot(strip({ width: 64 })))).toContain('5h 78%')
-    const tiny = plain(foot(strip({ width: 56 })))
+    expect(plain(foot(strip({ width: 78 })))).toContain('5h 78%')
+    const tiny = plain(foot(strip({ width: 70 })))
     expect(tiny).not.toContain('5h')
     expect(tiny).toContain('$0.35')
   })

@@ -161,3 +161,74 @@ export function wokeSaid(slept: number, continued: readonly string[]): string {
 export function couldNotContinue(task: string, why: string): string {
   return `${task} was cut off when the machine slept and could not be told to carry on: ${why}`
 }
+
+// Holding the sleep off in the first place, which is the other half of the
+// same answer.
+//
+// Everything above is the fallback: the machine went, and the agents it cut
+// off are told to carry on. This is the prevention — an assertion held while
+// Tade is open, so there is nothing to recover from. They are one feature and
+// are said as one wherever somebody reads about either (`KEEP_AWAKE_MEANS`),
+// because two half-answers competing for the same question is how somebody
+// ends up choosing between them.
+//
+// **Held, never set.** The assertion lives and dies with the window: nothing
+// is written into the machine's power settings, so closing Tade gives the
+// machine straight back and there is no state left behind to find later.
+// `-w` is what makes that true even when Tade is not given the chance to let
+// go — a crash, a kill -9 — because caffeinate exits when the pid it is
+// waiting on does.
+//
+// **Off by default, and it stays a choice.** An anti-sleep hold is somebody
+// deciding their laptop should not sleep; it is not a thing to turn on for
+// them because it happens to suit the agents.
+
+/** The program that takes the assertion. Nothing else here knows its name. */
+export const CAFFEINATE = 'caffeinate'
+
+/**
+ * What to ask `caffeinate` for, waiting on Tade's own process.
+ *
+ * **`-s` and `-i`, and neither `-d` nor `-u`.** The display is deliberately
+ * left alone: the screen dims and locks on its usual timer, so holding the
+ * machine up to work changes nothing about who can walk past and read it.
+ * Both of the two that are asked for are needed, because each covers what the
+ * other cannot — `-s` is the stronger assertion and is valid **only on AC
+ * power**, and `-i` holds idle sleep off wherever it runs. `-s` alone is a
+ * hold that quietly does nothing the moment somebody unplugs, which is a
+ * button that says it is holding and is not.
+ *
+ * **`-w` and not a timeout.** Tied to the pid rather than to a clock, so the
+ * hold lasts exactly as long as this Tade does and not a second past it. A
+ * timeout would have to be renewed by something on a timer, and the failure
+ * of a renewal nobody watched is a machine that never sleeps again.
+ */
+export function awakeArgs(pid: number): readonly string[] {
+  return ['-s', '-i', '-w', String(pid)]
+}
+
+/**
+ * What the hold does, in the one sentence that says both halves of it.
+ *
+ * Said wherever the toggle is described — the setting, the button's answer —
+ * because the question somebody actually has is "what happens if I leave this
+ * off", and the answer is not "nothing".
+ */
+export const KEEP_AWAKE_MEANS =
+  'agents keep running while Tade is open; off, they are picked up when the machine wakes'
+
+/**
+ * Why there is no hold on this machine, where there is none.
+ *
+ * A button that cannot do what it says is worse than one that is not there,
+ * so this is what pressing it answers: what is missing, and what happens
+ * instead — which is the whole of the other half, still true.
+ */
+export const NO_HOLD_HERE = `nothing here holds sleep off — ${CAFFEINATE} is macOS's and is not on this machine, so an agent a sleep cuts off is told to carry on when it wakes instead`
+
+/** What a person is told the moment they press it, in the terms the press changed. */
+export function awakeSaid(held: boolean): string {
+  return held
+    ? 'holding sleep off: the machine stays awake while Tade is open, and the screen still locks as usual'
+    : 'sleep as usual again — agents a sleep cuts off are told to carry on when the machine wakes'
+}

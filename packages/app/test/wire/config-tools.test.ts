@@ -19,11 +19,13 @@ describe('the orchestrator, configuring Tade', () => {
   let client: Workbench
   let repo: Repo
   let home: string
+  let awake: { took: string[]; dropped: () => number }
   const { start } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
     home = wired.home
+    awake = wired.awake
   })
 
   /** The window up, and the tools the orchestrator would be calling. */
@@ -113,6 +115,48 @@ describe('the orchestrator, configuring Tade', () => {
     ).rejects.toThrow(/Nothing they have said names/)
     expect(client.config.agents.commit).toBe('own-files')
     // A refusal changed nothing, so there is nothing to undo and nothing written.
+    expect(await changes()).toHaveLength(0)
+  })
+
+  it('holds the machine awake when the person asked for it, and lets it go again', async () => {
+    // The setting reaches the machine rather than only the file: a hold the
+    // config says yes to and nothing took is a setting Tade accepts and
+    // ignores. Its assertion is the harness's, never this laptop's.
+    const config = await tools()
+    await theySaid('keep the machine awake while these run')
+    await config.change({
+      path: 'agents.keep_awake',
+      value: 'true',
+      said: 'keep the machine awake while these run',
+    })
+    expect(client.config.agents.keep_awake).toBe(true)
+    expect(awake.took).toEqual(['/usr/bin/caffeinate'])
+
+    await theySaid('let it sleep again')
+    await config.change({
+      path: 'agents.keep_awake',
+      value: 'false',
+      said: 'let it sleep again',
+    })
+    expect(client.config.agents.keep_awake).toBe(false)
+    expect(awake.dropped()).toBe(1)
+  })
+
+  it('refuses to touch the hold when nobody asked, in either direction', async () => {
+    // Both directions, because off is the one an injected page would like:
+    // "let it sleep" while four agents work is exactly the sentence to put in
+    // somebody's mouth, and nothing an agent read ever gets into `said`. The
+    // rule is the same one either way — the person has to have named the
+    // setting — and what it refuses is the *call*, whatever value it carries.
+    const config = await tools()
+    await theySaid('how are the agents getting on?')
+    for (const value of ['true', 'false']) {
+      await expect(
+        config.change({ path: 'agents.keep_awake', value, said: 'they wanted it' }),
+      ).rejects.toThrow(/Nothing they have said names/)
+    }
+    expect(client.config.agents.keep_awake).toBe(false)
+    expect(awake.took).toEqual([])
     expect(await changes()).toHaveLength(0)
   })
 

@@ -173,6 +173,12 @@ export interface Wired {
   newTerminal(): FakeTerminal
   /** A left click, as a terminal in SGR mouse mode sends it: press, then release. */
   click(col: number, row: number): void
+  /**
+   * What sleep the window held off, and what it dropped. Never the machine's
+   * own: a suite may not ask the laptop it runs on to stay awake, and could
+   * assert nothing about it afterwards if it did.
+   */
+  readonly awake: { took: string[]; dropped: () => number }
   /** Where a label is on the last full frame, found the way a person would. */
   find(label: string): { col: number; row: number }
   /** The sidebar alone: everything left of the divider, as one piece of text. */
@@ -198,6 +204,8 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
   let terminal: FakeTerminal
   let app: App | null = null
   const opened: { command: string; args: readonly string[] }[] = []
+  const took: string[] = []
+  let dropped = 0
 
   const wired: Wired = {
     get repo() {
@@ -215,6 +223,7 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     get opened() {
       return opened
     },
+    awake: { took, dropped: () => dropped },
 
     async start(over: Partial<AppOptions> = {}): Promise<App> {
       const speaker = await Speaker.create({
@@ -237,6 +246,17 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         // recorded for the test to read, and nothing is spawned.
         open: async (opener) => {
           opened.push({ command: opener.command, args: opener.args })
+        },
+        // Nor the machine's own sleep: what would have been held is recorded,
+        // and nothing spawns.
+        hold: {
+          program: () => '/usr/bin/caffeinate',
+          start: (program) => {
+            took.push(program)
+            return () => {
+              dropped += 1
+            }
+          },
         },
         ...over,
       })
@@ -294,6 +314,8 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     // Emptied rather than replaced, so a test that took the array off the
     // harness once still holds the one being written to.
     opened.length = 0
+    took.length = 0
+    dropped = 0
     bind?.(wired)
   })
 

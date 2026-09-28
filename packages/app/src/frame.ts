@@ -381,6 +381,16 @@ export interface Frame {
   orchestratorAccount?: { provider: string | null; problem: string | null }
   /** Nothing is said or played. */
   muted?: boolean
+  /**
+   * The anti-sleep hold: whether the machine is being held awake now, and why
+   * it is not where it cannot be (`NO_HOLD_HERE`, a spawn that failed).
+   *
+   * `held` is what came of the setting rather than the setting itself, so the
+   * button can never say the machine is awake because somebody asked for it.
+   * Undefined is a frame nothing looked for it in — the goldens, a panel drawn
+   * on its own — and draws as not held, which is what it is by default.
+   */
+  awake?: { held: boolean; problem: string | null }
   /** A picture is on the clipboard, and has not been taken or turned down. */
   clipboardImage?: boolean
   /** Extensions that need setting up, or are broken: a badge beside the Extensions button. */

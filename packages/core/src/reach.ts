@@ -32,6 +32,23 @@ import type { Setting } from './settings.ts'
 // `schedules.jsonl`. It is decided here anyway (`WATCH_REACH`), because the
 // question is the same question and answering it somewhere else is how two
 // answers to it come to exist.
+//
+// **The one `asked` that reaches outside Tade, said here because somebody
+// will ask why it is not `never`.** `agents.keep_awake` holds the machine's
+// sleep off while the window is open, and it is the only setting whose effect
+// is on the machine rather than on Tade. That is a real consequence and it is
+// still not the shape `never` is for: it widens nothing an agent may do, hands
+// nobody tools or a credential, changes who is asked about nothing, and moves
+// nowhere Tade sends anything — the four things an injected sentence wants.
+// What the worst wording of it can do is keep a laptop from sleeping until the
+// window closes, which is undone by closing the window and cannot outlive it,
+// because the assertion is held rather than written down (`awakeArgs`). And
+// the direction that matters most is the *off* one: "let it sleep" is the
+// sentence a page would like obeyed while agents work, and it is refused by
+// the same rule, because `namedBy` reads what the person said and nothing an
+// agent read ever gets into that. So: `asked`, both ways, like every other
+// ordinary setting — not `open`, because a machine that will not sleep is not
+// a cosmetic annoyance somebody is looking at.
 
 /** How far the orchestrator may go with one setting. */
 export type Reach = 'open' | 'asked' | 'never'

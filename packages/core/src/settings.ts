@@ -8,6 +8,7 @@ import {
   type ThinkingLevel,
 } from './config.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
+import { KEEP_AWAKE_MEANS } from './sleep.ts'
 
 // The settings a person actually changes, and what each one means.
 //
@@ -182,6 +183,18 @@ export function settingsOf(
           fallback: '',
           type: { kind: 'text', placeholder: 'run pnpm check before committing' },
           live: true,
+        },
+        {
+          path: 'agents.keep_awake',
+          title: 'Keep the machine awake',
+          means: KEEP_AWAKE_MEANS,
+          value: String(config.agents.keep_awake),
+          fallback: 'false',
+          type: { kind: 'flag' },
+          live: true,
+          // What somebody would actually say for it, which is the half of
+          // `asked` that decides whether a legitimate request is refused.
+          keywords: ['caffeinate', 'awake', 'sleep', 'sleeping', 'asleep', 'anti-sleep'],
         },
         {
           path: 'workspace.driver',

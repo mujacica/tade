@@ -80,6 +80,8 @@ export interface SettingsDeps {
    * work.
    */
   releases(): boolean
+  /** The anti-sleep hold is taken or dropped to match what the config now says. */
+  holdSleep(): void
 }
 
 export class Settings implements Subject {
@@ -347,6 +349,10 @@ export class Settings implements Subject {
     // the rest of the answer still arriving is not spoken either. Here rather
     // than in the button, so muting from the settings does the same thing.
     if (config.surfaces.voice.muted && !was) this.deps.silence()
+    // And the machine is held awake or let go, for the same reason: here
+    // rather than in the button, so the page, the button and a tool changing
+    // it on somebody's word all reach the machine the same way.
+    this.deps.holdSleep()
   }
 
   /**

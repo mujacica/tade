@@ -1,16 +1,11 @@
 import { join } from 'node:path'
-import {
-  getKeybindings,
-  ProcessTerminal,
-  type Terminal,
-  TUI_KEYBINDINGS,
-  TuiAltScreen,
-} from '@earendil-works/pi-tui'
+import { ProcessTerminal, type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
 import { DEFAULT_ATTENTION, parseQuietHours } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import { agentEnded, eventNews } from './inbox.ts'
+import { freeViewportKeys } from './keys.ts'
 import { knownTasks, Live } from './live.ts'
 import {
   type AppState,
@@ -29,6 +24,7 @@ import { FRAME_MS, lookWait, REPAINT_MS, SLOW_LOOK_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
 import { Agents } from './wire/agents.ts'
+import { Awake, caffeineHold } from './wire/awake.ts'
 import { Checks } from './wire/checks.ts'
 import {
   type AppOptions,
@@ -107,6 +103,8 @@ export class App {
   private readonly checks: Checks
   /** Push-to-talk, what is said back, and the mute that is now. */
   private readonly voice: Voice
+  /** The anti-sleep hold, while Tade is open and no longer. */
+  private readonly awake: Awake
   /** Pictures, and the clipboard they usually arrive on. */
   private readonly images: Images
   /** The Settings page, and the one path a setting is written by. */
@@ -239,7 +237,13 @@ export class App {
       openFile: (path) => this.files.openPlace({ path }),
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
       releases: () => kittyActive(this.terminal),
+      holdSleep: () => this.awake.apply(),
     })
+    this.awake = new Awake(
+      this.wire,
+      { keep: (on) => this.settings.writeKey('agents.keep_awake', on || undefined, String(!on)) },
+      opts.hold ?? caffeineHold(),
+    )
     this.images = new Images(this.wire, {
       soonTick: () => this.soonTick(),
       answering: () => this.orchestrator.attached(),
@@ -404,6 +408,7 @@ export class App {
       this.machine,
       this.projects,
       this.voice,
+      this.awake,
       this.images,
     ]
     this.router = new Router(this.wire, {
@@ -503,6 +508,9 @@ export class App {
     this.mouse.stopDraggingFile()
     this.mouse.stopDraggingRegion()
     this.lanes.stopWatching()
+    // The machine goes back to sleeping as it did, here rather than anywhere
+    // later: the hold is Tade's for exactly as long as Tade is open.
+    this.awake.release()
     this.window.remember()
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
@@ -585,6 +593,8 @@ export class App {
     this.extensions.readLinkers()
     this.extensions.watchExtensions()
     this.agents.reopenLost()
+    // Whatever the config says about sleep, made true of the machine.
+    this.awake.apply()
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice.use(
@@ -782,19 +792,4 @@ export class App {
 /** Only some terminals report key releases, which is what holding a key needs. */
 function kittyActive(terminal: Terminal): boolean {
   return (terminal as { kittyProtocolActive?: boolean }).kittyProtocolActive === true
-}
-
-/**
- * The alternate screen claims page up and down, home and end, ctrl+up and
- * down and ctrl+shift+f to scroll and search a viewport of its own — before any
- * listener sees them. Tade draws exactly one screen and never scrolls one, so
- * those keys belong to the panel that is open or the agent you are typing at.
- */
-export function freeViewportKeys(): void {
-  const bindings = getKeybindings()
-  const freed: Record<string, never[]> = {}
-  for (const id of Object.keys(TUI_KEYBINDINGS)) {
-    if (id.startsWith('tui.altScreen.')) freed[id] = []
-  }
-  bindings.setUserBindings({ ...bindings.getUserBindings(), ...freed })
 }

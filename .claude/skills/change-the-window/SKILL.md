@@ -321,10 +321,15 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
 
 ## Controls and panels
 
-- **Colour means something, or it is grey.** The footer keeps only Extensions, Settings and Mute,
-  grey unless something wants you (amber: an extension to set up, sound that is off). Starting an
-  agent and opening a project have their `+` where agents and projects are; search's key sits by
-  the talk key. Don't colour a button for identity.
+- **Colour means something, or it is grey.** The footer keeps only Extensions, Settings, Mute and
+  the anti-sleep hold, grey unless something wants you (amber: an extension to set up; red: sound
+  to cut off, or sleep being held off right now). What each one says and wears is one function
+  (`labelled`, `view/foot.ts`) — a label and a colour decided in two places say two things — and
+  the rule it applies is that **the colour is what pressing it does**. `go`, the green half of the
+  pair, is the press the window would *like* next: mute's way back is one, and an anti-sleep hold
+  is not, so it sits grey until it is held and red while it is. Starting an agent and opening a
+  project have their `+` where agents and projects are; search's key sits by the talk key. Don't
+  colour a button for identity.
 - **A voice says words, and only the front of them.** Everything the window speaks goes through
   `speakable` (`core/src/speech.ts`) first: a code fence waits for its other half and is then dropped, a
   path is said as its file, and no ear ever hears a backtick. An answer from the model is summarised
@@ -458,7 +463,11 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   warning, and give a list a fixed number of rows — Open project did both after a double-click
   went into the wrong folder.
 - **Footer buttons outlive footer hints.** A row that does not fit drops its right-hand group, so
-  put buttons there only after measuring: say keys and positions only where there is room.
+  put buttons there only after measuring: say keys and positions only where there is room. Measure
+  before you add one — a fourth button moved every width at which the strip gives a figure up by
+  its own 14 columns (`plan-strip.test.ts`), and under about 68 columns the figures go entirely.
+  That is the intended order, not a regression: a figure here is one click away on the page it
+  opens, and a control that is not drawn cannot be reached at all.
 - **Don't import a library's types if they bring the DOM.** highlight.js's definitions pull in the
   browser's lib and change `ReadableStream` in unrelated packages; `highlight.ts` loads it with
   `createRequire` behind a small interface of its own.

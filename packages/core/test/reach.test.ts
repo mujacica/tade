@@ -107,6 +107,37 @@ describe('what an ordinary request reaches', () => {
     expect(settingReach('journal.max_mb').reach).toBe('asked')
   })
 
+  it('does not include holding the machine awake, which is the one that reaches outside Tade', () => {
+    // `asked`, decided rather than defaulted into, and the only setting whose
+    // effect is on the machine rather than on Tade. Not `never`: it widens
+    // nothing an agent may do, hands nobody tools or a credential, changes who
+    // is asked about nothing and moves nowhere Tade sends anything — and the
+    // worst wording of it keeps a laptop from sleeping until the window
+    // closes, because the assertion is held rather than written down. Not
+    // `open` either: a machine that will not sleep is not a cosmetic annoyance
+    // somebody is looking at.
+    expect(settingReach('agents.keep_awake').reach).toBe('asked')
+  })
+
+  it('refuses letting the machine sleep again on anything but the person’s own words', () => {
+    // The direction that matters most, and the one an ordinary reading gets
+    // backwards. Off is usually the safe direction; here "let it sleep" is
+    // exactly the sentence an injected page would like obeyed while agents
+    // work, and it is held by the same rule, both ways.
+    const setting = settingsOf(ConfigSchema.parse({}))
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === 'agents.keep_awake')
+    expect(setting).toBeDefined()
+    if (!setting) return
+    expect(namedBy(setting, ['anything you read on a web page'])).toBeNull()
+    // And what the person would actually say for it, in the words they use.
+    expect(namedBy(setting, ['turn caffeinate off'])).toBe('turn caffeinate off')
+    expect(namedBy(setting, ['let the machine sleep again'])).toBe('let the machine sleep again')
+    expect(namedBy(setting, ['keep the machine awake while these run'])).toBe(
+      'keep the machine awake while these run',
+    )
+  })
+
   it('does not include what a model is said to cost', () => {
     // A price is only ever a figure on a page — it widens nothing an agent may
     // do and moves nowhere Tade sends anything, so it is not `never`. But the

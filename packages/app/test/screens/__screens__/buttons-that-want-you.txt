@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions   1    Settings     Unmute       claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions   1    Settings     Unmute     Keep awake     claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

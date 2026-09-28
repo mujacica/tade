@@ -31,4 +31,4 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute            claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
