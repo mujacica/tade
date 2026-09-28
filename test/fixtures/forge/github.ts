@@ -85,6 +85,20 @@ export interface ReplayOptions {
   unreachable?: boolean
   /** GitHub answers, badly: a 500. It was reached, so it is nothing to do with the network. */
   serverError?: boolean
+  /**
+   * The accounts `gh` holds a sign-in for here. Undefined is a `gh` that
+   * answers for whoever it is asked about, which is what every other test
+   * wants; a list is a machine where one alias maps to an account `gh` knows
+   * and another maps to nothing.
+   */
+  signedInAs?: readonly string[]
+  /**
+   * The one account this GitHub shows its repositories to. Every other token
+   * gets `404 Not Found` — which is how GitHub answers somebody who may not
+   * see a repository, and is the whole reason "no access" has to be asked
+   * about rather than read out of a message.
+   */
+  seenBy?: string
 }
 
 export function githubReplay(options: ReplayOptions = {}): GithubReplay {
@@ -140,12 +154,22 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     if (options.refused) {
       return answer({ message: 'Bad credentials' }, 401)
     }
+    // Which account is asking, read back out of the token `gh` handed over.
+    // A real GitHub knows this because the token is the account; the replay
+    // has to be told, and the token is where it is written.
+    const auth = String((init?.headers as Record<string, string> | undefined)?.authorization ?? '')
+    const asking = /^Bearer gho_(.+)token$/.exec(auth)?.[1] ?? me
     if (url.endsWith('/user')) {
       return answer(
-        { login: me },
+        { login: asking },
         200,
         options.scopes === undefined ? {} : { 'x-oauth-scopes': options.scopes },
       )
+    }
+    // GitHub hides what you may not see rather than refusing it, so the wrong
+    // account gets the same 404 as a repository that does not exist.
+    if (options.seenBy !== undefined && asking !== options.seenBy) {
+      return answer({ message: 'Not Found' }, 404)
     }
     if (readOnly && method !== 'GET' && !url.endsWith('/graphql')) {
       return answer({ message: 'Resource not accessible by personal access token' }, 403)
@@ -160,6 +184,11 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
       }
       return answer(graphql(sent, nodes, me))
     }
+    // The repository itself, which is what "can this account see it at all?"
+    // asks. Anything hidden from the asking account was already answered 404
+    // above, so reaching here means it is shown.
+    const repo = /\/repos\/([^/]+\/[^/]+)$/.exec(url)
+    if (repo) return answer({ full_name: repo[1] })
     const runs = /\/repos\/([^/]+\/[^/]+)\/commits\/([^/]+)\/check-runs/.exec(url)
     if (runs) {
       const sha = runs[2] ?? ''
@@ -223,7 +252,12 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     if (options.signedOut) {
       return { code: 1, stdout: '', stderr: 'gh: not logged in to github.com' }
     }
-    return { code: 0, stdout: 'gho_pretendtoken\n', stderr: '' }
+    const at = args.indexOf('--user')
+    const user = at < 0 ? undefined : args[at + 1]
+    if (options.signedInAs && user !== undefined && !options.signedInAs.includes(user)) {
+      return { code: 1, stdout: '', stderr: `no accounts matched "${user}"` }
+    }
+    return { code: 0, stdout: `gho_${user ?? me}token\n`, stderr: '' }
   }
 
   const forcePush = (number: number, sha: string): void => {

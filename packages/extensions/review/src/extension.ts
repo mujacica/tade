@@ -87,7 +87,8 @@ export const reviewExtension: TadeExtension = {
     {
       key: 'accounts',
       kind: 'map',
-      means: 'which signed-in account to use per host: github.com=you',
+      means:
+        'which signed-in account to use per host: github.com=you. A remote that names one — an ssh alias like github.com-you — is a fact about that project and wins over this',
     },
     {
       key: 'token',
@@ -755,7 +756,7 @@ export const reviewExtension: TadeExtension = {
         const mine = await where.forge
           .reviews({ who: 'mine', state: ['open', 'draft'], limit: 20 })
           .catch((err: unknown) => {
-            throw asLookFailed(err, where.remote)
+            throw asLookFailed(err, where)
           })
         const findings: Finding[] = []
         for (const review of mine.items) {

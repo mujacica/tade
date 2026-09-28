@@ -1,5 +1,6 @@
 import type { CheckRun } from '@tade/checks-core'
 import {
+  type Access,
   type Forge,
   type ForgeCapabilities,
   ForgeError,
@@ -7,6 +8,7 @@ import {
   hostOf,
   type OpenRequest,
   type Page,
+  type RemotePlace,
   type Review,
   type ReviewDetail,
   type ReviewQuery,
@@ -49,6 +51,8 @@ export interface ScriptedForgeOptions {
   /** The tail of a check's log, by `<repo>@<commit>:<check>`. */
   logs?: Readonly<Record<string, string>>
   hosts?: readonly string[]
+  /** Repositories this sign-in cannot see, for the `no access` answer. */
+  unseen?: readonly string[]
   capabilities?: Partial<ForgeCapabilities>
   now?: () => number
 }
@@ -76,6 +80,10 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
     stacks: false,
     write: true,
     since: true,
+    // A table has one sign-in and no URLs to read one out of. Declaring it
+    // false is the answer the port wants: `placeOf` then never names an
+    // account, and nothing above has to wonder.
+    accounts: false,
     costPerPoll: 1,
     ...options.capabilities,
   }
@@ -101,6 +109,12 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
     return one
   }
 
+  /** Where a remote goes. A table has one sign-in, so it never names an account. */
+  function placeOf(remote: string): RemotePlace | null {
+    const where = hostOf(remote)
+    return where !== null && hosts.includes(where) ? { host: where, account: null } : null
+  }
+
   return {
     id: 'scripted',
     capabilities,
@@ -109,14 +123,27 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
       return wrote
     },
     serves(remote) {
-      const host = hostOf(remote)
-      return host !== null && hosts.includes(host)
+      return placeOf(remote) !== null
     },
+    placeOf,
     async whoami() {
       if (options.trouble === 'auth' || me === null) {
         return { problem: 'nobody is signed in to the scripted forge' }
       }
       return { login: me, can: options.can ?? 'write' }
+    },
+    async access(repo): Promise<Access> {
+      if (options.trouble === 'auth' || me === null) {
+        return { kind: 'not signed in', account: null, said: 'nobody is signed in' }
+      }
+      if (options.trouble) return { kind: 'cannot tell', said: `the table says ${options.trouble}` }
+      // Whatever the table has been told about is visible; anything else is a
+      // repository this sign-in cannot see, which is what a test wants to say.
+      const known =
+        options.unseen === undefined ? true : !options.unseen.some((one) => one === repo)
+      return known
+        ? { kind: 'signed in', account: me, can: options.can ?? 'write' }
+        : { kind: 'no access', account: me, said: `${repo} is not shown to ${me}` }
     },
     async reviews(query: ReviewQuery): Promise<Page<Review>> {
       complain()

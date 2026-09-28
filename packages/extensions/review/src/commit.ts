@@ -1,13 +1,15 @@
 import { type CheckRun, settled } from '@tade/checks-core'
 import type { ExtensionContext, ProjectRef } from '@tade/extensions-core'
-import { ForgeError, hostOf } from '@tade/forges-core'
+import { ForgeError } from '@tade/forges-core'
 import { type Where, whereOf } from './forge.ts'
 import {
   commitUnknownTo,
   couldNotReach,
   credentialRefused,
   gitWouldNotSay,
+  noAccessFrom,
   nothingPushedYet,
+  notSignedInAs,
 } from './format.ts'
 
 // What CI says about a commit that is sitting in a checkout here — and every
@@ -133,6 +135,15 @@ export type CommitCi =
   /** The forge would not say who we are. */
   | { kind: 'no credential'; said: string }
   /**
+   * Signed in, and this sign-in cannot see the repository. The wrong-account
+   * answer: a second GitHub account's repository, reached over an SSH alias,
+   * asked about as whoever this machine signed in last. It is told apart from
+   * `unknown commit` because they are opposite facts — one is a repository
+   * that is fine and a credential that is not, the other is a branch pointing
+   * somewhere it should not.
+   */
+  | { kind: 'no access'; said: string }
+  /**
    * Nothing came back at all. The one answer that may be about this machine
    * rather than about that host, so it is the one that names the host: the
    * scheduler's reach asks about it before anything concludes anything.
@@ -148,6 +159,7 @@ export type CommitCi =
 /** The answers that are a look that went wrong rather than a fact about the branch. */
 const CANNOT_LOOK = [
   'no credential',
+  'no access',
   'unreachable',
   'would not answer',
   'unknown commit',
@@ -221,15 +233,29 @@ export async function ciOn(
     const ran = whatRan(await where.forge.checksOn(where.repo, here.commit))
     return ran.kind === 'red' ? { ...ran, where } : ran
   } catch (err) {
-    return trouble(err, where, here)
+    return await trouble(err, where, here)
   }
 }
 
 /** What a forge refusing to answer about a commit means, told apart by what it declared. */
-function trouble(err: unknown, where: Where, here: Standing): CommitCi {
-  const host = hostOf(where.remote) ?? where.forge.id
+async function trouble(err: unknown, where: Where, here: Standing): Promise<CommitCi> {
+  const host = where.host || where.forge.id
   const said = err instanceof Error ? err.message : String(err)
   if (err instanceof ForgeError) {
+    // A repository this sign-in cannot see and a repository that is not there
+    // are the same 404, and GitHub means it that way: it hides what you may
+    // not see rather than refusing it. Which it is, is one question to the
+    // forge — asked only now that the ordinary look has already gone wrong, so
+    // a project where nothing is wrong never pays for it.
+    if (err.trouble === 'auth' || err.trouble === 'missing') {
+      const seen = await where.forge.access(where.repo)
+      if (seen.kind === 'no access') {
+        return { kind: 'no access', said: noAccessFrom(seen.account, where.repo, host) }
+      }
+      if (seen.kind === 'not signed in') {
+        return { kind: 'no credential', said: notSignedInAs(seen.account, where.repo, seen.said) }
+      }
+    }
     if (err.trouble === 'auth') {
       return { kind: 'no credential', said: credentialRefused(where.repo, said) }
     }

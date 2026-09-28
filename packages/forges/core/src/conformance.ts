@@ -21,8 +21,12 @@ export interface ForgeConformanceOptions {
   ref: ReviewRef
   /** A ref the fixture does not have, for `missing`. */
   unknown: ReviewRef
-  /** A remote it serves, and one it does not. */
-  remotes: { serves: string; not: string }
+  /**
+   * A remote it serves, one it does not, and — for a forge that reads which
+   * sign-in a remote belongs to — one that names an account and the account it
+   * names.
+   */
+  remotes: { serves: string; not: string; named?: { remote: string; account: string } }
   /** The branch of `ref`, for `reviewOf`, and one with no review at all. */
   branches: { withReview: string; without: string }
   /**
@@ -65,6 +69,7 @@ export function testForge(
         'stacks',
         'write',
         'since',
+        'accounts',
       ] as const) {
         expect(typeof can[key]).toBe('boolean')
       }
@@ -91,6 +96,55 @@ export function testForge(
       } finally {
         globalThis.fetch = fetch
       }
+    })
+
+    it('places a remote — where it goes and whose it is — without asking anybody', async () => {
+      // `serves` and `placeOf` are one rule with two shapes: two readers of
+      // one URL disagreeing is how a project ends up asked about as the wrong
+      // account. And both are pure, because the account is a fact about the
+      // remote — a forge that resolved it by trying sign-ins against somebody
+      // else's API would be slow, rate-limited and indistinguishable from an
+      // attack.
+      const forge = await make()
+      const fetch = globalThis.fetch
+      globalThis.fetch = (() => {
+        throw new Error('placeOf() must not touch the network')
+      }) as typeof globalThis.fetch
+      try {
+        const place = forge.placeOf(options.remotes.serves)
+        expect(place?.host).toBeTruthy()
+        expect(forge.placeOf(options.remotes.not)).toBeNull()
+        expect(forge.serves(options.remotes.serves)).toBe(true)
+        expect(forge.serves(options.remotes.not)).toBe(false)
+        // A forge that does not read accounts must never name one: `false` is
+        // an answer everything above branches on, not a default.
+        if (!forge.capabilities.accounts) expect(place?.account).toBeNull()
+        const named = options.remotes.named
+        if (named) {
+          expect(forge.capabilities.accounts).toBe(true)
+          const said = forge.placeOf(named.remote)
+          expect(said?.account).toBe(named.account)
+          // The alias is a local name for the same forge, so the host it
+          // answers is the real one — nothing above should ever build a URL
+          // out of somebody's ssh alias.
+          expect(said?.host).toBe(place?.host)
+          expect(forge.serves(named.remote)).toBe(true)
+        }
+      } finally {
+        globalThis.fetch = fetch
+      }
+    })
+
+    it('says whether a repository can be seen from here, and never throws saying it', async () => {
+      // Every way of not being able to see one is an answer: the caller is a
+      // watch that has to say something honest rather than fail, and "signed
+      // in as somebody who cannot see this" is the answer that stops a
+      // perfectly good repository reading as a broken one.
+      const forge = await make()
+      const seen = await forge.access(options.ref.repo)
+      expect(['signed in', 'no access', 'not signed in', 'cannot tell']).toContain(seen.kind)
+      if (seen.kind === 'signed in') expect(seen.account).toBeTruthy()
+      else expect(seen.said).toBeTruthy()
     })
 
     it('lists nothing as an empty page, never as a failure', async () => {
@@ -274,6 +328,9 @@ export function testForge(
       expect('problem' in who).toBe(true)
       await expect(forge.reviews({ who: 'mine' })).rejects.toMatchObject({ trouble: 'auth' })
       await expect(forge.review(options.ref)).rejects.toMatchObject({ trouble: 'auth' })
+      // Not signed in and signed in as somebody who cannot see it are opposite
+      // facts: one is fixed here and the other is not fixable at all.
+      expect((await forge.access(options.ref.repo)).kind).toBe('not signed in')
     })
 
     it('refuses to write with an account that may only read', async () => {

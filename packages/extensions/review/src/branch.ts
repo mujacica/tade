@@ -5,7 +5,6 @@ import {
   Unreachable,
   type WatchAgent,
 } from '@tade/extensions-core'
-import { hostOf } from '@tade/forges-core'
 import { type CommitCi, cannotLook, ciOn, saidOf, standingOn } from './commit.ts'
 import { settingsOf, whereOf } from './forge.ts'
 import { attemptsUnder } from './record.ts'
@@ -83,7 +82,7 @@ export const branchChecks: ExtensionWatch = {
     // review open is that review's: `review.checks-failed` answers its
     // failures, and two watches on one failure would start two agents on it.
     if (await where.forge.reviewOf(where.repo, here.branch)) return { found: [], since }
-    const host = hostOf(where.remote) ?? ''
+    const host = where.host
     const names = red.map((run) => run.check)
     const found: Finding = {
       // The commit is in the key and the branch is not, and no check is: a

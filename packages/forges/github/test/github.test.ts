@@ -22,16 +22,25 @@ afterAll(() => {
   globalThis.fetch = globally
 })
 
-const make = (options: ReplayOptions = {}) => {
+const make = (options: ReplayOptions & { accounts?: Record<string, string> } = {}) => {
   const replay = githubReplay(options)
-  const forge = makeGithubForge({ exec: replay.exec, fetch: replay.fetch, env: {} })
+  const forge = makeGithubForge({
+    exec: replay.exec,
+    fetch: replay.fetch,
+    env: {},
+    ...(options.accounts ? { accounts: options.accounts } : {}),
+  })
   return { forge, replay }
 }
 
 testForge('github', () => make().forge, {
   ref: { repo: 'acme/api', number: 412, host: 'github.com' },
   unknown: { repo: 'acme/api', number: 9999, host: 'github.com' },
-  remotes: { serves: 'git@github.com:acme/api.git', not: 'git@gitlab.com:acme/api.git' },
+  remotes: {
+    serves: 'git@github.com:acme/api.git',
+    not: 'git@gitlab.com:acme/api.git',
+    named: { remote: 'git@github.com-ammujacic:ammujacic/zahlenzauber.git', account: 'ammujacic' },
+  },
   branches: { withReview: 'shop/refunds-retry', without: 'nothing-here' },
   commits: {
     withChecks: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
@@ -259,5 +268,99 @@ describe('what people wrote on a review', () => {
     // not what the review belongs to — that is the review's own body.
     expect(review.task).toBe('shop/refunds-retry')
     expect(review.threads[0]?.comments[0]?.bot).toBe(true)
+  })
+})
+
+describe('whose account a project is on', () => {
+  // The bug: a checkout whose remote is
+  // `git@github.com-ammujacic:ammujacic/zahlenzauber.git` is a second GitHub
+  // account's, reached over an SSH host alias. Asked as whoever `gh` signed in
+  // last, GitHub answers "not found" for a repository that is there — so a
+  // project that is perfectly fine reads as a broken one.
+
+  it('reads the account out of an ssh alias, and the host behind it', () => {
+    const { forge } = make()
+    const alias = forge.placeOf('git@github.com-ammujacic:ammujacic/zahlenzauber.git')
+    expect(alias).toEqual({ host: 'github.com', account: 'ammujacic' })
+    // An underscore is the same declaration written the other common way.
+    expect(forge.placeOf('git@github.com_work:acme/api.git')?.account).toBe('work')
+    // A plain remote names nobody, which means "whoever this machine is".
+    expect(forge.placeOf('git@github.com:acme/api.git')).toEqual({
+      host: 'github.com',
+      account: null,
+    })
+    expect(forge.placeOf('https://github.com/acme/api')?.account).toBeNull()
+  })
+
+  it('places nothing it cannot read the declaration out of, rather than guessing', () => {
+    const { forge } = make()
+    // No separator, so `github.community` is a different host and not an alias
+    // for this one — a prefix match without one would claim somebody else's.
+    expect(forge.placeOf('git@github.community:acme/api.git')).toBeNull()
+    // An alias that drops the host entirely says nothing this forge can read:
+    // resolving it would mean reading ~/.ssh/config, and `placeOf` is pure.
+    expect(forge.placeOf('git@gh-work:acme/api.git')).toBeNull()
+    // A trailing separator names no account at all.
+    expect(forge.placeOf('git@github.com-:acme/api.git')).toBeNull()
+  })
+
+  it('asks `gh` for the sign-in that account has, never for the machine\u2019s default', async () => {
+    const { forge, replay } = make({
+      accounts: { 'github.com': 'ammujacic' },
+      signedInAs: ['ammujacic', 'mujacica'],
+      seenBy: 'ammujacic',
+    })
+    const runs = await forge.checksOn('ammujacic/zahlenzauber', 'a'.repeat(40))
+    expect(Array.isArray(runs)).toBe(true)
+    expect(replay.calls).toContain('gh auth token --hostname github.com --user ammujacic')
+  })
+
+  it('will not fall back to the environment\u2019s token for a remote that named somebody', async () => {
+    // `$GITHUB_TOKEN` is whichever account this machine happens to hold.
+    // Using it for a repository that said whose it was is the same "not found"
+    // with a credential attached, which is worse because it looks answered.
+    const replay = githubReplay({ signedInAs: ['mujacica'] })
+    const forge = makeGithubForge({
+      exec: replay.exec,
+      fetch: replay.fetch,
+      env: { GITHUB_TOKEN: 'ghp_the_machines_default' },
+      accounts: { 'github.com': 'ammujacic' },
+    })
+    await expect(forge.reviews({ who: 'mine' })).rejects.toMatchObject({ trouble: 'auth' })
+    expect(replay.calls.some((call) => call.startsWith('GET https://'))).toBe(false)
+  })
+
+  it('says which account it is not signed in as, because that is what to fix', async () => {
+    const { forge } = make({ accounts: { 'github.com': 'ammujacic' }, signedInAs: ['mujacica'] })
+    const seen = await forge.access('ammujacic/zahlenzauber')
+    expect(seen).toMatchObject({ kind: 'not signed in', account: 'ammujacic' })
+    expect(seen.kind === 'not signed in' && seen.said).toContain('ammujacic')
+  })
+
+  it('says no access rather than not found, for a repository the sign-in cannot see', async () => {
+    // Signed in, and as the wrong one: GitHub hides what you may not see, so
+    // the repository answers 404 and only this question can tell the two apart.
+    const { forge } = make({ signedInAs: ['mujacica'], seenBy: 'ammujacic' })
+    const seen = await forge.access('ammujacic/zahlenzauber')
+    expect(seen).toMatchObject({ kind: 'no access', account: 'mujacica' })
+    expect(seen.kind === 'no access' && seen.said).toContain('mujacica')
+    expect(seen.kind === 'no access' && seen.said).toContain('ammujacic/zahlenzauber')
+  })
+
+  it('says it can see one it can, and what that account may do there', async () => {
+    const { forge } = make({ accounts: { 'github.com': 'ammujacic' }, signedInAs: ['ammujacic'] })
+    expect(await forge.access('ammujacic/zahlenzauber')).toEqual({
+      kind: 'signed in',
+      account: 'ammujacic',
+      can: 'write',
+    })
+  })
+
+  it('never turns a rate limit or an outage into an answer about an account', async () => {
+    // Saying "no access" about a forge having a bad afternoon would send
+    // somebody to `gh auth login` over a 500.
+    expect((await make({ limited: true }).forge.access('acme/api')).kind).toBe('cannot tell')
+    expect((await make({ serverError: true }).forge.access('acme/api')).kind).toBe('cannot tell')
+    expect((await make({ unreachable: true }).forge.access('acme/api')).kind).toBe('cannot tell')
   })
 })

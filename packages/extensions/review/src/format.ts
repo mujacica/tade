@@ -193,6 +193,27 @@ export function credentialRefused(repo: string, said: string): string {
   return `${said} — so nothing CI said about ${repo} can be read`
 }
 
+/**
+ * Signed in, and this account cannot see the repository.
+ *
+ * The one sentence this whole capability exists to be able to say. A second
+ * account's repository, reached over an SSH host alias and asked about as
+ * whoever the machine signed in last, answers "not found" — and "not found"
+ * read out loud is a broken project rather than a wrong account. So the
+ * account is named, because it is the only thing anybody can do something
+ * about, and nothing that changes per look is in it.
+ */
+export function noAccessFrom(account: string, repo: string, host: string): string {
+  return `no access to ${repo} from this account: ${host} does not show it to \`${account}\`, which is the account this project's remote is asked as`
+}
+
+/** Nothing to sign in with as the account the remote names — which is a different fix. */
+export function notSignedInAs(account: string | null, repo: string, said: string): string {
+  return account
+    ? `not signed in as \`${account}\`, which is the account ${repo}'s remote names: ${said}`
+    : `${said} — so nothing CI said about ${repo} can be read`
+}
+
 /** Asked, and no answer: unreachable, rate limited, or something it did not explain. */
 export function couldNotReach(host: string, said: string): string {
   return `${host} could not say what ran: ${said}`

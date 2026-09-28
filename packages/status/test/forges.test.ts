@@ -30,6 +30,57 @@ describe('which forge serves a remote', () => {
     expect(forge?.serves('git@git.acme.com:acme/api.git')).toBe(true)
   })
 
+  it('picks one for a remote that names a second account over an ssh alias', () => {
+    // `git@github.com-ammujacic:…` is a second GitHub account's repository,
+    // reached over an alias in `~/.ssh/config`. Before this, no forge claimed
+    // it at all, so a real project read as one Tade only reads git from.
+    const remote = 'git@github.com-ammujacic:ammujacic/zahlenzauber.git'
+    const forge = forgeFor(remote, { exec })
+    expect(forge?.id).toBe('github')
+    expect(forge?.placeOf(remote)).toEqual({ host: 'github.com', account: 'ammujacic' })
+  })
+
+  it('hands back a forge already asking as the account the remote names', async () => {
+    // The whole point of binding it here: every caller above — the branch
+    // watch, the review watches, `checksOn`, the tools — gets the right
+    // account without being handed a remote, because there is one place that
+    // reads the declaration.
+    const asked: string[][] = []
+    const recording = async (_command: string, args: readonly string[]) => {
+      asked.push([...args])
+      return { code: 1, stdout: '', stderr: 'no accounts matched' }
+    }
+    const forge = forgeFor('git@github.com-ammujacic:ammujacic/zahlenzauber.git', {
+      exec: recording,
+    })
+    await forge?.whoami()
+    expect(asked).toContainEqual([
+      'auth',
+      'token',
+      '--hostname',
+      'github.com',
+      '--user',
+      'ammujacic',
+    ])
+  })
+
+  it('lets the project\u2019s own word beat the machine\u2019s setting for the host', async () => {
+    // `accounts` in the config is about a host, and cannot know that one
+    // repository on it belongs to a second account. The remote says exactly
+    // that, so it wins.
+    const asked: string[][] = []
+    const recording = async (_command: string, args: readonly string[]) => {
+      asked.push([...args])
+      return { code: 1, stdout: '', stderr: 'no accounts matched' }
+    }
+    const forge = forgeFor('git@github.com-ammujacic:ammujacic/zahlenzauber.git', {
+      exec: recording,
+      accounts: { 'github.com': 'mujacica' },
+    })
+    await forge?.whoami()
+    expect(asked.at(-1)?.at(-1)).toBe('ammujacic')
+  })
+
   it('refuses a host pointed at a forge nobody registered rather than guessing', () => {
     expect(
       forgeFor('git@git.acme.com:acme/api.git', { exec, hostForges: { 'git.acme.com': 'gitlab' } }),

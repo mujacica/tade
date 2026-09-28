@@ -32,6 +32,12 @@ export interface ForgeChoice extends ForgeOptions {
  * first registered one that says it serves it. Null when nothing does — a
  * remote with no forge is not an error, it is a repository Tade only reads
  * git from.
+ *
+ * Whichever it is, it comes back **already asking as the account the remote
+ * names** (`placeOf`). This is the one place that binding is done, so the
+ * branch watch, the review watches, `checksOn` and every tool get one answer
+ * rather than each working it out — and none of them has to be handed a remote
+ * to get it right.
  */
 export function forgeFor(remote: string, options: ForgeChoice): Forge | null {
   const host = hostOf(remote)
@@ -41,13 +47,34 @@ export function forgeFor(remote: string, options: ForgeChoice): Forge | null {
     const make = FORGES[named]
     // A host pointed at a forge nobody registered is a config mistake, and a
     // silent fall back to GitHub would be the wrong kind of helpful.
-    return make ? make({ ...options, hosts: [host, ...(options.hosts ?? [])] }) : null
+    if (!make) return null
+    return asItsAccount(make, remote, { ...options, hosts: [host, ...(options.hosts ?? [])] })
   }
   for (const make of Object.values(FORGES)) {
-    const forge = make(options)
-    if (forge.serves(remote)) return forge
+    const forge = asItsAccount(make, remote, options)
+    if (forge) return forge
   }
   return null
+}
+
+/**
+ * A forge made to ask as whoever the remote says the repository belongs to.
+ *
+ * The project's own word beats the machine's: `accounts` in the config is
+ * about a host and cannot know that one repository on it is a second
+ * account's, while an SSH alias in the remote is exactly that statement. Null
+ * where this forge does not serve the remote at all.
+ */
+function asItsAccount(
+  make: (opts: ForgeOptions) => Forge,
+  remote: string,
+  options: ForgeChoice,
+): Forge | null {
+  const forge = make(options)
+  const place = forge.placeOf(remote)
+  if (!place) return null
+  if (!place.account || options.accounts?.[place.host] === place.account) return forge
+  return make({ ...options, accounts: { ...options.accounts, [place.host]: place.account } })
 }
 
 /**

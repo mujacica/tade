@@ -1,5 +1,6 @@
 import type { CheckRun } from '@tade/checks-core'
 import {
+  type Access,
   type Forge,
   type ForgeCapabilities,
   ForgeError,
@@ -7,6 +8,7 @@ import {
   hostOf,
   type OpenRequest,
   type Page,
+  type RemotePlace,
   type Review,
   type ReviewDetail,
   type ReviewQuery,
@@ -18,10 +20,12 @@ import { DRAFT, NODE_ID, OF_BRANCH, ONE, READY, REPLY, SEARCH } from './queries.
 // GitHub, through one credential and one HTTP client.
 //
 // `gh` is how the credential is found, because that is zero setup for anybody
-// who already uses it and it holds one account per host — `gh auth token
-// --user <account>` is the whole multi-account design. The token is read,
-// used and dropped: Tade never writes one anywhere. A machine with no `gh`
-// sets `$GITHUB_TOKEN` (or whatever `token_env` names) instead.
+// who already uses it and it holds **more than one** account per host — `gh
+// auth token --hostname <host> --user <account>` is the whole multi-account
+// design, and which account to ask for is read off the remote (`placeOf`)
+// rather than off this machine. The token is read, used and dropped: Tade
+// never writes one anywhere. A machine with no `gh` sets `$GITHUB_TOKEN` (or
+// whatever `token_env` names) instead.
 //
 // Everything after the credential is a plain request, so a poll of the lists
 // is two GraphQL searches rather than two process spawns per review.
@@ -48,6 +52,9 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     stacks: false,
     write: true,
     since: true,
+    // An SSH host alias — `git@github.com-ammujacic:…` — is how somebody with
+    // two GitHub accounts keeps them apart, and `gh` holds a sign-in for each.
+    accounts: true,
     // One search for what is ours, one for what waits on us.
     costPerPoll: 2,
   }
@@ -61,18 +68,33 @@ export function makeGithubForge(options: ForgeOptions): Forge {
   const graphqlUrl =
     host === 'github.com' ? 'https://api.github.com/graphql' : `https://${host}/api/graphql`
 
-  /** The credential, found once: the environment first, then `gh`'s keyring. */
+  /**
+   * The credential, found once. Three clauses, and each of them is a decision:
+   *
+   *   · An explicit `token_env` is somebody saying "the CLI is not what I use
+   *     here", so the environment wins outright and nothing below applies.
+   *   · Otherwise **a remote that names an account is answered by that
+   *     account's sign-in, or by nothing**. `$GITHUB_TOKEN` is whichever
+   *     account this machine happens to hold, and the whole of this bug is a
+   *     repository being asked about as the machine's default when it had said
+   *     whose it was — falling back to it would be the same "not found" with a
+   *     credential attached, which is worse because it looks answered.
+   *   · Otherwise the environment first, then `gh`'s keyring: zero setup for
+   *     anybody who already uses `gh`, and a token for anybody who does not.
+   */
   async function credential(): Promise<string> {
     if (token) return token
+    const account = options.accounts?.[host]
     const named = options.tokenEnv ? [options.tokenEnv] : DEFAULT_TOKEN_VARS
-    for (const key of named) {
-      const value = env[key]
-      if (value?.trim()) {
-        token = value.trim()
-        return token
+    if (options.tokenEnv || !account) {
+      for (const key of named) {
+        const value = env[key]
+        if (value?.trim()) {
+          token = value.trim()
+          return token
+        }
       }
     }
-    const account = options.accounts?.[host]
     const args = ['auth', 'token', '--hostname', host, ...(account ? ['--user', account] : [])]
     const got = await options.exec('gh', args, {
       timeoutMs: 5_000,
@@ -80,11 +102,9 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     })
     const found = got.stdout.trim()
     if (got.code !== 0 || !found) {
-      throw new ForgeError(
-        'auth',
-        `not signed in to ${host}: run \`gh auth login\`, or set $${named[0]}`,
-        { said: got.stderr.trim() || undefined },
-      )
+      throw new ForgeError('auth', notSignedIn(host, account, named[0]), {
+        said: got.stderr.trim() || undefined,
+      })
     }
     token = found
     return token
@@ -180,6 +200,47 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     return me
   }
 
+  /** One `/user`: who the credential belongs to, and what it is allowed to do. */
+  async function asWhom(): Promise<{ login: string; can: 'read' | 'write' }> {
+    const answer = await request(rest('/user'))
+    const found = (answer.body as { login?: unknown } | null)?.login
+    if (typeof found !== 'string') throw new ForgeError('auth', `${host} did not say who we are`)
+    me = found
+    // A token's scopes are on the answer; an installation token has none, and
+    // claiming read-only for it would refuse writes it can make.
+    const scopes = answer.headers.get('x-oauth-scopes')
+    const can =
+      scopes === null || scopes === '' || /(^|,\s*)(repo|public_repo)(,|$)/.test(scopes)
+        ? ('write' as const)
+        : ('read' as const)
+    return { login: found, can }
+  }
+
+  /**
+   * What the remote declares, read out of how it is written and nothing else.
+   *
+   * A host Tade already serves is the ordinary case and names no account. An
+   * SSH host alias — `github.com-ammujacic`, which is what `~/.ssh/config`
+   * makes to hold a second key — is a known host, a separator, and the account
+   * whoever set it up named. That suffix is a declaration, so it is read;
+   * anything else is a host this forge cannot place, and saying so is better
+   * than resolving it against this machine's files or against somebody's API.
+   */
+  function placeOf(remote: string): RemotePlace | null {
+    const where = hostOf(remote)
+    if (where === null) return null
+    if (hosts.includes(where)) return { host: where, account: null }
+    for (const known of hosts) {
+      for (const separator of ['-', '_']) {
+        const prefix = `${known}${separator}`
+        if (!where.startsWith(prefix)) continue
+        const account = where.slice(prefix.length)
+        if (account) return { host: known, account }
+      }
+    }
+    return null
+  }
+
   const parts = (ref: ReviewRef) => {
     const [owner, name] = ref.repo.split('/')
     if (!owner || !name) throw new ForgeError('missing', `${ref.repo} is not an owner/name`)
@@ -227,25 +288,41 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     ],
 
     serves(remote) {
-      const where = hostOf(remote)
-      return where !== null && hosts.includes(where)
+      return placeOf(remote) !== null
     },
+
+    placeOf,
 
     async whoami() {
       try {
-        const who = await login()
-        if (!who) return { problem: `${host} did not say who we are` }
-        // A token's scopes are on the answer; an installation token has none,
-        // and claiming read-only for it would refuse writes it can make.
-        const answer = await request(rest('/user'))
-        const scopes = answer.headers.get('x-oauth-scopes')
-        const can =
-          scopes === null || scopes === '' || /(^|,\s*)(repo|public_repo)(,|$)/.test(scopes)
-            ? ('write' as const)
-            : ('read' as const)
-        return { login: who, can }
+        return await asWhom()
       } catch (err) {
         return { problem: err instanceof Error ? err.message : String(err) }
+      }
+    },
+
+    async access(repo): Promise<Access> {
+      const named = options.accounts?.[host] ?? null
+      try {
+        const who = await asWhom()
+        try {
+          await request(rest(`/repos/${repo}`))
+          return { kind: 'signed in', account: who.login, can: who.can }
+        } catch (err) {
+          // GitHub hides what you may not see rather than refusing it, so a
+          // repository that is there answers 404 to the wrong account. That is
+          // the whole reason this question exists: it is asked about the
+          // repository itself, where "not found" can only mean one thing.
+          if (err instanceof ForgeError && (err.trouble === 'missing' || err.trouble === 'auth')) {
+            return { kind: 'no access', account: who.login, said: noAccess(host, repo, who.login) }
+          }
+          throw err
+        }
+      } catch (err) {
+        if (err instanceof ForgeError && err.trouble === 'auth') {
+          return { kind: 'not signed in', account: named, said: err.message }
+        }
+        return { kind: 'cannot tell', said: err instanceof Error ? err.message : String(err) }
       }
     },
 
@@ -435,6 +512,22 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       return limits
     },
   }
+}
+
+/**
+ * Nothing to sign in with. Where the remote named an account, that is what the
+ * sentence is about: telling somebody to run `gh auth login` when they are
+ * already signed in — as somebody else — is the unhelpful half of this bug.
+ */
+function notSignedIn(host: string, account: string | undefined, variable = 'GITHUB_TOKEN'): string {
+  return account
+    ? `not signed in to ${host} as ${account}, which is the account this remote names: run \`gh auth login --hostname ${host}\` and sign in as ${account}`
+    : `not signed in to ${host}: run \`gh auth login\`, or set $${variable}`
+}
+
+/** Signed in, and this account cannot see it. One stable sentence: no sha, no count. */
+function noAccess(host: string, repo: string, account: string): string {
+  return `no access to ${repo} from this account: ${host} does not show it to ${account}`
 }
 
 function safeJson(text: string): unknown {

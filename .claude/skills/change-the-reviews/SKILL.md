@@ -40,13 +40,23 @@ by what the code cannot express, not by being careful at the call site.
    `PR #412` or `MR !88`. Nothing anywhere may check which forge it is to decide this.
 4. **`serves(remote)` is pure.** The hosts it knows plus the hosts the config gave it
    (`ForgeOptions.hosts`, for an enterprise install). No network, no guessing.
-5. **Declare `programs`** if it shells out — `gh`, with `optional: true` where a token in the
+5. **Implement `placeOf` and `access`.** `placeOf(remote)` is where a remote goes and **whose
+   sign-in it names** — `serves` is the same rule as a boolean, so implement one in terms of the
+   other. The account is a fact about the *project*: `git@github.com-ammujacic:…` is an SSH host
+   alias somebody wrote in `~/.ssh/config` to hold a second account, and it is read out of the URL
+   and nowhere else. **Never resolve it by trying each sign-in against the API** — slow,
+   rate-limited, and indistinguishable from an attack. Declare `accounts: false` where a forge has
+   one sign-in, and then `placeOf` must never name one. `access(repo)` is the other half: a
+   repository the sign-in cannot see and one that is not there are the same 404 on GitHub, and
+   `commit.ts` asks this to tell "no access from this account" apart from "no such commit" — only
+   once the ordinary look has already failed, so nothing pays for it while nothing is wrong.
+6. **Declare `programs`** if it shells out — `gh`, with `optional: true` where a token in the
    environment is the way round it. `programsNeeded` in the workbench folds every declaration
    together, so Settings › Updates and `tade update` answer without a list anywhere else changing.
-6. **Register it in `FORGES`** (`packages/status/src/forges.ts`). One line. It lives in `status`
+7. **Register it in `FORGES`** (`packages/status/src/forges.ts`). One line. It lives in `status`
    rather than beside the port because the port must not import its own implementations and status
    is the lowest thing that needs one — a task's `merged` state is what the forge says.
-7. **Call the suite**, answered by a replay rather than by a service:
+8. **Call the suite**, answered by a replay rather than by a service:
    ```ts
    testForge('github', () => make().forge, {
      ref, unknown, remotes: { serves, not }, branches: { withReview, without },
@@ -59,7 +69,7 @@ by what the code cannot express, not by being careful at the call site.
    other people's work: a check still running reported as passed, a question that cannot be answered
    coming back as "no" rather than as a problem, and a write that happens on an account that may
    only read.
-8. `pnpm check`, on its own.
+9. `pnpm check`, on its own.
 
 ## Adding or changing a watch
 

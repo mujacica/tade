@@ -59,11 +59,18 @@ const reallyExec = async (command: string, args: readonly string[]) => {
  * asks git before anything else, which is the question that was got wrong.
  */
 function project(
-  options: { branch?: string; remote?: boolean; subject?: string; pushed?: boolean } = {},
+  options: {
+    branch?: string
+    remote?: boolean
+    subject?: string
+    pushed?: boolean
+    /** The URL `origin` is fetched from — an SSH alias, for the account tests. */
+    remoteUrl?: string
+  } = {},
 ) {
   const repo = mkrepo({ remote: options.remote !== false })
   if (options.remote !== false) {
-    repo.git('remote', 'set-url', 'origin', 'git@github.com:acme/api.git')
+    repo.git('remote', 'set-url', 'origin', options.remoteUrl ?? 'git@github.com:acme/api.git')
     repo.git('remote', 'set-url', '--push', 'origin', repo.remote ?? '')
   }
   if (options.branch && options.branch !== 'main') {
@@ -109,6 +116,7 @@ function load(
     settings?: Record<string, unknown>
     root?: string
     home?: string
+    env?: Record<string, string>
   } = {},
 ) {
   const replay = githubReplay(options)
@@ -123,9 +131,12 @@ function load(
         projects: { api: { root: options.root ?? tmp('tade-branch-empty-') } },
       },
       home,
-      env,
+      env: options.env ?? env,
       fetch: replay.fetch,
-      exec: reallyExec,
+      // git is really run; `gh` is the replay's, because a test that spawned
+      // the real one would answer out of whoever is signed in on this machine.
+      exec: async (command: string, args: readonly string[]) =>
+        command === 'gh' ? replay.exec(command, args) : reallyExec(command, args),
       now: () => NOW,
     }),
   }
@@ -473,6 +484,87 @@ describe('watching CI on the branch', () => {
     const { repo } = project()
     const { host } = load({ root: repo.root, missingCommit: true })
     await expect(look(await host)).rejects.toThrow(/has no such commit in acme\/api/)
+  })
+})
+
+describe('a project that belongs to a second account', () => {
+  // `~/zahlenzauber`'s remote is `git@github.com-ammujacic:ammujacic/…`: a
+  // second GitHub account, reached over an SSH host alias. Asked as whoever
+  // `gh` signed in last, GitHub answers "not found" for a repository that is
+  // there, and this watch said the project was broken every ten minutes.
+
+  /** A checkout of that repository, on the alias, with a real pushed commit. */
+  const onTheAlias = (options: ReplayOptions & { env?: Record<string, string> } = {}) => {
+    const { repo, commit } = project({
+      remoteUrl: 'git@github.com-ammujacic:ammujacic/zahlenzauber.git',
+    })
+    return { commit, ...load({ ...options, root: repo.root }) }
+  }
+
+  it('asks GitHub as the account the remote names, and reads its checks', async () => {
+    const { commit, host, replay } = onTheAlias({
+      signedInAs: ['ammujacic', 'mujacica'],
+      seenBy: 'ammujacic',
+    })
+    const looked = await look(await host)
+    // It read them, which it could not do as the machine's default sign-in.
+    expect(looked.found).toEqual([])
+    expect(looked.said).toBeNull()
+    expect(replay.calls).toContain('gh auth token --hostname github.com --user ammujacic')
+    expect(commit).toBeTruthy()
+  })
+
+  it('keys a red commit by the real host, never by somebody\u2019s ssh alias', async () => {
+    // An alias is a name for this machine: `github.com-ammujacic` on one
+    // laptop and `gh-personal` on the next are the same repository, and a key
+    // built out of one would start a second agent on the same failure the
+    // moment somebody renamed their ssh config.
+    const { repo, commit } = project({
+      remoteUrl: 'git@github.com-ammujacic:ammujacic/zahlenzauber.git',
+    })
+    const { host } = load({
+      root: repo.root,
+      signedInAs: ['ammujacic'],
+      seenBy: 'ammujacic',
+      runs: { [commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    const looked = await look(await host)
+    expect(looked.found.map((one) => one.key)).toEqual([
+      `github.com/ammujacic/zahlenzauber@${commit}`,
+    ])
+  })
+
+  it('says which account it is not signed in as, rather than "not found"', async () => {
+    // The alias maps to an account `gh` knows nothing about. That is one
+    // sentence somebody can act on — and it must name the account, because
+    // telling somebody to run `gh auth login` when they are already signed in
+    // as somebody else is the unhelpful half of this bug.
+    const { host } = onTheAlias({ signedInAs: ['mujacica'] })
+    await expect(look(await host)).rejects.toThrow(
+      /not signed in as `ammujacic`, which is the account ammujacic\/zahlenzauber's remote names/,
+    )
+  })
+
+  it('will not use the environment\u2019s token for a remote that named an account', async () => {
+    // `$GITHUB_TOKEN` is whichever account this machine holds. Falling back to
+    // it here is the same 404 with a credential attached.
+    const { host, replay } = onTheAlias({
+      signedInAs: ['mujacica'],
+      env: { GITHUB_TOKEN: 'ghp_the_machines_default', PATH: '/usr/bin' },
+    })
+    await expect(look(await host)).rejects.toThrow(/not signed in as `ammujacic`/)
+    expect(replay.calls.some((call) => call.startsWith('GET https://'))).toBe(false)
+  })
+
+  it('says no access from this account when the sign-in exists and cannot see it', async () => {
+    // Signed in as the account the remote named, and that account still cannot
+    // see the repository. GitHub hides what you may not see, so this is the
+    // same 404 as a commit that is not there — and calling it "no such commit"
+    // would send somebody looking at their branch instead of their access.
+    const { host } = onTheAlias({ signedInAs: ['ammujacic'], seenBy: 'somebody-else' })
+    await expect(look(await host)).rejects.toThrow(
+      /no access to ammujacic\/zahlenzauber from this account: github\.com does not show it to `ammujacic`/,
+    )
   })
 })
 

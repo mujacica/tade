@@ -31,6 +31,52 @@ export interface ReviewRef {
   host: string
 }
 
+/**
+ * What a remote says about itself: where it goes, and whose sign-in it is
+ * reachable with.
+ *
+ * **The account a project belongs to is a fact about the project, not about
+ * the machine.** A checkout whose remote is
+ * `git@github.com-ammujacic:ammujacic/z.git` has declared, in as many words,
+ * which of your sign-ins reaches it — an SSH host alias is how anybody with
+ * two accounts on one forge keeps them apart. Asked as whoever the machine
+ * signed in last, that repository answers "not found", and a project that is
+ * perfectly fine reads as a broken one.
+ *
+ * So it is read out of the URL and out of nothing else. Trying each sign-in in
+ * turn until one works is slow, spends somebody's rate limit and reads as an
+ * attack: the URL is the declaration, and a forge either places it or says it
+ * cannot.
+ */
+export interface RemotePlace {
+  /** The forge's own host, with any local alias resolved away: `github.com`. */
+  host: string
+  /**
+   * The sign-in the remote names, when it names one. Null is the ordinary
+   * answer and means whoever this machine is signed in as.
+   */
+  account: string | null
+}
+
+/**
+ * Whether this machine can ask about a repository at all, and as whom.
+ *
+ * Two things look identical from a 404 — a repository this sign-in cannot see,
+ * and something that genuinely is not there — and telling them apart is the
+ * difference between "no access from this account" and a watch saying a real
+ * repository is broken. It is one question, asked of the forge, so every
+ * caller gets the same answer rather than each guessing from a message.
+ */
+export type Access =
+  /** Signed in, and it can see the repository. */
+  | { kind: 'signed in'; account: string; can: 'read' | 'write' }
+  /** Signed in as somebody, and that somebody cannot see this repository. */
+  | { kind: 'no access'; account: string; said: string }
+  /** Nothing to sign in with — as the account the remote names, where it names one. */
+  | { kind: 'not signed in'; account: string | null; said: string }
+  /** It could not be asked: nothing came back, a rate limit, a 500. */
+  | { kind: 'cannot tell'; said: string }
+
 /** Somebody's verdict on a review. `requested` is a review asked for and not yet given. */
 export interface Verdict {
   by: string
@@ -143,6 +189,12 @@ export interface ForgeCapabilities {
   write: boolean
   /** Cheap "what moved since" — otherwise a watch must list and compare. */
   since: boolean
+  /**
+   * Reads which of your sign-ins a remote belongs to out of how it is written,
+   * and asks as that one. False is an answer: `placeOf` then never names an
+   * account, and every project on this forge is asked as the default sign-in.
+   */
+  accounts: boolean
   /** How many of its own units one poll of the lists costs, for the budget. */
   costPerPoll: number
 }
@@ -217,12 +269,26 @@ export interface Forge {
     number(n: number): string
   }
   /**
-   * Whether it serves this remote — declared from the hosts it knows plus the
-   * hosts the config gave it. A pure function: no network, no guessing.
+   * Whether it serves this remote — `placeOf` answered as a boolean, so two
+   * readers of one URL can never disagree. A pure function: no network, no
+   * guessing.
    */
   serves(remote: string): boolean
+  /**
+   * Where a remote goes and whose sign-in it names. Null where this forge does
+   * not serve it. Pure, like `serves`: the hosts it knows plus the hosts the
+   * config gave it, and the account read out of how the remote is written —
+   * never a file on this machine and never a request.
+   */
+  placeOf(remote: string): RemotePlace | null
   /** Who we are here, and what we may do. Never throws: what is wrong is a sentence. */
   whoami(): Promise<{ login: string; can: 'read' | 'write' } | { problem: string }>
+  /**
+   * Whether a repository can be seen from here, and as whom. Never throws:
+   * every way of not being able to see one is an answer, because the caller is
+   * a watch that has to say something honest rather than fail.
+   */
+  access(repo: string): Promise<Access>
   reviews(query: ReviewQuery): Promise<Page<Review>>
   review(ref: ReviewRef): Promise<ReviewDetail>
   /** The review a branch has, if any: the one narrow question `packages/status` asks. */
@@ -283,7 +349,12 @@ export interface ForgeOptions {
   ): Promise<ExecResult>
   fetch?: typeof fetch
   env?: Readonly<Record<string, string | undefined>>
-  /** Which signed-in account to use per host: `github.com=mujacica`. */
+  /**
+   * Which signed-in account to ask as, per host: `github.com=mujacica`. What a
+   * remote declares (`placeOf`) is put in here by whoever made the forge for
+   * it, so the forge has one place to look and the project's own word wins
+   * over the machine's default.
+   */
   accounts?: Readonly<Record<string, string>>
   /** Hosts this forge serves besides the ones it knows: an enterprise install. */
   hosts?: readonly string[]

@@ -22,6 +22,14 @@ export interface Where {
   /** The repository as its forge names it: `owner/name`. */
   repo: string
   remote: string
+  /** The forge's own host, with any SSH alias in the remote resolved away. */
+  host: string
+  /**
+   * The sign-in the remote names, when it names one. The forge is already
+   * asking as it; this is here for the sentences, so "no access" can say whose
+   * access it is talking about.
+   */
+  account: string | null
   forge: Forge
 }
 
@@ -138,7 +146,18 @@ export async function whereOf(
   const repo = repoOf(remote)
   const forge = forgeFor(remote, forgeOptions(ctx, project.root))
   if (!repo || !forge) return { problem: `no forge serves ${remote}` }
-  return { project, repo, remote, forge }
+  // Where it goes and whose it is, read out of the remote once: everything
+  // below says `where.host` rather than reading the URL again, because an SSH
+  // alias is a name for this machine and never a host to build a URL from.
+  const place = forge.placeOf(remote)
+  return {
+    project,
+    repo,
+    remote,
+    host: place?.host ?? hostOf(remote) ?? '',
+    account: place?.account ?? null,
+    forge,
+  }
 }
 
 /** Every project that has a forge, asked once. */
@@ -252,14 +271,14 @@ export function refFrom(said: string, only: Where | null): ReviewRef {
   const full = /^([^/\s]+\/[^#\s]+)#(\d+)$/.exec(text)
   if (full?.[1] && full[2]) {
     return {
-      host: only?.forge.serves(only.remote) ? hostOfWhere(only) : '',
+      host: only?.host ?? '',
       repo: full[1],
       number: Number(full[2]),
     }
   }
   const number = /^#?(\d+)$/.exec(text)
   if (number?.[1] && only) {
-    return { host: hostOfWhere(only), repo: only.repo, number: Number(number[1]) }
+    return { host: only.host, repo: only.repo, number: Number(number[1]) }
   }
   throw new Error(
     `"${said}" is not a review: say it as owner/repo#412, as its URL${only ? ', or as #412' : ''}`,
@@ -271,16 +290,16 @@ export function refFrom(said: string, only: Where | null): ReviewRef {
  * come back is `Unreachable` and names the host, and everything the forge
  * actually answered — a 401, a 404, a rate limit, a 500 — stays what it was.
  * One endpoint being down is never the machine being offline.
+ *
+ * The host is `where.host` and never the remote's own text: an SSH alias is a
+ * name for this machine, and handing `github.com-ammujacic` to something that
+ * is about to ask whether this machine has a network would answer no about a
+ * machine that is fine.
  */
-export function asLookFailed(err: unknown, remote: string): unknown {
+export function asLookFailed(err: unknown, where: Where): unknown {
   return err instanceof ForgeError && err.trouble === 'network'
-    ? new Unreachable(hostOf(remote) ?? '', err.message)
+    ? new Unreachable(where.host, err.message)
     : err
-}
-
-function hostOfWhere(where: Where): string {
-  const match = /^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)/.exec(where.remote)
-  return match?.[1] ?? ''
 }
 
 /**
