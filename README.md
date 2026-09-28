@@ -194,8 +194,11 @@ them, and how the project's own checks have been going.
 Where a subscription pays for the work there is no price per turn, so what is used up is a share of
 a rolling window: how much of each plan is gone and when it comes back. Never added to the money: a
 plan and a dollar are different currencies with no rate between them, and a plan's turns are tokens
-and hours on this page rather than a large number of dollars nobody is charged. The fullest window
-sits in the status bar beside the cost.
+and hours on this page rather than a large number of dollars nobody is charged. Every sign-in is
+read — each harness's own and every account beside it — and the fullest window of any of them sits in
+the status bar beside the cost, since that is the one about to stop somebody working; press its name
+to look at another. Ask Tade and it will tell you where each one stands and what else there is when
+one is nearly gone, and leave switching to you.
 
 ![Spend: every agent with its model, tokens, share, runtime and cost, how much of each subscription’s window is used and when it resets, what that bought in commits and lines, and each project against its budget](images/spend.svg)
 
