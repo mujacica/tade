@@ -117,6 +117,25 @@ const strip = {
   runtime: { ...noRuntime(), ms: 7_500_000, runs: 3, running: true, workingMs: 3_100_000 },
 }
 
+/**
+ * The same morning on a subscription: every token counted, every hour counted,
+ * and no money anywhere — which is what a harness whose own sign-in is a plan
+ * reports, and the day the strip used to draw as `today` with an empty slot in
+ * front of it.
+ */
+const unpriced = {
+  tokens: 2_520_000,
+  usd: 0,
+  hasCost: false,
+  byTask: {
+    'checkout/stripe-v15': { tokens: 880_000, usd: 0 },
+    'checkout/refunds': { tokens: 460_000, usd: 0 },
+    'search/pagination': { tokens: 148_000, usd: 0 },
+    'search/reindex': { tokens: 620_000, usd: 0 },
+  },
+  runtime: strip.runtime,
+}
+
 export const SPEND_SCREENS: Scenario[] = [
   {
     name: 'spend',
@@ -161,5 +180,15 @@ export const SPEND_SCREENS: Scenario[] = [
         plan: plans,
       }),
     }),
+  },
+  {
+    name: 'a-day-nobody-priced',
+    about:
+      'A morning on a subscription: the tokens and the hours are there and the money is not, so the ' +
+      'strip draws \u2014 where the figure goes \u2014 never $0.00, which reads as free, and never the ' +
+      'word beside it on its own, which reads as a figure that failed to load. What is left of the ' +
+      'plan is the figure that means anything here.',
+    state: base(),
+    frame: frame({ spend: unpriced, plan: planStandings(plans, NOW) }),
   },
 ]

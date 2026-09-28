@@ -483,8 +483,9 @@ export function renderFoot(
         target,
       )
     }
-    if (spent && spend.hasCost) r.text(dollars(spend.usd), lit(target, skin.you), target).space()
-    r.text(spent ? 'today ▾' : 'nothing spent today ▾', money, target).space()
+    const today = costToday(spend)
+    if (today.figure !== null) r.text(today.figure, lit(target, skin.you), target).space()
+    r.text(today.said, money, target).space()
   }
   const fits = tries.find((show) => {
     const probe = new Row(width, skin)
@@ -493,4 +494,36 @@ export function renderFoot(
   })
   row.right(status(fits ?? tries[tries.length - 1] ?? full))
   return stack([{ text: skin.chrome('─'.repeat(width)), hits: [] }, row.build()])
+}
+
+/**
+ * What today cost, as the one slot in the strip that is drawn whatever else is
+ * given up: the figure, and the words beside it.
+ *
+ * Three answers, and they are three different claims about the same day. A
+ * figure is what somebody was charged. `—` is effort no dollar here covers — a
+ * plan pays a flat fee and has no price per turn, and a model nothing has a
+ * rate for cannot be worked out either — which is the mark the Spend page puts
+ * on that same figure and `tade spend` puts in that same column, because this
+ * is that figure drawn smaller and two rules for it would disagree the day one
+ * of them moved. And a day where nothing was counted and nothing ran is a
+ * nought, which is a figure somebody looked at, said in the words there is
+ * room for.
+ *
+ * The two it may never collapse are the last two. Nothing *reported* is not
+ * nothing *spent*: a harness whose sign-in is a plan runs up tokens and never a
+ * dollar, and a window that has not read the journal yet has not looked at all
+ * — so neither may claim the nought. Drawn as `$0.00` either would read as
+ * free, and drawn as nothing at all — which is what this did, leaving
+ * `1.9M tok │ 2h 5m │ today ▾` with an empty slot in front of the label — it
+ * reads as a figure that failed to load rather than one nobody can give.
+ */
+function costToday(spend: Frame['spend']): { figure: string | null; said: string } {
+  if (spend?.hasCost) return { figure: dollars(spend.usd), said: 'today ▾' }
+  const ran = spend?.runtime
+  const nothing =
+    spend !== undefined && spend.tokens === 0 && ran !== undefined && ran.ms === 0 && ran.runs === 0
+  return nothing
+    ? { figure: null, said: 'nothing spent today ▾' }
+    : { figure: '—', said: 'today ▾' }
 }

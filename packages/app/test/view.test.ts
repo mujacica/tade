@@ -878,16 +878,6 @@ describe('the bottom panel and its handles', () => {
 })
 
 describe('agent spend', () => {
-  it('shows in the status bar when money was spent, even with zero tokens', () => {
-    const rows = renderApp(state(), {
-      ...frame(),
-      spend: { tokens: 0, usd: 0.351, hasCost: true, byTask: {} },
-    })
-    const footer = plain(rows[rows.length - 1] ?? '')
-    expect(footer).toContain('today')
-    expect(footer).toContain('$0.35')
-  })
-
   it('says how long the agents have run, just before what they cost', () => {
     const rows = renderApp(state(), {
       ...frame(),

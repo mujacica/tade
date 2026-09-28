@@ -1,4 +1,4 @@
-import { IDLE_REASON } from '@tade/core'
+import { IDLE_REASON, noRuntime } from '@tade/core'
 import {
   focusTask,
   initialState,
@@ -49,7 +49,11 @@ const emptyProjectFrame = frame({
     { path: 'package.json', name: 'package.json', depth: 0, folder: false, open: false },
     { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },
   ],
-  spend: { tokens: 0, usd: 0, hasCost: false, byTask: {} },
+  // Nothing counted and nothing run, and Tade has looked: what makes this day
+  // a nought rather than a silence, which the strip says differently
+  // (`costToday`). A frame with no runtime at all is a window that has not read
+  // the journal yet.
+  spend: { tokens: 0, usd: 0, hasCost: false, byTask: {}, runtime: noRuntime() },
 })
 
 // The window itself: the side, the middle, the terminals along the bottom,
