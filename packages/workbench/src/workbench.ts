@@ -66,6 +66,7 @@ import {
   type WorkerExtras,
   type WorkerHandle,
   type WorkerModel,
+  WorkerNotFoundError,
 } from '@tade/harnesses-core'
 import { git, readCommits } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
@@ -81,6 +82,7 @@ import { Memory } from './memory.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
+import { continueRun as continueAgent } from './sleep.ts'
 import {
   beginFrom,
   branchSlug,
@@ -2304,6 +2306,19 @@ export class Workbench {
 
   promptRun(run: RunId, message: string): Promise<void> {
     return this.workers.prompt(run, message)
+  }
+
+  /**
+   * Tell an agent whose turn the machine cut off — a laptop that slept
+   * mid-reply — to carry on where it stopped. What it is told and the record
+   * that it was told are `sleep.ts`'s; which agent is running as this run is
+   * the only part that is here.
+   */
+  async continueRun(run: RunId, slept: number): Promise<void> {
+    const handle = this.workers.list().find((one) => one.run === run)
+    if (!handle) throw new WorkerNotFoundError(run)
+    const on = { adapter: this.adapterFor(handle.harness), task: handle.task, log: this.log }
+    await continueAgent(run, slept, on)
   }
 
   steerRun(run: RunId, message: string): Promise<void> {

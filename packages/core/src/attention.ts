@@ -196,6 +196,8 @@ export function describeEvent(event: TadeEvent): string {
       return `is ${String(event.detail.state ?? 'changed')}`
     case 'run_started':
       return 'started'
+    case 'agent_continued':
+      return 'was told to carry on after the machine slept'
     default:
       return event.type.replace(/_/g, ' ')
   }

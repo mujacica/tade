@@ -45,6 +45,7 @@ export class FakeAdapter implements WorkerAdapter {
     visibleUi: false,
     resume: false,
     resumeKeeps: true,
+    continues: true,
     images: 'none',
     done: true,
     nativeExtensions: false,
@@ -58,6 +59,8 @@ export class FakeAdapter implements WorkerAdapter {
   }
   readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []
   readonly steered: Array<{ run: string; message: string }> = []
+  /** What was sent as an ordinary instruction, and how it was to arrive if busy. */
+  readonly prompted: Array<{ run: string; message: string; whenBusy?: string }> = []
   readonly stopped: string[] = []
   readonly answers: Array<{ run: string; callId: string; ok: boolean; text: string }> = []
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
@@ -134,7 +137,14 @@ export class FakeAdapter implements WorkerAdapter {
     this.handles.set(spec.run, handle)
     return handle
   }
-  async prompt(): Promise<void> {}
+  async prompt(
+    run: RunId,
+    message: string,
+    _images?: unknown,
+    opts?: { whenBusy?: 'steer' | 'queue' },
+  ): Promise<void> {
+    this.prompted.push({ run, message, ...(opts?.whenBusy ? { whenBusy: opts.whenBusy } : {}) })
+  }
   async steer(run: RunId, message: string): Promise<void> {
     this.steered.push({ run, message })
   }

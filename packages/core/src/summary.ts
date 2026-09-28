@@ -31,6 +31,18 @@ export interface WorkSummary {
   notable: string[]
   /** What it is waiting on right now, if anything. */
   waiting: string | null
+  /**
+   * How long this machine was away the last time it cut a turn of this
+   * agent's off, as it was recorded — null when it never did.
+   *
+   * Its own field rather than one of `notable`, which is things that *ran*:
+   * this is the answer to "why is there an hour missing in the middle of
+   * this", and without it the machine's nap reads as the agent's own dead
+   * time. Nothing else can say it afterwards — the harness's session shows a
+   * turn that errored and a turn that began, which is what an agent that
+   * failed and was retried by hand looks like too.
+   */
+  interrupted: string | null
   /** Why it failed, if it did. */
   failed: string | null
   state: TaskState | null
@@ -50,6 +62,7 @@ export function summariseWork(
     used: [],
     notable: [],
     waiting: null,
+    interrupted: null,
     failed: null,
     state: null,
     lastAt: null,
@@ -81,6 +94,12 @@ export function summariseWork(
         break
       case 'failed':
         summary.failed = String(event.detail.error ?? 'no reason given')
+        break
+      case 'agent_continued':
+        // The last one wins: two naps in an afternoon is one gap worth
+        // explaining, and it is the one somebody is looking at.
+        summary.interrupted =
+          typeof event.detail.slept === 'string' ? event.detail.slept : 'a while'
         break
       case 'permission_request':
         if (requestId) open.set(requestId, String(event.detail.summary ?? 'a decision'))
@@ -121,6 +140,10 @@ export function describeWork(summary: WorkSummary, now: number): string {
   const work = describeEffort(summary)
   sentences.push(work ? `${opening}: ${work}.` : `${opening}, with nothing done yet.`)
 
+  if (summary.interrupted)
+    sentences.push(
+      `This machine slept for ${summary.interrupted} part way through, and it was told to carry on.`,
+    )
   if (summary.failed) sentences.push(`It failed: ${summary.failed}.`)
   if (summary.waiting) sentences.push(`It is waiting on ${summary.waiting}.`)
   if (summary.notable.length > 0) {

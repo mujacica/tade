@@ -72,6 +72,28 @@ describe('news for the orchestrator', () => {
     expect(eventNews({ ...done({}), type: 'turn_done' })).toBeNull()
   })
 
+  it('says an agent the machine cut off is working again, and needs nothing', () => {
+    // The orchestrator hears it happened; it is never the thing that does it.
+    // Without this it finds an agent that went quiet over lunch and is busy
+    // again with no idea why, which is exactly when it steers into one.
+    const continued = (detail: Record<string, unknown>) => ({
+      seq: 1,
+      ts: '2026-09-15T13:00:00Z',
+      type: 'agent_continued' as const,
+      urgency: 'notable' as const,
+      task: 'app/refunds',
+      lane: null,
+      run: 'r1',
+      detail,
+    })
+    expect(eventNews(continued({ slept: '1h 30m', sleptMs: 5_400_000 }))).toBe(
+      'app/refunds was cut off mid-turn while this machine slept for 1h 30m, and has been told to carry on where it stopped. Nobody needs to start it again.',
+    )
+    // An old line, or one from a Tade that did not write the figure down: the
+    // sentence still says the thing that matters rather than saying nothing.
+    expect(eventNews(continued({}))).toContain('slept for a while')
+  })
+
   it('says the document a task produced, and that nobody has acted on it', () => {
     // The whole point: a research task reaching the orchestrator as a path it
     // can go and read, rather than one line saying a document exists.

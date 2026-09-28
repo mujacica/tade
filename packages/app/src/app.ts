@@ -691,6 +691,7 @@ export class App {
 
   private async look(): Promise<void> {
     if (this.stopped) return
+    this.agents.beats()
     this.agents.reopenStopped()
     this.extensions.askExtensions()
     this.images.look()

@@ -20,6 +20,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { type Waker, wakerOf } from './sleep.ts'
 
 // The agents: making one, opening one again, stopping it, answering it, and
 // taking it away. What one *runs on* is `wire/routes.ts`, which its own menu
@@ -74,10 +75,29 @@ export class Agents implements Subject {
   private readonly reopened = new Set<string>()
   /** Agents whose branch is being named, so a slow git is not asked twice. */
   private readonly naming = new Set<string>()
+  /**
+   * The machine going away under the agents, and who is told to carry on when
+   * it comes back (`sleep.ts`). Here because a laptop waking is the third of
+   * the same kind of thing this subject already does — `reopenLost` for a
+   * window that closed, `reopenStopped` for an agent that stopped — and all
+   * three are held to the same rule: once each, never a loop, and never the
+   * opening instruction said a second time.
+   */
+  private readonly waker: Waker
 
   constructor(wire: Wiring, deps: AgentsDeps) {
     this.wire = wire
     this.deps = deps
+    this.waker = wakerOf(wire)
+  }
+
+  /**
+   * The window's beat, which is how the machine having been away is noticed
+   * at all: a beat that arrives an hour after the last one is a laptop that
+   * went to sleep, and the agents it cut off mid-turn are told to carry on.
+   */
+  beats(): void {
+    this.waker.beats(this.wire.now())
   }
 
   /** What removing the agent in front of you would lose. */

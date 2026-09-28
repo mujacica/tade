@@ -43,6 +43,10 @@ const PARTIAL: Array<[HarnessFeature, (adapter: WorkerAdapter) => boolean]> = [
   ['images', (a) => a.capabilities.images !== 'inline'],
   ['done', (a) => !a.capabilities.done],
   ['resume', (a) => !a.capabilities.resume],
+  // A harness that cannot pick a cut-off turn back up is one whose agents sit
+  // at a prompt after every sleep, and what a person gets instead of a nudge
+  // is this sentence — so there has to be one.
+  ['continues', (a) => !a.capabilities.continues],
   ['nativeExtensions', (a) => !a.capabilities.nativeExtensions],
   ['skills', (a) => !a.capabilities.skills],
   ['tools', (a) => !a.capabilities.tools],

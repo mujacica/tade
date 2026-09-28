@@ -147,7 +147,8 @@ export function taskNews(
 
 /**
  * What a journal event is worth telling, when it is: a task finishing, who
- * said so, and the document it produced.
+ * said so, and the document it produced — or an agent the machine cut off
+ * being put back to work.
  *
  * A task that was made to plan, audit or research says what it writes, and
  * that path goes on the line that says it finished — so a research task
@@ -155,9 +156,22 @@ export function taskNews(
  * line about one, which is the step somebody used to have to ask for every
  * time. Nothing has been done about it at this moment by construction: Tade
  * tells, and starts nothing off a document by itself.
+ *
+ * A sleeping laptop is the same shape: Tade is what noticed and what put the
+ * agents back to work, and the orchestrator hears it happened rather than
+ * being the thing that does it — which would be a model deciding, one message
+ * in each agent's conversation, behind the one conversation the sleep also
+ * cut off. It is told here because this is the channel it is already told
+ * through, and because an agent that went quiet over lunch and is working
+ * again is exactly the kind of thing it would otherwise steer into.
  */
 export function eventNews(event: TadeEvent): string | null {
-  if (event.type !== 'task_done' || !event.task) return null
+  if (!event.task) return null
+  if (event.type === 'agent_continued') {
+    const slept = typeof event.detail.slept === 'string' ? event.detail.slept : 'a while'
+    return `${event.task} was cut off mid-turn while this machine slept for ${slept}, and has been told to carry on where it stopped. Nobody needs to start it again.`
+  }
+  if (event.type !== 'task_done') return null
   const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
   const who =
     event.detail.by === 'agent'

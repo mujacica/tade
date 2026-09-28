@@ -29,6 +29,32 @@ describe('summariseWork', () => {
     expect(describeWork(summary, NOW)).toBe('Nothing recorded for refunds.')
   })
 
+  it('explains a gap the machine put there, rather than letting it read as dead time', () => {
+    // Without this, three hours of a sleeping laptop look exactly like three
+    // hours of an agent that stopped doing anything — and the harness's own
+    // session cannot tell the two apart afterwards either.
+    const summary = summariseWork(
+      [
+        tool('bash'),
+        event({ type: 'agent_continued', detail: { slept: '3h', sleptMs: 10_800_000 } }),
+      ],
+      'checkout/refunds',
+      NOW,
+    )
+    expect(summary.interrupted).toBe('3h')
+    expect(describeWork(summary, NOW)).toContain(
+      'This machine slept for 3h part way through, and it was told to carry on.',
+    )
+    // It is not a tool call, a turn or a command that ran, and must not be
+    // counted as one — `notable` renders as "It ran …".
+    expect(summary.notable).toEqual([])
+    expect(summary.turns).toBe(0)
+  })
+
+  it('has nothing to say about a gap when the machine never took one', () => {
+    expect(summariseWork([tool('bash')], 'checkout/refunds', NOW).interrupted).toBeNull()
+  })
+
   it('ignores everything happening on other tasks', () => {
     const summary = summariseWork(
       [tool('bash'), tool('edit', { task: 'search/pagination' })],

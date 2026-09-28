@@ -99,6 +99,17 @@ export const EventType = z.enum([
   'turn_started',
   'turn_done',
   'failed',
+  /**
+   * An agent whose turn the machine cut off — a laptop that slept mid-reply —
+   * was told to carry on where it stopped, and how long the machine was away.
+   *
+   * The one record that a gap in an agent's transcript was the machine and
+   * not the agent. Nothing else can say it afterwards: the harness's own
+   * session shows a turn that ended in an error and a turn that began after
+   * it, which reads exactly like an agent that failed and was retried by
+   * somebody at the keyboard.
+   */
+  'agent_continued',
   /** What a turn consumed, in tokens and money. */
   'usage',
   /** A finished task was looked back over, so it is never looked at twice. */
@@ -201,6 +212,11 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   turn_started: 'routine',
   turn_done: 'notable',
   failed: 'blocking',
+  // Notable: somebody back at their laptop wants to see that Tade noticed and
+  // what it did about it. Once per sleep per agent, which is as often as
+  // anybody goes for lunch — and never blocking, since nothing is waiting on
+  // a person: the agent has already been put back to work.
+  agent_continued: 'notable',
   // Routine rather than trace: spend is read back out of the journal, and
   // trace is the first thing dropped when a subscriber falls behind.
   usage: 'routine',

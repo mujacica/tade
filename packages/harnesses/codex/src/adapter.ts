@@ -216,6 +216,9 @@ export class CodexAdapter implements WorkerAdapter {
     // A resumed thread starts on the account's own default, so the model and
     // the effort are said again at every launch.
     resumeKeeps: false,
+    // A turn that ends in an error ends the turn and nothing else: the
+    // thread is still there, and the next thing said to it goes on with it.
+    continues: true,
     images: 'path',
     done: true,
     nativeExtensions: false,

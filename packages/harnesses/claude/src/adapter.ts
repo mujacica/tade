@@ -239,6 +239,9 @@ function claudeCapabilities(account: HarnessAccount | undefined): WorkerCapabili
     // A resumed session starts on whatever the account's default is, so the
     // model it was on has to be said again.
     resumeKeeps: false,
+    // `API Error: Your computer went to sleep mid-response.` and back to the
+    // prompt, with the session intact: it needs telling, not restarting.
+    continues: true,
     images: 'path',
     done: true,
     nativeExtensions: false,

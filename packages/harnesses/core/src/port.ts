@@ -361,6 +361,7 @@ export type HarnessFeature =
   | 'images'
   | 'done'
   | 'resume'
+  | 'continues'
   | 'nativeExtensions'
   | 'skills'
   | 'tools'
@@ -398,6 +399,21 @@ export interface WorkerCapabilities {
    * what the journal last heard the agent run on.
    */
   resumeKeeps: boolean
+  /**
+   * Its agent carries on a turn the machine cut off under it, once it is told
+   * to: a laptop that slept mid-reply, a network that went, a provider that
+   * hung up part way through.
+   *
+   * Not the same question as `resume`, which is about coming back to a
+   * conversation whose process has gone. This one is about a process that is
+   * still sitting there with half a turn behind it — the commonest way an
+   * agent stops without anybody noticing, and the one a harness is the only
+   * thing that can answer for. Declared rather than assumed, because a
+   * harness whose cut-off turn cannot be picked up must not be nudged into
+   * doing its work a second time: what happens for one that says no is that a
+   * person is told, in the harness's own `why`.
+   */
+  continues: boolean
   /**
    * Its agent can say its task is finished (the `done` signal). Without it, a
    * task's rule cannot be `said`: nothing would ever say it.

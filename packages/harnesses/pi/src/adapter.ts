@@ -245,6 +245,9 @@ export class PiAdapter implements WorkerAdapter {
     resume: true,
     // pi's session remembers what it was on.
     resumeKeeps: true,
+    // A turn cut off part way through leaves the session sitting at its
+    // prompt, and the next thing said to it carries on that conversation.
+    continues: true,
     images: 'inline',
     // The supervision extension gives every agent `tade_done`.
     done: true,

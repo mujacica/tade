@@ -47,6 +47,15 @@ closes, which is the thing this design exists to avoid.
   orchestrator's tools and voice all read them through `offer()` — `none` is not drawn and is
   refused with that sentence, `restart` is done by `restartAgent`. `permissionGate: false` means
   approvals cannot be trusted for that harness — never fake it.
+- **`continues` is about a turn that was cut off, and it is not `resume`.** `resume` is coming back
+  to a conversation whose process has gone; `continues` is a process that is still sitting there
+  with half a turn behind it — a laptop that slept mid-reply, which is how an agent most often stops
+  without anybody noticing. Say `true` only if the next thing said to it carries on that
+  conversation. A harness that says `false` is left alone on a wake and a person is told your `why`
+  instead, which is the right way round: an agent nudged when it cannot pick the turn back up does
+  the work twice. What decides who is nudged is `toContinue` (`core/src/sleep.ts`), what is said is
+  `CONTINUE` and nothing else, and it is once per wake per agent — never the opening instruction
+  again.
 - Declare what it needs of the machine (`programs`): the program the harness actually is, what it
   is needed for, the arguments that make it print its version, and how to install it (`install`,
   only where you are sure of the package — `instead` says where to get it otherwise). `probe()` says
