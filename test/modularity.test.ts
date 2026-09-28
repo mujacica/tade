@@ -50,7 +50,7 @@ const BUDGET: Record<string, number> = {
   // row to *this* file" instead of naming a line number in a thousand.
   'packages/core/src/settings.ts': 1_200,
   'packages/drivers/tmux/src/index.ts': 900,
-  'packages/extensions/core/src/host.ts': 1_500,
+  'packages/extensions/core/src/host.ts': 1_450,
   'packages/extensions/core/test/host.test.ts': 1_000,
   // The three tools that close a finding have left, to `verdicts.ts` beside
   // the rule they enforce, and what let them go was moving the one thing every

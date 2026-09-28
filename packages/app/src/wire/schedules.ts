@@ -6,10 +6,9 @@ import {
   joined,
   LINES_LOOKED_BACK,
   newFindings,
-  ONLY_TELLS,
+  nothingToWatch,
   type Schedule,
   type ScheduleDoes,
-  STARTS_AGENTS,
   scheduleIdOf,
   standingSchedules,
   taskOrigin,
@@ -24,7 +23,7 @@ import type { Frame } from '../frame.ts'
 import { notice, openSchedule, type ScheduleView, withTranscript } from '../model.ts'
 import { scheduleMenuItems } from '../panels/menu/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
-import { foundMessage, scheduleView } from '../queue.ts'
+import { foundMessage, scheduleView, watchesListed } from '../queue.ts'
 import { hush, unhush } from '../schedules-view.ts'
 import { problem, tadeDid } from '../transcript.ts'
 import {
@@ -477,6 +476,27 @@ export class Schedules implements Subject {
       this.wire.draw()
       return said
     }
+    // Its project is not one Tade is working in any more, so there is nothing
+    // to look at. Written down as the quiet look it is rather than thrown as
+    // trouble: the watch keeps everything it has found, comes back the moment
+    // the project is opened again, and says this once instead of a red line
+    // every ten minutes about a project somebody closed on purpose.
+    const nothing = nothingToWatch(one.project, Object.keys(this.wire.opts.config.projects))
+    if (nothing) {
+      this.wire.put(unhush(this.wire.state, one.id))
+      await client
+        .watchChecked(one.id, {
+          found: 0,
+          fresh: [],
+          left: 0,
+          since: watched.since,
+          said: nothing,
+        })
+        .catch(() => {})
+      const said = `${one.name}: ${nothing}`
+      if (asked || watched.looks[0]?.said !== nothing) return say(said)
+      return said
+    }
     let looked: Awaited<ReturnType<ExtensionHost['look']>>
     try {
       const host = this.wire.opts.extensions
@@ -679,53 +699,15 @@ export class Schedules implements Subject {
    */
   tools(): WatchTools {
     return {
-      watches: async (find) => this.listedWatches(find),
+      watches: async (find) =>
+        watchesListed({
+          offers: this.wire.opts.extensions?.watches() ?? [],
+          projects: Object.keys(this.wire.opts.config.projects),
+          watching: (watch, project) => this.watching(watch, project),
+          find,
+        }),
       change: async (req) => this.askedWatch(req),
     }
-  }
-
-  /**
-   * Every watch there is, as something to read: what it looks for, how often,
-   * what it does about what it finds, and whether it is on in each project.
-   *
-   * Every watch and not only the ones that can look: one whose extension needs
-   * a key is still worth knowing about, and saying what it needs is how
-   * somebody comes to set it up.
-   */
-  private listedWatches(find: string): string {
-    const words = find.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    const offers = this.wire.opts.extensions?.watches() ?? []
-    const projects = Object.keys(this.wire.opts.config.projects)
-    const lines: string[] = []
-    for (const offer of offers) {
-      const text = `${offer.id} ${offer.title} ${offer.means}`.toLowerCase()
-      if (!words.every((word) => text.includes(word))) continue
-      const where = projects.map((project) => {
-        const one = this.watching(offer.id, project)
-        return `${project}: ${one ? (one.paused ? 'off, paused' : 'on') : 'off'}`
-      })
-      lines.push(
-        `${offer.id} — ${offer.title}, looks ${describeWhen({ every: offer.every })}, and ${
-          offer.offers === 'agent' ? STARTS_AGENTS : ONLY_TELLS
-        }`,
-      )
-      lines.push(`  ${offer.means}`)
-      lines.push(
-        `  ${where.length > 0 ? where.join(' · ') : 'no project is open'}${
-          offer.problem ? ` · it cannot look yet: ${offer.problem}` : ''
-        }`,
-      )
-    }
-    if (lines.length === 0) {
-      return offers.length === 0
-        ? 'No extension here offers anything to watch.'
-        : `Nothing matches ${find}. Ask again with fewer words, or with none for all of them.`
-    }
-    return [
-      ...lines,
-      '',
-      `Turning one on or off takes the person's own words naming that watch: ${WATCH_REACH.because}.`,
-    ].join('\n')
   }
 
   /**

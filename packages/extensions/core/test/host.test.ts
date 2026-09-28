@@ -471,6 +471,35 @@ describe('watching', () => {
     })
   })
 
+  it('looks at a project opened after it loaded, without Tade being started again', async () => {
+    // The bug this is here for: the projects were read once, when the
+    // extensions loaded, so a project opened an hour ago was one every watch
+    // in it said `there is no project called zahlenzauber` about, once every
+    // ten minutes, until somebody restarted Tade.
+    const loaded = await host({ city: 'Vienna', raining: true })
+    await expect(loaded.look('weather.rain', { ...look, project: 'zahlenzauber' })).rejects.toThrow(
+      'there is no project called zahlenzauber (there is shop)',
+    )
+    loaded.useProjects({ ...projects, zahlenzauber: { root: '/src/zahlenzauber' } })
+    const looked = await loaded.look('weather.rain', { ...look, project: 'zahlenzauber' })
+    expect(looked.found).toEqual([{ key: 'rain-zahlenzauber', title: 'Rain over zahlenzauber' }])
+    // And what every other surface asks about — the tools, the list an
+    // extension reads — is the same list, because there is only one.
+    const said = await loaded.call(
+      'weather_now',
+      { project: 'zahlenzauber' },
+      { caller: { kind: 'orchestrator' } },
+    )
+    expect(said.text).toContain('Dry in Vienna for zahlenzauber.')
+
+    // Closed again, and it is gone again: the list is the config's, never a
+    // second copy of it that only ever grows.
+    loaded.useProjects(projects)
+    await expect(loaded.look('weather.rain', { ...look, project: 'zahlenzauber' })).rejects.toThrow(
+      'there is no project called zahlenzauber (there is shop)',
+    )
+  })
+
   it('says why it could not look, and gives up on one that never answers', async () => {
     await expect((await host({})).look('weather.rain', look)).rejects.toThrow(
       'Weather needs setting up: set extensions.weather.city',

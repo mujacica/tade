@@ -3,15 +3,19 @@ import {
   describeQueueState,
   describeWhen,
   joined,
+  ONLY_TELLS,
   type Queued,
   type QueueFacts,
   type QueueState,
   queueStateOf,
   runsOf,
   type Schedule,
+  STARTS_AGENTS,
   scheduleEnded,
+  WATCH_REACH,
   type Watched,
 } from '@tade/core'
+import type { WatchOffer } from '@tade/extensions-core'
 import { type AppState, type QueueRow, queueTree, queueViewOf, type ScheduleView } from './model.ts'
 import { shownBy } from './queue-view.ts'
 
@@ -316,4 +320,54 @@ export function planAnswer(result: {
   }
   for (const warning of result.warnings) lines.push(`Watch out: ${warning}.`)
   return lines.join('\n')
+}
+
+/**
+ * Every watch there is, as something to read: what it looks for, how often,
+ * what it does about what it finds, and whether it is on in each project.
+ *
+ * Every watch and not only the ones that can look: one whose extension needs
+ * a key is still worth knowing about, and saying what it needs is how somebody
+ * comes to set it up.
+ *
+ * `watching` is asked rather than read, because whether a watch is on in a
+ * project is a schedule in the window and this file knows about neither.
+ */
+export function watchesListed(req: {
+  offers: readonly WatchOffer[]
+  projects: readonly string[]
+  watching: (watch: string, project: string) => { paused: boolean } | null
+  find: string
+}): string {
+  const words = req.find.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  for (const offer of req.offers) {
+    const text = `${offer.id} ${offer.title} ${offer.means}`.toLowerCase()
+    if (!words.every((word) => text.includes(word))) continue
+    const where = req.projects.map((project) => {
+      const one = req.watching(offer.id, project)
+      return `${project}: ${one ? (one.paused ? 'off, paused' : 'on') : 'off'}`
+    })
+    lines.push(
+      `${offer.id} — ${offer.title}, looks ${describeWhen({ every: offer.every })}, and ${
+        offer.offers === 'agent' ? STARTS_AGENTS : ONLY_TELLS
+      }`,
+    )
+    lines.push(`  ${offer.means}`)
+    lines.push(
+      `  ${where.length > 0 ? where.join(' · ') : 'no project is open'}${
+        offer.problem ? ` · it cannot look yet: ${offer.problem}` : ''
+      }`,
+    )
+  }
+  if (lines.length === 0) {
+    return req.offers.length === 0
+      ? 'No extension here offers anything to watch.'
+      : `Nothing matches ${req.find}. Ask again with fewer words, or with none for all of them.`
+  }
+  return [
+    ...lines,
+    '',
+    `Turning one on or off takes the person's own words naming that watch: ${WATCH_REACH.because}.`,
+  ].join('\n')
 }

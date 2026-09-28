@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { extensionEnabled, findSecret, secretPath, whenProblem } from '@tade/core'
+import { extensionEnabled, findSecret, secretPath } from '@tade/core'
 import type {
   Audience,
   BriefItem,
@@ -31,6 +31,7 @@ import type {
   WatchContext,
 } from './port.ts'
 import { inputProblem } from './schema.ts'
+import { everyMs, shapeProblem } from './shape.ts'
 
 // Holding the extensions a window runs with, and running them.
 //
@@ -505,6 +506,17 @@ export class ExtensionHost {
       }
       await this.evaluate(entry, settings)
     }
+  }
+
+  /**
+   * Take the projects as the config now has them, from whoever holds it.
+   *
+   * Nothing is evaluated again: which projects there are changes what an
+   * extension may be asked *about*, never whether it works, so opening one
+   * costs an assignment and no `ready()` call.
+   */
+  useProjects(projects: HostOptions['config']['projects']): void {
+    this.opts.config = { ...this.opts.config, projects }
   }
 
   /** How to set an extension up in the window, when it says. */
@@ -1184,17 +1196,15 @@ export class ExtensionHost {
     declared: readonly ExtensionSetting[] = [],
   ): ExtensionContext {
     const opts = this.opts
-    const expand = opts.expandHome ?? ((path: string) => path)
-    const projects: ProjectRef[] = Object.entries(opts.config.projects).map(([project, value]) => ({
-      name: project,
-      root: expand(value.root),
-      ...(value.test_command ? { test: value.test_command } : {}),
-    }))
     return {
       extension: name,
       settings,
-      projects,
+      // Asked of the config at every read, never held: see `projectsOf`.
+      get projects() {
+        return projectsOf(opts)
+      },
       project(wanted) {
+        const projects = projectsOf(opts)
         if (wanted) {
           const found = projects.find((project) => project.name === wanted)
           if (found) return found
@@ -1233,6 +1243,23 @@ export class ExtensionHost {
       now: opts.now ?? Date.now,
     }
   }
+}
+
+/**
+ * The projects as the config has them *now*, resolved against the machine's `~`.
+ *
+ * Read at every call and never held. A list read once, when the extensions
+ * loaded, is how `there is no project called zahlenzauber (there is tade,
+ * tade-web)` came to be said about a project that had been open for an hour —
+ * by three watches, once every ten minutes, until Tade was started again.
+ */
+function projectsOf(opts: HostOptions): ProjectRef[] {
+  const expand = opts.expandHome ?? ((path: string) => path)
+  return Object.entries(opts.config.projects).map(([project, value]) => ({
+    name: project,
+    root: expand(value.root),
+    ...(value.test_command ? { test: value.test_command } : {}),
+  }))
 }
 
 /**
@@ -1287,75 +1314,6 @@ function firstComment(file: string): string {
   } catch {
     return ''
   }
-}
-
-/** What is wrong with how an extension is put together, or null. */
-export function shapeProblem(extension: TadeExtension): string | null {
-  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(extension.name ?? '')) {
-    return `"${String(extension.name)}" is not a usable name: lowercase letters, digits and dashes`
-  }
-  if (!extension.title || !extension.description) return 'it needs a title and a description'
-  // What it says about how it is used is read by a person, so a blank line in
-  // it is a gap on the page rather than something nobody notices.
-  for (const line of extension.workflow ?? []) {
-    if (!line.trim()) return 'one of the lines it says it is used in is empty'
-  }
-  const prefix = `${extension.name.replace(/-/g, '_')}_`
-  const seen = new Set<string>()
-  for (const tool of extension.tools ?? []) {
-    if (!tool.name.startsWith(prefix)) return `its tool ${tool.name} should start with ${prefix}`
-    if (!/^[a-z0-9_]+$/.test(tool.name))
-      return `its tool ${tool.name} should be lowercase with underscores`
-    if (seen.has(tool.name)) return `it has two tools called ${tool.name}`
-    seen.add(tool.name)
-    if (!tool.description) return `its tool ${tool.name} says nothing about when to use it`
-    if (tool.parameters?.type !== 'object')
-      return `its tool ${tool.name} takes parameters that are not an object`
-    if (tool.for.length === 0) return `its tool ${tool.name} is offered to nobody`
-  }
-  for (const action of extension.actions ?? []) {
-    if (!seen.has(action.tool))
-      return `its action ${action.id} runs ${action.tool}, which it does not have`
-  }
-  const watches = new Set<string>()
-  for (const watch of extension.watches ?? []) {
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(watch.id ?? '')) {
-      return `its watch "${String(watch.id)}" is not a usable name: lowercase letters, digits and dashes`
-    }
-    if (watches.has(watch.id)) return `it has two watches called ${watch.id}`
-    watches.add(watch.id)
-    if (!watch.title || !watch.means) return `its watch ${watch.id} needs a title and what it means`
-    const every = whenProblem({ every: String(watch.every) })
-    if (every || !/^\d/.test(String(watch.every).trim())) {
-      return `its watch ${watch.id} looks every "${watch.every}", which is not a length like 30m, 1h or 1d`
-    }
-    if (watch.input && watch.input.type !== 'object') {
-      return `its watch ${watch.id} takes input that is not an object`
-    }
-    if (typeof watch.check !== 'function') {
-      return `its watch ${watch.id} needs a check`
-    }
-    // A watch may have nothing to start — what it finds is already going, and
-    // badly — but only one that says so, because everything else is turned on
-    // to start work by default and would fail at the first finding.
-    if (typeof watch.agent !== 'function' && watch.offers !== 'ask') {
-      return `its watch ${watch.id} has no agent, so it must say offers: 'ask'`
-    }
-  }
-  const lists = new Set<string>()
-  for (const list of extension.lists ?? []) {
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(list.id ?? '')) {
-      return `its list "${String(list.id)}" is not a usable name: lowercase letters, digits and dashes`
-    }
-    if (lists.has(list.id)) return `it has two lists called ${list.id}`
-    lists.add(list.id)
-    if (!list.title) return `its list ${list.id} needs a heading`
-    if (typeof list.rows !== 'function') return `its list ${list.id} has no rows`
-    if (everyMs(list.every) < 30_000) {
-      return `its list ${list.id} asks every "${list.every}", which is oftener than every 30s`
-    }
-  }
-  return null
 }
 
 function unknownSettings(
@@ -1472,15 +1430,4 @@ function safely<T>(make: () => T, otherwise?: T): T {
 
 function why(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
-}
-
-/** How often a sidebar section may be asked again: `30s`, `5m`, `1h`. */
-function everyMs(every: string): number {
-  const match = /^(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?)$/.exec(
-    String(every).trim().toLowerCase(),
-  )
-  if (!match) return 60_000
-  const n = Number(match[1])
-  const unit = match[2]?.[0]
-  return n * (unit === 's' ? 1_000 : unit === 'm' ? 60_000 : 3_600_000)
 }

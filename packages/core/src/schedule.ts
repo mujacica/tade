@@ -576,6 +576,31 @@ export function standingSchedules(
   return made
 }
 
+/**
+ * Why a watch has nothing to watch, or null when its project is open.
+ *
+ * Closing a project leaves its watches where they are — closing one is not
+ * forgetting its work, and opening the same path again has to bring them back
+ * exactly as they were, which a schedule that was removed or paused could not
+ * do. So a watch outlives the project it names, and a look at one is a look at
+ * nothing.
+ *
+ * That is not a failed look. "Could not look" is for trouble somebody can act
+ * on, and `there is no project called zahlenzauber (there is tade, tade-web)`
+ * is a red line about a decision somebody made on purpose — every ten minutes,
+ * forever, with nothing to do about it. Nothing is wrong: there is nothing to
+ * watch, and that is a quiet fact said in the same shape as the other quiet
+ * facts a look can have — once, when it starts being true.
+ *
+ * One sentence for closed, removed and never-opened, because they are one
+ * situation: this project is not one Tade is working in. Which of the three it
+ * was is the journal's to answer, and guessing between them here would be
+ * words that sound exact and are not.
+ */
+export function nothingToWatch(project: string, open: readonly string[]): string | null {
+  return open.includes(project) ? null : `${project} is not open, so there is nothing to watch`
+}
+
 /** Whether a schedule has nothing left to run: a one-off that ran, a count reached, an end passed. */
 export function scheduleEnded(
   schedule: { when: When; created: string },

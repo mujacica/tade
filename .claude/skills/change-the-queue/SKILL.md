@@ -200,6 +200,18 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   (`reachedResolver`, `dns.resolve` and never `lookup`, whose cache answers the wrong question).
   The one line is said on the edge and only there (`reachSaid`), because a window that has quietly
   stopped looking must still be legible.
+- **Which projects there are is asked at every look, and a project that is not open is nothing to
+  watch.** A watch names its project and resolves it when it looks, so the list it is resolved
+  against is read from the config each time (`projectsOf`; the window hands the host each new config
+  through its one write path, `Settings.use` → `ExtensionHost.useProjects`) and never held from when
+  the extensions loaded — a held list is how `there is no project called zahlenzauber (there is tade,
+  tade-web)` came to be said about a project that had been open for an hour, by three watches, every
+  ten minutes, until Tade was started again. The other half is the opposite case: a watch outlives
+  the project it names, because closing a project leaves its schedules exactly where they are, so a
+  look at a closed one is a look at nothing (`nothingToWatch`). That is not a failed look — nobody
+  has anything to do about a project somebody closed on purpose — so it is a `watch_checked` with a
+  `said` and no `problem`, on the same terms as every other quiet fact: said once, when it starts
+  being true, and the watch keeps everything it has found for when the project is opened again.
 - **A watch that edits the project is defined by what it will not do.** `deps.updates` is the worked
   example, and every decision in it is about the morning after, because a daily robot that edits
   manifests is the kind of thing people turn off after one bad morning. **Patch and minor, never

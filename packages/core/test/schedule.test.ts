@@ -6,6 +6,7 @@ import {
   dueNow,
   momentOf,
   newFindings,
+  nothingToWatch,
   ON_TIME_MS,
   runsOf,
   scheduleEnded,
@@ -383,5 +384,24 @@ describe('a watch that is on without anybody turning it on', () => {
     expect(standingId('jev.verdicts', 'tade-web')).toBe('jev-verdicts-tade-web')
     expect(standingId('jev.review', 'shop')).not.toBe(standingId('jev.review', 'till'))
     expect(standingId('a.b', 'x')).toMatch(/^[a-z0-9][a-z0-9-]*$/)
+  })
+})
+
+describe('a watch whose project is not open', () => {
+  it('is nothing to watch rather than a look that went wrong', () => {
+    // The projects are read at the moment of the look, so a project opened
+    // since the watch was turned on is one it watches from here on.
+    expect(nothingToWatch('zahlenzauber', ['tade', 'tade-web', 'zahlenzauber'])).toBeNull()
+    expect(nothingToWatch('zahlenzauber', ['tade', 'tade-web'])).toBe(
+      'zahlenzauber is not open, so there is nothing to watch',
+    )
+  })
+
+  it('says the same thing however the project went, because it is the same situation', () => {
+    // Closed, removed by hand, never opened: all of them are "Tade is not
+    // working in that project", and a sentence that guessed between them
+    // would sound exact about something nothing here knows.
+    expect(nothingToWatch('gone', [])).toBe('gone is not open, so there is nothing to watch')
+    expect(nothingToWatch('gone', ['gone'])).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ExtensionHost, shapeProblem } from './host.ts'
+import { ExtensionHost } from './host.ts'
 import type { TadeExtension } from './port.ts'
+import { shapeProblem } from './shape.ts'
 
 // The suite every extension passes, built-in or yours. It asserts the
 // contract around an extension rather than what it finds: that it is put
