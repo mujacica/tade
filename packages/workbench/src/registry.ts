@@ -550,8 +550,13 @@ function forgettable(home: string, lane: LaneRecord): boolean {
   // One place to look, whichever way the task works: its own folder in Tade's
   // home. Anything this cannot read is a task — `existsSync` says false for a
   // path it cannot reach, and a disk that is not mounted must never be read as
-  // work that is over.
-  return !existsSync(join(taskDir(home, lane.task), 'task.yaml')) && existsSync(lane.spec.cwd)
+  // work that is over. An id `taskDir` refuses is the same answer: a record
+  // nobody can place is never one to throw away.
+  try {
+    return !existsSync(join(taskDir(home, lane.task), 'task.yaml')) && existsSync(lane.spec.cwd)
+  } catch {
+    return false
+  }
 }
 
 /**

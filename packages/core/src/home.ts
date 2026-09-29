@@ -53,9 +53,28 @@ export function expandHome(p: string): string {
 /** The folder under the home that holds one folder per project. */
 export const PROJECTS_DIR = 'projects'
 
+/**
+ * One folder's name, and never a way out of the folder above it.
+ *
+ * A project's name comes out of `config.yaml` and a task's id can reach here
+ * as whatever a model put in a tool call, so both are values from outside this
+ * program being joined onto a path. The schemas already refuse anything else
+ * (`ConfigSchema.projects`, `TaskId`), and this is here because a path built
+ * out of a name nobody checked is the one mistake that turns a bookkeeping
+ * folder into a write anywhere on the disk. It throws rather than sanitising:
+ * a name Tade could not have written is a caller that is confused, and
+ * quietly writing to a different folder than the one it asked for is worse.
+ */
+function folderName(name: string, what: string): string {
+  if (name === '' || name === '.' || name === '..' || /[/\\\0]/.test(name)) {
+    throw new Error(`${what} is not a name Tade can make a folder from: ${JSON.stringify(name)}`)
+  }
+  return name
+}
+
 /** Everything Tade writes about one project, by the name the config gives it. */
 export function projectDir(home: string, project: string): string {
-  return join(home, PROJECTS_DIR, project)
+  return join(home, PROJECTS_DIR, folderName(project, 'a project'))
 }
 
 /**
@@ -66,7 +85,7 @@ export function projectDir(home: string, project: string): string {
  * make `tasks/a/b` and the task `a` indistinguishable.
  */
 export function taskFolder(id: string): string {
-  return id.split('/').slice(1).join('-')
+  return folderName(id.split('/').slice(1).join('-'), 'a task')
 }
 
 /** Everything Tade writes about one task: its file, its context, its attachments. */
