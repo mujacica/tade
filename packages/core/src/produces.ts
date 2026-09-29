@@ -1,5 +1,4 @@
 import type { TadeEvent } from './events.ts'
-import { PROJECT_DIR } from './model.ts'
 
 // What a task produces that is not a change to the code.
 //
@@ -28,11 +27,12 @@ import { PROJECT_DIR } from './model.ts'
  * Why a path cannot be what a task produces, or null when it can.
  *
  * The rule exists to answer one question: what happens to the document after
- * the task is cleaned up. Everything Tade writes under `.tade/` is ignored by
- * git and removed with the task, so a document there is one nobody can read
- * afterwards — and the whole point is that somebody reads it later. Anywhere
- * else in the tree it is an ordinary file the agent commits like any other
- * change, so it survives on its branch and in the project's history.
+ * the task is cleaned up. Anywhere in the tree it is an ordinary file the agent
+ * commits like any other change, so it survives on its branch and in the
+ * project's history; anywhere outside it is a file that goes with the worktree.
+ * Tade's own folder used to be the third case and the one worth naming — a
+ * document written there was ignored by git and removed with the task — and it
+ * is not a case any more: Tade writes nothing inside a project.
  */
 export function producesProblem(path: string): string | null {
   const said = path.trim()
@@ -43,9 +43,6 @@ export function producesProblem(path: string): string | null {
   const parts = said.split(/[\\/]/)
   if (parts.includes('..')) {
     return `${said} climbs out of the repository: give a path inside it`
-  }
-  if (parts[0] === PROJECT_DIR) {
-    return `${said} is under ${PROJECT_DIR}/, which git ignores and Tade removes with the task: put it where it survives, and the agent commits it like any other change`
   }
   return null
 }

@@ -450,7 +450,12 @@ describe('WorkerSupervisor', () => {
       const adapter = new FakeAdapter()
       // A harness like Claude Code: its own sign-in, and no router anywhere.
       Object.defineProperty(adapter, 'provider', { value: 'anthropic' })
-      const supervisor = new WorkerSupervisor({ adapter, log, approvals: { mode: 'bypass' } })
+      const supervisor = new WorkerSupervisor({
+        home: tmp('tade-provider-home-'),
+        adapter,
+        log,
+        approvals: { mode: 'bypass' },
+      })
       await supervisor.start({
         run: 'r1',
         task: 'app/refunds',
@@ -465,6 +470,7 @@ describe('WorkerSupervisor', () => {
       const log = await EventLog.open({ path: join(tmp('tade-provider-'), 'events.jsonl') })
       close = () => log.close()
       const supervisor = new WorkerSupervisor({
+        home: tmp('tade-provider-home-'),
         adapter: new FakeAdapter(),
         log,
         approvals: { mode: 'bypass' },

@@ -24,10 +24,10 @@ import {
   type Plan,
   type PlanBusy,
   type PlanSource,
-  PROJECT_DIR,
   parseConfig,
   pricesFrom,
   type QueueChange,
+  recordsDir,
   resolveRoute,
   routeIn,
   runtimeDir,
@@ -73,10 +73,10 @@ import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
 import { recordAuthored } from './authored.ts'
-import { checksAt, checksGate } from './checks.ts'
+import { checksAt, checksGate, sharesCheckout } from './checks.ts'
 import { EventLog, readJournal } from './events.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
-import { ensureIgnored, IGNORE_PATH } from './ignore.ts'
+import { IGNORE_PATH, removeOwnIgnore } from './ignore.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { makePlan, type PlanMade } from './plans.ts'
@@ -200,7 +200,7 @@ export interface CreateTaskRequest {
   base?: string
   /** No branch until there is work to name it after. */
   detached?: boolean
-  /** What the agent should know before it starts: written to `.tade/context.md`. */
+  /** What the agent should know before it starts: written beside its task file. */
   context?: string
   /** Where the work came from, kept with the task and shown beside it. */
   links?: readonly { title: string; url: string }[]
@@ -234,9 +234,17 @@ export interface RemoveTaskRequest {
   root: string
   worktree: string
   branch: string
-  /** The task's id: what finds a task that shares the checkout. */
+  /** The task's id: whose folder to take away, and what says it shares the checkout. */
   task?: string
   force?: boolean
+}
+
+/** What a task's file says, as the window and the agent's prompt need it. */
+interface TaskSaid {
+  intent: string
+  chosen: string | null
+  produces: string
+  workspace: 'checkout' | 'worktree'
 }
 
 /**
@@ -350,7 +358,8 @@ export class Workbench {
         home: opts.home,
       })
       if (warning) await log.append({ type: 'warning', detail: { message: warning } })
-      const registry = await LaneRegistry.open({ driver, log, path: join(opts.home, 'lanes.json') })
+      const lanes = join(opts.home, 'lanes.json')
+      const registry = await LaneRegistry.open({ driver, log, home: opts.home, path: lanes })
       if (!loaded.ok) {
         await log.append({
           type: 'warning',
@@ -386,6 +395,7 @@ export class Workbench {
       const fallback = adapters[defaultHarness] ?? adapters.pi
       if (!fallback) throw new Error(`no harness called ${defaultHarness}`)
       const workers = new WorkerSupervisor({
+        home: opts.home,
         adapter: fallback,
         adapters,
         log,
@@ -399,6 +409,7 @@ export class Workbench {
         // refused, with what is missing and the call that fixes it.
         checks: checksGate({
           config,
+          tadeHome: opts.home,
           events: () => readJournal(opts.home, { types: ['tool_call'] }).catch(() => []),
           head: async (worktree) => {
             const head = await git(worktree, ['rev-parse', 'HEAD'])
@@ -407,8 +418,8 @@ export class Workbench {
         }),
         // Written into the task, not held: the branch may be named long after,
         // by a window opened later.
-        onTitle: (task, worktree, title, named) => {
-          void setTitle(worktree, title, named, task).catch(() => {})
+        onTitle: (task, title, named) => {
+          void setTitle(opts.home, task, title, named).catch(() => {})
         },
         // A tool an agent calls runs in this process, where the extensions are.
         onExtensionCall: async (call) => {
@@ -656,19 +667,16 @@ export class Workbench {
   /**
    * Write down check runs nobody has written down yet, once each.
    *
-   * A run is already kept where it ran — `.tade/checks.jsonl` in that worktree
-   * — but that file rotates at a couple of hundred runs and goes entirely when
-   * the worktree does, which is the moment the work is merged and cleaned up.
-   * So "how often does `types` fail, and how long does it take" would be
-   * answerable only about work still in progress, which is the opposite of the
-   * question.
+   * A run is already kept where it ran — `checks.jsonl` in that directory's own
+   * records — but that file rotates at a couple of hundred runs and goes with
+   * the task. So "how often does `types` fail, and how long does it take" would
+   * be answerable only about work in progress, the opposite of the question.
    *
    * Read rather than written at the moment of running, for the same reason
-   * commits are: `tade check` on the command line runs with no window, and a
-   * second writer in one journal would interleave with the window's. The run
-   * it wrote is picked up by whichever window opens next, keyed by the run's
-   * own id, so nothing is counted twice and nothing is missed because nobody
-   * was watching.
+   * commits are: `tade check` runs with no window, and a second writer in one
+   * journal would interleave with the window's. The run it wrote is picked up
+   * by whichever window opens next, keyed by the run's own id, so nothing is
+   * counted twice and nothing is missed because nobody was watching.
    */
   async lookAtChecks(): Promise<void> {
     const written = await this.log.read({ types: ['check_ran'] }).catch(() => [])
@@ -677,14 +685,15 @@ export class Workbench {
       const id = event.detail.run
       if (typeof id === 'string') seen.add(id)
     }
-    // Every worktree that could hold runs: a project's own checkout, and each
-    // agent's, which in `worktree` mode is where its checks actually ran.
+    // Every folder that could hold runs: each project's own, and each agent's
+    // in `worktree` mode, where its checks actually ran.
     const roots = new Map<string, string | null>()
-    for (const settings of Object.values(this.config.projects)) {
-      if (settings?.root) roots.set(settings.root, null)
-    }
+    for (const name of Object.keys(this.config.projects))
+      roots.set(recordsDir(this.home, name), null)
     for (const lane of this.registry.list()) {
-      if (lane.kind === 'agent') roots.set(lane.spec.cwd, lane.task)
+      const project = lane.task.split('/')[0] ?? ''
+      if (lane.kind !== 'agent' || sharesCheckout(this.config, project, lane.spec.cwd)) continue
+      roots.set(recordsDir(this.home, project, lane.task), lane.task)
     }
     for (const [root, task] of roots) {
       const runs = await readRuns(root).catch(() => [])
@@ -968,10 +977,11 @@ export class Workbench {
         `a task in ${req.project}'s checkout cannot finish when ${req.done}: agents there share one branch. Use said, idle or manual`,
       )
     }
-    // Before the task, so the folder it is about to write is ignored from the
-    // instant it exists rather than from the next one.
-    await this.ignoreOwnFiles(req.project, root)
+    // Whatever an older Tade added to this project's ignore rules for a
+    // folder that is not there any more.
+    await this.unignoreOwnFiles(req.project, root)
     const task = await createTask({
+      home: this.home,
       project: req.project,
       root,
       slug: req.slug,
@@ -1010,28 +1020,23 @@ export class Workbench {
   }
 
   /**
-   * Add Tade's own files to a project's ignore rules the first time it works
-   * there, and write down that it did. Idempotent, so every task after the
-   * first costs a read and nothing else — which is also what fixes a project
-   * Tade had already been working in before this existed.
-   *
-   * It is in the project's own checkout, uncommitted, where `git status` shows
-   * it and a person commits or reverts it. A worktree made before that commit
-   * carries the tree it was made from, so agents there are protected once
-   * somebody keeps it.
+   * Take back whatever an older Tade added to this project's ignore rules, and
+   * write down that it did. Idempotent, so every task after the first costs a
+   * read and nothing else, and it leaves the change uncommitted in the
+   * project's own checkout, where `git status` shows it.
    */
-  private async ignoreOwnFiles(project: string, root: string): Promise<void> {
-    const done = await ensureIgnored(root)
-    if (done.added.length === 0) return
+  private async unignoreOwnFiles(project: string, root: string): Promise<void> {
+    const done = await removeOwnIgnore(root)
+    if (done.removed.length === 0) return
     await this.log.append({
-      type: 'ignore_written',
+      type: 'ignore_removed',
       detail: {
         project,
         path: IGNORE_PATH,
-        added: done.added,
+        removed: done.removed,
         // Nothing commits it: this is the only file Tade changes in somebody
-        // else's repository, and it is theirs to keep or delete.
-        message: `${IGNORE_PATH} in ${project} now ignores what Tade writes under ${PROJECT_DIR}/. It is not committed.`,
+        // else's repository, and it is theirs to keep or revert.
+        message: `${IGNORE_PATH} in ${project} no longer ignores .tade/: Tade writes nothing in there. It is not committed.`,
       },
     })
   }
@@ -1080,10 +1085,10 @@ export class Workbench {
     from?: readonly string[]
     why: string
   }): Promise<LaneRecord> {
-    const file = await readTaskFile(req.worktree, req.task)
+    const file = await readTaskFile(this.home, req.task)
     if (!file?.start) throw new Error(`${req.task} is not queued work`)
     if (file.workspace !== 'checkout' && req.from && req.from.length > 0) {
-      await beginFrom(req.worktree, req.task, req.from)
+      await beginFrom(this.home, req.worktree, req.task, req.from)
     }
     const { start } = file
     const told = await this.hasConversation(req.task, req.worktree)
@@ -1382,7 +1387,7 @@ export class Workbench {
         ...(how.rule ? { rule: how.rule } : {}),
         // Whatever finished it, the document it produced goes with the line:
         // an agent saying so itself is only one of five ways a task ends.
-        ...(await producedDetail(this.worktreeOf(task), task)),
+        ...(await producedDetail(this.home, this.worktreeOf(task), task)),
       },
     })
   }
@@ -1431,7 +1436,7 @@ export class Workbench {
     worktree: string
     title: string
   }): Promise<string> {
-    const branch = await nameTask(req)
+    const branch = await nameTask({ ...req, home: this.home })
     await this.log.append({
       type: 'task_named',
       task: req.task,
@@ -1442,7 +1447,7 @@ export class Workbench {
 
   /** Remove a task. Refuses to destroy uncommitted or unmerged work. */
   async removeTask(req: RemoveTaskRequest): Promise<RemoveResult> {
-    const result = await removeTask(req)
+    const result = await removeTask({ ...req, home: this.home })
     if (result.removed) {
       await this.log.append({
         type: 'task_removed',
@@ -1454,12 +1459,8 @@ export class Workbench {
   }
 
   /** Set a task aside, or pick it back up. */
-  async parkTask(
-    worktree: string,
-    parked: boolean,
-    task?: string,
-  ): Promise<{ task: string; parked: boolean }> {
-    const result = await setParked(worktree, parked, task)
+  async parkTask(task: string, parked: boolean): Promise<{ task: string; parked: boolean }> {
+    const result = await setParked(this.home, task, parked)
     await this.log.append({
       type: 'state_change',
       task: result.task || null,
@@ -1550,7 +1551,7 @@ export class Workbench {
         }),
       await this.agentPrompt(req.task, req.cwd, adapter.capabilities.done),
     )
-    const { chosen } = await this.taskFile(req.cwd, req.task)
+    const { chosen } = await this.taskFile(req.task)
     // The model new agents start on is for new agents. One coming back to its
     // conversation keeps the model that conversation was on, which its session
     // remembers — told the default instead, it would quietly change models.
@@ -1627,25 +1628,26 @@ export class Workbench {
   }
 
   /** What a task's file says: what was asked, and the name a person chose, if any. */
-  private async taskFile(
-    cwd: string,
-    task?: string,
-  ): Promise<{ intent: string; chosen: string | null; produces: string }> {
+  private async taskFile(task?: string): Promise<TaskSaid> {
+    const none: TaskSaid = { intent: '', chosen: null, produces: '', workspace: 'worktree' }
+    if (!task) return none
     try {
-      const file = parseYaml(await readFile(taskFilePath(cwd, task), 'utf8')) as {
+      const file = parseYaml(await readFile(taskFilePath(this.home, task), 'utf8')) as {
         intent_spoken?: unknown
         title?: unknown
         title_named?: unknown
         produces?: unknown
+        workspace?: unknown
       } | null
       return {
         intent: typeof file?.intent_spoken === 'string' ? file.intent_spoken : '',
         chosen: file?.title_named === true && typeof file.title === 'string' ? file.title : null,
         produces: typeof file?.produces === 'string' ? file.produces : '',
+        workspace: file?.workspace === 'checkout' ? 'checkout' : 'worktree',
       }
     } catch {
       // No task file: an agent opened on a worktree Tade did not make.
-      return { intent: '', chosen: null, produces: '' }
+      return none
     }
   }
 
@@ -1661,9 +1663,17 @@ export class Workbench {
   private async checksTold(
     project: string,
     cwd: string,
+    task: string,
   ): Promise<{ checks?: { ids: string[]; rule: ReturnType<typeof checksFor>; hold: boolean } }> {
     try {
-      const stood = await checksAt({ config: this.config, project, worktree: cwd, commit: null })
+      const stood = await checksAt({
+        config: this.config,
+        project,
+        worktree: cwd,
+        tadeHome: this.home,
+        task,
+        commit: null,
+      })
       return {
         checks: {
           ids: stood.read.checks.map((check) => check.id),
@@ -1684,10 +1694,10 @@ export class Workbench {
   private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
     const configured = this.config.projects[project]
-    const { intent, produces } = await this.taskFile(cwd, task)
+    const { intent, produces, workspace } = await this.taskFile(task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
-    const context = taskContextPath(cwd, task)
-    const shared = taskFilePath(cwd, task) !== join(cwd, '.tade', 'task.yaml')
+    const context = taskContextPath(this.home, task)
+    const shared = workspace === 'checkout'
     const agents = this.config.agents
     return composeAgentPrompt({
       task,
@@ -1697,12 +1707,12 @@ export class Workbench {
       intent,
       branch: head.ok ? head.stdout.trim() : '',
       notes: this.memory.recall(task),
-      context: existsSync(join(cwd, context)) ? context : null,
+      context: existsSync(context) ? context : null,
       workspace: shared ? 'checkout' : 'worktree',
       commit: agents.commit,
       ...(agents.instructions ? { instructions: agents.instructions } : {}),
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
-      ...(await this.checksTold(project, cwd)),
+      ...(await this.checksTold(project, cwd, task)),
       ...(produces ? { produces } : {}),
       canSayDone,
     })
@@ -1750,7 +1760,7 @@ export class Workbench {
    * this harness's is not used: an account belongs to one harness.
    */
   private async accountOf(task: string, cwd: string, harness: string): Promise<string | undefined> {
-    const own = await this.taskAccount(cwd, task)
+    const own = await this.taskAccount(task)
     if (!own) return this.accountUsing(harness)
     return this.config.accounts[own]?.harness === harness ? own : undefined
   }
@@ -1765,9 +1775,9 @@ export class Workbench {
     return this.config.accounts[chosen]?.harness === harness ? chosen : undefined
   }
 
-  private async taskAccount(cwd: string, task: string): Promise<string | null> {
+  private async taskAccount(task: string): Promise<string | null> {
     try {
-      const file = parseYaml(await readFile(taskFilePath(cwd, task), 'utf8')) as {
+      const file = parseYaml(await readFile(taskFilePath(this.home, task), 'utf8')) as {
         account?: unknown
       } | null
       return typeof file?.account === 'string' ? file.account : null
@@ -1817,15 +1827,15 @@ export class Workbench {
 
   /** The harness a task's agent runs in: its own choice, else its project's route. */
   private async harnessOf(task: string, cwd: string): Promise<string> {
-    const own = await this.taskHarness(cwd, task)
+    const own = await this.taskHarness(task)
     if (own) return own
     const project = task.split('/')[0] ?? ''
     return resolveRoute(this.config, { project }).harness
   }
 
-  private async taskHarness(cwd: string, task: string): Promise<string | null> {
+  private async taskHarness(task: string): Promise<string | null> {
     try {
-      const file = parseYaml(await readFile(taskFilePath(cwd, task), 'utf8')) as {
+      const file = parseYaml(await readFile(taskFilePath(this.home, task), 'utf8')) as {
         harness?: unknown
       } | null
       return typeof file?.harness === 'string' ? file.harness : null
@@ -1945,7 +1955,7 @@ export class Workbench {
       from !== to
         ? await from.carryConversation(req.task as TaskId, req.worktree, to).catch(() => false)
         : false
-    await setTaskAccount(req.worktree, req.task, req.account)
+    await setTaskAccount(this.home, req.task, req.account)
     if (running) {
       await this.startAgent({
         task: req.task as TaskId,
@@ -2033,7 +2043,7 @@ export class Workbench {
         `${choice.title} is ${choice.about}: Tade runs ${Object.keys(this.adapters).join(', ')}`,
       )
     }
-    await setTaskHarness(req.worktree, req.task, req.harness)
+    await setTaskHarness(this.home, req.task, req.harness)
     const lane = `${req.task}/agent` as LaneId
     const running = this.registry.get(lane)?.alive === true
     if (running) {
@@ -2075,7 +2085,7 @@ export class Workbench {
   async renameAgent(req: { task: string; worktree: string; title: string }): Promise<string> {
     const title = req.title.replace(/\s+/g, ' ').trim()
     if (!title) throw new Error('what should it be called?')
-    await setTitle(req.worktree, title, true, req.task)
+    await setTitle(this.home, req.task, title, true)
     const run = `${req.task}/agent` as RunId
     // Kept in the task either way; told to a session whose harness can take it.
     if (this.registry.get(run as unknown as LaneId)?.alive && this.canQuietly(req.task, 'rename')) {

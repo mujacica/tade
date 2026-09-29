@@ -278,7 +278,7 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
       : [
           `You work in a git worktree of your own, ${input.worktree}. Keep every change in it${
             input.root ? `, and never change the project’s own checkout at ${input.root}` : ''
-          }. Its .tade folder is Tade’s: never commit it.`,
+          }.`,
           input.branch
             ? `Your branch is ${input.branch}. Do not switch branches or create new ones.`
             : 'You have no branch yet. Tade creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
@@ -295,9 +295,9 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
       ? `Whoever started this task left what you need to know in ${input.context}, with links to where the work came from. Read it before anything else.`
       : null,
     // Where it goes and that it is committed are the whole of the answer to
-    // "what happens to it afterwards": Tade's own folder is ignored and is
-    // removed with the task, so a document there is one nobody can read later,
-    // and this is the file somebody comes back to read.
+    // "what happens to it afterwards": the worktree goes when the task is
+    // cleaned up, so a document only in it is one nobody can read later, and
+    // this is the file somebody comes back to read.
     input.produces
       ? `What this task produces is a document at ${input.produces}: write it there, and commit it like any other change so it is still there once this task is cleaned up. It is what somebody reads to decide what happens next, so say what you found and what you think should follow — and if you also change code, that is an ordinary change beside it.`
       : null,

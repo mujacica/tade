@@ -82,7 +82,7 @@ describe('reading a change that will not fit', () => {
     }
     repo.commit('the whole page', files, worktree)
 
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const seen: unknown[] = []
     const loaded = await host({
       home,
@@ -127,7 +127,7 @@ describe('reading a change that will not fit', () => {
     repo.commit('regenerate', { 'src/generated.ts': 'export const client = 1\n' }, bad)
 
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       // One change nothing will answer about, which is what a refusal looks
@@ -155,7 +155,7 @@ describe('reading a change that will not fit', () => {
     const worktree = repo.addTask('regenerate', { project: 'shop', intent: 'regenerate' })
     repo.commit('regenerate', { 'src/generated.ts': 'export const client = 1\n' }, worktree)
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: refusing(/./, typesafe({})),
@@ -208,7 +208,7 @@ describe('an ask refused for its size', () => {
     const seen: unknown[] = []
     const tried: number[] = []
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: refusingOver(20_000, typesafe({ authz_removed: 0.91 }, seen), tried),
@@ -239,7 +239,7 @@ describe('an ask refused for its size', () => {
     repo.commit('regenerate', { 'src/generated.ts': 'export const client = 1\n' }, worktree)
     const tried: number[] = []
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       // A change small enough that halving it could not make it fit, which is
@@ -348,7 +348,7 @@ describe('an ask is built to fit, rather than sent to be refused', () => {
       worktree,
     )
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: refusing(/src\/zrefused\.ts/, typesafe({ test_missing: 0.9 })),

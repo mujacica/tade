@@ -131,11 +131,18 @@ export const EventType = z.enum([
   'commit_seen',
   /**
    * Tade added its own files to a project's ignore rules, and which lines it
-   * added. It edits a file that is not its own, once, the first time it works
-   * there — so the one line saying it did is what makes that undoable rather
-   * than mysterious.
+   * added. Nothing writes this any more — Tade writes nothing inside a project
+   * to ignore — and it stays here because journals that have it must still
+   * read.
    */
   'ignore_written',
+  /**
+   * Tade took its own rule back out of a project's ignore file, and which
+   * lines it took. The undo of `ignore_written`, and here for the same reason
+   * that was: it edits a file that is not its own, once, so the one line
+   * saying it did is what makes that readable rather than mysterious.
+   */
+  'ignore_removed',
   /**
    * The journal was compacted: what was dropped, what is left, and what the
    * file weighed before and after.
@@ -233,6 +240,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // itself is already in `git status` and in the diff, which is where somebody
   // sees it; what this line adds is who put it there.
   ignore_written: 'routine',
+  ignore_removed: 'routine',
   // Notable rather than routine, which is where the other written-once facts
   // are: this one is fsync'd, because it is the record of a destructive act
   // and a window that crashed just after compacting must not come back with

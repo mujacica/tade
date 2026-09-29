@@ -1,33 +1,41 @@
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-// Tade is built by agents running in Tade, so its own `.tade/` fills up with
-// task files, pasted screenshots and check runs the way any project's does —
-// and twenty-six of them were committed here before anybody noticed. None of
-// it means anything on another machine.
+// Tade is built by agents running in Tade, so this repository is the first one
+// any mistake about its own files shows up in — twenty-six of them were
+// committed here before anybody noticed.
 //
-// There used to be one exception, `checks.yaml`, and the rule had two halves
-// because of it. There is nothing to except now: what this project checks is
-// read out of `.github/workflows/ci.yml` and `.githooks/pre-commit`, which are
-// files it was always going to have. So the rule is a plain denial, and the
-// question this test asks is the simple one it always wanted to be.
+// It used to be ignored: `/.tade/*` appended to this file, plus one exception,
+// because Tade wrote its bookkeeping into the checkout and it had to be kept
+// out of the history. Nothing is written there now — every task file, check
+// run, lock and attachment is under `<TADE_HOME>/projects/<name>/` — so the
+// question this asks is the one it always wanted to be: **is there anything of
+// Tade's in here at all**, tracked or untracked, ignored or not.
+//
+// A rule is the wrong tool for that, because a rule can only hide it. What is
+// asked instead is what `git status` says, which is what somebody pushing sees.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
-const lines = (...args: string[]): string[] =>
+const git = (...args: string[]): string =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' })
-    .split('\n')
-    .filter((line) => line !== '')
 
 describe("Tade's own bookkeeping", () => {
   it('is not in this repository at all', () => {
-    expect(lines('ls-files', '--', '.tade')).toEqual([])
+    expect(git('ls-files', '--', '.tade').trim()).toBe('')
   })
 
-  it('is ignored, so nothing here can add it back by accident', () => {
-    // `--no-index` so the answer is about the rules and not about what is
-    // tracked today, which is the thing the rules are meant to decide.
+  it('would be visible rather than hidden if anything ever wrote it again', () => {
+    // The protection is not a rule that hides it — that was the old answer and
+    // it is what let twenty-six files through. It is that nothing writes it and
+    // nothing conceals it, so a `.tade/` appearing here is untracked in
+    // `git status`, in front of whoever is about to commit.
+    //
+    // Asked of the rules rather than of the disk: an older Tade still running
+    // on this machine writes its lock and its live run there while it runs, and
+    // that is a fact about the machine, not about this repository.
     const ignored = (path: string): boolean => {
       try {
         execFileSync('git', ['check-ignore', '--no-index', '-q', '--', path], { cwd: ROOT })
@@ -37,21 +45,20 @@ describe("Tade's own bookkeeping", () => {
       }
     }
     for (const path of [
+      '.tade',
       '.tade/task.yaml',
-      '.tade/context.md',
-      '.tade/tasks/some-task/task.yaml',
-      '.tade/tasks/some-task/design.md',
-      '.tade/attachments/pasted.png',
+      '.tade/tasks/a/task.yaml',
       '.tade/checks.jsonl',
-      '.tade/checks.running.json',
-      '.tade/checks.lock',
-      '.tade/tests.json',
-      // The file that used to be the exception. Ignored like everything else
-      // now: nothing reads it, so one left behind on somebody's machine is
-      // bookkeeping and not a gate.
-      '.tade/checks.yaml',
-    ]) {
-      expect(ignored(path), path).toBe(true)
-    }
+    ])
+      expect(ignored(path), path).toBe(false)
+  })
+
+  it('needs no rule in .gitignore, and there is none', () => {
+    // The undo is `removeOwnIgnore`, which takes the rule back out of every
+    // project Tade had written it into — this one included. Nothing may put it
+    // back: a rule for files nobody writes is a rule nobody can check.
+    // `.tade-test-*/` stays: that is the suite's own scratch, and its own file.
+    const ignore = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
+    expect(ignore).not.toMatch(/\.tade\//)
   })
 })

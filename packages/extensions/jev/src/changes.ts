@@ -1,5 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
+import { projectDir, taskFolder } from '@tade/core'
 import type { ExtensionContext, ProjectRef } from '@tade/extensions-core'
 import { parse as parseYaml } from 'yaml'
 
@@ -65,8 +66,8 @@ export interface Unit {
 /**
  * Files a question in the pack cannot be about. Dropped in code rather than
  * asked about: a lockfile is not a judgement, it is bulk, and bulk costs
- * accuracy as well as money. `.tade/` goes with them — Tade's own bookkeeping
- * is not anybody's work, and a task file in a diff would be read as one.
+ * accuracy as well as money. Tade's own bookkeeping is not among them: none of
+ * it is in the repository at all.
  *
  * An image is an image whether it is bytes or markup, and a terminal capture
  * is bytes with escapes in them: `.svg` and `.ansi` are here with `.png` and
@@ -76,7 +77,7 @@ export interface Unit {
  * one line of SVG — was enough to come back `max_tokens_exceeded` and read as
  * a review that could not look at anything at all.
  */
-const SKIP_IN = /(^|\/)(\.tade|node_modules|vendor|dist)\//
+const SKIP_IN = /(^|\/)(node_modules|vendor|dist)\//
 
 const SKIP =
   /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|go\.sum|poetry\.lock|uv\.lock|.*\.min\.(js|css)|.*\.(snap|ansi)|.*\.(png|jpg|jpeg|gif|webp|ico|svg|pdf|zip|gz|wav|mp3|mp4|woff2?|ttf))$/i
@@ -180,36 +181,58 @@ async function git(
 }
 
 /** A task file, as far as anything here needs it. Never throws: a file nobody can read is no task. */
-async function taskFile(
-  path: string,
-): Promise<{ id: string; intent: string; base: string } | null> {
+async function taskFile(path: string): Promise<TaskSaid | null> {
   try {
     const parsed = parseYaml(await readFile(path, 'utf8')) as Record<string, unknown> | null
     if (!parsed || typeof parsed !== 'object') return null
     const id = typeof parsed.id === 'string' ? parsed.id : ''
     const intent = typeof parsed.intent_spoken === 'string' ? parsed.intent_spoken : ''
     const base = typeof parsed.base === 'string' ? parsed.base : ''
-    return id ? { id, intent, base } : null
+    return id ? { id, intent, base, shared: parsed.workspace === 'checkout' } : null
   } catch {
     return null
   }
 }
 
-/** The task files in one worktree: its own, or the folders of everyone sharing the checkout. */
+/** What one task file says, as everything here needs it. */
+export interface TaskSaid {
+  id: string
+  intent: string
+  base: string
+  /** `checkout` when the task shares the project's own checkout with others. */
+  shared: boolean
+}
+
+/**
+ * The tasks working in a directory, out of Tade's own home: the one whose
+ * worktree it is, or everyone sharing the project's checkout.
+ *
+ * Nothing about this is in the repository, so a directory is matched to a task
+ * the way status matches one — by the branch it is on, and by the folder Tade
+ * made it in when it has no branch yet.
+ */
 export async function tasksIn(
-  root: string,
-): Promise<{ id: string; intent: string; base: string }[]> {
-  const own = await taskFile(join(root, '.tade', 'task.yaml'))
-  if (own) return [own]
-  const shared: { id: string; intent: string; base: string }[] = []
-  const dir = join(root, '.tade', 'tasks')
+  home: string,
+  project: string,
+  where: { path: string; branch?: string | null; root: string },
+): Promise<TaskSaid[]> {
+  const dir = join(projectDir(home, project), 'tasks')
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+  const all: TaskSaid[] = []
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
     const found = await taskFile(join(dir, entry.name, 'task.yaml'))
-    if (found) shared.push(found)
+    if (found) all.push(found)
   }
-  return shared.sort((a, b) => a.id.localeCompare(b.id))
+  if (resolve(where.path) === resolve(where.root)) {
+    return all.filter((one) => one.shared).sort((a, b) => a.id.localeCompare(b.id))
+  }
+  const here = basename(where.path)
+  const branch = where.branch?.replace(/^tade\//, '').replaceAll('/', '-') ?? ''
+  const folders = new Set(
+    [branch, here.startsWith(`${project}-`) ? here.slice(project.length + 1) : ''].filter(Boolean),
+  )
+  return all.filter((one) => !one.shared && folders.has(taskFolder(one.id)))
 }
 
 /** Where a project's work joins the rest of it: what everything is diffed against. */
@@ -396,9 +419,13 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
   const baseRef = await baseRefOf(ctx, project.root)
   const units: Unit[] = []
   for (const worktree of worktrees) {
-    const tasks = await tasksIn(worktree.path)
+    const tasks = await tasksIn(ctx.home, project.name, {
+      path: worktree.path,
+      branch: worktree.branch,
+      root: project.root,
+    })
     if (tasks.length === 0 || !worktree.head) continue
-    const shared = tasks.length > 1 || !(await taskFile(join(worktree.path, '.tade', 'task.yaml')))
+    const shared = tasks.length > 1 || tasks.some((one) => one.shared)
     const whole = { project: project.name, root: worktree.path, branch: worktree.branch }
     const mine = shared ? await perAgent(ctx, worktree, tasks) : null
     if (mine) {
@@ -442,7 +469,7 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
 async function perAgent(
   ctx: ExtensionContext,
   worktree: { path: string; head: string },
-  tasks: readonly { id: string; intent: string; base: string }[],
+  tasks: readonly TaskSaid[],
 ): Promise<Omit<Unit, 'project' | 'root' | 'branch'>[] | null> {
   const bases = [...new Set(tasks.map((task) => task.base).filter(Boolean))]
   if (bases.length === 0) return null
@@ -501,7 +528,12 @@ export async function unitFor(
   where: { root: string; ref?: string | null },
 ): Promise<Unit> {
   const root = where.root
-  const tasks = await tasksIn(root)
+  const on0 = await git(ctx, root, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+  const tasks = await tasksIn(ctx.home, project.name, {
+    path: root,
+    branch: on0.ok ? on0.out.trim() : '',
+    root: project.root,
+  })
   const on = await git(ctx, root, ['rev-parse', '--abbrev-ref', 'HEAD'])
   const branch = on.ok ? on.out.trim().replace(/^HEAD$/, '') : ''
   const resolve = async (rev: string) => {

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -119,8 +120,19 @@ function read(dir: string, at: string): Manifest | null {
   }
 }
 
-/** Where a green run of the live test left its evidence. */
-export const LIVE = join(ROOT, '.tade', 'live.json')
+/**
+ * Where a green run of the live test left its evidence: in Tade's home, under
+ * this project, like every other run record. Not in the checkout — nothing Tade
+ * writes is — and the home is worked out here rather than read from
+ * `@tade/core` for the reason at the top of this file: a release script that
+ * cannot run until `pnpm install` has succeeded cannot tell you why it failed.
+ */
+export const LIVE = join(
+  process.env.TADE_HOME ?? join(homedir(), '.tade'),
+  'projects',
+  'tade',
+  'live.json',
+)
 
 /** The one command that asks a real model to choose from our descriptions. */
 export const LIVE_RUN = 'TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts'

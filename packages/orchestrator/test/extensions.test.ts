@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, loadConfig, settingsOf } from '@tade/core'
+import { ConfigSchema, loadConfig, settingsOf, taskDir } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -78,7 +78,10 @@ describe('an agent an extension starts', () => {
     expect(started).toEqual(['shop/fix-shop-1a'])
     // Beside the others in the checkout, which is where agents work unless set otherwise.
     expect(first.worktree).toBe(repo.root)
-    const own = join(first.worktree, '.tade', 'tasks', 'fix-shop-1a')
+    // Its context is in Tade's home, under its project: nothing of it is in
+    // the checkout the agent is about to work in.
+    const own = taskDir(home, 'shop/fix-shop-1a')
+    expect(existsSync(join(first.worktree, '.tade'))).toBe(false)
     expect(readFileSync(join(own, 'context.md'), 'utf8')).toBe(
       '# SHOP-1A: TypeError in refund\n\n## Links\n\n- [SHOP-1A](https://acme.sentry.io/issues/4411/)\n',
     )
@@ -93,7 +96,7 @@ describe('an agent an extension starts', () => {
     expect(told).toContain('Your task is shop/fix-shop-1a')
     expect(told).toContain(first.worktree)
     expect(told).toContain('at the same time as other agents')
-    expect(told).toContain('.tade/tasks/fix-shop-1a/context.md')
+    expect(told).toContain(join(own, 'context.md'))
     expect(told).toContain('shop reports errors to the error tracker.')
     expect(args[args.indexOf('--skill') + 1]).toBe(join(root, 'skills', 'fixing'))
     const tools = JSON.parse(readFileSync(lane?.spec.env?.TADE_EXTENSION_TOOLS ?? '', 'utf8')) as {

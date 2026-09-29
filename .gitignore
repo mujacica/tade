@@ -4,21 +4,3 @@ coverage/
 *.log
 .DS_Store
 .tade-test-*/
-# Tade writes its own bookkeeping under .tade/ — task files, the context an
-# agent was handed, pasted attachments, check runs, locks — and none of it is
-# this project's: it is one machine's and one person's, and it was being
-# committed. There is no exception any more: `checks.yaml` used to be one,
-# because CI was generated from it, and now nothing is — what this project
-# checks is read out of .github/workflows/ci.yml and .githooks/pre-commit,
-# which are the files that were always going to be the truth about it.
-#
-# `/.tade/*` and not `/.tade/`, which now say the same thing: it is the
-# contents because there used to be an exception under them, and it stays the
-# contents because that is the line already in every repository Tade has
-# worked in.
-#
-# One of these earns its own note. `checks.running.json` says what is being
-# checked right now and is taken back when the run ends, and while it is there
-# `pnpm exec biome ci .` read it as a file somebody had written badly — which
-# made `format` fail inside every run that wrote it.
-/.tade/*

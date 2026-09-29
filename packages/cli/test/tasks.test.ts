@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { taskDir } from '@tade/core'
 import { lockHome, Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -66,7 +67,10 @@ describe('tade task and run commands', () => {
     expect(r.code).toBe(0)
     expect(r.stdout).toMatch(/^app\/refunds\s+tade\/refunds\s+\S+/)
     const worktree = r.stdout.split(/\s+/)[2]!
-    expect(existsSync(join(worktree, '.tade', 'task.yaml'))).toBe(true)
+    expect(existsSync(worktree)).toBe(true)
+    // The task's own file is in Tade's home, never in the worktree.
+    expect(existsSync(join(taskDir(home, 'app/refunds'), 'task.yaml'))).toBe(true)
+    expect(existsSync(join(worktree, '.tade'))).toBe(false)
   })
 
   it('rejects a task id that is not <project>/<name>', async () => {

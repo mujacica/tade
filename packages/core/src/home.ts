@@ -35,3 +35,54 @@ export function expandHome(p: string): string {
   if (p.startsWith('~/')) return join(homedir(), p.slice(2))
   return p
 }
+
+// Where everything Tade writes *about a project* goes, which is a different
+// question again — and the answer is "not in the project".
+//
+// It used to be `.tade/` in the checkout, which meant every repository Tade
+// touched needed a `.gitignore` line before the first task file was written,
+// or somebody pushed a branch carrying another person's screenshots. The line
+// worked, and it was still a file Tade edited in somebody else's repository to
+// undo a mess Tade had made. Nothing Tade writes is the project's — a task
+// file is what one person asked for, a check run died with the worktree it ran
+// in, an attachment is a screenshot off one clipboard — so none of it was ever
+// inside the repository for a reason. Here it needs no rule, no exception and
+// no permission, and a project Tade has never worked in looks exactly like one
+// it has.
+
+/** The folder under the home that holds one folder per project. */
+export const PROJECTS_DIR = 'projects'
+
+/** Everything Tade writes about one project, by the name the config gives it. */
+export function projectDir(home: string, project: string): string {
+  return join(home, PROJECTS_DIR, project)
+}
+
+/**
+ * The folder name a task keeps its files in, from its id.
+ *
+ * The project is already the folder above, so only what follows it is left —
+ * flattened, because a task id may carry slashes and a folder per level would
+ * make `tasks/a/b` and the task `a` indistinguishable.
+ */
+export function taskFolder(id: string): string {
+  return id.split('/').slice(1).join('-')
+}
+
+/** Everything Tade writes about one task: its file, its context, its attachments. */
+export function taskDir(home: string, id: string): string {
+  return join(projectDir(home, id.split('/')[0] ?? ''), 'tasks', taskFolder(id))
+}
+
+/**
+ * Where what Tade records *about a directory* goes — check runs, the run lock,
+ * what is running now.
+ *
+ * A task with a worktree of its own is the only thing in it, so its records are
+ * its own; every task in the project's own checkout shares the directory, so
+ * they share the project's. That is the same answer as before, written the same
+ * way round: one directory, one set of records.
+ */
+export function recordsDir(home: string, project: string, task?: string | null): string {
+  return task ? taskDir(home, task) : projectDir(home, project)
+}

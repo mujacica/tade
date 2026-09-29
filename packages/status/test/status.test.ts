@@ -19,6 +19,8 @@ function opts(over: Partial<StatusOptions> & { config: Config }): StatusOptions 
   return {
     now: NOW,
     home: tmp('tade-home-'),
+    // A home with nothing in it: a test about a project with no tasks.
+    tadeHome: tmp('tade-own-'),
     pr: false,
     processes: async () => ({ processes: [], warnings: [] }),
     ...over,
@@ -37,11 +39,10 @@ describe('collectStatus', () => {
     const wip = r.addTask('wip', { project: 'app' })
     r.write({ 'x.ts': '1' }, wip)
     r.addTask('parked', { project: 'app', parked: true })
-    // A tade/* branch without a task.yaml is not a task.
+    // A tade/* branch with no task file is not a task.
     r.git('worktree', 'add', '-q', '-b', 'tade/stray', join(r.root, '..', 'stray'), 'main')
-    rmSync(join(r.root, '..', 'stray', '.tade'), { recursive: true, force: true })
 
-    const ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+    const ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
     expect(ws.warnings).toEqual([])
     expect(ws.projects[0]?.tasks.map((t) => [t.id, t.state])).toEqual([
       ['app/done', 'review'],
@@ -85,7 +86,9 @@ describe('collectStatus', () => {
     )
     utimesSync(join(dir, 't.jsonl'), NOW / 1000, NOW / 1000)
 
-    const ws = await collectStatus(opts({ config: config({ app: r.root }), home }))
+    const ws = await collectStatus(
+      opts({ config: config({ app: r.root }), home, tadeHome: r.home }),
+    )
     const t = task(ws, 'app/adopted')
     expect(t?.state).toBe('working')
     expect(t?.agents.map((a) => a.sessionId)).toEqual(['sess-1'])
@@ -127,6 +130,7 @@ describe('collectStatus', () => {
       opts({
         config: config({ app: r.root }),
         home,
+        tadeHome: r.home,
         liveness: { lanes: async () => [run], records: async () => [] },
       }),
     )
@@ -154,13 +158,16 @@ describe('collectStatus', () => {
     writeFileSync(file, readFileSync(file, 'utf8').replaceAll('/work/search', wt))
     utimesSync(file, NOW / 1000, NOW / 1000)
 
-    const without = await collectStatus(opts({ config: config({ app: r.root }), home }))
+    const without = await collectStatus(
+      opts({ config: config({ app: r.root }), home, tadeHome: r.home }),
+    )
     expect(task(without, 'app/quiet')?.state).not.toBe('blocked')
 
     const withProc = await collectStatus(
       opts({
         config: config({ app: r.root }),
         home,
+        tadeHome: r.home,
         processes: async () => ({
           processes: [{ pid: 1, provider: 'codex', cwd: wt }],
           warnings: [],
@@ -177,15 +184,15 @@ describe('collectStatus', () => {
     const r = mkrepo()
     const wt = join(r.root, '..', 'agent-1')
     r.git('worktree', 'add', '-q', '--detach', wt, 'main')
-    mkdirSync(join(wt, '.tade'), { recursive: true })
+    mkdirSync(join(r.home, 'projects', 'app', 'tasks', 'agent-1'), { recursive: true })
     writeFileSync(
-      join(wt, '.tade', 'task.yaml'),
+      join(r.home, 'projects', 'app', 'tasks', 'agent-1', 'task.yaml'),
       'id: app/agent-1\nproject: app\nintent_spoken: ""\ncreated: 2026-09-11T11:00:00Z\ntitle: refund retries\nlinks:\n  - title: SHOP-1A\n    url: https://acme.sentry.io/issues/4411/\n',
     )
     // A detached worktree Tade did not make is nobody's task.
     r.git('worktree', 'add', '-q', '--detach', join(r.root, '..', 'somebody'), 'main')
 
-    let ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+    let ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
     expect(ws.projects[0]?.tasks.map((t) => [t.id, t.branch, t.title])).toEqual([
       ['app/agent-1', '', 'refund retries'],
     ])
@@ -195,7 +202,7 @@ describe('collectStatus', () => {
     ])
 
     r.git('-C', wt, 'switch', '-q', '-c', 'tade/refund-retries')
-    ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+    ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
     expect(task(ws, 'app/agent-1')?.branch).toBe('tade/refund-retries')
   })
 
@@ -205,15 +212,15 @@ describe('collectStatus', () => {
       ['refunds', 'refund retries'],
       ['search', 'faster search'],
     ] as const) {
-      mkdirSync(join(r.root, '.tade', 'tasks', slug), { recursive: true })
+      mkdirSync(join(r.home, 'projects', 'app', 'tasks', slug), { recursive: true })
       writeFileSync(
-        join(r.root, '.tade', 'tasks', slug, 'task.yaml'),
+        join(r.home, 'projects', 'app', 'tasks', slug, 'task.yaml'),
         `id: app/${slug}\nproject: app\nintent_spoken: "${title}"\ncreated: 2026-09-11T11:00:00Z\nworkspace: checkout\n`,
       )
     }
     // Files changed in the checkout are everyone's: they do not make a task "working".
     writeFileSync(join(r.root, 'shared.ts'), 'export {}\n')
-    const ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+    const ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
     expect(
       ws.projects[0]?.tasks.map((t) => [t.id, t.workspace, t.worktree, t.branch, t.state]),
     ).toEqual([
@@ -227,7 +234,7 @@ describe('collectStatus', () => {
       const r = mkrepo()
       r.addTask('a', { project: 'app' })
       rmSync(join(r.root, '.git', 'HEAD'))
-      const ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+      const ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
       expect(ws.projects[0]?.tasks).toEqual([])
       expect(ws.warnings.join('\n')).toMatch(/^app: /m)
     })
@@ -242,7 +249,7 @@ describe('collectStatus', () => {
       const r = mkrepo()
       const wt = r.addTask('deleted', { project: 'app' })
       rmSync(wt, { recursive: true, force: true })
-      const ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+      const ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
       expect(task(ws, 'app/deleted')).toMatchObject({ state: 'failed', reason: 'worktree missing' })
       expect(ws.warnings.some((w) => w.includes('worktree directory is missing'))).toBe(true)
     })
@@ -251,7 +258,7 @@ describe('collectStatus', () => {
       const r = mkrepo()
       r.addTask('bad', { project: 'app', rawTaskYaml: 'project: [1, 2]\ncreated: never\n' })
       r.addTask('worse', { project: 'app', rawTaskYaml: 'intent_spoken: "unterminated\n' })
-      const ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+      const ws = await collectStatus(opts({ config: config({ app: r.root }), tadeHome: r.home }))
       expect(task(ws, 'app/bad')?.state).toBe('queued')
       expect(task(ws, 'app/worse')?.state).toBe('queued')
       expect(ws.warnings.filter((w) => w.includes('task.yaml'))).toHaveLength(2)
@@ -268,7 +275,7 @@ describe('collectStatus', () => {
   it('uses the enclosing repo as the project when none are configured', async () => {
     const r = mkrepo()
     const wt = r.addTask('implicit', { project: 'repo' })
-    const ws = await collectStatus(opts({ config: config({}), cwd: wt }))
+    const ws = await collectStatus(opts({ config: config({}), cwd: wt, tadeHome: r.home }))
     expect(ws.projects.map((p) => [p.name, p.root])).toEqual([['repo', r.root]])
     expect(ws.projects[0]?.tasks[0]?.id).toBe('repo/implicit')
   })
@@ -286,7 +293,7 @@ describe('collectStatus', () => {
     r.addTask('a', { project: 'app' })
     const b = r.addTask('b', { project: 'app' })
     r.commit('x', undefined, b)
-    const o = opts({ config: config({ app: r.root }) })
+    const o = opts({ config: config({ app: r.root }), tadeHome: r.home })
     const first = JSON.stringify(await collectStatus(o))
     for (let i = 0; i < 9; i++) expect(JSON.stringify(await collectStatus(o))).toBe(first)
   }, 60_000)

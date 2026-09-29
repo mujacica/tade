@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type LaneId, LaneKind, PROJECT_DIR, sharedTaskDir } from '@tade/core'
+import { type LaneId, LaneKind, taskDir } from '@tade/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
@@ -127,6 +127,8 @@ export interface SpawnRequest {
 export interface LaneRegistryOptions {
   driver: WorkspaceDriver
   log: EventLog
+  /** Tade's home, where a task's own file says whether the task is still there. */
+  home: string
   /** Where the registry is persisted; `<tadeHome>/lanes.json`. */
   path: string
   /** How often per lane output is summarised into the event log. */
@@ -139,6 +141,7 @@ export class LaneRegistry {
   private readonly pending = new Map<string, { bytes: number; timer: NodeJS.Timeout }>()
   private readonly driver: WorkspaceDriver
   private readonly log: EventLog
+  private readonly home: string
   private readonly path: string
   private readonly outputSampleMs: number
   private saving: Promise<unknown> = Promise.resolve()
@@ -146,6 +149,7 @@ export class LaneRegistry {
   private constructor(opts: LaneRegistryOptions) {
     this.driver = opts.driver
     this.log = opts.log
+    this.home = opts.home
     this.path = opts.path
     this.outputSampleMs = opts.outputSampleMs ?? DEFAULT_OUTPUT_SAMPLE_MS
   }
@@ -191,7 +195,7 @@ export class LaneRegistry {
     for (const lane of parsed.success ? parsed.data.lanes : []) {
       const handle = reachable.get(lane.id)
       reachable.delete(lane.id)
-      if (!handle && forgettable(lane)) continue
+      if (!handle && forgettable(this.home, lane)) continue
       // Keep the stored spec when the lane is gone: it is how `relaunch` puts
       // the work back. When it is here, the driver's handle is fresher.
       const record: LaneRecord = handle
@@ -541,20 +545,13 @@ export class LaneRegistry {
  * goes from 377 KB to 51 KB, and it is rewritten atomically on every lane
  * event.
  */
-function forgettable(lane: LaneRecord): boolean {
+function forgettable(home: string, lane: LaneRecord): boolean {
   if (lane.alive || lane.lost) return false
-  const cwd = lane.spec.cwd
-  // Both shapes, because a lane does not record which it was: a task sharing
-  // its project's checkout keeps its file in a folder of its own, one in a
-  // worktree keeps it at the worktree's own `.tade/task.yaml`. Either found
-  // is a task, and anything this cannot read is a task — `existsSync` says
-  // false for a path it cannot reach, and a disk that is not mounted must
-  // never be read as work that is over.
-  return (
-    !existsSync(join(cwd, sharedTaskDir(lane.task), 'task.yaml')) &&
-    !existsSync(join(cwd, PROJECT_DIR, 'task.yaml')) &&
-    existsSync(cwd)
-  )
+  // One place to look, whichever way the task works: its own folder in Tade's
+  // home. Anything this cannot read is a task — `existsSync` says false for a
+  // path it cannot reach, and a disk that is not mounted must never be read as
+  // work that is over.
+  return !existsSync(join(taskDir(home, lane.task), 'task.yaml')) && existsSync(lane.spec.cwd)
 }
 
 /**

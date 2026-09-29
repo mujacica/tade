@@ -104,6 +104,7 @@ describe('a run while it is still going', () => {
     const going = runChecks({
       runner,
       project: { name: 'checkout', root: worktree },
+      records: worktree,
       checks: [a('format'), a('tests', { alone: true })],
       commit: 'd'.repeat(40),
       by: 'checkout/refunds',

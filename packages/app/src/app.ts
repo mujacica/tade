@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
-import { DEFAULT_ATTENTION, parseQuietHours, titlesOf } from '@tade/core'
+import { DEFAULT_ATTENTION, parseQuietHours, taskDir, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -499,8 +499,8 @@ export class App {
    * What goes with the prompt of an agent the orchestrator starts while
    * answering you: the files you attached, copied where it works.
    */
-  handOff(cwd: string): Promise<{ note: string; images: WorkerImageFile[] }> {
-    return this.images.handOff(cwd)
+  handOff(task: string): Promise<{ note: string; images: WorkerImageFile[] }> {
+    return this.images.handOff(join(taskDir(this.opts.home, task), 'attachments'))
   }
 
   async stop(): Promise<void> {
@@ -557,6 +557,7 @@ export class App {
       client: this.opts.client,
       config: this.opts.config,
       home: this.opts.home,
+      tadeHome: this.opts.home,
       ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
       ...(this.opts.now ? { now: this.opts.now } : {}),
       onTasks: (tasks) => {

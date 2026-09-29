@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { taskDir } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import {
@@ -18,15 +19,17 @@ describe('the window, and the work waiting in it', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let repo: Repo
+  let home: string
   const { start, click, find } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
+    home = wired.home
   })
 
   it("writes a task's own rule down once it is met, and only then", async () => {
     const worktree = join(repo.root, '..', 'worktrees', 'app-refunds')
-    const file = join(worktree, '.tade', 'task.yaml')
+    const file = join(taskDir(home, 'app/refunds'), 'task.yaml')
     writeFileSync(file, `${readFileSync(file, 'utf8')}done: committed\n`)
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

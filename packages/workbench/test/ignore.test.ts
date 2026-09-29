@@ -1,147 +1,113 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, runGit } from '../../../test/fixtures/mkrepo.ts'
-import { ensureIgnored, IGNORE_RULES, ignoreAddition } from '../src/ignore.ts'
+import { ignoreRemoval, removeOwnIgnore } from '../src/ignore.ts'
 
-// Against real repositories, because the whole question is what git does with
-// a pattern, and a hand-rolled matcher would answer a different question.
+// Against real repositories, because the question is what somebody's file
+// looks like afterwards, and half of these are files Tade wrote into one.
 
-// `check-ignore` exits 1 for a path it does not ignore, which `runGit` throws
-// over: not an answer of "no" until it is turned into one.
-const ignored = (root: string, path: string): boolean => {
-  try {
-    return runGit(root, 'check-ignore', '--no-index', '--', path).trim() === path
-  } catch {
-    return false
-  }
-}
+/** The block Tade used to append, exactly as the repositories that have it have it. */
+const WRITTEN = [
+  '# Tade writes its own bookkeeping under .tade/ -- task files, pasted',
+  '# attachments, check runs, locks -- and none of it is the project’s: it is',
+  '# one machine’s and one person’s.',
+  '# Added by Tade the first time it worked here; delete it and it stays deleted.',
+  '/.tade/*',
+  '',
+].join('\n')
 
-describe('ignoring what Tade writes under a project', () => {
-  it('denies everything under .tade, and nothing outside it', async () => {
-    const repo = mkrepo()
-    const done = await ensureIgnored(repo.root)
-    expect(done.added).toEqual(IGNORE_RULES)
-    for (const path of [
-      '.tade/tasks/a-task/task.yaml',
-      '.tade/tasks/a-task/design.md',
-      '.tade/task.yaml',
-      '.tade/context.md',
-      '.tade/checks.jsonl',
-      '.tade/checks.running.json',
-      '.tade/checks.lock',
-      '.tade/tests.json',
-      '.tade/attachments/pasted.png',
-      // `checks.yaml` used to be the one exception, because CI was generated
-      // from it. Nothing is: what a project checks is read from its own
-      // workflows and its own hook, so a file left behind under here is
-      // bookkeeping like the rest of it.
-      '.tade/checks.yaml',
-    ]) {
-      expect(ignored(repo.root, path), path).toBe(true)
-    }
-    expect(ignored(repo.root, 'src/index.ts')).toBe(false)
-  })
-
-  it('leaves nothing of Tade’s for `git add -A` to sweep up', async () => {
-    const repo = mkrepo()
-    await ensureIgnored(repo.root)
-    repo.write({
-      '.tade/tasks/a-task/task.yaml': 'id: p/a-task\n',
-      '.tade/tasks/a-task/design.md': '# a plan\n',
-      '.tade/attachments/pasted.png': 'not really a png',
-      '.tade/checks.jsonl': '{}\n',
-    })
-    runGit(repo.root, 'add', '-A')
-    const staged = runGit(repo.root, 'diff', '--cached', '--name-only').trim().split('\n')
-    expect(staged.sort()).toEqual(['.gitignore'])
-  })
-
-  it('appends to what somebody wrote, and never twice', async () => {
+describe('taking Tade’s own rule back out', () => {
+  it('removes the block it wrote, and leaves everything else where it was', async () => {
     const repo = mkrepo()
     const path = join(repo.root, '.gitignore')
-    writeFileSync(path, 'node_modules/\ndist/\n')
-    const first = await ensureIgnored(repo.root)
-    expect(first.added).toEqual(IGNORE_RULES)
-    const after = readFileSync(path, 'utf8')
-    expect(after.startsWith('node_modules/\ndist/\n')).toBe(true)
+    writeFileSync(path, `node_modules/\ndist/\n\n${WRITTEN}`)
 
-    const again = await ensureIgnored(repo.root)
-    expect(again.added).toEqual([])
-    expect(again.because).toBe('the rules were already there')
+    const done = await removeOwnIgnore(repo.root)
+    expect(done.removed).toEqual(['/.tade/*'])
+    expect(readFileSync(path, 'utf8')).toBe('node_modules/\ndist/\n')
+  })
+
+  it('removes the two-line version, exception and all', async () => {
+    const repo = mkrepo()
+    const path = join(repo.root, '.gitignore')
+    writeFileSync(
+      path,
+      [
+        '# Added by Tade the first time it worked here.',
+        '/.tade/*',
+        '!/.tade/checks.yaml',
+        '',
+      ].join('\n'),
+    )
+    const done = await removeOwnIgnore(repo.root)
+    expect(done.removed).toEqual(['/.tade/*', '!/.tade/checks.yaml'])
+    expect(readFileSync(path, 'utf8')).toBe('')
+  })
+
+  it('leaves a rule somebody wrote themselves, because it is theirs', async () => {
+    const repo = mkrepo()
+    const path = join(repo.root, '.gitignore')
+    // No comment above it saying who put it there: this is somebody's own
+    // line, and Tade taking it out would be Tade deleting their work.
+    writeFileSync(path, 'node_modules/\n/.tade/*\n')
+    const done = await removeOwnIgnore(repo.root)
+    expect(done.removed).toEqual([])
+    expect(done.because).toBe('none of its rules are in there')
+    expect(readFileSync(path, 'utf8')).toBe('node_modules/\n/.tade/*\n')
+  })
+
+  it('is idempotent: once the lines are gone it writes nothing', async () => {
+    const repo = mkrepo()
+    const path = join(repo.root, '.gitignore')
+    writeFileSync(path, `dist/\n\n${WRITTEN}`)
+    await removeOwnIgnore(repo.root)
+    const after = readFileSync(path, 'utf8')
+    const again = await removeOwnIgnore(repo.root)
+    expect(again.removed).toEqual([])
     expect(readFileSync(path, 'utf8')).toBe(after)
   })
 
-  it('starts a new line in a file that ended without one', async () => {
-    const repo = mkrepo()
-    const path = join(repo.root, '.gitignore')
-    writeFileSync(path, 'dist/')
-    await ensureIgnored(repo.root)
-    const lines = readFileSync(path, 'utf8').split('\n')
-    expect(lines[0]).toBe('dist/')
-    expect(lines).toContain(IGNORE_RULES[0])
-  })
-
-  it('says nothing when the project already ignores them its own way', async () => {
-    const repo = mkrepo()
-    // Whatever they wrote, however they spelled it: `.tade/*` on its own, and
-    // the two-line version every repository Tade worked in before this has.
-    writeFileSync(join(repo.root, '.gitignore'), '.tade/*\n!.tade/checks.yaml\n')
-    const done = await ensureIgnored(repo.root)
-    expect(done.added).toEqual([])
-    expect(done.because).toBe('this project already ignores them its own way')
-  })
-
-  it('leaves a project that ignores all of .tade alone, and writes nothing', async () => {
-    const repo = mkrepo()
-    writeFileSync(join(repo.root, '.gitignore'), '.tade/\n')
-    const done = await ensureIgnored(repo.root)
-    // They have said the same thing, so there is nothing to add and nothing to
-    // warn about: with no exception under the folder, excluding the folder and
-    // excluding its contents are the same rule.
-    expect(done.added).toEqual([])
-    expect(done.because).toBe('this project already ignores them its own way')
-    expect(readFileSync(join(repo.root, '.gitignore'), 'utf8')).toBe('.tade/\n')
-  })
-
-  it('writes the rules where git cannot be asked, rather than taking silence for yes', async () => {
-    // A directory that is no repository: `check-ignore` fails instead of
-    // answering, and a failure to answer must never read as "already
-    // arranged" — the rules are written, and they are right when it becomes
-    // one.
+  it('says so rather than throwing where there is no ignore file at all', async () => {
     const plain = mkdtempSync(join(tmpdir(), 'tade-norepo-'))
-    const done = await ensureIgnored(plain)
-    expect(done.added).toEqual(IGNORE_RULES)
+    const done = await removeOwnIgnore(plain)
+    expect(done.removed).toEqual([])
+    expect(done.because).toMatch(/no \.gitignore/)
+    expect(existsSync(join(plain, '.gitignore'))).toBe(false)
   })
 
-  it('comes back with a reason rather than throwing when it cannot write', async () => {
-    const done = await ensureIgnored(join(mkdtempSync(join(tmpdir(), 'tade-gone-')), 'nowhere'))
-    expect(done.added).toEqual([])
-    expect(done.because).toMatch(/could not be written/)
+  it('never writes a .gitignore into a project that has none', async () => {
+    const repo = mkrepo()
+    await removeOwnIgnore(repo.root)
+    expect(existsSync(join(repo.root, '.gitignore'))).toBe(false)
+    // Which is the point of the whole move: a project Tade has worked in is
+    // indistinguishable from one it has never seen.
+    expect(runGit(repo.root, 'status', '--porcelain').trim()).toBe('')
   })
 })
 
-describe('ignoreAddition', () => {
-  it('is null once every rule is a line in the file', () => {
-    expect(ignoreAddition(IGNORE_RULES.join('\n'))).toBeNull()
+describe('ignoreRemoval', () => {
+  it('is null for a file with nothing of Tade’s in it', () => {
+    expect(ignoreRemoval('node_modules/\ndist/\n')).toBeNull()
+    expect(ignoreRemoval('')).toBeNull()
   })
 
   it('reads a line somebody indented as the line it is', () => {
-    expect(ignoreAddition(IGNORE_RULES.map((rule) => `  ${rule}  `).join('\n'))).toBeNull()
+    const made = ignoreRemoval('# Tade put this here\n   /.tade/*   \n')
+    expect(made?.removed).toEqual(['/.tade/*'])
+    expect(made?.text).toBe('')
   })
 
-  it('adds nothing to a file written when there were two rules', () => {
-    // Every repository Tade worked in before this has the pair. The rule it
-    // does not have any more is a line that now re-includes a file nothing
-    // reads, which is harmless — and appending a second copy of the rule it
-    // does have, to say what that line already says, would not be.
-    expect(ignoreAddition('/.tade/*\n!/.tade/checks.yaml\n')).toBeNull()
+  it('takes only the comment block directly above, never the one before it', () => {
+    const made = ignoreRemoval(
+      ['# my own note about builds', 'dist/', '', '# Added by Tade', '/.tade/*', ''].join('\n'),
+    )
+    expect(made?.text).toBe('# my own note about builds\ndist/\n')
   })
 
-  it('writes the file whole when there was none', () => {
-    const made = ignoreAddition('')
-    expect(made?.text.startsWith('#')).toBe(true)
-    expect(made?.text.endsWith('\n')).toBe(true)
+  it('keeps the rest of the file byte for byte, and closes the hole', () => {
+    const made = ignoreRemoval(['a/', '', '# Tade', '/.tade/*', '', 'b/', ''].join('\n'))
+    expect(made?.text).toBe('a/\n\nb/\n')
   })
 })

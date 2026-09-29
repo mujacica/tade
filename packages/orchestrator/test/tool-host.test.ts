@@ -62,10 +62,10 @@ describe('starting an agent for the orchestrator', () => {
     host = await ToolHost.listen({
       tade,
       path,
-      handOff: async (cwd) => {
+      handOff: async (task) => {
         handedOff++
         return {
-          note: `An attachment is in ${cwd}/.tade/attachments/shot.png.`,
+          note: `An attachment is at ~/.tade/projects/${task}/attachments/shot.png.`,
           images: [{ data: 'iVBORw0K', mimeType: 'image/png' }],
         }
       },
@@ -120,7 +120,8 @@ describe('starting an agent for the orchestrator', () => {
       prompt: 'look at this',
     })
     expect(started[0]).toMatchObject({
-      prompt: 'look at this\n\nAn attachment is in /src/app/.tade/attachments/shot.png.',
+      prompt:
+        'look at this\n\nAn attachment is at ~/.tade/projects/app/refunds/attachments/shot.png.',
       images: [{ mimeType: 'image/png' }],
     })
   })

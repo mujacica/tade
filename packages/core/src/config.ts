@@ -141,10 +141,10 @@ export const ProjectConfigSchema = z.strictObject({
    *
    * **Its name is its id, and renaming is a label rather than an id.** The
    * name is in every task id (`tade/manage-projects`), in the `Tade-Task:`
-   * trailer of every commit those agents made, in the folder each task works
-   * in (`.tade/tasks/<name>`), and in every line of the journal that was ever
-   * written about any of them. Nothing of that is Tade's to rewrite: a
-   * trailer is on somebody else's machine the moment it is pushed, and the
+   * trailer of every commit those agents made, in the folder each task keeps
+   * its files in (`<home>/projects/<name>/tasks/`), and in every line of the
+   * journal ever written about any of them. Nothing of that is Tade's to
+   * rewrite: a trailer is on somebody else's machine the moment it is pushed, and the
    * journal is append-only on purpose. So a rename that changed the id would
    * orphan every task in it — which is worse than no rename at all — and this
    * is the whole of what one does instead: the tabs and the headings say this,

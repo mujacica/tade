@@ -9,7 +9,7 @@ import { Workbench } from '../src/workbench.ts'
 //
 // Commits and check runs are the two statistics that cannot be recovered by
 // asking again later: `git log` gives a different answer after every rebase,
-// and a worktree's `.tade/checks.jsonl` goes entirely when the worktree does.
+// and a directory's `checks.jsonl` goes entirely when its task does.
 // So both are kept at the moment they are true, keyed by something stable, and
 // these are the tests that say so.
 
@@ -114,9 +114,9 @@ describe('writing down what was produced', () => {
     // `tade check` on the command line runs with no window, and a second
     // writer in one journal would interleave with the window's. So the run it
     // wrote is read by whichever window opens next, keyed by the run's own id.
-    mkdirSync(join(repo.root, '.tade'), { recursive: true })
+    mkdirSync(join(home, 'projects', 'shop'), { recursive: true })
     writeFileSync(
-      join(repo.root, '.tade', 'checks.jsonl'),
+      join(home, 'projects', 'shop', 'checks.jsonl'),
       `${JSON.stringify({
         id: 'abc1234:types:here:0',
         check: 'types',

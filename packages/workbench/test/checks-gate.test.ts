@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type CheckLog, coverageOf, writeRun } from '@tade/checks-core'
-import { ConfigSchema, type TadeEvent } from '@tade/core'
+import { ConfigSchema, type TadeEvent, taskDir } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
@@ -18,12 +18,14 @@ const COMMIT = 'a1b2c3d4e5f6'
 
 function worktreeWith(runs: { check: string; state: string; tail?: string }[] = []): string {
   const root = tmp('tade-gate-')
-  mkdirSync(join(root, '.tade'), { recursive: true })
   mkdirSync(join(root, '.github', 'workflows'), { recursive: true })
   writeFileSync(join(root, CI_WORKFLOW), WORKFLOW)
   if (runs.length > 0) {
+    // `gate` hands the worktree in as Tade's home, so what ran here is under
+    // it rather than in it — and the test holds no path of its own.
+    mkdirSync(recordsOf(root), { recursive: true })
     writeFileSync(
-      join(root, '.tade', 'checks.jsonl'),
+      join(recordsOf(root), 'checks.jsonl'),
       `${runs
         .map((run) =>
           JSON.stringify({
@@ -47,6 +49,9 @@ function worktreeWith(runs: { check: string; state: string; tail?: string }[] = 
   return root
 }
 
+/** Where a run in this worktree is written down, with the worktree as the home. */
+const recordsOf = (root: string) => taskDir(root, 'shop/refunds')
+
 const green = (check: string, commit: string): CheckLog => ({
   id: `${commit.slice(0, 7)}:${check}:here:1`,
   check,
@@ -69,9 +74,13 @@ const config = (over: Record<string, unknown> = {}) =>
     ...over,
   })
 
-function gate(_worktree: string, over: Record<string, unknown> = {}, events: TadeEvent[] = []) {
+function gate(worktree: string, over: Record<string, unknown> = {}, events: TadeEvent[] = []) {
   return checksGate({
     config: config(over),
+    // Where a run in this worktree is written down. These tests hold the
+    // records beside the worktree, which is what `recordsDir` would give a
+    // project whose checkout it is.
+    tadeHome: worktree,
     events: async () => events,
     head: async () => COMMIT,
     now: () => Date.parse('2026-09-19T09:00:00Z'),
@@ -183,13 +192,14 @@ describe('the checks gate', () => {
     const before = repo.head()
     const covered = await coverageOf(repo.root, before)
     for (const check of ['format', 'tests']) {
-      await writeRun(repo.root, { ...green(check, before), covered })
+      await writeRun(recordsOf(repo.root), { ...green(check, before), covered })
     }
     repo.git('add', 'a.txt')
     repo.git('commit', '-q', '-m', 'the work')
 
     const ask = checksGate({
       config: config(),
+      tadeHome: repo.root,
       events: async () => [],
       head: async () => repo.head(),
       now: () => Date.parse('2026-09-19T09:00:00Z'),
@@ -204,7 +214,7 @@ describe('the checks gate', () => {
     const before = repo.head()
     const covered = await coverageOf(repo.root, before)
     for (const check of ['format', 'tests']) {
-      await writeRun(repo.root, { ...green(check, before), covered })
+      await writeRun(recordsOf(repo.root), { ...green(check, before), covered })
     }
     // Somebody else's file goes in with mine.
     repo.write({ 'b.txt': 'theirs\n' })
@@ -213,6 +223,7 @@ describe('the checks gate', () => {
 
     const ask = checksGate({
       config: config(),
+      tadeHome: repo.root,
       events: async () => [],
       head: async () => repo.head(),
       now: () => Date.parse('2026-09-19T09:00:00Z'),
@@ -230,6 +241,8 @@ describe('how a project stands', () => {
       config: config(),
       project: 'shop',
       worktree,
+      tadeHome: worktree,
+      task: 'shop/refunds',
       commit: COMMIT,
     })
     expect(stood.plan.map((check) => check.id)).toEqual(['format', 'tests'])

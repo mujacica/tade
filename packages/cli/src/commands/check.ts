@@ -37,6 +37,7 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
         config: cfg.config,
         now: Date.now(),
         home: homedir(),
+        tadeHome: tadeHome(),
         cwd: process.cwd(),
         pr: false,
         liveness: await laneLivenessFromFile(tadeHome()),
@@ -88,6 +89,7 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
           commit: head,
           by: taskId,
           home: homedir(),
+          tadeHome: tadeHome(),
           only,
           onRun: (run) => {
             if (run.state === 'running') io.err(`$ ${run.check}`)

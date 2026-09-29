@@ -535,19 +535,19 @@ describe('a plan', () => {
     ])
   })
 
-  it('refuses a document that would go when the task goes, whole rather than half made', () => {
+  it('refuses a document that is not in the repository, whole rather than half made', () => {
     const check = checkPlan(
       {
         project: 'shop',
         said: 'look at the refund flow and then fix it',
-        agents: [agent('audit', { produces: '.tade/audit.md' }), agent('fix')],
+        agents: [agent('audit', { produces: '../audit.md' }), agent('fix')],
       },
       context,
     )
     expect(check.ok).toBe(false)
     if (check.ok) return
     expect(check.problems[0]).toContain('audit cannot produce that:')
-    expect(check.problems[0]).toContain('git ignores')
+    expect(check.problems[0]).toContain('climbs out of the repository')
   })
 
   it('carries what each agent produces through to the tasks it makes', () => {

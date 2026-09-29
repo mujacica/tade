@@ -47,6 +47,7 @@ describe('the look at a project’s tree before work starts', () => {
         },
       }),
       home,
+      tadeHome: home,
       pollMs: 600_000,
       now: () => NOW,
     })
@@ -99,6 +100,7 @@ describe('the look at a project’s tree before work starts', () => {
         projects: { shop: { root: shared.root, workspace: 'checkout' } },
       }),
       home,
+      tadeHome: home,
       pollMs: 600_000,
       now: () => NOW,
     })

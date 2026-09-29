@@ -149,7 +149,7 @@ function link(title: string, url: string): Link {
 function fixPrompt(shortId: string, title: string): string {
   return [
     `Fix Sentry issue ${shortId}: ${title}.`,
-    'Everything Sentry knows about it is in .tade/context.md: the stack trace, the frame in your code that matters, what happened before, the request and the trace.',
+    'Everything Sentry knows about it is in the context file Tade left with this task: the stack trace, the frame in your code that matters, what happened before, the request and the trace.',
     'Find the cause rather than guarding the symptom, add a test that fails without the fix, and commit with',
     `"Fixes ${shortId}" in the message so Sentry resolves it when it is released.`,
     'sentry_issue, sentry_trace and sentry_events read more from Sentry if you need it.',
@@ -582,7 +582,7 @@ export const sentryExtension: TadeExtension = {
     const slugs = mapping(ctx)[project.name] ?? [project.name]
     return [
       `${project.name} reports its errors to Sentry (${slugs.join(', ')}).`,
-      'If .tade/context.md is about a Sentry issue, it has the stack trace, the relevant frame, breadcrumbs and the trace id — start there.',
+      'If your task’s context file is about a Sentry issue, it has the stack trace, the relevant frame, breadcrumbs and the trace id — start there.',
       'sentry_issue fetches an issue, sentry_trace the request around it, sentry_events the logs or spans (query trace:<id> for one request), sentry_stats how something moved over time.',
       'When a commit fixes a Sentry issue, put "Fixes <SHORT-ID>" in its message so Sentry resolves it on release.',
     ].join(' ')

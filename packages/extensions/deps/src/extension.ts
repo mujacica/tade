@@ -157,7 +157,7 @@ export const depsExtension: TadeExtension = {
           project: at.project.name,
           title: `update dependencies ${level}`,
           prompt: [
-            `The dependencies in this worktree were just updated to their newest ${level} releases (${changes.length} change${changes.length === 1 ? '' : 's'}, listed in .tade/context.md).`,
+            `The dependencies in this worktree were just updated to their newest ${level} releases (${changes.length} change${changes.length === 1 ? '' : 's'}, listed in your task’s context file).`,
             `Run ${install.map((command) => `\`${command}\``).join(' and ') || 'the install'} so the lockfiles match,`,
             `then ${at.project.test ? `\`${at.project.test}\`` : 'the tests'}.`,
             majors.length > 0
@@ -253,7 +253,7 @@ export const depsExtension: TadeExtension = {
         return {
           title: `update ${name}`,
           prompt: [
-            `${name} has a known vulnerability, in .tade/context.md with its advisories.`,
+            `${name} has a known vulnerability, in your task’s context file with its advisories.`,
             `Read them first, then call deps_update with packages ["${name}"] and level ${level} to move it forward in this worktree.`,
             'If that is not enough to clear the advisory, say so and go as far as it takes, reading the changelog for what breaks.',
             `Then install${ctx.watching.test ? `, run \`${ctx.watching.test}\`` : ' and run the tests'}, fix what the update broke, and commit.`,

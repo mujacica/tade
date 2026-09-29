@@ -45,6 +45,7 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
           config: cfg.config,
           now: Date.now(),
           home: homedir(),
+          tadeHome: tadeHome(),
           cwd: process.cwd(),
           pr: opts.pr && process.env.TADE_NO_GH !== '1',
           liveness: await laneLivenessFromFile(home),

@@ -7,13 +7,13 @@ import {
   deriveState,
   expandHome,
   isLive,
-  PROJECT_DIR,
   type Project,
-  SHARED_TASKS_DIR,
-  sharedTaskDir,
+  projectDir,
+  recordsDir,
   type Task,
   TaskFile,
   TaskId,
+  taskFolder,
   type Workspace,
 } from '@tade/core'
 import { parse as parseYaml } from 'yaml'
@@ -35,6 +35,8 @@ export interface StatusOptions {
   now: number
   /** $HOME, where provider transcripts live. */
   home: string
+  /** Tade's own home, where every task's file is. */
+  tadeHome: string
   /** Used as an implicit project when the config lists none. */
   cwd?: string
   /** Query `gh` for PR state (network). */
@@ -80,14 +82,31 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     const baseRef = await resolveBaseRef(ref.root)
     if (baseRef === null) warnings.push(`${ref.name}: no base branch (main/master) found`)
 
+    // Every task file this project has, read once: they are all in Tade's own
+    // home now, whether the task works in a worktree of its own or beside the
+    // others in the checkout, so there is one place to look rather than two.
+    const files = await taskFilesOf(opts.tadeHome, ref, warnings)
+    const used = new Set<string>()
     for (const wt of list) {
       // A `tade/*` branch, or a worktree with no branch at all: an agent that
       // has not changed anything yet has nothing to name one after.
       if (wt.branch ? !wt.branch.startsWith(TASK_BRANCH_PREFIX) : wt.bare) continue
-      const task = await buildTask(ref, wt, baseRef, opts, liveness, sessions, claimed, warnings)
+      const task = await buildTask(ref, wt, baseRef, opts, liveness, sessions, claimed, warnings, {
+        files,
+        used,
+      })
       if (task) tasks.push(task)
     }
-    tasks.push(...(await sharedTasks(ref, opts, liveness, warnings)))
+    tasks.push(...(await sharedTasks(ref, opts, liveness, warnings, { files, used })))
+    for (const [folder, file] of files) {
+      if (used.has(folder) || file?.workspace === 'checkout') continue
+      // A task whose worktree somebody took away by hand: its folder is all
+      // that is left of it, and saying so is what stops it being a task that
+      // simply vanished.
+      warnings.push(
+        `${ref.name}/${folder}: no worktree of its own any more; its files are in ${join(projectDir(opts.tadeHome, ref.name), 'tasks', folder)}`,
+      )
+    }
 
     const inRepo = list.map((w) => w.path)
     const untracked = sessions.filter(
@@ -117,25 +136,41 @@ async function buildTask(
   sessions: Located[],
   claimed: Set<Located>,
   warnings: string[],
+  own: { files: Map<string, TaskFile | null>; used: Set<string> },
 ): Promise<Task | null> {
   const branch = wt.branch ?? ''
-  const file = await readTaskFile(wt.path)
+  // Two ways to the task file, because a worktree is found by git and the file
+  // is filed under the task's id. The branch says which task it is; where the
+  // branch cannot — a worktree Tade opened detached, which has none yet — the
+  // folder Tade made it in is named after the task and says the same thing.
+  const here = basename(wt.path)
+  const guesses = [
+    branch ? `${ref.name}/${branch.slice(TASK_BRANCH_PREFIX.length).replaceAll('/', '-')}` : '',
+    here.startsWith(`${ref.name}-`) ? `${ref.name}/${here.slice(ref.name.length + 1)}` : '',
+    `${ref.name}/${here}`,
+  ]
+  const found = guesses
+    .filter((one) => one !== '')
+    .map((one) => ({ guess: one, folder: taskFolder(one) }))
+    .find((one) => own.files.has(one.folder))
+  // A folder whose file would not read is still a task: it is one somebody has
+  // to fix, and dropping it would make it a task that never existed.
+  const tf = found ? (own.files.get(found.folder) ?? null) : null
+  if (found) own.used.add(found.folder)
+
   // Without a branch, only Tade's own record says this worktree is a task.
-  if (!branch && file.kind !== 'ok') return null
-  const tf = file.kind === 'ok' ? file.value : null
+  if (!branch && !tf) return null
 
   // The id the task was made with, which never changes: a branch can be given
   // a name after the fact, and an agent's lanes and session are keyed by this.
-  const fromBranch = `${ref.name}/${branch.slice(TASK_BRANCH_PREFIX.length).replaceAll('/', '-')}`
-  const id = tf?.id?.startsWith(`${ref.name}/`) ? tf.id : fromBranch
+  const id = tf?.id?.startsWith(`${ref.name}/`) ? tf.id : (found?.guess ?? guesses[0] ?? '')
   if (!TaskId.safeParse(id).success) {
     warnings.push(`${ref.name}: branch ${branch} does not make a valid task id`)
     return null
   }
 
-  if (file.kind === 'absent' && !wt.prunable) return null // a tade/* branch without a task
-  if (file.kind === 'invalid') warnings.push(`${id}: .tade/task.yaml: ${file.error}`)
-  if (file.kind === 'absent') warnings.push(`${id}: worktree directory is missing`)
+  if (!found && !wt.prunable) return null // a tade/* branch without a task
+  if (wt.prunable) warnings.push(`${id}: worktree directory is missing`)
 
   const g = await probeGit(wt.path, { baseRef, taskBase: tf?.base, pr: opts.pr })
   warnings.push(...g.warnings)
@@ -162,6 +197,7 @@ async function buildTask(
     tests: await verifiedAt(wt.path, g.snapshot?.head ?? null, {
       name: ref.name,
       root: wt.path,
+      records: recordsDir(opts.tadeHome, ref.name, id),
       test: opts.config.projects[ref.name]?.test_command,
       chosen: checksFor(opts.config, ref.name).run_here,
     }),
@@ -192,39 +228,31 @@ async function buildTask(
 
 /**
  * The tasks working in the project's own checkout, side by side: each is a
- * folder under `.tade/tasks`. Their git facts are the checkout's, shared, so
- * their state is their agent's — never the files, which are everyone's.
+ * folder under its project in Tade's home. Their git facts are the checkout's,
+ * shared, so their state is their agent's — never the files, which are
+ * everyone's.
  */
 async function sharedTasks(
   ref: ProjectRef,
   opts: StatusOptions,
   liveness: LivenessProbe,
   warnings: string[],
+  own: { files: Map<string, TaskFile | null>; used: Set<string> },
 ): Promise<Task[]> {
-  let folders: string[]
-  try {
-    folders = (await readdir(join(ref.root, SHARED_TASKS_DIR), { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-  } catch {
-    return []
-  }
+  const folders = [...own.files]
+    .filter(([folder, file]) => !own.used.has(folder) && file?.workspace === 'checkout')
+    .map(([folder]) => folder)
   if (folders.length === 0) return []
   const g = await probeGit(ref.root, { baseRef: null, pr: opts.pr })
   warnings.push(...g.warnings)
   const out: Task[] = []
   for (const folder of folders) {
-    const file = await readTaskFile(join(ref.root, SHARED_TASKS_DIR, folder), 'task.yaml')
-    if (file.kind !== 'ok') {
-      if (file.kind === 'invalid') {
-        warnings.push(`${ref.name}: ${SHARED_TASKS_DIR}/${folder}/task.yaml: ${file.error}`)
-      }
-      continue
-    }
-    const tf = file.value
+    const tf = own.files.get(folder)
+    if (!tf) continue
+    own.used.add(folder)
     const id = tf.id?.startsWith(`${ref.name}/`) ? tf.id : `${ref.name}/${folder}`
-    if (!TaskId.safeParse(id).success || sharedTaskDir(id) !== `${SHARED_TASKS_DIR}/${folder}`) {
-      warnings.push(`${ref.name}: ${SHARED_TASKS_DIR}/${folder} does not name a task`)
+    if (!TaskId.safeParse(id).success || taskFolder(id) !== folder) {
+      warnings.push(`${ref.name}: tasks/${folder} does not name a task`)
       continue
     }
     const agents = await liveness.lanes(id)
@@ -260,18 +288,53 @@ async function sharedTasks(
   return out
 }
 
+/**
+ * Every task file a project has, by the folder it is in: one read of Tade's
+ * own home rather than one read per worktree, and the one place a task file
+ * can be.
+ *
+ * A folder that will not read is named rather than passed over — a task whose
+ * file is broken is a task somebody has to fix, and silence would make it a
+ * task that never existed.
+ */
+async function taskFilesOf(
+  home: string,
+  ref: ProjectRef,
+  warnings: string[],
+): Promise<Map<string, TaskFile | null>> {
+  const root = join(projectDir(home, ref.name), 'tasks')
+  let folders: string[]
+  try {
+    folders = (await readdir(root, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+  } catch {
+    // A project Tade has not made a task in yet: no folder, and nothing wrong.
+    return new Map()
+  }
+  const out = new Map<string, TaskFile | null>()
+  for (const folder of folders.sort()) {
+    const read = await readTaskFile(join(root, folder))
+    if (read.kind === 'absent') continue
+    // A folder that will not read is kept as a folder with nothing in it: the
+    // task is still there, and saying nothing would lose it.
+    if (read.kind === 'invalid') {
+      warnings.push(`${ref.name}: tasks/${folder}/task.yaml: ${read.error}`)
+    }
+    out.set(folder, read.kind === 'ok' ? read.value : null)
+  }
+  return out
+}
+
 type TaskFileRead =
   | { kind: 'ok'; value: TaskFile }
   | { kind: 'absent' }
   | { kind: 'invalid'; error: string }
 
-async function readTaskFile(
-  dir: string,
-  file = join(PROJECT_DIR, 'task.yaml'),
-): Promise<TaskFileRead> {
+async function readTaskFile(dir: string): Promise<TaskFileRead> {
   let text: string
   try {
-    text = await readFile(join(dir, file), 'utf8')
+    text = await readFile(join(dir, 'task.yaml'), 'utf8')
   } catch {
     return { kind: 'absent' }
   }

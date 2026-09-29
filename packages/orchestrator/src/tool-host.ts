@@ -34,7 +34,7 @@ export interface ToolHostOptions {
    * attached to what it is answering, put where the agent works (`cwd`), a
    * sentence saying where, and the pictures among them.
    */
-  handOff?: (cwd: string) => Promise<{ note: string; images: readonly WorkerImage[] }>
+  handOff?: (task: string) => Promise<{ note: string; images: readonly WorkerImage[] }>
   /**
    * Where everything stands, as the window sees it. Only the process
    * supervising the agents knows which of them are between turns; `tade
@@ -276,8 +276,7 @@ export class ToolHost {
         })
         return opts.extensions({ tool, input, callId: String(p.callId ?? '') })
       },
-      'task/park': (p) =>
-        tade.parkTask(String(p.worktree), p.parked === true, p.task ? String(p.task) : undefined),
+      'task/park': (p) => tade.parkTask(String(p.task), p.parked === true),
       'task/rename': (p) =>
         tade.renameAgent({
           task: String(p.task),
@@ -310,7 +309,7 @@ export class ToolHost {
           : undefined
         // Files go with something to say about them. A start that says nothing
         // opens the agent, and must not set it working on a picture alone.
-        const handed = prompt.trim() && opts.handOff ? await opts.handOff(cwd) : null
+        const handed = prompt.trim() && opts.handOff ? await opts.handOff(String(p.task)) : null
         return tade.startAgent({
           task: String(p.task) as never,
           cwd,

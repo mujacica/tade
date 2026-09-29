@@ -212,7 +212,7 @@ export function orchestratorTools(
   // What an agent should know before it starts, and where the work came from:
   // written into its worktree, so it finds them however it is started.
   const context = string(
-    'what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to .tade/context.md in its worktree.',
+    'what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to a file of its own in Tade’s home, and the agent is told where.',
   )
   const links = {
     type: 'array',
@@ -220,10 +220,10 @@ export function orchestratorTools(
     items: object({ title: string('what it is'), url: string('where it is') }, ['title', 'url']),
   }
   // What a task made to plan, audit or research says about itself. The path is
-  // in the repository and never under .tade/, which git ignores and Tade
-  // removes with the task: the whole point is that somebody reads it later.
+  // in the repository, so the agent commits it and it survives the task: the
+  // whole point is that somebody reads it later.
   const produces = string(
-    'for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository. Tade tells you when it finishes, with this path, so you read it and decide what follows. Not under .tade/, which goes when the task does.',
+    'for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository, committed like any other change. Tade tells you when it finishes, with this path, so you read it and decide what follows.',
   )
 
   tool(
@@ -626,9 +626,8 @@ export function orchestratorTools(
       object({ task: string('task id, like checkout/refunds') }, ['task']),
       async (p) => {
         const task = String(p.task)
-        const worktree = await worktreeOf(task)
-        if (!worktree) throw new Error(`no such task: ${task}`)
-        return rpc('task/park', { worktree, parked, task })
+        if (!(await worktreeOf(task))) throw new Error(`no such task: ${task}`)
+        return rpc('task/park', { parked, task })
       },
     )
   }

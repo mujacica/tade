@@ -73,8 +73,8 @@ export const StartCondition = z.object({
 export type StartCondition = z.infer<typeof StartCondition>
 
 /**
- * `.tade/task.yaml` inside a task's worktree, written once when the task is
- * created. `intent_spoken` is stored verbatim.
+ * `task.yaml` in the task's own folder in Tade's home (`taskDir`), written
+ * once when the task is created. `intent_spoken` is stored verbatim.
  */
 export const TaskFile = z.object({
   id: TaskId.optional(),
@@ -181,23 +181,6 @@ export const HARNESS_CHOICES: readonly {
   },
 ]
 
-/** The folder a project keeps its task files in. */
-export const PROJECT_DIR = '.tade'
-
-/** Beside the task file: what whoever started a task wanted the agent to know. */
-export const TASK_CONTEXT_FILE = `${PROJECT_DIR}/context.md`
-
-/**
- * Where the tasks working in a project's own checkout keep their files: one
- * folder each, since they share the directory their work is in.
- */
-export const SHARED_TASKS_DIR = `${PROJECT_DIR}/tasks`
-
-/** The folder, relative to the checkout, holding one shared task's file and context. */
-export function sharedTaskDir(id: string): string {
-  return `${SHARED_TASKS_DIR}/${id.split('/').slice(1).join('-')}`
-}
-
 /**
  * Where a review stands, in the forge port's neutral words rather than any
  * one forge's: GitHub shouts `MERGED`, GitLab says merge request, Gerrit says
@@ -211,7 +194,7 @@ export const GitSnapshot = z.object({
   head: z.string().nullable(),
   headSubject: z.string().nullable(),
   headTime: z.number().nullable(),
-  /** Paths with staged, unstaged or untracked changes (excluding `.tade/`). */
+  /** Paths with staged, unstaged or untracked changes. */
   dirty: z.array(z.string()),
   ahead: z.number().int().nullable(),
   behind: z.number().int().nullable(),

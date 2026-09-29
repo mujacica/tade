@@ -52,8 +52,8 @@ function fakeTade() {
     async steerAgent(task, message) {
       calls.push(`steer ${task} ${message}`)
     },
-    async parkTask(worktree, parked) {
-      calls.push(`park ${worktree} ${parked}`)
+    async parkTask(task, parked) {
+      calls.push(`park ${task} ${parked}`)
       return { task: 'app/migration', parked }
     },
     async createTask(request) {
@@ -158,7 +158,7 @@ describe('VoiceSurface', () => {
     const { voice } = await surface(tade)
     expect(await voice.handle('park migration')).toBe('Parked migration.')
     expect(await voice.handle('pick migration back up')).toBe('Picked up migration.')
-    expect(tade.calls).toEqual(['park /wt/migration true', 'park /wt/migration false'])
+    expect(tade.calls).toEqual(['park app/migration true', 'park app/migration false'])
   })
 
   it('tells a running agent something', async () => {

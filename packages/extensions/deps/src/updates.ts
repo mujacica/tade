@@ -374,8 +374,8 @@ export const dependencyUpdates: ExtensionWatch = {
       title: patches ? `bump ${part.names.length} patch releases` : `bump ${part.names[0]}`,
       prompt: [
         patches
-          ? `The ${part.names.length} patch release${part.names.length === 1 ? '' : 's'} in .tade/context.md are behind in this project.`
-          : `${part.names[0]} has a new minor release, in .tade/context.md with what is required now and what it would be.`,
+          ? `The ${part.names.length} patch release${part.names.length === 1 ? '' : 's'} in your task’s context file are behind in this project.`
+          : `${part.names[0]} has a new minor release, in your task’s context file with what is required now and what it would be.`,
         `Call deps_update with level ${part.shape} and packages ${JSON.stringify(part.names)}: it moves those requirements in your own worktree and nothing else, and leaves ranges and ceilings exactly as somebody wrote them.`,
         installing(install),
         'Then run this project’s own checks with `checks_run` — never by typing the command in a shell: Tade runs one suite per checkout, waits for anybody else’s rather than starting a second, and records what ran against the tree it ran on.',

@@ -317,7 +317,7 @@ export class Agents implements Subject {
         const pane = this.wire.state.panes.find((p) => p.task === task)
         const parked = pane?.state !== 'parked'
         try {
-          await this.wire.opts.client.parkTask(worktree, parked, task)
+          await this.wire.opts.client.parkTask(task, parked)
           await this.wire.live?.refresh()
           this.wire.put(
             notice(this.wire.state, parked ? `parked ${task}` : `picked ${task} up again`),

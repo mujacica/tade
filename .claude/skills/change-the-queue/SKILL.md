@@ -60,8 +60,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   finished still has to open knowing there is something to read — which is what the briefing's own
   section is for, uncapped like `held`, because a document lost to a per-project cap is the whole
   bug back again. What happens to it afterwards is answered by where it may be: `producesProblem`
-  refuses anything under `.tade/`, which git ignores and Tade removes with the task, so it is an
-  ordinary file the agent commits and that survives on its branch. What has been done about one is
+  refuses anything outside the repository, so it is an ordinary file the agent commits and that
+  survives on its branch. Tade writes nothing inside a project, so it reserves no folder there. What has been done about one is
   **derived, never remembered** (`producedIn`): work made since it finished that waits on it, and
   its own agent being started again — the two marks the two useful answers leave — so "nothing has
   been done about it yet" (`actedOnSays`) stops being said the moment something has. There is no

@@ -693,7 +693,7 @@ export const EXTENSION_SCREENS: Scenario[] = [
       linkers: [
         { pattern: '\\bSHOP-[0-9A-Z]{1,10}\\b', url: 'https://acme.sentry.io/issues/?query=$&' },
       ],
-      screen: 'Reading .tade/context.md for SHOP-1A before touching src/refunds.ts',
+      screen: 'Reading what Tade left about SHOP-1A before touching src/refunds.ts',
     }),
   },
 ]

@@ -91,6 +91,8 @@ export const checksExtension: TadeExtension = {
           config: where.config,
           project: where.project,
           worktree: where.worktree,
+          tadeHome: ctx.home,
+          task: where.task,
           commit: where.commit,
         })
         if (stood.read.checks.length === 0) {
@@ -161,9 +163,11 @@ export const checksExtension: TadeExtension = {
             config: where.config,
             project: where.project,
             worktree: where.worktree,
+            task: where.task,
             commit: where.commit,
             by: ctx.caller.kind === 'agent' ? ctx.caller.task : ctx.caller.kind,
             home: ctx.home,
+            tadeHome: ctx.home,
             only,
             signal: ctx.signal,
             waitMs: wait,
@@ -230,6 +234,8 @@ export const checksExtension: TadeExtension = {
           config: where.config,
           project: where.project,
           worktree: where.worktree,
+          tadeHome: ctx.home,
+          task: where.task,
           commit: where.commit,
         })
         const wanted = String(input.check)
@@ -332,6 +338,8 @@ export const checksExtension: TadeExtension = {
 interface Working {
   project: string
   worktree: string
+  /** The task whose worktree this is, when the caller is an agent in its own. */
+  task: string | null
   commit: string | null
   config: Config
 }
@@ -347,6 +355,9 @@ async function workingIn(input: Record<string, unknown>, ctx: ToolContext): Prom
   return {
     project,
     worktree,
+    // Only an agent's own worktree can be a task's: a project named by hand is
+    // the project's checkout, where the records are everyone's.
+    task: !named && caller.kind === 'agent' ? caller.task : null,
     commit: head.code === 0 ? head.stdout.trim() : null,
     config: await configOf(ctx),
   }

@@ -13,7 +13,7 @@ description: How to put work up for review from Tade — the commit trailer that
    minutes cost money, and a red review is a thing other people have to read past.
 3. **Commit your own files, by path.** `git add <path>` for each one — never `git add -A` or
    `git commit -a`, which in a shared checkout sweep up whatever three other agents have
-   half-written. Tade's own bookkeeping under `.tade/` is ignored and should never appear in a
+   half-written. Nothing of Tade's is in the checkout at all, so nothing of its should appear in a
    diff; if `git status` is offering you somebody's task file, a pasted screenshot or
    `checks.jsonl`, the project has not got the rules yet — leave them out and say so. Nothing under
    there belongs to the project: what it checks is read from its own CI workflows and its own

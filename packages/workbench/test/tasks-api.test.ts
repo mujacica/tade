@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { taskDir } from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -45,7 +46,8 @@ describe('task and run RPC', () => {
     })
 
     expect(task).toMatchObject({ id: 'app/refunds', branch: 'tade/refunds' })
-    expect(existsSync(join(task.worktree, '.tade', 'task.yaml'))).toBe(true)
+    expect(existsSync(join(taskDir(home, 'app/refunds'), 'task.yaml'))).toBe(true)
+    expect(existsSync(join(task.worktree, '.tade'))).toBe(false)
 
     const [event] = await client.events({ types: ['task_created'] })
     expect(event?.task).toBe('app/refunds')
@@ -95,24 +97,26 @@ describe('task and run RPC', () => {
     await client.stopAgent(task.id)
   })
 
-  it('ignores its own bookkeeping the first time it works in a project, once', async () => {
+  it('writes no ignore rule into a project, and takes back the one it used to', async () => {
     const path = join(repo.root, '.gitignore')
-    expect(existsSync(path)).toBe(false)
     await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
-    const written = readFileSync(path, 'utf8')
-    expect(written).toContain('/.tade/*')
-    // One rule and no exception: nothing Tade writes under there is the
-    // project's any more, since what it checks is read from its own CI.
-    expect(written).not.toContain('!/.tade/')
+    // Nothing of Tade's is under the project, so there is nothing to ignore
+    // and no file to write: a project Tade has worked in looks untouched.
+    expect(existsSync(path)).toBe(false)
+    expect(await client.events({ types: ['ignore_removed'] })).toEqual([])
 
-    const [said] = await client.events({ types: ['ignore_written'] })
-    expect(said?.detail.project).toBe('app')
-    expect(said?.detail.added).toEqual(['/.tade/*'])
-
-    // The second task finds it done and says nothing more about it.
+    // And where an older Tade did write one, the next task takes it back out.
+    writeFileSync(path, `dist/\n\n# Added by Tade the first time it worked here.\n/.tade/*\n`)
     await client.createTask({ project: 'app', slug: 'search', intent: 'faster search' })
-    expect(readFileSync(path, 'utf8')).toBe(written)
-    expect(await client.events({ types: ['ignore_written'] })).toHaveLength(1)
+    expect(readFileSync(path, 'utf8')).toBe('dist/\n')
+    const [said] = await client.events({ types: ['ignore_removed'] })
+    expect(said?.detail.project).toBe('app')
+    expect(said?.detail.removed).toEqual(['/.tade/*'])
+
+    // Once, and never again: the third task reads the file and writes nothing.
+    await client.createTask({ project: 'app', slug: 'ledger', intent: 'ledger' })
+    expect(readFileSync(path, 'utf8')).toBe('dist/\n')
+    expect(await client.events({ types: ['ignore_removed'] })).toHaveLength(1)
   })
 
   it('creates tasks side by side in the checkout, and removing one leaves the checkout alone', async () => {
@@ -120,7 +124,7 @@ describe('task and run RPC', () => {
     const two = await client.createTask({ project: 'app', slug: 'search', intent: 'faster search' })
     expect(one).toMatchObject({ workspace: 'checkout', worktree: repo.root, branch: 'main' })
     expect(two.worktree).toBe(repo.root)
-    expect(existsSync(join(repo.root, '.tade', 'tasks', 'refunds', 'task.yaml'))).toBe(true)
+    expect(existsSync(join(taskDir(home, 'app/refunds'), 'task.yaml'))).toBe(true)
     await expect(
       client.createTask({ project: 'app', slug: 'refunds', intent: 'again' }),
     ).rejects.toThrow(/used before/)
@@ -132,8 +136,8 @@ describe('task and run RPC', () => {
       force: true,
     })
     expect(removed).toEqual({ removed: true, branchDeleted: false })
-    expect(existsSync(join(repo.root, '.tade', 'tasks', 'refunds'))).toBe(false)
-    expect(existsSync(join(repo.root, '.tade', 'tasks', 'search', 'task.yaml'))).toBe(true)
+    expect(existsSync(taskDir(home, 'app/refunds'))).toBe(false)
+    expect(existsSync(join(taskDir(home, 'app/search'), 'task.yaml'))).toBe(true)
     expect(existsSync(repo.root)).toBe(true)
   })
 
@@ -168,9 +172,9 @@ describe('task and run RPC', () => {
       intent: INTENT,
       by: 'extension:sentry',
     })
-    expect(
-      readFileSync(join(task.worktree, '.tade', 'tasks', 'fix', 'task.yaml'), 'utf8'),
-    ).toContain('by: extension:sentry')
+    expect(readFileSync(join(taskDir(home, 'app/fix'), 'task.yaml'), 'utf8')).toContain(
+      'by: extension:sentry',
+    )
     const [created] = await client.events({ types: ['task_created'] })
     expect(created?.detail.by).toBe('extension:sentry')
   })
@@ -185,15 +189,15 @@ describe('task and run RPC', () => {
     expect(
       await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'codex' }),
     ).toEqual({ harness: 'codex', restarted: false })
-    expect(
-      readFileSync(join(repo.root, '.tade', 'tasks', 'refunds', 'task.yaml'), 'utf8'),
-    ).toContain('harness: codex')
+    expect(readFileSync(join(taskDir(home, 'app/refunds'), 'task.yaml'), 'utf8')).toContain(
+      'harness: codex',
+    )
     expect(
       await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'pi' }),
     ).toEqual({ harness: 'pi', restarted: false })
-    expect(
-      readFileSync(join(repo.root, '.tade', 'tasks', 'refunds', 'task.yaml'), 'utf8'),
-    ).toContain('harness: pi')
+    expect(readFileSync(join(taskDir(home, 'app/refunds'), 'task.yaml'), 'utf8')).toContain(
+      'harness: pi',
+    )
   })
 
   it('offers the models of the harness a task runs in, and nobody else’s', async () => {

@@ -28,8 +28,8 @@ export interface LockHolder {
   at: string
 }
 
-export function lockPath(worktree: string): string {
-  return join(worktree, '.tade', 'checks.lock')
+export function lockPath(records: string): string {
+  return join(records, 'checks.lock')
 }
 
 /**
@@ -37,11 +37,11 @@ export function lockPath(worktree: string): string {
  * since when, so the caller can wait or say so — never pretend.
  */
 export async function takeRunLock(
-  worktree: string,
+  records: string,
   what: string,
   now: () => number = Date.now,
 ): Promise<RunLock | { held: LockHolder }> {
-  const path = lockPath(worktree)
+  const path = lockPath(records)
   await mkdir(dirname(path), { recursive: true })
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -53,7 +53,7 @@ export async function takeRunLock(
       return { release: () => rm(path, { force: true }) }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
-      const holder = await heldBy(worktree)
+      const holder = await heldBy(records)
       if (holder) return { held: holder }
       await rm(path, { force: true })
     }
@@ -62,8 +62,8 @@ export async function takeRunLock(
 }
 
 /** Who is running checks in this worktree, or null. A dead pid is nobody. */
-export async function heldBy(worktree: string): Promise<LockHolder | null> {
-  const text = await readFile(lockPath(worktree), 'utf8').catch(() => '')
+export async function heldBy(records: string): Promise<LockHolder | null> {
+  const text = await readFile(lockPath(records), 'utf8').catch(() => '')
   if (!text.trim()) return null
   let raw: Record<string, unknown>
   try {
@@ -92,14 +92,14 @@ export async function heldBy(worktree: string): Promise<LockHolder | null> {
  * a second suite.
  */
 export async function waitForRunLock(
-  worktree: string,
+  records: string,
   what: string,
   opts: { waitMs?: number; everyMs?: number; now?: () => number } = {},
 ): Promise<RunLock | { held: LockHolder }> {
   const deadline = (opts.now ?? Date.now)() + (opts.waitMs ?? 0)
   const every = opts.everyMs ?? 250
   for (;;) {
-    const got = await takeRunLock(worktree, what, opts.now)
+    const got = await takeRunLock(records, what, opts.now)
     if (!('held' in got)) return got
     if ((opts.now ?? Date.now)() >= deadline) return got
     await new Promise((done) => {

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Workbench } from '@tade/workbench'
 import { afterAll, describe, expect, it, type TestContext } from 'vitest'
+import { LIVE } from '../../../scripts/release/repo.ts'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Orchestrator } from '../src/orchestrator.ts'
 import { ToolHost } from '../src/tool-host.ts'
@@ -401,11 +402,13 @@ const CHOICES: readonly Choice[] = [
  * run at all: it is skipped by default, there had never been a release, and
  * the tool descriptions were rewritten three times in between. So a run that
  * goes green writes down which commit it went green against, and the release
- * reads it. Under `.tade/`, which this repository ignores — it is one
- * machine's and this afternoon's, like every other run record.
+ * reads it. In Tade's home, under this project — it is one machine's and this
+ * afternoon's, like every other run record — and at the one path the release
+ * itself reads, so the two can never drift apart.
  */
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
-const RECEIPT = join(ROOT, '.tade', 'live.json')
+
+const RECEIPT = LIVE
 
 const TURN = 240_000
 

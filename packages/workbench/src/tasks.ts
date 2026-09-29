@@ -3,47 +3,43 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   type DoneRule,
-  PROJECT_DIR,
   producesProblem,
   type StartCondition,
-  sharedTaskDir,
-  TASK_CONTEXT_FILE,
   TaskFile,
   TaskId,
+  taskDir,
 } from '@tade/core'
 import { git, parseStatusV2, resolveBaseRef } from '@tade/status'
 import { parse as parseYaml, stringify } from 'yaml'
 
 // Task lifecycle: where the work happens, and the sentence you said when you
 // started. A task works either in the project's own checkout, beside other
-// agents, or in a worktree and branch of its own. Creating and removing tasks
-// is the only write path into a user's repository, so it refuses anything it
-// cannot do safely.
+// agents, or in a worktree and branch of its own. Creating a task is the only
+// thing here that writes into a user's repository at all — a worktree and a
+// branch, both git's own — so it refuses anything it cannot do safely.
+//
+// A task's own files are not in the repository and never were the project's:
+// they live in Tade's home, one folder per task under its project
+// (`taskDir`), whichever way the task works. That is why a worktree can be
+// reset, merged onto or thrown away without Tade's record of the task going
+// with it, and why nothing here has to be ignored, excluded or settled after
+// a conflict.
 
-/**
- * Where a task's own file is. A task sharing the checkout keeps it in a folder
- * of its own under `.tade/tasks`, since the directory is everyone's; one in a
- * worktree keeps it at the worktree's `.tade/task.yaml`.
- */
-export function taskFilePath(worktree: string, id?: string): string {
-  if (id) {
-    const shared = join(worktree, sharedTaskDir(id), 'task.yaml')
-    if (existsSync(shared)) return shared
-  }
-  return join(worktree, PROJECT_DIR, 'task.yaml')
+/** Where a task's own file is: in Tade's home, under its project. */
+export function taskFilePath(home: string, id: string): string {
+  return join(taskDir(home, id), 'task.yaml')
 }
 
-/** Where a task's context is, relative to where its agent works, whether or not it has one. */
-export function taskContextPath(worktree: string, id?: string): string {
-  if (id && existsSync(join(worktree, sharedTaskDir(id), 'task.yaml'))) {
-    return `${sharedTaskDir(id)}/context.md`
-  }
-  return TASK_CONTEXT_FILE
+/** Where a task's context is, whether or not it has one. */
+export function taskContextPath(home: string, id: string): string {
+  return join(taskDir(home, id), 'context.md')
 }
 
 export const TASK_BRANCH_PREFIX = 'tade/'
 
 export interface CreateTaskOptions {
+  /** Tade's home: where the task's own files go, outside the repository. */
+  home: string
   /** Project name, used for the task id. */
   project: string
   /** Repository root the worktree is created from. */
@@ -102,10 +98,12 @@ export interface TaskWorktree {
 }
 
 export interface RemoveTaskOptions {
+  /** Tade's home: where the task's own folder is. */
+  home: string
   root: string
   worktree: string
   branch: string
-  /** The task's id: what finds a task sharing the checkout. */
+  /** The task's id: whose folder to take away, and what says it shares the checkout. */
   task?: string
   /** Remove even with uncommitted or unmerged work. */
   force?: boolean
@@ -167,8 +165,9 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     baseRef,
     workspace: 'worktree',
   }
+  const dir = taskDir(opts.home, id)
   await writeTaskFile(
-    join(worktree, '.tade', 'task.yaml'),
+    join(dir, 'task.yaml'),
     task,
     opts.intent,
     opts.now ?? new Date(),
@@ -182,17 +181,17 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
-  if (context) await writeFile(join(worktree, TASK_CONTEXT_FILE), context)
+  if (context) await writeFile(join(dir, 'context.md'), context)
   return task
 }
 
 /**
- * A task in the project's own checkout: nothing in git changes, only a folder
- * of Tade's own under `.tade/tasks` saying what was asked. The branch is
+ * A task in the project's own checkout: nothing in the repository changes at
+ * all, only a folder of Tade's own saying what was asked. The branch is
  * whatever the checkout is on, and stays so.
  */
 async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<TaskWorktree> {
-  const dir = join(opts.root, sharedTaskDir(id))
+  const dir = taskDir(opts.home, id)
   if (existsSync(join(dir, 'task.yaml'))) throw new Error(`task already exists: ${id}`)
   const head = await git(opts.root, ['rev-parse', 'HEAD^{commit}'])
   if (!head.ok) throw new Error(`${opts.root} has no commit to work from yet`)
@@ -288,8 +287,9 @@ async function writeTaskFile(
 export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult> {
   // A task sharing the checkout is only its folder: the work in the checkout is
   // everyone's, and the checkout itself is never removed.
-  if (opts.task && existsSync(join(opts.root, sharedTaskDir(opts.task), 'task.yaml'))) {
-    await rm(join(opts.root, sharedTaskDir(opts.task)), { recursive: true, force: true })
+  const own = opts.task ? taskDir(opts.home, opts.task) : ''
+  if (own && resolve(opts.worktree) === resolve(opts.root)) {
+    await rm(own, { recursive: true, force: true })
     return { removed: true, branchDeleted: false }
   }
   if (resolve(opts.worktree) === resolve(opts.root)) {
@@ -304,7 +304,7 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
       '--untracked-files=all',
     ])
     if (status.ok) {
-      const dirty = parseStatusV2(status.stdout).paths.filter((p) => !/^\.tade(\/|$)/.test(p))
+      const dirty = parseStatusV2(status.stdout).paths
       if (dirty.length > 0) {
         return { removed: false, reason: `${dirty.length} uncommitted file(s) in ${opts.worktree}` }
       }
@@ -320,10 +320,10 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
   }
 
   // `--force` unconditionally: the refusals above are Tade's, and they have
-  // already passed. Git would otherwise refuse over `.tade/task.yaml`, which
-  // is Tade's own bookkeeping and never work worth keeping.
+  // already passed.
   const removed = await git(opts.root, ['worktree', 'remove', '--force', opts.worktree], 30_000)
   if (!removed.ok) throw new Error(`git worktree remove failed: ${firstLine(removed.stderr)}`)
+  if (own) await rm(own, { recursive: true, force: true })
 
   if (!opts.branch) return { removed: true, branchDeleted: false }
   // -d refuses to delete unmerged work; -D is only reached when forced.
@@ -352,6 +352,10 @@ export function branchSlug(title: string): string {
 }
 
 export interface NameTaskOptions {
+  /** Tade's home: where the task's own file is. */
+  home: string
+  /** The task being named, so its file can be found. */
+  task: string
   root: string
   worktree: string
   /** What the work is called. Falls back to the task's own name. */
@@ -373,7 +377,7 @@ export async function nameTask(opts: NameTaskOptions): Promise<string> {
     if (taken.ok) continue
     const made = await git(opts.worktree, ['switch', '-c', branch])
     if (!made.ok) throw new Error(`git switch -c ${branch} failed: ${firstLine(made.stderr)}`)
-    await updateTaskFile(taskFilePath(opts.worktree), (file) => {
+    await updateTaskFile(taskFilePath(opts.home, opts.task), (file) => {
       if (typeof file.title !== 'string' || file.title === '') file.title = opts.title
     })
     return branch
@@ -386,14 +390,14 @@ export async function nameTask(opts: NameTaskOptions): Promise<string> {
  * there; a title taken from the first thing you asked only fills a blank.
  */
 export async function setTitle(
-  worktree: string,
+  home: string,
+  id: string,
   title: string,
   named: boolean,
-  id?: string,
 ): Promise<void> {
   const text = title.replace(/\s+/g, ' ').trim()
   if (!text) return
-  await updateTaskFile(taskFilePath(worktree, id), (file) => {
+  await updateTaskFile(taskFilePath(home, id), (file) => {
     // A name a person chose is kept; any other is better replaced by a better one.
     if (named) {
       file.title = text
@@ -420,11 +424,12 @@ export async function setTitle(
  * that is not there.
  */
 export async function producedDetail(
+  home: string,
   worktree: string | undefined,
   task: string | null,
 ): Promise<{ produces?: string; missing?: true }> {
   if (!worktree || !task) return {}
-  const produces = (await readTaskFile(worktree, task))?.produces?.trim()
+  const produces = (await readTaskFile(home, task))?.produces?.trim()
   // Checked again on the way into the journal: the file on disk is somebody's
   // to hand-edit, and a path Tade would not have written is not one it reads.
   if (!produces || producesProblem(produces)) return {}
@@ -432,9 +437,9 @@ export async function producedDetail(
 }
 
 /** A task's file, read and checked; null when there is none or it will not read. */
-export async function readTaskFile(worktree: string, id: string): Promise<TaskFile | null> {
+export async function readTaskFile(home: string, id: string): Promise<TaskFile | null> {
   try {
-    const parsed = TaskFile.safeParse(parseYaml(await readFile(taskFilePath(worktree, id), 'utf8')))
+    const parsed = TaskFile.safeParse(parseYaml(await readFile(taskFilePath(home, id), 'utf8')))
     return parsed.success ? parsed.data : null
   } catch {
     return null
@@ -448,13 +453,14 @@ export async function readTaskFile(worktree: string, id: string): Promise<TaskFi
  * nothing, and one that somehow has work is left exactly where it is.
  */
 export async function beginFrom(
+  home: string,
   worktree: string,
   id: string,
   refs: readonly string[],
 ): Promise<void> {
   const [first, ...rest] = refs
   if (!first) return
-  const file = await readTaskFile(worktree, id)
+  const file = await readTaskFile(home, id)
   const dirty = await git(worktree, ['status', '--porcelain=v2', '-z', '--untracked-files=no'])
   const ahead = file?.base
     ? await git(worktree, ['rev-list', '--count', `${file.base}..HEAD`])
@@ -463,29 +469,19 @@ export async function beginFrom(
     throw new Error(`${id} already has work of its own in ${worktree}, so it was not moved`)
   }
   const was = await git(worktree, ['rev-parse', 'HEAD'])
-  // Its own task file and context, which an agent upstream may have committed
-  // its own over: a reset would put those in their place, and it would start as
-  // somebody else's task.
-  const own = await ownFiles(worktree)
-  const back = async () => {
-    for (const [path, content] of own) {
-      // A reset past a commit that had them takes the folder with them.
-      await mkdir(join(path, '..'), { recursive: true })
-      await writeFile(path, content)
-    }
-  }
+  // Nothing of Tade's is in the tree, so a reset and a merge here are only
+  // ever about the work: the task's own file and context are in Tade's home
+  // and cannot be reset past, committed over or conflicted with.
   const reset = await git(worktree, ['reset', '--hard', first])
   if (!reset.ok) {
-    await back()
     throw new Error(`${id} could not begin from ${first}: ${firstLine(reset.stderr)}`)
   }
   for (const ref of rest) {
     const merged = await git(worktree, [...AS_TADE, 'merge', '--no-edit', ref], 30_000)
-    if (merged.ok || (await settleOwnConflicts(worktree))) continue
+    if (merged.ok) continue
     await git(worktree, ['merge', '--abort'])
     // Back where it was planned, so trying again later begins from the same place.
     if (was.ok) await git(worktree, ['reset', '--hard', was.stdout.trim()])
-    await back()
     const conflict = /CONFLICT/.test(`${merged.stdout}${merged.stderr}`)
     throw new Error(
       conflict
@@ -493,11 +489,10 @@ export async function beginFrom(
         : `${id} could not put ${first} and ${ref} together: ${firstLine(merged.stderr || merged.stdout)}`,
     )
   }
-  await back()
   const head = await git(worktree, ['rev-parse', 'HEAD'])
   // Its own work is what comes after here, not after where it was planned.
   if (head.ok) {
-    await updateTaskFile(taskFilePath(worktree, id), (task) => {
+    await updateTaskFile(taskFilePath(home, id), (task) => {
       task.base = head.stdout.trim()
     })
   }
@@ -505,36 +500,6 @@ export async function beginFrom(
 
 /** Tade's own commits, never the person's: they only put starting points together. */
 const AS_TADE = ['-c', 'user.name=Tade', '-c', 'user.email=tade@localhost']
-
-/** A worktree's own task file and context, as they are now. */
-async function ownFiles(worktree: string): Promise<Map<string, string>> {
-  const files = new Map<string, string>()
-  for (const name of ['task.yaml', 'context.md']) {
-    const path = join(worktree, '.tade', name)
-    try {
-      files.set(path, await readFile(path, 'utf8'))
-    } catch {
-      // Not every task has context.
-    }
-  }
-  return files
-}
-
-/**
- * Finish a merge whose only conflicts are in `.tade/`: Tade's bookkeeping,
- * which agents sometimes commit, and which is never the work. Anything else
- * conflicting is left for the caller to abort.
- */
-async function settleOwnConflicts(worktree: string): Promise<boolean> {
-  const listed = await git(worktree, ['diff', '--name-only', '--diff-filter=U', '-z'])
-  const conflicted = listed.stdout.split('\0').filter(Boolean)
-  if (!listed.ok || conflicted.length === 0) return false
-  if (!conflicted.every((path) => path.startsWith('.tade/'))) return false
-  const ours = await git(worktree, ['checkout', '--ours', '--', ...conflicted])
-  const added = await git(worktree, ['add', '--', ...conflicted])
-  const done = await git(worktree, [...AS_TADE, 'commit', '--no-edit', '--no-verify'])
-  return ours.ok && added.ok && done.ok
-}
 
 async function updateTaskFile(
   path: string,
@@ -546,8 +511,8 @@ async function updateTaskFile(
 }
 
 /** Say which harness a task's agent runs in; empty goes back to the route's. */
-export async function setTaskHarness(worktree: string, id: string, harness: string): Promise<void> {
-  await updateTaskFile(taskFilePath(worktree, id), (file) => {
+export async function setTaskHarness(home: string, id: string, harness: string): Promise<void> {
+  await updateTaskFile(taskFilePath(home, id), (file) => {
     if (harness) file.harness = harness
     else delete file.harness
   })
@@ -555,11 +520,11 @@ export async function setTaskHarness(worktree: string, id: string, harness: stri
 
 /** Run a task's agent as an account from its next start on; `null` for its harness's usual one. */
 export async function setTaskAccount(
-  worktree: string,
+  home: string,
   id: string,
   account: string | null,
 ): Promise<void> {
-  await updateTaskFile(taskFilePath(worktree, id), (file) => {
+  await updateTaskFile(taskFilePath(home, id), (file) => {
     if (account) file.account = account
     else delete file.account
   })
@@ -576,19 +541,15 @@ export interface ParkResult {
  * "idle". Every other field is round-tripped untouched, `intent_spoken` above
  * all.
  */
-export async function setParked(
-  worktree: string,
-  parked: boolean,
-  id?: string,
-): Promise<ParkResult> {
-  const path = taskFilePath(worktree, id)
+export async function setParked(home: string, id: string, parked: boolean): Promise<ParkResult> {
+  const path = taskFilePath(home, id)
   let file: Record<string, unknown>
   try {
     file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
   } catch {
-    throw new Error(`no task at ${worktree}`)
+    throw new Error(`no task file for ${id}`)
   }
-  if (typeof file !== 'object') throw new Error(`unreadable task at ${worktree}`)
+  if (typeof file !== 'object') throw new Error(`unreadable task file for ${id}`)
   file.parked = parked
   await writeFile(path, stringify(file))
   return { task: String(file.id ?? ''), parked }

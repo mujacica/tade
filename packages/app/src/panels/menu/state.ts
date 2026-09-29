@@ -91,8 +91,8 @@ export function terminalMenuItems(split = false): MenuItem[] {
  *
  * Four acts and one omission worth saying out loud. **Nothing here removes
  * anything.** Close takes the project out of the config and touches nothing on
- * disk — the folder, every commit, branch and worktree, everything under
- * `.tade/` and every line of the journal stay exactly as they are — so it is
+ * disk — the folder, every commit, branch and worktree, its folder in Tade's
+ * home and every line of the journal stay exactly as they are — so it is
  * offered plainly, and the item says so rather than asking a question nobody
  * can answer from a menu. Deleting any of that is a person's, with git, in a
  * terminal, and there is no item for it because there is no tool for it.

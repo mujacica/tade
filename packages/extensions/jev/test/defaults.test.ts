@@ -1,4 +1,5 @@
-import { readdirSync } from 'node:fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { DEFAULT_MOST, standingSchedules } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -29,8 +30,12 @@ function sharedCheckout() {
     ['add-refunds', 'add refunds to the till'],
     ['tidy-receipts', 'tidy the receipt printer'],
   ] as const) {
-    repo.write({
-      [`.tade/tasks/${name}/task.yaml`]: [
+    // In Tade's home, not in the checkout: nothing about a task is in the
+    // repository, so none of this is ever in a commit somebody reads.
+    mkdirSync(join(repo.home, 'projects', 'shop', 'tasks', name), { recursive: true })
+    writeFileSync(
+      join(repo.home, 'projects', 'shop', 'tasks', name, 'task.yaml'),
+      [
         `id: shop/${name}`,
         'project: shop',
         `intent_spoken: ${intent}`,
@@ -39,10 +44,8 @@ function sharedCheckout() {
         'workspace: checkout',
         '',
       ].join('\n'),
-    })
+    )
   }
-  repo.git('add', '-A')
-  repo.git('commit', '-q', '-m', 'the tasks themselves')
   /** A commit as Tade writes one: whose it is, in the trailer, read back and never guessed. */
   const commit = (task: string, files: Record<string, string>) => {
     repo.write(files)
@@ -57,7 +60,7 @@ describe('the watches that are on without anybody turning one on', () => {
   it('is both halves of the loop: the reading, and the sweep that closes it', async () => {
     const repo = mkrepo()
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: offline,
@@ -94,7 +97,7 @@ describe('the watches that are on without anybody turning one on', () => {
 
   it('is on for nobody with no key: no schedule, no look, no file, no noise', async () => {
     const repo = mkrepo()
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const loaded = await host({
       home,
       projects: { shop: { root: repo.root } },
@@ -126,7 +129,7 @@ describe('a shared checkout is read one agent at a time', () => {
     commit('tidy-receipts', { 'src/receipt.ts': 'export const receipt = () => {}\n' })
     const seen: unknown[] = []
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: typesafe({ test_missing: 0.9 }, seen),
@@ -186,7 +189,7 @@ describe('a shared checkout is read one agent at a time', () => {
     repo.git('add', '-A')
     repo.git('commit', '-q', '-m', 'a task file')
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: typesafe({ test_missing: 0.9 }),
@@ -205,7 +208,7 @@ describe('a shared checkout is read one agent at a time', () => {
     const { repo, commit } = sharedCheckout()
     commit('add-refunds', { 'src/refund.ts': 'export const refund = () => {}\n' })
     commit('tidy-receipts', { 'src/receipt.ts': 'export const receipt = () => {}\n' })
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const loaded = await host({
       home,
       projects: { shop: { root: repo.root } },
@@ -248,7 +251,7 @@ describe('a shared checkout is read one agent at a time', () => {
     const { repo, commit } = sharedCheckout()
     commit('tidy-receipts', { 'src/receipt.ts': 'export const receipt = () => {}\n' })
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: typesafe({ test_missing: 0.9 }),
@@ -276,7 +279,7 @@ describe('a shared checkout is read one agent at a time', () => {
     const { repo, commit } = sharedCheckout()
     commit('add-refunds', { 'src/refund.ts': 'export const refund = () => {}\n' })
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: typesafe({ test_missing: 0.9 }),
@@ -297,7 +300,7 @@ describe("a finding's key is one change, for ever", () => {
     commit('add-refunds', { 'src/refund.ts': 'export const refund = () => {}\n' })
     const head = repo.head()
     const base = repo.git('rev-parse', 'HEAD~1').trim()
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const loaded = await host({
       home,
       projects: { shop: { root: repo.root } },
@@ -332,7 +335,7 @@ describe('what a question cannot be about is dropped before anybody is asked', (
     })
     const seen: unknown[] = []
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: typesafe({}, seen),

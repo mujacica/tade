@@ -44,13 +44,19 @@ export function runGit(cwd: string, ...args: string[]): string {
 export interface TaskOptions {
   project: string
   intent?: string
-  /** Write `.tade/task.yaml` verbatim instead of generating it. */
+  /** Write the task file verbatim instead of generating it. */
   rawTaskYaml?: string
   parked?: boolean
 }
 
 export interface Repo {
   root: string
+  /**
+   * Tade's home for this fixture: where task files, check runs and everything
+   * else Tade writes about this project goes. Pass it as `TADE_HOME`, or as
+   * `tadeHome` to anything that reads them.
+   */
+  home: string
   git(...args: string[]): string
   write(files: Record<string, string>, dir?: string): void
   commit(message: string, files?: Record<string, string>, dir?: string): string
@@ -59,20 +65,25 @@ export interface Repo {
   addTask(name: string, opts: TaskOptions): string
 }
 
-export function mkrepo(opts: { remote?: boolean } = {}): Repo & { remote: string | null } {
+export function mkrepo(
+  opts: { remote?: boolean; home?: string } = {},
+): Repo & { remote: string | null } {
   const base = tmp('tade-repo-')
   const root = join(base, 'repo')
   mkdirSync(root)
-  // Deliberately NOT excluding `.tade/`: this is a repository Tade has not
-  // worked in yet, which is what every project is until it has. The rules
-  // arrive here the way they arrive anywhere — `createTask` writes them — so
-  // a test that goes through the workbench gets what a user gets, and one
-  // that builds `.tade/` by hand sees it untracked, which is how excluding it
-  // once concealed a broken teardown.
+  // No ignore rules of any kind, and none are ever added: nothing Tade writes
+  // is in a checkout, so a repository Tade has worked in for a year looks
+  // exactly like this one. A fixture that had to be told to ignore something
+  // would be a fixture kinder than reality in the one place that used to bite.
+  // One home may be shared by several fixture repositories, the way one Tade
+  // home holds several projects.
+  const home = opts.home ?? join(base, 'tade-home')
+  mkdirSync(home, { recursive: true })
   runGit(root, 'init', '-q', '-b', 'main')
 
   const repo: Repo & { remote: string | null } = {
     root,
+    home,
     remote: null,
     git: (...args) => runGit(root, ...args),
     write(files, dir = root) {
@@ -97,7 +108,10 @@ export function mkrepo(opts: { remote?: boolean } = {}): Repo & { remote: string
       const path = join(base, 'worktrees', `${t.project}-${name}`)
       const baseSha = repo.head()
       runGit(root, 'worktree', 'add', '-q', '-b', `tade/${name}`, path, 'main')
-      mkdirSync(join(path, '.tade'), { recursive: true })
+      // Where a task's file actually is: Tade's home, under its project —
+      // never the worktree, which is only the work.
+      const dir = join(home, 'projects', t.project, 'tasks', name)
+      mkdirSync(dir, { recursive: true })
       const yaml =
         t.rawTaskYaml ??
         stringify({
@@ -108,7 +122,7 @@ export function mkrepo(opts: { remote?: boolean } = {}): Repo & { remote: string
           base: baseSha,
           parked: t.parked ?? false,
         })
-      writeFileSync(join(path, '.tade', 'task.yaml'), yaml)
+      writeFileSync(join(dir, 'task.yaml'), yaml)
       return path
     },
   }

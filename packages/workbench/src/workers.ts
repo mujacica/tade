@@ -39,10 +39,7 @@ export interface StartRunRequest {
   prompt: string
   run?: RunId
   model?: WorkerModel
-  /**
-   * Boundary for policy decisions: writes inside are routine, outside are not.
-   * Defaults to `cwd`, which is the task's worktree in normal use.
-   */
+  /** Boundary for policy: writes inside routine, outside not. `cwd` — the task's — unless said. */
   worktree?: string
   /** What extensions add to it: instructions, tools, harness-native pieces. */
   extras?: WorkerExtras
@@ -81,6 +78,8 @@ export interface PendingApproval {
 }
 
 export interface WorkerSupervisorOptions {
+  /** Tade's home: where a task's own file is, and so what it says it produces. */
+  home: string
   /** The adapter for the default harness. */
   adapter: WorkerAdapter
   /** Every harness's adapter, by id, for agents on another one. */
@@ -88,7 +87,7 @@ export interface WorkerSupervisorOptions {
   log: EventLog
   approvals: ApprovalSettings
   /** An agent said what its work is called. */
-  onTitle?: (task: TaskId, worktree: string, title: string, named: boolean) => void
+  onTitle?: (task: TaskId, title: string, named: boolean) => void
   /**
    * An agent called an extension tool. Whatever this answers — or the reason
    * it threw — goes back to the agent as the tool's result.
@@ -208,6 +207,7 @@ export interface RunVitals {
 }
 
 export class WorkerSupervisor {
+  private readonly home: string
   private readonly adapter: WorkerAdapter
   /** By harness, and by `harness@account` for an account other than a harness's own. */
   private readonly adapters: Record<string, WorkerAdapter>
@@ -259,6 +259,7 @@ export class WorkerSupervisor {
   private readonly timing: AgentTurns
 
   constructor(opts: WorkerSupervisorOptions) {
+    this.home = opts.home
     this.adapter = opts.adapter
     this.adapters = { [opts.adapter.id]: opts.adapter, ...opts.adapters }
     this.log = opts.log
@@ -587,7 +588,7 @@ export class WorkerSupervisor {
         return
       }
       case 'done': {
-        const made = await producedDetail(state?.worktree, task)
+        const made = await producedDetail(this.home, state?.worktree, task)
         const detail = { by: 'agent', summary: signal.summary, ...made }
         await this.log.append({ type: 'task_done', task, run, detail })
         return
@@ -610,7 +611,7 @@ export class WorkerSupervisor {
         if (task) this.noteVitals(task, signal)
         return
       case 'titled':
-        if (state) this.onTitle?.(state.task, state.worktree, signal.title, signal.named)
+        if (state) this.onTitle?.(state.task, signal.title, signal.named)
         return
       case 'extension_call':
         await this.answerExtensionCall(run, signal, state)

@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type LaneId, sharedTaskDir } from '@tade/core'
+import { type LaneId, taskDir } from '@tade/core'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
@@ -21,20 +21,20 @@ describe('the lane registry, across a restart', () => {
 
   /** A Tade session: the registry a window would hold while it is open. */
   async function session(driver: PtyDriver | TmuxDriver): Promise<LaneRegistry> {
-    const registry = await LaneRegistry.open({ driver, log, path })
+    const registry = await LaneRegistry.open({ driver, log, home, path })
     open.push(registry)
     return registry
   }
 
   /**
-   * The task file a real task has where its agent works. The registry keeps a
+   * The task file a real task has in Tade's home. The registry keeps a
    * dead lane's spec so the work can be put back, and reads this to find out
    * whether there is still work to put it back into — so a fixture without
    * one is a fixture of a task that has been removed, which is not what any
    * of these tests are about.
    */
   function taskFile(task: string): void {
-    const dir = join(home, sharedTaskDir(task))
+    const dir = taskDir(home, task)
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'task.yaml'), `id: ${task}\n`)
   }
@@ -107,6 +107,7 @@ describe('the lane registry, across a restart', () => {
       const second = await LaneRegistry.open({
         driver: tmux(),
         log,
+        home,
         path: join(home, 'other-lanes.json'),
       })
       open.push(second)
@@ -210,7 +211,7 @@ describe('the lane registry, across a restart', () => {
       await first.detach()
 
       // What `removeTask` leaves behind: the task's own folder, gone.
-      rmSync(join(home, sharedTaskDir('app/removed')), { recursive: true, force: true })
+      rmSync(taskDir(home, 'app/removed'), { recursive: true, force: true })
 
       const second = await session(new PtyDriver({ scrollback: 200 }))
       expect(second.get('app/removed/agent' as LaneId)).toBeNull()
@@ -229,7 +230,7 @@ describe('the lane registry, across a restart', () => {
       const first = await session(new PtyDriver({ scrollback: 200 }))
       await lane(first, 'app/lost/agent')
       await first.detach()
-      rmSync(join(home, sharedTaskDir('app/lost')), { recursive: true, force: true })
+      rmSync(taskDir(home, 'app/lost'), { recursive: true, force: true })
 
       const second = await session(new PtyDriver({ scrollback: 200 }))
       expect(second.get('app/lost/agent' as LaneId)).toMatchObject({ alive: false, lost: true })

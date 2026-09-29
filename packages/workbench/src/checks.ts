@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import {
   type Check,
   type CheckLog,
@@ -19,11 +20,39 @@ import {
   type ChecksConfig,
   type Config,
   checksFor,
+  expandHome,
   overrideFor,
+  recordsDir,
   runsBefore,
   type TadeEvent,
 } from '@tade/core'
 import { makeRunner } from './runners.ts'
+
+/**
+ * Whether this directory is the project's own checkout, which every task in it
+ * shares — so one lock and one history of runs, however many agents are in it.
+ */
+export function sharesCheckout(config: Config, project: string, worktree: string): boolean {
+  const root = config.projects[project]?.root
+  return root !== undefined && resolve(expandHome(root)) === resolve(worktree)
+}
+
+/**
+ * Whose records a run in this worktree is: the task's where it has a worktree
+ * of its own, and the project's where the worktree *is* the project's checkout.
+ *
+ * Asked of the directory rather than of the task, because that is what a run
+ * is about: `checks_run` from four agents in one checkout must reach one lock.
+ */
+function whose(opts: {
+  config: Config
+  project: string
+  worktree: string
+  task?: string | null
+}): string | null {
+  if (!opts.task || sharesCheckout(opts.config, opts.project, opts.worktree)) return null
+  return opts.task
+}
 
 // Running a project's own checks, and the rule about pushing without them.
 //
@@ -66,6 +95,10 @@ export async function checksAt(opts: {
   config: Config
   project: string
   worktree: string
+  /** Tade's own home, where what ran in this worktree is written down. */
+  tadeHome: string
+  /** The task whose worktree this is, where it has one of its own. */
+  task?: string | null
   commit: string | null
   changed?: readonly string[]
 }): Promise<ProjectChecks> {
@@ -82,7 +115,8 @@ export async function checksAt(opts: {
   })
   // A run recorded under a step's earlier name still speaks for it where it
   // ran the same command, so retitling a step costs no history.
-  const runs = followRenames(read.checks, await readRuns(opts.worktree))
+  const records = recordsDir(opts.tadeHome, opts.project, whose(opts))
+  const runs = followRenames(read.checks, await readRuns(records))
   // A run is about a tree, not a commit id: one taken just before the commit
   // that holds exactly what it read still speaks for it. Anything else — a
   // partial commit, somebody else's file caught in the run — does not.
@@ -95,7 +129,7 @@ export async function checksAt(opts: {
     carried: at.carried ?? new Set(),
     rollup: rollup(plan, runs, at),
     rule,
-    running: await runningIn(opts.worktree),
+    running: await runningIn(records),
   }
 }
 
@@ -104,9 +138,14 @@ export async function runProjectChecks(opts: {
   config: Config
   project: string
   worktree: string
+  /** The task whose worktree this is, where it has one of its own. */
+  task?: string | null
   commit: string
   by: string
+  /** $HOME, so a tail says `~` rather than where you live. */
   home: string
+  /** Tade's own home, where what ran here is written down. */
+  tadeHome: string
   only?: readonly string[]
   changed?: readonly string[]
   runner?: Runner
@@ -131,6 +170,7 @@ export async function runProjectChecks(opts: {
   return runChecks({
     runner,
     project: { name: opts.project, root: opts.worktree },
+    records: recordsDir(opts.tadeHome, opts.project, whose(opts)),
     checks: plan,
     commit: opts.commit,
     by: opts.by,
@@ -171,6 +211,8 @@ export interface GateCall {
 
 export interface GateOptions {
   config: Config
+  /** Tade's own home, where what ran in a worktree is written down. */
+  tadeHome: string
   /** The journal, for the overrides written in it. Read, never remembered. */
   events: () => Promise<readonly TadeEvent[]>
   /** The commit the worktree is on, so a run can be matched to it. */
@@ -195,6 +237,8 @@ export function checksGate(options: GateOptions): (call: GateCall) => Promise<Ga
       config: options.config,
       project: call.project,
       worktree: call.worktree,
+      tadeHome: options.tadeHome,
+      task: call.task,
       commit,
     })
     if (stood.plan.length === 0) return { allow: true }

@@ -15,7 +15,7 @@
  ▸ NOTES  4             +    █│                                                                                         
  ▾ GIT                       █│                                                                                         
    repo     ~/src/checkout   █│                                                                                         
-   branch   …e/fix-shop-1a   █│Reading .tade/context.md for SHOP-1A before touching src/refunds.ts                      
+   branch   …e/fix-shop-1a   █│Reading what Tade left about SHOP-1A before touching src/refunds.ts                      
    from     main             █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
    about    SHOP-1A ↗        █│  │ bash  npm i stripe@15                                        │                       
    about    trace a1b2c3d4 ↗ ▕│  │   Allow once     Deny                                        │                       

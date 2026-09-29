@@ -41,5 +41,5 @@ description: How to run a project's own checks through Tade before committing or
    in a shared checkout — call `checks_override` with the scope and the reason in your own words,
    then push. It is written down with your name on it, the person is told what you said, and the
    red run stays red. Never use it because a check is slow.
-10. **Never edit `.tade/checks.jsonl` or `.tade/checks.lock`.** They are Tade's record of what ran;
+10. **Never edit `checks.jsonl` or `checks.lock` in Tade's home.** They are its record of what ran;
    changing them is claiming something ran when it did not.

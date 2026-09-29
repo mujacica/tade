@@ -92,14 +92,14 @@ attached to the decision it governs. Load the matching one rather than working f
   failed, timed out — three cases, never one, and a failed look degrades to the last scan that could
   rather than to an empty list, which everything above reads as "nothing is running".
 - **Two things are written down because they cannot be asked again**: `commit_seen` keyed by sha
-  (`git log` answers differently after a rebase) and `check_ran` keyed by run id
-  (`.tade/checks.jsonl` dies with its worktree).
+  (`git log` answers differently after a rebase) and `check_ran` keyed by run id (`checks.jsonl` dies
+  with its task).
 
 ### Git, tests and fixtures
 
 - Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. **Never mock git.**
-- **A fixture must not be kinder than reality** — `mkrepo` leaves `.tade/` untracked *and* unignored,
-  because a repository Tade has not worked in yet does.
+- **A fixture must not be kinder than reality** — `mkrepo` puts nothing of Tade's in a checkout and
+  writes no ignore rule; its task files go in `repo.home`.
 - Git is invoked directly with `--porcelain=v2` / `-z`. No git wrapper libraries.
 - Parsers of external formats (provider transcripts) return `null` on unknown shapes, never throw.
 
@@ -121,9 +121,9 @@ attached to the decision it governs. Load the matching one rather than working f
 - **A task is finished when the journal says so** (`task_done`); the rule is `done` in its task file.
   Never infer it from a turn ending — an agent that asked a question looks the same — or from an agent
   having stopped, which is `review`.
-- **A task may say what it produces** (`produces`, beside `done` and `start`): the path rides on
-  `task_done` (`producedDetail`), `producesProblem` refuses anything under `.tade/`, and what has been
-  done about one is derived (`producedIn`), never remembered.
+- **A task may say what it produces** (`produces`, beside `done` and `start`): the path is one in the
+  repository (`producesProblem`), it rides on `task_done` (`producedDetail`), and what has been done
+  about one is derived (`producedIn`), never remembered.
 - **Queued work is a task with `start` in its task file.** The window starts it by rule
   (`readyToStart`), never a model deciding again, and writes why. **Evidence may only ever hold**: the
   start-time look at the trees reaches that rule through `queueStateOf`, and a written `order` is only
@@ -142,12 +142,13 @@ attached to the decision it governs. Load the matching one rather than working f
 
 - **Agents work where the *project* says, and the machine's answer is only its default.**
   `workspaceFor(config, project)` (`core/src/project.ts`) is the one reader; nothing asks the machine.
-  `checkout` (the default) is every agent in the project's own checkout, each task a folder under
-  `.tade/tasks/<name>`; `worktree` is a worktree and branch each. **Nothing that runs git on a task's
-  directory may assume the directory is the task's alone — ask `task.workspace`.**
-- **Everything Tade writes under a project is ignored, with no exception** (`ensureIgnored`, held by
-  `test/own-files.test.ts`): `/.tade/*` appended to the project's `.gitignore`, once, never edited,
-  never committed — and `.gitignore` rather than `.git/info/exclude`, because what went wrong is a push.
+  `checkout` (the default) is every agent in the project's own checkout; `worktree` is a worktree and
+  branch each. **Nothing that runs git on a task's directory may assume the directory is the task's
+  alone — ask `task.workspace`.**
+- **Nothing Tade writes is inside a project** (`core/src/home.ts`, held by `test/own-files.test.ts`):
+  task files, context, attachments, check runs and locks live under `<TADE_HOME>/projects/<name>/`, so
+  no project needs a `.gitignore` line and none is written; `removeOwnIgnore` takes back one an older
+  Tade wrote, whose `.tade/` is **not read or migrated**.
 - **Closing a project is not forgetting its work**: it leaves the folder, the branches and the journal,
   and no tool removes a worktree, deletes a branch or deletes a folder.
 
@@ -325,8 +326,8 @@ The whole of it is the `change-the-window` skill. The rules that break things qu
 - **`--safe` loads none of yours and must keep working with a broken one in the folder**, and Tade's
   own tools always load first, so a self-written one can never shadow `status` or `approve`.
 - **Extensions run in the window, and work happens in agents**: **a tool that changes a project starts
-  an agent in a worktree** (`ctx.tade.startAgent`) with what it found in `.tade/context.md`, never the
-  project's own checkout. Tool names start with the extension's name, `ready()` never touches the
+  an agent in a worktree** (`ctx.tade.startAgent`) with what it found in the task's context file,
+  never the project's own checkout. Tool names start with the extension's name, `ready()` never touches the
   network, and a broken extension is listed as broken rather than stopping anything else.
 - **An MCP server somebody turns on is an extension whose tools are that server's tools**, and the
   window is the only client. **A server that is off is never connected and never declared** —
@@ -374,7 +375,7 @@ Recipes: `set-up-the-machine` and `cut-a-release`.
   **changing how anything looks means redrawing them in the same commit** (`redraw-the-pictures`).
   Never advertise what is not built — that goes under Planned, at its port.
 - **There is no `docs/` folder, and adding one is going backwards** (`test/guide.test.ts` fails if it
-  comes back, and carries the argument). A plan lives in the work — the task, its `.tade/context.md`,
+  comes back, and carries the argument). A plan lives in the work — the task, its context file,
   the agent's conversation — then in the commit and the review that carry it across sittings, then in
   whatever fails when it stops being true: an invariant here, a recipe, a why beside the code, a test
   with a number in it. **A plan that seems to need a file of its own is a plan whose reasoning has

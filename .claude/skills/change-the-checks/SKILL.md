@@ -24,8 +24,8 @@ and that record.
 | `packages/checks/core/src/plan.ts` | `planFor`, `inOrder`, `matches`: what applies to a commit, and in what order |
 | `packages/checks/core/src/run.ts` | `runChecks`: the one way a run happens — the lock, the record, the row |
 | `packages/checks/core/src/lock.ts` | `takeRunLock`, `waitForRunLock`, `heldBy`: one run at a time per worktree |
-| `packages/checks/core/src/running.ts` | `writeRunning`, `clearRunning`, `runningIn`: what is going on *now*, in `.tade/checks.running.json` |
-| `packages/checks/core/src/records.ts` | `.tade/checks.jsonl`: `writeRun`, `readRuns`, `latestAt`, `rollup`, `At` |
+| `packages/checks/core/src/running.ts` | `writeRunning`, `clearRunning`, `runningIn`: what is going on *now*, in `checks.running.json` |
+| `packages/checks/core/src/records.ts` | `checks.jsonl`: `writeRun`, `readRuns`, `latestAt`, `rollup`, `At` |
 | `packages/checks/core/src/coverage.ts` | `coverageOf`, `coversCommit`, `carryOver`: a run is about a tree |
 | `packages/checks/core/src/outcome.ts` | `readOutcome`: what a run *printed*, read back — `CheckCount`, `CheckPlace` |
 | `packages/checks/core/src/say.ts` | `checkLine`, `glyphOf`, `carriedNote`, `whereOf`: one wording, wherever a run is read |
@@ -118,7 +118,7 @@ and that record.
   (`RunnerError('busy')`). Waiting is the polite half of the same rule.
 - **A suite takes minutes, so a run says what it is doing while it is doing it.** `checks.jsonl`
   holds only what finished; what is going on now is a small file beside it
-  (`.tade/checks.running.json`) that `runChecks` writes at every state change and takes back when
+  (`checks.running.json`) that `runChecks` writes at every state change and takes back when
   the run ends — so the window draws which check is going, how long it has been going and how many
   are done, whoever started it. The lock's rule holds here too (`runningIn` clears a record whose
   pid is gone), so a window killed mid-suite leaves nothing claiming anything is running. What a run
@@ -240,7 +240,7 @@ change the rule), and a tool fails by throwing.
 `redraw-the-pictures`.
 
 **If the `tests` signal moves.** `verifiedAt` (`packages/status/src/tests.ts`) is what `deriveState`
-reads as `tests`, through `followRenames` → `carryOver` → `rollup`, with the old `.tade/tests.json`
+reads as `tests`, through `followRenames` → `carryOver` → `rollup`, with the old `tests.json`
 as the fallback for a project that has no checks or has never run one through Tade. Changing it is
 changing task state: follow `change-task-state`.
 

@@ -36,10 +36,9 @@ const WORKFLOW = ciWorkflow([{ id: 'hello', run: 'echo hello' }])
 
 async function project(workflow = WORKFLOW) {
   const repo = mkrepo()
-  await mkdir(join(repo.root, '.tade'), { recursive: true })
   await mkdir(join(repo.root, '.github', 'workflows'), { recursive: true })
   await writeFile(join(repo.root, CI_WORKFLOW), workflow)
-  const home = tmp('tade-cli-checks-')
+  const home = repo.home
   const config = join(home, 'config.yaml')
   await writeFile(config, `projects:\n  demo:\n    root: ${repo.root}\n`)
   return { repo, home, config, env: { TADE_HOME: home, HOME: home } }
@@ -61,7 +60,8 @@ describe('tade checks', () => {
     expect(ran.stdout).toContain('hello passed')
     const again = await tade(['checks', '--config', where.config, '-p', 'demo'], where.env)
     expect(again.stdout).toContain('passed')
-    const written = await readFile(join(where.repo.root, '.tade', 'checks.jsonl'), 'utf8')
+    // Written in Tade's home, under the project — never in the repository.
+    const written = await readFile(join(where.home, 'projects', 'demo', 'checks.jsonl'), 'utf8')
     expect(written).toContain('"check":"hello"')
   })
 

@@ -26,13 +26,13 @@ export interface TestRecord {
   output: string
 }
 
-export function testsPath(worktree: string): string {
-  return join(worktree, '.tade', 'tests.json')
+export function testsPath(records: string): string {
+  return join(records, 'tests.json')
 }
 
 /** What the recorded run says about the commit checked out now. */
-export async function readTests(worktree: string, head: string | null): Promise<TestSignal> {
-  const record = await readRecord(worktree)
+export async function readTests(records: string, head: string | null): Promise<TestSignal> {
+  const record = await readRecord(records)
   if (!record || !head) return 'unknown'
   // Stale results are worse than none: they would let `review` mean green
   // when the last three commits were never run.
@@ -51,9 +51,11 @@ export async function readTests(worktree: string, head: string | null): Promise<
 export async function verifiedAt(
   worktree: string,
   head: string | null,
-  project?: {
+  project: {
     name: string
     root: string
+    /** Where runs about this worktree are written down: Tade's own folder for it. */
+    records: string
     test?: string | undefined
     /**
      * What somebody said about running each check here (`checks.run_here`).
@@ -65,37 +67,38 @@ export async function verifiedAt(
   },
 ): Promise<TestSignal> {
   const manifest = await readChecks({
-    name: project?.name ?? 'project',
+    name: project.name,
     root: worktree,
-    ...(project?.test ? { test: project.test } : {}),
-    ...(project?.chosen ? { chosen: project.chosen } : {}),
+    ...(project.test ? { test: project.test } : {}),
+    ...(project.chosen ? { chosen: project.chosen } : {}),
   })
-  if (manifest.checks.length === 0) return readTests(worktree, head)
+  const records = project.records
+  if (manifest.checks.length === 0) return readTests(records, head)
   // Runs recorded under a step's earlier name still speak for it, as long as
   // they ran the same command: retitling a step in CI must not read as a check
   // nobody has ever run.
-  const runs = followRenames(manifest.checks, await readRuns(worktree))
+  const runs = followRenames(manifest.checks, await readRuns(records))
   // A run taken just before a commit, over the bytes that commit holds, is a
   // run of this commit whatever it is called: `carryOver` says which those
   // are, and says nothing about any other.
   const state = rollup(manifest.checks, runs, await carryOver(worktree, runs, head)).state
   // A project that has checks but has never run one through Tade still has
   // whatever `tade check` recorded before this existed.
-  return state === 'unknown' ? readTests(worktree, head) : state
+  return state === 'unknown' ? readTests(records, head) : state
 }
 
 /** The whole record, for saying what failed. Null when there is none to read. */
-export async function readRecord(worktree: string): Promise<TestRecord | null> {
+export async function readRecord(records: string): Promise<TestRecord | null> {
   try {
-    return asRecord(JSON.parse(await readFile(testsPath(worktree), 'utf8')))
+    return asRecord(JSON.parse(await readFile(testsPath(records), 'utf8')))
   } catch {
     // Never run, or a file we cannot read: the same answer either way.
     return null
   }
 }
 
-export async function writeTests(worktree: string, record: TestRecord): Promise<void> {
-  const path = testsPath(worktree)
+export async function writeTests(records: string, record: TestRecord): Promise<void> {
+  const path = testsPath(records)
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, `${JSON.stringify(record, null, 2)}\n`)
 }

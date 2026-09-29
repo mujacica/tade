@@ -23,6 +23,7 @@ describe('running a project\u2019s checks', () => {
     const runs = await runChecks({
       runner: makeScriptedRunner({ answers: { tests: { state: 'failed', tail: 'boom' } } }),
       project: { name: 'demo', root },
+      records: root,
       checks: [check('format'), check('tests')],
       commit: 'a1b2c3d4e5',
       by: 'demo/task',
@@ -40,6 +41,7 @@ describe('running a project\u2019s checks', () => {
     const ran = await runChecks({
       runner: makeScriptedRunner({}),
       project: { name: 'demo', root: repo.root },
+      records: repo.root,
       checks: [check('format'), check('tests')],
       commit: repo.head(),
       by: 'demo/task',
@@ -58,6 +60,7 @@ describe('running a project\u2019s checks', () => {
     const runs = await runChecks({
       runner: makeScriptedRunner({}),
       project: { name: 'demo', root },
+      records: root,
       checks: [check('deploy', { skip: 'needs CI: it uses a secret' })],
       commit: 'a1b2c3d4e5',
       by: 'you',
@@ -73,6 +76,7 @@ describe('running a project\u2019s checks', () => {
       await runChecks({
         runner: makeScriptedRunner({}),
         project: { name: 'demo', root },
+        records: root,
         checks: [check('tests', { alone: true })],
         commit: 'a1b2c3d4e5',
         by: 'you',
@@ -94,6 +98,7 @@ describe('running a project\u2019s checks', () => {
     const args = {
       runner: makeScriptedRunner({}),
       project: { name: 'demo', root },
+      records: root,
       checks: [check('tests', { alone: true })],
       commit: 'a1b2c3d4e5',
       by: 'you',

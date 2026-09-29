@@ -51,8 +51,9 @@ agent on the auth bug" and getting a status report back.
 
 It costs money and needs credentials, so it is skipped unless `TADE_LIVE=1` asks for it, which is
 how it came never to have been run at all, through three rewrites of those descriptions. So a green
-run writes down which commit it went green against — `.tade/live.json`, ignored like everything else
-Tade writes under there — and `pnpm release` reads it (`liveTrouble`, in `repo.ts`): no receipt, or
+run writes down which commit it went green against — `<TADE_HOME>/projects/tade/live.json`, where
+everything else Tade writes about a project goes, never in the checkout — and `pnpm release` reads it
+(`LIVE` and `liveTrouble`, in `repo.ts`, which the test imports so the two cannot drift): no receipt, or
 a receipt naming another commit, and the release is refused with the command to run. It is a pure
 function of the receipt and the commit, so the refusal itself is tested. The dry run says the same
 thing instead of refusing, because a rehearsal that costs a model call is a rehearsal nobody does.

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { effortSays, effortsIn, workspaceFor } from '@tade/core'
+import { effortSays, effortsIn, taskDir, workspaceFor } from '@tade/core'
 import { collectStatus } from '@tade/status'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
@@ -61,13 +61,16 @@ describe('two projects, two answers', () => {
     const inShop = await client.createTask({ project: 'shop', slug: 'refunds', intent: 'refunds' })
     const inDocs = await client.createTask({ project: 'docs', slug: 'guide', intent: 'guide' })
 
-    // Shared: a folder under the project's own checkout, on the branch it is on.
+    // Shared: the project's own checkout, on the branch it is on — and its task
+    // file in Tade's home, which is where both kinds of task keep theirs.
     expect(inShop).toMatchObject({ workspace: 'checkout', worktree: shared.root, branch: 'main' })
-    expect(existsSync(join(shared.root, '.tade', 'tasks', 'refunds', 'task.yaml'))).toBe(true)
+    expect(existsSync(join(taskDir(home, 'shop/refunds'), 'task.yaml'))).toBe(true)
+    expect(existsSync(join(shared.root, '.tade'))).toBe(false)
     // Its own: a worktree and a branch named for the work.
     expect(inDocs).toMatchObject({ workspace: 'worktree', branch: 'tade/guide' })
     expect(inDocs.worktree).not.toBe(apart.root)
-    expect(existsSync(join(inDocs.worktree, '.tade', 'task.yaml'))).toBe(true)
+    expect(existsSync(join(taskDir(home, 'docs/guide'), 'task.yaml'))).toBe(true)
+    expect(existsSync(join(inDocs.worktree, '.tade'))).toBe(false)
   })
 
   it('refuses a done rule the shared checkout cannot keep, and keeps it where it can', async () => {
@@ -87,7 +90,13 @@ describe('two projects, two answers', () => {
     await client.createTask({ project: 'shop', slug: 'refunds', intent: 'refunds' })
     const docs = await client.createTask({ project: 'docs', slug: 'guide', intent: 'guide' })
 
-    const seen = await collectStatus({ config: client.config, now: Date.now(), home, pr: false })
+    const seen = await collectStatus({
+      config: client.config,
+      now: Date.now(),
+      home,
+      tadeHome: home,
+      pr: false,
+    })
     const found = Object.fromEntries(
       seen.projects.flatMap((project) => project.tasks.map((task) => [task.id, task])),
     )
@@ -109,7 +118,7 @@ describe('two projects, two answers', () => {
       task: 'shop/refunds',
     })
     expect(gone).toEqual({ removed: true, branchDeleted: false })
-    expect(existsSync(join(shared.root, '.tade', 'tasks', 'refunds'))).toBe(false)
+    expect(existsSync(taskDir(home, 'shop/refunds'))).toBe(false)
     expect(existsSync(shared.root)).toBe(true)
     expect(shared.git('rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main')
 
@@ -184,14 +193,7 @@ describe('a change that spans repositories', () => {
 
     // The wait is kept as the qualified id, which is what lets it cross.
     const file = parseYaml(
-      readFileSync(
-        join(
-          made.made.find((task) => task.project === 'cli')?.worktree ?? '',
-          '.tade',
-          'task.yaml',
-        ),
-        'utf8',
-      ),
+      readFileSync(join(taskDir(home, 'cli/oauth-scopes'), 'task.yaml'), 'utf8'),
     )
     expect(file.start.after).toEqual([
       { task: 'api/oauth-scopes', why: 'the scopes have to land first' },
@@ -228,7 +230,13 @@ describe('a change that spans repositories', () => {
 
   it('is a list until every part of it has finished, and says which part is not', async () => {
     await client.planTasks(plan)
-    const seen = await collectStatus({ config: client.config, now: Date.now(), home, pr: false })
+    const seen = await collectStatus({
+      config: client.config,
+      now: Date.now(),
+      home,
+      tadeHome: home,
+      pr: false,
+    })
     const tasks = seen.projects.flatMap((project) => project.tasks)
 
     const nothingDone = effortsIn(tasks)

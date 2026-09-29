@@ -97,6 +97,7 @@ async function liveOver(
     client: watched,
     config: ConfigSchema.parse({ projects: {} }),
     home,
+    tadeHome: home,
     // Far longer than the test: what the beat looks at is not what is measured
     // here, and a probe racing a background refresh measures the refresh.
     pollMs: 600_000,

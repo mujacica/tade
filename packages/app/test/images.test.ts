@@ -63,28 +63,30 @@ describe('a dropped picture', () => {
 })
 
 describe('files handed to an agent', () => {
-  it('are copied where it works and named in what it is told, pictures sent along', async () => {
+  it('are copied into the task’s own folder and named in full, pictures sent along', async () => {
     const from = tmp('tade-attached-')
     const shot = join(from, 'shot.png')
     const notes = join(from, 'notes.txt')
     writeFileSync(shot, Buffer.from('89504e470d0a1a0a', 'hex'))
     writeFileSync(notes, 'the numbers')
-    const cwd = tmp('tade-checkout-')
+    // Where `taskDir` puts them: Tade's home, never the agent's checkout.
+    const dir = join(tmp('tade-own-'), 'projects', 'app', 'tasks', 'refunds', 'attachments')
 
-    const handed = await handOffFiles([shot, notes, join(from, 'deleted.png')], cwd)
-    expect(existsSync(join(cwd, '.tade', 'attachments', 'shot.png'))).toBe(true)
-    expect(existsSync(join(cwd, '.tade', 'attachments', 'notes.txt'))).toBe(true)
+    const handed = await handOffFiles([shot, notes, join(from, 'deleted.png')], dir)
+    expect(existsSync(join(dir, 'shot.png'))).toBe(true)
+    expect(existsSync(join(dir, 'notes.txt'))).toBe(true)
+    // The whole path, because it is nowhere the agent would look otherwise.
     expect(handed.note).toBe(
-      'Attachments are in .tade/attachments/: shot.png, notes.txt. Also attached, but gone before it could be copied: deleted.png.',
+      `Attachments are in ${dir}/: shot.png, notes.txt. Also attached, but gone before it could be copied: deleted.png.`,
     )
     expect(handed.images.map((image) => image.mimeType)).toEqual(['image/png'])
   })
 
   it('are nothing at all when nothing was attached', async () => {
-    const cwd = tmp('tade-checkout-')
-    expect(await handOffFiles([], cwd)).toEqual({ note: '', images: [] })
-    // Not even the folder: an agent's checkout is not ours to litter.
-    expect(existsSync(join(cwd, '.tade'))).toBe(false)
+    const dir = join(tmp('tade-own-'), 'attachments')
+    expect(await handOffFiles([], dir)).toEqual({ note: '', images: [] })
+    // Not even the folder: a folder nobody put anything in is litter too.
+    expect(existsSync(dir)).toBe(false)
   })
 })
 

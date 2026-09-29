@@ -306,8 +306,9 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     repo.commit('first')
     repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge on retries' })
     repo.addTask('search', { project: 'app', intent: 'search is slow above ten thousand rows' })
-    // A tmp home, so status never reads the real machine's agent transcripts.
-    home = tmp('tade-app-')
+    // The fixture's own home, so status never reads the real machine's agent
+    // transcripts — and so the tasks it just made are the ones it finds.
+    home = repo.home
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home })
     terminal = new FakeTerminal()

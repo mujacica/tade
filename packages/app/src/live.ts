@@ -271,9 +271,6 @@ export function changesFrom(nameStatus: string, numstat: string, status = ''): C
 
   const out: Change[] = []
   for (const [path, mark] of seen) {
-    // Tade's own record of the task is untracked on purpose, and is not a
-    // change anybody made to the work.
-    if (path === '.tade' || path.startsWith('.tade/')) continue
     const counted = counts.get(path)
     out.push({ path, mark, added: counted?.added ?? null, removed: counted?.removed ?? null })
   }
@@ -351,6 +348,8 @@ export interface LiveOptions {
   config: Config
   /** $HOME, for finding agent sessions started outside Tade. */
   home: string
+  /** Tade's own home, where every task's file and every check run is. */
+  tadeHome: string
   cwd?: string
   pollMs?: number
   now?: () => number
@@ -833,7 +832,13 @@ export class Live {
       ...(from ? [`${from}..HEAD`] : []),
     ])
     const commits = log.ok ? commitsFrom(log.stdout) : []
-    const stood = await checksAt({ config: this.opts.config, project, worktree: root, commit })
+    const stood = await checksAt({
+      config: this.opts.config,
+      project,
+      worktree: root,
+      tadeHome: this.opts.tadeHome,
+      commit,
+    })
     const going = stood.running
     const checks: CheckView[] = stood.plan.map((check) => {
       const run = stood.at.find((one) => one.check === check.id)
@@ -1137,6 +1142,7 @@ export class Live {
           config: this.opts.config,
           now: this.now(),
           home: this.opts.home,
+          tadeHome: this.opts.tadeHome,
           pr: false,
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
           liveness: livenessFrom(this.opts.client),

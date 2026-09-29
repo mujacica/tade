@@ -127,10 +127,10 @@ export class Images implements Subject {
 
   /**
    * What goes with the prompt of an agent the orchestrator starts while
-   * answering you: the files you attached, copied where it works.
+   * answering you: the files you attached, copied into the task's own folder.
    */
-  handOff(cwd: string): Promise<{ note: string; images: WorkerImageFile[] }> {
-    return handOffFiles(this.deps.answering(), cwd)
+  handOff(dir: string): Promise<{ note: string; images: WorkerImageFile[] }> {
+    return handOffFiles(this.deps.answering(), dir)
   }
 
   /**

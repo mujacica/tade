@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { watchSchedule } from '@tade/core'
+import { taskDir, watchSchedule } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -175,10 +175,7 @@ describe('the window, and what it watches', () => {
         ),
       SPAWNING_MS,
     )
-    const file = readFileSync(
-      join(repo.root, '.tade', 'tasks', 'bring-in-shed', 'task.yaml'),
-      'utf8',
-    )
+    const file = readFileSync(join(taskDir(home, 'app/bring-in-shed'), 'task.yaml'), 'utf8')
     expect(file).toContain('by: schedule:rain')
     // The panel is over the conversation, which is where Tade says what a
     // watch found: close it, and there it is.

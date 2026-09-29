@@ -38,20 +38,16 @@ in step.
   with `HomeBusyError`. So an operation that only *reads* — the journal, the notes, git — must not
   need it. Use `readJournal(home)` or `Memory.open(home)` and leave the lock alone; a question you
   cannot ask while a window is open is a question people will stop asking.
-- **A new file under `.tade/` is already ignored, and that is the answer you want.** The rule is a
-  plain denial (`IGNORE_RULES` in `ignore.ts`: `/.tade/*`), written that way so whatever Tade learns
-  to write next is out of somebody's history the day it is written. There is no exception, and adding
-  one is almost certainly the wrong move: `checks.yaml` was the only one there has ever been, and it
-  is gone because what a project checks is read out of its own CI and its own commit hook rather than
-  written down twice. A file is only the *project's* if a person edits it, it means the same on
-  another machine, and something holds it honest. If you do add an exception, put it after the
-  denial: order matters, and a negation git never reaches does nothing. Never exclude a folder
-  (`/.tade/`) rather than its contents, or
-  nothing under it can be put back. **And the append says so in the journal** (`ignore_written`: the
-  project, the path, the lines added, and that nothing commits it) — this is the only file Tade
-  changes in somebody else's repository, and a line in the record is what makes that undoable rather
-  than mysterious. It fires only when something was actually added, because `ensureIgnored` asks git
-  whether the outcome already holds however somebody spelled it.
+- **A new file Tade writes about a project goes in Tade's home, never in the project.** `projectDir`,
+  `taskDir` and `recordsDir` (`core/src/home.ts`) are the only roots: the project's folder for
+  anything about the checkout everybody shares, the task's for anything about one task's own
+  directory. There is no ignore rule any more and nothing may bring one back — a file under a
+  project's `.tade/` needed one, and the one Tade used to append is taken back out
+  (`removeOwnIgnore`, `ignore_removed`), which is the only thing Tade still changes in somebody
+  else's repository. The exception that proves the rule is a file that is genuinely the *project's*:
+  a person edits it, it means the same on another machine, and something holds it honest. There has
+  never been one — `checks.yaml` was the closest, and it is gone because what a project checks is
+  read out of its own CI and its own commit hook rather than written down twice.
 - **Never report a lane as alive without evidence from the driver.** A live pid says something is
   running, not that we can drive it. `reconcile` asks the driver and takes its answer.
 - **`close()` lets go; `stopEverything()` ends the work.** Closing Tade must never stop agents that

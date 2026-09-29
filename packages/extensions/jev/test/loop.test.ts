@@ -46,7 +46,7 @@ async function flagged(options: { home?: string; now?: number } = {}) {
   const repo = mkrepo()
   const worktree = repo.addTask('add-refunds', { project: 'shop', intent: 'add refunds' })
   repo.commit('refund', { 'src/refund.ts': 'export const refund = () => {}\n' }, worktree)
-  const home = options.home ?? tmp('tade-jev-')
+  const home = options.home ?? repo.home
   const loaded = await host({
     home,
     projects: { shop: { root: repo.root } },

@@ -117,17 +117,21 @@ export function readImage(path: string): { path: string; data: string; mimeType:
 }
 
 /**
- * Files handed to an agent: copied into `.tade/attachments` where it works,
- * so it can open them, a sentence saying where they are, and the pictures
- * among them to send with its prompt. A file gone by now is said to be gone,
- * rather than dropped without a word.
+ * Files handed to an agent: copied into the task's own attachments folder, so
+ * it can open them, a sentence saying where they are, and the pictures among
+ * them to send with its prompt. A file gone by now is said to be gone, rather
+ * than dropped without a word.
+ *
+ * The folder is Tade's, not the repository's, so the sentence carries the
+ * whole path: a screenshot somebody pasted is nobody else's, and putting one
+ * where `git status` can see it is what made every project need a rule about
+ * Tade's files.
  */
 export async function handOffFiles(
   paths: readonly string[],
-  cwd: string,
+  dir: string,
 ): Promise<{ note: string; images: { path: string; data: string; mimeType: string }[] }> {
   if (paths.length === 0) return { note: '', images: [] }
-  const dir = join(cwd, '.tade', 'attachments')
   const copied: string[] = []
   const gone: string[] = []
   const images: { path: string; data: string; mimeType: string }[] = []
@@ -145,9 +149,9 @@ export async function handOffFiles(
   }
   const notes = [
     copied.length === 1
-      ? `An attachment is in .tade/attachments/${copied[0]}.`
+      ? `An attachment is at ${join(dir, copied[0] ?? '')}.`
       : copied.length > 1
-        ? `Attachments are in .tade/attachments/: ${copied.join(', ')}.`
+        ? `Attachments are in ${dir}/: ${copied.join(', ')}.`
         : '',
     gone.length > 0 ? `Also attached, but gone before it could be copied: ${gone.join(', ')}.` : '',
   ]

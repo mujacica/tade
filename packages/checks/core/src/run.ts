@@ -17,6 +17,12 @@ import { clearRunning, type RunningCheck, type RunningNow, writeRunning } from '
 export interface RunRequest {
   runner: Runner
   project: ProjectRef
+  /**
+   * Where what happened is written down: Tade's own folder for this directory
+   * (`recordsDir`), never the worktree. One per directory checks run in, which
+   * is what makes the lock mean "somebody is already running the suite here".
+   */
+  records: string
   /** What to run, already planned: `planFor` decided what applies and in what order. */
   checks: readonly Check[]
   /** The commit it is about. A run that does not name one says nothing. */
@@ -40,7 +46,7 @@ export interface RunRequest {
  * somebody else's run did.
  */
 export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
-  const { runner, project, commit, by } = request
+  const { runner, project, records, commit, by } = request
   const now = request.now ?? Date.now
   const plan = request.checks
   if (plan.length === 0) return []
@@ -66,7 +72,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   const toRun = plan.filter((check) => !check.skip)
   if (toRun.length === 0) {
     const all = covering(skipped, await coverageOf(project.root, commit), plan)
-    await record(project.root, all, request)
+    await record(records, all, request)
     return all
   }
 
@@ -74,7 +80,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   // that needs it to itself, or a runner told to do one thing at a time.
   const needsMachine = toRun.some((check) => check.alone)
   const lock = needsMachine
-    ? await waitForRunLock(project.root, toRun.map((check) => check.id).join(', '), {
+    ? await waitForRunLock(records, toRun.map((check) => check.id).join(', '), {
         waitMs: request.waitMs ?? 0,
         now,
       })
@@ -115,14 +121,14 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     at: new Date(now()).toISOString(),
     checks: watched,
   }
-  let told: Promise<void> = writeRunning(project.root, watching)
+  let told: Promise<void> = writeRunning(records, watching)
   const tell = (run: CheckRun) => {
     watched = watched.map((one) => (one.check === run.check ? asRunning(run) : one))
     // Chained rather than raced: two writes of one file must land in the
     // order the states happened, or a watcher sees a finished check go back
     // to running.
     const next = { ...watching, checks: watched }
-    told = told.then(() => writeRunning(project.root, next))
+    told = told.then(() => writeRunning(records, next))
   }
   try {
     const ran = await runner.run(project, toRun, {
@@ -136,11 +142,11 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
       onOutput: (check, chunk) => request.onOutput?.(check, chunk),
     })
     const all = covering([...skipped, ...ran], covered, plan)
-    await record(project.root, all, request)
+    await record(records, all, request)
     return all
   } finally {
     await told.catch(() => {})
-    await clearRunning(project.root, watching)
+    await clearRunning(records, watching)
     if (lock && !('held' in lock)) await lock.release()
   }
 }
@@ -174,13 +180,13 @@ function covering(
 }
 
 async function record(
-  worktree: string,
+  records: string,
   runs: readonly CheckLog[],
   request: RunRequest,
 ): Promise<void> {
   for (const run of runs) {
     if (!settled(run.state)) continue
-    await writeRun(worktree, run, {
+    await writeRun(records, run, {
       ...(request.keep === undefined ? {} : { keep: request.keep }),
       ...(request.home === undefined ? {} : { home: request.home }),
     })

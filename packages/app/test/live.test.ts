@@ -199,8 +199,6 @@ describe('changesFrom', () => {
     // Paths with spaces survive, because the output is NUL-separated.
     expect(at('new file.ts')?.mark).toBe('?')
     expect(at('new name.ts')?.mark).toBe('R')
-    // Tade's own record of the task is not a change anybody made.
-    expect(changes.some((change) => change.path.startsWith('.tade'))).toBe(false)
   })
 })
 
@@ -313,6 +311,7 @@ describe('the last look at a task, read without starting one', () => {
       client,
       config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
       home,
+      tadeHome: repo.home,
       // Far longer than this test: the beat's own looks are not what is measured.
       pollMs: 600_000,
       onChange: () => {

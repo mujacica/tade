@@ -141,7 +141,7 @@ export function configTools(
     [
       'Stop working in a project: its entry is taken out of the config, so Tade no longer lists it, nothing queued or scheduled starts in it, and it does not come back when Tade opens.',
       'It needs the person to have asked for this project in their own words: pass their sentence as `said`, and Tade checks it against what they actually said. If nothing they have said names the project, do not call this — say which project it would be and ask them.',
-      'Nothing on disk is touched. The folder stays, git keeps every commit, branch and worktree, everything under .tade stays, and the journal still says what happened there — opening the same path again brings all of it back. Say that when you say it is closed.',
+      'Nothing on disk is touched. The folder stays, git keeps every commit, branch and worktree, its tasks and check runs stay in Tade’s home, and the journal still says what happened there — opening the same path again brings all of it back. Say that when you say it is closed.',
       'It destroys nothing and there is no tool that does: removing worktrees, deleting branches or deleting the folder are a person’s, with git in a terminal. Closing a project and forgetting its work are not the same act.',
       'A project with an agent still running in it is refused, and says which: stop them first with tade_run_stop if that is what they meant.',
     ].join(' '),

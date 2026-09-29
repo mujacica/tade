@@ -222,8 +222,8 @@ describe('composeAgentPrompt', () => {
 
   it('tells an agent writing a document where it goes, and to commit it', () => {
     // The answer to "what happens to it once the task is cleaned up": it is an
-    // ordinary committed file, which is also why the path may never be under
-    // .tade/. Silent for every agent that is changing code, which is most.
+    // ordinary committed file, which is why the path is one in the repository.
+    // Silent for every agent that is changing code, which is most.
     const told = composeAgentPrompt({ ...base, produces: 'notes/scope-audit.md' })
     expect(told).toContain('a document at notes/scope-audit.md')
     expect(told).toContain('commit it like any other change')
@@ -256,12 +256,12 @@ describe('composeAgentPrompt', () => {
       branch: 'tade/refunds',
       workspace: 'worktree',
       commit: 'never',
-      context: '.tade/context.md',
+      context: '/h/.tade/projects/shop/tasks/refunds/context.md',
     })
     expect(told).toContain('a git worktree of your own, /h/worktrees/shop-refunds')
     expect(told).toContain('never change the project’s own checkout at /src/shop')
     expect(told).toContain('Do not commit.')
-    expect(told).toContain('in .tade/context.md')
+    expect(told).toContain('in /h/.tade/projects/shop/tasks/refunds/context.md')
     for (const rule of ['when-done', 'as-you-go'] as const) {
       expect(composeAgentPrompt({ ...base, workspace: 'checkout', commit: rule })).toMatch(
         /commit/i,

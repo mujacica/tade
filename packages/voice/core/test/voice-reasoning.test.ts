@@ -33,8 +33,8 @@ function fakeTade() {
     async steerAgent(task, message) {
       calls.push(`steer ${task} ${message}`)
     },
-    async parkTask(worktree, parked) {
-      calls.push(`park ${worktree} ${parked}`)
+    async parkTask(task, parked) {
+      calls.push(`park ${task} ${parked}`)
       return { task: 'x', parked }
     },
     async createTask() {
@@ -111,7 +111,7 @@ describe('working out which agent you meant', () => {
   it('uses what you are looking at when you say "it"', async () => {
     const { voice, turns } = await surface(tade, { focused: 'search/pagination' })
     expect(await voice.handle('park it')).toBe('Parked pagination.')
-    expect(tade.calls).toEqual(['park /wt/pagination true'])
+    expect(tade.calls).toEqual(['park search/pagination true'])
     // The app can show why it chose that one.
     expect(turns[0]).toMatchObject({
       intent: 'park',
@@ -160,7 +160,7 @@ describe('working out which agent you meant', () => {
       const { voice, turns } = await surface(tade)
       await voice.handle('park it')
       expect(await voice.handle('the second one')).toBe('Parked stripe-v15.')
-      expect(tade.calls).toEqual(['park /wt/stripe-v15 true'])
+      expect(tade.calls).toEqual(['park checkout/stripe-v15 true'])
       expect(voice.awaiting).toBeNull()
       expect(turns[1]).toMatchObject({ task: 'checkout/stripe-v15', why: 'you picked it' })
     })

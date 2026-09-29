@@ -261,7 +261,7 @@ the "accepts and ignores" failure with an extra step.
 ## Closing a project is not forgetting its work
 
 `tade_project_close` takes `projects.<name>` out of the config and **does nothing else**: the
-folder, every commit, branch and worktree, everything under `.tade/` and the journal all stay, and
+folder, every commit, branch and worktree, everything in Tade's home and the journal all stay, and
 opening the same path again brings all of it back — which is why closing is reversible and is said
 so when it happens. There is no tool that removes a worktree, deletes a branch or deletes a folder,
 and asking explicitly does not produce one: that is a person with git in a terminal. A project with

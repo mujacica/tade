@@ -12,25 +12,30 @@ import { settled } from './port.ts'
 // is worth no more than never having run them. This generalises the file, not
 // the principle.
 //
+// The directory it is kept in is Tade's own (`recordsDir`), not the worktree's:
+// one per directory checks run in, so the rule it used to get from living
+// inside the worktree — these runs are about this tree and nobody else's —
+// survives the move out of the repository.
+//
 // An unfinished run writes nothing. In-flight state lives in the runner, which
 // owns the process; a window that died leaves no file claiming something was
 // running, because there was never one.
 
-/** How many finished runs a worktree keeps a record of, unless the config says otherwise. */
+/** How many finished runs a directory keeps a record of, unless the config says otherwise. */
 export const DEFAULT_KEEP = 200
 
 /** How much of a run's output is kept. A tail, never the whole log. */
 export const DEFAULT_TAIL = 4_000
 
-export function recordsPath(worktree: string): string {
-  return join(worktree, '.tade', 'checks.jsonl')
+export function recordsPath(records: string): string {
+  return join(records, 'checks.jsonl')
 }
 
-/** Every finished run this worktree has a record of, oldest first. */
-export async function readRuns(worktree: string): Promise<CheckLog[]> {
+/** Every finished run this directory has a record of, oldest first. */
+export async function readRuns(records: string): Promise<CheckLog[]> {
   let text: string
   try {
-    text = await readFile(recordsPath(worktree), 'utf8')
+    text = await readFile(recordsPath(records), 'utf8')
   } catch {
     // Never run, or a file we cannot read: the same answer either way.
     return []
@@ -52,18 +57,18 @@ export async function readRuns(worktree: string): Promise<CheckLog[]> {
  * written at all.
  */
 export async function writeRun(
-  worktree: string,
+  records: string,
   run: CheckLog,
   opts: { keep?: number; home?: string } = {},
 ): Promise<void> {
   if (!settled(run.state)) return
-  const path = recordsPath(worktree)
+  const path = recordsPath(records)
   const keep = Math.max(1, opts.keep ?? DEFAULT_KEEP)
   const line = JSON.stringify({
     ...run,
     tail: scrub(run.tail, opts.home ?? '').slice(-DEFAULT_TAIL),
   })
-  const kept = [...(await readRuns(worktree))].slice(-(keep - 1)).map((one) => JSON.stringify(one))
+  const kept = [...(await readRuns(records))].slice(-(keep - 1)).map((one) => JSON.stringify(one))
   await mkdir(dirname(path), { recursive: true })
   // Rewritten rather than appended so the rotation is the write: a file that
   // grew until somebody noticed is the other way this goes.

@@ -37,8 +37,8 @@ export interface RunningNow {
   checks: readonly RunningCheck[]
 }
 
-export function runningPath(worktree: string): string {
-  return join(worktree, '.tade', 'checks.running.json')
+export function runningPath(records: string): string {
+  return join(records, 'checks.running.json')
 }
 
 /** The token that says which run a record is, so one run never clears another's. */
@@ -51,8 +51,8 @@ function tokenOf(now: RunningNow): string {
  * worktree can only happen where neither needs the machine to itself, and a
  * watcher seeing one of the two is better than a file two writers merge into.
  */
-export async function writeRunning(worktree: string, now: RunningNow): Promise<void> {
-  const path = runningPath(worktree)
+export async function writeRunning(records: string, now: RunningNow): Promise<void> {
+  const path = runningPath(records)
   try {
     await mkdir(dirname(path), { recursive: true })
     await writeFile(path, `${JSON.stringify(now)}\n`, { mode: 0o600 })
@@ -62,10 +62,10 @@ export async function writeRunning(worktree: string, now: RunningNow): Promise<v
 }
 
 /** Take it back when the run ends — but only if the record is still this run's. */
-export async function clearRunning(worktree: string, now: RunningNow): Promise<void> {
-  const held = await readRunning(worktree)
+export async function clearRunning(records: string, now: RunningNow): Promise<void> {
+  const held = await readRunning(records)
   if (held && tokenOf(held) !== tokenOf(now)) return
-  await rm(runningPath(worktree), { force: true }).catch(() => {})
+  await rm(runningPath(records), { force: true }).catch(() => {})
 }
 
 /**
@@ -73,18 +73,18 @@ export async function clearRunning(worktree: string, now: RunningNow): Promise<v
  * taken as nothing running, and cleaned up on the way past: nobody is ever
  * shown a suite that has been "running" since yesterday.
  */
-export async function runningIn(worktree: string): Promise<RunningNow | null> {
-  const now = await readRunning(worktree)
+export async function runningIn(records: string): Promise<RunningNow | null> {
+  const now = await readRunning(records)
   if (!now) return null
   if (!alive(now.pid)) {
-    await rm(runningPath(worktree), { force: true }).catch(() => {})
+    await rm(runningPath(records), { force: true }).catch(() => {})
     return null
   }
   return now
 }
 
-async function readRunning(worktree: string): Promise<RunningNow | null> {
-  const text = await readFile(runningPath(worktree), 'utf8').catch(() => '')
+async function readRunning(records: string): Promise<RunningNow | null> {
+  const text = await readFile(runningPath(records), 'utf8').catch(() => '')
   if (!text.trim()) return null
   // Hand-checked rather than schema-parsed, and null on any shape we do not
   // know: half a write is the normal way to read this file.

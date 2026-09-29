@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { defaultConfigPath, type LaneId, loadConfig, type TaskId } from '@tade/core'
+import { defaultConfigPath, type LaneId, loadConfig, type TaskId, tadeHome } from '@tade/core'
 import type { RunId } from '@tade/harnesses-core'
 import { collectStatus } from '@tade/status'
 import type { Command } from 'commander'
@@ -57,6 +57,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
         config: cfg.config,
         now: Date.now(),
         home: homedir(),
+        tadeHome: tadeHome(),
         cwd: process.cwd(),
         pr: false,
       })
@@ -232,6 +233,7 @@ async function worktreeOf(taskId: string, configPath: string): Promise<string | 
     config: cfg.config,
     now: Date.now(),
     home: homedir(),
+    tadeHome: tadeHome(),
     cwd: process.cwd(),
     pr: false,
   })

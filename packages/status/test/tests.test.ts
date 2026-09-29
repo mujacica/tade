@@ -56,7 +56,6 @@ describe('readRecord', () => {
 
   it('returns null on a shape it does not know, rather than throwing', async () => {
     const worktree = tmp('tade-tests-')
-    mkdirSync(join(worktree, '.tade'), { recursive: true })
     for (const bad of ['not json', '{}', '{"status":"maybe","commit":"x"}', '[]', 'null']) {
       writeFileSync(testsPath(worktree), bad)
       expect(await readRecord(worktree)).toBeNull()
@@ -66,7 +65,6 @@ describe('readRecord', () => {
 
   it('fills in the parts it can live without', async () => {
     const worktree = tmp('tade-tests-')
-    mkdirSync(join(worktree, '.tade'), { recursive: true })
     writeFileSync(testsPath(worktree), '{"status":"pass","commit":"abc123"}')
     expect(await readRecord(worktree)).toEqual({
       status: 'pass',
@@ -100,25 +98,19 @@ describe('verifiedAt', () => {
       tail: '',
     })
 
-  const project = (root: string) => ({ name: 'demo', root })
+  const project = (root: string) => ({ name: 'demo', root, records: root })
 
   it('is the rollup of the required checks, not of one command', async () => {
     const worktree = tmp('tade-verified-')
-    mkdirSync(join(worktree, '.tade'), { recursive: true })
     mkdirSync(join(worktree, '.github', 'workflows'), { recursive: true })
     writeFileSync(join(worktree, CI_WORKFLOW), workflow)
-    writeFileSync(join(worktree, '.tade', 'checks.jsonl'), `${run('format', 'passed')}\n`)
+    const records = join(worktree, 'checks.jsonl')
+    writeFileSync(records, `${run('format', 'passed')}\n`)
     // One of two required checks has run: unverified, never green.
     expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('unknown')
-    writeFileSync(
-      join(worktree, '.tade', 'checks.jsonl'),
-      `${run('format', 'passed')}\n${run('tests', 'passed')}\n`,
-    )
+    writeFileSync(records, `${run('format', 'passed')}\n${run('tests', 'passed')}\n`)
     expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('pass')
-    writeFileSync(
-      join(worktree, '.tade', 'checks.jsonl'),
-      `${run('format', 'passed')}\n${run('tests', 'failed')}\n`,
-    )
+    writeFileSync(records, `${run('format', 'passed')}\n${run('tests', 'failed')}\n`)
     expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('fail')
   })
 

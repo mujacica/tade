@@ -20,7 +20,7 @@ function setup() {
   r.addTask('fresh', { project: 'app', intent: 'add a --json flag to tade lanes' })
   const done = r.addTask('done', { project: 'app' })
   r.commit('feat', undefined, done)
-  const tadeHome = tmp('tade-home-')
+  const tadeHome = r.home
   writeFileSync(join(tadeHome, 'config.yaml'), `projects:\n  app:\n    root: ${r.root}\n`)
   return { TADE_HOME: tadeHome, HOME: tmp('tade-userhome-') }
 }

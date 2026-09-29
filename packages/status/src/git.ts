@@ -179,9 +179,6 @@ export interface GitProbeResult {
   warnings: string[]
 }
 
-/** Paths Tade itself writes into a worktree; never counted as dirty. */
-const OWN_PATHS = /^\.tade(\/|$)/
-
 /**
  * Whether merging a branch into the base would change nothing, which is what a
  * branch that was squash-merged looks like: its commits are nowhere in the
@@ -261,7 +258,7 @@ export async function probeGit(worktree: string, opts: GitProbeOptions): Promise
       mergedIntoBase = anc.ok
       // A squash merge puts the work in the base under a commit of its own, so
       // there is no ancestry to follow: ask whether anything is left to merge.
-      if (!mergedIntoBase && (ahead ?? 0) > 0 && status.paths.every((p) => OWN_PATHS.test(p))) {
+      if (!mergedIntoBase && (ahead ?? 0) > 0 && status.paths.length === 0) {
         mergedIntoBase = await givesNothing(worktree, opts.baseRef, status.oid)
       }
     }
@@ -276,7 +273,7 @@ export async function probeGit(worktree: string, opts: GitProbeOptions): Promise
       head: status.oid,
       headSubject,
       headTime,
-      dirty: status.paths.filter((p) => !OWN_PATHS.test(p)).sort(),
+      dirty: [...status.paths].sort(),
       ahead,
       behind,
       baseRef: opts.baseRef,

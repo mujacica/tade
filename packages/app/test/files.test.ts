@@ -58,7 +58,7 @@ describe('the FILES tree', () => {
 })
 
 describe('marks from git', () => {
-  it('reads what git status says about each file, and leaves Tade out', () => {
+  it('reads what git status says about each file, and leaves nothing out', () => {
     const status = [
       '1 .M N... 100644 100644 100644 abc abc src/app.ts',
       '1 A. N... 000000 100644 100644 000 abc src/new.ts',
@@ -67,7 +67,6 @@ describe('marks from git', () => {
       'src/before.ts',
       'u UU N... 100644 100644 100644 100644 a b c src/conflict.ts',
       '? notes/draft.md',
-      '? .tade/task.yaml',
       '',
     ].join('\0')
     expect(marksFrom(status)).toEqual({

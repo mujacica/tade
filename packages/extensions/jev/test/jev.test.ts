@@ -186,7 +186,7 @@ describe('grepping by meaning', () => {
   it('never reads a path outside a project, however it is asked', async () => {
     const repo = mkrepo()
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       settings: { judge: 'scripted' },
     })
@@ -218,7 +218,7 @@ describe('reading a change', () => {
 
   it('reads a task’s whole diff, says what fired, and writes down every answer', async () => {
     const { repo } = repoWithWork()
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const loaded = await host({
       home,
       projects: { shop: { root: repo.root } },
@@ -255,7 +255,7 @@ describe('reading a change', () => {
     const repo = mkrepo()
     repo.addTask('nothing-yet', { project: 'shop' })
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: typesafe({}),
@@ -268,7 +268,7 @@ describe('reading a change', () => {
   it('sends nothing from a project nobody said it could read', async () => {
     const repo = mkrepo()
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       settings: { projects: ['other'] },
       env: { TYPESAFE_API_KEY: 'k' },
@@ -281,7 +281,7 @@ describe('reading a change', () => {
 
   it('reads a branch when it stops moving, once, and starts where it left off', async () => {
     const { repo, worktree } = repoWithWork()
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const loaded = await host({
       home,
       projects: { shop: { root: repo.root } },
@@ -335,7 +335,7 @@ describe('reading a change', () => {
   it('leaves a branch that is still moving alone', async () => {
     const { repo } = repoWithWork()
     const loaded = await host({
-      home: tmp('tade-jev-'),
+      home: repo.home,
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: offline,
@@ -358,7 +358,7 @@ describe('the record', () => {
     const repo = mkrepo()
     const worktree = repo.addTask('add-refunds', { project: 'shop', intent: 'add refunds' })
     repo.commit('refund', { 'src/refund.ts': 'export const refund = () => {}\n' }, worktree)
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const loaded = await host({
       home,
       projects: { shop: { root: repo.root } },
@@ -535,7 +535,7 @@ describe('what the window shows', () => {
     const repo = mkrepo()
     const worktree = repo.addTask('add-refunds', { project: 'shop', intent: 'add refunds' })
     repo.commit('refund', { 'src/refund.ts': 'export const refund = () => {}\n' }, worktree)
-    const home = tmp('tade-jev-')
+    const home = repo.home
     const loaded = await host({
       home,
       projects: { shop: { root: repo.root } },

@@ -43,7 +43,7 @@ arithmetic over the same tokens, in no total of money and no budget, and nobody'
 
 Everything is a fold. Two things are not recoverable by asking again: **what a commit changed**,
 since `git log` answers differently after every rebase and a worktree takes its branch's history with
-it when it goes; and **what a check run did**, since `.tade/checks.jsonl` rotates and dies with the
+it when it goes; and **what a check run did**, since a directory's `checks.jsonl` rotates and dies with the
 worktree. So each is written down once at the moment it is true — `commit_seen` keyed by sha,
 `check_ran` keyed by the run's id — the same way a watch keeps every key it found.
 

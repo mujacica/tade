@@ -65,6 +65,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
         config: cfg.config,
         now: Date.now(),
         home: homedir(),
+        tadeHome: tadeHome(),
         cwd: process.cwd(),
         pr: opts.pr && process.env.TADE_NO_GH !== '1',
         liveness,

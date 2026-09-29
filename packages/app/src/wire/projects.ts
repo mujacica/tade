@@ -662,7 +662,7 @@ export class Projects implements Subject {
    * happens at all.
    *
    * Nothing on disk is touched — the folder, every commit, branch and
-   * worktree, everything under `.tade/` — and the journal is append-only, so
+   * worktree, its folder in Tade's home — and the journal is append-only, so
    * what happened there is still answerable. Opening the same path again
    * brings all of it back, which is what makes this the reversible act and
    * `rm -rf` somebody else's.
@@ -708,7 +708,7 @@ export class Projects implements Subject {
       ),
     )
     await this.wire.live?.refresh()
-    return `Closed ${name}. Nothing was deleted: ${tilde(expandHome(project.root))} is untouched — its git history, its branches, every worktree and everything under .tade are exactly as they were, and opening that path again brings it all back.`
+    return `Closed ${name}. Nothing was deleted: ${tilde(expandHome(project.root))} is untouched — its git history, its branches and every worktree — and its tasks, notes and check runs are still in Tade's home, so opening that path again brings it all back.`
   }
 
   /**

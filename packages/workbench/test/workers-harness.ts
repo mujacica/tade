@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { effectByName } from '@tade/core'
+import { effectByName, taskDir } from '@tade/core'
 import type {
   PermissionDecision,
   RunId,
@@ -218,12 +218,14 @@ export async function setup(
   mode: 'bypass' | 'policy',
   report?: Reporter,
   caution?: WorkerSupervisorOptions['caution'],
-  /** A real directory, for the one thing the supervisor reads off disk: what the task produces. */
-  cwd: string = WORKTREE,
+  /** Real directories, for the one thing the supervisor reads off disk: what the task produces. */
+  where: { cwd: string; home?: string } = { cwd: WORKTREE },
 ) {
+  const { cwd } = where
   const log = await EventLog.open({ path: join(tmp('tade-workers-'), 'events.jsonl') })
   const adapter = new FakeAdapter()
   const supervisor = new WorkerSupervisor({
+    home: where.home ?? tmp('tade-workers-home-'),
     adapter,
     log,
     approvals: { mode },
@@ -240,15 +242,16 @@ export async function setup(
 }
 
 /**
- * A worktree with a task file in it saying what the task produces, and the
- * document beside it unless `wrote` says otherwise — the two cases the line
+ * A worktree, and the home holding a task file saying what the task produces,
+ * with the document in the worktree unless `wrote` says otherwise — the two cases the line
  * that says a task finished has to tell apart.
  */
-export function worktreeProducing(produces: string, wrote = true): string {
-  const worktree = tmp('tade-produces-')
-  mkdirSync(join(worktree, '.tade'), { recursive: true })
+export function worktreeProducing(produces: string, wrote = true): { cwd: string; home: string } {
+  const cwd = tmp('tade-produces-')
+  const home = tmp('tade-produces-home-')
+  mkdirSync(taskDir(home, 'app/refunds'), { recursive: true })
   writeFileSync(
-    join(worktree, '.tade', 'task.yaml'),
+    join(taskDir(home, 'app/refunds'), 'task.yaml'),
     [
       'id: app/refunds',
       'project: app',
@@ -257,8 +260,8 @@ export function worktreeProducing(produces: string, wrote = true): string {
       `produces: ${produces}`,
     ].join('\n'),
   )
-  if (!wrote) return worktree
-  mkdirSync(join(worktree, dirname(produces)), { recursive: true })
-  writeFileSync(join(worktree, produces), '# what I found\n')
-  return worktree
+  if (!wrote) return { cwd, home }
+  mkdirSync(join(cwd, dirname(produces)), { recursive: true })
+  writeFileSync(join(cwd, produces), '# what I found\n')
+  return { cwd, home }
 }

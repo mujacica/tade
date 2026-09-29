@@ -12,7 +12,14 @@ import {
   rollup,
   whereOf,
 } from '@tade/checks-core'
-import { checksFor, defaultConfigPath, expandHome, loadConfig } from '@tade/core'
+import {
+  checksFor,
+  defaultConfigPath,
+  expandHome,
+  loadConfig,
+  recordsDir,
+  tadeHome,
+} from '@tade/core'
 import { git } from '@tade/status'
 import { runProjectChecks } from '@tade/workbench/checks'
 import type { Command } from 'commander'
@@ -31,6 +38,8 @@ import { Exit, type Io } from '../io.ts'
 interface Where {
   project: string
   root: string
+  /** Where runs in that root are written down: Tade's own folder for it. */
+  records: string
   test: string | undefined
   /** What somebody said about running each check here, from Tade's own config. */
   chosen: Readonly<Record<string, boolean>>
@@ -60,7 +69,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
       const plan = planFor(read.checks)
       // A run recorded under a step's earlier name still speaks for it where it
       // ran the same command: retitling a step costs no history.
-      const runs = followRenames(read.checks, await readRuns(where.root))
+      const runs = followRenames(read.checks, await readRuns(where.records))
       // A run recorded just before a commit that holds exactly what it read
       // still stands at that commit: it is the same bytes.
       const covering = await carryOver(where.root, runs, head)
@@ -135,6 +144,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
           commit: head,
           by: 'you',
           home: homedir(),
+          tadeHome: tadeHome(),
           only: ids,
           waitMs: Math.max(0, Number(opts.wait) || 0) * 1_000,
           onRun: (run) => {
@@ -184,6 +194,7 @@ async function locate(
     return {
       project: found[0],
       root: expandHome(found[1].root),
+      records: recordsDir(tadeHome(), found[0]),
       test: found[1].test_command,
       chosen: checksFor(loaded.config, found[0]).run_here,
     }
@@ -194,6 +205,7 @@ async function locate(
     return {
       project: inside[0],
       root: expandHome(inside[1].root),
+      records: recordsDir(tadeHome(), inside[0]),
       test: inside[1].test_command,
       chosen: checksFor(loaded.config, inside[0]).run_here,
     }
@@ -203,6 +215,7 @@ async function locate(
     return {
       project: only[0],
       root: expandHome(only[1].root),
+      records: recordsDir(tadeHome(), only[0]),
       test: only[1].test_command,
       chosen: checksFor(loaded.config, only[0]).run_here,
     }
@@ -215,9 +228,11 @@ async function locate(
     return null
   }
   const path = root.stdout.trim()
+  const name = path.split('/').at(-1) ?? 'project'
   return {
-    project: path.split('/').at(-1) ?? 'project',
+    project: name,
     root: path,
+    records: recordsDir(tadeHome(), name),
     test: undefined,
     chosen: {},
   }

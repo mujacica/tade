@@ -99,7 +99,10 @@ describe('the window, starting and ending agents', () => {
     // Its own commit is under its own heading, with what it touched. The
     // other one is on the branch and not its work, so it is not counted here.
     expect(page).toContain('charge once on ret')
-    expect(page).toContain('1 +7')
+    // One file and one line: exactly what the agent wrote. It used to read
+    // `1 +7`, because `git add -A` in the worktree swept Tade's own task file
+    // into the commit — which is the whole of what moving it out fixes.
+    expect(page).toContain('1 file +1')
     expect(page).not.toContain('tidy the readme')
     // And a project that says nothing about what checking it means says so,
     // rather than looking fine.
@@ -207,13 +210,14 @@ describe('closing the last agent in a project', () => {
     // The bug this is about: the window fell through to the first pane there
     // was, of any project, so emptying one moved you into another nobody had
     // asked to be in.
-    const one = mkrepo()
+    // One home for both, the way one Tade home holds every project.
+    const home = tmp('tade-app-')
+    const one = mkrepo({ home })
     one.commit('first')
     one.addTask('rounding', { project: 'one', intent: 'ledger rounding' })
-    const two = mkrepo()
+    const two = mkrepo({ home })
     two.commit('first')
     two.addTask('retries', { project: 'two', intent: 'webhook retries' })
-    const home = tmp('tade-app-')
     const client = await Workbench.open({ home })
     const terminal = new FakeTerminal()
     const speaker = await Speaker.create({

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { PlannedAgent } from '@tade/core'
+import { type PlannedAgent, taskDir } from '@tade/core'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -49,7 +49,7 @@ describe('queued work', () => {
     })
     expect(plan.made.map((task) => task.id)).toEqual(['app/fix-charge', 'app/add-refunds'])
     const [, refunds] = plan.made
-    const file = readFileSync(join(refunds?.worktree ?? '', '.tade', 'task.yaml'), 'utf8')
+    const file = readFileSync(join(taskDir(home, 'app/add-refunds'), 'task.yaml'), 'utf8')
     expect(file).toContain('task: app/fix-charge')
     expect(file).toContain('why: same file')
     expect(file).toContain('prompt: please do add-refunds')
@@ -87,8 +87,8 @@ describe('queued work', () => {
       why: 'app/fix-charge has finished',
     })
     expect(repo.head(refunds.worktree)).toBe(repo.head(fix.worktree))
-    const own = readFileSync(join(refunds.worktree, '.tade', 'task.yaml'), 'utf8')
-    // Still its own task, though what it waited on committed its task file over it...
+    const own = readFileSync(join(taskDir(home, 'app/add-refunds'), 'task.yaml'), 'utf8')
+    // Still its own task: nothing it merged in could have touched its file...
     expect(own).toContain('id: app/add-refunds')
     // ...and its own work is what comes after this, not after where it was planned.
     expect(own).toContain(`base: ${repo.head(fix.worktree)}`)

@@ -35,9 +35,8 @@ these: it is an extension (see `add-extension`), which agents can use too and th
 - **The description is the interface.** The model chooses tools by reading it, so say when to use
   the tool, not just what it does. `tade_task_create` tells it to pass the human's words verbatim,
   because that field can never be reconstructed later, and to pass the `context` and `links` it
-  gathered, which are written beside the task (`.tade/context.md` in a worktree,
-  `.tade/tasks/<name>/context.md` in a shared checkout) for the agent to read first. Everything
-  under `.tade/` is ignored by the project, so what you write there is the agent's to read and
+  gathered, which are written beside the task (`context.md` in `taskDir(home, task)`) for the agent
+  to read first. None of that is in the project, so what you write there is the agent's to read and
   nobody's to commit — if it has to outlive the task, it goes where the thing it describes is.
 - **A tool somebody asks for by name needs a rule in the prompt, and not only a description.**
   `tade_project_open` had a full description for a year and the orchestrator still reached for a

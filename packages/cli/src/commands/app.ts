@@ -211,6 +211,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           config: client.config,
           now: Date.now(),
           home: homedir(),
+          tadeHome: tadeHome(),
           cwd: process.cwd(),
           pr: false,
           liveness: livenessFrom(client),
@@ -219,7 +220,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         tade: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         onTerminal: (terminal) => showTerminal(terminal),
-        handOff: (cwd) => handOff(cwd),
+        handOff: (task) => handOff(task),
         queue: {
           describe: async () => {
             if (!queue) throw opening()
@@ -375,7 +376,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         app.useExtensionWorkbench(windowForExtensions)
 
         // Files you attached go to the agents the orchestrator starts in answer.
-        handOff = (cwd) => app.handOff(cwd)
+        handOff = (task) => app.handOff(task)
         queue = app.queueTools()
         settings = app.configTools()
         watches = app.watchTools()

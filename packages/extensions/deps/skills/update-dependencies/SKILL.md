@@ -7,7 +7,7 @@ description: How to finish a dependency update Tade started in your worktree —
 
 Tade has already moved the requirements forward in the manifests of this worktree, or has told you
 which packages to move with `deps_update`. What they were, what they are now, and how far each moved
-is in `.tade/context.md`. Your job is to make the project work on them — and to leave it alone if it
+is in your task's context file. Your job is to make the project work on them — and to leave it alone if it
 cannot.
 
 1. **Install first**, so the lockfile matches the manifests: `pnpm install`, `npm install`,

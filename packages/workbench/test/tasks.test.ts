@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { taskDir } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -10,13 +11,18 @@ const INTENT =
 
 function setup() {
   const repo = mkrepo()
-  return { repo, worktreeRoot: tmp('tade-worktrees-') }
+  return { repo, home: repo.home, worktreeRoot: tmp('tade-worktrees-') }
 }
+
+/** A task's own file, wherever the task works: always in Tade's home. */
+const fileOf = (home: string, id: string) =>
+  parse(readFileSync(join(taskDir(home, id), 'task.yaml'), 'utf8'))
 
 describe('createTask', () => {
   it('creates a branch and worktree, and stores the intent verbatim', async () => {
     const { repo, worktreeRoot } = setup()
     const task = await createTask({
+      home: repo.home,
       project: 'checkout',
       root: repo.root,
       slug: 'refunds',
@@ -33,7 +39,9 @@ describe('createTask', () => {
     expect(existsSync(task.worktree)).toBe(true)
     expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('tade/refunds')
 
-    const file = parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8'))
+    // Nothing of Tade's is in the worktree at all: the file is in its home.
+    expect(existsSync(join(task.worktree, '.tade'))).toBe(false)
+    const file = fileOf(repo.home, task.id)
     expect(file).toMatchObject({
       id: 'checkout/refunds',
       project: 'checkout',
@@ -48,6 +56,7 @@ describe('createTask', () => {
   it('keeps the document a task produces, so its agent and the journal both have it', async () => {
     const { repo, worktreeRoot } = setup()
     const task = await createTask({
+      home: repo.home,
       project: 'checkout',
       root: repo.root,
       slug: 'scope-audit',
@@ -55,25 +64,24 @@ describe('createTask', () => {
       worktreeRoot,
       produces: 'notes/scope-audit.md',
     })
-    const file = parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8'))
-    expect(file.produces).toBe('notes/scope-audit.md')
+    expect(fileOf(repo.home, task.id).produces).toBe('notes/scope-audit.md')
   })
 
-  it('refuses a document that would go when the task goes', async () => {
+  it('refuses a document that would not be in the repository at all', async () => {
     const { repo, worktreeRoot } = setup()
-    // Everything under .tade/ is ignored by git and removed with the task, so
-    // a document there is one nobody can read afterwards — which is the whole
-    // reason a task names one.
+    // The whole reason a task names one is that somebody reads it later, which
+    // means it has to be a file the agent commits like any other change.
     await expect(
       createTask({
+        home: repo.home,
         project: 'checkout',
         root: repo.root,
         slug: 'scope-audit',
         intent: 'work out where the token gets taken twice',
         worktreeRoot,
-        produces: '.tade/audit.md',
+        produces: '../audit.md',
       }),
-    ).rejects.toThrow(/git ignores/)
+    ).rejects.toThrow(/climbs out of the repository/)
     expect(existsSync(join(worktreeRoot, 'checkout-scope-audit'))).toBe(false)
   })
 
@@ -81,7 +89,14 @@ describe('createTask', () => {
     const { repo, worktreeRoot } = setup()
     for (const slug of ['Refunds', 'has space', '-leading', '']) {
       await expect(
-        createTask({ project: 'checkout', root: repo.root, slug, intent: 'x', worktreeRoot }),
+        createTask({
+          home: repo.home,
+          project: 'checkout',
+          root: repo.root,
+          slug,
+          intent: 'x',
+          worktreeRoot,
+        }),
       ).rejects.toThrow(/invalid task/)
     }
   })
@@ -89,6 +104,7 @@ describe('createTask', () => {
   it('refuses to reuse an existing branch', async () => {
     const { repo, worktreeRoot } = setup()
     const options = {
+      home: repo.home,
       project: 'checkout',
       root: repo.root,
       slug: 'refunds',
@@ -104,6 +120,7 @@ describe('createTask', () => {
     runGit(base, 'init', '-q', '-b', 'trunk', '.')
     await expect(
       createTask({
+        home: tmp('tade-home-'),
         project: 'p',
         root: base,
         slug: 't',
@@ -117,11 +134,26 @@ describe('createTask', () => {
 describe('removeTask', () => {
   const create = (repo: ReturnType<typeof mkrepo>, worktreeRoot: string) =>
     createTask({
+      home: repo.home,
       project: 'checkout',
       root: repo.root,
       slug: 'refunds',
       intent: INTENT,
       worktreeRoot,
+    })
+
+  const remove = (
+    repo: ReturnType<typeof mkrepo>,
+    task: { id: string; worktree: string; branch: string },
+    force?: boolean,
+  ) =>
+    removeTask({
+      home: repo.home,
+      root: repo.root,
+      task: task.id,
+      worktree: task.worktree,
+      branch: task.branch,
+      ...(force ? { force: true } : {}),
     })
 
   it('removes a clean, merged task and deletes its branch', async () => {
@@ -130,13 +162,11 @@ describe('removeTask', () => {
     repo.commit('fix refunds', { 'refunds.ts': 'ok' }, task.worktree)
     repo.git('merge', '-q', '--ff-only', task.branch)
 
-    const result = await removeTask({
-      root: repo.root,
-      worktree: task.worktree,
-      branch: task.branch,
-    })
+    const result = await remove(repo, task)
     expect(result).toEqual({ removed: true, branchDeleted: true })
     expect(existsSync(task.worktree)).toBe(false)
+    // The task's folder goes with it: nothing of it is left anywhere.
+    expect(existsSync(taskDir(repo.home, task.id))).toBe(false)
   })
 
   it('refuses to throw away uncommitted work', async () => {
@@ -144,11 +174,7 @@ describe('removeTask', () => {
     const task = await create(repo, worktreeRoot)
     writeFileSync(join(task.worktree, 'wip.ts'), 'half a thought')
 
-    const result = await removeTask({
-      root: repo.root,
-      worktree: task.worktree,
-      branch: task.branch,
-    })
+    const result = await remove(repo, task)
     expect(result).toEqual({ removed: false, reason: expect.stringContaining('uncommitted') })
     expect(existsSync(task.worktree)).toBe(true)
   })
@@ -158,11 +184,7 @@ describe('removeTask', () => {
     const task = await create(repo, worktreeRoot)
     repo.commit('work nobody has merged', { 'a.ts': '1' }, task.worktree)
 
-    const result = await removeTask({
-      root: repo.root,
-      worktree: task.worktree,
-      branch: task.branch,
-    })
+    const result = await remove(repo, task)
     expect(result).toEqual({ removed: false, reason: expect.stringContaining('not merged') })
     expect(existsSync(task.worktree)).toBe(true)
   })
@@ -170,11 +192,7 @@ describe('removeTask', () => {
   it('removes an empty task that never did anything', async () => {
     const { repo, worktreeRoot } = setup()
     const task = await create(repo, worktreeRoot)
-    const result = await removeTask({
-      root: repo.root,
-      worktree: task.worktree,
-      branch: task.branch,
-    })
+    const result = await remove(repo, task)
     expect(result.removed).toBe(true)
   })
 
@@ -184,24 +202,19 @@ describe('removeTask', () => {
     repo.commit('unmerged', { 'a.ts': '1' }, task.worktree)
     writeFileSync(join(task.worktree, 'wip.ts'), 'also dirty')
 
-    const result = await removeTask({
-      root: repo.root,
-      worktree: task.worktree,
-      branch: task.branch,
-      force: true,
-    })
+    const result = await remove(repo, task, true)
     expect(result).toEqual({ removed: true, branchDeleted: true })
     expect(existsSync(task.worktree)).toBe(false)
   })
 
-  it('the .tade directory itself never counts as uncommitted work', async () => {
+  it('leaves a worktree Tade wrote nothing in, so nothing blocks teardown', async () => {
     const { repo, worktreeRoot } = setup()
     const task = await create(repo, worktreeRoot)
-    // task.yaml is written but never committed; that must not block teardown.
-    expect(existsSync(join(task.worktree, '.tade', 'task.yaml'))).toBe(true)
-    expect(
-      (await removeTask({ root: repo.root, worktree: task.worktree, branch: task.branch })).removed,
-    ).toBe(true)
+    // The task file is in Tade's home, so `git status` in the worktree is
+    // empty and there is nothing to make an exception for.
+    expect(existsSync(join(taskDir(repo.home, task.id), 'task.yaml'))).toBe(true)
+    expect(runGit(task.worktree, 'status', '--porcelain').trim()).toBe('')
+    expect((await remove(repo, task)).removed).toBe(true)
   })
 })
 
@@ -209,6 +222,7 @@ describe('an agent that starts without a branch', () => {
   async function detached() {
     const { repo, worktreeRoot } = setup()
     const task = await createTask({
+      home: repo.home,
       project: 'checkout',
       root: repo.root,
       slug: 'agent-1',
@@ -229,8 +243,10 @@ describe('an agent that starts without a branch', () => {
   it('is named for its work when it has some, keeping what it changed', async () => {
     const { repo, task } = await detached()
     writeFileSync(join(task.worktree, 'refund.ts'), 'export const once = true\n')
-    await setTitle(task.worktree, 'Fix the double charge on refund retries!', false)
+    await setTitle(repo.home, task.id, 'Fix the double charge on refund retries!', false)
     const branch = await nameTask({
+      home: repo.home,
+      task: task.id,
       root: repo.root,
       worktree: task.worktree,
       title: 'Fix the double charge on refund retries!',
@@ -239,39 +255,57 @@ describe('an agent that starts without a branch', () => {
     expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe(branch)
     expect(existsSync(join(task.worktree, 'refund.ts'))).toBe(true)
     // Its id does not change with its branch: lanes and the session are keyed by it.
-    const file = parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8'))
+    const file = fileOf(repo.home, task.id)
     expect(file).toMatchObject({
       id: 'checkout/agent-1',
       title: 'Fix the double charge on refund retries!',
     })
     // Asked again, it is already named.
-    expect(await nameTask({ root: repo.root, worktree: task.worktree, title: 'other' })).toBe(
-      branch,
-    )
+    expect(
+      await nameTask({
+        home: repo.home,
+        task: task.id,
+        root: repo.root,
+        worktree: task.worktree,
+        title: 'other',
+      }),
+    ).toBe(branch)
   })
 
   it('never takes a branch somebody already has', async () => {
     const { repo, task } = await detached()
     runGit(repo.root, 'branch', 'tade/tidy-up')
-    expect(await nameTask({ root: repo.root, worktree: task.worktree, title: 'tidy up' })).toBe(
-      'tade/tidy-up-2',
-    )
+    expect(
+      await nameTask({
+        home: repo.home,
+        task: task.id,
+        root: repo.root,
+        worktree: task.worktree,
+        title: 'tidy up',
+      }),
+    ).toBe('tade/tidy-up-2')
   })
 
   it('takes a better name when one comes, and keeps a name you gave it', async () => {
-    const { task } = await detached()
-    const read = () => parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8')).title
-    await setTitle(task.worktree, 'look at the logs', false)
-    await setTitle(task.worktree, 'Investigate failing log rotation', false)
+    const { repo, task } = await detached()
+    const read = () => fileOf(repo.home, task.id).title
+    await setTitle(repo.home, task.id, 'look at the logs', false)
+    await setTitle(repo.home, task.id, 'Investigate failing log rotation', false)
     expect(read()).toBe('Investigate failing log rotation')
-    await setTitle(task.worktree, 'Refund retries', true)
-    await setTitle(task.worktree, 'something it guessed', false)
+    await setTitle(repo.home, task.id, 'Refund retries', true)
+    await setTitle(repo.home, task.id, 'something it guessed', false)
     expect(read()).toBe('Refund retries')
   })
 
   it('removes cleanly when it never did anything', async () => {
     const { repo, task } = await detached()
-    const result = await removeTask({ root: repo.root, worktree: task.worktree, branch: '' })
+    const result = await removeTask({
+      home: repo.home,
+      root: repo.root,
+      task: task.id,
+      worktree: task.worktree,
+      branch: '',
+    })
     expect(result).toEqual({ removed: true, branchDeleted: false })
     expect(existsSync(task.worktree)).toBe(false)
   })

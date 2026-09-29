@@ -28,11 +28,11 @@ describe('a path a task may produce', () => {
     expect(producesProblem('AUDIT.md')).toBe(null)
   })
 
-  it('refuses one under Tade’s own folder, because it goes when the task goes', () => {
-    const said = producesProblem('.tade/audit.md')
-    expect(said).toContain('git ignores')
-    expect(said).toContain('removes with the task')
-    // A folder that merely starts with the same letters is somebody's own.
+  it('takes a path under any folder, because Tade reserves none of them', () => {
+    // `.tade/` used to be refused here, because Tade wrote its bookkeeping
+    // there and removed it with the task. It writes nothing inside a project
+    // now, so a folder called that is an ordinary folder like any other.
+    expect(producesProblem('.tade/audit.md')).toBe(null)
     expect(producesProblem('.tadepole/audit.md')).toBe(null)
   })
 

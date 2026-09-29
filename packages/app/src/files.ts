@@ -22,14 +22,12 @@ export interface Listed {
 }
 
 /**
- * Left out of every listing: git's own folder, Tade's record of an agent, and
- * the file Finder leaves everywhere. Nobody opens these from a sidebar, and
- * `.git` alone would be the longest thing in it.
+ * Left out of every listing: git's own folder, and the file Finder leaves
+ * everywhere. Nobody opens these from a sidebar, and `.git` alone would be the
+ * longest thing in it. Tade's own folder used to be here too, and is not: none
+ * of it is in a checkout any more.
  */
-const HIDDEN = new Set(['.git', '.tade', '.DS_Store'])
-
-/** Our own folder in a checkout. */
-const ours = (path: string) => path === '.tade' || path.startsWith('.tade/')
+const HIDDEN = new Set(['.git', '.DS_Store'])
 
 /** No sidebar is long enough to be worth reading past this. */
 export const TREE_MAX = 2_000
@@ -97,7 +95,7 @@ export function marksFrom(status: string): Record<string, string> {
         mark = 'U'
         break
     }
-    if (path && !ours(path)) marks[path] = mark
+    if (path) marks[path] = mark
   }
   return marks
 }
