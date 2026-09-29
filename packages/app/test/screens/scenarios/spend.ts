@@ -1,7 +1,7 @@
 import { noRuntime, type PlanSource, planStandings } from '@tade/core'
 import { spendPanel } from '../../../src/panels/spend/state.ts'
 import { spendView } from '../../../src/spend.ts'
-import { base, frame, made, NOW, ran, type Scenario, usage } from './fixtures.ts'
+import { base, frame, NOW, ran, type Scenario, usage } from './fixtures.ts'
 
 // What the agents cost: by task and by model, priced and estimated kept apart.
 
@@ -169,7 +169,6 @@ export const SPEND_SCREENS: Scenario[] = [
         projects: ['checkout', 'search', 'infra'],
         budgets: { checkout: { usd_per_day: 5 } },
         runs: ran,
-        made,
         plan: plans,
       }),
     }),
@@ -192,7 +191,6 @@ export const SPEND_SCREENS: Scenario[] = [
         projects: ['checkout', 'search', 'infra'],
         budgets: { checkout: { usd_per_day: 5 } },
         runs: ran,
-        made,
         plan: plans,
       }),
     }),

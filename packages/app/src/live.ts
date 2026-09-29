@@ -23,7 +23,6 @@ import {
   ruleMet,
   runtimeFrom,
   type SpendReport,
-  STATS_EVENTS,
   spendFrom,
   startOfToday,
   summariseWork,
@@ -401,16 +400,14 @@ export class Live {
       links: readonly { title: string; url: string }[]
     }
   >()
-  /** Every `usage` event since midnight, which is what today's spend is. */
+  /**
+   * Every `usage` event there has ever been, which is what the Spend page can
+   * be asked for: it offers the whole journal as a range, and a list cut to a
+   * week is a range that quietly answers a different question.
+   */
   private usage: TadeEvent[] = []
   /** The last spend fold, and the day and the event count it was of. */
   private spent: { since: number; of: number; report: SpendReport } | null = null
-  /**
-   * What the agents produced over the same week: commits written down once
-   * each, and check runs. Read the same way spend is, so the panel can say
-   * what the money bought beside what it cost.
-   */
-  private made: TadeEvent[] = []
   /**
    * When commits and check runs were last picked up. Opening the workbench
    * has just done it, so the window's own first look is a minute away.
@@ -451,15 +448,11 @@ export class Live {
     const past = await opts.client.events({ limit: JOURNAL }).catch(() => [])
     live.journal.push(...past)
     // Spend is read on its own: the journal above is the last 500 events, and
-    // a busy morning is more than that. A week of it, which is the longest
-    // window the Spend panel offers.
-    const since = startOfToday(live.now()) - 6 * 86_400_000
-    live.usage = (await opts.client.events({ types: ['usage'] }).catch(() => [])).filter(
-      (event) => Date.parse(event.ts) >= since,
-    )
-    live.made = (await opts.client.events({ types: [...STATS_EVENTS] }).catch(() => [])).filter(
-      (event) => Date.parse(event.ts) >= since,
-    )
+    // a busy morning is more than that. All of it, because the Spend page's
+    // longest range is the journal itself — the fold that reads it is kept
+    // rather than re-done per frame (`wire/spend.ts`), which is what makes
+    // that affordable.
+    live.usage = await opts.client.events({ types: ['usage'] }).catch(() => [])
     // Finishing is read the same way: whether a task is done cannot depend on
     // how busy the journal has been since.
     const told = await opts.client
@@ -1014,14 +1007,9 @@ export class Live {
       }))
   }
 
-  /** Every `usage` event of the last seven days, for the Spend panel. */
+  /** Every `usage` event the journal holds, for the Spend page's own ranges. */
   get spending(): readonly TadeEvent[] {
     return this.usage
-  }
-
-  /** Every commit and check run of the last seven days, for the Spend panel. */
-  get produced(): readonly TadeEvent[] {
-    return this.made
   }
 
   /** Every event the Spend panel measures runtime from, oldest first. */
@@ -1045,9 +1033,11 @@ export class Live {
    * Folded once per event rather than once per frame. `spendFrom` is pure and
    * `usage` only ever grows, so the same count of events over the same day is
    * the same answer — and this is read from `facts()`, which is four times a
-   * second, over every usage event of the last week. Twenty-four thousand of
+   * second, over every usage event there has ever been. Twenty-four thousand of
    * them was 3% of a core spent re-deriving a number that only moves when an
-   * agent spends something, and on an idle window nothing ever does.
+   * agent spends something, and on an idle window nothing ever does. The list
+   * is the whole journal now, which makes the kept fold worth more rather than
+   * less: it is the Spend page's longest range that put it there.
    */
   spendToday(): SpendReport {
     const since = startOfToday(this.now())
@@ -1256,7 +1246,6 @@ export class Live {
   private record(event: TadeEvent): void {
     this.journal.push(event)
     if (event.type === 'usage') this.usage.push(event)
-    if ((STATS_EVENTS as readonly string[]).includes(event.type)) this.made.push(event)
     if ((RUNTIME_READS as readonly string[]).includes(event.type)) this.runEvents.push(event)
     if (event.task && event.type === 'task_done') {
       for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)

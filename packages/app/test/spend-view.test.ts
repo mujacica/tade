@@ -143,58 +143,24 @@ const claudePlan: PlanSource[] = [
   },
 ]
 
+/**
+ * What the Spend panel reads of the window, and nothing else.
+ *
+ * Cast rather than filled in: a panel is handed the whole of `PanelContext`
+ * and this one reads seven fields of it, so a literal with the other fifty in
+ * it is fifty lines saying which parts of the window the page does *not* care
+ * about — and the next field anybody adds to the window breaks a test about
+ * money.
+ */
 const context = (over: Partial<PanelContext> = {}): PanelContext =>
   ({
     width: 120,
     height: 40,
     skin: COLOUR,
     pointer: { hover: null, pressed: null },
-    home: '~/.tade',
-    date: (at: number) => new Date(at).toISOString(),
-    route: null,
     spend: null,
     panes: [],
     project: 'checkout',
-    items: [],
-    changes: [],
-    ahead: null,
-    branch: null,
-    base: null,
-    diff: null,
-    choices: [],
-    settings: [],
-    accounts: [],
-    updates: null,
-    updatesBusy: false,
-    lanesSurvive: false,
-    configPath: '~/.tade/config.yaml',
-    releases: true,
-    budgetWarnings: 0,
-    levels: [],
-    openRows: [],
-    browsing: null,
-    homeDir: '/Users/me',
-    entries: [],
-    searching: false,
-    viewing: null,
-    talkKey: 'ctrl+space',
-    talkMode: 'hold',
-    bindings: {},
-    running: 0,
-    branches: [],
-    checkout: null,
-    found: 0,
-    terminalName: 'terminal',
-    extensions: [],
-    harnessExtensions: [],
-    servers: [],
-    written: [],
-    extensionView: null,
-    setup: null,
-    extensionsRoot: '~/.tade/extensions',
-    models: [],
-    modelTarget: 'the orchestrator',
-    currentModel: null,
     ...over,
   }) as PanelContext
 
@@ -487,22 +453,57 @@ describe('what a plan’s turns would have cost', () => {
     expect(view.usdOnPlan).toBeCloseTo(2.33, 6)
   })
 
-  it('says it on the page and never in the COST column, which is money', () => {
-    const rows = drawn('harness', 96, [onPlan()]).join('\n')
-    // Under the total, with the word that says whose arithmetic it is.
-    expect(rows).toContain('≈$2.33 at list')
-    // Beside the plan's own bar, which is the other place somebody looking at a
-    // subscription is already looking. (`drawn` passes no plan sources, so the
-    // list says so — what matters here is that the money column did not move.)
-    expect(rows).toContain('No plan reported.')
-    // And the row for it still reads `—`: nobody is billed a plan per turn, and
-    // a column of dollars that quietly held one that is not a bill is the one
-    // thing this page may never draw.
+  it('says it on the row it belongs to, and in no total on the page', () => {
+    // Where the money column has nothing to put, this is what it says instead.
+    // It used to read `—` here and carry the whole morning's figure on a line
+    // above the table, which is a cost nobody can attribute to an agent by eye
+    // — the hole people leave Tade to go and run `ccusage` for.
     const row = drawn('harness', 96, [onPlan()]).find(
       (one) => one.includes('claude-code') && one.includes('900k'),
     )
-    expect(row).toContain('—')
-    expect(row).not.toContain('$')
+    expect(row).toContain('≈$2.33')
+    // And every total is untouched: nobody is billed a plan per turn, so the
+    // figure at the head of the page is still `—` and still says nothing.
+    const head = drawn('harness', 96, [onPlan()])[1] ?? ''
+    expect(head).toContain('—')
+    expect(head).not.toContain('2.33')
+  })
+
+  it('says a figure nobody is charged more quietly than one somebody is', () => {
+    // Both carry `≈` — both are Tade's own arithmetic off the same table of
+    // rates — so the mark cannot be what tells them apart. Codex on an API key
+    // is a bill nobody wrote down; a plan is no bill at all, and is a step
+    // quieter for it.
+    const panel: SpendPanel = { ...spendPanel(), by: 'harness' }
+    const rows = drawPanel(
+      panel,
+      context({
+        width: 96,
+        spend: viewBy('harness', [
+          onPlan(),
+          usage({
+            run: 'r8',
+            detail: {
+              model: 'gpt-5.3-codex',
+              harness: 'codex',
+              account: 'work',
+              priced: 'none',
+              input: 1_000_000,
+              tokens: 1_000_000,
+              usd: 0,
+            },
+          }),
+        ]),
+      }),
+    ).panel.rows
+    const toneOf = (label: string) =>
+      Number(rows.find((row) => row.includes(label))?.match(/38;5;(\d+)m\s*≈\$/)?.[1] ?? 0)
+    expect(toneOf('codex')).toBeGreaterThan(0)
+    expect(toneOf('claude-code')).toBeGreaterThan(0)
+    // Dimmer is a lower step in the window's greys, and it is never the only
+    // thing that says which: the PLAN list below names every sign-in a plan
+    // pays for, and the plain skin still has that.
+    expect(toneOf('claude-code')).toBeLessThan(toneOf('codex'))
   })
 
   it('draws the estimate beside the bar of the sign-in it belongs to', () => {
@@ -515,11 +516,15 @@ describe('what a plan’s turns would have cost', () => {
     expect(bar).toContain('≈$2.33 at list')
   })
 
-  it('keeps the figure where the panel is narrow, because it is short', () => {
-    // The head's line survives every width the table is drawn at; the one
-    // beside a plan's bars is past where a narrow panel ends, the way `resets
-    // in …` already is. So the figure a person came for is always the total's.
-    expect(drawn('harness', 48, [onPlan()]).join('\n')).toContain('≈$2.33 at list')
+  it('keeps the figure where the panel is narrow, because it is a figure', () => {
+    // The COST column is one of the fixed ones and is the last thing the table
+    // gives up — the share meter goes first, then the model, then the name
+    // wraps. So the figure a person came for is on its row at every width the
+    // table's own columns still fit in, which is everything but the narrowest
+    // terminal anybody should be reading a table on.
+    for (const width of WIDTHS.filter((one) => one >= 64)) {
+      expect(drawn('harness', width, [onPlan()]).join('\n'), `at ${width}`).toContain('≈$2.33')
+    }
   })
 
   it('says nothing at all where no plan ran anything', () => {
@@ -696,19 +701,20 @@ describe('a long name at any width', () => {
     expect(rows).not.toContain('priced by the harness')
   })
 
-  it('says what the total does not cover as a figure, never as a sentence', () => {
+  it('says what the total does not cover on the rows it is missing from', () => {
     // Claude Code's own sign-in has no price per turn, so its 400k tokens are
     // in the token figure and in no figure of money beside it. A total that
     // adds up the rest and stops there is a figure with an agent's cost
-    // missing from it, which is worse than one marked incomplete — and the
-    // way it is marked is a figure and a word, because this is a page.
-    const rows = drawn('harness', 96).join('\n')
-    expect(rows).toContain('400k tokens unpriced')
-    expect(rows).not.toContain('ran in a harness')
-    // The money in it is untouched: this only ever adds what to say.
-    expect(rows).toMatch(/\$2\.00/)
-    // And it still fits where the panel is narrow, because it is short.
-    expect(drawn('harness', 48).join('\n')).toContain('400k tokens unpriced')
+    // missing from it — and where that cost went is its own row, which is a
+    // better answer than a count of tokens above the table and is why the
+    // count is no longer drawn.
+    const rows = drawn('harness', 96)
+    expect(rows.join('\n')).not.toContain('tokens unpriced')
+    expect(rows.join('\n')).not.toContain('ran in a harness')
+    const missing = rows.find((row) => row.includes('claude-code')) ?? ''
+    expect(missing).toContain('400k')
+    // The money in it is untouched: this only ever moves where it is said.
+    expect(rows.join('\n')).toMatch(/\$2\.00/)
   })
 
   it('says what the total is made of, in a word under the figure', () => {

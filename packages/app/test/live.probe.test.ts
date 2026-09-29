@@ -5,6 +5,9 @@ import { ConfigSchema, type TadeEvent } from '@tade/core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Live } from '../src/live.ts'
+import { spendPanel } from '../src/panels/spend/state.ts'
+import type { Wiring } from '../src/wire/context.ts'
+import { Spend } from '../src/wire/spend.ts'
 
 // What a frame costs to say what has been spent today.
 //
@@ -19,6 +22,11 @@ import { Live } from '../src/live.ts'
 // once per frame. Asserted as a ratio against the first fold, never as a rate
 // the machine has to hit: a slow machine makes both numbers bigger and this
 // still means what it says.
+//
+// The Spend page below is the same shape one level out. It can now be asked for
+// the whole journal rather than a week of it, and the page's own fold — money,
+// runtime and budgets together — runs only while the page is open, which is
+// exactly when somebody is watching the frame rate.
 
 /** How many repeat reads to make the frame's cost out of. */
 const REPEATS = 200
@@ -166,5 +174,87 @@ describe('what a frame costs to say what was spent', () => {
     // what is spent today is a different question the moment today changes.
     now += 86_400_000
     expect(live.spendToday().total.tokens).toBe(0)
+  })
+})
+
+/**
+ * The Spend page's subject over a `Live`, with the panel open on a range.
+ *
+ * Only what the subject actually reaches: it asks the state for its panel, the
+ * options for the config and the workbench, and the clock. Everything else on
+ * `Wiring` belongs to other subjects and is never touched from here — which is
+ * the narrowness `Wiring` exists for.
+ */
+function pageOver(live: Live, now: () => number, window: 'today' | 'all'): Spend {
+  const wiring = {
+    opts: {
+      client: { planUsage: () => [] },
+      config: ConfigSchema.parse({ projects: {} }),
+    },
+    state: { panel: { ...spendPanel(), window }, panes: [], known: [], projectOrder: [] },
+    live,
+    now,
+    openedAt: now() - 3_600_000,
+  } as unknown as Wiring
+  return new Spend(wiring)
+}
+
+describe('what a frame costs to draw the Spend page', () => {
+  it('folds the range once a second, not once a frame', async () => {
+    const now = Date.parse('2026-09-20T12:00:00Z')
+    const { live } = await liveOver(20_000, () => now)
+    const page = pageOver(live, () => now, 'all')
+
+    const cold = millis(() => {
+      page.facts()
+    })
+    const warm = millis(() => {
+      for (let i = 0; i < REPEATS; i++) page.facts()
+    })
+
+    expect(warm).toBeLessThan(cold * BUDGET)
+  })
+
+  it('folds it again the moment something is spent', async () => {
+    const now = Date.parse('2026-09-20T12:00:00Z')
+    const { live, spend } = await liveOver(100, () => now)
+    const page = pageOver(live, () => now, 'all')
+    const before = page.facts().spendView?.tokens ?? 0
+    expect(before).toBeGreaterThan(0)
+
+    spend({
+      type: 'usage',
+      task: 'app/task-new',
+      detail: { input: 5_000, output: 0, tokens: 5_000, usd: 1, priced: 'exact' },
+    })
+
+    // Within the same second, so nothing but the new event can be what moved
+    // it: a kept fold that waits out its second before counting what an agent
+    // just spent is a page that lies for as long as it is quick.
+    expect(page.facts().spendView?.tokens).toBe(before + 5_000)
+  })
+
+  it('starts the range again when the day does', async () => {
+    // A window left open overnight must not go on drawing yesterday's morning
+    // because nothing new was spent: a fold kept until something changes is
+    // wrong about a range whose own edges moved while nobody looked.
+    let now = Date.parse('2026-09-20T12:00:00Z')
+    const { live } = await liveOver(100, () => now)
+    const page = pageOver(live, () => now, 'today')
+    expect(page.facts().spendView?.tokens ?? 0).toBeGreaterThan(0)
+
+    now += 86_400_000
+    expect(page.facts().spendView?.tokens).toBe(0)
+  })
+
+  it('reads the whole journal where a range asks for it', async () => {
+    // The range the page could not offer before: yesterday's turns are in the
+    // journal and in no other range on the page, so `all` is the only answer
+    // that holds them.
+    let now = Date.parse('2026-09-20T12:00:00Z')
+    const { live } = await liveOver(100, () => now)
+    now += 86_400_000
+    expect(pageOver(live, () => now, 'today').facts().spendView?.tokens).toBe(0)
+    expect(pageOver(live, () => now, 'all').facts().spendView?.tokens ?? 0).toBeGreaterThan(0)
   })
 })

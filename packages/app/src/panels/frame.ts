@@ -1,8 +1,9 @@
+import { visibleWidth } from '@earendil-works/pi-tui'
 import type { Hit, Target } from '../hits.ts'
 import { BAR, barRows, type Scrolled } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { blank, Row } from '../ui.ts'
-import { fitTo } from './cells.ts'
+import { fitTo, pad } from './cells.ts'
 import type { PanelContext } from './context.ts'
 
 // The shell every panel is drawn in: how big it is, how its body scrolls, how
@@ -282,6 +283,41 @@ export function searchRow(
  * of them. The keyboard's half of the one move: a panel answers it through the
  * same clamp the wheel and the bar go through.
  */
+/**
+ * A row of tabs under the word that introduces it: `for` the ranges a page is
+ * read over, `by` the way it is grouped.
+ *
+ * More tabs than a narrow panel fits on one line is the ordinary case — five
+ * ranges and six groupings on the Spend page, five sections and the ranges on
+ * an extension's — and a tab past the edge is a tab nobody can reach, so they
+ * wrap rather than run off it. Both pages wrap the same way and both leads are
+ * padded to one width, so two rows of tabs start in one column.
+ */
+export function tabRow(
+  make: () => Row,
+  skin: Skin,
+  word: string,
+  options: readonly { id: string; label: string }[],
+  chosen: string,
+  control: string,
+  inner: number,
+): Line[] {
+  const lines: Line[] = []
+  let line = make().space().text(pad(word, LEAD_WORD), skin.hint)
+  for (const option of options) {
+    if (line.used + visibleWidth(option.label) + 4 > inner) {
+      lines.push(line.build())
+      line = make().space(1 + LEAD_WORD)
+    }
+    line.tab(option.label, { kind: 'control', id: `${control}:${option.id}` }, chosen === option.id)
+  }
+  lines.push(line.build())
+  return lines
+}
+
+/** The lead word's column: `by` and `for` padded to one width, so the tabs line up. */
+const LEAD_WORD = 4
+
 export function pageBy(key: string | undefined, page = 10): number | null {
   if (key === 'down') return 1
   if (key === 'up') return -1

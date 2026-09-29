@@ -2,7 +2,6 @@ import {
   accountBucket,
   type Budget,
   type BudgetVerdict,
-  type CheckTally,
   checkBudget,
   modelIn,
   modelsSaid,
@@ -12,7 +11,6 @@ import {
   type PlanSource,
   type Priced,
   type PriceTable,
-  type Produced,
   planLabel,
   planStandings,
   pricedOf,
@@ -25,7 +23,6 @@ import {
   type SpendReport,
   spendFrom,
   startOfToday,
-  statsFrom,
   type TadeEvent,
   UNRECORDED,
 } from '@tade/core'
@@ -36,25 +33,35 @@ import {
 // already adds them up by task, project, model, harness, sign-in and provider.
 // Its `run_started` and `run_exited` events are the only record of how long
 // anything ran, and `runtimeFrom` adds those up the same six ways. This
-// decides the rest: what "this window" and "7 days" mean, which row is the
-// orchestrator's, which model each agent ran on, and how every project stands
-// against its daily budget.
+// decides the rest: what "this window", "7 days" and "All time" mean, which
+// row is the orchestrator's, which model each agent ran on, and how every
+// project stands against its daily budget.
 //
 // An agent that ran and reported no money still gets a row: the question the
 // panel answers is where the effort went, and unpriced effort is still effort.
 // Where the work was billed per token and the harness declared it prices
 // nothing, the fold prices it from a published rate and the row carries the
 // mark that says so. What is left over — a plan's flat fee, a model no rate
-// knows — is counted in `tokensUnpriced` and said as a figure, because a total
-// that quietly leaves an agent's cost out is worse than one marked incomplete.
+// knows — is counted in `tokensUnpriced`, and the rows it belongs to say so
+// themselves: a total that quietly leaves an agent's cost out is worse than one
+// that shows where it went.
 //
 // And what a plan's turns would have cost at that same published rate is its
-// own figure (`usdOnPlan`), in none of the money above: on the total line as a
-// caveat, and beside each sign-in's own plan bar, where somebody looking at a
-// subscription is already looking. Never in the COST column, which is money —
-// a plan's row there is still `—`, because nobody is billed this.
+// own figure (`usdOnPlan`), in none of the money above and in no total: per
+// row, so the cost of a morning on a subscription is beside the agent that
+// spent it, and beside each sign-in's own plan bar. It was a caveat on a line
+// of its own above the table, which is the one place it was no use — a figure
+// somebody has to attribute by hand is a figure they go to `ccusage` for.
 
-export type SpendWindow = 'today' | 'window' | 'week'
+/**
+ * How far back the page is looking, out to the whole journal.
+ *
+ * `all` is the journal itself: the events are append-only and every one of
+ * them is still there, so "as far back as we go" is a real answer rather than
+ * a cap somebody picked. Ordered as they are read — the nearest first — because
+ * ← and → step along this list.
+ */
+export type SpendWindow = 'today' | 'window' | 'week' | 'month' | 'all'
 
 /**
  * The six ways of asking where it went.
@@ -69,10 +76,20 @@ export type SpendWindow = 'today' | 'window' | 'week'
  */
 export type SpendBy = 'agent' | 'project' | 'model' | 'harness' | 'account' | 'provider'
 
-export const SPEND_WINDOWS: readonly { id: SpendWindow; label: string }[] = [
-  { id: 'today', label: 'Today' },
-  { id: 'window', label: 'This window' },
-  { id: 'week', label: '7 days' },
+/**
+ * The ranges the page can be read over, and what an empty one is called.
+ *
+ * `over` is there because "nothing here" has to say *where* it looked: with
+ * one range the word could be left out, and with five `Nothing in this window.`
+ * is the answer to four different questions — one of which is a range called
+ * This window.
+ */
+export const SPEND_WINDOWS: readonly { id: SpendWindow; label: string; over: string }[] = [
+  { id: 'today', label: 'Today', over: 'today' },
+  { id: 'window', label: 'This window', over: 'since Tade opened' },
+  { id: 'week', label: '7 days', over: 'in 7 days' },
+  { id: 'month', label: '30 days', over: 'in 30 days' },
+  { id: 'all', label: 'All time', over: 'in the journal' },
 ]
 
 export const SPEND_BY: readonly { id: SpendBy; label: string }[] = [
@@ -100,6 +117,20 @@ export interface SpendRow {
   usdListed: number
   /** Which of those this row's money is, so no column adds them in silence. */
   priced: Priced
+  /**
+   * What this row's turns would have cost at list price where a plan paid for
+   * them — the figure `ccusage` prints, and nobody's bill.
+   *
+   * In none of the money above and in no total on the page. It is drawn in the
+   * COST column, quietly and marked as Tade's own arithmetic, where there is no
+   * money at all to draw there: a row that reads `—` on a morning an agent
+   * worked all the way through is the hole this figure was worked out to fill,
+   * and leaving it out of the table was leaving it where nobody could see
+   * whose it was.
+   */
+  usdOnPlan: number
+  /** Whether a rate covered all of those turns, only some, or there are none. */
+  onPlan: OnPlan
   /** How long it ran in this window. Null for the orchestrator, which has no run of its own. */
   runtime: Runtime | null
 }
@@ -123,7 +154,7 @@ export interface PlanRow {
    * at list price. Nought where nothing ran on it, or where it is billed per
    * token — there the money columns above have already said what it cost.
    *
-   * Beside the bar rather than in the table, because this is the one figure a
+   * Beside the bar as well as in the table, because this is the one figure a
    * plan has that looks like money and is not one: here it sits in the list
    * that is already not money, under a heading that says so.
    */
@@ -156,15 +187,22 @@ export interface SpendView {
   priced: Priced
   /**
    * Of `tokens`, what no dollar here covers — a plan's flat fee, a model no
-   * rate knows. Said as a figure under the total whenever there is money for
-   * it to be missing from: one that quietly leaves an agent's cost out is
-   * worse than one marked incomplete.
+   * rate knows.
+   *
+   * Kept beside the money it is missing from, the way the three kinds of dollar
+   * are. The page says it on the rows rather than as a count above the table: a
+   * plan's row carries what its turns would have cost (`SpendRow.usdOnPlan`),
+   * and a row nothing could price at all still reads `—`, which is where the
+   * rest of this is.
    */
   tokensUnpriced: number
   /**
    * What the turns a plan paid for would have cost at list price, and not a
-   * bill: nobody is charged it, and it is in none of the figures above. Said on
-   * the line under the total, beside what that total does not cover.
+   * bill: nobody is charged it, and it is in none of the figures above.
+   *
+   * Kept for the rows and the plan list to be read against, and drawn in
+   * neither of the totals at the head of the page: a figure nobody is charged
+   * standing where the money goes is the one thing this page may never draw.
    */
   usdOnPlan: number
   /** Whether a rate covered all of a plan's turns, some of them, or there are none. */
@@ -184,17 +222,22 @@ export interface SpendView {
    */
   plan: readonly PlanRow[]
   budgets: BudgetRow[]
-  /** What the money bought: commits, and how big they were. */
-  produced: Produced
-  /** How each of the project's checks has been going, busiest first. */
-  checks: CheckTally[]
 }
 
 const DAY = 86_400_000
 
-/** When a window starts: midnight, when Tade opened, or six midnights ago. */
+/**
+ * When a range starts: midnight, when Tade opened, or so many midnights ago.
+ *
+ * Counted in midnights rather than in rolling hours, so a range's first day is
+ * a whole day: `7 days` is this one and the six before it, the way somebody
+ * asking for a week means it. `all` is nought — everything the journal holds,
+ * which is as far back as anything here goes.
+ */
 export function sinceOf(window: SpendWindow, now: number, openedAt: number): number {
   if (window === 'window') return openedAt
+  if (window === 'all') return 0
+  if (window === 'month') return startOfToday(now) - 29 * DAY
   if (window === 'week') return startOfToday(now) - 6 * DAY
   return startOfToday(now)
 }
@@ -210,8 +253,6 @@ export function spendView(
     budgets: Readonly<Record<string, Budget | undefined>>
     /** Where runtime is read from, when the run events are not in `events` themselves. */
     runs?: readonly TadeEvent[]
-    /** Where commits and check runs are read from. The same events, unless said. */
-    made?: readonly TadeEvent[]
     /** What each harness account can say about its plan, and what it last said. */
     plan?: readonly PlanSource[]
     /** Prices per model beyond the ones Tade ships, as `config.prices` holds them. */
@@ -316,11 +357,6 @@ export function spendView(
     }
   })
 
-  // What the money bought. Read over the same window, from events written
-  // once each at the moment they were true — a commit that has since been
-  // rebased away still counts, because the work was still done.
-  const made = statsFrom(opts.made ?? events, { since })
-
   return {
     window: opts.window,
     by: opts.by,
@@ -338,8 +374,6 @@ export function spendView(
     rows,
     plan: planRows(opts.plan ?? [], opts.now, report),
     budgets,
-    produced: made.produced,
-    checks: made.checks,
   }
 }
 
@@ -397,6 +431,8 @@ function rowOf(of: {
     usdEstimated: spend.usdEstimated,
     usdListed: spend.usdListed,
     priced: pricedOf(spend),
+    usdOnPlan: spend.usdOnPlan,
+    onPlan: onPlanOf(spend),
     runtime: of.runtime,
   }
 }

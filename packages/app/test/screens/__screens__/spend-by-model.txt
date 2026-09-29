@@ -1,9 +1,9 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2  ╭─ Spend ─────────────────────────────────────────────────────────────────────────── esc ─╮high ▾     ×   
-              │ ~$1.88  2.5M tokens  1h 32m working · 2h 5m open      Today    This window    7 days    │───────────────
- ▌ ! stripe-v1│ mixed · over 3 runs · 880k tokens unpriced · ≈$3.74 at list                             │               
- ▌   wants you│ by   Agent    Project    Model    Harness    Sign-in    Provider                        │               
+              │ ~$1.88 mixed  2.5M tokens  1h 32m working · 2h 5m open · over 3 runs                    │───────────────
+ ▌ ! stripe-v1│ for   Today    This window    7 days    30 days    All time                             │               
+ ▌   wants you│ by    Agent    Project    Model    Harness    Sign-in    Provider                       │               
               │                                                                                         │               
    ⠋ refunds  │   MODEL                                      TOKENS  SHARE      WORKING   OPEN     COST │               
      working  │ · claude-opus-5                                1.8M  ███████░░░  1h 14m 1h 35m    $1.20▕│               
@@ -16,17 +16,17 @@
   M src/webhoo│ codex             5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago                   ▕│               
               │ pi                cannot tell                                                          ▕│               
  ▾ FILES      │                                                                                        ▕│               
-   ▾ src/     │ PRODUCED                                                                               ▕│               
-       webhook│ 4 commits    +357 −58  16 files  1 unattributed                                        ▕│               
-       webhook│ tests        2 runs   1 failed    45.5s                                                ▕│               
-   ▸ test/    │ types        2 runs   all green   20.6s                                                ▕│               
+   ▾ src/     │ BUDGETS                                                                                ▕│               
+       webhook│ checkout        $0.62 of $5.00 a day        █░░░░░░░░░░░ 12%                           ▕│               
+       webhook│ search          $0.68                       no budget — set one                        ▕│               
+   ▸ test/    │                                                                                        ▕│               
      package.j│                                                                                        ▕│               
-━   orchestrat│ BUDGETS                                                                                ▕│━   ⤢     ▾   ━
-              │ checkout        $0.62 of $5.00 a day        █░░░░░░░░░░░ 12%                           ▕│               
-              │ search          $0.68                       no budget — set one                        ▕│              ▕
+━   orchestrat│                                                                                        ▕│━   ⤢     ▾   ━
+              │                                                                                        ▕│               
+              │                                                                                        ▕│              ▕
               │                                                                                        ▕│              ▕
               │                                                                                         │              ▕
-              │ ↑↓ reads · ←→ windows · tab groups                                              Done    │              ▕
+              │ ↑↓ reads · ←→ ranges · tab groups                                               Done    │              ▕
  ❯ what you sa╰─────────────────────────────────────────────────────────────────────────────────────────╯              ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

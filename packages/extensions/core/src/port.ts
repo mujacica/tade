@@ -506,7 +506,7 @@ export interface ViewAt {
   tab: string
   /** Only what happened at or after this. Zero means everything there has ever been. */
   since: number
-  /** Which window that is, in the window's own words: `today`, `window`, `week`. */
+  /** Which range that is, in the window's own words: `today`, `window`, `week`, `month`, `all`. */
   window: string
 }
 

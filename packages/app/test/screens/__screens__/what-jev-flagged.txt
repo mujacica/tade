@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AG╭─ Jev ──────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮ ×   
-     │   Overview    Findings    Questions    Calibration    Looks              Today    This window    7 days    │─────
- ▌ ! │                                                                                                            │     
- ▌   │ Read today                                                                                                ▕│     
-     │                                                                                                           ▕│     
-   ⠋ │ 2 changes · 4 flagged · 0.8¢ · 2 looks                                                                    ▕│     
-     │                                                                                                           ▕│     
-     │ Where they stand                                                                                          ▕│     
- ▸ SM│                                                                                                           ▕│     
- ▸ SC│   ✗ told, no verdict  1                                                                                   ▕│     
- ▾ CH│   ◐ its agent         1                                                                                   ▕│     
-  M p│   ● judged            2                                                                                   ▕│     
-  A …│                                                                                                           ▕│     
-  M s│ 2 findings with no verdict. The oldest has waited 6h.                                                     ▕│     
-     │                                                                                                           ▕│     
- ▾ FI│ Worth running                                                                                             ▕│     
-   ▾ │                                                                                                           ▕│     
-     │   ◐ precision  1 of 2, too few to call                                                                    ▕│     
-     │                                                                                                           ▕│     
-   ▸ │ 2 verdict(s) is not a rate. Under 5 the counts are said and the percentage is not, because one verdict    ▕│     
-     │ moving a figure by a quarter is not a trend.                                                              ▕│     
-     │                                                                                                           ▕│     
-━   o│ Loudest questions                                                                                         ▕│▾   ━
-     │                                                                                                           ▕│     
-     │   ◐ test_missing     2 fired  none judged                                                                 ▕│    ▕
+     │   Overview    Findings    Questions    Calibration    Looks                                                │─────
+ ▌ ! │ for   Today    This window    7 days    30 days    All time                                                │     
+ ▌   │                                                                                                            │     
+     │ Read today                                                                                                █│     
+   ⠋ │                                                                                                           █│     
+     │ 2 changes · 4 flagged · 0.8¢ · 2 looks                                                                    █│     
+     │                                                                                                           █│     
+ ▸ SM│ Where they stand                                                                                          █│     
+ ▸ SC│                                                                                                           █│     
+ ▾ CH│   ✗ told, no verdict  1                                                                                   █│     
+  M p│   ◐ its agent         1                                                                                   █│     
+  A …│   ● judged            2                                                                                   █│     
+  M s│                                                                                                           █│     
+     │ 2 findings with no verdict. The oldest has waited 6h.                                                     █│     
+ ▾ FI│                                                                                                           █│     
+   ▾ │ Worth running                                                                                             █│     
+     │                                                                                                           █│     
+     │   ◐ precision  1 of 2, too few to call                                                                    █│     
+   ▸ │                                                                                                           █│     
+     │ 2 verdict(s) is not a rate. Under 5 the counts are said and the percentage is not, because one verdict    █│     
+     │ moving a figure by a quarter is not a trend.                                                              █│     
+━   o│                                                                                                           █│▾   ━
+     │ Loudest questions                                                                                         █│     
+     │                                                                                                           █│    ▕
+     │   ◐ test_missing     2 fired  none judged                                                                 █│    ▕
      │   ◐ error_swallowed  1 fired  1 of 1, too few to call  under 5 verdicts                                   ▕│    ▕
-     │   ◐ kind_fixture     1 fired  0 of 1, too few to call  under 5 verdicts                                   ▕│    ▕
-     │ ↑↓ scrolls · tab moves · ←→ the window · kept current while open                                  Close    │    ▕
+     │ ↑↓ scrolls · tab moves · ←→ the range · 1–23 of 24 · kept current while open                      Close    │    ▕
  ❯ wh╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯    ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

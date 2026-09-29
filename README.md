@@ -187,9 +187,9 @@ starts nothing new; and it never force-pushes, never reverts and never merges.
 
 ## Spend, time and tokens
 
-What every agent and the orchestrator cost today, this window or this week — tokens, runtime and
-dollars, each project against the budget you gave it — and what that bought: commits, the size of
-them, and how the project's own checks have been going.
+What every agent and the orchestrator cost — tokens, runtime and dollars, each project against the
+budget you gave it — over today, this window, seven days, thirty, or the whole of the journal, which
+goes back as far as you have been running Tade.
 
 Where a subscription pays for the work there is no price per turn, so what is used up is a share of
 a rolling window: how much of each plan is gone and when it comes back. Never added to the money: a
@@ -200,16 +200,19 @@ the status bar beside the cost, since that is the one about to stop somebody wor
 to look at another. Ask Tade and it will tell you where each one stands and what else there is when
 one is nearly gone, and leave switching to you.
 
-![Spend: every agent with its model, tokens, share, runtime and cost, how much of each subscription’s window is used and when it resets, what that bought in commits and lines, and each project against its budget](images/spend.svg)
+![Spend: every agent with its model, tokens, share, runtime and cost over the range you pick, how much of each subscription’s window is used and when it resets, and each project against its budget](images/spend.svg)
 
 Ask it by agent, by project, by model — or by the harness it ran in, the sign-in it ran as and the
 provider it was reached through. A model is one row under its own name however it was reached, so an
 agent's hours and its money are in the same place; the same weights on a subscription, through an
 API key and through a router are three different bills, and those last three groupings are what tell
 them apart. Money a harness priced against its own catalog is never added to money it could only
-guess at without saying so: a guessed figure wears a `~` wherever you read it, and money nobody
-reported at all is a dash rather than a zero that reads as free. How long the agents ran is every
-agent's time added together rather than time on the clock, which the figure says as it stands.
+guess at without saying so: a guessed figure wears a `~` wherever you read it, one Tade worked out
+from the published rate wears a `≈`, and money nobody reported and nothing could price at all is a
+dash rather than a zero that reads as free. Where a plan paid, the cost column says what those turns
+would have cost at list price — quietly, because nobody is billed it, and in no total. How long the
+agents ran is every agent's time added together rather than time on the clock, which the figure says
+as it stands.
 
 ![The same morning grouped by model: one model reached three ways is one row, its hours and its money in the same place, with the groupings for harness, sign-in and provider beside it](images/spend-by-model.svg)
 

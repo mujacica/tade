@@ -63,10 +63,8 @@ describe('the Spend panel', () => {
     expect(spendPanel()).toMatchObject({ window: 'today', by: 'agent' })
   })
 
-  it('moves through the time windows with the arrows and the groupings with tab', () => {
-    const later = panelKey(spendPanel(), 'right', '').panel
-    expect(later).toMatchObject({ window: 'window' })
-    expect(panelKey(spendPanel(), 'left', '').panel).toMatchObject({ window: 'week' })
+  // Which range it is on and how it is reached are `spend-ranges.test.ts`'s.
+  it('moves through the groupings with tab', () => {
     expect(panelKey(spendPanel(), 'tab', '').panel).toMatchObject({ by: 'project' })
   })
 

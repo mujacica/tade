@@ -7,7 +7,7 @@ import { blank, box, type Drawn, NO_POINTER, Row } from '../../ui.ts'
 import { markdownLines } from '../../viewer.ts'
 import { cap, count, sideWidth, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
-import { BAR, beside, column, type Line, panelSize, searchRow, startOf } from '../frame.ts'
+import { BAR, beside, column, type Line, panelSize, searchRow, startOf, tabRow } from '../frame.ts'
 import { type ExtensionFacts, extensionBody } from './body.ts'
 import { type ExtensionSetupPanel, type ExtensionViewPanel, setupControls } from './setup.ts'
 import { chosenEntry, type ExtensionsPanel, extensionControls, extensionEntries } from './state.ts'
@@ -360,7 +360,7 @@ export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Dra
 function moves(shown: PanelContext['extensionView']): string {
   const said = ['↑↓ scrolls']
   if ((shown?.tabs.length ?? 0) > 1) said.push('tab moves')
-  if (shown?.windowed) said.push('←→ the window')
+  if (shown?.windowed) said.push('←→ the range')
   return said.join(' · ')
 }
 
@@ -368,9 +368,12 @@ function moves(shown: PanelContext['extensionView']): string {
  * The rows above the body that never scroll: the tabs, and how far back it is
  * showing.
  *
- * Both on one row where they fit, because the two together are one sentence —
- * *which* of this page, over *what* — and two rows for them on a page whose
- * whole point is being read at a glance is a row of the answer given up.
+ * Both on one row while they fit — the two together are one sentence, *which*
+ * of this page over *what*, and a row given up on a page whose whole point is
+ * being read at a glance is worth avoiding. Past that the ranges take their
+ * own row under the word for them, the way the Spend page's do: the right-hand
+ * end of a row that runs out of room drops what will not fit, and a range
+ * nobody can see is a range nobody knows the page has.
  */
 function viewHead(
   panel: ExtensionViewPanel,
@@ -385,7 +388,9 @@ function viewHead(
   for (const tab of tabs) {
     row.tab(tab.title, { kind: 'control', id: `tab:${tab.id}` }, tab.id === chosen)
   }
-  if (shown?.windowed) {
+  if (!shown?.windowed) return [row.build(), blank(inner)]
+  const ranges = SPEND_WINDOWS.reduce((wide, one) => wide + visibleWidth(one.label) + 4, 1)
+  if (row.used + ranges <= inner) {
     row.right((r) => {
       for (const window of SPEND_WINDOWS) {
         r.tab(
@@ -396,8 +401,14 @@ function viewHead(
       }
       r.space()
     })
+    return [row.build(), blank(inner)]
   }
-  return [row.build(), blank(inner)]
+  const make = () => new Row(inner, ctx.skin, ctx.pointer)
+  return [
+    row.build(),
+    ...tabRow(make, ctx.skin, 'for', SPEND_WINDOWS, panel.window, 'window', inner),
+    blank(inner),
+  ]
 }
 
 /**

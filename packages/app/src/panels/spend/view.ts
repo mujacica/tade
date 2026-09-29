@@ -13,7 +13,7 @@ import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { cap, pad, padTo, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
-import { BAR, column, type Line, panelSize } from '../frame.ts'
+import { BAR, column, type Line, panelSize, tabRow } from '../frame.ts'
 import type { SpendPanel } from './state.ts'
 
 // What the Spend panel looks like. The table is laid out from the room there
@@ -56,78 +56,33 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
 
   const top = row().space()
   // The mark rides on the figure itself, here as on every row: a total that
-  // holds money nobody priced says so where it is read, not in a footnote.
-  top.text(view ? cost(view.priced, view.usd) : '—', skin.you).space(2)
+  // holds money nobody priced says so where it is read, not in a footnote —
+  // and the word the mark is short for goes beside it, so a figure that adds a
+  // bill, a harness's guess and a rate off a published page can never do it in
+  // silence.
+  top.text(view ? cost(view.priced, view.usd) : '—', skin.you)
+  const madeOf = view && view.priced !== 'none' ? MADE_OF[view.priced] : ''
+  if (madeOf) top.space().text(madeOf, skin.hint)
+  top.space(2)
   top.text(tokenCount(view?.tokens ?? 0), skin.hint).space(2)
   // Both times, each said in its own word: how long a model was working, and
   // how long the agents were open. Two figures and no sentence — the page says
-  // which is which the way the columns under it do, and what makes the pair
-  // readable (`over 3 runs`) is on the line below, where the money's own
-  // caveat already lives.
+  // which is which the way the columns under it do — and `over 3 runs` beside
+  // them, because a time that is not elapsed time is unreadable without it.
   const ran = view?.runtime
   top.text(runtimeHead(ran), ran?.running ? skin.busy : skin.hint)
-  top.right((r) => {
-    for (const window of SPEND_WINDOWS) {
-      r.tab(
-        window.label,
-        { kind: 'control', id: `window:${window.id}` },
-        panel.window === window.id,
-      )
-    }
-    r.space()
-  })
   head.push(top.build())
-  // Everything the figures above need said about them, in the gap under them:
-  // marks, figures and the one word each is short for, in the order of the
-  // figures they sit under. Three things can want it, and none of them is a
-  // sentence — what a page explains, it explains once and then forever, and
-  // this one has had prose cut out of it three times.
-  //
-  // `made of` is the word the mark on the total is short for, so a figure that
-  // adds a bill, a harness's guess and a rate off a published page can never
-  // do it in silence. `over 3 runs` is what makes a time that is not elapsed
-  // time readable: twenty agents over an afternoon each ran for the whole of
-  // their own afternoon, so `13d 3h` off a machine on since breakfast reads as
-  // a bug and is not one. And `880k unpriced` is what no dollar above covers —
-  // a plan's flat fee, a model no rate knows — because a total that adds up
-  // the rest and stops there is a figure with an agent's cost missing from it.
-  // Said only where there is money for it to be missing from: with none at all
-  // the `—` beside it has said it already.
-  const madeOf = view && view.priced !== 'none' ? MADE_OF[view.priced] : ''
-  const runs = ran && ran.runs > 1 ? `over ${ran.runs} runs` : ''
-  const unpriced =
-    view && view.tokensUnpriced > 0 && view.usd > 0
-      ? `${tokenCount(view.tokensUnpriced)} unpriced`
-      : ''
-  // And what the plan's share of that would have cost at the published rate,
-  // which is the figure people leave for `ccusage` and the reason this line
-  // exists rather than a `—` and nothing else. Beside the tokens no dollar
-  // covers rather than beside the total, because it is not part of the total
-  // and never will be: `at list` is the word that says whose figure it is, and
-  // the mark on it is the one this page already uses for a rate off a page.
-  const onPlan = view ? atList(view) : ''
-  const under = [madeOf, runs, unpriced, onPlan].filter(Boolean).join(' · ')
-  head.push(
-    under
-      ? row()
-          .space()
-          .text(cap(under, inner - 1), skin.hint)
-          .build()
-      : blank(inner),
-  )
 
-  // Six facets is more than a narrow panel fits on one line, and a tab that
-  // ran off the edge is a grouping nobody can reach. So they wrap, under the
-  // word that introduces them.
-  let by = row().space().text('by ', skin.hint)
-  for (const option of SPEND_BY) {
-    if (by.used + visibleWidth(option.label) + 4 > inner) {
-      head.push(by.build())
-      by = row().space(4)
-    }
-    by.tab(option.label, { kind: 'control', id: `by:${option.id}` }, panel.by === option.id)
-  }
-  head.push(by.build())
+  // The ranges, then the groupings: two rows of tabs with the word that
+  // introduces each, which is the only shape that holds five ranges and six
+  // groupings at every width. Both wrap under their own word rather than
+  // running off the edge, because a tab past the edge is one nobody can reach.
+  //
+  // The ranges were a right-aligned row up beside the figures while there were
+  // three of them. Five is more than the line the figures are on has room for,
+  // and a range nobody can see is a range nobody knows the page has.
+  head.push(...tabRow(row, skin, 'for', SPEND_WINDOWS, panel.window, 'window', inner))
+  head.push(...tabRow(row, skin, 'by', SPEND_BY, panel.by, 'by', inner))
   head.push(blank(inner))
 
   const { name, model, meter } = spendColumns(inner, panel.by)
@@ -154,7 +109,11 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     (a, b) => Number(b.kind === 'orchestrator') - Number(a.kind === 'orchestrator'),
   )
   if (entries.length === 0) {
-    rows.push(row().space(3).text('Nothing in this window.', skin.hint).build())
+    // Which range found nothing, not just that something did: with five of
+    // them, an empty table that says only `Nothing` is the answer to whichever
+    // one the reader happens to think they are on.
+    const over = SPEND_WINDOWS.find((one) => one.id === panel.window)?.over ?? 'here'
+    rows.push(row().space(3).text(`Nothing ${over}.`, skin.hint).build())
   }
   for (const entry of entries) {
     const pane = ctx.panes.find((p) => p.task === entry.label)
@@ -187,12 +146,11 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           ),
           entry.runtime?.running ? skin.busy : undefined,
         )
-        // Money nobody priced is marked where it is read: a column of dollars
-        // that quietly mixes the two is the one thing this page may never draw.
-        .text(
-          cost(entry.priced, entry.usd).padStart(COST_W),
-          entry.priced === 'exact' ? undefined : skin.hint,
-        )
+        // What it cost, or what it would have cost where a plan paid — each
+        // marked and toned where it is read (`costCell`), because a column of
+        // dollars that quietly mixes three claims is the one thing this page
+        // may never draw.
+        .text(costCell(entry).padStart(COST_W), costTone(entry, skin))
         .build(),
     )
     // The rest of a name too long for its column.
@@ -279,41 +237,11 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     rows.push(...drawn)
   }
 
-  // What the money bought, beside what it cost: the two numbers are only
-  // worth anything together, and a morning that spent forty dollars on three
-  // commits is a different morning from one that spent it on thirty.
-  rows.push(blank(inner))
-  rows.push(row().space().text('PRODUCED', skin.label).build())
-  const made = view?.produced
-  if (!made || made.commits === 0) {
-    rows.push(row().space(3).text('Nothing committed.', skin.hint).build())
-  } else {
-    const nobody = made.commits - made.attributed
-    const line = row().space()
-    line.text(pad(`${made.commits} commit${made.commits === 1 ? '' : 's'}`, 13))
-    line.text(`+${made.added}`, skin.done).space().text(`−${made.removed}`, skin.bad).space(2)
-    line.text(`${made.files} file${made.files === 1 ? '' : 's'}`, skin.hint)
-    // Unattributed is always an allowed answer: usually a person committing by
-    // hand, sometimes an agent that was never told to write its trailer.
-    if (nobody > 0) line.space(2).text(`${nobody} unattributed`, skin.hint)
-    rows.push(line.build())
-  }
-  for (const check of view?.checks ?? []) {
-    const took = check.medianMs === null ? '' : `${(check.medianMs / 1000).toFixed(1)}s`
-    rows.push(
-      row()
-        .space()
-        .text(pad(check.check, 13))
-        .text(pad(`${check.runs} run${check.runs === 1 ? '' : 's'}`, 9), skin.hint)
-        .text(
-          pad(check.failed > 0 ? `${check.failed} failed` : 'all green', 12),
-          check.failed > 0 ? skin.bad : skin.done,
-        )
-        .text(took, skin.hint)
-        .build(),
-    )
-  }
-
+  // What the money bought and how the checks have been going are an agent's
+  // own record, and they are already on its ACTIONS page — the commits it
+  // wrote with what each changed, and every check with what it printed. Two
+  // summary lines of the same thing here were a second, shorter answer to a
+  // question answered better one screen away, on a page that is about money.
   rows.push(blank(inner))
   rows.push(row().space().text('BUDGETS', skin.label).build())
   // Only projects with something to say: a budget, or money spent without one.
@@ -363,7 +291,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         blank(inner),
         new Row(inner, skin, ctx.pointer)
           .space()
-          .text(cap('↑↓ reads · ←→ windows · tab groups', inner - 12), skin.hint)
+          .text(cap('↑↓ reads · ←→ ranges · tab groups', inner - 12), skin.hint)
           .right((r) => r.button('Done', { kind: 'control', id: 'close' }, 'primary').space())
           .build(),
       ],
@@ -466,18 +394,25 @@ export function nameLines(label: string, width: number): string[] {
 
 /**
  * The pair of times at the top of the page, each with the word that says which
- * it is. No prose: `working` and `open` are the same two words the columns
- * under them are headed with, so the page says which is which once.
+ * it is, and how many runs they are made of. No prose: `working` and `open`
+ * are the same two words the columns under them are headed with, so the page
+ * says which is which once.
  *
  * `open` is always a figure — a run has a start and an end, or it is still
  * going. `working` is not: every run of a journal written before Tade recorded
  * when a turn begins has turns with ends and no beginnings, and what those
  * spent working is unanswerable rather than nought. So it is said as unknown,
  * and never as the `0s` it would otherwise add up to.
+ *
+ * `over 3 runs` is what makes either of them readable: twenty agents over an
+ * afternoon each ran for the whole of their own afternoon, so `13d 3h` off a
+ * machine on since breakfast reads as a bug and is not one. It goes with the
+ * figures it qualifies and is never dropped to save a column.
  */
 export function runtimeHead(ran: Runtime | undefined): string {
   if (!ran) return `${duration(0)} open`
-  const open = `${duration(ran.ms)} open`
+  const runs = ran.runs > 1 ? ` · over ${ran.runs} runs` : ''
+  const open = `${duration(ran.ms)} open${runs}`
   switch (workedOf(ran)) {
     case 'recorded':
       return `${duration(ran.workingMs)} working · ${open}`
@@ -552,6 +487,46 @@ function atList(of: { usdOnPlan: number; onPlan: OnPlan }): string {
 function cost(priced: Priced, usd: number): string {
   if (priced === 'none') return '—'
   return `${MARK[priced]}${money(usd)}`
+}
+
+/**
+ * What one row's COST cell says: the money, or — where there is none and a
+ * plan paid for the work — what those turns would have cost at list price.
+ *
+ * Money first and always, because money is what the column is for. The second
+ * figure is the one this page used to draw as `—` on rows where an agent had
+ * worked all morning, with the total of it on a caveat line above the table
+ * that nobody could attribute to an agent by eye. It is the same arithmetic
+ * `usdListed` is, off the same table of rates, so it carries the same `≈`; the
+ * difference is that nobody is billed it, which is what `costTone` says and
+ * what keeps it out of every total on this page.
+ *
+ * `≥` where some of those turns ran on a model no rate knows — a floor drawn
+ * as a floor, the way the working column already does it.
+ */
+function costCell(row: { priced: Priced; usd: number; usdOnPlan: number; onPlan: OnPlan }): string {
+  if (row.priced !== 'none') return cost(row.priced, row.usd)
+  if (row.onPlan === 'none') return '—'
+  return `${row.onPlan === 'partly' ? '≥' : ''}${MARK.listed}${money(row.usdOnPlan)}`
+}
+
+/**
+ * How loudly a cost is said: a bill plainly, a figure somebody worked out
+ * quietly, and one nobody is charged quieter still.
+ *
+ * Three steps for three claims, because the mark alone cannot separate the
+ * last two — `≈` is Tade's arithmetic either way, and whether there is a bill
+ * behind it is the whole difference. The plain skin keeps the marks and loses
+ * the steps, which is why the figure is never the only thing that says which
+ * it is: the PLAN list below names every sign-in a plan pays for.
+ */
+function costTone(
+  row: { priced: Priced; usdOnPlan: number; onPlan: OnPlan },
+  skin: Skin,
+): ((text: string) => string) | undefined {
+  if (row.priced === 'exact') return undefined
+  if (row.priced === 'none' && row.onPlan !== 'none') return skin.chrome
+  return skin.hint
 }
 
 const MARK: Readonly<Record<Priced, string>> = {

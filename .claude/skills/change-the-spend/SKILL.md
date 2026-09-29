@@ -29,7 +29,7 @@ arithmetic over the same tokens, in no total of money and no budget, and nobody'
 | `packages/workbench/src/workers.ts` | what is written down: `usage`, `run_started`, `run_model`, and `agentTurns` for the reporter |
 | `packages/workbench/src/workbench.ts` | the two that cannot be re-derived: `lookAtCommits` → `commit_seen`, `lookAtChecks` → `check_ran` |
 | `packages/app/src/spend.ts` | `spendView`, `SpendRow`, `PlanRow`, `BudgetRow`, `SPEND_BY`, `SPEND_WINDOWS`, `sinceOf` |
-| `packages/app/src/wire/spend.ts` | the `Spend` subject: the fold on the window's beat, `planUsage` read from what each harness already holds |
+| `packages/app/src/wire/spend.ts` | the `Spend` subject: the fold on the window's beat kept for `REFOLD_MS`, `planUsage` read from what each harness already holds |
 | `packages/app/src/panels/spend/state.ts`, `view.ts` | the page: its tabs, `spendColumns`, `nameLines` |
 | `packages/app/src/view/foot.ts` | the strip: `planShown`, `nextPlan`, the bars, and what it gives up first |
 | `packages/cli/src/commands/spend.ts` | `tade spend`, which reads the journal directly and never opens the workbench |
@@ -129,21 +129,28 @@ So it is worked out and kept apart, in `usdOnPlan`:
   `checkBudget`**: refusing an agent over dollars nobody is charged is a stop nobody can argue with.
   `chargeOf` returns it as its own field for exactly this reason, so no fold can add it by accident.
 - **`tokensUnpriced` does not move.** A plan's tokens are still tokens no *money* figure covers, and
-  the page still says so. The estimate is beside that fact and not instead of it.
+  the fold still counts them. What the page does with that is the next rule.
 - **It is a floor when it has to be** (`onPlanOf`: `none` / `listed` / `partly`, drawn `≥`). Two ways
   a turn cannot be priced — a model no rate knows, and a line written before usage carried its tokens
   broken down by kind, which a years-long journal is full of — and both count into
   `tokensOnPlanUnrated` rather than quietly shrinking the figure.
-- **Drawn only where the surface is not money.** Under the Spend page's total (`≈$3.74 at list`),
-  beside each sign-in's own plan bars, and in the strip — where it takes the cost slot when there is
-  no bill at all, and its own shedable slot when there is, so no row ever shows it twice. **Never in
-  the COST column**, which is money: a plan's row there is still `—`. `tade spend` says the whole
-  sentence (`onPlanSays`), because there somebody asked. The head's line is the one that survives a
-  narrow panel and the shed ladder; the copies beside the bars and in the strip go first, which is
-  why the figure a person came for is the total's.
-- **`at list` is the word, `≈` is the mark.** Both already mean "a rate off a published page" here;
-  what makes this one not a bill is that it never appears in a total, and the word says so wherever
-  there is room for a word.
+- **Drawn per row, and in no total** (`SpendRow.usdOnPlan`, `costCell`). The Spend table's COST
+  column says the money, and where a row has none and a plan paid, it says what those turns would
+  have cost instead — so the cost of a morning on a subscription is beside the agent that spent it.
+  It was a caveat on a line above the table and a `—` in the column, which is the one arrangement
+  where the figure is no use: **`≈$779 at list` that somebody has to attribute to an agent by hand is
+  a figure they go to `ccusage` for**, which is the whole reason it exists. Beside each sign-in's own
+  plan bars as well, and in the strip — where it takes the cost slot when there is no bill at all,
+  and its own shedable slot when there is, so no row ever shows it twice. `tade spend` says the whole
+  sentence (`onPlanSays`), because there somebody asked.
+- **`≈` is the mark and the tone is what separates it from money.** `≈` already means "a rate off a
+  published page" and it means that here too: `usdListed` and `usdOnPlan` are the same arithmetic off
+  the same table, and the difference is only whether anybody is billed. So the mark cannot carry it
+  and the column is not wide enough for the word: the cell is drawn a step quieter (`costTone`:
+  plain for a bill, `hint` for a figure somebody worked out, `chrome` for one nobody is charged), and
+  what the plain skin loses the PLAN list below keeps — it names every sign-in a plan pays for, with
+  `≈$3.74 at list` beside each. **The totals at the head of the page are money and only money**, and
+  a figure nobody is charged standing in one of them is still the one thing this page may never draw.
 
 ### A subscription is its own currency
 
@@ -292,11 +299,12 @@ sentence, read by `tade spend`, with `workedSays` beside it for the other half �
 *explain* it differently from the window. `over 3 runs` is what makes a figure that is not elapsed
 time readable, so it is drawn whenever the figure is and is never a step of a ladder that drops it.
 
-It sits on the line **under** the head's figures rather than beside them, which is where that head
-already puts what the money figure does not cover: the head now carries two times where it carried one
-(`1h 32m working · 2h 5m open`), it has no columns to spare, and a clause one line lower is still read
-every time — a footnote at the foot of a page is what this may never become. The two words are the two
-the columns under them are headed with, so the page says which is which once and in a word.
+It sits **beside** the figures it qualifies, on the head's own line
+(`1h 32m working · 2h 5m open · over 3 runs`, `runtimeHead`), because that is where it is read with
+them. It had a line of its own under the head while the money's caveats were down there too; those
+went into the table, and a line kept for one clause is a footnote, which is what this may never
+become. The two words are the two the columns under them are headed with, so the page says which is
+which once and in a word.
 
 ### Nothing on this page is a sentence
 
@@ -306,14 +314,40 @@ because whoever added it was answering a real question. The rule that stops the 
 the guide — *a surface is options and values; the explanation lives where somebody asks* — applied
 literally here: **the page is marks, figures and headings, and nothing else.**
 
-- A caveat true under every row is a **mark** on the figure (`~`, `≈`, `≥`, `—`).
-- Something a mark cannot carry is a **figure and at most a word** — `880k tokens unpriced`,
-  `over 3 runs`, `list prices`, `at list`, `cannot tell` — on the line under the head, where the
-  money's and the runtime's caveats already live.
+- A caveat true under every row is a **mark** on the figure (`~`, `≈`, `≥`, `—`), and where the mark
+  cannot carry it, a **tone** (`costTone`) — never a tone alone, because the plain skin has none.
+- Something neither can carry is a **figure and at most a word** — `billed`, `over 3 runs`,
+  `list prices`, `at list`, `cannot tell`, `Nothing in the journal.` — beside the figure it is
+  about, never on a line of its own.
+- **A figure about a row belongs on that row.** `880k tokens unpriced` and `≈$779 at list` were a
+  line above the table saying what the table would not say; both are now in the table, which is why
+  that line is gone and may not come back.
 - The sentence version of all of it lives in `tade spend` (`pricedSays`, `runtimeSays`, `workedSays`)
   and in `why` on the harness, which is where somebody has asked the question.
 
 If a figure needs explaining and cannot be explained in a word, the figure is wrong.
+
+### The range goes back as far as the journal does, and the page is about money
+
+`SPEND_WINDOWS` and `sinceOf` (`app/src/spend.ts`) are the one answer to "how far back", read by the
+Spend page and by every extension's page (`ViewAt.since`, handed the moment rather than the word).
+Five ranges: today, since Tade opened, 7 days, 30 days, and **all** — which is nought, the whole
+journal, because the events are append-only and every one of them is still there. A range is counted
+in midnights rather than rolling hours, so `7 days` is this one and the six before it.
+
+- **A range that found nothing says which range** (`SPEND_WINDOWS[].over`). With one of them
+  `Nothing in this window.` was enough; with five it is the answer to four different questions, one
+  of which is a range called This window.
+- **`all` means `live.spending` is the whole journal**, so the page's fold is kept rather than re-done
+  per frame (`REFOLD_MS`, `wire/spend.ts`): four folds a second over forty-six thousand usage events
+  is the cost of a page nobody could otherwise ask the question on. Keyed on what went into it — the
+  range, the grouping, the two event counts — and re-done a second later whatever, because a run
+  still going counts up to now. Held by `test/live.probe.test.ts`, as a ratio against one cold fold.
+- **What the money bought is not on this page.** Commits and check runs are an agent's own record and
+  are on its ACTIONS page in full — every commit with what it changed, every check with what it
+  printed — so two summary lines of the same thing here were a second, shorter answer to a question
+  answered better one screen away. `statsFrom` is still the fold and `tade spend` still reports it,
+  where somebody asked in full.
 
 ### A name is the one column that cannot be abbreviated without lying
 
@@ -335,6 +369,12 @@ is a scroll region like any other, through `scrollBy` and `atOffset`.
 than a sentence. If it can be guessed as well as measured, it needs `pricedOf`'s shape — a `recorded`
 / `partly` / `unrecorded` word and a `≥` where it is a floor — not a number that quietly means two
 things.
+
+**A new range to read it over.** Add the id to `SpendWindow`, a row to `SPEND_WINDOWS` with the word
+for an empty one (`over`), and the arithmetic to `sinceOf` — all three in `app/src/spend.ts`, because
+an extension's page reads the same list. Check what `live.spending` holds reaches that far back, and
+that the tabs still fit: past one line they wrap under their own word (`tabRow`), and a tab off the
+edge is a range nobody can reach.
 
 **A new way to group it.** Add the id to `SpendBy` and `SPEND_BY` (`app/src/spend.ts`), and make the
 bucket key in `spendFrom` out of something that was **written down** — `runFactsOf` is how a run's
