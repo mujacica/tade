@@ -279,10 +279,20 @@ fix a machine that is fine is the worse failure.
 A person's, at a keyboard, and not something an agent can or should do. Say it to them:
 
 - **npm** — npmjs.com/package/tade-sh → Settings → Trusted publisher → GitHub Actions, with the
-  organization or user, the repository, workflow filename `release.yml`, and the environment left
-  blank.
+  organization or user, the repository, workflow filename `release.yml` (the filename, not a path,
+  and with the extension), and the environment left blank. **Then tick `npm publish` under "Allowed
+  actions"**: a publisher configured after 2026-09-03 defaults to `npm stage publish` alone, and the
+  publish job runs a plain `npm publish`. Leave that default and the last step of a ten-minute run
+  does not put the version out — npm's own documentation does not say whether it fails or parks it
+  behind a 2FA approval, and either way somebody has to come back to it. Nothing in this repository
+  can check that box from here, which is why it is written down.
 - **GitHub** — nothing. The workflow declares its own `permissions` and reads no secret. The
   repository has to be **public** for provenance; see the publish job.
+
+Two things the workflow already handles, so that nobody adds them again: `--provenance` is
+redundant under trusted publishing, which attests by default, and harmless; and `npm install -g
+npm@latest` is there because trusted publishing wants npm ≥ 11.5.1 and the Node 22 the workflow
+pins ships npm 10.
 
 **Never add an npm token.** Trusted publishing hands the workflow a token good for one publish of
 one package from one workflow; a token in a repository is a credential that outlives every reason it

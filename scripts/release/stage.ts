@@ -70,7 +70,7 @@ export interface Staged {
   left: string[]
 }
 
-export function stage(opts: { out?: string; version: string }): Staged {
+export function stage(opts: { out?: string; version: string; changelog?: string }): Staged {
   const root = rootManifest()
   const out = resolve(ROOT, opts.out ?? DEFAULT_OUT)
   if (out === ROOT) throw new Error('refusing to stage over the repository itself')
@@ -114,6 +114,18 @@ export function stage(opts: { out?: string; version: string }): Staged {
     files++
   }
   for (const name of AT_ROOT) {
+    // The changelog a release ships is the one it is generating, which is not
+    // yet the file on disk: `pnpm release` writes that after staging, so a
+    // tarball staged out of the checkout carries the *previous* release's
+    // notes — including the tarball the dry run installs and runs, whose whole
+    // job is to be what would go out. Given the text it ships that; given
+    // nothing — the workflow, which stages from the release commit — the file
+    // on disk is already the right one.
+    if (name === 'CHANGELOG.md' && opts.changelog !== undefined) {
+      put(join(out, name), opts.changelog, null)
+      files++
+      continue
+    }
     if (!existsSync(join(ROOT, name))) continue
     put(join(out, name), null, join(ROOT, name))
     files++

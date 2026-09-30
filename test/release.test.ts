@@ -83,6 +83,24 @@ describe('the publish directory', () => {
     expect(manifest.dependencies['node-pty']).toBeDefined()
     expect(manifest.dependencies['better-sqlite3']).toBeDefined()
   })
+
+  // `pnpm release` writes CHANGELOG.md *after* staging, so a tarball built out
+  // of the checkout carries the previous release's notes — the dry run's
+  // included, and that tarball is the one thing that proves what would go out.
+  // Given the text, staging ships it; given nothing, the file on disk stands,
+  // which is what the workflow wants, staging from the release commit itself.
+  it('ships the changelog the release is generating, not the one still on disk', () => {
+    const said = '# Changelog\n\nwhat this release says\n'
+    const now = stage({ out: join(where, 'told'), version: '9.9.9', changelog: said })
+    expect(readFileSync(join(now.out, 'CHANGELOG.md'), 'utf8')).toBe(said)
+    expect(readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')).not.toBe(said)
+  })
+
+  it('falls back to the changelog in the checkout when it is told none', () => {
+    expect(readFileSync(join(staged.out, 'CHANGELOG.md'), 'utf8')).toBe(
+      readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8'),
+    )
+  })
 })
 
 describe('the exports map', () => {

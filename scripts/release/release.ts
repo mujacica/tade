@@ -169,7 +169,7 @@ function main(): number {
   const entries = (all[0]?.entries ?? []).length
   say(`${PUBLISHED} ${opts.version} — ${entries} commits since ${all[0]?.since ?? 'the beginning'}`)
 
-  const staged = stage({ out: join(OUT, 'package'), version: opts.version })
+  const staged = stage({ out: join(OUT, 'package'), version: opts.version, changelog: text })
   for (const one of staged.left) say(`  left out: ${one}`)
   execFileSync('npm', ['pack', '--silent', '--pack-destination', out], {
     cwd: staged.out,
