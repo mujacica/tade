@@ -204,9 +204,18 @@ export const COMMIT_TELLS: Record<'when-done' | 'own-files' | 'as-you-go' | 'nev
  * git's own mechanism rather than a table Tade keeps: a table is wrong the
  * moment somebody rebases, and a trailer survives a squash merge onto a
  * machine that has never heard of Tade.
+ *
+ * Which is why this says *where* and not only *what*. git parses only the last
+ * paragraph of a message as trailers, and "on a line of its own, after a blank
+ * line" — what this used to say — is followed to the letter by an agent whose
+ * harness then appends `Co-Authored-By:` after another blank line. That leaves
+ * `Tade-Task:` alone in a paragraph of its own, where git drops it: the commit
+ * succeeds, the hook passes, and the work is nobody's. It read as a rule about
+ * spacing and was a rule about the last paragraph. 38 of this repository's own
+ * last 200 commits were lost that way before it was read out loud.
  */
 export function trailerTell(task: string): string {
-  return `End every commit message with \`Tade-Task: ${task}\` on a line of its own, after a blank line. It is how Tade knows which commits are yours — without it your work counts as nobody’s.`
+  return `End every commit message with \`Tade-Task: ${task}\` as its very last line, in the same paragraph as any other trailer — \`Co-Authored-By:\` and the like — with no blank line between them. git reads only the last paragraph of a message as trailers, so a \`Tade-Task:\` left alone in a paragraph above one is dropped and your work counts as nobody’s.`
 }
 
 export interface AgentPromptInput {

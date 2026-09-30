@@ -51,6 +51,37 @@ describe('readCommits', () => {
     expect(mine?.at).toBeGreaterThan(0)
   })
 
+  it('reads a trailer in the last paragraph, and nobody from one stranded above it', async () => {
+    // The shape of the message decides whether the work has an owner, because
+    // git parses only the *last paragraph* as trailers. `trailerTell`
+    // (`packages/core/src/compose.ts`) used to say only "on a line of its own,
+    // after a blank line": an agent that obeyed that and then let its harness
+    // append `Co-Authored-By:` after another blank line left `Tade-Task:`
+    // alone in a paragraph above, where git drops it. The commit succeeds, the
+    // hook passes, and the window draws plainly-owned work as nobody's — which
+    // is how 38 of this repository's own last 200 commits were lost.
+    const repo = mkrepo()
+    repo.commit(
+      'together\n\nCo-Authored-By: A N Other <other@example.com>\nTade-Task: shop/together',
+      {
+        'together.ts': 'one\n',
+      },
+    )
+    repo.commit(
+      'stranded\n\nTade-Task: shop/stranded\n\nCo-Authored-By: A N Other <other@example.com>',
+      {
+        'stranded.ts': 'one\ntwo\n',
+      },
+    )
+
+    const seen = await readCommits(repo.root, { limit: 10 })
+    expect(seen.find((one) => one.task === 'shop/together')).toBeDefined()
+    expect(seen.find((one) => one.task === 'shop/stranded')).toBeUndefined()
+    // It is not missing — it is there, and it belongs to nobody. Two lines is
+    // the only thing that tells it apart once its trailer is gone.
+    expect(seen.some((one) => one.task === null && one.added === 2)).toBe(true)
+  })
+
   it('answers empty for somewhere that is not a repository, rather than throwing', async () => {
     // Counting things may never be the reason a window fails to open.
     await expect(readCommits('/definitely/not/here', { limit: 10 })).resolves.toEqual([])
