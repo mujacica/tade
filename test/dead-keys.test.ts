@@ -1,5 +1,12 @@
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+// The compiler as a library, which is what asking the type checker a question
+// needs — and which `typescript` is not any more: 7.0 is the native port and
+// ships no API at all (7.1 is to bring one back). `@typescript/typescript6` is
+// the compatibility package Microsoft shipped for exactly this, so `typescript`
+// stays at 7 for what `tsc` does and only this check reads a 6-era checker.
+// The question being asked is about the repository's own types, not about the
+// compiler, so answering it one major behind costs nothing.
+import ts from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 
 // A key nobody will ever read.

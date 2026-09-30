@@ -14,6 +14,6 @@
     "@tade/forge-scripted": "workspace:*",
     "@tade/forges-core": "workspace:*",
     "execa": "^10.0.1",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   }
 }

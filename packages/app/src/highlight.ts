@@ -119,9 +119,10 @@ const TOKENS: Record<string, string> = {
   params: '38;5;252',
   comment: '38;5;243;3',
   doctag: '38;5;244;1',
+  // No `meta-keyword` or `meta-string` beside this: highlight.js 11 nests them
+  // inside `meta` instead, and the stack above already ends on the inner kind,
+  // so the colour is the same one this map used to name twice.
   meta: '38;5;110',
-  'meta-keyword': '38;5;176',
-  'meta-string': '38;5;114',
   section: '38;5;80;1',
   tag: '38;5;81',
   name: '38;5;81',

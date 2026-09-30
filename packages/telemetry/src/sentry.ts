@@ -25,18 +25,31 @@ async function start(options: ReporterOptions): Promise<typeof import('@sentry/n
     dsn: options.dsn,
     release: options.release,
     environment: options.environment,
-    enableLogs: options.logs,
     // Agents' turns are few and worth every one; Tade's own work is constant.
     tracesSampler: ({ attributes, name }) => {
       const op = String(attributes?.['sentry.op'] ?? '')
       if (op.startsWith('gen_ai.')) return options.agents ? 1 : 0
       return name === '' ? 0 : options.traces
     },
-    // Nothing automatic: no http or file instrumentation, and none of the ESM
-    // loader hooks it would need — a window must not have its terminal written
-    // over by somebody else's deprecation warning.
+    // Nothing automatic: no http or file instrumentation, and nothing that
+    // rewrites a module as it loads to get it — a window must not have its
+    // terminal written over by somebody else's deprecation warning. v11 does
+    // that rewriting through diagnostics channels rather than the ESM loader
+    // hooks `registerEsmLoaderHooks` used to turn off, so this is the same
+    // refusal said to the mechanism that replaced them.
     defaultIntegrations: false,
-    registerEsmLoaderHooks: false,
+    enableRuntimeChannelInjection: false,
+    // A span goes out as a transaction, not as it ends. Streaming is the SDK's
+    // default from v11, and under it `beforeSendTransaction` is *ignored* — the
+    // SDK says so and carries on, so `clean` below would quietly stop running
+    // and the machine's name and its paths would ride out with every span.
+    // What scrubs has to be on the path the spans actually take.
+    traceLifecycle: 'static',
+    // No stack invented for something that never threw. v11 turned this on by
+    // default, which gives a warning like "tmux is not installed" a synthetic
+    // stack, and with it the source around every frame of Tade's own — pages of
+    // this file — for a sentence that is already the whole story.
+    attachStacktrace: false,
     integrations: [
       Sentry.dedupeIntegration(),
       Sentry.linkedErrorsIntegration(),
@@ -46,6 +59,8 @@ async function start(options: ReporterOptions): Promise<typeof import('@sentry/n
     ],
     beforeSend: (event) => (options.errors ? clean(event, options) : null),
     beforeSendTransaction: (event) => clean(event, options),
+    // The whole of the logs gate, since v11 took `enableLogs` away: what is not
+    // asked for is dropped here rather than never built. Nothing more leaves.
     beforeSendLog: (log) => (options.logs ? log : null),
     ...(options.sink
       ? {

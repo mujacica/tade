@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@tade/core": "workspace:*",
-    "zod": "^4.6.2",
-    "vitest": "^5.0.0"
+    "zod": "^4.6.5",
+    "vitest": "^5.0.2"
   }
 }

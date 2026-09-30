@@ -11,6 +11,6 @@
     "@tade/core": "workspace:*",
     "@tade/extensions-core": "workspace:*",
     "@tade/workbench": "workspace:*",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   }
 }

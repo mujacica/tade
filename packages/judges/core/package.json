@@ -9,6 +9,6 @@
     "./conformance": "./src/conformance.ts"
   },
   "dependencies": {
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.2"
   }
 }

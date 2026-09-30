@@ -9,8 +9,8 @@
     "./conformance": "./src/conformance.ts"
   },
   "dependencies": {
-    "@sentry/node": "^10.74.0",
+    "@sentry/node": "^11.1.0",
     "@tade/core": "workspace:*",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.2"
   }
 }

@@ -10,6 +10,6 @@
   "dependencies": {
     "@tade/core": "workspace:*",
     "@tade/mcp-core": "workspace:*",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.2"
   }
 }

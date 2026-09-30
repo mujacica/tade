@@ -26,8 +26,8 @@
     "@tade/status": "workspace:*",
     "@tade/telemetry": "workspace:*",
     "better-sqlite3": "^13.0.3",
-    "yaml": "^2.9.0",
-    "zod": "^4.6.2"
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tade/drivers-core": "workspace:*"

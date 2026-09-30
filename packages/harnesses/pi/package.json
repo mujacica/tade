@@ -9,7 +9,7 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.99.1",
     "@tade/core": "workspace:*",
     "@tade/harnesses-core": "workspace:*"
   },

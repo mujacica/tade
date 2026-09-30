@@ -430,6 +430,23 @@ describe('sending', () => {
     expect(JSON.stringify(sent)).not.toContain('a status poll')
   })
 
+  it('sends no line at all when it was not asked for logs', async () => {
+    // `beforeSendLog` is the whole of this gate since Sentry 11 took away the
+    // option that used to stop a log being built in the first place, so the
+    // thing worth holding is the wire: nothing about a note leaves.
+    const sent: unknown[] = []
+    const report = await open({ logs: false }, (envelope) => sent.push(envelope))
+    report.note({
+      at: Date.now(),
+      level: 'info',
+      said: 'run_started app/refunds',
+      about: { task: 'app/refunds' },
+    })
+    await report.flush(1_000)
+    expect(items(sent).some((item) => item.type === 'log')).toBe(false)
+    expect(JSON.stringify(sent)).not.toContain('run_started app/refunds')
+  })
+
   it('sends lines to read and numbers to watch', async () => {
     const sent: unknown[] = []
     const report = await open({}, (envelope) => sent.push(envelope))
