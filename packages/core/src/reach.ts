@@ -22,8 +22,10 @@ import type { Setting } from './settings.ts'
 //              changing a setting is never something to do as a side effect of
 //              anything, so requiring their words is not friction on the act,
 //              it is the act.
-// - `open`   — an ordinary request is enough. The short list where the worst
-//              case is a cosmetic annoyance the person is looking at.
+// - `open`   — an ordinary request is enough. Mostly the short list where the
+//              worst case is a cosmetic annoyance the person is looking at,
+//              plus what the person has said outright is the orchestrator's to
+//              set (`OPEN_UNDER`), which argues for itself where it is written.
 //
 // It may only ever *refuse*. Nothing here can widen what a tier allows, and
 // nothing outside these tiers is writable at all.
@@ -62,15 +64,57 @@ export interface Reaches {
 /**
  * Settings the orchestrator may change on an ordinary request.
  *
- * Deliberately short. What they have in common is that the worst case is a
- * cosmetic annoyance the person is already looking at and can undo in one
- * sentence — and `editor` is an enum of editors Tade knows, never a command.
+ * Deliberately short. What the three window ones have in common is that the
+ * worst case is a cosmetic annoyance the person is already looking at and can
+ * undo in one sentence — and `editor` is an enum of editors Tade knows, never
+ * a command. `OPEN_UNDER` is the one thing here that is not that, and it says
+ * why in its own words.
  */
 const OPEN: readonly string[] = [
   'surfaces.window.sidebar_width',
   'surfaces.window.strip_height',
   'surfaces.window.editor',
 ]
+
+/**
+ * The same tier for a path with a name in it, and the one setting in it that
+ * is not cosmetic: what a project pushes.
+ *
+ * **Asked for, and the argument is not the one `OPEN` makes above.** A push is
+ * a real act — it puts commits on a remote — so this is not "the worst case is
+ * something they are looking at". It is here because the person said it should
+ * be, in as many words: most settings should be the orchestrator's to change,
+ * and the ones that are not are the secrets and the destructive ones. A push
+ * mode is neither. It carries no credential, it deletes nothing, it is one
+ * project's workflow preference, and every value of it is undone by setting it
+ * back — which is the shape of `open`'s "undo it in one sentence" even where
+ * it is not the shape of "cosmetic".
+ *
+ * **The line that still holds, and where it is.** This is reach over the
+ * *setting*, never over the act. Nothing Tade runs pushes anything: the mode
+ * is words in an agent's prompt (`pushTold`), exactly as the commit rule is,
+ * and what can actually hold a push while the checks run is `approvals` —
+ * which is the first `never` subtree in the table below and stays there. So
+ * the orchestrator may say what an agent *should* do with finished work, and
+ * may not touch what an agent is *allowed* to do.
+ *
+ * **What it costs, said rather than left for somebody to find.** Under
+ * `approvals.mode: 'bypass'` — the default — nothing holds a push, so a
+ * sentence the orchestrator read that talks it into `branch` is a sentence that
+ * gets the next agent's commits onto the project's branch. That is the residual
+ * risk of this tier and it is the person's to accept; it is bounded by the
+ * three things the mode cannot do — it cannot force-push, cannot merge
+ * (`extensions.review.merge` is `never` by default and a person's), and cannot
+ * reach a project Tade does not already have open. `projects.<name>.root` is
+ * still refused, so it cannot move where any of it happens.
+ *
+ * **The machine-wide `agents.push` is deliberately not here.** It is unnamed,
+ * so it is `asked`: one project's answer is bounded to one repository and sits
+ * on that project's own tab, while the machine's answer turns pushing on for
+ * every project at once, including ones nobody was talking about. Same act,
+ * different blast radius, and the words are cheap where the radius is wide.
+ */
+const OPEN_UNDER: readonly RegExp[] = [/^projects\.[a-z0-9-]+\.push$/]
 
 /**
  * What no words reach, as a prefix and the clause said when it is refused.
@@ -162,7 +206,11 @@ function under(path: string, prefix: string): boolean {
  * a whole new section of the config, and a test holds the list of those.
  */
 export function settingReach(path: string): Reaches {
-  if (OPEN.includes(path)) return { reach: 'open', because: '' }
+  // `open` is answered first, so a path in it never has to be repeated in
+  // `ALLOWED_UNDER` to escape the subtree it lives in.
+  if (OPEN.includes(path) || OPEN_UNDER.some((allowed) => allowed.test(path))) {
+    return { reach: 'open', because: '' }
+  }
   if (!ALLOWED_UNDER.some((allowed) => allowed.test(path))) {
     for (const [prefix, because] of NEVER) {
       if (under(path, prefix)) return { reach: 'never', because }

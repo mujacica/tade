@@ -92,8 +92,32 @@ describe('what an ordinary request reaches', () => {
       'agents.workspace',
       'agents.instructions',
       'checks.before',
+      // The machine's own push answer, deliberately not beside the per-project
+      // one below: it turns pushing on for every project at once, including
+      // ones nobody was talking about.
+      'agents.push',
     ])
       expect(settingReach(path).reach, path).toBe('asked')
+  })
+
+  it('includes what a project pushes, which the person said should be mine to set', () => {
+    // The one thing at this tier that is not cosmetic, and the argument for it
+    // is a different one: a push mode carries no credential, deletes nothing,
+    // and is put back by setting it back. What keeps the boundary is that this
+    // is reach over the *setting* and never over the act — the mode is words in
+    // an agent's prompt, and `approvals` is what can hold a push. So the
+    // orchestrator may say what an agent should do with finished work, and the
+    // subtree that says what an agent is *allowed* to do is untouched.
+    expect(settingReach('projects.checkout.push').reach).toBe('open')
+    expect(settingReach('projects.checkout.push').because).toBe('')
+    expect(settingReach('approvals.mode').reach).toBe('never')
+    // And it buys nothing else under a project: moving where the work happens
+    // is still refused, and a key that merely starts with the same letters is
+    // not this one — the pattern is the whole path, so `projects` goes on being
+    // the subtree where a key added tomorrow is refused until somebody looks.
+    expect(settingReach('projects.checkout.root').reach).toBe('never')
+    expect(settingReach('projects.checkout.pushed').reach).toBe('never')
+    expect(settingReach('projects.checkout.push.mode').reach).toBe('never')
   })
 
   it('does not include what the journal keeps, though the worst it can reach is a byte count', () => {
@@ -194,6 +218,9 @@ describe('the shape of the rule', () => {
       'surfaces.window.sidebar_width',
       'surfaces.window.strip_height',
       'surfaces.window.editor',
+      // The one here that is not a window size, and the one the person asked
+      // for: `OPEN_UNDER` in `reach.ts` carries the argument and what it costs.
+      'projects.app.push',
     ])
     expect(byTier.never?.sort()).toEqual([
       'approvals.mode',

@@ -116,6 +116,7 @@ const CONFIGURABLE = [
   'title',
   'brief',
   'workspace',
+  'push',
   'worker',
   'max_parallel',
   'test_command',

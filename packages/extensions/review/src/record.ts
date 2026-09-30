@@ -53,6 +53,42 @@ export async function found(ctx: ExtensionContext): Promise<Found[]> {
 }
 
 /**
+ * Whether one of this extension's watches is on in a project, and not paused.
+ *
+ * Asked by one watch about another, which is the only reason it exists: the
+ * rule that a branch with a review open belongs to `review.checks-failed` was
+ * never "a review is somebody else's business", it was "two watches must not
+ * start two agents on one failure". A watch that is off starts nothing, so
+ * handing a red commit to it leaves the commit unwatched — which is exactly
+ * what happened to a project set to push a branch and open a review on it,
+ * because that watch is off until somebody turns it on.
+ *
+ * Files only, no network, and the ordinary answer for a home with no schedules
+ * is `false` without anything throwing. **Where it cannot tell at all it says
+ * `true`**, because the caller's fallback is to watch the branch itself: two
+ * agents on one failure is worse than one unwatched, and a workbench that will
+ * not import is a Tade with larger problems than this.
+ */
+export async function watchIsOn(
+  ctx: ExtensionContext,
+  project: string,
+  watch: string,
+): Promise<boolean> {
+  try {
+    const { readSchedules } = await import('@tade/workbench/schedules')
+    return readSchedules(ctx.home).some(
+      (schedule) =>
+        !schedule.paused &&
+        schedule.project === project &&
+        schedule.does.kind === 'watch' &&
+        schedule.does.watch === watch,
+    )
+  } catch {
+    return true
+  }
+}
+
+/**
  * How many automatic fixes have already been started on one thing, from the
  * journal: every finding whose key begins with its prefix and that put an
  * agent to work. Past the `attempts` setting, a watch stops fixing and only

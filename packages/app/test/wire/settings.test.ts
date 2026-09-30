@@ -34,7 +34,10 @@ describe('the window, and its settings', () => {
     const button = find('Settings ')
     terminal.written = ''
     click(button.col + 1, button.row)
-    await until('the settings', () => terminal.written.includes('Where agents run'))
+    // The first control of the first group, so this holds however many rows
+    // that group grows: one added above `workspace.driver` pushed it off a
+    // 24-row terminal, and a page that had opened read as one that never did.
+    await until('the settings', () => terminal.written.includes('Where agents work'))
     // A second category beside the controls, so this is the page and not one
     // group of it. Which one is not the point — the list is longer than a
     // 24-row terminal and scrolls, so this names one that is drawn.

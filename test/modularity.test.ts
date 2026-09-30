@@ -49,6 +49,14 @@ const BUDGET: Record<string, number> = {
   // and the payoff is that `.claude/skills/add-config-key` gets to say "add a
   // row to *this* file" instead of naming a line number in a thousand.
   'packages/core/src/settings.ts': 1_200,
+  // Two files' worth of subject: the zod schema every setting in Tade is
+  // declared in, and the file that schema is read out of and written back to.
+  // The schema is ~700 lines of it and is the half that grows every time
+  // anybody adds a setting; `parseConfig`, `loadConfig`, `writeSetting` and
+  // `ownerOnly` are the other ~90, need nothing of the schema but its name,
+  // and would be `config-file.ts` — after which a new key costs the schema
+  // alone and this number goes back under the default.
+  'packages/core/src/config.ts': 850,
   // What tmux says about a pane — `readPane`, `scrollingOf`, `pointingOf`,
   // `drawn` — is now `pane.ts`: the part of driving tmux that asks nothing of
   // the world, and the part every question about a pane goes through.

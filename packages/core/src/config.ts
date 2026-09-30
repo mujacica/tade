@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { dropGone } from './gone.ts'
 import { defaultConfigPath } from './home.ts'
 import { ModelPriceSchema } from './prices.ts'
+import { PUSH_MODES, pushProblems } from './project.ts'
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
 // error rather than a silently ignored setting.
@@ -161,6 +162,8 @@ export const ProjectConfigSchema = z.strictObject({
    * before this key existed means exactly what it meant.
    */
   workspace: z.enum(AGENT_WORKSPACES).optional(),
+  /** What reaches this project's remote, over `agents.push`; resolved by `pushFor`, which says where it cannot hold. */
+  push: z.enum(PUSH_MODES).optional(),
   /** Names a route in `workers.routes`. */
   worker: RouteName.optional(),
   /** At most this many agents at once; as many as you start unless set. */
@@ -517,6 +520,8 @@ export const ConfigSchema = z
         workspace: z.enum(AGENT_WORKSPACES).default('checkout'),
         /** When agents commit, and what. */
         commit: z.enum(COMMIT_RULES).default('own-files'),
+        /** What they do with it once it is green, for a project that has not said (`pushFor`). */
+        push: z.enum(PUSH_MODES).default('never'),
         /** Anything else every agent should be told, in your words. */
         instructions: z.string().optional(),
         /**
@@ -715,6 +720,10 @@ export function parseConfig(text: string, path = '<inline>'): ConfigResult {
       })),
     }
   }
+  // A push mode that cannot mean what it says is said here rather than
+  // refused: it resolves to pushing nothing, and refusing the file would take
+  // away everything else somebody wrote in it.
+  warnings.push(...pushProblems(parsed.data))
   return { ok: true, config: parsed.data, path, exists: true, warnings }
 }
 

@@ -7,6 +7,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from './config.ts'
+import { PUSH_MODES } from './project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { projectGroups } from './settings-projects.ts'
 import { KEEP_AWAKE_MEANS } from './sleep.ts'
@@ -154,7 +155,8 @@ export function settingsOf(
     {
       id: 'agents',
       title: 'Agents',
-      about: 'Where agents work, what they commit, and what happens to them when Tade closes.',
+      about:
+        'Where agents work, what they commit, what they push, and what happens to them when Tade closes.',
       settings: [
         {
           path: 'agents.workspace',
@@ -174,6 +176,20 @@ export function settingsOf(
           fallback: 'own-files',
           type: { kind: 'choice', options: [...COMMIT_RULES] },
           live: true,
+        },
+        {
+          // The machine's answer, which every project that has not given its
+          // own follows (`projects.<name>.push`). `never` by default, so
+          // nothing reaches anybody's remote until somebody says it should.
+          path: 'agents.push',
+          title: 'What agents push',
+          means:
+            'never: nothing leaves the machine; branch: the branch they are on; branch-and-review: their own branch, with a review opened on it',
+          value: config.agents.push,
+          fallback: 'never',
+          type: { kind: 'choice', options: [...PUSH_MODES] },
+          live: true,
+          keywords: ['push', 'pushing', 'remote', 'review', 'pull request'],
         },
         {
           path: 'agents.instructions',

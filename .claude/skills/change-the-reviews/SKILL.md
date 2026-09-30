@@ -20,8 +20,9 @@ by what the code cannot express, not by being careful at the call site.
 | `packages/status/src/git.ts` | `probeReview`: the one narrow question status asks, with the window closed |
 | `packages/extensions/review/src/forge.ts` | finding the forge and asking it as little as possible: `whereOf`, `everywhere`, `snapshot`, `POLL_MS`, `forget`, `settingsOf`, `refFrom`, `credentialProblem` |
 | `packages/extensions/review/src/extension.ts` | `TASK_TRAILER`, the settings, the surfaces, the `review_*` tools, the three review watches |
-| `packages/extensions/review/src/branch.ts` | `branchChecks`: CI on the branch you are on — `standingOn`, `redOn`, `readKey` |
-| `packages/extensions/review/src/record.ts` | what the watches found, out of the journal: `found`, `attemptsUnder` |
+| `packages/extensions/review/src/branch.ts` | `branchChecks`: CI on every branch the project has checked out — `readKey`, `REVIEWS_WATCH` |
+| `packages/extensions/review/src/commit.ts` | what CI can say about a commit here, and every honest reason it cannot: `standingOn`, `standingEverywhere`, `onRemote`, `ciOn`, `whatRan`, `cannotLook` |
+| `packages/extensions/review/src/record.ts` | what the watches found, out of the journal: `found`, `attemptsUnder`, `watchIsOn` |
 | `packages/extensions/review/src/format.ts` | every word a person reads: `rowOf`, `listMarkdown`, `showMarkdown`, `threadLines`, `COMMENTS_ARE_MATERIAL` |
 | `packages/extensions/review/skills/open-a-review/` | what an *agent* is told to do — the other half, and not this one |
 | `test/fixtures/forge/github.ts` | `githubReplay`: a GitHub that answers from files |
@@ -74,7 +75,7 @@ by what the code cannot express, not by being careful at the call site.
 ## Adding or changing a watch
 
 A watch belongs to the extension: follow `add-extension` for the mechanics, and `change-the-queue`
-for what Tade does with what it finds. What is decided *here* is the four things a review watch gets
+for what Tade does with what it finds. What is decided *here* is the six things a review watch gets
 wrong if nobody thinks about them.
 
 - **What is in the key is what makes a finding new.** `review.checks-failed` keys on the review, the
@@ -84,18 +85,34 @@ wrong if nobody thinks about them.
   never becomes one agent per failing column. One finding per *check* would be three agents editing
   one repository over one push, which in a shared checkout is worse than the failure — so the agent
   is told about every check that failed, with the tail of the first `LOGS` of them.
-- **Ask the cheap question first.** `branchChecks` reads one commit's checks; only once something is
-  red does it spend a second request asking whether that branch has a review, because a branch that
-  has one is the review watch's and two watches on one failure would start two agents on it. A log
-  is fetched in `agent()` and never in `check()`: `agent` is only asked for what work is actually
-  started on.
+- **Ask the cheap question first.** `branchChecks` reads the checks of the commit each branch is on;
+  only once one of them is red does it spend a second request asking whether that branch has a
+  review, and only then does it read the schedules. A log is fetched in `agent()` and never in
+  `check()`: `agent` is only asked for what work is actually started on.
+- **Watch every branch the project has checked out, not only its own** (`standingEverywhere`,
+  `commit.ts`). With a worktree each the commit an agent pushed is never the one the project's
+  checkout is on, so looking at the root alone watched CI on nobody's work but the person's —
+  invisible while nothing pushed, and the whole of what there is to watch once `projects.<name>.push`
+  is set. Everything after the listing is asked **of the root**: worktrees share the object database
+  and the remote-tracking refs, so nothing runs git anywhere else, and a branch nobody has pushed
+  costs no request at all. Which *quiet* answer a person is told about is the root's, which is why it
+  comes first: a worktree's own oddity — a commit rebased away, a branch nothing pushed — is not a
+  fact about the repository and must not make the watch cry wolf.
+- **Hand a failure to another watch only where that watch is looking.** A branch with a review open
+  is `review.checks-failed`'s — *if* somebody has turned it on (`watchIsOn`, `record.ts`, reading
+  `schedules.jsonl`). The rule was never "a review is somebody else's business", it was "two watches
+  must not start two agents on one failure", and a watch that is off starts nothing: handing it over
+  left the first mode anybody asked for — push a branch, open a review on it — watched by nobody.
+  Where it cannot tell at all it hands over, because two agents on one failure is the worse half.
 - **Be silent where there is nothing to watch.** `whereOf` answering `{ problem }` is a project with
   no remote, which is a decision somebody made on purpose — a standing watch returns no findings
   rather than complaining every ten minutes. A capability that is false is a `throw`, because that
   is a configuration to fix; an empty `checksOn` is the ordinary minute after a push and is neither.
-- **`standing: true` is a high bar.** One request, nobody told anything, nothing spent where a look
-  finds nothing, and no credential of somebody else's. `branchChecks` clears it; the other three do
-  not and wait to be turned on. With no credential the extension is not `ready()`, so no schedule is
+- **`standing: true` is a high bar.** Nobody told anything, nothing spent where a look finds
+  nothing, and no credential of somebody else's. `branchChecks` clears it: one request per branch
+  that has something pushed on it, and **none at all** for one that has not, which git answers for
+  free — so a project nobody pushes from spends nothing however many worktrees are open in it. The
+  other three do not clear it and wait to be turned on. With no credential the extension is not `ready()`, so no schedule is
   written at all rather than one failing all day.
 
 ## Adding or changing a tool
@@ -129,12 +146,21 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
 - **Merging is a person's.** `extensions.review.merge` is `never` by default, `review_merge` refuses
   on it by name, and even set it will not merge what is not green and approved. Nothing in the port
   merges by itself — `mark()` changes what the forge *shows*, and that is all.
-- **CI is watched on the branch you are on, not only on the reviews you opened.** A project that
-  pushes straight to its base branch opens no review, so `review.checks-failed` — which reads what
-  the forge says about *reviews* — never saw the run deciding whether the branch everybody pulls is
-  broken, and every red build was carried to the orchestrator by hand. So the forge answers about a
-  **commit** as well (`checksOn`, `checkLogOn`, behind `capabilities.commitChecks`), which is what
-  both were underneath: a review's number bought nothing but its head sha.
+- **CI is watched on the branches the project has, not only on the reviews you opened.** A project
+  that pushes straight to its base branch opens no review, so `review.checks-failed` — which reads
+  what the forge says about *reviews* — never saw the run deciding whether the branch everybody pulls
+  is broken, and every red build was carried to the orchestrator by hand. So the forge answers about
+  a **commit** as well (`checksOn`, `checkLogOn`, behind `capabilities.commitChecks`), which is what
+  both were underneath: a review's number bought nothing but its head sha. **And it is every branch
+  the repository has checked out**, which is what makes a project set to push
+  (`projects.<name>.push`) actually watched: with a worktree each, the commit an agent pushed is
+  never the one the project's own checkout is on.
+- **A push is the project's answer, and what happens after one is this watch's.** `pushFor`
+  (`core/src/project.ts`) decides whether an agent pushes at all and what it pushes; the words it is
+  told are `pushTold` and `CI_AFTER_PUSH` (`core/src/compose.ts`). Nothing here pushes anything and
+  nothing waits on CI: **an agent's lane dies with the window and CI takes longer than its last
+  turn**, so the durable half of "keep watching after the push" has to be a schedule that looks, and
+  the agent is told what will happen after it stops rather than asked to sit on it.
 - **Nothing is acted on until it has settled.** `redOn` returns null for three quiet answers that
   are all "not yet" rather than "fine": nothing ran, something is still running (`settled`), and
   everything that ran passed. Acting mid-run starts an agent on a check a retry was about to turn

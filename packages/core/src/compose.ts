@@ -1,6 +1,7 @@
 import { checksTold } from './checks.ts'
 import type { AgentWorkspace, ChecksConfig, Config } from './config.ts'
 import type { Note } from './memory.ts'
+import type { PushMode } from './project.ts'
 import { type Skill, skillText } from './skills.ts'
 
 // What the orchestrator is told about your world before it says anything.
@@ -190,6 +191,48 @@ export const COMMIT_TELLS: Record<'when-done' | 'own-files' | 'as-you-go' | 'nev
 }
 
 /**
+ * What an agent is told to do with its work once it is committed and green.
+ *
+ * The other half of `COMMIT_TELLS`, and the reason it is a function rather
+ * than a table: what "push the branch you are on" means depends on whose
+ * branch it is. In `checkout` every agent is on the project's own branch, so a
+ * push carries every commit anybody has made on it; in `worktree` the branch
+ * is the agent's own and a push carries nothing but its work. Saying one
+ * sentence for both would be wrong in whichever mode it was not written for.
+ *
+ * `never` is no sentence at all rather than "do not push": an agent told about
+ * an act it is not to perform is an agent that has been given the idea.
+ * Nothing Tade runs pushes on its own — this is words in a prompt, exactly as
+ * the commit rule is, and `approvals` is what can actually hold one.
+ */
+export function pushTold(push: PushMode, workspace: AgentWorkspace): string | null {
+  if (push === 'never') return null
+  const what =
+    push === 'branch-and-review'
+      ? 'push your own branch and open a review for it. Never merge it yourself: merging is the person’s'
+      : workspace === 'checkout'
+        ? 'push the branch you are on. You share that branch, so what you push is every commit on it and not only yours — push nothing you have not just seen green'
+        : 'push your own branch. Nothing opens a review for it, so say in your last message that it is pushed'
+  return `When you have committed your work and its checks are green, ${what}. Never force-push, and never push over somebody else’s work: if the remote has moved on, put yours on top of what is there.`
+}
+
+/**
+ * What an agent is told about CI once it has pushed — and why the promise is
+ * not its to keep.
+ *
+ * The durable half is the `review.branch-checks` watch, which reads what CI
+ * says about the commit every branch of the project is on and starts a fix on
+ * one that has settled red. That is what can honestly promise to keep
+ * watching: a lane dies with the window under `pty`, and CI takes longer than
+ * an agent's last turn. So the agent is told what will happen after it stops,
+ * which is the fact it needs to decide what to push — and told to see its own
+ * push through while it is still here, which costs nothing and is by far the
+ * cheapest fix there is, because it is the one that already knows the change.
+ */
+export const CI_AFTER_PUSH =
+  'CI runs on what you pushed, and Tade keeps watching it after you have stopped: a commit that settles red is picked up and fixed whether you are still here or not. So push nothing you have not seen green — and while you are still working, see your own push through: read what CI says about it, and if it fails, fix the cause and push again rather than leaving it to somebody else.'
+
+/**
  * What an agent is told to end its commit messages with, so the work stays
  * attributable.
  *
@@ -230,6 +273,13 @@ export interface AgentPromptInput {
   workspace?: 'checkout' | 'worktree'
   /** When it commits, and what. */
   commit?: 'when-done' | 'own-files' | 'as-you-go' | 'never'
+  /**
+   * What it does with the work once it is committed and green, as `pushFor`
+   * resolves it for *this* task — never as the config reads today, because a
+   * task keeps the workspace it was made with and the two are resolved
+   * together.
+   */
+  push?: PushMode
   /** What the person wants every agent told, in their words. */
   instructions?: string
   /** What was asked when the task was made, word for word; empty for an agent opened to look around. */
@@ -298,6 +348,10 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
     (input.commit ?? (input.workspace === 'checkout' ? 'own-files' : 'as-you-go')) === 'never'
       ? null
       : trailerTell(input.task),
+    // After the commit rule and before the checks, which is the order it
+    // happens in: commit, check, push, and then CI has something to say.
+    pushTold(input.push ?? 'never', input.workspace ?? 'worktree'),
+    (input.push ?? 'never') === 'never' ? null : CI_AFTER_PUSH,
     checksTold(input.checks?.rule ?? null, input.checks?.ids ?? [], input.checks?.hold ?? false) ??
       (input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null),
     input.context

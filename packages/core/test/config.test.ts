@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { checksFor } from '../src/checks.ts'
 import { ConfigSchema, loadConfig, parseConfig, writeSetting } from '../src/config.ts'
-import { workspaceFor } from '../src/project.ts'
+import { pushFor, pushNeedsABranch, pushProblems, workspaceFor } from '../src/project.ts'
 
 describe('parseConfig', () => {
   it('fills defaults for an empty file', () => {
@@ -376,5 +376,86 @@ describe('where a project’s agents work', () => {
       projects: { shop: { root: '~/src/shop', workspace: 'worktrees' } },
     })
     expect(wrong.success).toBe(false)
+  })
+})
+
+describe('what a project pushes', () => {
+  it('means exactly what it meant before the key existed: nothing', () => {
+    // The whole of the promise about older configs. Agents committed and
+    // stopped, and a Tade nobody has told otherwise still does.
+    const before = ConfigSchema.parse({ projects: { shop: { root: '~/src/shop' } } })
+    expect(before.agents.push).toBe('never')
+    expect(before.projects.shop?.push).toBeUndefined()
+    expect(pushFor(before, 'shop', 'worktree').mode).toBe('never')
+  })
+
+  it('is one project’s to answer, over the machine’s', () => {
+    const config = ConfigSchema.parse({
+      agents: { push: 'never' },
+      projects: {
+        shop: { root: '~/src/shop' },
+        docs: { root: '~/src/docs', push: 'branch' },
+        api: { root: '~/src/api', workspace: 'worktree', push: 'branch-and-review' },
+      },
+    })
+    // (c) nothing is pushed, which is what the machine says and what it says by
+    // default; (b) the branch the agents are on, in a shared checkout; (a) each
+    // agent's own branch with a review opened on it, in a worktree each.
+    expect(pushFor(config, 'shop', 'checkout').mode).toBe('never')
+    expect(pushFor(config, 'docs', 'checkout').mode).toBe('branch')
+    expect(pushFor(config, 'api', 'worktree').mode).toBe('branch-and-review')
+    // And nothing else changes meaning: a project Tade does not have, and no
+    // project at all, are still the machine's answer.
+    expect(pushFor(config, 'ghost', 'worktree').mode).toBe('never')
+    expect(pushFor(config, null, 'worktree').mode).toBe('never')
+  })
+
+  it('is asked of the workspace it is given, not of the config’s answer today', () => {
+    // A task keeps the workspace it was made with, so the resolution has to be
+    // given one: reading the config here would move an agent that is already
+    // working the moment somebody changed the setting under it.
+    const config = ConfigSchema.parse({
+      agents: { workspace: 'checkout' },
+      projects: { api: { root: '~/src/api', workspace: 'worktree', push: 'branch-and-review' } },
+    })
+    expect(pushFor(config, 'api', 'worktree').mode).toBe('branch-and-review')
+    expect(pushFor(config, 'api', 'checkout').mode).toBe('never')
+  })
+
+  it('pushes nothing rather than pushing a shared branch it was not asked to', () => {
+    // The one pairing that cannot hold: there is no branch of an agent's own to
+    // open a review for. It resolves to `never` and never to `branch` — pushing
+    // straight to the branch everybody shares is *more* on the remote than was
+    // asked for, which is the one wrong answer here.
+    const config = ConfigSchema.parse({
+      projects: { api: { root: '~/src/api', push: 'branch-and-review' } },
+    })
+    const pushes = pushFor(config, 'api', 'checkout')
+    expect(pushes.mode).toBe('never')
+    expect(pushes.asked).toBe('branch-and-review')
+    expect(pushes.problem).toBe(pushNeedsABranch('api'))
+    // Said rather than accepted and ignored, and said where a hand-written file
+    // is read: `tade config --check` prints these.
+    const read = parseConfig(
+      'projects:\n  api:\n    root: ~/src/api\n    push: branch-and-review\n',
+    )
+    expect(read.ok && read.warnings).toEqual([pushNeedsABranch('api')])
+  })
+
+  it('says nothing about a project whose mode can mean what it says', () => {
+    const read = parseConfig(
+      'agents:\n  workspace: worktree\nprojects:\n  api:\n    root: ~/src/api\n    push: branch-and-review\n',
+    )
+    expect(read.ok && read.warnings).toEqual([])
+    expect(pushProblems(ConfigSchema.parse({ projects: { api: { root: '~/a' } } }))).toEqual([])
+  })
+
+  it('refuses a mode that is not one of the three, rather than accepting and ignoring it', () => {
+    const wrong = ConfigSchema.safeParse({
+      projects: { shop: { root: '~/src/shop', push: 'pr' } },
+    })
+    expect(wrong.success).toBe(false)
+    expect(!wrong.success && wrong.error.issues[0]?.path).toEqual(['projects', 'shop', 'push'])
+    expect(ConfigSchema.safeParse({ agents: { push: 'yes' } }).success).toBe(false)
   })
 })

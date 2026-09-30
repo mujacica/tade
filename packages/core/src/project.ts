@@ -41,3 +41,83 @@ export function titlesOf(config: Config): Record<string, string> {
     if (project.title) titles[name] = project.title
   return titles
 }
+
+/**
+ * What an agent does with its work once it is committed and green.
+ *
+ * Three answers, and they are the three the person asked for: nothing reaches
+ * the remote, the branch it is on is pushed, or its own branch is pushed and a
+ * review is opened on it. `never` is the default, so a Tade nobody has
+ * configured behaves exactly as it did — agents commit and stop.
+ *
+ * It lives here rather than beside the schema because a value only means
+ * anything against `workspaceFor`: `branch-and-review` needs a branch of the
+ * agent's own, which is what `worktree` is, and in `checkout` there is none to
+ * open a review for. That pairing is resolved once, in `pushFor`, and said.
+ */
+export const PUSH_MODES = ['never', 'branch', 'branch-and-review'] as const
+export type PushMode = (typeof PUSH_MODES)[number]
+
+/** What reaches the remote in a project, and why that is not what was asked for. */
+export interface Pushes {
+  /** What actually happens. */
+  mode: PushMode
+  /** What the config asked for, where that is not what happens; null when it is. */
+  asked: PushMode | null
+  /** Why they differ, in one sentence a person can act on; null when they do not. */
+  problem: string | null
+}
+
+/**
+ * Why a project cannot open a review for work its agents did, and the two ways
+ * out of it.
+ *
+ * One sentence, written once, because it is read in three places somebody is
+ * deciding: the Settings row where the mode is set, `tade_settings` where the
+ * orchestrator reads the same row, and `tade config --check` for a file
+ * somebody wrote by hand.
+ */
+export function pushNeedsABranch(project: string): string {
+  return `${project} is set to push a branch and open a review on it, and its agents all work in its own checkout on the branch it is on — so none of them has a branch of its own to open one for, and nothing is pushed. Give ${project} a worktree each, or have it push the branch they are on instead.`
+}
+
+/**
+ * What reaches the remote for one task: the project's own answer, or the
+ * machine's, resolved against where that task actually works.
+ *
+ * The workspace is a parameter rather than read here, and that is the whole
+ * care in this function: a task keeps the workspace it was made with
+ * (`TaskFile.workspace`), so asking the config where an agent works would push
+ * a review-opening agent into a shared checkout the moment somebody changed
+ * the setting under it. Callers about to make a task pass `workspaceFor`;
+ * callers about an existing one pass what its file says.
+ *
+ * Pure, total, and it only ever answers with *less*: the one pairing that
+ * cannot hold resolves to `never` with the reason, never to a push nobody
+ * asked for. Pushing straight to a shared branch when somebody asked for a
+ * review is the one wrong answer here — it is more on the remote than they
+ * asked for, not less.
+ */
+export function pushFor(config: Config, project: string | null, workspace: AgentWorkspace): Pushes {
+  const asked = (project ? config.projects[project]?.push : undefined) ?? config.agents.push
+  if (asked === 'branch-and-review' && workspace === 'checkout') {
+    return { mode: 'never', asked, problem: pushNeedsABranch(project ?? 'this project') }
+  }
+  return { mode: asked, asked: null, problem: null }
+}
+
+/**
+ * Every project whose push mode cannot mean what it says, as sentences.
+ *
+ * Read where a config is loaded, so a file somebody wrote by hand is told
+ * rather than quietly doing nothing — a setting Tade accepts and ignores is
+ * worse than one it does not have. A warning and never an issue: refusing the
+ * file would take away everything else they wrote in it, and the answer this
+ * resolves to is the safe one either way.
+ */
+export function pushProblems(config: Config): string[] {
+  return Object.keys(config.projects).flatMap((name) => {
+    const problem = pushFor(config, name, workspaceFor(config, name)).problem
+    return problem ? [problem] : []
+  })
+}

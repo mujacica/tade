@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composeAgentPrompt, composePrompt } from '../src/compose.ts'
+import { CI_AFTER_PUSH, composeAgentPrompt, composePrompt, pushTold } from '../src/compose.ts'
 import { ConfigSchema } from '../src/config.ts'
 import type { Note } from '../src/memory.ts'
 
@@ -266,6 +266,88 @@ describe('composeAgentPrompt', () => {
       expect(composeAgentPrompt({ ...base, workspace: 'checkout', commit: rule })).toMatch(
         /commit/i,
       )
+    }
+  })
+})
+
+describe('what an agent is told to do with finished work', () => {
+  const base = {
+    task: 'shop/refunds',
+    project: 'shop',
+    worktree: '/src/shop',
+    root: '/src/shop',
+    intent: 'retry refunds once',
+    branch: 'main',
+    context: null,
+  }
+
+  it('says nothing at all where nothing is pushed, which is the default', () => {
+    // Not "do not push": an agent told about an act it is not to perform is an
+    // agent that has been given the idea. And a Tade nobody has configured says
+    // exactly what it said before this setting existed.
+    for (const told of [
+      composeAgentPrompt({ ...base, workspace: 'checkout', commit: 'own-files' }),
+      composeAgentPrompt({ ...base, workspace: 'checkout', commit: 'own-files', push: 'never' }),
+    ]) {
+      expect(told).not.toMatch(/push/i)
+      expect(told).not.toContain(CI_AFTER_PUSH)
+    }
+  })
+
+  it('tells an agent in a shared checkout that the branch it pushes is everybody’s', () => {
+    // (b) push to the branch they are all on. The caveat is the whole of what
+    // makes it safe to say: a push there carries every commit anybody has made
+    // on it, so "green" has to mean green for all of it.
+    const told = composeAgentPrompt({
+      ...base,
+      workspace: 'checkout',
+      commit: 'own-files',
+      push: 'branch',
+    })
+    expect(told).toContain('push the branch you are on')
+    expect(told).toContain('every commit on it and not only yours')
+    expect(told).toContain('Never force-push')
+    expect(told).not.toContain('open a review')
+  })
+
+  it('tells an agent with a branch of its own to open a review, and not to merge it', () => {
+    // (a) push its own branch and open a review on it. Merging stays a
+    // person's, which is the same rule `extensions.review.merge` holds.
+    const told = composeAgentPrompt({
+      ...base,
+      worktree: '/h/worktrees/shop-refunds',
+      branch: 'tade/refunds',
+      workspace: 'worktree',
+      commit: 'as-you-go',
+      push: 'branch-and-review',
+    })
+    expect(told).toContain('push your own branch and open a review for it')
+    expect(told).toContain('Never merge it yourself')
+    expect(told).not.toContain('You share that branch')
+  })
+
+  it('says the same mode differently in a worktree, because the branch is its own', () => {
+    const told = composeAgentPrompt({
+      ...base,
+      workspace: 'worktree',
+      branch: 'tade/refunds',
+      push: 'branch',
+    })
+    expect(told).toContain('push your own branch')
+    expect(told).not.toContain('every commit on it and not only yours')
+    expect(pushTold('branch', 'checkout')).not.toBe(pushTold('branch', 'worktree'))
+    expect(pushTold('never', 'checkout')).toBeNull()
+  })
+
+  it('tells any agent that pushes that CI is watched after it stops', () => {
+    // The fact it needs in order to decide what to push, and the thing it can
+    // do about it while it is still here. Said for both push modes and for
+    // neither of the others.
+    for (const push of ['branch', 'branch-and-review'] as const) {
+      const told = composeAgentPrompt({ ...base, workspace: 'worktree', push })
+      expect(told).toContain(CI_AFTER_PUSH)
+      expect(told).toContain('Tade keeps watching it after you have stopped')
+      expect(told).toContain('fix the cause and push again')
     }
   })
 })

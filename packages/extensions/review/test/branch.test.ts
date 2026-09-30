@@ -1,101 +1,25 @@
-import { execFile } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
-import type { CheckRun, CheckState } from '@tade/checks-core'
 import { newFindings } from '@tade/core'
 import { ExtensionHost, Unreachable } from '@tade/extensions-core'
-import { makeScriptedForge } from '@tade/forge-scripted'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
-import { gitEnv, mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { onRemote, standingOn, whatRan } from '../src/commit.ts'
+import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { reviewExtension } from '../src/extension.ts'
 import { forget } from '../src/forge.ts'
+import { NOW, project, reallyExec, worktree } from './repo.ts'
 
-// CI on the branch the project is on, which is the half of CI that has no
-// review to hang off.
+// CI on the branches a project has checked out, which is the half of CI that
+// has no review to hang off.
 //
-// **git is real here.** The whole question this watch asks first is "what
-// branch is this checkout on, and at what commit", and a scripted `git` would
-// only ever answer what this file already believes — that a detached worktree
-// says `HEAD`, that `%H%n%s` is a sha and a subject. So every project below is
-// a repository `mkrepo` built, with a real remote and real commits, and the
-// exec the extension host is given really spawns git.
-//
-// The forge is not real and must never be: the decision — is this commit red,
-// and has it finished being anything else — is asked of the scripted forge,
-// which answers from a table, and the whole watch is asked of the GitHub
-// replay, which answers from files. Nothing here reaches the network.
+// **The repositories are real** (`repo.ts`): a real remote, real commits, real
+// worktrees and a real `git push`, because what the watch asks git before it
+// asks anybody else is exactly what a fake would have granted for free. What
+// CI said is never real — the GitHub replay answers from files, and nothing
+// here reaches the network. The rule underneath, and every reason a commit
+// cannot be asked about at all, is `commit.test.ts`.
 
-const NOW = Date.parse('2026-09-19T08:00:00Z')
 const env = { GITHUB_TOKEN: 'ghp_pretend', PATH: '/usr/bin' }
-
-/** Commits the scripted forge is asked about, where no real repository is in it. */
-const RED = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
-const FRESH = '1111111111111111111111111111111111111111'
-
-const run = promisify(execFile)
-
-/** Really run a program, the way the window's own exec does. */
-const reallyExec = async (command: string, args: readonly string[]) => {
-  try {
-    const got = await run(command, [...args], { env: gitEnv() as NodeJS.ProcessEnv })
-    return { code: 0, stdout: got.stdout, stderr: got.stderr }
-  } catch (err) {
-    const failed = err as { code?: number; stdout?: string; stderr?: string }
-    return { code: failed.code ?? 1, stdout: failed.stdout ?? '', stderr: failed.stderr ?? '' }
-  }
-}
-
-/**
- * A real repository with a real remote, on `main`, with one commit on it —
- * really pushed unless the test is about a commit that is not.
- *
- * `origin` is fetched from the URL the GitHub forge serves and pushed to a bare
- * repository next door, so the push is a real push writing a real
- * `refs/remotes/origin/*` and nothing reaches the network. A fixture that wrote
- * that ref with `update-ref` would be answering the one question this watch now
- * asks git before anything else, which is the question that was got wrong.
- */
-function project(
-  options: {
-    branch?: string
-    remote?: boolean
-    subject?: string
-    pushed?: boolean
-    /** The URL `origin` is fetched from — an SSH alias, for the account tests. */
-    remoteUrl?: string
-  } = {},
-) {
-  const repo = mkrepo({ remote: options.remote !== false })
-  if (options.remote !== false) {
-    repo.git('remote', 'set-url', 'origin', options.remoteUrl ?? 'git@github.com:acme/api.git')
-    repo.git('remote', 'set-url', '--push', 'origin', repo.remote ?? '')
-  }
-  if (options.branch && options.branch !== 'main') {
-    repo.git('checkout', '-q', '-b', options.branch)
-  }
-  repo.commit(options.subject ?? 'retry refunds once')
-  if (options.remote !== false && options.pushed !== false) {
-    repo.git('push', '-q', 'origin', options.branch ?? 'main')
-  }
-  return { repo, commit: repo.git('rev-parse', 'HEAD').trim() }
-}
-
-const ran = (commit: string, check: string, state: CheckState): CheckRun => ({
-  id: `${commit}:${check}:scripted:1`,
-  check,
-  commit,
-  state,
-  where: { kind: 'forge', forge: 'scripted', job: check, url: null },
-  required: true,
-  startedAt: '2026-09-19T07:00:00.000Z',
-  finishedAt: state === 'running' || state === 'queued' ? null : '2026-09-19T07:04:00.000Z',
-  code: null,
-  summary: state === 'failed' ? '8 failed' : null,
-  by: null,
-})
 
 /** GitHub's own check-runs shape, for the commit a branch is on. */
 const checkRuns = (...each: [string, string, string | null][]) => ({
@@ -142,6 +66,33 @@ function load(
   }
 }
 
+/**
+ * One of this extension's watches, turned on in a project — a real
+ * `schedules.jsonl` line, because that file is what `watchIsOn` reads and a
+ * stub would only answer what this file already believes.
+ */
+function watchOn(home: string, watch: string, options: { paused?: boolean } = {}): string {
+  const id = watch.replace('.', '-')
+  const line = (op: string, extra: Record<string, unknown>) =>
+    `${JSON.stringify({ op, by: 'you', at: '2026-09-01T00:00:00.000Z', ...extra })}\n`
+  let text = line('set', {
+    schedule: {
+      id,
+      name: watch,
+      project: 'api',
+      said: 'watch the checks on my reviews',
+      when: { every: '10m' },
+      does: { kind: 'watch', watch, input: {}, found: 'agent', most: 2 },
+      missed: 'once',
+      by: 'you',
+      created: '2026-09-01T00:00:00.000Z',
+    },
+  })
+  if (options.paused) text += line('pause', { id })
+  writeFileSync(join(home, 'schedules.jsonl'), text)
+  return home
+}
+
 const look = (host: ExtensionHost) =>
   host.look('review.branch-checks', {
     project: 'api',
@@ -151,134 +102,6 @@ const look = (host: ExtensionHost) =>
   })
 
 beforeEach(() => forget())
-
-describe('whether a commit is red yet', () => {
-  /** What the scripted forge says about a commit, put through the rule. */
-  const asked = async (commit: string, runs: Record<string, CheckRun[]>) =>
-    whatRan(await makeScriptedForge({ commits: runs }).checksOn('acme/api', commit))
-
-  it('says nothing has run while CI has not reached the push, rather than saying it is fine', async () => {
-    // Every push looks like this for a minute. "No failures" and "nothing has
-    // run" are the same empty list to anybody reading a boolean, which is why
-    // each answer here is its own word.
-    expect(await asked(FRESH, {})).toEqual({ kind: 'nothing ran' })
-  })
-
-  it('waits while anything is still going, so a retry is never raced', async () => {
-    expect(
-      await asked(RED, {
-        [`acme/api@${RED}`]: [
-          ran(RED, 'tests', 'failed'),
-          // The one that decides: a workflow still running may yet turn this
-          // commit green, and an agent started now is an agent started on a
-          // failure that was about to be re-run.
-          ran(RED, 'types', 'running'),
-        ],
-      }),
-    ).toEqual({ kind: 'running' })
-  })
-
-  it('says which checks failed once everything has settled', async () => {
-    const red = await asked(RED, {
-      [`acme/api@${RED}`]: [
-        ran(RED, 'format', 'passed'),
-        ran(RED, 'types', 'skipped'),
-        ran(RED, 'tests', 'failed'),
-      ],
-    })
-    expect(red.kind).toBe('red')
-    expect(red.kind === 'red' && red.runs.map((one) => one.check)).toEqual(['tests'])
-  })
-
-  it('reads a green commit as passed, which is not the same answer as nothing to look at', async () => {
-    expect(await asked(RED, { [`acme/api@${RED}`]: [ran(RED, 'tests', 'passed')] })).toEqual({
-      kind: 'passed',
-    })
-  })
-})
-
-describe('whether a commit is on the remote', () => {
-  const ctx = { exec: reallyExec, extension: 'review' } as unknown as Parameters<typeof onRemote>[0]
-  const standing = (repo: { git(...args: string[]): string }, branch = 'main') => ({
-    branch,
-    commit: repo.git('rev-parse', 'HEAD').trim(),
-    subject: 'retry refunds once',
-  })
-
-  it('is yes for a commit that was really pushed', async () => {
-    const { repo } = project()
-    expect(await onRemote(ctx, repo.root, standing(repo))).toEqual({
-      on: true,
-      branchThere: true,
-      problem: null,
-    })
-  })
-
-  it('is no for a commit that is only here, and says the branch is on origin', async () => {
-    // The whole bug: `main` three commits ahead of `origin/main` is not a
-    // failure, and nothing on the other end has ever heard of this sha.
-    const { repo } = project()
-    repo.commit('not pushed yet')
-    expect(await onRemote(ctx, repo.root, standing(repo))).toEqual({
-      on: false,
-      branchThere: true,
-      problem: null,
-    })
-  })
-
-  it('tells a branch that is not on origin at all from one that is merely ahead', async () => {
-    const { repo } = project({ branch: 'shop/refunds-retry', pushed: false })
-    expect(await onRemote(ctx, repo.root, standing(repo, 'shop/refunds-retry'))).toEqual({
-      on: false,
-      branchThere: false,
-      problem: null,
-    })
-  })
-
-  it('keeps git’s own refusal rather than reading it as not pushed', async () => {
-    // A probe that could not look is not a probe that found nothing: a sha no
-    // repository here has is a question git answers with an error, and calling
-    // that "not pushed yet" would be the same lie one scale down.
-    const { repo } = project()
-    const asked = await onRemote(ctx, repo.root, { ...standing(repo), commit: 'f'.repeat(40) })
-    expect(asked.on).toBe(false)
-    expect(asked.problem).toMatch(/bad object|unknown revision|not a valid/i)
-  })
-})
-
-describe('the branch a project is on', () => {
-  // Real repositories, because this is the one thing the watch asks git, and a
-  // scripted git could only ever say back what this file already believes.
-  const ctx = { exec: reallyExec, extension: 'review' } as unknown as Parameters<
-    typeof standingOn
-  >[0]
-
-  it('is read off a real checkout, with the commit and its subject', async () => {
-    const { repo, commit } = project({ subject: 'retry refunds once' })
-    expect(await standingOn(ctx, repo.root)).toEqual({
-      branch: 'main',
-      commit,
-      subject: 'retry refunds once',
-    })
-  })
-
-  it('is nobody’s branch in a really detached checkout, and nothing is watched there', async () => {
-    // What git actually answers here is `HEAD`, which is the assumption the
-    // watch rests on and the one a fake would have granted for free.
-    const { repo } = project()
-    repo.git('checkout', '-q', '--detach')
-    expect(await standingOn(ctx, repo.root)).toBeNull()
-  })
-
-  it('is nothing at all where git knows of no repository', async () => {
-    expect(await standingOn(ctx, tmp('tade-not-a-repo-'))).toBeNull()
-  })
-
-  it('reads a branch whose name has slashes in it as its whole name', async () => {
-    const { repo } = project({ branch: 'shop/refunds-retry' })
-    expect((await standingOn(ctx, repo.root))?.branch).toBe('shop/refunds-retry')
-  })
-})
 
 describe('watching CI on the branch', () => {
   it('finds the failing check on the commit the branch is really on', async () => {
@@ -371,9 +194,36 @@ describe('watching CI on the branch', () => {
     const { repo, commit } = project({ branch: 'shop/refunds-retry' })
     const { host } = load({
       root: repo.root,
+      home: watchOn(tmp('tade-branch-handoff-'), 'review.checks-failed'),
       runs: { [commit]: checkRuns(['tests', 'completed', 'failure']) },
     })
     expect((await look(await host)).found).toEqual([])
+  })
+
+  it('keeps that branch itself when the watch it would hand it to is not on', async () => {
+    // The hand-off rule was never "a review is somebody else's business", it
+    // was "two watches must not start two agents on one failure" — and a watch
+    // that is off starts nothing. `review.checks-failed` is off until somebody
+    // turns it on, so a project set to push a branch and open a review on it
+    // had its red builds watched by nobody at all.
+    const { repo, commit } = project({ branch: 'shop/refunds-retry' })
+    const { host } = load({
+      root: repo.root,
+      runs: { [commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    expect((await look(await host)).found.map((one) => one.key)).toEqual([
+      `github.com/acme/api@${commit}`,
+    ])
+  })
+
+  it('hands nothing over to a watch somebody has paused', async () => {
+    const { repo, commit } = project({ branch: 'shop/refunds-retry' })
+    const { host } = load({
+      root: repo.root,
+      home: watchOn(tmp('tade-branch-paused-'), 'review.checks-failed', { paused: true }),
+      runs: { [commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    expect((await look(await host)).found).toHaveLength(1)
   })
 
   it('finds nothing and asks nobody about a commit that is not on the remote', async () => {
@@ -484,6 +334,93 @@ describe('watching CI on the branch', () => {
     const { repo } = project()
     const { host } = load({ root: repo.root, missingCommit: true })
     await expect(look(await host)).rejects.toThrow(/has no such commit in acme\/api/)
+  })
+})
+
+describe('watching CI on what an agent pushed from its own worktree', () => {
+  // The half of this watch that a project set to push needs. With a worktree
+  // each, the commit an agent pushed is never the one the project's checkout is
+  // on — so a watch that looked at the root alone watched CI on nobody's work
+  // but the person's, and the mode the person asked for first (push a branch
+  // and open a review on it) had nothing watching it at all.
+
+  it('finds the failing check on the commit the worktree pushed, not the one main is on', async () => {
+    const { repo } = project()
+    const own = worktree(repo, 'refunds-retry')
+    const { host } = load({
+      root: repo.root,
+      runs: { [own.commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    const looked = await look(await host)
+    expect(looked.found.map((one) => one.key)).toEqual([`github.com/acme/api@${own.commit}`])
+    expect(looked.found[0]?.title).toBe('tests failing on tade/refunds-retry — retry refunds twice')
+  })
+
+  it('starts the fix on it, with what failed and the tail of its log', async () => {
+    // The other half of what the person asked for: the push is not the end of
+    // it. A commit that settles red is picked up whether the agent that pushed
+    // it is still running or not, because a lane dies with the window and CI
+    // takes longer than a last turn.
+    const { repo } = project()
+    const own = worktree(repo, 'refunds-retry')
+    const { host } = load({
+      root: repo.root,
+      runs: { [own.commit]: checkRuns(['tests', 'completed', 'failure']) },
+      logs: { [`${own.commit}:tests`]: 'FAIL packages/core/test/spend.test.ts\n  8 failed\n' },
+    })
+    const looked = await look(await host)
+    const finding = looked.found[0]
+    if (!finding) throw new Error('nothing was found to start work on')
+    const started = await looked.agent(finding)
+    expect(started.context).toContain(own.commit.slice(0, 12))
+    expect(started.context).toContain('8 failed')
+    expect(started.prompt).toContain('Reproduce it here before you change anything')
+    expect(started.prompt).toContain('Never force-push')
+  })
+
+  it('asks nobody about a worktree branch nothing has pushed', async () => {
+    // A project set to push nothing has exactly this shape all day, however
+    // many worktrees are open in it: git answers "not on the remote" for free,
+    // and the standing watch spends nothing.
+    const { repo } = project()
+    const own = worktree(repo, 'refunds-retry', { pushed: false })
+    const { host, replay } = load({
+      root: repo.root,
+      runs: { [own.commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    expect((await look(await host)).found).toEqual([])
+    expect(replay.calls.some((call) => call.includes(own.commit))).toBe(false)
+  })
+
+  it('says nothing at all when the project’s own branch was handed to the other watch', async () => {
+    // The one that would have said a worktree's sentence about the project: main
+    // is red and has a review, so it goes to `review.checks-failed`, and the
+    // worktree beside it has nothing pushed. "Nothing pushed yet" is true of the
+    // worktree and a lie about the repository, so nothing is said.
+    const { repo, commit } = project({ branch: 'shop/refunds-retry' })
+    worktree(repo, 'refunds-retry', { pushed: false })
+    const { host } = load({
+      root: repo.root,
+      home: watchOn(tmp('tade-branch-own-'), 'review.checks-failed'),
+      runs: { [commit]: checkRuns(['tests', 'completed', 'failure']) },
+    })
+    const looked = await look(await host)
+    expect(looked.found).toEqual([])
+    // Nothing kept with the look, which is how "said when it starts being true"
+    // stays honest: there is nothing true to say.
+    expect(looked.said).toBeNull()
+  })
+
+  it('says the project’s own quiet answer, not a worktree’s', async () => {
+    // Several kinds of quiet must not become one, and which one a person is
+    // told about is the branch they mean by "this project". A worktree with
+    // nothing pushed on it is not a fact about the repository.
+    const { repo } = project({ remote: false })
+    worktree(repo, 'refunds-retry', { pushed: false })
+    const { host } = load({ root: repo.root })
+    const looked = await look(await host)
+    expect(looked.found).toEqual([])
+    expect(looked.said).toContain('no remote')
   })
 })
 

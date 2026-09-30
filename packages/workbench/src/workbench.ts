@@ -26,6 +26,7 @@ import {
   type PlanSource,
   parseConfig,
   pricesFrom,
+  pushFor,
   type QueueChange,
   recordsDir,
   resolveRoute,
@@ -1697,8 +1698,6 @@ export class Workbench {
     const { intent, produces, workspace } = await this.taskFile(task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
     const context = taskContextPath(this.home, task)
-    const shared = workspace === 'checkout'
-    const agents = this.config.agents
     return composeAgentPrompt({
       task,
       project,
@@ -1708,9 +1707,10 @@ export class Workbench {
       branch: head.ok ? head.stdout.trim() : '',
       notes: this.memory.recall(task),
       context: existsSync(context) ? context : null,
-      workspace: shared ? 'checkout' : 'worktree',
-      commit: agents.commit,
-      ...(agents.instructions ? { instructions: agents.instructions } : {}),
+      workspace,
+      commit: this.config.agents.commit,
+      instructions: this.config.agents.instructions,
+      push: pushFor(this.config, project, workspace).mode,
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
       ...(await this.checksTold(project, cwd, task)),
       ...(produces ? { produces } : {}),

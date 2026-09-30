@@ -15,7 +15,8 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 |---|---|
 | `packages/core/src/config.ts` | `ConfigSchema`, `loadConfig`, `writeSetting`, `ownerOnly` |
 | `packages/core/src/settings.ts` | `settingsOf`, `parseSetting`, `findableBy`, `SettingKind`, the Keys and tokens group |
-| `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |
+| `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `OPEN`, `OPEN_UNDER`, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |
+| `packages/core/src/project.ts` | what one project answers for itself: `workspaceFor`, `pushFor`, `PUSH_MODES`, `pushProblems` |
 | `packages/core/src/secrets.ts` | a credential: `findSecret`, `secretPath`, `secretCommand`, `IN_CONFIG`, `KEYS_AND_AGENTS`, `SEEN_BY_AGENTS` |
 | `packages/core/src/gone.ts` | keys that are gone: the `GONE` table, `dropGone`, `SERVER_RUNS_AS_YOU`, `SERVER_HELD_BY_NOTHING`, `CHECKS_ARE_READ` |
 | `packages/app/src/wire/settings.ts` | where reach is *enforced*, `config_changed`, `held` (a credential said as `set` / `not set`) |
@@ -101,7 +102,12 @@ Three answers and no fourth:
   "turn the checks off" in somebody's mouth. It is honest about what it holds: an ordinary word
   matches loosely, other wording is refused outright, and both are the safe direction, because it
   may only ever refuse.
-- **`open`** is the three window sizes, where the worst case is something the person is looking at.
+- **`open`** is the three window sizes, where the worst case is something the person is looking at —
+  plus, in `OPEN_UNDER`, what the person has said outright is the orchestrator's to set. There is one
+  of those (`projects.<name>.push`) and it argues for itself where it is written, including what it
+  costs. The shape of that argument is the one to copy: it is reach over a *setting* and never over
+  an act, the act stays behind whatever already gates it (`approvals`), and the residual risk is
+  named rather than left for somebody to find. A key only belongs here on the person's own say-so.
 
 Two consequences when you add a key:
 
@@ -132,10 +138,24 @@ are exactly two files it can go wrong in:
 
 - The key goes on `ProjectConfigSchema` as `.optional()` — never with a default, which would make
   "unset" and "set to the default" different things.
-- **One reader, and every call site goes through it**: `checksFor` (`core/src/checks.ts`) and
-  `workspaceFor` (`core/src/project.ts`) are the two there are, and a third belongs beside them.
-  The bug is never the resolution, it is the site that still reads the global — so grep for the
-  global key after you add the override and make sure the only reader left is the resolver.
+- **One reader, and every call site goes through it**: `checksFor` (`core/src/checks.ts`),
+  `workspaceFor` and `pushFor` (`core/src/project.ts`) are the three there are, and a fourth
+  belongs beside them. The bug is never the resolution, it is the site that still reads the global
+  — so grep for the global key after you add the override and make sure the only reader left is
+  the resolver.
+- **A resolver may answer with *less* than was asked for, and then it has to say so.** `pushFor` is
+  the one that does: `branch-and-review` needs a branch of the agent's own, so in a `checkout`
+  project it cannot mean what it says and resolves to pushing nothing, with `pushNeedsABranch` as
+  its `problem`. Resolving it to the *neighbouring* value would have put commits on a shared branch
+  nobody asked to push — a resolution that answers with more than was asked for is the one shape to
+  refuse outright. The sentence is written once and read in the three places somebody is deciding:
+  the Settings row's `means`, `tade_settings` (the same row), and `parseConfig`'s `warnings`, which
+  is what `tade config --check` prints. A **warning and never an issue**: refusing the file would
+  take away everything else they wrote in it.
+- **Something a task already carries is a parameter, not a read.** `pushFor` takes the workspace
+  rather than reading `workspaceFor` itself, because a task keeps the workspace it was made with
+  (`TaskFile.workspace`): resolving against the config would move an agent that is already working
+  the moment somebody changed the setting under it.
 - Anything that already exists keeps what it was made with. A task file records its own answer;
   changing the setting must never move an agent that is already working.
 - Add it to the `projects` group in `settingsOf` with `value: project.<key> ?? ''` and

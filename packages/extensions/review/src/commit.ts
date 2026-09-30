@@ -62,6 +62,48 @@ export async function standingOn(ctx: ExtensionContext, root: string): Promise<S
   return { branch, commit, subject: rest.join(' ').trim() }
 }
 
+/**
+ * Every branch of a project that is checked out somewhere: its own checkout,
+ * and each worktree beside it.
+ *
+ * **Why the worktrees and not only the root.** In `worktree` mode every agent
+ * has a branch of its own, so the commit an agent pushed is never the one the
+ * project's own checkout is on — a watch that looked at the root alone watched
+ * CI on nobody's work but the person's. That was invisible while nothing
+ * pushed; the moment a project is set to push it is the whole of what there is
+ * to watch.
+ *
+ * **Everything is asked of the root.** Worktrees of one repository share its
+ * object database and its remote-tracking refs, so `git worktree list` names
+ * them and every question after that — the commit, its subject, whether it is
+ * on `origin` — is answered without running git anywhere else. A worktree whose
+ * directory has been removed and not pruned still answers here, which is right:
+ * the branch and the commit are facts about the repository, not about the
+ * directory.
+ *
+ * The project's own checkout is first, which is what lets a caller say "the
+ * root's answer is the one a person is told about". Never throws: a directory
+ * git knows nothing about is an empty list.
+ */
+export async function standingEverywhere(ctx: ExtensionContext, root: string): Promise<Standing[]> {
+  const here = await standingOn(ctx, root)
+  const listed = await git(ctx, root, ['worktree', 'list', '--porcelain'])
+  const branches: string[] = []
+  for (const line of listed.out.split('\n')) {
+    const branch = /^branch refs\/heads\/(.+)$/.exec(line.trim())?.[1]
+    // A detached worktree has no `branch` line at all, which is an agent that
+    // has not committed yet: nobody's branch, and nothing anybody could push.
+    if (branch && branch !== here?.branch && !branches.includes(branch)) branches.push(branch)
+  }
+  const rest: Standing[] = []
+  for (const branch of branches) {
+    const said = await git(ctx, root, ['log', '-1', '--format=%H%n%s', branch])
+    const [commit, ...subject] = said.out.split('\n')
+    if (commit) rest.push({ branch, commit, subject: subject.join(' ').trim() })
+  }
+  return here ? [here, ...rest] : rest
+}
+
 /** Whether a commit here is on `origin`, as the refs this checkout holds have it. */
 export interface Pushed {
   /** A ref of `origin` here has this commit. */

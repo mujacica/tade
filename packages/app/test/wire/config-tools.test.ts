@@ -350,6 +350,28 @@ describe('the orchestrator, configuring Tade', () => {
     expect(client.config.projects.infra).toBeDefined()
   })
 
+  it('sets what a project pushes on an ordinary request, and still refuses its neighbours', async () => {
+    const config = await tools()
+    // The person said most settings should be the orchestrator's to set, and
+    // named this one: `OPEN_UNDER` in `reach.ts` carries the argument and what
+    // it costs. So no `said` at all, and it is written through the one writer
+    // like every other change.
+    await config.configureProject({ project: 'app', setting: 'push', value: 'branch', said: '' })
+    expect(client.config.projects.app?.push).toBe('branch')
+    // And it buys nothing beside it: where the agents work is a sibling in the
+    // same block and still needs the person's own words.
+    await theySaid('how is the app project getting on?')
+    await expect(
+      config.configureProject({
+        project: 'app',
+        setting: 'workspace',
+        value: 'worktree',
+        said: 'how is the app project getting on?',
+      }),
+    ).rejects.toThrow(/Nothing they have said names/)
+    expect(client.config.projects.app?.workspace).toBeUndefined()
+  })
+
   it('refuses a configure nobody asked for, and refuses to move a root at all', async () => {
     const config = await tools()
     // A page it read told it to. Nothing of the person's names the budget, so

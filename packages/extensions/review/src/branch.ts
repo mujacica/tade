@@ -5,12 +5,12 @@ import {
   Unreachable,
   type WatchAgent,
 } from '@tade/extensions-core'
-import { type CommitCi, cannotLook, ciOn, saidOf, standingOn } from './commit.ts'
+import { type CommitCi, cannotLook, ciOn, saidOf, standingEverywhere } from './commit.ts'
 import { settingsOf, whereOf } from './forge.ts'
-import { attemptsUnder } from './record.ts'
+import { attemptsUnder, watchIsOn } from './record.ts'
 
-// CI on the branch you are actually on, which is the half of CI that has no
-// review to hang off.
+// CI on the branches this project actually has checked out, which is the half
+// of CI that has no review to hang off.
 //
 // `review.checks-failed` reads what the forge says about the reviews you
 // opened. A project whose work goes straight to its base branch opens none,
@@ -18,7 +18,7 @@ import { attemptsUnder } from './record.ts'
 // else pulls is broken — every red build was carried to the orchestrator by
 // hand. This is that run, watched.
 //
-// Four things keep it honest:
+// Five things keep it honest:
 //
 //   · **It asks git before it asks anybody else.** What CI said about the
 //     commit this checkout is on is `ciOn` (`commit.ts`), which answers from
@@ -34,10 +34,20 @@ import { attemptsUnder } from './record.ts'
 //     which in a shared checkout is worse than the failure — so the agent is
 //     told about every check that failed, with each of their logs, and fixes
 //     the commit rather than a column of a table.
-//   · **A branch with a review is the review watch's.** That call is made
-//     only once something is red, so the ordinary look — green, or nothing
-//     run yet — costs one request and no agent ever gets started twice on one
-//     failure.
+//   · **Every branch the project has checked out, not only its own.** With a
+//     worktree each, the commit an agent pushed is never the one the project's
+//     checkout is on, so looking at the root alone watched CI on nobody's work
+//     but the person's — invisible while nothing pushed, and the whole of what
+//     there is to watch the moment a project is set to push
+//     (`standingEverywhere`). A branch nobody has pushed still costs nothing:
+//     git answers that before any request is spent.
+//   · **A branch with a review is the review watch's, where that watch is on.**
+//     The rule was never "a review is somebody else's business", it was "two
+//     watches must not start two agents on one failure" — and a watch that is
+//     off starts nothing, which left a pushed branch with a review on it
+//     watched by nobody at all. Both calls are made only once something is
+//     red, so the ordinary look — green, or nothing run yet — spends nothing
+//     extra and no agent is ever started twice on one failure.
 //   · **It only ever adds work.** It never pushes, never reverts, never
 //     merges, and past `attempts` fixes on one branch it stops fixing and
 //     says what is wrong instead.
@@ -55,53 +65,78 @@ export function readKey(key: string): { repo: string; commit: string } | null {
 /** How many failing checks an agent is handed the log of. Past this they are named and no more. */
 const LOGS = 3
 
+/** The watch a branch with a review open belongs to, where somebody has turned it on. */
+const REVIEWS_WATCH = 'review.checks-failed'
+
 export const branchChecks: ExtensionWatch = {
   id: 'branch-checks',
   title: 'Failing CI on the branch you are on',
   means:
-    'watches what CI says about the commit the project’s branch is on — a push straight to main included — and puts one agent on each commit it finds red',
+    'watches what CI says about the commit every branch of the project is on — the one it pushes straight to main, and the one each agent pushed from its own worktree — and puts one agent on each commit it finds red',
   every: '10m',
   // It asks a forge, so an offline machine holds it rather than letting it
   // find that out with a request that times out once every ten minutes.
   network: true,
-  // On without anybody turning it on: it reads one commit's checks with the
-  // credential the extension already has, tells nobody anything, and a look
-  // that finds nothing costs one request — none at all where the commit is not
-  // pushed, which git answers for free. With no credential the extension is not
-  // ready, so there is no schedule at all rather than one failing all day.
+  // On without anybody turning it on: it reads the checks of the commit each
+  // branch is on, with the credential the extension already has, and tells
+  // nobody anything. What that costs is one request per branch that has
+  // something pushed on it, and nothing at all for one that has not — git
+  // answers that for free, which is why a project nobody pushes from spends
+  // nothing however many worktrees are open in it. With no credential the
+  // extension is not ready, so there is no schedule at all rather than one
+  // failing all day.
   standing: true,
 
   async check(ctx) {
     const since = new Date(ctx.now()).toISOString()
-    const here = await standingOn(ctx, ctx.watching.root)
-    if (!here) return { found: [], since }
-    const ci = await ciOn(ctx, ctx.watching, here)
-    if (ci.kind !== 'red') return quietly(ci, since)
-    const { where, runs: red } = ci
-    // Worth a second call only now that something is red. A branch that has a
-    // review open is that review's: `review.checks-failed` answers its
-    // failures, and two watches on one failure would start two agents on it.
-    if (await where.forge.reviewOf(where.repo, here.branch)) return { found: [], since }
-    const host = where.host
-    const names = red.map((run) => run.check)
-    const found: Finding = {
-      // The commit is in the key and the branch is not, and no check is: a
-      // re-run of the same commit is the same failure, a fix pushed on top is
-      // a new one, and one push never becomes one agent per failing check.
-      key: `${host}/${where.repo}@${here.commit}`,
-      title: `${said(names)} failing on ${here.branch} — ${here.subject}`,
-      detail: [
-        `${where.repo} \`${here.branch}\` is at \`${here.commit.slice(0, 12)}\` — ${here.subject}`,
-        '',
-        ...red.map(checkLine),
-      ].join('\n'),
-      links: red.flatMap((run) =>
-        run.where.kind === 'forge' && run.where.url
-          ? [{ title: `${run.check} on ${where.repo}`, url: run.where.url }]
-          : [],
-      ),
+    const standing = await standingEverywhere(ctx, ctx.watching.root)
+    if (standing.length === 0) return { found: [], since }
+    const found: Finding[] = []
+    // The answer about the project's own checkout, whatever it turns out to be:
+    // the only one a person is ever told about. See below.
+    let ownBranch: CommitCi | null = null
+    for (const here of standing) {
+      const ci = await ciOn(ctx, ctx.watching, here)
+      ownBranch ??= ci
+      if (ci.kind !== 'red') continue
+      const { where, runs: red } = ci
+      // Worth a second call only now that something is red, and worth a look at
+      // the schedules only now that there is a review: a branch with one is
+      // `review.checks-failed`'s, so long as somebody has that watch on. Off, it
+      // starts nothing, and handing this commit over would leave it unwatched.
+      if (await where.forge.reviewOf(where.repo, here.branch)) {
+        if (await watchIsOn(ctx, ctx.watching.name, REVIEWS_WATCH)) continue
+      }
+      const host = where.host
+      const names = red.map((run) => run.check)
+      found.push({
+        // The commit is in the key and the branch is not, and no check is: a
+        // re-run of the same commit is the same failure, a fix pushed on top is
+        // a new one, and one push never becomes one agent per failing check.
+        key: `${host}/${where.repo}@${here.commit}`,
+        title: `${said(names)} failing on ${here.branch} — ${here.subject}`,
+        detail: [
+          `${where.repo} \`${here.branch}\` is at \`${here.commit.slice(0, 12)}\` — ${here.subject}`,
+          '',
+          ...red.map(checkLine),
+        ].join('\n'),
+        links: red.flatMap((run) =>
+          run.where.kind === 'forge' && run.where.url
+            ? [{ title: `${run.check} on ${where.repo}`, url: run.where.url }]
+            : [],
+        ),
+      })
     }
-    return { found: [found], since }
+    if (found.length > 0) return { found, since }
+    // Which quiet answer a person is told about is the project's own checkout's,
+    // which `standingEverywhere` puts first: it is the branch they mean by "this
+    // project", and a worktree's own — a commit rebased away, a branch nothing
+    // has pushed — is not a fact about the repository and must not make the
+    // watch cry wolf about one nothing is wrong with. An outage still surfaces,
+    // because the root's look hits it first. And a root that was red and handed
+    // to the other watch has nothing quiet to say, which `quietly` answers with
+    // silence rather than with somebody else's branch.
+    return ownBranch ? quietly(ownBranch, since) : { found: [], since }
   },
 
   async agent(finding, ctx): Promise<WatchAgent> {
@@ -199,6 +234,10 @@ export const branchChecks: ExtensionWatch = {
  * look while it stays true. A look that could not look throws, which is the one
  * of these that needs a person — and where nothing came back at all it throws
  * `Unreachable`, which is the one that might need nobody.
+ *
+ * A `red` answer reaching here is a branch whose failure was handed to the
+ * watch it belongs to: silence, because there is nothing left for this one to
+ * say about it and the other watch is the one saying it.
  */
 function quietly(ci: CommitCi, since: string): { found: Finding[]; since: string; said?: string } {
   // Nothing came back at all is the one of these that might not be about this

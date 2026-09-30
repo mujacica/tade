@@ -1,4 +1,5 @@
 import { AGENT_WORKSPACES, type Config } from './config.ts'
+import { PUSH_MODES, pushFor, workspaceFor } from './project.ts'
 import type { SettingGroup } from './settings.ts'
 
 // What one project answers for itself, as a person changes it.
@@ -65,6 +66,25 @@ export function projectGroups(config: Config): SettingGroup[] {
           type: { kind: 'choice', options: ['', ...AGENT_WORKSPACES] } as const,
           live: true,
           keywords: [name, 'workspace', 'worktree', 'checkout'],
+        },
+        {
+          // The one row here whose `means` changes with another setting, and
+          // deliberately: `branch-and-review` needs a branch of the agent's
+          // own, so in a project whose agents share its checkout it cannot
+          // mean what it says. `pushFor` is the one place that decides, and
+          // this is one of the three that say it — the page somebody sets it
+          // on, `tade_settings` where the orchestrator reads the same row, and
+          // `tade config --check` for a file written by hand.
+          path: `projects.${name}.push`,
+          title: `${name} — what is pushed`,
+          means:
+            pushFor(config, name, workspaceFor(config, name)).problem ??
+            `never: nothing of ${name} reaches its remote; branch: agents push the branch they are on; branch-and-review: each pushes its own branch and opens a review on it, which needs a worktree each`,
+          value: project.push ?? '',
+          fallback: config.agents.push,
+          type: { kind: 'choice', options: ['', ...PUSH_MODES] } as const,
+          live: true,
+          keywords: [name, 'push', 'pushing', 'remote', 'review', 'pull request'],
         },
       ]),
     },
