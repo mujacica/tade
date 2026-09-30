@@ -77,7 +77,10 @@ const lines: string[] = [
   '',
   '## Programs Tade runs',
   '',
-  'Tade starts these as separate programs when they are installed; it does not include them.',
+  'Tade starts these as separate programs when they are installed, and ships none of them itself —',
+  'with one exception. pi is also a dependency: the published `tade-sh` declares',
+  '`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui`, so installing Tade installs pi',
+  'with it. Its packages are in the Packages table below, with their licence and author.',
   '',
   '| Program | Used for | Licence |',
   '|---|---|---|',
@@ -112,7 +115,11 @@ const lines: string[] = [
   '',
   '## Packages',
   '',
-  `${sorted.length} packages are installed with Tade (the ones marked *dev* only for developing it):`,
+  `${sorted.length} packages are installed to develop Tade, and every one of them is listed here.`,
+  'What `tade-sh` installs is a subset: the *dev* marker is pnpm’s own production/development',
+  'split, which reads wider than what ships, because a package carrying a conformance suite',
+  'declares `vitest` as a dependency (R4) and its whole tree then counts as production. So this',
+  'credits more than Tade distributes, never less. Their licences:',
   [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([license, n]) => `${n} ${license}`)

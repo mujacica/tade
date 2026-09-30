@@ -48,10 +48,13 @@ import { trustFolder } from './trust.ts'
 //
 // Nothing of ours runs inside it the way the supervision extension runs inside
 // pi. What it tells us arrives through hooks, its status line and an MCP
-// server, all handed to it for this run alone (`--settings`, `--mcp-config`)
-// so nothing in anybody's own configuration is touched. What we tell it is
-// typed into its terminal, as a person would — which is also why some things
-// are only possible between turns, or by starting it again.
+// server, all handed to it for this run alone (`--settings`, `--mcp-config`),
+// so none of that is written into anybody's own configuration. One thing is:
+// `trustFolder` answers the trust prompt in Claude Code's own `.claude.json`,
+// because that prompt holds the agent before any hook of ours can run —
+// `trust.ts` says what it writes and why. What we tell it is typed into its
+// terminal, as a person would — which is also why some things are only
+// possible between turns, or by starting it again.
 
 export const HOOK_PATH = fileURLToPath(new URL('./hook.ts', import.meta.url))
 export const STATUSLINE_PATH = fileURLToPath(new URL('./statusline.ts', import.meta.url))
