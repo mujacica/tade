@@ -1,0 +1,34 @@
+   T A D E      checkout ! ✕ ⠋ ● ○ ‖   ×  ≡     +      ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  7   H  X     +    █│ Agent spend invisible…    agent    actions     +     claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ⠋ Agent spend i…  ×  ≡    █│                                                                                         
+ ▌   working                 █│                                                                                         
+                             █│                                                                                         
+   ● Update notes panel t…   █│  ● The spend manager filters usage by project, so an agent                              
+     idle · waiting for y…   █│    started outside one is counted and never shown.                                      
+                             █│                                                                                         
+   ! stripe-v15      $1.26   █│  ▸ Read src/spend.ts                                                                    
+     wants you to approve…   █│  ▸ Grep byProject  3 files                                                              
+                             ▕│  ▸ Read src/agents.ts                                                                   
+   ✕ reload                  ▕│                                                                                         
+     agent exited with co…   ▕│  ● Two readers, one filter. `byTask` already carries the                                
+                             ▕│    project, so the filter can go and the rollup stays.                                  
+   ✓ refunds                 ▕│                                                                                         
+     finished · Refunds c…   ▕│  ▸ Edit src/spend.ts  +9 −14                                                            
+                             ▕│  ▸ Edit test/spend.test.ts  +31                                                         
+   ○ queue                   ▕│  ▸ bash pnpm vitest run test/spend.test.ts                                              
+     not started             ▕│    12 passed                                                                            
+                             ▕│                                                                                         
+   ‖ later                   ▕│  ● Waiting on the rest of the suite.                                                    
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake     claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │ $1.90 today ▾ 

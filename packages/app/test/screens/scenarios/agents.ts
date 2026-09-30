@@ -4,6 +4,7 @@ import {
   type AppState,
   focusTask,
   initialState,
+  type TaskSnapshot,
   toggleCheck,
   toggleDone,
   toggleSection,
@@ -133,6 +134,186 @@ const alternateScreen = [
   '  ? for shortcuts',
 ].join('\n')
 
+/**
+ * A morning's agents: one of every kind there is.
+ *
+ * Shared rather than written out per scenario, because four screens are drawn
+ * from it — the list itself, and each of the three harnesses opened in turn —
+ * and the whole point of those three is that the window round them does not
+ * change. A list copied four times is a sidebar that quietly differs between
+ * two pictures of the same window.
+ */
+const kinds: TaskSnapshot[] = [
+  {
+    task: 'checkout/agent-spend',
+    state: 'working',
+    title: 'Agent spend invisible because the spend manager filters by project',
+    lane: 'checkout/agent-spend/agent',
+  },
+  {
+    task: 'checkout/notes-design',
+    state: 'blocked',
+    reason: IDLE_REASON,
+    title: 'Update notes panel to match the new agent rows',
+    lane: 'checkout/notes-design/agent',
+  },
+  {
+    task: 'checkout/stripe-v15',
+    state: 'blocked',
+    lane: 'checkout/stripe-v15/agent',
+    waiting: true,
+    approval: { tool: 'bash', summary: 'npm i stripe@15' },
+  },
+  { task: 'checkout/reload', state: 'failed', reason: 'agent exited with code 1' },
+  {
+    task: 'checkout/refunds',
+    state: 'blocked',
+    reason: IDLE_REASON,
+    // Its agent said so: finished, not idle.
+    finished: { by: 'agent', summary: 'Refunds charge once, with a test' },
+  },
+  { task: 'checkout/queue', state: 'queued' },
+  { task: 'checkout/later', state: 'parked' },
+]
+
+/** The same morning's money, so every screen drawn from `kinds` agrees about it. */
+const morning = {
+  spend: {
+    tokens: 900_000,
+    usd: 1.9,
+    hasCost: true,
+    byTask: {
+      'checkout/agent-spend': { tokens: 600_000, usd: 5.73 },
+      'checkout/stripe-v15': { tokens: 300_000, usd: 1.26 },
+    },
+  },
+}
+
+// ── three harnesses, and three lanes that look nothing like each other ────
+//
+// A lane is another program's terminal, so what the window has of an agent is
+// whatever that program painted — and the three Tade runs paint differently.
+// pi writes a line per step; Claude Code repaints a bordered conversation;
+// Codex writes its own bullets and its own rules. That difference is the whole
+// of what these three screens are for, and it is why each one is its own
+// drawing rather than one house style under three names.
+//
+// Each is written to the rows the pane actually has — nineteen, or fourteen
+// where Tade's approval card takes the bottom of it — because a canned lane
+// longer than its pane is a picture of a window with its first lines cut off.
+
+/** pi, on the spend bug: a line per step, and a sentence when it has read enough. */
+const piOnSpend = [
+  '',
+  '  ● The spend manager filters usage by project, so an agent',
+  '    started outside one is counted and never shown.',
+  '',
+  '  ▸ Read src/spend.ts',
+  '  ▸ Grep byProject  3 files',
+  '  ▸ Read src/agents.ts',
+  '',
+  '  ● Two readers, one filter. `byTask` already carries the',
+  '    project, so the filter can go and the rollup stays.',
+  '',
+  '  ▸ Edit src/spend.ts  +9 −14',
+  '  ▸ Edit test/spend.test.ts  +31',
+  '  ▸ bash pnpm vitest run test/spend.test.ts',
+  '    12 passed',
+  '',
+  '  ● Waiting on the rest of the suite.',
+].join('\n')
+
+/**
+ * Claude Code, on the notes panel: its own conversation, drawn in boxes on the
+ * alternate screen and repainted in place, ending on the prompt it is idle at.
+ */
+const claudeOnNotes = [
+  '╭──────────────────────────────────────────────────────────────╮',
+  '│ ✻ Notes panel                                                │',
+  '╰──────────────────────────────────────────────────────────────╯',
+  '',
+  '> the notes panel should read like the agent rows do now',
+  '',
+  '● The rows went to two lines each in 4f2a1c9 — a name, and what',
+  '  it is doing. The notes panel is still one line and a date.',
+  '  ⎿ Read src/view/notes.ts (168 lines)',
+  '  ⎿ Read src/view/sidebar.ts (402 lines)',
+  '',
+  '● Giving a note the same two lines: its headline, then who said',
+  '  it and when.',
+  '  ⎿ Edit src/view/notes.ts  +24 −11',
+  '',
+  '╭──────────────────────────────────────────────────────────────╮',
+  '│ >                                                            │',
+  '╰──────────────────────────────────────────────────────────────╯',
+  '  ? for shortcuts',
+].join('\n')
+
+/**
+ * Codex, on the stripe upgrade: its own bullets, and the command it has asked
+ * to run — which is the command Tade's card below it is holding.
+ */
+const codexOnStripe = [
+  '› upgrade stripe to v15',
+  '',
+  '• Thought for 4s',
+  '  └ The webhook signature API changed in v15: constructEvent',
+  '    takes the raw body and a header, not the parsed event.',
+  '',
+  '• Read src/webhooks.ts',
+  '  └ 212 lines',
+  '',
+  '• Edited src/webhooks.ts',
+  '  └ +12 −4',
+  '',
+  '• Running npm i stripe@15',
+].join('\n')
+
+/**
+ * The window with one of `kinds` open on the harness it runs.
+ *
+ * The state is the same window every time — the same seven agents, the same
+ * folded sections, the same morning's money — and the only difference is which
+ * row was clicked: `focusTask` marks it in the list and opens its lane in the
+ * pane. `hover` is on that row too, because the pointer is where the click was.
+ *
+ * `route` is what the agent is configured to run and `vitals` is what its
+ * harness says it is actually on, which are not the same string: Claude Code is
+ * told `anthropic/claude-opus-5` and reports `claude-opus-5`.
+ */
+function openOn(
+  task: string,
+  screen: string,
+  on: {
+    harness: string
+    model: string
+    reports: string
+    provider: string
+    credential: string
+    context: number
+  },
+): Pick<Scenario, 'state' | 'frame'> {
+  return {
+    state: {
+      ...focusTask(withTasks(withProjects(initialState(), ['checkout']), kinds), task),
+      folded: ['changes', 'files', 'where'],
+      hover: { kind: 'task', task },
+    },
+    frame: frame({
+      ...morning,
+      screen,
+      route: {
+        harness: on.harness,
+        model: on.model,
+        thinking: 'high',
+        provider: on.provider,
+        credential: on.credential,
+      },
+      vitals: { model: on.reports, thinking: 'high', contextPercent: on.context },
+    }),
+  }
+}
+
 export const AGENT_SCREENS: Scenario[] = [
   {
     name: 'what-an-agent-has-done',
@@ -247,53 +428,51 @@ export const AGENT_SCREENS: Scenario[] = [
       'One agent of each kind, told apart by shape as well as colour: working turns, idle, waiting on you, failed, finished, not running, parked. Each agent is a two-line tab — its name, and what it is doing — with room around it: long names end in …, the one you are on has an accent, and the one under the pointer is lit with its close and menu.',
     state: {
       ...focusTask(
-        withTasks(withProjects(initialState(), ['checkout']), [
-          {
-            task: 'checkout/agent-spend',
-            state: 'working',
-            title: 'Agent spend invisible because the spend manager filters by project',
-            lane: 'checkout/agent-spend/agent',
-          },
-          {
-            task: 'checkout/notes-design',
-            state: 'blocked',
-            reason: IDLE_REASON,
-            title: 'Update notes panel to match the new agent rows',
-            lane: 'checkout/notes-design/agent',
-          },
-          {
-            task: 'checkout/stripe-v15',
-            state: 'blocked',
-            lane: 'checkout/stripe-v15/agent',
-            waiting: true,
-            approval: { tool: 'bash', summary: 'npm i stripe@15' },
-          },
-          { task: 'checkout/reload', state: 'failed', reason: 'agent exited with code 1' },
-          {
-            task: 'checkout/refunds',
-            state: 'blocked',
-            reason: IDLE_REASON,
-            // Its agent said so: finished, not idle.
-            finished: { by: 'agent', summary: 'Refunds charge once, with a test' },
-          },
-          { task: 'checkout/queue', state: 'queued' },
-          { task: 'checkout/later', state: 'parked' },
-        ]),
+        withTasks(withProjects(initialState(), ['checkout']), kinds),
         'checkout/notes-design',
       ),
       folded: ['changes', 'files', 'where'],
       hover: { kind: 'task', task: 'checkout/stripe-v15' },
     },
-    frame: frame({
-      spend: {
-        tokens: 900_000,
-        usd: 1.9,
-        hasCost: true,
-        byTask: {
-          'checkout/agent-spend': { tokens: 600_000, usd: 5.73 },
-          'checkout/stripe-v15': { tokens: 300_000, usd: 1.26 },
-        },
-      },
+    frame: frame(morning),
+  },
+  {
+    name: 'an-agent-on-pi',
+    about:
+      'The same list of agents with the working one clicked: it is marked in the list on the left and its lane is open on the right, which is pi’s own drawing — a line per step, and a sentence when it has read enough. The model it runs on and how hard it thinks are along the top of the pane.',
+    ...openOn('checkout/agent-spend', piOnSpend, {
+      harness: 'pi',
+      model: 'anthropic/claude-opus-5',
+      reports: 'claude-opus-5',
+      provider: 'anthropic',
+      credential: 'signed in',
+      context: 41,
+    }),
+  },
+  {
+    name: 'an-agent-on-claude-code',
+    about:
+      'The same window with the idle agent clicked instead: its lane is Claude Code, which draws nothing like pi — a bordered conversation repainted in place, its tool results indented under what asked for them, resting on the prompt it is waiting at.',
+    ...openOn('checkout/notes-design', claudeOnNotes, {
+      harness: 'claude-code',
+      model: 'anthropic/claude-opus-5',
+      reports: 'claude-opus-5',
+      provider: 'anthropic',
+      credential: 'signed in',
+      context: 63,
+    }),
+  },
+  {
+    name: 'an-agent-on-codex',
+    about:
+      'The same window again with the agent that wants you clicked: its lane is Codex, in its own bullets and its own rules, and the last thing in it is the command it asked to run — which is the command in Tade’s card under it, waiting for you to allow it once or deny it.',
+    ...openOn('checkout/stripe-v15', codexOnStripe, {
+      harness: 'codex',
+      model: 'openai/gpt-5.3-codex',
+      reports: 'gpt-5.3-codex',
+      provider: 'openai',
+      credential: 'signed in',
+      context: 22,
     }),
   },
   {

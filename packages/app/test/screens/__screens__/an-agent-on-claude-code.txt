@@ -1,0 +1,34 @@
+   T A D E      checkout ! ✕ ⠋ ● ○ ‖   ×  ≡     +      ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  7   H  X     +    █│ Update notes panel to…    agent    actions     +     claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+   ⠋ Agent spend in… $5.73   █│╭──────────────────────────────────────────────────────────────╮                         
+     working                 █││ ✻ Notes panel                                                │                         
+                             █│╰──────────────────────────────────────────────────────────────╯                         
+ ▌ ● Update notes …  ×  ≡    █│                                                                                         
+ ▌   idle · waiting for y…   █│> the notes panel should read like the agent rows do now                                 
+                             █│                                                                                         
+   ! stripe-v15      $1.26   █│● The rows went to two lines each in 4f2a1c9 — a name, and what                          
+     wants you to approve…   █│  it is doing. The notes panel is still one line and a date.                             
+                             ▕│  ⎿ Read src/view/notes.ts (168 lines)                                                   
+   ✕ reload                  ▕│  ⎿ Read src/view/sidebar.ts (402 lines)                                                 
+     agent exited with co…   ▕│                                                                                         
+                             ▕│● Giving a note the same two lines: its headline, then who said                          
+   ✓ refunds                 ▕│  it and when.                                                                           
+     finished · Refunds c…   ▕│  ⎿ Edit src/view/notes.ts  +24 −11                                                      
+                             ▕│                                                                                         
+   ○ queue                   ▕│╭──────────────────────────────────────────────────────────────╮                         
+     not started             ▕││ >                                                            │                         
+                             ▕│╰──────────────────────────────────────────────────────────────╯                         
+   ‖ later                   ▕│  ? for shortcuts                                                                        
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake     claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │ $1.90 today ▾ 
