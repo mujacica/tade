@@ -17,11 +17,11 @@
         │  Journal               ▕│                                                                           ▕│        
  ▾ FILES│  Telemetry             ▕│     Add an account…     Add an API-key account…                           ▕│        
    ▾ src│  Shortcuts             ▕│                                                                           ▕│        
-       w│▌ Accounts          ● 2 ▕│                                                                           ▕│        
-       w│  Updates               ▕│                                                                           ▕│        
-   ▸ tes│                        ▕│                                                                           ▕│        
+       w│▌ Accounts          ● 3 ▕│ Codex                                                                     ▕│        
+       w│  Updates               ▕│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                 ▕│        
+   ▸ tes│                        ▕│     Sign in again…     Sign out                                           ▕│        
      pac│                        ▕│                                                                           ▕│        
-━   orch│                        ▕│                                                                           ▕│   ▾   ━
+━   orch│                        ▕│     Add an account…     Add an API-key account…                           ▕│   ▾   ━
         │                        ▕│                                                                           ▕│        
         │                        ▕│                                                                           ▕│       ▕
         │                        ▕│                                                                           ▕│       ▕

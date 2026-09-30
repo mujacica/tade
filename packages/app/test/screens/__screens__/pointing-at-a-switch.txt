@@ -17,7 +17,7 @@
         │  Journal               ▕│                                                                           █│        
  ▾ FILES│▌ Telemetry             ▕│ What agents do             ──██ on                           ↻ on restart █│        
    ▾ src│  Shortcuts             ▕│                                                                           █│        
-       w│  Accounts          ● 2 ▕│ How much of Tade is timed   ‹  0.1  ›                        ↻ on restart █│        
+       w│  Accounts          ● 3 ▕│ How much of Tade is timed   ‹  0.1  ›                        ↻ on restart █│        
        w│  Updates               ▕│                                                                           █│        
    ▸ tes│                        ▕│ Which Tade this is          laptop                           ↻ on restart ▕│        
      pac│                        ▕│                                                                           ▕│        

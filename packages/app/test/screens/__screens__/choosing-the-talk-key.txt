@@ -17,7 +17,7 @@
         │  Journal           │                                                            │                   ▕│        
  ▾ FILES│  Telemetry         │                        Try another     Use ctrl+r anyway   │                   ▕│        
    ▾ src│  Shortcuts         ╰────────────────────────────────────────────────────────────╯                   ▕│        
-       w│  Accounts          ● 2 ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
+       w│  Accounts          ● 3 ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
        w│  Updates               ▕│                                                                           ▕│        
    ▸ tes│                        ▕│ Quiet hours      22:00    to  07:00                          ↻ on restart ▕│        
      pac│                        ▕│                                                                           ▕│        

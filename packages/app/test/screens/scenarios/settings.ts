@@ -7,9 +7,15 @@ import { base, frame, type Scenario } from './fixtures.ts'
 
 /** What the Settings panel is shown: a machine set up the way the design was drawn. */
 /**
- * Accounts as the page shows them: pi on its providers, Claude Code on your
- * own plan with some of it used, and a second account added and not yet
- * signed in to.
+ * Accounts as the page shows them: every harness Tade can run, each on its own
+ * sign-in — pi on its providers, Claude Code on your own plan with some of it
+ * used and a second account added and not yet signed in to, and Codex on its
+ * own.
+ *
+ * All three, because that is what the page is: `HARNESS_CHOICES` has three
+ * harnesses that are ready, and a screen of this page with two of them in it
+ * is a screen that cannot show the one thing it exists to show — that each
+ * harness signs in as itself, in its own way.
  */
 const ACCOUNTS_SHOWN = [
   {
@@ -46,6 +52,22 @@ const ACCOUNTS_SHOWN = [
     limits: null,
     agents: 0,
     forNewAgents: false,
+    canSignIn: true,
+  },
+  {
+    harness: 'codex',
+    name: null,
+    kind: 'subscription' as const,
+    canAdd: true,
+    why: null,
+    status: { signedIn: true, who: 'you@example.com', plan: 'pro', problem: null },
+    // No window to show yet, and that is Codex rather than a gap in the
+    // fixture: it says how much of its plan is gone as a turn ends, so an
+    // account none of whose agents has worked has no number to give -- see
+    // `spend.limits: 'while-working'` on the Codex adapter.
+    limits: null,
+    agents: 1,
+    forNewAgents: true,
     canSignIn: true,
   },
 ]

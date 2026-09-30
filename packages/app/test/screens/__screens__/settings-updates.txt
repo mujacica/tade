@@ -17,7 +17,7 @@
         │  Journal               ▕│                   the system’s own · /usr/bin/git                         █│        
  ▾ FILES│  Telemetry             ▕│                   no command · the system updates it — macOS:             █│        
    ▾ src│  Shortcuts             ▕│                   `xcode-select --install`                                █│        
-       w│  Accounts          ● 2 ▕│                                                                           █│        
+       w│  Accounts          ● 3 ▕│                                                                           █│        
        w│▌ Updates           ● 2 ▕│   tmux            —           ▲ not installed                             █│        
    ▸ tes│                        ▕│                   nothing here needs it                                   █│        
      pac│                        ▕│                   no command · nothing on your PATH answers to `tmux`     ▕│        
