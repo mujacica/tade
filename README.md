@@ -19,7 +19,7 @@ tade                     # the window; the first time, a short setup that sets y
 
 Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest.
 
-![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](images/tade.svg)
+![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
 
 ## Agents run as you
 
@@ -35,7 +35,7 @@ file.
 Agents down the left with what each has cost, their changes, the files, the agent you are watching
 in the middle, the orchestrator along the bottom. One terminal, no browser, no daemon.
 
-![The Tade window: agents, changes, files, an agent asking to run a command, and the orchestrator below](images/window.svg)
+![The Tade window: agents, changes, files, an agent asking to run a command, and the orchestrator below](https://raw.githubusercontent.com/mujacica/tade/main/images/window.svg)
 
 ## An orchestrator you talk to
 
@@ -43,14 +43,14 @@ Say or type what you want. It starts, steers and stops agents, opens terminals, 
 as it runs — including the ones that fail, with the reason. Drop a screenshot on the window and it
 goes with whatever you say next.
 
-![The orchestrator answering a request, each tool shown as it runs, one failing with the reason](images/orchestrator.svg)
+![The orchestrator answering a request, each tool shown as it runs, one failing with the reason](https://raw.githubusercontent.com/mujacica/tade/main/images/orchestrator.svg)
 
 ## Voice, first
 
 Hold `ctrl+space` and talk. Speech stays on your machine by default, answers come back as a few
 spoken sentences with the rest on screen, and mute cuts the sentence being said, not the next one.
 
-![Push to talk: the strip says it is listening, a level meter moves with your voice](images/voice.svg)
+![Push to talk: the strip says it is listening, a level meter moves with your voice](https://raw.githubusercontent.com/mujacica/tade/main/images/voice.svg)
 
 ## Agents, together or apart
 
@@ -60,8 +60,8 @@ failed, finished — is read back from git and the processes, never remembered.
 
 <table>
 <tr>
-<td width="34%"><img src="images/agents.svg" alt="Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused"></td>
-<td width="66%"><img src="images/terminals.svg" alt="A shell open beside the agent, in the same worktree, with a divider you can drag"></td>
+<td width="34%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/agents.svg" alt="Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused"></td>
+<td width="66%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/terminals.svg" alt="A shell open beside the agent, in the same worktree, with a divider you can drag"></td>
 </tr>
 </table>
 
@@ -71,17 +71,17 @@ Ask for five things at once. What can run now runs; the rest waits for exactly w
 starts by itself. Click a piece of queued work and you see the whole chain, why each link waits, and
 what its agent will be told — looking is never starting.
 
-![Queued work opened: the chain it is in drawn as boxes, why each waits, and what its agent will be told](images/queue.svg)
+![Queued work opened: the chain it is in drawn as boxes, why each waits, and what its agent will be told](https://raw.githubusercontent.com/mujacica/tade/main/images/queue.svg)
 
 `plan` on the queue's heading steps back from one piece to all of it: the whole plan on one screen,
 a column per step, so you can see what is running now, what runs next, and why — before any of it
 starts.
 
-![The plan: a column per step, a box per task with what it is doing, an arrow for every wait, and the reason for each one under it](images/plan.svg)
+![The plan: a column per step, a box per task with what it is doing, an arrow for every wait, and the reason for each one under it](https://raw.githubusercontent.com/mujacica/tade/main/images/plan.svg)
 
 When something upstream fails, the work it feeds is **held**, not lost — and Tade says so and asks.
 
-![Queued work held because what it waited on failed, with the choices: wait for a retry, start anyway, remove](images/queue-held.svg)
+![Queued work held because what it waited on failed, with the choices: wait for a retry, start anyway, remove](https://raw.githubusercontent.com/mujacica/tade/main/images/queue-held.svg)
 
 ## Scheduled tasks
 
@@ -93,7 +93,7 @@ Down the side the clockwork has a section of its own, under the queue: a rule th
 again is not a piece of work waiting its turn, and each row says how often it fires, whether firing
 starts an agent or only tells you, and — for a watch — when it last looked and what it came to.
 
-![A schedule: every Monday at 09:00 it starts an agent, what it is told, when it runs next, and every run so far](images/schedules.svg)
+![A schedule: every Monday at 09:00 it starts an agent, what it is told, when it runs next, and every run so far](https://raw.githubusercontent.com/mujacica/tade/main/images/schedules.svg)
 
 ## Watches
 
@@ -109,7 +109,7 @@ what each one costs before you answer: one that starts an agent on what it finds
 whose extension has no key says what it needs instead of pretending it would work. Afterwards it is
 the Extensions page, or asking — "turn the vulnerable dependencies watch on".
 
-![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](images/watches.svg)
+![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](https://raw.githubusercontent.com/mujacica/tade/main/images/watches.svg)
 
 ## An IDE in the terminal
 
@@ -117,14 +117,14 @@ The repository is right there while the agents work it: the file tree, the diffs
 terminal in the same worktree — and a file you can open where you are, typed into and saved, or
 handed to the editor you actually use.
 
-![A file open in the window: highlighted, numbered, typed into, with save, copy path and open in your editor](images/editor.svg)
+![A file open in the window: highlighted, numbered, typed into, with save, copy path and open in your editor](https://raw.githubusercontent.com/mujacica/tade/main/images/editor.svg)
 
 ## Context-rich search
 
 `ctrl+k` finds agents, files in every worktree, the lines inside them and the things Tade can do —
 each result saying which project and which agent it belongs to. `file:42` goes straight to a line.
 
-![Search: files and matching lines across projects and worktrees, each labelled with its project and agent](images/search.svg)
+![Search: files and matching lines across projects and worktrees, each labelled with its project and agent](https://raw.githubusercontent.com/mujacica/tade/main/images/search.svg)
 
 It also matches what is *happening*: what each agent is doing right now, what it was asked for in
 your own words, what queued work waits on and why, how the checks stand, your notes. So `coverage`
@@ -136,7 +136,7 @@ letters found — which of the things already in that list you meant, under **MI
 beside the ordinary results, never instead of them, and choosing one does what choosing it always
 did.
 
-![A sentence typed into search, and the two things already in the list that it might have meant](images/asking.svg)
+![A sentence typed into search, and the two things already in the list that it might have meant](https://raw.githubusercontent.com/mujacica/tade/main/images/asking.svg)
 
 **What that sends.** The letters match everything above on your own machine and send nothing
 anywhere. The sentence does not: what goes with the question is the name of each thing in front of
@@ -151,8 +151,8 @@ Every file an agent touches, marked the way git marks it, with the diff a click 
 
 <table>
 <tr>
-<td width="30%"><img src="images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
-<td width="70%"><img src="images/diff.svg" alt="A changed file as a diff, with buttons to open it in your editor or ask the agent about it"></td>
+<td width="30%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
+<td width="70%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/diff.svg" alt="A changed file as a diff, with buttons to open it in your editor or ask the agent about it"></td>
 </tr>
 </table>
 
@@ -163,7 +163,7 @@ change and in the hook that runs before a commit, and Tade reads those. It runs 
 at a time per checkout, and records each against the commit it ran on. A push with nothing green
 behind it is held, with what is missing.
 
-![The ACTIONS tab: the commits this agent made, what is not committed, and each check with how long it took and what it counted](images/work.svg)
+![The ACTIONS tab: the commits this agent made, what is not committed, and each check with how long it took and what it counted](https://raw.githubusercontent.com/mujacica/tade/main/images/work.svg)
 
 Two categories, because a step only CI can run — a secret, a service container — is not a step that
 passed. What runs here is the page; what does not is a fold with the reason on each row, and it is
@@ -171,7 +171,7 @@ out of what a local run adds up to. Which category a check is in is yours: turn 
 skipped one on, and the answer goes in Tade's own config under the project — never a file in your
 repository.
 
-![The checks as two categories: what runs here, and under a fold the ones that do not, each saying why](images/checks-here.svg)
+![The checks as two categories: what runs here, and under a fold the ones that do not, each saying why](https://raw.githubusercontent.com/mujacica/tade/main/images/checks-here.svg)
 
 ## Reviews, and the loop around them
 
@@ -183,7 +183,7 @@ review: push straight to `main`, and a red commit puts one agent on reproducing 
 the cause. One agent per red commit, however many checks went red; a re-run of the same commit
 starts nothing new; and it never force-pushes, never reverts and never merges.
 
-![The REVIEWS section: every open review with what it is waiting on](images/reviews.svg)
+![The REVIEWS section: every open review with what it is waiting on](https://raw.githubusercontent.com/mujacica/tade/main/images/reviews.svg)
 
 ## Spend, time and tokens
 
@@ -200,7 +200,7 @@ the status bar beside the cost, since that is the one about to stop somebody wor
 to look at another. Ask Tade and it will tell you where each one stands and what else there is when
 one is nearly gone, and leave switching to you.
 
-![Spend: every agent with its model, tokens, share, runtime and cost over the range you pick, how much of each subscription’s window is used and when it resets, and each project against its budget](images/spend.svg)
+![Spend: every agent with its model, tokens, share, runtime and cost over the range you pick, how much of each subscription’s window is used and when it resets, and each project against its budget](https://raw.githubusercontent.com/mujacica/tade/main/images/spend.svg)
 
 Ask it by agent, by project, by model — or by the harness it ran in, the sign-in it ran as and the
 provider it was reached through. A model is one row under its own name however it was reached, so an
@@ -214,14 +214,14 @@ would have cost at list price — quietly, because nobody is billed it, and in n
 agents ran is every agent's time added together rather than time on the clock, which the figure says
 as it stands.
 
-![The same morning grouped by model: one model reached three ways is one row, its hours and its money in the same place, with the groupings for harness, sign-in and provider beside it](images/spend-by-model.svg)
+![The same morning grouped by model: one model reached three ways is one row, its hours and its money in the same place, with the groupings for harness, sign-in and provider beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/spend-by-model.svg)
 
 ## Resources
 
 Tade has to be light, and proves it: what it and everything it runs is using, in the status bar and
 broken down by project, by kind and by agent.
 
-![Resources: CPU and memory by project, by kind, and by agent](images/resources.svg)
+![Resources: CPU and memory by project, by kind, and by agent](https://raw.githubusercontent.com/mujacica/tade/main/images/resources.svg)
 
 ## Local memory and notes
 
@@ -229,14 +229,14 @@ Notes are the one thing Tade is told rather than derives, so they are kept word 
 you own. Say *"remember the staging key rotates on the 1st"*, or press `+`. Agents are given the
 notes that concern their work.
 
-![A note being written: about this project or about everything, kept word for word](images/notes.svg)
+![A note being written: about this project or about everything, kept word for word](https://raw.githubusercontent.com/mujacica/tade/main/images/notes.svg)
 
 Down the side each one is two lines: what it is about and what it does, over the words you actually
 said. Tade writes that headline as it takes the note down, never out of the words afterwards — and
 clicking a note opens the note itself, where you can write one yourself, change the words, copy them
 or forget it.
 
-![A note read whole: the headline it was given, what it is about, who said it when, and its own words — changed, copied, forgotten or given a headline from the same page](images/note.svg)
+![A note read whole: the headline it was given, what it is about, who said it when, and its own words — changed, copied, forgotten or given a headline from the same page](https://raw.githubusercontent.com/mujacica/tade/main/images/note.svg)
 
 ## Many projects, many tasks
 
@@ -245,7 +245,7 @@ its own — what is working, what wants you, what is queued, and `✓` where eve
 there is done — so the project you are not looking at is not the one you have to guess about. The
 figures at the right are everybody's, and say whose.
 
-![The tabs along the top, each saying what is happening in its own project](images/project-tabs.svg)
+![The tabs along the top, each saying what is happening in its own project](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs.svg)
 
 Each tab has an `×` and a `≡` of its own, like a terminal's. The menu is where a project is renamed
 — what it is called here, never its name, which every task id, every `Tade-Task:` trailer and every
@@ -253,12 +253,12 @@ line of the journal keeps — moved along the row, configured, or closed. **Clos
 nothing**: the folder, the git history, the branches, the worktrees and the journal all stay, and
 opening that path again brings them back.
 
-![A project's menu: rename, move, configure and close](images/project-menu.svg)
+![A project's menu: rename, move, configure and close](https://raw.githubusercontent.com/mujacica/tade/main/images/project-menu.svg)
 
 An agent in a project you are not looking at can still reach you — and be answered from where you
 are.
 
-![Projects along the top, and an agent in another project asking for approval](images/projects.svg)
+![Projects along the top, and an agent in another project asking for approval](https://raw.githubusercontent.com/mujacica/tade/main/images/projects.svg)
 
 ## Extensions
 
@@ -273,7 +273,7 @@ Every one of them is down the side, searchable by anything it would say — and 
 what it is for in the work you actually do, every tool it brings with what each is for, what it
 offers to watch, and what it can be given.
 
-![The Extensions panel: the list down the side, and one of them in full — how it is used, its buttons, its tools, its watches and its settings](images/extensions.svg)
+![The Extensions panel: the list down the side, and one of them in full — how it is used, its buttons, its tools, its watches and its settings](https://raw.githubusercontent.com/mujacica/tade/main/images/extensions.svg)
 
 ## MCP servers, in one place
 
@@ -286,7 +286,7 @@ The popular ones are listed and off: a server is somebody else's code with tools
 call, so turning one on is yours alone, in the window or with `tade mcp enable <name>`. What each
 harness loads by itself is listed too — read, never adopted.
 
-![The MCP servers Tade knows about, listed and off: what each is for, how Tade would talk to it, and what turning it on would need](images/mcp.svg)
+![The MCP servers Tade knows about, listed and off: what each is for, how Tade would talk to it, and what turning it on would need](https://raw.githubusercontent.com/mujacica/tade/main/images/mcp.svg)
 
 ## Jev, for what nobody has time to read
 
@@ -314,7 +314,7 @@ then silence — and nothing becomes a false positive by getting old. Every find
 says *why* it has none, because "waiting on a verdict" is the symptom and each of its causes wants
 something different done.
 
-![What Jev read today, where every finding stands and why, and whether the questions earn their place](images/jev.svg)
+![What Jev read today, where every finding stands and why, and whether the questions earn their place](https://raw.githubusercontent.com/mujacica/tade/main/images/jev.svg)
 
 Paste a key and it is on. With none, none of it runs and nothing else changes.
 
@@ -326,20 +326,20 @@ context. Point Tade's own telemetry at a Sentry project of yours and it reports 
 way — its crashes and its own warnings, never your code or what you said — so Tade can be handed its
 own bug.
 
-![An agent started from a Sentry issue: the issue and trace one click away, the context file the first thing it reads](images/sentry.svg)
+![An agent started from a Sentry issue: the issue and trace one click away, the context file the first thing it reads](https://raw.githubusercontent.com/mujacica/tade/main/images/sentry.svg)
 
 ## Models and harnesses
 
 Pick what the orchestrator runs on and what every new agent starts on — every model you are signed
 in to, priced per million tokens — and how hard it should think.
 
-![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](images/models.svg)
+![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](https://raw.githubusercontent.com/mujacica/tade/main/images/models.svg)
 
 Agents run in **pi** or in **Claude Code**, side by side, one harness per agent, moved from one to
 the other from its menu. Claude Code signs in as itself — Tade never sees it — and can run as more
 than one account at once; an agent that runs out moves to another, its conversation with it.
 
-![Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of the plan is used, and what can be done to each](images/accounts.svg)
+![Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of the plan is used, and what can be done to each](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
 
 ## Shortcuts and settings
 
@@ -351,8 +351,8 @@ and every setting has what it means beside it.
 
 <table>
 <tr>
-<td width="50%"><img src="images/keys.svg" alt="The keys Tade keeps, talking first"></td>
-<td width="50%"><img src="images/settings.svg" alt="Settings over the window: categories down the side, and a real control for each with what it means beside it"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/keys.svg" alt="The keys Tade keeps, talking first"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/settings.svg" alt="Settings over the window: categories down the side, and a real control for each with what it means beside it"></td>
 </tr>
 </table>
 
@@ -366,7 +366,7 @@ behind your back, the exact command is on the page before it runs, and what nobo
 comes back as *cannot tell* rather than a guess. Tade itself is a row like any other, with what
 reloading into the new one would cost said before you choose it.
 
-![Updates: every program Tade runs with how it got here and what is current, the exact command before anything runs it, and what reloading would cost](images/updates.svg)
+![Updates: every program Tade runs with how it got here and what is current, the exact command before anything runs it, and what reloading would cost](https://raw.githubusercontent.com/mujacica/tade/main/images/updates.svg)
 
 ## The brief, and where everything stands
 
@@ -374,7 +374,7 @@ One paragraph of what is stopped, what is moving and what the extensions found �
 voice, or as `tade brief` from any shell. Nothing in it is remembered: every task is derived again
 from git, processes and transcripts.
 
-![The brief: one paragraph of what is blocked, what is moving and what extensions found](images/brief.svg)
+![The brief: one paragraph of what is blocked, what is moving and what extensions found](https://raw.githubusercontent.com/mujacica/tade/main/images/brief.svg)
 
 ## Approvals, on your terms
 
@@ -383,7 +383,7 @@ the risky ones stop and ask — in the window, by voice, or from another project
 whole of what Tade holds an agent to: containing one is its harness's own business, and Tade does
 not pretend to a half of it.
 
-![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](images/approval.svg)
+![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/approval.svg)
 
 The rules are patterns somebody wrote — `sudo`, a force push, an `rm -rf` aimed outside the
 worktree. With Jev on, what no pattern names is read a second time before you are asked about it, so

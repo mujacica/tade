@@ -29,7 +29,18 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const images = join(repo, 'images')
 const readme = readFileSync(join(repo, 'README.md'), 'utf8')
 
-const wanted = [...readme.matchAll(/(?<!\/)images\/([a-z0-9-]+\.svg)/g)].map((match) => match[1])
+// Absolute, and the lookbehind that used to keep this to repo-relative paths
+// went with them. The README ships in the tarball and `images/` does not —
+// nothing but the markdown goes in — so a relative link is a broken picture
+// everywhere the page is read except this repository's own GitHub page. The
+// URL is the one form that renders on npm, on GitHub and in the tarball alike,
+// which is why this counts that form and the test below refuses the other.
+const AT = 'https://raw.githubusercontent.com/mujacica/tade/main/images/'
+const wanted = [
+  ...readme.matchAll(
+    /raw\.githubusercontent\.com\/mujacica\/tade\/main\/images\/([a-z0-9-]+\.svg)/g,
+  ),
+].map((match) => match[1])
 const drawn = [REEL.file, ...PICTURES.map((picture) => picture.file)]
 
 describe('the pictures the README is made of', () => {
@@ -49,6 +60,17 @@ describe('the pictures the README is made of', () => {
   it('has every picture the README asks for, written down', () => {
     expect(wanted.filter((file) => !drawn.includes(file!))).toEqual([])
     expect(wanted.filter((file) => !existsSync(join(images, file!)))).toEqual([])
+  })
+
+  it('asks for each one by a URL, because the README ships and the pictures do not', () => {
+    // A relative `images/x.svg` renders only on this repository's own GitHub
+    // page: not on npm, and not in the tarball, where the README is beside no
+    // `images/` at all. Adding a picture the old way fails here rather than
+    // being found by whoever opens the package page after a release.
+    expect(
+      [...readme.matchAll(/(?<![\w./-])images\/[a-z0-9-]+\.svg/g)].map((one) => one[0]),
+    ).toEqual([])
+    for (const file of wanted) expect(readme).toContain(`${AT}${file}`)
   })
 
   it('keeps no picture nothing shows', () => {
