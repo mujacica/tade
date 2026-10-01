@@ -192,6 +192,19 @@ describe('the changelog', () => {
     expect(changelogFor([first], REPO)).toContain(`## [0.1.0](${REPO}/releases/tag/v0.1.0)`)
   })
 
+  it('says a first release is everything, instead of listing everything', () => {
+    // 0.1.0 went out with 398 bullets on its page, back through the week this
+    // was choosing its own name. There is no previous version anybody could
+    // be coming from, so there is no difference to describe — and every
+    // release after it is a difference and still lists itself.
+    const first = { ...release, version: '0.1.0', since: null }
+    const notes = notesFor(first, REPO)
+    expect(notes).toContain('The first release')
+    expect(notes).not.toContain('A pane that scrolls itself')
+    expect(notes).not.toContain('/commit/')
+    expect(notesFor(release, REPO)).toContain('A pane that scrolls itself')
+  })
+
   it("makes a release's notes out of that release's own section", () => {
     const notes = notesFor(release, REPO)
     expect(notes.startsWith('- A pane that scrolls itself')).toBe(true)

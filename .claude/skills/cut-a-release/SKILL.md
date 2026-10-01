@@ -202,8 +202,10 @@ with no network still gets to cut a release, it just does not get told.
    `pnpm install`: staging reads the workspace off disk and runs `git ls-files`, and if this job
    ever needs dependencies, something has grown a build step.
 3. **smoke** — installs the tarball on both systems and runs the `tade` inside it.
-4. **publish** — `npm publish --provenance` over OIDC, then the GitHub release with the notes and
-   the tarball on it. It refuses first, by name, if the repository is private: GitHub issues no
+4. **publish** — **waits for a person**, then `npm publish --provenance` over OIDC, then the
+   GitHub release with the notes and the tarball on it. The wait is the `release` environment and
+   its required reviewer: everything above it runs unattended, and the one irreversible step does
+   not. Approve it in the run's own page. A rehearsal never reaches this job, so it never asks. It refuses first, by name, if the repository is private: GitHub issues no
    provenance attestation from a private source and npm fails the publish rather than dropping it,
    which would otherwise be a registry error naming none of this at the last step of a ten-minute
    run.
@@ -266,7 +268,13 @@ fix a machine that is fine is the worse failure.
 ## When it goes wrong
 
 - **Red gate, or a failed smoke.** Nothing was published — publish is the last job. Fix it, then
-  `git tag -d vX.Y.Z && git push --delete origin vX.Y.Z`, and go again.
+  `git tag -d vX.Y.Z && git push --delete origin vX.Y.Z`, and go again — **except that a `v*` tag
+  can no longer be deleted or moved on the remote**: the `released versions are immutable` ruleset
+  refuses both, because a published version's provenance names its tag and a tag that can move is a
+  tag that proves nothing. So the version is spent. Cut the next patch instead, and **rehearse from
+  the Actions tab first** — `workflow_dispatch` runs the same gate, pack and smoke, publishes
+  nothing, and costs nothing now the repository is public. Do that before every tag and a tag only
+  ever lands on a tree whose gate has already passed.
 - **Published, and it should not have been.** There is no way back. `npm deprecate tade-sh@X.Y.Z
   "…"` says so on the page, and the fix is the next version, not this one.
 - **A release that was never pushed.** `git tag -d vX.Y.Z`, then `git reset --soft HEAD~1` puts

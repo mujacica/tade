@@ -243,10 +243,21 @@ export class EventLog {
     // being emptied must be refused rather than joining the queue behind the
     // close, which is the race this whole flag is about.
     this.shut = true
-    await this.writes
-    this.subs.clear()
-    this.index?.close()
-    await this.fh.close()
+    // The descriptor goes back whatever the drain does. A write that rejects
+    // used to take the rest of this with it: `close()` threw, the handle was
+    // never closed, and every teardown says `.close().catch(() => {})` —
+    // because a failing close must not fail the thing that was closing — so
+    // the only evidence was swallowed. Node 26 then collects the orphan and
+    // throws `A FileHandle object was closed during garbage collection` out
+    // of whatever happened to be running, which named `events.jsonl` and
+    // blamed thirty-eight tests in fifteen files, none of them this one.
+    try {
+      await this.writes
+    } finally {
+      this.subs.clear()
+      this.index?.close()
+      await this.fh.close().catch(() => {})
+    }
   }
 
   private publish(event: TadeEvent): void {

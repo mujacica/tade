@@ -166,6 +166,17 @@ jobs:
     needs: [pack, smoke]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # A person, every time. The gate, the pack and the smoke all run without
+    # anybody, and then this job waits: the `release` environment has a
+    # required reviewer, so a tag is a request to publish rather than a
+    # publish. Pushing a tag is cheap to do by accident and a version on npm
+    # cannot be taken back, and that asymmetry is the whole reason.
+    #
+    # It also puts an `environment` claim in the OIDC token npm reads. npm's
+    # trusted publisher has an Environment field to match it with: leave it
+    # blank and npm checks nothing, set it and it must say `release`. Keep the
+    # two in step if you rename this.
+    environment: release
     permissions:
       # The GitHub release, and the tarball attached to it.
       contents: write

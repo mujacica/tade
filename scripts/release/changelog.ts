@@ -80,8 +80,25 @@ function heading(release: Release, repo: string): string {
   return `## [${version}](${link}) — ${date}`
 }
 
+/**
+ * What a release with nothing before it says, instead of everything.
+ *
+ * A changelog answers "what changed since the version I have", and for the
+ * first release there is no such version: the honest answer is all of it.
+ * Enumerating it anyway made 0.1.0 a list of 398 commits reaching back
+ * through the week this was choosing its own name — `research a replacement
+ * name for Wilco` is true, and it is not what somebody opening the release
+ * page came to read. Every later release is a difference and lists itself.
+ *
+ * The commits are not lost; they are in git, which is where a log belongs.
+ */
+const NOTHING_BEFORE_IT =
+  'The first release — everything Tade is, rather than anything that changed.\n' +
+  'The README is the tour; `npm install -g tade-sh` and `tade` is the whole of the setup.'
+
 function lines(release: Release, repo: string): string[] {
   if (release.entries.length === 0) return ['Nothing but the release itself.']
+  if (release.version !== null && release.since === null) return [NOTHING_BEFORE_IT]
   // The subject verbatim, then where to read the reasoning it was written with.
   return release.entries.map(
     (entry) => `- ${entry.subject} ([\`${entry.sha.slice(0, 7)}\`](${repo}/commit/${entry.sha}))`,
