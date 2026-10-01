@@ -220,7 +220,9 @@ const RELEASE_PATH = '.github/workflows/release.yml'
 const CI_PATH = '.github/workflows/ci.yml'
 
 interface Workflow {
+  name: string
   on: Record<string, unknown>
+  concurrency: { group: string; 'cancel-in-progress': boolean }
   jobs: Record<
     string,
     {
@@ -247,6 +249,21 @@ describe('the release workflow', () => {
     // moment of a release and at no earlier moment.
     const ci = parse(readFileSync(join(ROOT, CI_PATH), 'utf8')) as Workflow
     expect(Object.keys(ci.on)).toContain('workflow_call')
+  })
+
+  it('does not queue its own gate behind itself', () => {
+    // The gate is `ci.yml` called as a reusable workflow, and a called
+    // workflow computes `github.workflow` as the *caller's* name — so ci.yml's
+    // own `${{ github.workflow }}-${{ github.ref }}` comes out as
+    // `<this workflow's name>-<ref>`. Equal to the caller's group, the gate
+    // queues behind the run that is waiting for it: the whole thing fails in
+    // two seconds, with no gate job in it and everything after it skipped, and
+    // nothing says why. It cost a rehearsal to find and costs a compare to
+    // keep — and a rehearsal is the only thing that finds it, because no
+    // release has ever been cut when it breaks.
+    const ci = parse(readFileSync(join(ROOT, CI_PATH), 'utf8')) as Workflow
+    const asCalled = ci.concurrency.group.replaceAll('${{ github.workflow }}', release.name)
+    expect(release.concurrency.group).not.toBe(asCalled)
   })
 
   it('publishes nothing until the gate and the smoke have both passed', () => {

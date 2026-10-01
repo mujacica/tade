@@ -31,8 +31,16 @@ permissions:
 
 # Never cancel a release in flight: half a publish is the one state npm has no
 # way back from.
+#
+# `publish-` and not `release-`: the gate below is `ci.yml` called as a
+# reusable workflow, and a called workflow computes `github.workflow` as the
+# *caller's* name — so ci.yml's own `${{ github.workflow }}-${{ github.ref }}`
+# came out as `release-refs/heads/main`, the very group this one holds, and the
+# gate queued behind its own caller for ever. The run failed in two seconds
+# with no gate job in it and every job after it skipped, which is what this
+# deadlock looks like from the outside.
 concurrency:
-  group: release-${{ github.ref }}
+  group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
