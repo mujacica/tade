@@ -7,6 +7,7 @@ say less than the history already does.
 
 ## [0.1.0](https://github.com/mujacica/tade/releases/tag/v0.1.0) — 2026-10-01
 
+- Every deadline in the window's tests was somebody's guess about a machine ([`b70e611`](https://github.com/mujacica/tade/commit/b70e611940f20cdc171f35d47f3aa8c625180c73))
 - Holding drawing to a lump beside it measured two kinds of slowness ([`fbf702f`](https://github.com/mujacica/tade/commit/fbf702fade0f188fd003ddd28dd48e1e216ec3ec))
 - The tests that went red were measuring the runner, not the code ([`aaeca6d`](https://github.com/mujacica/tade/commit/aaeca6db00d5727c876b7b24b0238c84610a419d))
 - setup-node turned its cache on by default and the release wanted pnpm ([`b4b0d66`](https://github.com/mujacica/tade/commit/b4b0d666117b093a908200f4e50fa26e630674a2))
