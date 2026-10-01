@@ -367,15 +367,15 @@ export class Extensions implements Subject {
   /**
    * The server a row on this page *is*, or null when the row is not one.
    *
-   * A row says so rather than being known by its name: the extension the broker
-   * made of a server and the stand-in drawn for one it could not be are both
-   * `source: 'mcp'` and both named `mcp-<server>`. Answering by name turned the
-   * Sentry server on from the Sentry extension's own page — the two share a name
-   * and nothing else — and left the extension where no press could reach it.
+   * A loaded row says what it is in the word the host reads: `source: 'mcp'` is
+   * the extension the broker made of a server. One not loaded is the stand-in
+   * drawn for a server that could not be made into one, found by the name a
+   * server's row is given — never by a shape read off a name. Tade's Sentry
+   * extension and the catalogue's Sentry server share a name and nothing else.
    */
   private serverRow(name: string, loaded: LoadedExtension | undefined): McpServerShown | null {
     if (loaded && loaded.source !== 'mcp') return null
-    return name.startsWith('mcp-') ? this.serverNamed(name.slice('mcp-'.length)) : null
+    return this.servers.find((server) => `mcp-${server.name}` === name) ?? null
   }
 
   readServers(): void {
