@@ -64,6 +64,13 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
+          # Off, because this job has no package manager and must not need
+          # one. `setup-node@v5` turned this on by default, saw the
+          # `pnpm-lock.yaml` the checkout above brings, and failed the release
+          # with `Unable to locate executable file: pnpm` — a dependency on
+          # pnpm that nothing here asked for, in the job whose whole point is
+          # not having dependencies.
+          package-manager-cache: false
       # No `pnpm install` on purpose: staging the package reads the workspace
       # off disk and runs `git ls-files`, and nothing else. If this job ever
       # needs dependencies, something has grown a build step.
@@ -131,6 +138,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
+          package-manager-cache: false
       - uses: actions/download-artifact@v4
         with:
           name: tade-sh
@@ -185,6 +193,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
+          package-manager-cache: false
           registry-url: https://registry.npmjs.org
       # Node 22 ships npm 10, which cannot do trusted publishing at all.
       - run: npm install -g npm@latest

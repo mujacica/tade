@@ -229,7 +229,12 @@ interface Workflow {
       uses?: string
       if?: string
       permissions?: Record<string, string>
-      steps?: { run?: string; env?: Record<string, string> }[]
+      steps?: {
+        uses?: string
+        run?: string
+        with?: Record<string, unknown>
+        env?: Record<string, string>
+      }[]
     }
   >
 }
@@ -264,6 +269,22 @@ describe('the release workflow', () => {
     const ci = parse(readFileSync(join(ROOT, CI_PATH), 'utf8')) as Workflow
     const asCalled = ci.concurrency.group.replaceAll('${{ github.workflow }}', release.name)
     expect(release.concurrency.group).not.toBe(asCalled)
+  })
+
+  it('needs no package manager in any job but the gate', () => {
+    // Staging reads the workspace off disk and runs `git ls-files`; packing
+    // and smoking need nothing installed at all. That is the property that
+    // says this repository still has no build step, and `setup-node@v5` broke
+    // it by turning its cache on by default: it found the `pnpm-lock.yaml`
+    // that `pack`'s checkout brings and failed the release with `Unable to
+    // locate executable file: pnpm`. Nothing asked for pnpm there, so nothing
+    // may quietly reintroduce it.
+    for (const [name, job] of Object.entries(release.jobs)) {
+      for (const step of job.steps ?? []) {
+        if (!(step.uses ?? '').startsWith('actions/setup-node')) continue
+        expect(step.with?.['package-manager-cache'], `${name} setup-node`).toBe(false)
+      }
+    }
   })
 
   it('publishes nothing until the gate and the smoke have both passed', () => {
