@@ -26,11 +26,13 @@ import { NOW } from './harness.ts'
 const REPEATS = 20
 
 /**
- * What the repeats may cost, measured in cold reads.
+ * What the repeats may cost, measured in whole reads.
  *
  * Twenty reads of the whole file would be twenty. Twenty reads of nothing is
  * somewhere near zero, and two is the slack that leaves for a `stat`, the
- * schedules file and a machine under load.
+ * schedules file and a machine under load. It means this again now that the
+ * baseline is a journal the process has not seen: measured against a reader
+ * already at the end of its file, two was a number nothing could meet.
  */
 const BUDGET = 2
 
@@ -112,24 +114,60 @@ async function millis(fn: () => Promise<unknown>): Promise<number> {
 
 describe('what the status bar costs to keep', () => {
   it('reads the journal once, and after that only what was appended', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'tade-jev-probe-'))
-    bigJournal(home, 40_000)
-    appendFileSync(join(home, 'events.jsonl'), watchLine(40_001, 'one'))
-    schedule(home)
-    const ctx = context(home)
+    // A journal this process has not seen, every time one is wanted.
+    //
+    // The baseline has to be a *whole* read, and a reader that has reached the
+    // end of a file never reads the whole of it again — which is the very
+    // thing under test. Measured twice on one journal, the second measurement
+    // is already the fast path, so the only genuinely cold read in a process
+    // is its first. That is what this used to measure, and it measured V8 with
+    // it: interpreted, that first read was 102ms; compiled, the same read is
+    // under one. The margin was all skew, the probe said nothing about the
+    // cache, and a loaded runner that moved either number turned it red.
+    const fresh = (): ReturnType<typeof context> => {
+      const home = mkdtempSync(join(tmpdir(), 'tade-jev-probe-'))
+      bigJournal(home, 40_000)
+      appendFileSync(join(home, 'events.jsonl'), watchLine(40_001, 'one'))
+      schedule(home)
+      return context(home)
+    }
 
+    // Compile the path before timing anything on it.
     forgetRead()
-    const cold = await millis(() => recordOf(ctx))
-    const warm = await millis(async () => {
-      for (let i = 0; i < REPEATS; i++) {
-        // The moment's cache is not what is under test: without it, every one
-        // of these used to read the whole file again.
-        forgetRead()
-        await recordOf(ctx)
-      }
-    })
+    await recordOf(fresh())
 
-    expect(warm).toBeLessThan(cold * BUDGET)
+    // The quickest of a few goes, each on a journal of its own: noise only
+    // ever adds time, so the best round is the one about the reading.
+    let cold = Number.POSITIVE_INFINITY
+    for (let round = 0; round < 3; round++) {
+      const ctx = fresh()
+      forgetRead()
+      cold = Math.min(cold, await millis(() => recordOf(ctx)))
+    }
+
+    // And the appends, against a journal already read to its end.
+    const ctx = fresh()
+    forgetRead()
+    await recordOf(ctx)
+    let warm = Number.POSITIVE_INFINITY
+    for (let round = 0; round < 3; round++) {
+      warm = Math.min(
+        warm,
+        await millis(async () => {
+          for (let i = 0; i < REPEATS; i++) {
+            // The moment's cache is not what is under test: without it, every
+            // one of these used to read the whole file again.
+            forgetRead()
+            await recordOf(ctx)
+          }
+        }),
+      )
+    }
+
+    expect(
+      warm,
+      `${REPEATS} appends cost ${warm.toFixed(1)}ms, one whole read ${cold.toFixed(1)}ms`,
+    ).toBeLessThan(cold * BUDGET)
   })
 
   it('finds what was appended since, and nothing twice', async () => {

@@ -18,16 +18,63 @@ import { SCENARIOS } from './screens/scenarios.ts'
 
 // Drawing is what Tade does most — every keystroke, every frame an agent
 // prints — so what a frame costs is held to a number, over every screen.
+//
+// Against a lump of work beside it rather than against the clock. A budget in
+// milliseconds is a statement about the runner: drawing costs 0.85ms a screen
+// on a quiet laptop and the budget was 15, seventeen times the room it needed,
+// and it still went red on CI — where the suite runs 279 forked workers on two
+// cores and a worker gets whatever slices are left. The ratio cancels that,
+// because a machine that draws slowly builds strings slowly too.
+//
+// It also could not pass at its own budget: 123 scenarios over six rounds is
+// 738 draws, and 738 at 15ms is eleven seconds against a ten-second timeout.
+// The timeout bound before the assertion did, so the number in the `expect`
+// was never the one being enforced.
+
+/** A fixed lump of the same coin drawing deals in: building rows and joining them. */
+function reference(): number {
+  const rows: string[] = []
+  for (let row = 0; row < 2_000; row++) rows.push(`${row} ${'x'.repeat(80)}`)
+  return rows.join('\n').length
+}
+
+/**
+ * The quickest of several goes at the same work.
+ *
+ * The mean of a starved process measures the starving; its best round is the
+ * one where it got the machine, which is the only round that says anything
+ * about the code. Noise can only ever make a round slower, so the minimum is
+ * the robust estimator here and the average is not.
+ */
+function fastest(rounds: number, work: () => unknown): number {
+  let best = Number.POSITIVE_INFINITY
+  for (let round = 0; round < rounds; round++) {
+    const at = performance.now()
+    work()
+    best = Math.min(best, performance.now() - at)
+  }
+  return best
+}
+
+// 5.6 on a quiet laptop. Twenty is three and a half times that: room for a
+// runner whose scheduler is against us, and still red if drawing ever gets
+// three times dearer than it is.
+const DRAWING_COSTS = 20
+
 describe('what drawing costs', () => {
-  it('draws any screen in a few milliseconds', () => {
-    for (const scenario of SCENARIOS) draw(scenario.state, scenario.frame)
-    const rounds = 5
-    const started = performance.now()
-    for (let round = 0; round < rounds; round++) {
+  it('draws a screen for what a screenful of strings costs', () => {
+    const everything = (): void => {
       for (const scenario of SCENARIOS) draw(scenario.state, scenario.frame)
     }
-    const each = (performance.now() - started) / (rounds * SCENARIOS.length)
-    expect(each).toBeLessThan(15)
+    everything()
+    reference()
+    const each = fastest(3, everything) / SCENARIOS.length
+    const lump = fastest(3, reference)
+    const ratio = each / lump
+    expect(
+      ratio,
+      `${each.toFixed(2)}ms a screen, ${lump.toFixed(2)}ms the lump beside it`,
+    ).toBeLessThan(DRAWING_COSTS)
   })
 })
 

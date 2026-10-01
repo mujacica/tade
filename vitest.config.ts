@@ -7,7 +7,14 @@ export default defineConfig({
       'packages/*/*/test/**/*.test.ts',
       'test/**/*.test.ts',
     ],
-    testTimeout: 10_000,
+    // Generous, because what these mostly bound is liveness and not speed:
+    // a test waits for a real process to say something, and `until` fails
+    // with what it was waiting for long before this does. Ten seconds was
+    // tight enough that a runner running 279 forked workers on two cores
+    // starved ordinary waits into failures that named a different test every
+    // run — and a suite nobody believes is worse than a slow one. Only a test
+    // that is actually going to fail ever waits this long.
+    testTimeout: 45_000,
     // A test may never reach the desktop of the machine it runs on: refused at
     // the spawn, and reported against the test that tried. `test/no-gui.ts`
     // says why this is loaded for every file rather than asked for per package.

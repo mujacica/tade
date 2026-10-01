@@ -128,11 +128,22 @@ export function screenOf(written: string): string[] {
  */
 export const SPAWNING_MS = 30_000
 
-/** Wait for something to become true, rather than for a fixed time. */
+/**
+ * Wait for something to become true, rather than for a fixed time.
+ *
+ * The default is a liveness bound and not a measurement: nothing here is
+ * faster for passing sooner, and the only cost of a loose one is how long a
+ * genuinely stuck test takes to say so. At five seconds it was neither — a
+ * runner with 279 forked workers on two cores missed it for reasons that had
+ * nothing to do with the window, and named `lanes`, then `schedules`, then
+ * `queue`, one per run. Twenty, and safely inside the `it` budget that
+ * encloses it, so what you get is still `timed out waiting for <what>` rather
+ * than vitest's own timeout, which names nothing.
+ */
 export async function until(
   what: string,
   ok: () => boolean | Promise<boolean>,
-  ms = 5_000,
+  ms = 20_000,
 ): Promise<void> {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
