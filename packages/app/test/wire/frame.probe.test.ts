@@ -81,7 +81,7 @@ describe('what the frame loop costs', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     const tab = find('terminal 1')
     click(tab.col + 1, tab.row)
-    await until('the lane repainting in front of us', () => repaintShown(terminal) !== null, 20_000)
+    await until('the lane repainting in front of us', () => repaintShown(terminal) !== null)
 
     const was = repaintShown(terminal)
     const from = reads
@@ -102,5 +102,5 @@ describe('what the frame loop costs', () => {
     // which measured fifty-eight a second on a quiet machine — a rate that
     // depends on nothing anybody chose.
     expect(each, `${each.toFixed(1)} screen reads a second`).toBeLessThan(45)
-  }, 40_000)
+  })
 })

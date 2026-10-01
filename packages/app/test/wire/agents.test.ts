@@ -45,7 +45,7 @@ describe('the window, starting and ending agents', () => {
     const [created] = await client.events({ types: ['task_created'] })
     // Named for nothing in particular, because nothing was said.
     expect(created?.task).toBe('app/agent-1')
-  }, 30_000)
+  })
 
   it('closes the agents that have finished, from the X beside the +', async () => {
     await start()
@@ -60,7 +60,7 @@ describe('the window, starting and ending agents', () => {
       return { row, text: lines[row] ?? '' }
     }
     // The X beside the + : `[X]` without colour, which is the whole chip.
-    await until('the close button', () => heading().text.includes('[X]'), 20_000)
+    await until('the close button', () => heading().text.includes('[X]'))
     const bar = heading()
     click(bar.text.indexOf('[X]') + 1, bar.row)
     // It asks first, and says how many it would close.
@@ -75,7 +75,7 @@ describe('the window, starting and ending agents', () => {
     )
     // The other one is untouched: only what had finished went.
     expect(repo.git('branch', '--list', 'tade/search')).toContain('tade/search')
-  }, 30_000)
+  })
 
   it('shows what an agent committed on its ACTIONS tab, and says nobody ran the checks', async () => {
     // A commit of its own, attributed the way every commit an agent makes is,
@@ -108,7 +108,7 @@ describe('the window, starting and ending agents', () => {
     // rather than looking fine.
     expect(page).toContain('CHECKS')
     expect(page).toContain('Nothing here says what checking')
-  }, 30_000)
+  })
 
   it("opens an agent's menu with a right-click, listing what can be done", async () => {
     await start()
@@ -249,16 +249,16 @@ describe('closing the last agent in a project', () => {
       return row < 0 ? null : { row, col: rows[row]?.indexOf(text) ?? 0 }
     }
     try {
-      await until('both projects', () => at('one') !== null && at('two') !== null, 20_000)
+      await until('both projects', () => at('one') !== null && at('two') !== null)
       // Stand in the second project, on its only agent.
       const tab = at('two') as { row: number; col: number }
       terminal.press(`\x1b[<0;${tab.col + 1};${tab.row + 1}M`)
       terminal.press(`\x1b[<0;${tab.col + 1};${tab.row + 1}m`)
-      await until('its agent', () => at('retries', true) !== null, 20_000)
+      await until('its agent', () => at('retries', true) !== null)
       // Close it with its ×.
       const agent = at('retries', true) as { row: number; col: number }
       terminal.press(`\x1b[<35;${agent.col + 1};${agent.row + 1}M`)
-      await until('its buttons', () => (shown()[agent.row] ?? '').includes('×'), 20_000)
+      await until('its buttons', () => (shown()[agent.row] ?? '').includes('×'))
       const cross = (shown()[agent.row] ?? '').indexOf('×')
       terminal.press(`\x1b[<0;${cross + 1};${agent.row + 1}M`)
       terminal.press(`\x1b[<0;${cross + 1};${agent.row + 1}m`)
@@ -272,7 +272,7 @@ describe('closing the last agent in a project', () => {
       )
       // What is on screen now is the empty project's own screen, in `two`,
       // and the agent of the project next door is nowhere near it.
-      await until('the empty screen', () => shown().join('\n').includes('+ New agent'), 20_000)
+      await until('the empty screen', () => shown().join('\n').includes('+ New agent'))
       expect(shown().join('\n')).toContain('in two')
       expect(shown().join('\n')).not.toContain('rounding')
       // The wordmark, and nothing above the foot that takes what you type:
@@ -286,14 +286,14 @@ describe('closing the last agent in a project', () => {
       const said =
         'check every webhook retry path in the billing worker and say which ones are not idempotent'
       for (const key of said) terminal.press(key)
-      await until('what was typed', () => shown().join('\n').includes('check every'), 20_000)
+      await until('what was typed', () => shown().join('\n').includes('check every'))
       const screen = shown().join('\n')
       expect(screen).toContain('idempotent')
     } finally {
       await app.stop().catch(() => {})
       await client.close().catch(() => {})
     }
-  }, 60_000)
+  })
 })
 
 describe('a project with nothing in it', () => {
@@ -368,7 +368,7 @@ describe('a project with nothing in it', () => {
       await app.stop().catch(() => {})
       await client.close().catch(() => {})
     }
-  }, 60_000)
+  })
 })
 
 describe('a project opened, and the window opened again', () => {
@@ -419,7 +419,7 @@ describe('a project opened, and the window opened again', () => {
       expect(agentLanes(client)).toEqual([])
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
-  }, 30_000)
+  })
 
   it('opens again with none, in a project whose agents you took away', async () => {
     const first = await start()
@@ -440,7 +440,7 @@ describe('a project opened, and the window opened again', () => {
     )
     expect(await client.events({ types: ['task_created'] })).toEqual([])
     expect(agentLanes(client)).toEqual([])
-  }, 60_000)
+  })
 
   it('brings back the agent that was working when Tade closed, and only that one', async () => {
     const first = await start()
@@ -470,5 +470,5 @@ describe('a project opened, and the window opened again', () => {
     } finally {
       await after.close().catch(() => {})
     }
-  }, 60_000)
+  })
 })

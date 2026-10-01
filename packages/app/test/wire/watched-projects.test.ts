@@ -120,7 +120,7 @@ describe('the window, and the projects its watches look at', () => {
     // And nothing went wrong: no red line, and no look written down as one.
     expect(times('could not look')).toBe(0)
     expect((await looks()).filter((event) => event.detail.problem)).toEqual([])
-  }, 60_000)
+  })
 
   it('is quiet about a project that is closed, and says so once rather than every look', async () => {
     const sky: Sky = { looked: [], found: [], said: null }
@@ -177,7 +177,7 @@ describe('the window, and the projects its watches look at', () => {
     clock.at += TICK
     await until('looking again', () => sky.looked.length === 2)
     expect(times('could not look')).toBe(0)
-  }, 60_000)
+  })
 
   it('says a project with nothing to check has nothing to check, and draws no red line', async () => {
     const sky: Sky = {
@@ -213,5 +213,5 @@ describe('the window, and the projects its watches look at', () => {
       await until('another look went by', async () => (await looks()).length > count)
     }
     expect(times('Rain: app has no remote')).toBe(1)
-  }, 60_000)
+  })
 })

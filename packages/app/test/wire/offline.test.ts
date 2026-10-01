@@ -169,7 +169,7 @@ describe('the window, and a machine that cannot reach a network', () => {
       told.some((text) => text.includes('shed') && text.includes('yard')),
     )
     expect(times('offline —')).toBe(1)
-  }, 60_000)
+  })
 
   it('never mistakes one endpoint being down for the machine being offline', async () => {
     const sky: Sky = { looked: [], found: [], unreachable: null }
@@ -217,5 +217,5 @@ describe('the window, and a machine that cannot reach a network', () => {
       'and every schedule still ran',
       () => sky.looked.filter((one) => one === 'rain').length > asked,
     )
-  }, 60_000)
+  })
 })

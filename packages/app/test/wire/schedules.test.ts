@@ -78,7 +78,7 @@ describe('the window, and what it watches', () => {
     // Once is once: nothing comes due again.
     await new Promise((resolve) => setTimeout(resolve, 2_500))
     expect(await client.events({ types: ['schedule_fired'] })).toHaveLength(2)
-  }, 60_000)
+  })
 
   it('turns a watch on from the Extensions panel, starts work on what it finds once, and says when it cannot look', async () => {
     terminal.columns = 120
@@ -203,7 +203,7 @@ describe('the window, and what it watches', () => {
     const quietly = () =>
       screenOf(terminal.written).filter((row) => row.includes('Rain: nothing pushed yet')).length
     clock += 3_600_000
-    await until('said once', () => quietly() === 1, 15_000)
+    await until('said once', () => quietly() === 1)
     clock += 3_600_000
     await until(
       'looked again',
@@ -221,7 +221,7 @@ describe('the window, and what it watches', () => {
     const wrong = () =>
       screenOf(terminal.written).filter((row) => row.includes('Rain could not look')).length
     clock += 3_600_000
-    await until('said once', () => wrong() === 1, 15_000)
+    await until('said once', () => wrong() === 1)
     clock += 3_600_000
     await until(
       'looked again',
@@ -250,7 +250,7 @@ describe('the window, and what it watches', () => {
     expect(side().some((one) => /! Rain/.test(one))).toBe(true)
     // And the heading still counts it, in the room a narrow side leaves for it.
     expect(side().some((one) => /SCHEDULES.*!1/.test(one))).toBe(true)
-  }, 90_000)
+  })
 
   it('writes a standing watch once, and never again over somebody removing it', async () => {
     let key: string | null = null
@@ -317,7 +317,7 @@ describe('the window, and what it watches', () => {
     // the id it held is still a fact after the schedule itself is gone.
     await new Promise((resolve) => setTimeout(resolve, 1_000))
     expect(client.schedules()).toEqual([])
-  }, 30_000)
+  })
 
   it('turns a watch on for the orchestrator: what it finds is told, and what cannot be kept is refused', async () => {
     const told: string[] = []
@@ -430,7 +430,7 @@ describe('the window, and what it watches', () => {
     expect(await tools.change({ schedule: 'rain', change: 'start' })).toBe(
       'Rain looked: nothing new.',
     )
-  }, 30_000)
+  })
   it('lets the orchestrator read the watches, and turn one only where they asked', async () => {
     const extensions = await ExtensionHost.load({
       builtin: [
@@ -531,5 +531,5 @@ describe('the window, and what it watches', () => {
       }),
     ).toContain('Rain is back on in app')
     expect(client.schedules()).toMatchObject([{ id: 'rain', paused: false }])
-  }, 30_000)
+  })
 })

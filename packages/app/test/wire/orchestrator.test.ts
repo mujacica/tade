@@ -126,7 +126,7 @@ describe('the window, talking to the orchestrator', () => {
     expect(asked[0]).toContain('app/refunds has work to review')
     // Your words last, under their own heading, exactly as you typed them.
     expect(asked[0]?.endsWith('What they said:\nhow is it going')).toBe(true)
-  }, 30_000)
+  })
 
   it('tells the orchestrator that agents are gone, rather than letting a call find out', async () => {
     const asked: string[] = []
@@ -172,7 +172,7 @@ describe('the window, talking to the orchestrator', () => {
     expect(told).toContain('tade_status says what is running')
     // Riding along with what was said, never a turn of its own.
     expect(told.endsWith('What they said:\nhow is it going')).toBe(true)
-  }, 30_000)
+  })
 
   it("shows the orchestrator's model in the status bar, and switches it from there", async () => {
     terminal.columns = 140

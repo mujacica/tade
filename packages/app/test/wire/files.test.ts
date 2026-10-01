@@ -54,7 +54,7 @@ describe('the window, and the file you have open', () => {
       () => readFileSync(path, 'utf8') === 'export const rate = 10\nexport const other = 2\n',
     )
     await until('it to say so', () => terminal.written.includes('Saved ledger.ts'))
-  }, 30_000)
+  })
 
   it('says what it would open rather than opening it on the machine', async () => {
     // The bug this is about: `Reveal in Finder` really spawned `open`, so a
@@ -89,7 +89,7 @@ describe('the window, and the file you have open', () => {
         ? { command: 'open', args: ['-R', join(worktree, 'README.md')] }
         : { command: 'xdg-open', args: [worktree] },
     ])
-  }, 30_000)
+  })
 
   it("opens a file's menu with a right-click in FILES", async () => {
     terminal.rows = 60

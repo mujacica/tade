@@ -38,7 +38,7 @@ describe('the window, under the pointer', () => {
       'the sidebar scrolled',
       () => !(screenOf(terminal.written)[top] ?? '').includes('AGENTS'),
     )
-  }, 30_000)
+  })
 
   it('scrolls a panel with the wheel, by rows and not by rows of its list', async () => {
     // The whole of what was reported about Settings: the wheel over it was
@@ -89,7 +89,7 @@ describe('the window, under the pointer', () => {
     // stay put, as the two at the foot do.
     const after = form()
     expect(after.slice(2, 5)).toEqual(before.slice(2 + NOTCH, 5 + NOTCH))
-  }, 30_000)
+  })
 
   it('moves an agent to where it is dragged in the list, and remembers it there', async () => {
     await start()
@@ -165,5 +165,5 @@ describe('the window, under the pointer', () => {
     await running.stop()
     const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
     expect(kept.sidebarWidth).toBe(edge + 10)
-  }, 30_000)
+  })
 })

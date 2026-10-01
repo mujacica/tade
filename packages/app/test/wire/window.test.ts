@@ -139,7 +139,7 @@ describe('the window, remembering itself', () => {
     expect(headingRow('CHANGES').text).toContain('▸ CHANGES')
     expect(terminal.written).not.toContain('✓ search')
     expect(terminal.written).not.toContain('▾ CHANGES')
-  }, 30_000)
+  })
 
   it('comes back to the queue this project was showing, and writes down nothing else', async () => {
     terminal.columns = 160
@@ -183,7 +183,7 @@ describe('the window, remembering itself', () => {
     await start()
     await until('the window again', () => sidebar().includes('refunds'))
     await until('next still showing', () => sidebar().includes('<next>'))
-  }, 60_000)
+  })
 
   it('keeps the project tabs in the order you moved them into', async () => {
     terminal.columns = 200
@@ -234,7 +234,7 @@ describe('the window, remembering itself', () => {
     click(back.indexOf('×', back.indexOf('infra')), 0)
     await until('the tab gone', () => !(screenOf(terminal.written)[0] ?? '').includes('infra'))
     expect(statSync(join(second.root, '.git')).isDirectory()).toBe(true)
-  }, 60_000)
+  })
 
   it('keeps the SMART QUEUE open once you open it, with nothing in it to open it for', async () => {
     terminal.columns = 160
@@ -257,5 +257,5 @@ describe('the window, remembering itself', () => {
     await start()
     await until('the window again', () => sidebar().includes('refunds'))
     expect(headingRow('SMART QUEUE').text).toContain('▾ SMART QUEUE')
-  }, 30_000)
+  })
 })

@@ -126,7 +126,7 @@ export function screenOf(written: string): string[] {
  * stuck still fails, half a minute later, and half a minute is far cheaper than
  * a suite nobody believes.
  */
-export const SPAWNING_MS = 30_000
+export const SPAWNING_MS = 90_000
 
 /**
  * Wait for something to become true, rather than for a fixed time.
@@ -139,11 +139,25 @@ export const SPAWNING_MS = 30_000
  * `queue`, one per run. Twenty, and safely inside the `it` budget that
  * encloses it, so what you get is still `timed out waiting for <what>` rather
  * than vitest's own timeout, which names nothing.
+ *
+ * Which is why there are no per-test budgets in these files any more, and no
+ * per-call-site deadlines either. There were forty-eight of the first and
+ * nine of the second, between eight and ninety seconds, and every one of them
+ * was somebody's guess about a machine they were not on. A release went red
+ * at `Test timed out in 20000ms` with no word about what the window had been
+ * waiting for, because the budget and this deadline had drifted to the same
+ * number and vitest won the race; the next one went red at sixty on a test
+ * that takes fifty-one when it passes. One number here, one in
+ * `vitest.config.ts`, and a wide gap between them — so the thing you read is
+ * `timed out waiting for <what>` and not vitest naming nothing.
+ *
+ * Write neither when you add a test. If a wait here is genuinely longer than
+ * this, it is `SPAWNING_MS`.
  */
 export async function until(
   what: string,
   ok: () => boolean | Promise<boolean>,
-  ms = 20_000,
+  ms = 45_000,
 ): Promise<void> {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {

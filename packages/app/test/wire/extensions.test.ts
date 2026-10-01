@@ -62,7 +62,7 @@ describe('the window, and its extensions', () => {
       ),
     )
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('enabled: true')
-  }, 60_000)
+  })
 
   it('runs an extension from its panel, and shows it working and what it said', async () => {
     terminal.columns = 120

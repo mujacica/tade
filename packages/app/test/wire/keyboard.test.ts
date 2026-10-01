@@ -367,5 +367,5 @@ describe('the window, taking a keystroke', () => {
     await until('the caret moved', () =>
       screenOf(terminal.written).some((row) => row.includes('abXcdef')),
     )
-  }, 30_000)
+  })
 })

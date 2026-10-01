@@ -61,7 +61,7 @@ describe('the window, taking a picture', () => {
         ),
       8_000,
     )
-  }, 20_000)
+  })
 
   it('asks who a dropped screenshot is for, and sends it with what you say next', async () => {
     const shot = join(tmp('tade-shot-'), 'Screen Shot.png')

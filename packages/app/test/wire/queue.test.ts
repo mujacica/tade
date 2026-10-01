@@ -46,7 +46,7 @@ describe('the window, and the work waiting in it', () => {
     )
     const [done] = await client.events({ types: ['task_done'] })
     expect(done).toMatchObject({ task: 'app/refunds', detail: { by: 'rule', rule: 'committed' } })
-  }, 30_000)
+  })
 
   it('starts what can start, and the rest once what it waits on has finished', async () => {
     const window = await start()
@@ -82,7 +82,7 @@ describe('the window, and the work waiting in it', () => {
         (await client.events({ types: ['queue_started'], task: 'app/refund-back' }))[0]?.detail
           .why === 'app/charge-once has finished',
     )
-  }, 60_000)
+  })
 
   it('shows queued work under the agents, opens it, and starts it from its card', async () => {
     terminal.columns = 120
@@ -122,7 +122,7 @@ describe('the window, and the work waiting in it', () => {
       () => client.runs().some((run) => run.task === 'app/fix-after'),
       SPAWNING_MS,
     )
-  }, 60_000)
+  })
 
   it('warns when a plan runs into work the project already has, which no plan can see', async () => {
     const window = await start()
@@ -157,7 +157,7 @@ describe('the window, and the work waiting in it', () => {
     expect(answer).toContain(
       'Watch out: refunds-next and app/bill-after, which is queued, both change src/charge.ts',
     )
-  }, 60_000)
+  })
 
   it('pauses one piece of queued work from its card, and there is no pause-everything button', async () => {
     terminal.columns = 120
@@ -216,7 +216,7 @@ describe('the window, and the work waiting in it', () => {
       () => client.runs().some((run) => run.task === 'app/second-one'),
       SPAWNING_MS,
     )
-  }, 60_000)
+  })
 
   it('still holds a whole project’s queue when the orchestrator asks, with no button for it', async () => {
     terminal.columns = 120
@@ -250,7 +250,7 @@ describe('the window, and the work waiting in it', () => {
       () => client.runs().some((run) => run.task === 'app/second-one'),
       SPAWNING_MS,
     )
-  }, 60_000)
+  })
 
   it('looks at the tree before it starts queued work, and holds what has moved under it', async () => {
     const told: string[] = []
@@ -334,7 +334,7 @@ describe('the window, and the work waiting in it', () => {
     )
     const [started] = await client.events({ types: ['queue_started'], task: 'app/write-up' })
     expect(started?.detail.why).toBe('it was started anyway')
-  }, 60_000)
+  })
 
   it('holds work whose dependency stopped, tells the orchestrator, and starts it when told to', async () => {
     const told: string[] = []
@@ -379,5 +379,5 @@ describe('the window, and the work waiting in it', () => {
       'Done. Started app/second.',
     )
     expect(client.runs().some((run) => run.task === 'app/second')).toBe(true)
-  }, 60_000)
+  })
 })

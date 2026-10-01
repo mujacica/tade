@@ -143,7 +143,7 @@ describe('the window, and the lanes in it', () => {
     const top = await rested('the oldest line there is', (line) => line < 20)
     terminal.press(`\x1b[<65;10;${shell + 1}M`)
     await until('one notch down moving straight away', () => newest() > top)
-  }, 30_000)
+  })
 
   // A program that takes the whole screen keeps no scrollback for the window
   // to move, and asks for the mouse so it can answer the wheel itself. This
@@ -172,11 +172,17 @@ describe('the window, and the lanes in it', () => {
     // Three notches up over its screen. Nothing here moves — there is no
     // scrollback to move through — and the program is told, so what it draws
     // in answer is its own scrolling.
-    for (let i = 0; i < 3; i++) terminal.press(`\x1b[<64;10;${where + 1}M`)
-    await until('the program told about the wheel', () =>
-      screenOf(terminal.written).some((row) => row.includes('saw:<64;')),
-    )
-  }, 20_000)
+    // Notched again every time we look, rather than three times up front.
+    // A wheel report the program has not yet asked for is dropped and not
+    // queued, so a single burst races the moment it turns mouse reporting on
+    // — and losing that race looks exactly like the window never handing the
+    // wheel over. It was the most reliable failure in the suite and no
+    // deadline could have fixed it: nothing was still coming.
+    await until('the program told about the wheel', () => {
+      terminal.press(`\x1b[<64;10;${where + 1}M`)
+      return screenOf(terminal.written).some((row) => row.includes('saw:<64;'))
+    })
+  })
 
   // And what it draws in answer has to be read back, which is the other half
   // of handing it the wheel. A lane that paints its own screen was read once
@@ -213,7 +219,7 @@ describe('the window, and the lanes in it', () => {
       () => screenOf(terminal.written).some((row) => row.includes('second on row')),
       5_000,
     )
-  }, 20_000)
+  })
 
   // A notch over a lane the window scrolls changes where the window is
   // looking, not what the lane holds — so as long as the lines already held
@@ -292,7 +298,7 @@ describe('the window, and the lanes in it', () => {
     // changed since the shell printed them.
     expect(newestPrinted(terminal)).toBeLessThan(from)
     expect(captures).toBe(0)
-  }, 60_000)
+  })
 
   it('opens a terminal from the + beside the orchestrator, and types into it', async () => {
     await start()
@@ -314,7 +320,7 @@ describe('the window, and the lanes in it', () => {
       if (Date.now() > deadline) throw new Error('the command never ran')
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
-  }, 30_000)
+  })
 
   // A URL a program printed is a link like any other on screen: it lights up
   // under the pointer and a click opens it. Where it opens is the seam — the
@@ -343,7 +349,7 @@ describe('the window, and the lanes in it', () => {
     )
     // And through the seam, not past it: nothing was spawned on this machine.
     expect(opened.every((one) => ['open', 'xdg-open', 'cmd'].includes(one.command))).toBe(true)
-  }, 30_000)
+  })
 
   it('opens and names a terminal when told to in words', async () => {
     await start()
@@ -353,5 +359,5 @@ describe('the window, and the lanes in it', () => {
     terminal.press('\r')
     await until('the terminal', () => client.terminals('app').some((one) => one.name === 'logs'))
     await until('its tab', () => terminal.written.includes('logs'))
-  }, 30_000)
+  })
 })
