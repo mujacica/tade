@@ -56,7 +56,7 @@ export const FLOOR: Record<string, number> = {
   'packages/cli': 70,
   // The watch that reads a forge's checks, and the fixing it starts: what is
   // left is the fixing, which starts an agent.
-  'packages/extensions/review': 74,
+  'packages/extensions/review': 77,
   'packages/harnesses/claude': 77,
   'packages/orchestrator': 77,
   // `src/wire/` is the hole and everything else here is over 89%: the pure
