@@ -285,8 +285,9 @@ describe('who Tade runs as', () => {
     await machine(world).loadAccounts()
     // The accounts are read with the keys, because a sign-in *is* a credential
     // for the provider its harness declares and the two halves of "paid by"
-    // must never be read apart.
-    expect(world.did.map((one) => one.what)).toEqual(['refreshModels', 'accounts'])
+    // must never be read apart — side by side, so the one beat this is read on
+    // is no slower than it was when it read half the answer.
+    expect([...world.did.map((one) => one.what)].sort()).toEqual(['accounts', 'refreshModels'])
   })
 
   it('keeps the accounts it had when the workbench cannot be asked', async () => {

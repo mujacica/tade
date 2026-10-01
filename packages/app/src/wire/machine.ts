@@ -376,9 +376,15 @@ export class Machine implements Subject {
    * so the strip said "not signed in" about a subscription that was working.
    */
   async loadAccounts(): Promise<void> {
-    await this.readKeys()
-    // A look that could not be taken leaves what was read last, as below.
-    this.views = await this.wire.opts.client.accounts().catch(() => this.views)
+    // Side by side: asking a harness is a program run, and the keys and the
+    // accounts have nothing to say to each other. One after the other is that
+    // wait twice over, on the one beat this is read — the window's own start.
+    const [, views] = await Promise.all([
+      this.readKeys(),
+      // A look that could not be taken leaves what was read last, as below.
+      this.wire.opts.client.accounts().catch(() => this.views),
+    ])
+    this.views = views
     this.wire.draw()
   }
 
