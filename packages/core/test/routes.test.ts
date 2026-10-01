@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../src/config.ts'
 import {
   clearedByHarness,
+  modelChosen,
   orchestratorRoute,
   resolveRoute,
   routeIn,
@@ -108,6 +109,26 @@ describe('routeIn', () => {
     expect(() =>
       ConfigSchema.parse({ workers: { routes: { default: { harnesses: { nope: {} } } } } }),
     ).toThrow()
+  })
+})
+
+describe('modelChosen', () => {
+  it('splits a provider off the front, and leaves a bare name as the model', () => {
+    expect(modelChosen('openrouter/anthropic/claude-opus-4.5')).toEqual({
+      provider: 'openrouter',
+      model: 'anthropic/claude-opus-4.5',
+    })
+    // The bug this exists to stop: one of the two writers took the first
+    // segment as the provider whatever it was, so a bare name put *itself* in
+    // `provider` and left `model` empty — a route pointing at a provider
+    // nobody can pay, with no model on it.
+    expect(modelChosen('claude-opus-5')).toEqual({ provider: undefined, model: 'claude-opus-5' })
+  })
+
+  it('is both keys unset for nothing at all, which is the harness deciding', () => {
+    for (const said of ['', '   ']) {
+      expect(modelChosen(said)).toEqual({ provider: undefined, model: undefined })
+    }
   })
 })
 

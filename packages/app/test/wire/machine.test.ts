@@ -33,6 +33,8 @@ function wiring(
     project?: string | null
     terminal?: { id: string } | Error
     credentials?: Record<string, 'signed-in' | 'api-key' | 'env-key'>
+    /** The accounts each harness reports, with the provider each declares. */
+    accounts?: { harness: string; provider: string | null; signedIn: boolean }[]
     fails?: string
   } = {},
 ) {
@@ -56,7 +58,12 @@ function wiring(
     async accounts() {
       did.push({ what: 'accounts', with: [] })
       if (over.fails) throw new Error(over.fails)
-      return [{ harness: 'pi', name: null }]
+      return (over.accounts ?? [{ harness: 'pi', provider: null, signedIn: false }]).map((one) => ({
+        harness: one.harness,
+        name: null,
+        provider: one.provider,
+        status: { signedIn: one.signedIn, who: null, plan: null, problem: null },
+      }))
     },
     async signOut(harness: string, name: string | null) {
       did.push({ what: 'signOut', with: [harness, name] })
@@ -226,6 +233,34 @@ describe('who Tade runs as', () => {
     expect(subject.credentialProblem(null)).toBeNull()
   })
 
+  it('counts a signed-in harness as a credential for the provider it declares', async () => {
+    // A Claude subscription is not a key and is in no `auth.json`: it is
+    // Claude Code being signed in, and Claude Code declares that it talks to
+    // `anthropic`. Only keys were read, so the orchestrator on that very
+    // subscription said "not signed in" while agents on it worked — which is
+    // the whole of what "that should be connected" was.
+    const world = wiring({
+      credentials: { openrouter: 'env-key' },
+      accounts: [
+        { harness: 'pi', provider: null, signedIn: true },
+        { harness: 'claude-code', provider: 'anthropic', signedIn: true },
+        { harness: 'codex', provider: 'openai', signedIn: false },
+      ],
+    })
+    const subject = machine(world)
+    await subject.loadAccounts()
+    expect(subject.paidBy('anthropic')).toBe('signed-in')
+    expect(subject.credentialProblem('anthropic')).toBeNull()
+    expect(subject.credential('anthropic')).not.toBeNull()
+    // A harness that is *not* signed in pays for nothing, and one that
+    // declares no provider — pi, whose providers are its own `auth.json`'s to
+    // say, one per model — speaks for none of them either.
+    expect(subject.credentialProblem('openai')).toBe('not signed in')
+    // And a key still wins where there is one: that is the order the harness
+    // itself asks in.
+    expect(subject.paidBy('openrouter')).toBe('env-key')
+  })
+
   it('keeps what it read when the credentials cannot be read again, and says so', async () => {
     const world = wiring({ credentials: { anthropic: 'signed-in' } })
     const subject = machine(world)
@@ -248,7 +283,10 @@ describe('who Tade runs as', () => {
   it('reads the models again after signing in, because signing in changes them', async () => {
     const world = wiring({ credentials: { anthropic: 'signed-in' } })
     await machine(world).loadAccounts()
-    expect(world.did.map((one) => one.what)).toEqual(['refreshModels'])
+    // The accounts are read with the keys, because a sign-in *is* a credential
+    // for the provider its harness declares and the two halves of "paid by"
+    // must never be read apart.
+    expect(world.did.map((one) => one.what)).toEqual(['refreshModels', 'accounts'])
   })
 
   it('keeps the accounts it had when the workbench cannot be asked', async () => {

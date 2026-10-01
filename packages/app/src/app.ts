@@ -218,12 +218,11 @@ export class App {
       terminalSize: () => this.lanes.terminalSize(),
       showTerminal: (id) => this.lanes.showTerminal(id),
       onScreenWith: (flow) => this.orchestrator.onScreenWith(flow),
-      refreshModels: async () => {
-        await this.routes.refreshModels()
-      },
+      refreshModels: () => this.routes.refreshModels(),
     })
     this.settings = new Settings(this.wire, {
       loadAccounts: () => void this.machine.loadAccountViews(),
+      refreshModels: () => this.routes.refreshModels(),
       lookAtWhatIsInstalled: () => void this.machine.lookAtWhatIsInstalled(),
       tellThinking: (level) => this.orchestrator.tellThinking(level),
       setupChanged: () => this.extensions.forgetSetup(),

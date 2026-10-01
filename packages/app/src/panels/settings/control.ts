@@ -255,7 +255,10 @@ export function settingsDropdown(
   const inner = width - 2
   const pointer = ctx.pointer
   const query = panel.dropdown?.query ?? ''
-  const found = matchingChoices(choicesFor(setting, ctx.choices), query)
+  // What it offers at all, and what the query leaves of that: two different
+  // emptinesses, and only one of them is about what was typed.
+  const offered = choicesFor(setting, ctx.choices)
+  const found = matchingChoices(offered, query)
   const rows: { text: string; hits: Hit[] }[] = [
     new Row(inner, skin)
       .space()
@@ -295,8 +298,18 @@ export function settingsDropdown(
       hits: [{ row: 0, from: 0, to: inner - 1, target }],
     })
   })
-  if (found.length === 0)
-    rows.push(new Row(inner, skin).space().text('Nothing matches that.', skin.hint).build())
+  if (found.length === 0) {
+    // A harness nobody has asked offers nothing, and that is not the query's
+    // fault: "Nothing matches that" over an empty catalogue sent somebody
+    // looking for a model they had typed correctly. Which harness it is, is
+    // the whole of the answer — a model is one harness's and no list is
+    // gathered across them.
+    const said =
+      offered.length === 0 && setting.type.kind === 'model'
+        ? `No models from ${setting.type.harness} yet.`
+        : 'Nothing matches that.'
+    rows.push(new Row(inner, skin).space().text(said, skin.hint).build())
+  }
   return box('', rows, width, skin, { corner: '▴' })
 }
 

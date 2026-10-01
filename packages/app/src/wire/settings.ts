@@ -5,6 +5,7 @@ import {
   HARNESS_CHOICES,
   LINES_LOOKED_BACK,
   loadConfig,
+  modelChosen,
   namedBy,
   parseSetting,
   type Setting,
@@ -56,6 +57,14 @@ export interface SettingTools {
 export interface SettingsDeps {
   /** Ask each harness for its accounts again: a sign-in made elsewhere counts. */
   loadAccounts(): void
+  /**
+   * Ask the harnesses in play what they run, again. Needed the moment a
+   * harness *changes*: the models of one nobody has asked are no models at
+   * all, so the picker for the new harness opened empty — and the page it
+   * opened under was still offering the three harness names above it, which
+   * is what "the model dropdown offers pi, claude, codex" was.
+   */
+  refreshModels(): Promise<void>
   /** Read what is installed on this machine, for the Updates page. */
   lookAtWhatIsInstalled(): void
   /** Tell the orchestrator how hard to think; the reason back, if it could not be told. */
@@ -449,13 +458,9 @@ export class Settings implements Subject {
       }
       if (path === 'orchestrator.model') {
         // Chosen as provider/id; stored as the two keys the orchestrator reads.
-        const [provider, ...rest] = value.split('/')
-        writeSetting(this.path, 'orchestrator.provider', rest.length > 0 ? provider : undefined)
-        writeSetting(
-          this.path,
-          'orchestrator.model',
-          rest.length > 0 ? rest.join('/') : value || undefined,
-        )
+        const chosen = modelChosen(value)
+        writeSetting(this.path, 'orchestrator.provider', chosen.provider)
+        writeSetting(this.path, 'orchestrator.model', chosen.model)
       } else {
         const typed = setting ? parseSetting(setting, value) : value
         if (value !== '' && typed === undefined)
@@ -474,6 +479,11 @@ export class Settings implements Subject {
         throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
       }
       this.use(loaded.config)
+      // A harness that just changed hands has never been asked what it runs,
+      // and its model setting is the next thing somebody opens. `clearable` is
+      // already the answer to "is this a harness path": what choosing one
+      // clears is nothing for anything else.
+      if (clearable.length > 0) void this.deps.refreshModels()
       // An extension's own setting means nothing until the extension has it:
       // Settings can change one (which Sentry the Sentry extension reads), so
       // the host is handed the config here as it is from the Extensions panel.

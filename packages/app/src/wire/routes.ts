@@ -2,6 +2,7 @@ import {
   type Config,
   HARNESS_CHOICES,
   loadConfig,
+  modelChosen,
   orchestratorRoute,
   resolveRoute,
   THINKING_LEVELS,
@@ -503,13 +504,19 @@ export class Routes implements Subject {
   async chooseModel(panel: ModelPanel, id: string): Promise<void> {
     try {
       if (panel.for === 'orchestrator') {
-        const [provider, ...rest] = id.split('/')
-        writeSetting(configPathOf(this.wire.opts), 'orchestrator.provider', provider)
-        writeSetting(configPathOf(this.wire.opts), 'orchestrator.model', rest.join('/'))
+        // The same split the Settings page writes by, because there is one
+        // way a model is stored: a bare name used to put itself in `provider`
+        // and leave `model` empty here, which is a route that starts on
+        // nothing and a provider nobody can pay.
+        const chosen = modelChosen(id)
+        writeSetting(configPathOf(this.wire.opts), 'orchestrator.provider', chosen.provider)
+        writeSetting(configPathOf(this.wire.opts), 'orchestrator.model', chosen.model)
         const loaded = await loadConfig(configPathOf(this.wire.opts))
         if (loaded.ok) this.deps.useConfig(loaded.config)
         this.wire.put({ ...this.wire.state, panel: null })
-        this.wire.put(notice(this.wire.state, `the orchestrator is moving to ${rest.join('/')}`))
+        this.wire.put(
+          notice(this.wire.state, `the orchestrator is moving to ${chosen.model ?? id}`),
+        )
         this.wire.draw()
         await this.wire.opts.restartThinker?.()
       } else {

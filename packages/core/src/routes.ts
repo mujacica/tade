@@ -83,6 +83,29 @@ export function clearedByHarness(path: string): string[] {
   return [`${at}.provider`, `${at}.model`, `${at}.thinking`]
 }
 
+/**
+ * A model as somebody chose it, as the two keys a route stores it in.
+ *
+ * `openrouter/anthropic/claude-opus-4.5` is a provider and a model; a bare
+ * `claude-opus-5` is a model and no provider, which means "whichever provider
+ * you have that offers it" and is what the harness does with a bare name.
+ *
+ * One function because there were two copies and only one of them was right:
+ * the other took the first segment as the provider whatever it was, so
+ * choosing a bare name wrote the *model* into `provider` and left `model`
+ * empty. Empty is "the harness decides" on both keys, which is where a route
+ * sits before anybody chooses anything.
+ */
+export function modelChosen(value: string): {
+  provider: string | undefined
+  model: string | undefined
+} {
+  const said = value.trim()
+  const [first, ...rest] = said.split('/')
+  if (rest.length === 0) return { provider: undefined, model: said || undefined }
+  return { provider: first || undefined, model: rest.join('/') || undefined }
+}
+
 /** The route the orchestrator itself runs on. */
 export function orchestratorRoute(config: Config): ResolvedRoute {
   const { harness, provider, model, thinking } = config.orchestrator

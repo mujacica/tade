@@ -25,6 +25,7 @@ import { sessionIdFor } from '@tade/harnesses-pi'
 import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
 import { composeBriefing } from './briefing.ts'
 import { activeSkills, enabledTools } from './extensions.ts'
+import { modelNamed, startingModel } from './model.ts'
 
 /**
  * What Tade's own tools are told, whichever harness loads them: where to call
@@ -262,14 +263,11 @@ export class Orchestrator {
     // The exact model, settled before anything starts and among what this
     // harness offers: a name it cannot place makes it exit before it reads a
     // word, which looked like an orchestrator that never answered.
-    const named = route?.model
-      ? route.provider
-        ? `${route.provider}/${route.model}`
-        : route.model
-      : null
+    const named = modelNamed(route)
     const found = opts.model || !named ? null : await adapter.resolveModel(named)
-    if (found && !found.ok) throw new Error(found.reason)
-    const model = opts.model ?? (found?.ok ? { provider: found.provider, id: found.id } : undefined)
+    const starting = startingModel(opts.model, named, found, harness)
+    if (starting.warning) opts.onWarning?.(starting.warning)
+    const model = starting.model
 
     // Tade's own tools always load. The ones it wrote for itself load after
     // them, so a self-written tool can never shadow `status` or `approve` —

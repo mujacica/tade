@@ -3,7 +3,8 @@ import { ConfigSchema, type Setting, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import { modelPanel } from '../src/panels/models/state.ts'
-import { type Choice, choicesFor } from '../src/panels/settings/state.ts'
+import { settingsDropdown } from '../src/panels/settings/control.ts'
+import { type Choice, choicesFor, settingsPanel } from '../src/panels/settings/state.ts'
 import { COLOUR } from '../src/skin.ts'
 
 // A model picker is one harness's, and says whose.
@@ -76,6 +77,32 @@ describe('a setting that chooses a model', () => {
   it('leaves in a model that came back before anybody asked whose it was', () => {
     const thinker = setting('orchestrator.model', { orchestrator: { harness: 'pi' } })
     expect(choicesFor(thinker, [choice('anthropic/claude-opus-5')])).toHaveLength(1)
+  })
+
+  it('offers nothing for a harness nobody has asked, and says which it is', () => {
+    // Changing the orchestrator's harness leaves one nothing has been asked
+    // about, and a model of another harness is no model at all here — so the
+    // list is empty, and the box has to say *why*. "Nothing matches that" was
+    // what it said, which sent somebody looking for a model they had typed
+    // correctly: the query matched nothing because there was nothing to match.
+    const thinker = setting('orchestrator.model', { orchestrator: { harness: 'codex' } })
+    expect(choicesFor(thinker, offered)).toEqual([])
+    const box = settingsDropdown(
+      { ...settingsPanel('orchestrator'), dropdown: { path: thinker.path, query: '', index: 0 } },
+      thinker,
+      context({ choices: offered }),
+    ).rows.map((row) => stripTerminalSequences(row))
+    expect(box.join('\n')).toContain('No models from codex yet')
+
+    // And where there *are* models, a query that matches none of them is the
+    // query's own answer and still says so.
+    const onPi = setting('orchestrator.model', { orchestrator: { harness: 'pi' } })
+    const searched = settingsDropdown(
+      { ...settingsPanel('orchestrator'), dropdown: { path: onPi.path, query: 'zzz', index: 0 } },
+      onPi,
+      context({ choices: offered }),
+    ).rows.map((row) => stripTerminalSequences(row))
+    expect(searched.join('\n')).toContain('Nothing matches that')
   })
 })
 

@@ -141,14 +141,33 @@ export class Machine implements Subject {
     return this.views
   }
 
-  /** How a provider is paid for, or undefined where there is no credential for it. */
+  /**
+   * How a provider is paid for, or undefined where there is no credential
+   * for it — out of **both** places a credential can be.
+   *
+   * One of them is a key: an environment variable, or what pi's own sign-in
+   * stored, which is what `opts.credentials` reads. The other is **a harness
+   * being signed in**, which is a credential for the provider that harness
+   * declares it talks to (`AccountView.provider`) and is how a Claude
+   * subscription pays for `anthropic` without a key existing anywhere.
+   *
+   * Only the first was read, so every provider no key covered was drawn as
+   * "not signed in" — an orchestrator on a live Claude subscription said it
+   * had no account, while agents on the same subscription worked. A key wins
+   * where there is one, because that is the order the harness itself asks in.
+   */
   paidBy(provider: string): 'signed-in' | 'api-key' | 'env-key' | undefined {
-    return this.paid?.[provider]
+    const key = this.paid?.[provider]
+    if (key) return key
+    if (this.paid === null) return undefined
+    return this.views.some((one) => one.provider === provider && one.status.signedIn)
+      ? 'signed-in'
+      : undefined
   }
 
   /** How a provider is paid for, in the words a page that asked says it in. */
   credential(provider: string | null): string | null {
-    return provider ? credentialLabel(this.paid?.[provider]) : null
+    return provider ? credentialLabel(this.paidBy(provider)) : null
   }
 
   /**
@@ -162,7 +181,7 @@ export class Machine implements Subject {
    */
   credentialProblem(provider: string | null): string | null {
     if (!provider || this.paid === null) return null
-    return this.paid[provider] ? null : 'not signed in'
+    return this.paidBy(provider) ? null : 'not signed in'
   }
 
   /**
@@ -341,11 +360,30 @@ export class Machine implements Subject {
       ui.say(`  ${signing.how}`)
       await ui.run(name ?? harness, signing.launch.command, signing.launch.args, signing.launch.env)
     })
-    await this.loadAccounts()
+    // Only the keys and what they change: whoever asked for this sign-in reads
+    // the accounts back itself the moment the terminal closes, and asking
+    // every harness who it is twice over is twice the wait for one answer.
+    await this.readKeys()
   }
 
-  /** Who each provider is paid by, and what an agent could start on. */
+  /**
+   * Who each provider is paid by, and what an agent could start on.
+   *
+   * Both halves of "paid by", because there are two and the answer needs both:
+   * the keys (`credentials`), and which harnesses are signed in, which is a
+   * credential for the provider each of them declares. Read apart, a sign-in
+   * counted for nothing until something else happened to read the accounts —
+   * so the strip said "not signed in" about a subscription that was working.
+   */
   async loadAccounts(): Promise<void> {
+    await this.readKeys()
+    // A look that could not be taken leaves what was read last, as below.
+    this.views = await this.wire.opts.client.accounts().catch(() => this.views)
+    this.wire.draw()
+  }
+
+  /** The keys, and the models a change to them changes. */
+  private async readKeys(): Promise<void> {
     // A look that could not be taken is not a look that found nothing: what was
     // read last stands. It used to become an empty answer, which said nothing
     // while nothing was drawn for an absent credential — and now that an absent

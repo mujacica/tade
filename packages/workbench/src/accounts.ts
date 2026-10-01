@@ -31,6 +31,18 @@ export interface AccountView {
   forNewAgents: boolean
   /** Whether it has a sign-in of its own to run. */
   canSignIn: boolean
+  /**
+   * The provider this harness's own sign-in pays for, as the harness declares
+   * it (`WorkerAdapter.provider`) — `anthropic` for Claude Code, `openai` for
+   * Codex. Null where a harness reaches many and names none, which is pi: its
+   * providers are its own `auth.json`'s to say, one per model.
+   *
+   * Here because being signed in to a harness *is* having a credential for
+   * the provider it talks to, and the window had no way to know that: it read
+   * one harness's credentials and drew everything else as "not signed in",
+   * so an orchestrator on a live Claude subscription said it had no account.
+   */
+  provider: string | null
 }
 
 /**
@@ -180,6 +192,7 @@ export async function listAccounts(
       agents: opts.agentsOn?.(adapter) ?? 0,
       forNewAgents: chosen === name,
       canSignIn: adapter.signIn() !== null,
+      provider: adapter.provider,
     })
   }
   return views
