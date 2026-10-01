@@ -7,7 +7,7 @@
  ▸ SMART QUEUE      none █│                                     
  ▸ SCHEDULES        none █│               T A D E               
  ▾ CHANGES               █│                                     
-   open an agent to see  █│           said, and done.           
+   nothing changed       █│           said, and done.           
                          █│                                     
  ▾ FILES                 █│  + New agent      Open project     i
    ▸ src/                █│                                     

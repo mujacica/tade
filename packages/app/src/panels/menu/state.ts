@@ -264,10 +264,26 @@ export function fileMenuItems(file: {
   ]
 }
 
-/** What can be done with a changed file. Discarding asks first, and only touches what is not committed. */
-export function changeMenuItems(change: { uncommitted: boolean; agent: boolean }): MenuItem[] {
+/**
+ * What can be done with a changed file. Discarding asks first, and only touches
+ * what is not committed.
+ *
+ * `diffable` is whether there is a task to measure the diff against: the
+ * section shows a checkout's changes whether an agent is in front of you or not,
+ * and with none there is nothing to diff from. Said rather than left on, because
+ * a menu item that quietly does nothing is worse than one that says why not.
+ */
+export function changeMenuItems(change: {
+  uncommitted: boolean
+  agent: boolean
+  diffable?: boolean
+}): MenuItem[] {
   return [
-    { id: 'diff', label: 'Show changes', note: 'click' },
+    {
+      id: 'diff',
+      label: 'Show changes',
+      ...(change.diffable === false ? { off: 'no agent' } : { note: 'click' }),
+    },
     { id: 'open', label: 'Open file' },
     { id: 'editor', label: 'Open in editor' },
     { id: 'ask', label: 'Ask the agent about it', ...(change.agent ? {} : { off: 'no agent' }) },

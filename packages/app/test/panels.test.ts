@@ -694,6 +694,19 @@ describe('menus beside the agents', () => {
     ).toBe('committed')
   })
 
+  it('says why there is nothing to diff against rather than offering a dead item', () => {
+    // CHANGES shows a checkout's changes agent or no agent, and a row with no
+    // task behind it has nothing to measure a diff from. Unsaid is on, so a
+    // caller that never knew about this keeps what it had.
+    const off = (diffable?: boolean) =>
+      changeMenuItems({ uncommitted: true, agent: false, ...{ diffable } }).find(
+        (i) => i.id === 'diff',
+      )?.off
+    expect(off(false)).toBe('no agent')
+    expect(off(true)).toBeUndefined()
+    expect(off()).toBeUndefined()
+  })
+
   it("switch the project, but rename an agent's branch rather than switch it out from under it", () => {
     expect(branchMenuItems({ agent: false, name: 'main' }).map((i) => i.id)).toContain('switch')
     const agent = branchMenuItems({ agent: true, name: '' })

@@ -7,7 +7,7 @@
  ▸ SMART QUEUE      none ▕│      ██     ██    ██  ██████▀   ████████    
  ▸ SCHEDULES        none ▕│                                             
  ▾ CHANGES               ▕│  + New agent      Open project     in checko
-   open an agent to see  ▕│                                             
+   nothing changed       ▕│                                             
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                         
                                                                        ▕

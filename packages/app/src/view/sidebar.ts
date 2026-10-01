@@ -180,9 +180,12 @@ export function renderSidebar(
       rows: (row) =>
         changes.length === 0
           ? [
+              // Nothing changed is about the checkout, not about the agent: it
+              // used to say "open an agent to see", which was true of what it
+              // read and not of what git knew.
               row()
                 .space(3)
-                .text(state.focused ? 'nothing changed' : 'open an agent to see', skin.hint)
+                .text(where ? 'nothing changed' : 'no checkout here', skin.hint)
                 .build(),
             ]
           : changes.map((change) => changeRow(row(), change, skin, state.focused)),

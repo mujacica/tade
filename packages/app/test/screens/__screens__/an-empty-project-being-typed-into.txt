@@ -7,7 +7,7 @@
  ▸ SMART QUEUE          none ▕│                                                                                         
  ▸ SCHEDULES            none ▕│                         ████████   ▄████▄   ██████▄   ████████                          
  ▾ CHANGES                   ▕│                            ██     ██▀  ▀██  ██   ▀██  ██                                
-   open an agent to see      ▕│                            ██     ████████  ██    ██  ██████                            
+   nothing changed           ▕│                            ██     ████████  ██    ██  ██████                            
                              ▕│                            ██     ██    ██  ██   ▄██  ██                                
  ▾ FILES                     ▕│                            ██     ██    ██  ██████▀   ████████                          
    ▸ src/                    ▕│                                                                                         

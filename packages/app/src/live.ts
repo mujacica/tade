@@ -379,7 +379,10 @@ export class Live {
   private readonly marks = new Map<string, { at: number; marks: Record<string, string> }>()
   /** The branch each project's checkout was last seen on, and whether a look is under way. */
   private readonly branches = new Map<string, { at: number; branch: string | null }>()
-  /** The last look at what each task has changed, and whether one is under way. */
+  /**
+   * The last look at what is changed in a checkout, keyed by the place and the
+   * base it is measured from, and whether a look is under way.
+   */
   private readonly changed = new Map<string, { at: number; changes: Change[] }>()
   private readonly looking = new Set<string>()
   /** The branch each task was started from, as status last saw it. */
@@ -914,24 +917,49 @@ export class Live {
   }
 
   /**
-   * What a task has changed. Answers from the last look at once, and looks
-   * again in the background when that is stale: the window draws four times a
-   * second and must never wait on git to do it.
+   * What a task has changed: where it works, measured from where it branched.
+   * A task names a place and a base, and the answer is about the place — so an
+   * agent sharing the project's checkout sees everything uncommitted in it,
+   * whoever changed it.
    */
   changes(task: string | null): readonly Change[] {
-    const root = task ? this.worktrees.get(task) : null
-    if (!task || !root) return []
-    const seen = this.changed.get(task)
-    if ((!seen || this.now() - seen.at >= LISTING_MS) && !this.looking.has(task)) {
-      this.looking.add(task)
-      void this.lookAtChanges(root, this.bases.get(task) ?? null)
+    if (!task) return []
+    const root = this.worktrees.get(task)
+    if (!root) return []
+    return this.changesAt(root, this.bases.get(task) ?? null)
+  }
+
+  /**
+   * What is changed in a checkout: measured from `base` where there is one, and
+   * from `HEAD` — plain `git status`, in other words — where there is not.
+   *
+   * Keyed by the place and the base, never by a task, because a change in a
+   * checkout is a change whoever made it. Keyed by a task it was nobody's: with
+   * no agent in front of you there was no task to ask about, so the view read
+   * nothing at all and an edit the orchestrator made by hand was invisible —
+   * not stale, never looked for.
+   *
+   * Answers from the last look at once, and looks again in the background when
+   * that is stale: the window draws four times a second and must never wait on
+   * git to do it. A look that comes back the same as the last one redraws
+   * nothing, like `marksAt` and `branchAt` — this is read every frame now,
+   * agent or not, so a beat that always redraws would be a beat that never rests.
+   */
+  changesAt(root: string | null, base: string | null): readonly Change[] {
+    if (!root) return []
+    const key = JSON.stringify([root, base])
+    const seen = this.changed.get(key)
+    if ((!seen || this.now() - seen.at >= LISTING_MS) && !this.looking.has(key)) {
+      this.looking.add(key)
+      void this.lookAtChanges(root, base)
         .then((changes) => {
           if (!changes) return
-          this.changed.set(task, { at: this.now(), changes })
-          this.opts.onChange?.()
+          const was = JSON.stringify(seen?.changes ?? [])
+          this.changed.set(key, { at: this.now(), changes })
+          if (JSON.stringify(changes) !== was) this.opts.onChange?.()
         })
         .catch(() => {})
-        .finally(() => this.looking.delete(task))
+        .finally(() => this.looking.delete(key))
     }
     return seen?.changes ?? []
   }

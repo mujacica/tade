@@ -122,6 +122,9 @@ export class Files implements Subject {
     const repo = configured ? expandHome(configured.root) : null
     const worktree = focused ? (live?.worktreeOf(focused.task) ?? null) : null
     const facts = focused ? live?.factsOf(focused.task) : null
+    // What the changes are measured from: where the agent branched when one is
+    // in front of you, and nowhere — so, `git status` — when none is.
+    const base = live?.baseOf(state.focused) ?? null
     return {
       files: live?.files(worktree ?? repo, state.expanded) ?? [],
       fileMarks: live?.marksAt(worktree ?? repo) ?? {},
@@ -138,8 +141,12 @@ export class Files implements Subject {
             links: facts?.links ?? [],
           }
         : null,
-      changes: live?.changes(state.focused) ?? [],
-      base: live?.baseOf(state.focused) ?? null,
+      // The same "here" the tree and the marks above are read at, rather than
+      // the focused task: a change in this checkout is a change whoever made
+      // it, and with no agent in front of you there is still a checkout to ask
+      // about.
+      changes: live?.changesAt(worktree ?? repo, base) ?? [],
+      base,
     }
   }
 
@@ -209,6 +216,9 @@ export class Files implements Subject {
           return changeMenuItems({
             uncommitted: marks[subject.path] !== undefined,
             agent: this.focusedPane()?.lane != null,
+            // A row of the checkout's own changes carries no task, and a diff
+            // is measured from where a task branched.
+            diffable: subject.task !== null,
           })
         },
         choose: (subject, item) => this.fromChangeMenu(subject.task, subject.path, item),
