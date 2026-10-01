@@ -265,6 +265,46 @@ is never dressed up as somebody's install problem: `named()` returns null for an
 starts with `.` or `/`, and `bin.ts` rethrows the original error, because sending somebody off to
 fix a machine that is fine is the worse failure.
 
+## What Socket.dev scores it, and why none of it is a bug
+
+Socket scored 0.1.0 **73 supply chain, 88 maintenance, 99 quality** — 0 vulnerabilities, license
+clean — and somebody will want those to be 100. **They cannot be, and every way to raise them is a
+thing this package needs taken out of it.** Socket's inputs are published
+(`docs.socket.dev/docs/package-scores`), and most of them are **popularity and history rather than
+contents**: supply chain reads download count and dependency counts; maintenance reads maintainer
+count, version count, versions and commits per window, and issue history; quality reads readme
+length, bundle size, stargazers, forks and watchers. At 0.1.0 that was a repository twelve days old
+with 0 stars, 0 forks, 0 watchers, 0 issues, 2 versions, 1 maintainer and 11 downloads a week. **No
+change to the tarball moves any of those** — releases, time and a second maintainer do, which is
+why 88 and 99 are not a list of things to fix. Quality at 99 is already the readme doing its job:
+27 KB of it, over 400 lines.
+
+What it does flag in the contents is the product, and the first four are one alert each:
+
+- **`installScripts` (high)** — the two above, and **both** must go to clear it. The section
+  above is why neither does: without the `preinstall` a Linux machine with no toolchain gets
+  forty lines of node-gyp, and nothing fixes the `spawn-helper` bit at run time *on purpose*.
+- **`shellAccess`, `filesystemAccess`, `envVars`, `networkAccess`** — 25, 80, 41 and 11 of the 374
+  shipped files. Tade opens terminals, reads config, reads `TADE_HOME` and talks to a forge. A
+  control room for coding agents that did none of those would not be one.
+- **`hasNativeCode` (high)** — node-pty and better-sqlite3, declared in `onlyBuiltDependencies`.
+  **The tarball carries no binary of its own**: 374 `.js`, 2 `.mjs`, 8 `.md`, a `package.json` and
+  `LICENSE`, no `eval`, nothing minified, nothing obfuscated.
+- **`deprecated` (low)** — `node-domexception`, five deep under the pi harness
+  (`pi-coding-agent` → `@google/genai` → `gaxios` → `node-fetch` → `fetch-blob`). **0.99.2 still
+  carries it**, so it is ours to report upstream and nobody's to fix here.
+- **220 packages resolve for `npm i tade-sh`**, 146 of them nested under the pi harness.
+  Dependency count is a real input and the only lever here with a real cost: dropping
+  `@sentry/node` would take 8 packages of OpenTelemetry with it and lose Tade reporting its own
+  trouble, which is a worse trade than a number.
+
+**Socket gives an author no way to declare any of this expected.** `socket.yml` and the alert triage
+in the dashboard govern Socket's checks on *your* pull requests and your own organization's view —
+never the public score — and there is no `package.json` field it reads, so there is nothing to put
+in the manifest and no point adding `author` for it (`missingAuthor` is about a *deleted npm
+account*, not a missing field). This section is the answer to the number instead. **The one score
+that would be a bug is the vulnerability count**, and `deps_check` is what watches it.
+
 ## When it goes wrong
 
 - **Red gate, or a failed smoke.** Nothing was published — publish is the last job. Fix it, then
