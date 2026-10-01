@@ -173,6 +173,7 @@ export class Extensions implements Subject {
           ...(row.links ? { links: row.links } : {}),
           ...(row.opens ? { opens: row.opens } : {}),
           ...(row.task ? { task: row.task } : {}),
+          ...(row.project ? { project: row.project } : {}),
         })),
       })),
       extensionsNeedYou: (this.wire.opts.extensions?.list() ?? []).filter(

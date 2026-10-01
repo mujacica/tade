@@ -498,6 +498,17 @@ export interface ListRow {
   opens?: { tool: string; input?: Record<string, unknown> }
   /** The Tade task this row is about, when it is about one. */
   task?: string
+  /**
+   * The project whose work it is, so the window draws it down that project's
+   * side and nowhere else. The extension's answer, because only it can say:
+   * it polls everything at once, and which project a thing belongs to is a
+   * fact about the thing, not about which list it came back in.
+   *
+   * Absent is **"nobody here can say"**, and such a row is drawn in every
+   * project rather than in none — a row hidden everywhere is a row nobody can
+   * find, which is worse than one in the wrong place.
+   */
+  project?: string
 }
 
 /**

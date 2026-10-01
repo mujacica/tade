@@ -128,6 +128,12 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   anywhere. `snapshot` is asked by the sidebar, the status bar, the brief, every tool and every
   watch, at most every `POLL_MS` (60s), two requests per forge in it — the `resources` extension's
   single `ps` applied to somebody else's API. Nothing here is on a draw path.
+- **Which project a review is on is its repository, matched against the projects' own** (`whose` in
+  `poll`) — never whose turn it was to ask. `include` makes a project hear about repositories that
+  are not its own, and the poll keeps the first answer for a URL, so "whose turn it was" named the
+  first project iterated for every review in the account: the side then drew all of them in every
+  project. A review on a repository nothing here is a checkout of is `project: null`, which the
+  window draws wherever you are rather than nowhere.
 - **Which work a review is, is read out of a trailer, never out of a table.** `review_open` writes
   `Tade-Task: <task>` into the body (`TASK_TRAILER`), and `taskIn` reads it back — the same fact the
   ACTIONS tab, the queue's look at the trees and Jev's unit all read off commits. A table Tade kept

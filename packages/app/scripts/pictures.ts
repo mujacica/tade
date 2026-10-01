@@ -93,9 +93,10 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'what-an-agent-has-done',
     crop: { top: 2, width: 29, height: 21 },
     about:
-      'The REVIEWS section down the side: every review that is open, each as two rows — its number ' +
-      'and title over where it stands, and under that what its checks and verdicts came to and how ' +
-      'long it has been open. A draft with red checks, one that is ready, one that wants you.',
+      'The REVIEWS section down the side: every review open on the project you are in, each as two ' +
+      'rows — its number and title over where it stands, and under that what its checks and ' +
+      'verdicts came to and how long it has been open. A draft with red checks, one that is ready, ' +
+      'one that wants you.',
   },
   {
     file: 'orchestrator.svg',

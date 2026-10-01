@@ -31,6 +31,30 @@ export function rowTarget(one: ListRowView): Target {
   return { kind: 'action', name: `list-row:${one.section}\u0000${one.id}` }
 }
 
+/**
+ * The rows of a list that belong where you are standing.
+ *
+ * An extension polls everything it watches at once, because one poll serving
+ * every reader is the whole design of a list — so what comes back is every
+ * project's, and the side drew all of it in every project. A review open on
+ * `tade` has no business in `zahlenzauber`'s side, and the match is the row's
+ * own answer about which project's work it is (read, for a review, off its
+ * repository), never a second list kept per project.
+ *
+ * A row that names no project is drawn **wherever you are**, because absent
+ * means nobody could say: for reviews that is a repository no project here is
+ * on, which `include` makes an ordinary case, and a row hidden in every
+ * project is a row nobody can find. Standing in no project at all is the same
+ * answer from the other side — nothing to narrow by, so nothing is narrowed.
+ */
+export function rowsHere(
+  rows: readonly ListRowView[],
+  project: string | null,
+): readonly ListRowView[] {
+  if (!project) return rows
+  return rows.filter((one) => one.project === undefined || one.project === project)
+}
+
 /** The link a row offers, when it offers one: what `↗` on it opens. */
 function linkOf(one: ListRowView): Target | null {
   const url = one.links?.[0]?.url

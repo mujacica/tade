@@ -87,6 +87,12 @@ export interface ListRowView {
   opens?: { tool: string; input?: Record<string, unknown> }
   /** The task it is about, when it is about one. */
   task?: string
+  /**
+   * The project whose work it is: the side draws it in that project and
+   * nowhere else. Absent is "nobody can say", and such a row is drawn in every
+   * project rather than in none.
+   */
+  project?: string
 }
 
 /** A section an extension keeps in the sidebar. */

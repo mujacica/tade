@@ -1,14 +1,16 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import type { ListRowView, RowSummaryView } from '../src/frame.ts'
+import type { Frame, ListRowView, RowSummaryView } from '../src/frame.ts'
 import { hitAt, sameTarget, type Target } from '../src/hits.ts'
+import { initialState, selectProject, withProjects } from '../src/model.ts'
 import type { PanelContext } from '../src/panels/context.ts'
 import { drawPanel } from '../src/panels/context.ts'
 import { rowSummaryPanel } from '../src/panels/summary/state.ts'
 import { panelClick, panelKey } from '../src/panels.ts'
 import { COLOUR } from '../src/skin.ts'
 import { NO_POINTER } from '../src/ui.ts'
-import { ageOf, listItem, reviewRows, rowTarget } from '../src/view/list.ts'
+import { ageOf, listItem, reviewRows, rowsHere, rowTarget } from '../src/view/list.ts'
+import { renderSidebar } from '../src/view/sidebar.ts'
 
 // A row an extension keeps, drawn in two, and the window a click on it opens.
 //
@@ -107,6 +109,68 @@ describe('a row an extension keeps, down the side', () => {
       kind: 'link',
       url: 'https://github.com/acme/checkout/pull/412',
     })
+  })
+})
+
+describe('which project a list belongs to', () => {
+  const rows = [
+    review({ id: 'a', label: '#1', title: 'tade thing', project: 'tade' }),
+    review({ id: 'b', label: '#2', title: 'zz thing', project: 'zahlenzauber' }),
+    review({ id: 'c', label: '#3', title: 'unplaced', project: undefined }),
+  ]
+
+  it('keeps what is open on the project you are in, and what nobody could place', () => {
+    expect(rowsHere(rows, 'tade').map((one) => one.title)).toEqual(['tade thing', 'unplaced'])
+    expect(rowsHere(rows, 'zahlenzauber').map((one) => one.title)).toEqual(['zz thing', 'unplaced'])
+    // Standing in no project narrows nothing: there is nothing to narrow by.
+    expect(rowsHere(rows, null)).toHaveLength(3)
+  })
+
+  it('draws a review open on one project in that project’s side and no other', () => {
+    // The whole of what was wrong: one poll serves every reader, so what comes
+    // back is every project's, and the side drew all of it everywhere.
+    const frame = {
+      now: NOW,
+      lists: [{ id: 'review.open', title: 'REVIEWS', problem: null, summarises: true, rows }],
+    } as unknown as Frame
+    const side = (project: string) => {
+      const state = selectProject(withProjects(initialState(), ['tade', 'zahlenzauber']), project)
+      return renderSidebar(state, frame, 30, 40, COLOUR, NO_POINTER).rows.map(plain).join('\n')
+    }
+    const tade = side('tade')
+    expect(tade).toContain('tade thing')
+    expect(tade).not.toContain('zz thing')
+    const other = side('zahlenzauber')
+    expect(other).toContain('zz thing')
+    expect(other).not.toContain('tade thing')
+    // What nobody could place is in both, because a row hidden in every
+    // project is a row nobody can find.
+    expect(tade).toContain('unplaced')
+    expect(other).toContain('unplaced')
+    // And the badge counts what is in it here, not what the poll came back
+    // with: a count that disagrees with the list under it reads as a bug.
+    expect(tade).toMatch(/REVIEWS\s+2/)
+  })
+
+  it('draws no section at all in a project nothing is open on', () => {
+    const frame = {
+      now: NOW,
+      lists: [
+        {
+          id: 'review.open',
+          title: 'REVIEWS',
+          problem: null,
+          summarises: true,
+          rows: [rows[0]],
+        },
+      ],
+    } as unknown as Frame
+    const state = selectProject(
+      withProjects(initialState(), ['tade', 'zahlenzauber']),
+      'zahlenzauber',
+    )
+    const drawn = renderSidebar(state, frame, 30, 40, COLOUR, NO_POINTER).rows.map(plain).join('\n')
+    expect(drawn).not.toContain('REVIEWS')
   })
 })
 

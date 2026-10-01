@@ -41,6 +41,12 @@ import {
  * ACTIONS page of the agent whose task it names. Two lists would let the two
  * drawings disagree about what a review says, which is exactly what taking the
  * page's row apart out of the side's drawn title used to do.
+ *
+ * Four of them for three drawn: the last is open on another project, and the
+ * side you are looking at is `checkout`'s. One poll serves every reader, so
+ * what comes back is every project's — and the proof that the side narrows it
+ * is that `#512` is in this list and not on the screen, with the heading
+ * counting three rather than four.
  */
 const REVIEWS: readonly ListRowView[] = [
   {
@@ -49,6 +55,7 @@ const REVIEWS: readonly ListRowView[] = [
     label: '#418',
     title: 'stripe v15',
     note: 'acme/checkout  stripe-v15',
+    project: 'checkout',
     marks: [{ text: 'draft', tone: 'quiet' }],
     figures: [
       { text: '✗ checks', tone: 'bad' },
@@ -64,6 +71,7 @@ const REVIEWS: readonly ListRowView[] = [
     label: '#412',
     title: 'retry refunds once',
     note: 'acme/checkout  retry-refunds',
+    project: 'checkout',
     marks: [
       { text: 'open', tone: 'quiet' },
       { text: 'ready', tone: 'good' },
@@ -77,17 +85,30 @@ const REVIEWS: readonly ListRowView[] = [
   },
   {
     section: 'review.open',
-    id: 'github.com/acme/api#77',
+    id: 'github.com/acme/checkout#77',
     label: '#77',
     title: 'bump zod',
-    note: 'acme/api  bump-zod',
+    note: 'acme/checkout  bump-zod',
+    project: 'checkout',
     marks: [
       { text: 'open', tone: 'quiet' },
       { text: 'you', tone: 'warning' },
     ],
     figures: [{ text: '⋯ checks', tone: 'quiet' }],
     age: { since: NOW - 40 * 60_000, says: 'open' },
-    links: [{ title: 'review #77', url: 'https://github.com/acme/api/pull/77' }],
+    links: [{ title: 'review #77', url: 'https://github.com/acme/checkout/pull/77' }],
+  },
+  {
+    section: 'review.open',
+    id: 'github.com/acme/infra#512',
+    label: '#512',
+    title: 'rotate the deploy key',
+    note: 'acme/infra  rotate-key',
+    project: 'infra',
+    marks: [{ text: 'open', tone: 'quiet' }],
+    figures: [{ text: '✓ checks', tone: 'good' }],
+    age: { since: NOW - 3 * 3_600_000, says: 'open' },
+    links: [{ title: 'review #512', url: 'https://github.com/acme/infra/pull/512' }],
   },
 ]
 

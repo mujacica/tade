@@ -172,8 +172,15 @@ export async function everywhere(ctx: ExtensionContext): Promise<Where[]> {
 
 export interface Snapshot {
   at: number
-  /** What is ours and what waits on us, together, newest first. */
-  reviews: readonly (Review & { project: string })[]
+  /**
+   * What is ours and what waits on us, together, newest first.
+   *
+   * `project` is which project's work each one *is* — read off its repository,
+   * matched against the projects' own. Null where no project open here is on
+   * that repository, which `include` makes an ordinary case: a review Tade
+   * cannot place is placed nowhere rather than somewhere wrong.
+   */
+  reviews: readonly (Review & { project: string | null })[]
   /** Why it could not be filled, said once rather than at every look. */
   problem: string | null
   /** The words of the first forge answering, for what a person reads. */
@@ -213,10 +220,23 @@ export async function snapshot(ctx: ExtensionContext, keepMs = POLL_MS): Promise
 
 async function poll(ctx: ExtensionContext): Promise<Snapshot> {
   const settings = settingsOf(ctx)
-  const found: (Review & { project: string })[] = []
+  const found: (Review & { project: string | null })[] = []
   const problems: string[] = []
   let words: Forge['words'] = NEUTRAL
-  for (const where of await everywhere(ctx)) {
+  const everyone = await everywhere(ctx)
+  // Which project a review is on is its **repository**, matched against the
+  // projects' own — never whose turn it was to ask. With `include` set every
+  // project asks about every repository in it, and the poll keeps the first
+  // answer for a URL, so "whose turn it was" named whichever project happened
+  // to be iterated first: every review in the account came back as that one's,
+  // and the sidebar drew all of them in every project.
+  // The first project on a repository keeps it, the way the dedupe below keeps
+  // the first answer for a URL: two projects that are checkouts of one
+  // repository are work in both, and a row says one project, so the choice is
+  // made in one place and the same way every poll rather than by map order.
+  const whose = new Map<string, string>()
+  for (const one of everyone) if (!whose.has(one.repo)) whose.set(one.repo, one.project.name)
+  for (const where of everyone) {
     words = where.forge.words
     const repos = settings.include.length > 0 ? settings.include : [where.repo]
     try {
@@ -232,7 +252,7 @@ async function poll(ctx: ExtensionContext): Promise<Snapshot> {
       for (const review of asked) {
         if (excluded(review.ref.repo, settings.exclude)) continue
         if (found.some((one) => one.url === review.url)) continue
-        found.push({ ...review, project: where.project.name })
+        found.push({ ...review, project: whose.get(review.ref.repo) ?? null })
       }
     } catch (err) {
       problems.push(

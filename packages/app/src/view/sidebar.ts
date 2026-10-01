@@ -15,7 +15,7 @@ import {
 import { BAR, barAcross } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, type Drawn, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
-import { listItem } from './list.ts'
+import { listItem, rowsHere } from './list.ts'
 import { type QueueTree, queueSection, queueSpread, queueStems, taskRow } from './queue.ts'
 import {
   barBeside,
@@ -169,9 +169,10 @@ export function renderSidebar(
       sectionOpen(state, 'schedules', clocks.length === 0),
     ),
     // What an extension keeps here — reviews, most of all — between the work
-    // that is waiting and the work in front of you. A section with no rows
-    // and nothing wrong is not drawn at all.
-    ...listSections(frame, width, skin, pointer, frame.now ?? 0),
+    // that is waiting and the work in front of you, and only what is open on
+    // the project you are standing in. A section with no rows and nothing
+    // wrong is not drawn at all.
+    ...listSections(frame, width, skin, pointer, frame.now ?? 0, state.project),
     {
       id: 'changes',
       label: 'CHANGES',
@@ -523,19 +524,27 @@ function listSections(
   skin: Skin,
   pointer: Pointer,
   now: number,
+  project: string | null,
 ): Section[] {
-  const shown = (frame.lists ?? []).filter(
-    (section: ListSectionView) => section.rows.length > 0 || section.problem !== null,
-  )
-  return shown.map((section: ListSectionView) => ({
+  // Narrowed to where you are standing *before* anything is decided about the
+  // section, so a project with none of them has no heading either, which is
+  // what every empty list down here does.
+  const here = (frame.lists ?? []).map((section: ListSectionView) => ({
+    section,
+    rows: rowsHere(section.rows, project),
+  }))
+  const shown = here.filter((one) => one.rows.length > 0 || one.section.problem !== null)
+  return shown.map(({ section, rows }) => ({
     id: `list:${section.id}`,
     label: section.title,
-    count: section.rows.length,
+    // What is in it here, not what came back from the poll: a badge counting
+    // every project's is a badge that disagrees with the list under it.
+    count: rows.length,
     // Its rows are tabs, like the agents and the schedules above them: the
     // section was the one list down the side drawing a row as a line.
     banded: true,
     rows: (row: () => Row) =>
-      section.problem !== null && section.rows.length === 0
+      section.problem !== null && rows.length === 0
         ? [
             row()
               .space(3)
@@ -543,7 +552,7 @@ function listSections(
               .build(),
           ]
         : tabList(
-            section.rows.map((one) => listItem(width, skin, pointer, one, now)),
+            rows.map((one) => listItem(width, skin, pointer, one, now)),
             width,
           ),
   }))

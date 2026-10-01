@@ -90,6 +90,13 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   because the side draws four times a second and a list is polled once a minute. One row for all of
   it made the name and the marks fight for the same columns in a side twenty-eight wide, and the
   name is the one column that cannot be abbreviated without lying.
+- **A row says which project's work it is (`project`), and the side draws it in that project and
+  nowhere else.** One poll serves every reader, so what comes back is every project's — a list that
+  does not say whose each row is gets drawn in all of them, which is what "reviews are shown
+  everywhere" was. Say it from the thing itself (a review's repository, matched against the
+  projects' own), never from whichever project's turn it was to ask. **Absent means nobody could
+  say**, and such a row is drawn wherever you are rather than nowhere: one hidden in every project
+  is one nobody can find.
 - **`summary(ctx, id)` is one row in full, and it is asked on the click.** What it answers
   (`RowSummary`) is a heading, marks, named groups of marks and label-and-value facts — the window
   draws all of that knowing nothing about what is in it — and it opens in the shared panel shell.

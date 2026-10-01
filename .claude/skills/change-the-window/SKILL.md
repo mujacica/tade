@@ -375,6 +375,13 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   the Spend table said instead of scrolling — three times on one page.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
+- **A list an extension keeps is narrowed to the project you are standing in** (`rowsHere`,
+  `view/list.ts`), and narrowed *before* the section decides anything about itself, so a project
+  with none of them has no heading either and the badge counts what is in it here. One poll serves
+  every reader, which is the whole design of a list — so what comes back is every project's, and the
+  side drew all of it everywhere. The match is the row's own answer about whose work it is, never a
+  second list kept per project; a row that names no project is drawn wherever you are, because
+  absent means nobody could say.
 - **Items down the side are tabs** (`tabList`, `tabbed` in `view/rows.ts`), and **every one of them
   is two rows**: a name and what it *is* on top, what it *counts* under it (`view/list.ts` for the
   rows an extension keeps, drawn there because the ACTIONS page draws one too). One row made the two

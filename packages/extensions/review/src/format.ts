@@ -96,7 +96,7 @@ export function idOf(review: Review): string {
  * merged review is the one reading of it nobody meant.
  */
 export function rowOf(
-  review: Review & { project?: string },
+  review: Review & { project?: string | null },
   words: Forge['words'],
   tool = 'review_show',
 ): ListRow {
@@ -107,6 +107,11 @@ export function rowOf(
     label: words.number(review.ref.number),
     title: review.title,
     note: `${review.ref.repo}  ${review.head.branch}`,
+    // Whose project's work it is, so the side can draw it in that project and
+    // nowhere else. Absent where nothing here is on its repository, which is
+    // drawn everywhere rather than nowhere: Tade cannot say whose it is, and a
+    // review hidden in every project is a review nobody can find.
+    ...(review.project ? { project: review.project } : {}),
     marks: stateMarks(review),
     figures: figuresOf(review),
     ...(Number.isFinite(opened) ? { age: { since: opened, says: 'open' } } : {}),
@@ -126,7 +131,7 @@ export function saidShortly(review: Review, words: Forge['words']): string {
 
 /** A list of reviews, as a model or a person reads it. */
 export function listMarkdown(
-  reviews: readonly (Review & { project?: string })[],
+  reviews: readonly (Review & { project?: string | null })[],
   words: Forge['words'],
   problem: string | null,
 ): string {

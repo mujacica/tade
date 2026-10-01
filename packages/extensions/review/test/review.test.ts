@@ -35,6 +35,8 @@ function load(
   options: ReplayOptions & {
     settings?: Record<string, unknown>
     git?: Record<string, string>
+    /** The projects this window holds, in the order they are polled. */
+    projects?: Record<string, { root: string }>
   } = {},
 ) {
   const replay = githubReplay(options)
@@ -44,7 +46,7 @@ function load(
       builtin: [reviewExtension],
       config: {
         extensions: { review: options.settings ?? {} },
-        projects: { api: { root: '/src/api' } },
+        projects: options.projects ?? { api: { root: '/src/api' } },
       },
       home: tmp('tade-review-home-'),
       env,
@@ -127,6 +129,36 @@ describe('what is open', () => {
     expect(groups[0]?.note).toBeTruthy()
     expect(summary?.facts?.find((fact) => fact.label === 'Task')?.value).toBe('shop/refunds-retry')
     expect(summary?.links?.[0]?.url).toContain('/pull/412')
+  })
+
+  it('says which project each review is on by its repository, not by whose turn it was', async () => {
+    // `include` is what makes a project hear about a repository that is not
+    // its own: both of these ask about all of `acme/*`, `web` asks first, and
+    // the poll keeps the first answer for a URL. Whose turn it was therefore
+    // named `web` for work that is `api`'s — and the side then drew every
+    // review in every project, which is the whole of what "reviews are shown
+    // everywhere" was.
+    const { host } = load({
+      settings: { include: ['acme/*'] },
+      projects: { web: { root: '/src/web' }, api: { root: '/src/api' } },
+      git: { '-C /src/web': 'git@github.com:acme/web.git\n' },
+    })
+    const [section] = await (await host).lists(tade)
+    expect((section?.rows ?? []).map((row) => row.project)).toEqual(['api', 'api'])
+  })
+
+  it('places a review on a repository no project here is on nowhere, by absence', async () => {
+    // The other half of `include`: a repository somebody asked to watch that
+    // nothing here is a checkout of. The row names no project at all, and the
+    // window draws such a row wherever you are rather than nowhere — one
+    // hidden in every project is one nobody can find.
+    const { host } = load({
+      settings: { include: ['acme/*'] },
+      projects: { web: { root: '/src/web' } },
+      git: { '-C /src/web': 'git@github.com:acme/web.git\n' },
+    })
+    const [section] = await (await host).lists(tade)
+    expect((section?.rows ?? []).map((row) => row.project)).toEqual([undefined, undefined])
   })
 
   it('says nothing about how long it has been open where that is not a thing to say', () => {
