@@ -120,22 +120,31 @@ export class Rows {
     this.wire.draw()
     if (!host || !tade) return
     try {
-      const summary = await host.summary(section, row.id, tade)
-      if (summary) this.shown = { section, row: row.id, summary }
-      this.settle(section, row.id, summary ? null : 'Nothing more is known about it.')
+      this.settle(section, row.id, await host.summary(section, row.id, tade))
     } catch (err) {
-      this.settle(section, row.id, why(err))
+      this.settle(section, row.id, null, why(err))
     }
   }
 
   /**
    * The panel is no longer looking: it has an answer, or the reason there is
-   * none. Nothing happens where the panel has moved on to another row, which
-   * is what stops a slow answer being drawn under the wrong name.
+   * none.
+   *
+   * Nothing at all happens where the panel has moved on to another row — the
+   * answer is not kept either. Kept, it would be the *held* answer when the
+   * row clicked next has already answered for itself: two clicks in a row,
+   * the slower ask landing second, and the window drawn under the second
+   * row's name with nothing in it.
    */
-  private settle(section: string, row: string, problem: string | null): void {
+  private settle(
+    section: string,
+    row: string,
+    summary: RowSummaryView | null,
+    problem = summary ? null : 'Nothing more is known about it.',
+  ): void {
     const panel = this.wire.state.panel
     if (panel?.kind !== 'row-summary' || panel.section !== section || panel.row !== row) return
+    if (summary) this.shown = { section, row, summary }
     this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, problem } })
     this.wire.draw()
   }

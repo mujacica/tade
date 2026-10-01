@@ -6,7 +6,7 @@ import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forg
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { reviewExtension } from '../src/extension.ts'
 import { forget, refFrom, settingsOf } from '../src/forge.ts'
-import { marksOf, ready } from '../src/format.ts'
+import { marksOf, ready, rowOf } from '../src/format.ts'
 
 // The loop, with GitHub answering from files and git answering from a table.
 // Nothing here reaches the network and nothing spawns a process: what is
@@ -127,6 +127,40 @@ describe('what is open', () => {
     expect(groups[0]?.note).toBeTruthy()
     expect(summary?.facts?.find((fact) => fact.label === 'Task')?.value).toBe('shop/refunds-retry')
     expect(summary?.links?.[0]?.url).toContain('/pull/412')
+  })
+
+  it('says nothing about how long it has been open where that is not a thing to say', () => {
+    // Both replay fixtures carry `createdAt`, because real GitHub does when the
+    // query asks for it — so the two answers a row has to be honest about are
+    // tested here rather than left to a forge that happened not to say.
+    const words = { one: 'PR', many: 'PRs', short: 'PR', number: (n: number) => `#${n}` }
+    const review = {
+      ref: { repo: 'acme/api', number: 1, host: 'github.com' },
+      title: 't',
+      url: 'u',
+      author: 'you',
+      mine: true,
+      waitingOnYou: false,
+      head: { branch: 'b', sha: 's' },
+      base: { branch: 'main', sha: null },
+      updatedAt: '',
+      openedAt: '2026-09-12T05:00:00Z',
+      checks: 'passed' as const,
+      decision: 'approved' as const,
+      conflicts: false,
+      blocked: null,
+      task: null,
+    }
+    // A forge that did not say: no figure rather than a nought, which would
+    // read as "opened just now".
+    expect(rowOf({ ...review, state: 'open', openedAt: null }, words).age).toBeUndefined()
+    // And one that is merged: how long ago it was *opened* is not how long it
+    // has been merged, so `3h open` over it is the one reading nobody meant.
+    expect(rowOf({ ...review, state: 'merged' }, words).age).toBeUndefined()
+    expect(rowOf({ ...review, state: 'open' }, words).age).toEqual({
+      since: Date.parse('2026-09-12T05:00:00Z'),
+      says: 'open',
+    })
   })
 
   it('has nothing to say in full about a row the poll no longer has', async () => {
