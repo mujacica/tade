@@ -46,9 +46,10 @@ export function rowSummary(panel: RowSummaryPanel, ctx: PanelContext): Drawn {
         .build(),
     )
   } else {
-    // What it is, under its own heading: the marks the row wears beside its
-    // name and the figures from under it, together, because here there is room
-    // for both on one line and splitting them was only ever about room.
+    // What it is, under the title and before any heading: the marks the row
+    // wears beside its name and the figures from under it, on one line,
+    // because splitting them into two rows was only ever about room and here
+    // there is room.
     if ((shown.marks ?? []).length > 0) {
       lines.push(blank(inner))
       const r = row().space()
