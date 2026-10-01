@@ -19,32 +19,29 @@ import { SCENARIOS } from './screens/scenarios.ts'
 // Drawing is what Tade does most — every keystroke, every frame an agent
 // prints — so what a frame costs is held to a number, over every screen.
 //
-// Against a lump of work beside it rather than against the clock. A budget in
-// milliseconds is a statement about the runner: drawing costs 0.85ms a screen
-// on a quiet laptop and the budget was 15, seventeen times the room it needed,
-// and it still went red on CI — where the suite runs 279 forked workers on two
-// cores and a worker gets whatever slices are left. The ratio cancels that,
-// because a machine that draws slowly builds strings slowly too.
+// A loose number, and this says plainly what it is worth. Drawing costs 0.85ms
+// a screen on a quiet laptop and 7.1ms on a macOS runner: a factor of eight
+// that is nothing to do with this code. Holding it against a lump of
+// string-building beside it did not help — the lump came out twice dearer on
+// that runner while drawing came out eight times dearer, so the ratio measured
+// the difference between two kinds of slowness rather than cancelling either.
 //
-// It also could not pass at its own budget: 123 scenarios over six rounds is
-// 738 draws, and 738 at 15ms is eleven seconds against a ten-second timeout.
-// The timeout bound before the assertion did, so the number in the `expect`
-// was never the one being enforced.
-
-/** A fixed lump of the same coin drawing deals in: building rows and joining them. */
-function reference(): number {
-  const rows: string[] = []
-  for (let row = 0; row < 2_000; row++) rows.push(`${row} ${'x'.repeat(80)}`)
-  return rows.join('\n').length
-}
+// So: forty, which no machine seen yet comes near, and best round of several,
+// because noise only ever adds time and a starved process's quickest go is the
+// only one about the code. This catches drawing changing in kind — a sync read
+// that crept in, an accidental second pass over every row — and it does not
+// catch it getting twenty per cent dearer. Nothing that runs on a shared
+// runner can, and a test that pretends to is a test that goes red on Tuesdays.
+//
+// It also used not to be able to pass at all: 123 scenarios over six rounds is
+// 738 draws, and 738 at the old 15ms budget is eleven seconds against a
+// ten-second timeout, so the timeout bound before the `expect` ever did.
 
 /**
  * The quickest of several goes at the same work.
  *
  * The mean of a starved process measures the starving; its best round is the
- * one where it got the machine, which is the only round that says anything
- * about the code. Noise can only ever make a round slower, so the minimum is
- * the robust estimator here and the average is not.
+ * one where it got the machine.
  */
 function fastest(rounds: number, work: () => unknown): number {
   let best = Number.POSITIVE_INFINITY
@@ -56,25 +53,19 @@ function fastest(rounds: number, work: () => unknown): number {
   return best
 }
 
-// 5.6 on a quiet laptop. Twenty is three and a half times that: room for a
-// runner whose scheduler is against us, and still red if drawing ever gets
-// three times dearer than it is.
-const DRAWING_COSTS = 20
+/** Milliseconds a screen may cost. Eight times the worst runner we have seen. */
+const A_SCREEN_MS = 40
 
 describe('what drawing costs', () => {
-  it('draws a screen for what a screenful of strings costs', () => {
+  it('draws any screen without going away to do it', () => {
     const everything = (): void => {
       for (const scenario of SCENARIOS) draw(scenario.state, scenario.frame)
     }
     everything()
-    reference()
     const each = fastest(3, everything) / SCENARIOS.length
-    const lump = fastest(3, reference)
-    const ratio = each / lump
-    expect(
-      ratio,
-      `${each.toFixed(2)}ms a screen, ${lump.toFixed(2)}ms the lump beside it`,
-    ).toBeLessThan(DRAWING_COSTS)
+    expect(each, `${each.toFixed(2)}ms a screen over ${SCENARIOS.length} of them`).toBeLessThan(
+      A_SCREEN_MS,
+    )
   })
 })
 
