@@ -84,7 +84,7 @@ function wiring(
 const sections =
   (rows: unknown[] = []) =>
   () =>
-    [{ title: 'REVIEWS', rows }] as unknown as Parameters<
+    [{ id: 'review.open', title: 'REVIEWS', rows }] as unknown as Parameters<
       ConstructorParameters<typeof Checks>[1]['sections']
     > extends never
       ? never
@@ -152,21 +152,25 @@ describe('what a task has done, while a run this window started is going', () =>
 
 describe('the review the branch is out for', () => {
   const row = {
+    id: 'github.com/acme/api#412',
     task: 'shop/refunds',
-    // As `review/format.ts` writes one: the forge's own word for a number,
-    // then two spaces, then the title.
-    title: '#412  Cover the wire',
+    // As `review/format.ts` writes one: the number is its own field, so
+    // nothing has to split a drawn title back up to find it.
+    label: '#412',
+    title: 'Cover the wire',
     links: [{ url: 'https://example.com/412' }],
-    marks: [{ text: 'checks failed', tone: 'bad' }],
+    marks: [{ text: 'open', tone: 'quiet' }],
+    figures: [{ text: 'checks failed', tone: 'bad' }],
+    age: { since: 1_000, says: 'open' },
   }
 
   it('reads it out of the list the forge extension keeps, and never asks a forge', () => {
     const world = wiring()
+    // The row as the extension keeps it, with the section it came from, so the
+    // page and the side draw one answer two ways rather than two answers.
     expect(new Checks(world.wire, deps([row])).review('shop/refunds')).toEqual({
-      number: '#412',
-      title: 'Cover the wire',
-      url: 'https://example.com/412',
-      marks: [{ text: 'checks failed', tone: 'bad' }],
+      ...row,
+      section: 'review.open',
     })
   })
 

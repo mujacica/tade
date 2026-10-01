@@ -12,6 +12,7 @@ const REVIEW_FIELDS = `
   url
   state
   isDraft
+  createdAt
   updatedAt
   body
   author { login }

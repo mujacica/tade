@@ -118,6 +118,12 @@ export interface Review {
   head: { branch: string; sha: string }
   base: { branch: string; sha: string | null }
   updatedAt: string
+  /**
+   * When it was opened. Null where the forge did not say, which is a first
+   * class answer: how long something has been waiting is drawn as `—` rather
+   * than as nought, which would read as "opened just now".
+   */
+  openedAt: string | null
   /** Everything the checks add up to, without fetching them all. */
   checks: 'none' | 'running' | 'passed' | 'failed'
   /** What the verdicts add up to, as the forge decides it. */

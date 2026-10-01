@@ -311,6 +311,7 @@ function full(one: ScriptedReview, me: string | null): ReviewDetail {
     head: one.head ?? { branch: `branch-${one.ref.number}`, sha: 'headsha' },
     base: one.base ?? { branch: 'main', sha: null },
     updatedAt: one.updatedAt ?? '2026-09-19T05:00:00.000Z',
+    openedAt: one.openedAt === undefined ? '2026-09-18T05:00:00.000Z' : one.openedAt,
     checks: one.checks ?? 'none',
     decision: one.decision ?? 'none',
     conflicts: one.conflicts ?? false,

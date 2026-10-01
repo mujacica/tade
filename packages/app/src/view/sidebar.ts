@@ -1,6 +1,6 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { type FileEntry, folderMark } from '../files.ts'
-import type { Change, Frame, ListRowView, ListSectionView, NoteShown } from '../frame.ts'
+import type { Change, Frame, ListSectionView, NoteShown } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, type Target } from '../hits.ts'
 import {
   type AppState,
@@ -15,7 +15,7 @@ import {
 import { BAR, barAcross } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, type Drawn, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
-import { toneFor } from './actions.ts'
+import { listItem } from './list.ts'
 import { type QueueTree, queueSection, queueSpread, queueStems, taskRow } from './queue.ts'
 import {
   barBeside,
@@ -171,7 +171,7 @@ export function renderSidebar(
     // What an extension keeps here — reviews, most of all — between the work
     // that is waiting and the work in front of you. A section with no rows
     // and nothing wrong is not drawn at all.
-    ...listSections(frame, width, skin, pointer),
+    ...listSections(frame, width, skin, pointer, frame.now ?? 0),
     {
       id: 'changes',
       label: 'CHANGES',
@@ -512,10 +512,18 @@ function fileRow(
 
 /**
  * The sections extensions keep in the sidebar, drawn from their own caches.
- * The window knows nothing about what is in them: a row is a title, a few
- * words, some marks and what clicking it runs.
+ *
+ * The window knows nothing about what is in them. A row is a name, what it
+ * *is*, what it *counts* and since when — drawn as two rows by `view/list.ts`,
+ * which the ACTIONS page draws a review out of too.
  */
-function listSections(frame: Frame, width: number, skin: Skin, _pointer: Pointer): Section[] {
+function listSections(
+  frame: Frame,
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+  now: number,
+): Section[] {
   const shown = (frame.lists ?? []).filter(
     (section: ListSectionView) => section.rows.length > 0 || section.problem !== null,
   )
@@ -523,6 +531,9 @@ function listSections(frame: Frame, width: number, skin: Skin, _pointer: Pointer
     id: `list:${section.id}`,
     label: section.title,
     count: section.rows.length,
+    // Its rows are tabs, like the agents and the schedules above them: the
+    // section was the one list down the side drawing a row as a line.
+    banded: true,
     rows: (row: () => Row) =>
       section.problem !== null && section.rows.length === 0
         ? [
@@ -531,28 +542,11 @@ function listSections(frame: Frame, width: number, skin: Skin, _pointer: Pointer
               .text(shortened(section.problem, Math.max(1, width - 5)), skin.hint)
               .build(),
           ]
-        : section.rows.map((one) => listRow(row(), one, skin, width)),
+        : tabList(
+            section.rows.map((one) => listItem(width, skin, pointer, one, now)),
+            width,
+          ),
   }))
-}
-
-/** One row an extension keeps: what it is, how it is going, and where it opens. */
-function listRow(
-  row: Row,
-  one: ListRowView,
-  skin: Skin,
-  width: number,
-): { text: string; hits: Hit[] } {
-  const target: Target = { kind: 'action', name: `list-row:${one.section}\u0000${one.id}` }
-  const marks = (one.marks ?? []).map((mark) => mark.text).join(' · ')
-  const room = Math.max(4, width - 6 - visibleWidth(marks))
-  row.space(2).text(shortened(one.title, room), (text) => text, target)
-  if (marks) {
-    row.right((r) => {
-      for (const mark of one.marks ?? []) r.text(mark.text, toneFor(mark.tone, skin)).space()
-    })
-  }
-  const built = row.build()
-  return { text: built.text, hits: [rowHit(0, width, target), ...built.hits] }
 }
 
 /** The least a note's own words are worth a row: less than this, and what it is about goes. */

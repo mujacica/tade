@@ -4,6 +4,7 @@
   "url": "https://github.com/acme/api/pull/412",
   "state": "OPEN",
   "isDraft": false,
+  "createdAt": "2026-09-12T05:00:00Z",
   "updatedAt": "2026-09-19T05:00:00Z",
   "body": "Retries a refund once before giving up.\n\nTade-Task: shop/refunds-retry\n",
   "author": { "login": "mujacica" },

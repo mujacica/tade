@@ -5,6 +5,7 @@ import { type Hit, rowHit, sameTarget, type Target } from '../hits.ts'
 import { type AgentPane, type AppState, sectionOpen, spinner } from '../model.ts'
 import type { Skin } from '../skin.ts'
 import { blank, type Pointer, Row } from '../ui.ts'
+import { reviewRows } from './list.ts'
 import { shortened, shortPath, spell, tailOf } from './text.ts'
 
 // What an agent did, and whether it holds up: one page.
@@ -142,18 +143,13 @@ export function actionRows(
     )
     r.right((g) => g.text(standing, skin.hint).space(2))
   })
+  // The review this branch is out for, drawn the way it is drawn down the
+  // side: its number and title over what its checks and verdicts came to and
+  // how long it has been open. One drawing, so the page and the side can never
+  // come to two readings of one answer — which is what taking this row apart
+  // out of the side's drawn title used to risk.
   if (view.review) {
-    const review = view.review
-    line((r) => {
-      const marks = review.marks.map((mark) => mark.text).join(' ')
-      r.text(review.number, skin.link, { kind: 'link', url: review.url })
-        .space()
-        .text(shortened(review.title, Math.max(6, width - 12 - visibleWidth(marks))))
-      r.right((g) => {
-        for (const mark of review.marks) g.text(mark.text, toneFor(mark.tone, skin)).space()
-        g.space()
-      })
-    })
+    rows.push(...reviewRows(width, skin, pointer, view.review, now))
   }
 
   // ── What this agent committed, and what it has not ─────────────────────
@@ -545,17 +541,6 @@ export function spark(seconds: number | null, longest: number): string {
   const steps = '▁▂▃▄▅▆▇█'
   const at = Math.max(0, Math.min(steps.length - 1, Math.round((seconds / longest) * 7)))
   return steps[at] ?? ' '
-}
-
-/** A mark's tone, as the skin says it. Quiet by default: most marks are facts. */
-export function toneFor(
-  tone: 'quiet' | 'good' | 'warning' | 'bad' | undefined,
-  skin: Skin,
-): (text: string) => string {
-  if (tone === 'bad') return skin.bad
-  if (tone === 'good') return skin.done
-  if (tone === 'warning') return skin.waiting
-  return skin.hint
 }
 
 /** A check's state as a colour: one answer, so the glyph and the strip agree. */

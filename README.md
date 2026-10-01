@@ -183,7 +183,7 @@ review: push straight to `main`, and a red commit puts one agent on reproducing 
 the cause. One agent per red commit, however many checks went red; a re-run of the same commit
 starts nothing new; and it never force-pushes, never reverts and never merges.
 
-![The REVIEWS section: every open review with what it is waiting on](https://raw.githubusercontent.com/mujacica/tade/main/images/reviews.svg)
+![The REVIEWS section: every open review as two rows — where it stands, and what its checks and verdicts came to](https://raw.githubusercontent.com/mujacica/tade/main/images/reviews.svg)
 
 ## Spend, time and tokens
 

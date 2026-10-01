@@ -22,6 +22,7 @@ import type {
   ListRow,
   MeantRequest,
   ProjectRef,
+  RowSummary,
   StatusItem,
   TadeExtension,
   ToolAnswer,
@@ -31,6 +32,7 @@ import type {
   WatchContext,
 } from './port.ts'
 import { inputProblem } from './schema.ts'
+import { unknownSettings, variablesFor, written } from './settings.ts'
 import { everyMs, shapeProblem } from './shape.ts'
 
 // Holding the extensions a window runs with, and running them.
@@ -250,12 +252,25 @@ export interface ListSection {
   rows: readonly ListRow[]
   /** Why there are no rows, when something is wrong. Never a throw. */
   problem: string | null
+  /**
+   * Whether its list can say what one of its rows is in full, so a click knows
+   * before it asks. The list's own declaration — `summary` being there — and
+   * never anything sniffed from a row.
+   */
+  summarises: boolean
   /** When it was last asked, so the window can say how fresh it is. */
   at: number
 }
 
 /** A list is asked for on its own clock; a slow one is left with what it had. */
 const LIST_TIMEOUT_MS = 10_000
+
+/**
+ * A row asked about in full: somebody has just clicked it and is watching a
+ * panel, so it is shorter than a poll's deadline rather than longer — a window
+ * that says "looking…" for ten seconds is a window nobody clicks twice.
+ */
+const SUMMARY_TIMEOUT_MS = 8_000
 
 /** Ten minutes: a dependency update or a Seer analysis is slow, and a hung one must still end. */
 const TOOL_TIMEOUT_MS = 10 * 60_000
@@ -668,7 +683,14 @@ export class ExtensionHost {
         const every = everyMs(list.every)
         const fresh = known !== undefined && known.filter === filter && now - known.at < every
         if (fresh) {
-          out.push({ ...known, id, extension: entry.extension.name, title: list.title, filters })
+          out.push({
+            ...known,
+            id,
+            extension: entry.extension.name,
+            title: list.title,
+            filters,
+            summarises: list.summary !== undefined,
+          })
           continue
         }
         const problem = notReady(entry)
@@ -681,6 +703,7 @@ export class ExtensionHost {
               filter,
               rows: [],
               problem,
+              summarises: list.summary !== undefined,
               at: now,
             }
           : await this.askList(entry, list.title, id, filters, filter, tade, now, options.timeoutMs)
@@ -689,6 +712,39 @@ export class ExtensionHost {
       }
     }
     return out
+  }
+
+  /**
+   * One row of one section in full, for the window that opens when it is
+   * clicked. `null` is a section that offers no summary, a row whose section
+   * is gone, or an extension that is not ready — all of which mean "click it
+   * the way clicking it always worked" rather than an error on screen.
+   *
+   * Throws what the extension threw, deadline included: it is a click, so
+   * somebody is watching for an answer and the panel shows the reason.
+   */
+  async summary(
+    section: string,
+    row: string,
+    tade: ExtensionWorkbench,
+  ): Promise<RowSummary | null> {
+    const entry = this.ready().find((one) =>
+      (one.extension.lists ?? []).some((list) => `${one.extension.name}.${list.id}` === section),
+    )
+    const list = entry?.extension.lists?.find(
+      (one) => `${entry.extension.name}.${one.id}` === section,
+    )
+    if (!entry || !list?.summary) return null
+    const controller = new AbortController()
+    const ask = list.summary.bind(list)
+    return inTime(
+      Promise.resolve().then(() =>
+        ask({ ...entry.ctx, tade: asExtension(tade, entry.extension.name) }, row),
+      ),
+      SUMMARY_TIMEOUT_MS,
+      `${section} did not say what ${row} is in time`,
+      controller,
+    )
   }
 
   private async askList(
@@ -702,7 +758,15 @@ export class ExtensionHost {
     timeoutMs?: number,
   ): Promise<ListSection> {
     const list = entry.extension.lists?.find((one) => `${entry.extension.name}.${one.id}` === id)
-    const base = { id, extension: entry.extension.name, title, filters, filter, at: now }
+    const base = {
+      id,
+      extension: entry.extension.name,
+      title,
+      filters,
+      filter,
+      summarises: list?.summary !== undefined,
+      at: now,
+    }
     if (!list) return { ...base, rows: [], problem: 'it is gone' }
     const controller = new AbortController()
     try {
@@ -1314,75 +1378,6 @@ function firstComment(file: string): string {
   } catch {
     return ''
   }
-}
-
-function unknownSettings(
-  extension: TadeExtension,
-  settings: Readonly<Record<string, unknown>>,
-): string[] {
-  // A secret is one of them: it is written into `extensions.<name>.<key>` like
-  // every other setting, and a key in the config is the key that is used. It
-  // used to be excluded here, so that one written by hand would be reported as
-  // not read — which was true while credentials lived in the keychain, and is
-  // the opposite of true now.
-  const known = new Set(['enabled', ...(extension.settings ?? []).map((setting) => setting.key)])
-  return Object.keys(settings).filter((key) => !known.has(key))
-}
-
-/** The environment variables a declared secret is read from, in order. */
-function variablesFor(
-  setting: ExtensionSetting,
-  settings: Readonly<Record<string, unknown>>,
-): string[] {
-  const named = typeof setting.env === 'string' ? [setting.env] : [...(setting.env ?? [])]
-  const chosen = setting.envFrom ? settings[setting.envFrom] : undefined
-  // What somebody named comes first: `key_env: MY_KEY` means that one.
-  return typeof chosen === 'string' && chosen.trim() !== ''
-    ? [chosen.trim(), ...named.filter((one) => one !== chosen.trim())]
-    : named
-}
-
-/** A setting as it is typed into its field. */
-function written(value: unknown, kind: 'text' | 'list' | 'map' | 'flag' | 'secret'): string {
-  if (kind === 'flag') return value === true ? 'on' : value === false ? 'off' : ''
-  if (value === undefined || value === null) return ''
-  if (kind === 'list' && Array.isArray(value)) return value.map(String).join(', ')
-  if (kind === 'map' && typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([key, one]) => `${key}=${Array.isArray(one) ? one.join('+') : String(one)}`)
-      .join(', ')
-  }
-  return String(value)
-}
-
-/**
- * A field as typed, as the setting it becomes. Empty is no setting at all —
- * which for a credential is how one is taken back out.
- */
-export function settingFrom(
-  text: string,
-  kind: 'text' | 'list' | 'map' | 'flag' | 'secret',
-): unknown {
-  const trimmed = text.trim()
-  if (trimmed === '') return undefined
-  if (kind === 'flag') return trimmed === 'on'
-  const parts = trimmed
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-  if (kind === 'list') return parts
-  if (kind === 'map') {
-    return Object.fromEntries(
-      parts.flatMap((part) => {
-        const [key, ...rest] = part.split('=')
-        const value = rest.join('=').trim()
-        return key?.trim() && value
-          ? [[key.trim(), value.includes('+') ? value.split('+').map((one) => one.trim()) : value]]
-          : []
-      }),
-    )
-  }
-  return trimmed
 }
 
 function withLinks(text: string, links: readonly Link[]): string {

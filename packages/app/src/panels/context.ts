@@ -1,6 +1,6 @@
 import type { SettingGroup } from '@tade/core'
 import type { ParsedDiff } from '../diff.ts'
-import type { Change } from '../frame.ts'
+import type { Change, RowSummaryView } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
 import type { Panel } from '../panels.ts'
@@ -36,6 +36,7 @@ import {
   reload,
 } from './small/view.ts'
 import { spend } from './spend/view.ts'
+import { rowSummary } from './summary/view.ts'
 
 // What a panel is handed, and which drawing answers which panel.
 //
@@ -159,6 +160,13 @@ export interface PanelContext {
     tabs: readonly { id: string; title: string }[]
     windowed: boolean
   } | null
+  /**
+   * The row being read in front of you, once the extension that keeps it has
+   * said what it is. Null while it is being asked, and when the ask failed —
+   * the panel's own `problem` is the reason, because a reason that lives in the
+   * facts goes the moment the facts are asked for again.
+   */
+  summary: RowSummaryView | null
   /** The extension being set up: its state, its guide and its fields. */
   setup: {
     title: string
@@ -230,6 +238,8 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: extensionSetup(panel, ctx), popups: [] }
     case 'extension-view':
       return { panel: extensionView(panel, ctx), popups: [] }
+    case 'row-summary':
+      return { panel: rowSummary(panel, ctx), popups: [] }
     case 'model':
       return { panel: models(panel, ctx), popups: [] }
   }

@@ -1,5 +1,5 @@
 import { IDLE_REASON } from '@tade/core'
-import type { ActionsView } from '../../../src/frame.ts'
+import type { ActionsView, ListRowView } from '../../../src/frame.ts'
 import {
   type AppState,
   focusTask,
@@ -31,6 +31,65 @@ import {
 // The ACTIONS page is most of this: the commits carrying its own trailer, what
 // it changed, the review it is out for, and how the project's checks stand —
 // green, red, running, read from CI, and never run at all.
+
+/**
+ * The reviews the forge last said were open, as the extension keeps them: a
+ * number and a title over what the checks and the verdicts came to, and since
+ * when each has been open.
+ *
+ * One list, drawn twice — down the side, and as the first of them on the
+ * ACTIONS page of the agent whose task it names. Two lists would let the two
+ * drawings disagree about what a review says, which is exactly what taking the
+ * page's row apart out of the side's drawn title used to do.
+ */
+const REVIEWS: readonly ListRowView[] = [
+  {
+    section: 'review.open',
+    id: 'github.com/acme/checkout#418',
+    label: '#418',
+    title: 'stripe v15',
+    note: 'acme/checkout  stripe-v15',
+    marks: [{ text: 'draft', tone: 'quiet' }],
+    figures: [
+      { text: '✗ checks', tone: 'bad' },
+      { text: 'review required', tone: 'quiet' },
+    ],
+    age: { since: NOW - 5 * 3_600_000, says: 'open' },
+    links: [{ title: 'review #418', url: 'https://github.com/acme/checkout/pull/418' }],
+    task: 'checkout/stripe-v15',
+  },
+  {
+    section: 'review.open',
+    id: 'github.com/acme/checkout#412',
+    label: '#412',
+    title: 'retry refunds once',
+    note: 'acme/checkout  retry-refunds',
+    marks: [
+      { text: 'open', tone: 'quiet' },
+      { text: 'ready', tone: 'good' },
+    ],
+    figures: [
+      { text: '✓ checks', tone: 'good' },
+      { text: 'approved', tone: 'good' },
+    ],
+    age: { since: NOW - 26 * 3_600_000, says: 'open' },
+    links: [{ title: 'review #412', url: 'https://github.com/acme/checkout/pull/412' }],
+  },
+  {
+    section: 'review.open',
+    id: 'github.com/acme/api#77',
+    label: '#77',
+    title: 'bump zod',
+    note: 'acme/api  bump-zod',
+    marks: [
+      { text: 'open', tone: 'quiet' },
+      { text: 'you', tone: 'warning' },
+    ],
+    figures: [{ text: '⋯ checks', tone: 'quiet' }],
+    age: { since: NOW - 40 * 60_000, says: 'open' },
+    links: [{ title: 'review #77', url: 'https://github.com/acme/api/pull/77' }],
+  },
+]
 
 /** An agent that has done nothing yet: the page says so, rather than looking green. */
 function nothingYet(): ActionsView {
@@ -323,46 +382,10 @@ export const AGENT_SCREENS: Scenario[] = [
     frame: frame({
       actions: {
         ...actions(),
-        review: {
-          number: '#418',
-          title: 'stripe v15',
-          url: 'https://github.com/acme/checkout/pull/418',
-          marks: [
-            { text: 'draft', tone: 'quiet' },
-            { text: '✗ checks', tone: 'bad' },
-          ],
-        },
+        review: REVIEWS[0] ?? null,
       },
       lists: [
-        {
-          id: 'review.open',
-          title: 'REVIEWS',
-          problem: null,
-          rows: [
-            {
-              section: 'review.open',
-              id: 'github.com/acme/checkout#418',
-              title: '#418  stripe v15',
-              marks: [
-                { text: 'draft', tone: 'quiet' },
-                { text: '✗ checks', tone: 'bad' },
-              ],
-              task: 'checkout/stripe-v15',
-            },
-            {
-              section: 'review.open',
-              id: 'github.com/acme/checkout#412',
-              title: '#412  retry refunds once',
-              marks: [{ text: 'ready', tone: 'good' }],
-            },
-            {
-              section: 'review.open',
-              id: 'github.com/acme/api#77',
-              title: '#77  bump zod',
-              marks: [{ text: 'you', tone: 'warning' }],
-            },
-          ],
-        },
+        { id: 'review.open', title: 'REVIEWS', problem: null, summarises: true, rows: REVIEWS },
       ],
     }),
   },

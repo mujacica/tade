@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { type Config, expandHome, extensionEnabled, loadConfig } from '@tade/core'
 import {
   type SetupFieldView as HostSetupField,
+  type ListRow,
   type ListSection,
   settingFrom,
 } from '@tade/extensions-core'
@@ -41,6 +42,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { Rows } from './rows.ts'
 
 // Extensions, the servers brokered as extensions, and the page that says what
 // each is for.
@@ -136,10 +138,17 @@ export class Extensions implements Subject {
   private statusedAt = Number.NEGATIVE_INFINITY
   /** Extension actions you have run, for giving each its own line. */
   private ranCount = 0
+  /** A row of one of their lists, clicked: the window it opens in. */
+  private readonly rows: Rows
 
   constructor(wire: Wiring, deps: ExtensionsDeps) {
     this.wire = wire
     this.deps = deps
+    this.rows = new Rows(wire, {
+      sections: () => this.lists(),
+      openLink: (url) => deps.openLink(url),
+      ask: (row) => this.askAboutRow(row),
+    })
   }
 
   /** What extensions keep in the window: the status bar, the side, and the text they open. */
@@ -151,12 +160,16 @@ export class Extensions implements Subject {
         id: section.id,
         title: section.title,
         problem: section.problem,
+        summarises: section.summarises,
         rows: section.rows.map((row) => ({
           section: section.id,
           id: row.id,
           title: row.title,
+          ...(row.label ? { label: row.label } : {}),
           ...(row.note ? { note: row.note } : {}),
           ...(row.marks ? { marks: row.marks } : {}),
+          ...(row.figures ? { figures: row.figures } : {}),
+          ...(row.age ? { age: row.age } : {}),
           ...(row.links ? { links: row.links } : {}),
           ...(row.opens ? { opens: row.opens } : {}),
           ...(row.task ? { task: row.task } : {}),
@@ -186,6 +199,7 @@ export class Extensions implements Subject {
             : null,
       }
     }
+    if (panel?.kind === 'row-summary') return this.rows.panel()
     if (panel?.kind !== 'extensions') return {}
     return {
       written: this.writtenViews(),
@@ -250,7 +264,7 @@ export class Extensions implements Subject {
       },
       'list-row:': async (rest) => {
         const [section, id] = rest.split('\u0000')
-        await this.openListRow(section ?? '', id ?? '')
+        await this.rows.open(section ?? '', id ?? '')
       },
     }
   }
@@ -259,6 +273,7 @@ export class Extensions implements Subject {
     return {
       extensions: (panel, choice) => this.fromExtensions(panel, choice ?? ''),
       'extension-setup': (panel) => this.saveSetup(panel),
+      'row-summary': (panel, choice) => this.rows.from(panel, choice ?? ''),
     }
   }
 
@@ -783,21 +798,20 @@ export class Extensions implements Subject {
   }
 
   /**
-   * Open a row an extension keeps in the sidebar: it runs the tool the row
-   * names, in the conversation, and the answer lands where everything else
-   * an extension says does.
+   * What a row an extension keeps opens, put to the conversation: the tool the
+   * row names is run as any of its buttons is, and the answer lands where
+   * everything else an extension says does.
+   *
+   * The extensions subject's rather than the rows subject's because the host
+   * call and the line each run is given are this one's: `ranCount` is what
+   * keeps two runs off one line.
    */
-  async openListRow(section: string, id: string): Promise<void> {
+  async askAboutRow(row: ListRow): Promise<void> {
     const host = this.wire.opts.extensions
-    const row = this.sections.find((one) => one.id === section)?.rows.find((one) => one.id === id)
-    if (!host || !row) return
-    if (!row.opens) {
-      const link = row.links?.[0]
-      if (link) await this.deps.openLink(link.url)
-      return
-    }
+    if (!host || !row.opens) return
     this.wire.put({
       ...this.wire.state,
+      panel: null,
       bottom: ORCHESTRATOR_TAB,
       bottomMode: this.wire.state.bottomMode === 'min' ? 'open' : this.wire.state.bottomMode,
     })

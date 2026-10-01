@@ -66,6 +66,7 @@ import {
   reloadKey,
 } from './panels/small/state.ts'
 import { type SpendPanel, spendClick, spendKey } from './panels/spend/state.ts'
+import { type RowSummaryPanel, rowSummaryClick, rowSummaryKey } from './panels/summary/state.ts'
 import type { SearchEntry } from './search.ts'
 
 // Panels: the questions the window asks, floating over it.
@@ -100,6 +101,7 @@ export type Panel =
   | ExtensionSetupPanel
   | ExtensionViewPanel
   | ModelPanel
+  | RowSummaryPanel
 
 /** What the panel needs to know that it does not hold: the settings themselves, and lists. */
 export interface PanelInputs {
@@ -175,6 +177,7 @@ export function panelKey(
     })
   }
   if (panel.kind === 'extensions') return extensionsKey(panel, key, data, inputs)
+  if (panel.kind === 'row-summary') return rowSummaryKey(panel, key)
   if (panel.kind === 'quit') return quitKey(panel, key)
   if (panel.kind === 'reload') return reloadKey(panel, key)
   if (panel.kind === 'spend') return spendKey(panel, key)
@@ -222,6 +225,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   }
   if (panel.kind === 'extension-setup') return setupClick(panel, control, inputs.setupFields ?? [])
   if (panel.kind === 'extensions') return extensionsClick(panel, control, inputs)
+  if (panel.kind === 'row-summary') return rowSummaryClick(panel, control)
   if (panel.kind === 'quit') return quitClick(panel, control)
   if (panel.kind === 'reload') return reloadClick(panel, control)
   if (panel.kind === 'spend') return spendClick(panel, control)

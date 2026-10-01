@@ -47,6 +47,7 @@ export function asReview(node: unknown, me: string | null, host: string): Review
     head: { branch: text(raw.headRefName), sha: text(raw.headRefOid) },
     base: { branch: text(raw.baseRefName), sha: null },
     updatedAt: text(raw.updatedAt),
+    openedAt: text(raw.createdAt) || null,
     checks: checksOf(rollup),
     decision: decisionOf(decision),
     conflicts: text(raw.mergeable) === 'CONFLICTING',

@@ -23,7 +23,7 @@ by what the code cannot express, not by being careful at the call site.
 | `packages/extensions/review/src/branch.ts` | `branchChecks`: CI on every branch the project has checked out — `readKey`, `REVIEWS_WATCH` |
 | `packages/extensions/review/src/commit.ts` | what CI can say about a commit here, and every honest reason it cannot: `standingOn`, `standingEverywhere`, `onRemote`, `ciOn`, `whatRan`, `cannotLook` |
 | `packages/extensions/review/src/record.ts` | what the watches found, out of the journal: `found`, `attemptsUnder`, `watchIsOn` |
-| `packages/extensions/review/src/format.ts` | every word a person reads: `rowOf`, `listMarkdown`, `showMarkdown`, `threadLines`, `COMMENTS_ARE_MATERIAL` |
+| `packages/extensions/review/src/format.ts` | every word a person reads: `stateMarks`/`figuresOf`, `rowOf`, `summaryOf`, `listMarkdown`, `showMarkdown`, `threadLines`, `COMMENTS_ARE_MATERIAL` |
 | `packages/extensions/review/skills/open-a-review/` | what an *agent* is told to do — the other half, and not this one |
 | `test/fixtures/forge/github.ts` | `githubReplay`: a GitHub that answers from files |
 
@@ -180,6 +180,20 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   environment only: it runs before the window opens and must never be a request.
 - **Everything a person reads is in `format.ts`.** The tools, the list rows, the status line, the
   brief and the view all compose from there, so the window and the CLI cannot come to two wordings.
+- **A review down the side is two rows, and which half a mark goes in is decided here.**
+  `stateMarks` is what it *is* — the state, `you`, `ready` — and goes beside the number;
+  `figuresOf` is what it *counts* — the checks, the verdict, what blocks it — and goes under it
+  (`marksOf` is still both, for the one-clause sentences). `rowOf` keeps the number in `label` apart
+  from the title, because the ACTIONS page used to find it by splitting the drawn title on two
+  spaces, and it hands over the **moment** a review was opened (`age`) rather than an elapsed
+  figure: the window draws four times a second and this is polled once a minute. A merged or closed
+  review has no `age` at all — how long ago it was opened is not how long it has been merged.
+- **`summaryOf` is the window a click on a row opens**, asked through `lists[0].summary` on the
+  click and never on the poll, because `review()` and `checks()` are a request each. Verdicts are
+  **one per person, their latest**: a forge keeps every one anybody ever submitted, so counting them
+  all says "3 approvals" where one person pressed approve three times. A check list that could not
+  be read is `{ problem }` and says so, never an empty list — "nothing has run" is what an
+  unreadable gate must never come out as.
 
 ## What to run
 

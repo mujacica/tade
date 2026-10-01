@@ -14,6 +14,24 @@ import { shortened } from './text.ts'
 // down the side agrees about that — which is the whole reason these live here
 // and not in whichever region happened to need one first.
 
+/**
+ * A mark's tone, as the skin says it. Quiet by default: most marks are facts.
+ *
+ * Here with the other two because three regions read it — the side, the
+ * ACTIONS page and the rows an extension keeps — and it lived in whichever of
+ * them happened to need it first, which put two of them in a cycle the moment
+ * they shared a drawing.
+ */
+export function toneFor(
+  tone: 'quiet' | 'good' | 'warning' | 'bad' | undefined,
+  skin: Skin,
+): (text: string) => string {
+  if (tone === 'bad') return skin.bad
+  if (tone === 'good') return skin.done
+  if (tone === 'warning') return skin.waiting
+  return skin.hint
+}
+
 export function markTone(mark: string | null, skin: Skin): ((text: string) => string) | null {
   if (mark === 'M' || mark === 'R') return skin.waiting
   if (mark === 'A' || mark === 'U') return skin.done

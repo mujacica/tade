@@ -84,21 +84,24 @@ describe('the filters on the list', () => {
   const rowsWith = async (filter: string) => {
     const host = await load().host
     const [section] = await host.lists(tade, { filters: { 'review.open': filter } })
-    return (section?.rows ?? []).map((row) => row.title)
+    // The number and the title are two fields, not one string with two spaces
+    // in it: the window draws the number apart from the title so a long title
+    // is cut and the number never is.
+    return (section?.rows ?? []).map((row) => `${row.label} ${row.title}`)
   }
 
   it('shows everything that was polled under the first one', async () => {
-    expect(await rowsWith('all')).toEqual(['#418  stripe v15', '#412  retry refunds once'])
+    expect(await rowsWith('all')).toEqual(['#418 stripe v15', '#412 retry refunds once'])
   })
 
   it('shows only yours under mine', async () => {
     // What is polled is the `who` setting's business; these only choose what
     // of it is drawn, so no filter ever asks the forge anything new.
-    expect(await rowsWith('mine')).toEqual(['#412  retry refunds once'])
+    expect(await rowsWith('mine')).toEqual(['#412 retry refunds once'])
   })
 
   it('shows only what is waiting on you under waiting', async () => {
-    expect(await rowsWith('waiting')).toEqual(['#418  stripe v15'])
+    expect(await rowsWith('waiting')).toEqual(['#418 stripe v15'])
   })
 
   it('asks the forge once, however many filters are drawn', async () => {

@@ -82,8 +82,21 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
 - **A list is a section in the sidebar** (`lists`): an id, a heading, how often it may be asked
   again (`every`, never oftener than 30s), and `rows(ctx, filter)` reading the extension's own
   cache. It never throws — a problem is one quiet row saying why — a section with no rows and no
-  problem is not drawn at all, and the window never asks it from a draw. A row is a title, a few
-  marks, where it opens (one of the extension's own tools) and the task it is about, if any.
+  problem is not drawn at all, and the window never asks it from a draw.
+- **A row is drawn as two rows, and which half a thing goes in is the contract.** `label` is what it
+  is called on its own (`#412`) and `title` the rest, kept apart so nothing has to split a drawn
+  string back up; `marks` are what it **is** and sit beside the name; `figures` are what it
+  **counts** and sit under it; `age` is `{ since, says }` — the moment, never an elapsed figure,
+  because the side draws four times a second and a list is polled once a minute. One row for all of
+  it made the name and the marks fight for the same columns in a side twenty-eight wide, and the
+  name is the one column that cannot be abbreviated without lying.
+- **`summary(ctx, id)` is one row in full, and it is asked on the click.** What it answers
+  (`RowSummary`) is a heading, marks, named groups of marks and label-and-value facts — the window
+  draws all of that knowing nothing about what is in it — and it opens in the shared panel shell.
+  Never on the poll: in full is what costs a request. `null` is "nothing more to say", and the click
+  then does what a click always did, which is run the row's `opens`. A group with nothing in it says
+  so in its `note` rather than going, and a look that **failed** says that instead of coming back
+  empty — "nothing has run" is what an unreadable list of checks must never read as.
 - **Polling costs something; measure it.** Anything polled gets a performance test (see
   `extensions/resources`): one command for the whole picture, bounded history, a time limit in the
   test.

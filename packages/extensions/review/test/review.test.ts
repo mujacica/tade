@@ -83,22 +83,55 @@ describe('what is open', () => {
     expect(replay.calls.filter((call) => call.includes('/graphql')).length).toBe(searches)
   })
 
-  it('draws a row per review, with marks derived from what was polled', async () => {
+  it('draws a row per review, in two halves derived from what was polled', async () => {
     const { host } = load()
     const [section] = await (await host).lists(tade)
     expect(section?.title).toBe('REVIEWS')
     expect(section?.problem).toBeNull()
     const rows = section?.rows ?? []
-    expect(rows.map((row) => row.title)).toEqual(['#418  stripe v15', '#412  retry refunds once'])
-    expect(rows[0]?.marks?.map((mark) => mark.text)).toEqual([
-      'draft',
+    // The number apart from the title, so the window draws two rows out of one
+    // answer and nothing has to split a drawn string back up to find either.
+    expect(rows.map((row) => row.label)).toEqual(['#418', '#412'])
+    expect(rows.map((row) => row.title)).toEqual(['stripe v15', 'retry refunds once'])
+    // What it *is* goes beside the name; what it *counts* goes under it.
+    expect(rows[0]?.marks?.map((mark) => mark.text)).toEqual(['draft', 'you'])
+    expect(rows[0]?.figures?.map((mark) => mark.text)).toEqual([
       '✗ checks',
       'changes requested',
       'conflicts',
-      'you',
     ])
+    // The moment it was opened, never an elapsed figure: the window draws four
+    // times a second and this is polled once a minute.
+    expect(rows[0]?.age).toEqual({ since: Date.parse('2026-09-18T06:00:00Z'), says: 'open' })
     expect(rows[1]?.task).toBe('shop/refunds-retry')
     expect(rows[1]?.opens?.tool).toBe('review_show')
+    // And the section says it can put one of them in front of you, so a click
+    // knows before it asks.
+    expect(section?.summarises).toBe(true)
+  })
+
+  it('says one review in full for the window a click on it opens', async () => {
+    const { host } = load()
+    const summary = await (await host).summary('review.open', 'github.com/acme/api#412', tade)
+    expect(summary?.title).toBe('PR #412 — retry refunds once')
+    expect(summary?.marks?.map((mark) => mark.text)).toEqual([
+      'open',
+      'ready',
+      '✓ checks',
+      'approved',
+    ])
+    const groups = summary?.groups ?? []
+    expect(groups.map((group) => group.label)).toEqual(['CHECKS', 'VERDICTS'])
+    // A list of checks nothing could be read for says so; it never comes out
+    // as "nothing has run", which reads as a green review.
+    expect(groups[0]?.note).toBeTruthy()
+    expect(summary?.facts?.find((fact) => fact.label === 'Task')?.value).toBe('shop/refunds-retry')
+    expect(summary?.links?.[0]?.url).toContain('/pull/412')
+  })
+
+  it('has nothing to say in full about a row the poll no longer has', async () => {
+    const { host } = load()
+    expect(await (await host).summary('review.open', 'github.com/acme/api#999', tade)).toBeNull()
   })
 
   it('says why it could not read them, as one quiet row, and never as nothing', async () => {
@@ -463,6 +496,7 @@ describe('the words and the settings', () => {
       head: { branch: 'b', sha: 's' },
       base: { branch: 'main', sha: null },
       updatedAt: '',
+      openedAt: '2026-09-18T05:00:00.000Z',
       checks: 'passed' as const,
       decision: 'approved' as const,
       conflicts: false,

@@ -106,18 +106,11 @@ export class Checks implements Subject {
     if (!checksFor(this.wire.opts.config, task.split('/')[0] ?? null).ci) return null
     for (const section of this.deps.sections()) {
       const row = section.rows.find((one) => one.task === task)
-      if (!row) continue
-      const link = row.links?.[0]
-      return {
-        number: row.title.split(' ')[0] ?? '',
-        title:
-          row.title
-            .split(/\s{2,}/)
-            .slice(1)
-            .join(' ') || row.title,
-        url: link?.url ?? '',
-        marks: row.marks ?? [],
-      }
+      // The row as the extension keeps it. It used to be taken apart here —
+      // the number off the front of the drawn title, the title off a run of
+      // two spaces — which is a parser of somebody else's formatting, and a
+      // title with two spaces in it lost its own first word.
+      if (row) return { ...row, section: section.id }
     }
     return null
   }

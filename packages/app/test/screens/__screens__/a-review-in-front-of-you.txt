@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2      ╭─ review #418 — stripe v15 ───────────────────────────────────────────────── esc ─╮   high ▾     ×   
+                  │                                                                                 ▕│──────────────────
+ ▌ ! stripe-v15   │ draft · ✗ checks · review required                                              ▕│                  
+ ▌   wants you to │                                                                                 ▕│                  
+                  │ CHECKS ───────────────────────────────────────────  3 passed · 1 failed · 5 ran ▕│                  
+   ⠋ refunds      │  ✓ format                               ✓ types                                 ▕│                  
+     working      │  ✗ tests                                ✓ licences                              ▕│                  
+                  │  ⋯ integration                                                                  ▕│                  
+ ▸ SMART QUEUE    │                                                                                 ▕│                  
+ ▸ SCHEDULES      │ VERDICTS ────────────────────────────────────────  1 approval · 1 wants changes ▕│                  
+ ▾ CHANGES  3     │  ✓ jo                                   ✗ sam                                   ▕│                  
+  M package.json  │  · coderabbitai (a bot)                                                         ▕│                  
+  A …/webhooks.tes│                                                                                 ▕│                  
+  M src/webhooks.t│ Branch       stripe-v15 → main                                                  ▕│                  
+                  │ Repository   acme/checkout                                                      ▕│                  
+ ▾ FILES          │ Author       mujacica — yours                                                   ▕│                  
+   ▾ src/         │ Unresolved   2 conversations                                                    ▕│                  
+       webhooks.te│ Files        7, +148 −162                                                       ▕│                  
+       webhooks.ts│ Task         checkout/stripe-v15                                                ▕│                  
+   ▸ test/        │                                                                                 ▕│                  
+     package.json │ https://github.com/acme/checkout/pull/418                                       ▕│                  
+━   orchestrator  │                                                                                 ▕│━━━━   ⤢     ▾   ━
+                  │                                                                                 ▕│                  
+                  │                                                                                 ▕│                 ▕
+                  │                                                                                 ▕│                 ▕
+                  │                                                                                  │                 ▕
+                  │   Open it     Ask about it                                ↑↓ scrolls    Close    │                 ▕
+ ❯ what you say   ╰──────────────────────────────────────────────────────────────────────────────────╯                 ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

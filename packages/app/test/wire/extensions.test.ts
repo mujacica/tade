@@ -240,6 +240,91 @@ describe('the window, and its extensions', () => {
     expect(readFileSync(join(home, 'events.jsonl'), 'utf8')).not.toContain('wk_0123456789')
   })
 
+  it('draws a row an extension keeps as two rows, and clicks it open', async () => {
+    terminal.columns = 140
+    terminal.rows = 40
+    let asked = 0
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'forge',
+          title: 'Reviews',
+          description: 'What is out for review.',
+          lists: [
+            {
+              id: 'open',
+              title: 'REVIEWS',
+              every: '60s',
+              rows: async () => [
+                {
+                  id: 'acme/api#412',
+                  label: '#412',
+                  title: 'retry refunds once',
+                  marks: [{ text: 'open' }],
+                  figures: [{ text: '✗ checks', tone: 'bad' as const }],
+                  // Three hours before the window's own clock, so the row says
+                  // an elapsed figure it worked out as it drew.
+                  age: { since: Date.now() - 3 * 3_600_000, says: 'open' },
+                  links: [{ title: 'PR #412', url: 'https://example.com/412' }],
+                },
+              ],
+              summary: async () => {
+                asked += 1
+                return {
+                  title: 'PR #412 — retry refunds once',
+                  marks: [{ text: 'open' }],
+                  groups: [
+                    {
+                      label: 'CHECKS',
+                      note: '1 passed · 1 failed · 2 ran',
+                      marks: [
+                        { text: '✓ format', tone: 'good' as const },
+                        { text: '✗ tests', tone: 'bad' as const },
+                      ],
+                    },
+                  ],
+                  facts: [{ label: 'Branch', value: 'refunds-retry → main' }],
+                  links: [{ title: 'PR #412', url: 'https://example.com/412' }],
+                }
+              },
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects: {} },
+      home,
+    })
+    await start({
+      extensions,
+      extensionWorkbench: {
+        pid: process.pid,
+        lanes: () => [],
+        agents: () => [],
+        startAgent: async () => ({ task: '', worktree: '' }),
+      },
+    })
+    // Two rows: the number and the title, and under them what its checks came
+    // to with how long it has been open — worked out as it is drawn, not at the
+    // poll, which is why the row can say `3h open` at all.
+    await until('the first row', () =>
+      screenOf(terminal.written).some((row) => row.includes('#412') && row.includes('retry')),
+    )
+    await until('the second row', () =>
+      screenOf(terminal.written).some((row) => row.includes('✗ checks') && row.includes('3h open')),
+    )
+    const row = find('retry')
+    click(row.col + 1, row.row)
+    // Clicked, it is in front of you rather than a page of markdown in the
+    // conversation — and the extension was asked once, on the click.
+    await until('the window it opens', () =>
+      screenOf(terminal.written).some((row) => row.includes('1 passed · 1 failed · 2 ran')),
+    )
+    expect(screenOf(terminal.written).some((row) => row.includes('refunds-retry → main'))).toBe(
+      true,
+    )
+    expect(asked).toBe(1)
+  })
+
   it('keeps what an extension watches in the status bar, and opens its view from there', async () => {
     terminal.columns = 140
     terminal.rows = 40

@@ -15,7 +15,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `split.ts` | A pane cut in two: which lane the second half draws, which half types | a terminal |
 | `frame.ts` | `Frame`: the shape of what the window is handed to draw, and nothing else | — (types only) |
 | `view.ts` | `draw(state, frame) → { rows, hits }`, one row per line: the composition, and nothing else | a terminal |
-| `view/` | One file per region — `top`, `sidebar`, `main`, `queue`, `plan`, `schedule`, `actions`, `strip`, `foot` — over three shared ones: `text` (width, words, moments, numbers), `rows` (a tab, a section, a scrollbar) and `lane`/`split`, which two regions each reach for | a terminal |
+| `view/` | One file per region — `top`, `sidebar`, `main`, `queue`, `plan`, `schedule`, `actions`, `strip`, `foot` — over four shared ones: `text` (width, words, moments, numbers), `rows` (a tab, a section, a scrollbar, a mark's tone), `list` (a row an extension keeps, in two rows: the side and the ACTIONS page both draw one) and `lane`/`split`, which two regions each reach for | a terminal |
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
 | `hits.ts` | What is where on the screen, so a click can mean something (`scrollAt`, `extentOf`, `selectableText`) | a terminal |
 | `pointer.ts` | What a press, a drag, a release and a notch mean at the cell they landed on | a terminal |
@@ -25,7 +25,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `input.ts` | What is selected in the line you type on and in the file you have open — one model for both (`spanOf`, `wordAt`, `clickedSpan`, `putCaret`, `cutSpan`, `rowStarts`) | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
 | `panels.ts` | The `Panel` union, `PanelInputs`, and the two dispatches — `panelKey` and `panelClick` — and nothing else | a terminal |
-| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, and `small` for the ten that are one question each. Over four shared ones: `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow` — the shell every panel is drawn in), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
+| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, `summary` (one row of a list, in full), and `small` for the ten that are one question each. Over four shared ones: `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow` — the shell every panel is drawn in), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events, and which window a day is (`sinceOf`) | a terminal |
 | `queue-view.ts` | What the SMART QUEUE shows (`QueueView`, `shownBy`) and nothing about what is in it | a terminal |
 | `queue.ts` | What the queue says in words, including what an empty list says (`queueEmptySays`) | a terminal |
@@ -375,7 +375,14 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   the Spend table said instead of scrolling — three times on one page.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
-- **Items down the side are tabs** (`tabList`, `tabbed` in `view/rows.ts`): an agent is two rows — its
+- **Items down the side are tabs** (`tabList`, `tabbed` in `view/rows.ts`), and **every one of them
+  is two rows**: a name and what it *is* on top, what it *counts* under it (`view/list.ts` for the
+  rows an extension keeps, drawn there because the ACTIONS page draws one too). One row made the two
+  halves fight for the columns a name needs, and the name is the one that cannot be abbreviated
+  without lying — `#418  …     draft ✗ checks` is what a review looked like in a side twenty-eight
+  wide. So a row's name is guaranteed its columns and what is pinned at the right gives ground at its
+  own *left* end, because the edge is where the eye lands and the last mark is the one worth keeping.
+  An agent is two rows — its
   name, and what it is doing under it (`doing`) — and a note is two rows only where its words run
   on, broken where they would break with its buttons showing; a row of room between tabs, a margin
   and an end on each side (`skin.item`). One row read as a line and three rows of ground as a slab;

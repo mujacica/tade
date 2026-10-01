@@ -54,14 +54,34 @@ export interface LaneView {
   pointing?: LanePointing
 }
 
-/** A row an extension keeps in the sidebar, as the window draws it. */
+/** A short word or figure with its own colour, as the window is handed one. */
+export interface MarkView {
+  text: string
+  tone?: 'quiet' | 'good' | 'warning' | 'bad'
+}
+
+/**
+ * A row an extension keeps in the sidebar, as the window draws it: two rows,
+ * like every other item down the side.
+ *
+ * `marks` are what it *is* and go beside the name; `figures` are what it
+ * *counts* and go under it. One row for both made them fight for the columns a
+ * name needs, and the name is the one column that cannot be abbreviated
+ * without lying.
+ */
 export interface ListRowView {
   /** `<extension>.<list>`, so a click knows which list it came from. */
   section: string
   id: string
   title: string
+  /** What it is called on its own, in front of the title: `#412`. */
+  label?: string
   note?: string
-  marks?: readonly { text: string; tone?: 'quiet' | 'good' | 'warning' | 'bad' }[]
+  marks?: readonly MarkView[]
+  /** The figures under it: what its checks and verdicts came to, what blocks it. */
+  figures?: readonly MarkView[]
+  /** Since when it has been whatever it is, and the word for that: `3h open`. */
+  age?: { since: number; says: string }
   links?: readonly { title: string; url: string }[]
   /** What clicking it runs: one of the extension's own tools. */
   opens?: { tool: string; input?: Record<string, unknown> }
@@ -76,6 +96,27 @@ export interface ListSectionView {
   rows: readonly ListRowView[]
   /** Why there are no rows, when something is wrong. One quiet row says it. */
   problem: string | null
+  /**
+   * Whether its rows can be opened in a window of their own — the section's
+   * own declaration, so a click knows before it asks. False is a section
+   * clicked exactly as every section was before one could.
+   */
+  summarises?: boolean
+}
+
+/**
+ * One row in full, once it has been asked for: the window a click opens.
+ *
+ * The window knows nothing about what is in it. A heading, marks under it,
+ * named groups of marks, label-and-value facts, and links — a review, a Sentry
+ * issue and a dependency all describe themselves in that.
+ */
+export interface RowSummaryView {
+  title: string
+  marks?: readonly MarkView[]
+  groups?: readonly { label: string; marks: readonly MarkView[]; note?: string }[]
+  facts?: readonly { label: string; value: string; tone?: MarkView['tone'] }[]
+  links?: readonly { title: string; url: string }[]
 }
 
 /** A commit on the branch, as the ACTIONS tab draws it. */
@@ -164,13 +205,13 @@ export interface ActionsView {
   mine: readonly CommitView[]
   /** Everything else on the branch since it started, newest first. */
   others: readonly CommitView[]
-  /** The review this branch is out for, when a forge knows of one. */
-  review: {
-    number: string
-    title: string
-    url: string
-    marks: readonly { text: string; tone?: 'quiet' | 'good' | 'warning' | 'bad' }[]
-  } | null
+  /**
+   * The review this branch is out for, when a forge knows of one — the row the
+   * extension keeps, as it keeps it, rather than a reading of the one drawn
+   * down the side. Drawn in two rows here as it is there: what it is beside
+   * its number, what its checks and verdicts came to underneath.
+   */
+  review: ListRowView | null
   checks: readonly CheckView[]
   /**
    * What the required checks add up to at this commit. `unknown` is a first
@@ -362,6 +403,7 @@ export interface Frame {
       | 'written'
       | 'setup'
       | 'extensionView'
+      | 'summary'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */

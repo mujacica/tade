@@ -13,6 +13,7 @@ import {
   SERVERS,
   toolSummary,
 } from '../../../src/panels/extensions/state.ts'
+import { rowSummaryPanel } from '../../../src/panels/summary/state.ts'
 import { emptyTranscript, said, suggest, youSaid } from '../../../src/transcript.ts'
 import { base, frame, NOW, type Scenario } from './fixtures.ts'
 
@@ -672,6 +673,63 @@ export const EXTENSION_SCREENS: Scenario[] = [
       ),
     },
     frame: frame({ screen: '' }),
+  },
+  {
+    name: 'a-review-in-front-of-you',
+    about:
+      'A review clicked open: where it stands, every check the forge ran and how each went, who has approved it and who wants changes — one verdict per person, their latest — the branches it joins, whose task it is, and its link. The same facts the two rows down the side carry, with the room to say all of them; asking the conversation about it is a button rather than the only thing a click could do.',
+    state: {
+      ...base(),
+      panel: rowSummaryPanel(
+        'review.open',
+        'github.com/acme/checkout#418',
+        '#418  stripe v15',
+        'https://github.com/acme/checkout/pull/418',
+      ),
+    },
+    frame: frame({
+      panel: {
+        summary: {
+          title: 'review #418 — stripe v15',
+          marks: [
+            { text: 'draft', tone: 'quiet' },
+            { text: '\u2717 checks', tone: 'bad' },
+            { text: 'review required', tone: 'quiet' },
+          ],
+          groups: [
+            {
+              label: 'CHECKS',
+              note: '3 passed \u00b7 1 failed \u00b7 5 ran',
+              marks: [
+                { text: '\u2713 format', tone: 'good' },
+                { text: '\u2713 types', tone: 'good' },
+                { text: '\u2717 tests', tone: 'bad' },
+                { text: '\u2713 licences', tone: 'good' },
+                { text: '\u22ef integration', tone: 'quiet' },
+              ],
+            },
+            {
+              label: 'VERDICTS',
+              note: '1 approval \u00b7 1 wants changes',
+              marks: [
+                { text: '\u2713 jo', tone: 'good' },
+                { text: '\u2717 sam', tone: 'bad' },
+                { text: '\u00b7 coderabbitai (a bot)', tone: 'quiet' },
+              ],
+            },
+          ],
+          facts: [
+            { label: 'Branch', value: 'stripe-v15 \u2192 main' },
+            { label: 'Repository', value: 'acme/checkout' },
+            { label: 'Author', value: 'mujacica \u2014 yours' },
+            { label: 'Unresolved', value: '2 conversations', tone: 'warning' },
+            { label: 'Files', value: '7, +148 \u2212162' },
+            { label: 'Task', value: 'checkout/stripe-v15' },
+          ],
+          links: [{ title: 'review #418', url: 'https://github.com/acme/checkout/pull/418' }],
+        },
+      },
+    }),
   },
   {
     name: 'an-agent-on-a-sentry-issue',

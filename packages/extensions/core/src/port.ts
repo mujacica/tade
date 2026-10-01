@@ -445,24 +445,88 @@ export interface ExtensionWorkbench {
   agents(): readonly AgentDoing[]
 }
 
+/** A short word or figure with its own colour: the only painted thing a row has. */
+export interface RowMark {
+  text: string
+  tone?: 'quiet' | 'good' | 'warning' | 'bad'
+}
+
 /**
  * A row an extension keeps in the window: what it is, how it is going, and
  * where clicking it goes. The window draws it and knows nothing else about
  * it — which is what keeps the sidebar from having to learn what a forge is.
+ *
+ * It is drawn as **two rows**, which is what every other item down the side
+ * is: the name and what it *is* on the first, the figures it *counts* on the
+ * second. One row made the two fight for the same columns, and the name lost —
+ * `#418  …     draft ✗ checks` is what a review looked like in a side twenty-
+ * eight columns wide. Which half a thing goes in is the whole of the contract:
+ * `marks` say what it is and whether it wants somebody, `figures` say what it
+ * adds up to.
  */
 export interface ListRow {
   /** Stable, so the cursor stays on the same row across polls. */
   id: string
   title: string
+  /**
+   * What it is called on its own, in front of the title: `#412`. Kept apart
+   * from the title so nothing has to split a drawn string back up to find it —
+   * which is what the ACTIONS page used to do, on two spaces.
+   */
+  label?: string
   /** A few words to the right: a repository, a branch, a time. */
   note?: string
-  /** Short marks, drawn in order: `draft`, `✗ 2`, `✓`, `you`, `conflicts`. */
-  marks?: readonly { text: string; tone?: 'quiet' | 'good' | 'warning' | 'bad' }[]
+  /** Short marks, drawn in order on the first row: `draft`, `merged`, `you`. */
+  marks?: readonly RowMark[]
+  /**
+   * The figures under it, drawn in order on the second row: what the checks
+   * came to, what the verdicts came to, what is blocking it. Never a sentence
+   * — this is two rows of marks and figures, not a paragraph.
+   */
+  figures?: readonly RowMark[]
+  /**
+   * How long it has been whatever it is, as the moment it began and the word
+   * for what that is: `{ since, says: 'open' }` is drawn `3h open`.
+   *
+   * The moment, never the figure: the window draws four times a second and a
+   * list is polled once a minute, so an elapsed time worked out at the poll is
+   * a minute stale every time it is read.
+   */
+  age?: { since: number; says: string }
   links?: readonly Link[]
   /** What a click runs, if anything: one of the extension's own tools. */
   opens?: { tool: string; input?: Record<string, unknown> }
   /** The Tade task this row is about, when it is about one. */
   task?: string
+}
+
+/**
+ * One row in full, for the window to put in front of somebody: what it is,
+ * what it adds up to, and where it goes.
+ *
+ * It is asked for when a row is **clicked** and never on a poll, because in
+ * full is what costs — a review's checks and its verdicts are their own
+ * requests. So the list stays one cheap poll and the detail is an act.
+ *
+ * The window knows nothing about what is in one: a heading, marks, groups of
+ * marks, label-and-value facts, and links. A forge, an issue tracker and a
+ * dependency all describe themselves in that and the window draws all three
+ * the same way.
+ */
+export interface RowSummary {
+  /** What it is called, in full: the heading of the window it opens in. */
+  title: string
+  /** Under the heading: what it is, and whether it wants somebody. */
+  marks?: readonly RowMark[]
+  /**
+   * Named sets of marks, each its own small heading: the checks that ran, the
+   * verdicts given. A group with nothing in it says so rather than going —
+   * "nothing has run" is an answer, and an absent heading is not.
+   */
+  groups?: readonly { label: string; marks: readonly RowMark[]; note?: string }[]
+  /** Label and value, in order: the branches, the task, who wrote it. */
+  facts?: readonly { label: string; value: string; tone?: RowMark['tone'] }[]
+  links?: readonly Link[]
 }
 
 /**
@@ -481,6 +545,16 @@ export interface ExtensionList {
   filters?: readonly { id: string; title: string }[]
   /** Rows, from the extension's own cache. Never throws: a problem is a row saying so. */
   rows(ctx: WindowContext, filter: string): Promise<readonly ListRow[]>
+  /**
+   * One of those rows in full, by its `id`, for the window that opens when it
+   * is clicked. Asked on the click and never on the poll, so it may cost a
+   * request; `null` is "there is nothing more to say about this one", and the
+   * click then does what it always did — runs the row's `opens`.
+   *
+   * A section that offers none is clicked exactly as it was before this
+   * existed.
+   */
+  summary?(ctx: WindowContext, id: string): Promise<RowSummary | null>
 }
 
 /** A tab an extension's view offers, the first being the default. */

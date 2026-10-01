@@ -1,6 +1,7 @@
+import type { CheckRun } from '@tade/checks-core'
 import { checkLine } from '@tade/checks-core'
-import type { ListRow } from '@tade/extensions-core'
-import type { Forge, Review, ReviewDetail, Thread } from '@tade/forges-core'
+import type { ListRow, RowMark, RowSummary } from '@tade/extensions-core'
+import type { Forge, Review, ReviewDetail, Thread, Verdict } from '@tade/forges-core'
 
 // What a person reads about somebody else's review.
 //
@@ -11,22 +12,57 @@ import type { Forge, Review, ReviewDetail, Thread } from '@tade/forges-core'
 
 type Mark = NonNullable<ListRow['marks']>[number]
 
-/** The short marks a review wears, in the order they are drawn. */
+/**
+ * Every mark a review wears, both halves, for the places that say it as one
+ * clause rather than as two rows: a status line, a brief, a sentence put to a
+ * model. A surface with rows uses the two halves themselves.
+ */
 export function marksOf(review: Review): Mark[] {
+  return [...stateMarks(review), ...figuresOf(review)]
+}
+
+/**
+ * What a review *is*, for the first row beside its number: where it stands,
+ * and whether it wants somebody.
+ *
+ * Only these two. The first row has a title on it and the title is the thing
+ * nobody can abbreviate without lying, so everything a figure could say waits
+ * for the row underneath.
+ */
+export function stateMarks(review: Review): Mark[] {
   const marks: Mark[] = []
-  if (review.state === 'draft') marks.push({ text: 'draft', tone: 'quiet' })
-  if (review.state === 'merged') marks.push({ text: 'merged', tone: 'good' })
-  if (review.state === 'closed') marks.push({ text: 'closed', tone: 'quiet' })
-  if (review.checks === 'running') marks.push({ text: 'checks running', tone: 'quiet' })
+  // Every state, `open` included: a row that says nothing about where it
+  // stands is one you have to know the absences of to read.
+  marks.push({
+    text: review.state,
+    tone: review.state === 'merged' ? 'good' : 'quiet',
+  })
+  if (review.waitingOnYou) marks.push({ text: 'you', tone: 'warning' })
+  if (ready(review)) marks.push({ text: 'ready', tone: 'good' })
+  return marks
+}
+
+/**
+ * What a review *counts*, for the row underneath: what its checks came to,
+ * what the verdicts came to, and what is stopping it.
+ */
+export function figuresOf(review: Review): Mark[] {
+  const marks: Mark[] = []
+  if (review.checks === 'passed') marks.push({ text: '✓ checks', tone: 'good' })
   if (review.checks === 'failed') marks.push({ text: '✗ checks', tone: 'bad' })
+  // The same three glyphs a check wears everywhere else in Tade, so a strip of
+  // them reads the same here as on the ACTIONS page. `none` is said rather than
+  // left out: CI not having reached a push is not CI having passed, and a row
+  // with nothing where the tick goes reads as green.
+  if (review.checks === 'running') marks.push({ text: '⋯ checks', tone: 'quiet' })
+  if (review.checks === 'none') marks.push({ text: 'no checks', tone: 'quiet' })
   if (review.decision === 'approved') marks.push({ text: 'approved', tone: 'good' })
   if (review.decision === 'changes requested') {
     marks.push({ text: 'changes requested', tone: 'warning' })
   }
+  if (review.decision === 'review required') marks.push({ text: 'review required', tone: 'quiet' })
   if (review.conflicts) marks.push({ text: 'conflicts', tone: 'bad' })
   else if (review.blocked) marks.push({ text: review.blocked, tone: 'warning' })
-  if (review.waitingOnYou) marks.push({ text: 'you', tone: 'warning' })
-  if (ready(review)) marks.push({ text: 'ready', tone: 'good' })
   return marks
 }
 
@@ -41,17 +77,39 @@ export function ready(review: Review): boolean {
   )
 }
 
-/** One review as a row in the window. */
+/** How a row names a review, which is also how `summary` is asked about one. */
+export function idOf(review: Review): string {
+  return `${review.ref.host}/${review.ref.repo}#${review.ref.number}`
+}
+
+/**
+ * One review as a row in the window: its number and title, where it stands,
+ * and under that what its checks and verdicts came to and how long it has been
+ * open.
+ *
+ * The age is the moment it was opened and the word for it, never an elapsed
+ * figure: the window draws four times a second and this is polled once a
+ * minute. A forge that did not say when it was opened has no `age` at all,
+ * because `0 open` is a lie and `—` is the honest answer the row already
+ * gives by saying nothing. Neither has one that is merged or closed: how long
+ * ago it was *opened* is not how long it has been merged, and `3h open` over a
+ * merged review is the one reading of it nobody meant.
+ */
 export function rowOf(
   review: Review & { project?: string },
   words: Forge['words'],
   tool = 'review_show',
 ): ListRow {
+  const still = review.state === 'open' || review.state === 'draft'
+  const opened = still && review.openedAt ? Date.parse(review.openedAt) : Number.NaN
   return {
-    id: `${review.ref.host}/${review.ref.repo}#${review.ref.number}`,
-    title: `${words.number(review.ref.number)}  ${review.title}`,
+    id: idOf(review),
+    label: words.number(review.ref.number),
+    title: review.title,
     note: `${review.ref.repo}  ${review.head.branch}`,
-    marks: marksOf(review),
+    marks: stateMarks(review),
+    figures: figuresOf(review),
+    ...(Number.isFinite(opened) ? { age: { since: opened, says: 'open' } } : {}),
     links: [{ title: `${words.short} ${words.number(review.ref.number)}`, url: review.url }],
     opens: { tool, input: { review: review.url } },
     ...(review.task ? { task: review.task } : {}),
@@ -93,6 +151,135 @@ export function listMarkdown(
   ]
   if (problem) lines.push('', `Some could not be read: ${problem}`)
   return lines.join('\n')
+}
+
+/**
+ * One review in full, for the window that opens when its row is clicked: the
+ * title, where it stands, every check that ran and how it went, who has
+ * approved it and who wants changes, the branches, the task and the link.
+ *
+ * Marks and figures, not prose — the same two rows of them the list is drawn
+ * from, grouped. The verdicts are **one per person, their latest**: a forge
+ * keeps every verdict anybody ever submitted, so counting them all says "3
+ * approvals" where one person pressed approve three times, which is the one
+ * figure on this page somebody would act on.
+ *
+ * `checksRan` being empty is a group that says so, never a group that is not
+ * drawn: a review nothing has run on and a review whose checks were not asked
+ * for read identically with the heading missing. And a look that *failed* is
+ * its own third answer — `{ problem }` rather than an empty list, because
+ * "nothing has run" is what an unreadable check list must never come out as.
+ */
+export function summaryOf(
+  review: ReviewDetail,
+  words: Forge['words'],
+  checks: readonly CheckRun[] | { problem: string } = review.checksRan,
+): RowSummary {
+  const trouble = 'problem' in checks ? checks.problem : null
+  const ran: readonly CheckRun[] = trouble === null ? (checks as readonly CheckRun[]) : []
+  const verdicts = latestPerPerson(review.verdicts)
+  const approvals = verdicts.filter((one) => one.kind === 'approved')
+  const changes = verdicts.filter((one) => one.kind === 'changes requested')
+  const open = review.threads.filter((thread) => !thread.resolved)
+  return {
+    title: `${words.short} ${words.number(review.ref.number)} — ${review.title}`,
+    marks: [...stateMarks(review), ...figuresOf(review)],
+    groups: [
+      {
+        label: 'CHECKS',
+        marks: ran.map((check) => ({
+          text: `${checkGlyph(check.state)} ${check.check}`,
+          tone: checkTone(check.state),
+        })),
+        note:
+          trouble !== null
+            ? `could not be read: ${trouble}`
+            : ran.length === 0
+              ? 'nothing has run on its head commit'
+              : `${ran.filter((one) => one.state === 'passed').length} passed · ${ran.filter((one) => one.state === 'failed' || one.state === 'timed out').length} failed · ${ran.length} ran`,
+      },
+      {
+        label: 'VERDICTS',
+        marks: verdicts.map((one) => ({
+          text: `${verdictGlyph(one.kind)} ${one.by}${one.bot ? ' (a bot)' : ''}`,
+          tone:
+            one.kind === 'approved' ? 'good' : one.kind === 'changes requested' ? 'bad' : 'quiet',
+        })),
+        note:
+          verdicts.length === 0
+            ? 'nobody has said anything yet'
+            : [
+                `${approvals.length} approval${approvals.length === 1 ? '' : 's'}`,
+                changes.length > 0 ? `${changes.length} want changes` : '',
+              ]
+                .filter(Boolean)
+                .join(' · '),
+      },
+    ],
+    facts: [
+      { label: 'Branch', value: `${review.head.branch} → ${review.base.branch}` },
+      { label: 'Repository', value: review.ref.repo },
+      { label: 'Author', value: review.mine ? `${review.author} — yours` : review.author },
+      ...(open.length > 0
+        ? [
+            {
+              label: 'Unresolved',
+              value: `${open.length} conversation${open.length === 1 ? '' : 's'}`,
+              tone: 'warning' as const,
+            },
+          ]
+        : []),
+      {
+        label: 'Files',
+        value:
+          review.files.length === 0
+            ? 'not read'
+            : `${review.files.length}, +${review.files.reduce((sum, one) => sum + one.added, 0)} −${review.files.reduce((sum, one) => sum + one.removed, 0)}`,
+      },
+      // Whose work it is, which is the one fact here Tade knows and the forge
+      // does not: a review with no trailer in its body belongs to nobody, and
+      // that is always allowed rather than a gap.
+      { label: 'Task', value: review.task ?? 'unattributed' },
+    ],
+    links: [{ title: `${words.short} ${words.number(review.ref.number)}`, url: review.url }],
+  }
+}
+
+/**
+ * One verdict per person, the latest they gave. A forge keeps the lot, and a
+ * person who asked for changes and then approved has said one thing, not two.
+ * Order is the order they first appear, so the list does not reshuffle on a
+ * poll.
+ */
+function latestPerPerson(verdicts: readonly Verdict[]): Verdict[] {
+  const byPerson = new Map<string, Verdict>()
+  for (const verdict of verdicts) {
+    // `requested` is a verdict asked for and not given: it never replaces one
+    // somebody actually wrote.
+    if (verdict.kind === 'requested' && byPerson.has(verdict.by)) continue
+    byPerson.set(verdict.by, verdict)
+  }
+  return [...byPerson.values()]
+}
+
+function checkGlyph(state: CheckRun['state']): string {
+  if (state === 'passed') return '✓'
+  if (state === 'failed' || state === 'timed out') return '✗'
+  if (state === 'running' || state === 'queued') return '⋯'
+  return '–'
+}
+
+function checkTone(state: CheckRun['state']): RowMark['tone'] {
+  if (state === 'passed') return 'good'
+  if (state === 'failed' || state === 'timed out') return 'bad'
+  return 'quiet'
+}
+
+function verdictGlyph(kind: Verdict['kind']): string {
+  if (kind === 'approved') return '✓'
+  if (kind === 'changes requested') return '✗'
+  if (kind === 'requested') return '◦'
+  return '·'
 }
 
 /** One review in full. */

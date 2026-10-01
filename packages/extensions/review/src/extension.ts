@@ -29,11 +29,13 @@ import {
 import {
   COMMENTS_ARE_MATERIAL,
   checkLine,
+  idOf,
   listMarkdown,
   ready,
   rowOf,
   saidShortly,
   showMarkdown,
+  summaryOf,
   threadLines,
 } from './format.ts'
 import { attemptsUnder, found } from './record.ts'
@@ -206,6 +208,34 @@ export const reviewExtension: TadeExtension = {
           filter === 'mine' ? review.mine : filter === 'waiting' ? review.waitingOnYou : true,
         )
         return wanted.map((review) => rowOf(review, seen.words))
+      },
+      /**
+       * One of those rows in full, for the window that opens when it is
+       * clicked: the review as the forge describes it now, plus what ran on
+       * its head. Two requests, on a click — the poll stays one.
+       *
+       * The row is found in the poll rather than parsed back out of its id, so
+       * the ref is the one the forge gave; `null` is a row the poll no longer
+       * has, which is the quiet "it could not be read" row and anything that
+       * has since merged away.
+       */
+      async summary(ctx, id) {
+        const seen = await snapshot(ctx)
+        const review = seen.reviews.find((one) => idOf(one) === id)
+        if (!review) return null
+        const all = await everywhere(ctx)
+        const where = all.find((one) => one.repo === review.ref.repo) ?? all[0]
+        if (!where) return null
+        const detail = await where.forge.review(review.ref)
+        // A failed look is its own answer and never an empty list: `✓ 0 ran`
+        // over a review whose checks could not be read is the one thing the
+        // page may not say.
+        const checks = where.forge.capabilities.checks
+          ? await where.forge.checks(review.ref).catch((err: unknown) => ({
+              problem: err instanceof Error ? err.message : String(err),
+            }))
+          : { problem: `${where.forge.id} cannot say what ran` }
+        return summaryOf(detail, where.forge.words, checks)
       },
     },
   ],

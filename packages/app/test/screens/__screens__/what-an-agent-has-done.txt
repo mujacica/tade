@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
- ▌ ! stripe-v15   880k tok   █│                                                                                         
- ▌   wants you to approve…   █│  tade/stripe-v15                                                       3 ahead of main  
-                             █│  #418 stripe v15                                                        draft ✗ checks  
-   ⠋ refunds         $0.62   █│                                                                                         
-     working                 █│  THIS AGENT’S COMMITS ─────────────────────────────────────────────────────  2 +172 −66 
-                             █│  ● a1b2c3d move to the stripe v15 payment intents API         6 files +148 −62  12m ago 
- ▸ SMART QUEUE          none █│  ● 9f0e1d2 keep the old webhook shape working for a release      2 files +24 −4  1h ago 
- ▸ SCHEDULES            none █│  ◌ 3 files not committed                       shared checkout — nobody’s to attribute  
- ▾ REVIEWS  3                █│                                                                                         
-  #418  …     draft ✗ checks ▕│  CHECKS ──────────  ✓✓✗  red at a1b2c3d · on this machine, not CI’s matrix    Run all   
-  #412  retry refun…   ready ▕│  ✓ format    ▁   2.1s  13m ago                          493 files checked · 0 errors  ▾ 
-  #77  bump zod          you ▕│  ✓ types     ▂   6.4s  13m ago                                                        ▾ 
-                             ▕│  ✗ tests     █ 1m 04s  12m ago                    4 failed · 2072 passed · 3 skipped  ▾ 
- ▾ CHANGES  3        vs main ▕│      packages/app/test/screens.test.ts:37:5  what-an-agent-has-done                     
-  M package.json       +2 −1 ▕│      and 3 more                                                                         
-  A …/webhooks.test.ts   +48 ▕│                                                                                         
-  M src/webhooks.ts   +12 −4 ▕│  ALSO ON THIS BRANCH ─────────────────────────────────────────────  2, not this agent’s 
-                             ▕│  · 77c4ab0 a test for the refund path              checkout/refunds  1 file +31  2h ago 
- ▾ FILES                     ▕│  · 5510ee7 bump the sdk                                           2 files +8 −8  5h ago 
+ ▌ ! stripe-v15   880k tok   █│                                                                                        █
+ ▌   wants you to approve…   █│  tade/stripe-v15                                                      3 ahead of main  █
+                             █│  #418 stripe v15                                                                draft  █
+   ⠋ refunds         $0.62   █│    ✗ checks · review required  acme/checkout  stripe-v15                      5h open  █
+     working                 █│                                                                                        █
+                             █│  THIS AGENT’S COMMITS ────────────────────────────────────────────────────  2 +172 −66 █
+ ▸ SMART QUEUE          none █│  ● a1b2c3d move to the stripe v15 payment intents API        6 files +148 −62  12m ago █
+ ▸ SCHEDULES            none █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
+ ▾ REVIEWS  3                ▕│  ◌ 3 files not committed                      shared checkout — nobody’s to attribute  █
+                             ▕│                                                                                        █
+   #418 stripe v15    draft  ▕│  CHECKS ─────────  ✓✓✗  red at a1b2c3d · on this machine, not CI’s matrix    Run all   █
+     ✗ checks…     5h open   ▕│  ✓ format    ▁   2.1s  13m ago                         493 files checked · 0 errors  ▾ █
+                             ▕│  ✓ types     ▂   6.4s  13m ago                                                       ▾ █
+   #412 retry refu…  …ready  ▕│  ✗ tests     █ 1m 04s  12m ago                   4 failed · 2072 passed · 3 skipped  ▾ █
+     ✓ checks…  1d 2h open   ▕│      packages/app/test/screens.test.ts:37:5  what-an-agent-has-done                    █
+                             ▕│      and 3 more                                                                        █
+   #77 bump zod        …you  ▕│                                                                                        █
+     ⋯ checks     40m open   ▕│  ALSO ON THIS BRANCH ────────────────────────────────────────────  2, not this agent’s █
+                             ▕│  · 77c4ab0 a test for the refund path             checkout/refunds  1 file +31  2h ago ▕
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

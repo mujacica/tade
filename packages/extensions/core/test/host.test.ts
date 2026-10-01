@@ -3,9 +3,10 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { extensionConformance } from '../src/conformance.ts'
-import { ExtensionHost, type ExtensionRun, settingFrom } from '../src/host.ts'
+import { ExtensionHost, type ExtensionRun } from '../src/host.ts'
 import type { TadeExtension } from '../src/port.ts'
 import { object, string } from '../src/schema.ts'
+import { settingFrom } from '../src/settings.ts'
 
 // Holding extensions and running them. What any one extension finds is its
 // own business; this is the part every one of them relies on.
