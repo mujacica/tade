@@ -110,6 +110,20 @@ is for (`resolveModel`) — never handed across.
   across is how a route ends up asking for something that does not exist there. What was chosen for
   another harness under the same route (`harnesses.<id>`) is untouched — it was never this
   harness's.
+- **A model the config names that this harness cannot place is said and stepped over, never a
+  refusal** (`startingModel`, `orchestrator/model.ts`). Settling it before anything starts is right —
+  a harness handed a name it cannot resolve exits before it reads a word, which looks exactly like an
+  orchestrator that never answered. Throwing is not: the only two ways to repair the setting are the
+  model beside the orchestrator and Settings › Orchestrator, and both are inside the window that was
+  just refused. So the harness runs on whatever it runs on by itself, and the name that was dropped,
+  the harness's own reason and where to choose another are all said.
+- **A harness that is signed in *is* a credential for the provider it declares.** `WorkerAdapter.provider`
+  — already what decides whose a run was — is also what a sign-in pays for: `anthropic` for Claude
+  Code, `openai` for Codex, and **null for pi**, whose providers are its own `auth.json`'s to say, one
+  per model. The window reads both halves together (`paidBy`, `wire/machine.ts`) because reading only
+  the keys drew every provider no key covered as "not signed in", so an orchestrator on a live Claude
+  subscription said it had no account while agents on that same subscription worked. A key wins where
+  there is one: that is the order the harness itself asks in.
 - **And the same rule reaches backwards.** A run resumed is only ever told what *that* harness ran
   it on (`modelLastRunOn`, asked per harness): a task moved from Claude Code to pi and back would
   otherwise be handed the model of the harness it is no longer in, which means nothing there. What
