@@ -1,12 +1,55 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { type Config, ConfigSchema } from '@tade/core'
+import { sentryExtension } from '@tade/extension-sentry'
 import { ExtensionHost } from '@tade/extensions-core'
+import { CATALOGUE } from '@tade/mcp-core'
 import { describe, expect, it } from 'vitest'
+import { parse, stringify } from 'yaml'
+import type { McpServerShown } from '../../src/panels/extensions/state.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // The page an extension says what it is for on, running one, turning one off,
 // setting one up, and what it keeps in the bar along the bottom.
+
+/**
+ * The catalogue's Sentry server, as the window is handed one.
+ *
+ * Read off the shipped catalogue rather than written out here, because the
+ * overlap these tests are about is the catalogue's own: `sentry` is the name of
+ * Tade's Sentry extension and of this server both, and a copy of that claim
+ * would go stale without anything failing. What differs by machine — whether
+ * anybody decided about it, and whether it is on — is what the config says.
+ */
+function sentryServer(config: Config): McpServerShown {
+  const entry = CATALOGUE.find((one) => one.name === 'sentry')
+  if (!entry) throw new Error('the catalogue has no Sentry server in it')
+  const written = config.mcp.servers[entry.name]
+  return {
+    name: entry.name,
+    title: entry.title,
+    description: entry.description,
+    workflow: entry.workflow,
+    on: written?.enabled === true,
+    decided: written !== undefined,
+    problem: null,
+    how: entry.url ?? '',
+    install: null,
+    note: entry.note ?? null,
+    asked: null,
+    tools: [],
+    dropped: [],
+    fetches: false,
+  }
+}
+
+/** What the config says now, which is the only place a switch is written down. */
+function written(home: string): {
+  extensions?: Record<string, { enabled?: boolean }>
+  mcp?: { servers?: Record<string, { enabled?: boolean }> }
+} {
+  return parse(readFileSync(join(home, 'config.yaml'), 'utf8'))
+}
 
 describe('the window, and its extensions', () => {
   let terminal: FakeTerminal
@@ -62,6 +105,103 @@ describe('the window, and its extensions', () => {
       ),
     )
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('enabled: true')
+  })
+
+  // Tade's Sentry extension and the catalogue's Sentry server are both called
+  // `sentry`, and they are not the same thing: the extension reads your errors
+  // through the Sentry API, the server is somebody else's program with tools of
+  // its own. Which switch a button is, is the row's own to say — asking by name
+  // turned the server on from the extension's page and left the extension off,
+  // where no further press could reach it.
+  it('turns the Sentry extension on, and not the Sentry server of the same name', async () => {
+    terminal.columns = 120
+    terminal.rows = 50
+    const settings = {
+      projects: { app: { root: repo.root } },
+      extensions: { sentry: { enabled: false } },
+      mcp: { servers: { sentry: { enabled: false } } },
+    }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const extensions = await ExtensionHost.load({
+      builtin: [sentryExtension],
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      // Never the machine's own: whoever runs the suite may have a Sentry token
+      // in their shell, and what the extension needs is not what is being asked.
+      env: {},
+    })
+    await start({ config, extensions, mcpServers: (now) => [sentryServer(now)] })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    // Two rows, both off, and one of their names is a prefix of the other —
+    // which is why neither is found with `find`, which takes the lowest line a
+    // label is on.
+    await until('both rows', () => {
+      const rows = screenOf(terminal.written)
+      return (
+        rows.some((row) => row.includes('○ Sentry (MCP)')) &&
+        rows.some((row) => row.includes('○ Sentry') && !row.includes('(MCP)'))
+      )
+    })
+    const rows = screenOf(terminal.written)
+    const at = rows.findIndex((row) => row.includes('○ Sentry') && !row.includes('(MCP)'))
+    click((rows[at]?.indexOf('○ Sentry') ?? 0) + 2, at)
+    await until('the extension, in full', () =>
+      screenOf(terminal.written).some((row) => row.includes('Sentry  built-in')),
+    )
+    // The extension's own switch, which is the first button on its page: what
+    // it offers to watch has a Turn on of its own further down, and `find`
+    // takes the lowest line a label is on.
+    const page = screenOf(terminal.written)
+    const switched = page.findIndex((row) => row.includes('Turn on ]'))
+    click((page[switched]?.indexOf('Turn on ]') ?? 0) + 2, switched)
+    await until('the extension on', () =>
+      screenOf(terminal.written).some((row) => row.includes('Sentry is on')),
+    )
+    const after = written(home)
+    expect(after.extensions?.sentry?.enabled).toBe(true)
+    // And the server it shares a name with was left exactly as it was.
+    expect(after.mcp?.servers?.sentry?.enabled).toBe(false)
+  })
+
+  it('turns a server on from the row that is the server, which is `mcp-<it>`', async () => {
+    terminal.columns = 120
+    terminal.rows = 50
+    const settings = {
+      projects: { app: { root: repo.root } },
+      mcp: { servers: { sentry: { enabled: false } } },
+    }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const config = ConfigSchema.parse(settings)
+    const extensions = await ExtensionHost.load({
+      builtin: [],
+      config: { extensions: config.extensions, projects: config.projects },
+      home,
+      env: {},
+    })
+    await start({ config, extensions, mcpServers: (now) => [sentryServer(now)] })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    await until('the server, as a row of its own', () =>
+      screenOf(terminal.written).some((row) => row.includes('Sentry (MCP)  mcp')),
+    )
+    const on = find('Turn on ]')
+    click(on.col + 2, on.row)
+    await until('it connects next start', () =>
+      screenOf(terminal.written).some((row) => row.includes('sentry is on — it connects')),
+    )
+    const after = written(home)
+    expect(after.mcp?.servers?.sentry?.enabled).toBe(true)
+    // One switch, and it is the server's: `extensions.mcp-sentry` is not a
+    // second question, so nothing was written under it.
+    expect(after.extensions?.['mcp-sentry']).toBeUndefined()
   })
 
   it('runs an extension from its panel, and shows it working and what it said', async () => {

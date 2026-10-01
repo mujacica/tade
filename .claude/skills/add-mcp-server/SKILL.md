@@ -76,6 +76,13 @@ not duplicate something Tade already does better through a port of its own.
 - **Off means never opened.** Only `mcp.servers.<name>.enabled: true` is handed to the extension
   host. An off server has no extension, no tools and no process. `extensions.mcp-<server>` is not a
   second switch, and the page never offers one.
+- **A catalogue name may be an extension's name as well, so which switch a row is comes from the
+  row and never from the name.** `sentry` is Tade's Sentry extension and this catalogue's Sentry
+  server both. A server's row is the extension the broker made of it or the stand-in drawn for one
+  it could not be — `mcp-<server>` and `source: 'mcp'`, both — and only that row's switch is the
+  server's. Answering by name turned the server on from the extension's own page and left the
+  extension with no press that could reach it (`serverRow`, `packages/app/src/wire/extensions.ts`;
+  the same question again in `tade extensions enable`).
 - **Tools, and nothing else.** A brokered extension may fill in `tools` and its generated
   credential field — never a watch, a brief, a status, a view, a list, an action, a `heard`, a
   `caution`, a `meant`, a `linker`, a harness piece or a `setup`. `brokeredConformance` asserts it,

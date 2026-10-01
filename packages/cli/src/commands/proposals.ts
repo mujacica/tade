@@ -47,13 +47,12 @@ function skillNames(dir: string): string[] {
 }
 
 /**
- * The server a name is about, whether it was said as the server (`github`) or
- * as the extension a server becomes (`mcp-github`). Null when it is neither.
+ * The server of this name, said the way a server is named (`github`, never
+ * `mcp-github`). Null when nothing declared one.
  */
 function mcpServer(name: string, config: Config): string | null {
-  const said = name.startsWith('mcp-') ? name.slice('mcp-'.length) : name
   const known = brokerFor({ config, home: tadeHome() }).servers
-  return known.some((one) => one.declaration.name === said) ? said : null
+  return known.some((one) => one.declaration.name === name) ? name : null
 }
 
 export function registerExtensions(
@@ -164,12 +163,15 @@ export function registerExtensions(
       setExit(Exit.invalidInput)
       return
     }
-    // One switch, and no ambiguity about which. A brokered extension is only
-    // ever handed over because its server is already on, so `extensions.<it>`
+    // One switch, and no ambiguity about which. `mcp-<server>` is the name of
+    // the extension a server becomes, and its switch is the server's: it was
+    // only ever handed over because the server is on, so `extensions.mcp-<it>`
     // is not a second question and turning it on here would do nothing.
-    const server = mcpServer(name, cfg.config)
-    if (server) {
-      io.err(`that is an MCP server: \`tade mcp ${on ? 'enable' : 'disable'} ${server}\``)
+    const brokered = name.startsWith('mcp-')
+      ? mcpServer(name.slice('mcp-'.length), cfg.config)
+      : null
+    if (brokered) {
+      io.err(`that is an MCP server: \`tade mcp ${on ? 'enable' : 'disable'} ${brokered}\``)
       setExit(Exit.invalidInput)
       return
     }
@@ -180,8 +182,18 @@ export function registerExtensions(
       (await loadExtensions({ config: cfg.config, home: tadeHome(), configPath }))
         .list()
         .some((one) => one.name === name)
+    // A bare name is the extension's whenever there is an extension of that
+    // name: Tade's own Sentry extension and the catalogue's Sentry server are
+    // both `sentry`, and answering with the server left the extension with no
+    // way to be turned on at all. It is only the server's when no extension
+    // answers to it, which is the redirect somebody reaching for `github` wants.
     if (!known) {
-      io.err(`there is no extension called ${name}`)
+      const server = mcpServer(name, cfg.config)
+      io.err(
+        server
+          ? `that is an MCP server: \`tade mcp ${on ? 'enable' : 'disable'} ${server}\``
+          : `there is no extension called ${name}`,
+      )
       setExit(Exit.invalidInput)
       return
     }

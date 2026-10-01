@@ -4,6 +4,7 @@ import {
   type SetupFieldView as HostSetupField,
   type ListRow,
   type ListSection,
+  type LoadedExtension,
   settingFrom,
 } from '@tade/extensions-core'
 import type { Frame } from '../frame.ts'
@@ -358,13 +359,23 @@ export class Extensions implements Subject {
       .map(serverView)
   }
 
-  /**
-   * The server a row is about, whether the row is the server itself or the
-   * extension it became. Null when the row is not one.
-   */
+  /** The server of this name: `sentry`, never the `mcp-sentry` a row is called. */
   serverNamed(name: string): McpServerShown | null {
-    const said = name.startsWith('mcp-') ? name.slice('mcp-'.length) : name
-    return this.servers.find((server) => server.name === said) ?? null
+    return this.servers.find((server) => server.name === name) ?? null
+  }
+
+  /**
+   * The server a row on this page *is*, or null when the row is not one.
+   *
+   * A row says so rather than being known by its name: the extension the broker
+   * made of a server and the stand-in drawn for one it could not be are both
+   * `source: 'mcp'` and both named `mcp-<server>`. Answering by name turned the
+   * Sentry server on from the Sentry extension's own page — the two share a name
+   * and nothing else — and left the extension where no press could reach it.
+   */
+  private serverRow(name: string, loaded: LoadedExtension | undefined): McpServerShown | null {
+    if (loaded && loaded.source !== 'mcp') return null
+    return name.startsWith('mcp-') ? this.serverNamed(name.slice('mcp-'.length)) : null
   }
 
   readServers(): void {
@@ -482,12 +493,13 @@ export class Extensions implements Subject {
           return
         }
         case 'toggle': {
-          // One switch, and for a server it is its own: `extensions.<it>` is
-          // not a second question, because a server's extension is only ever
-          // handed over when the server is already on.
-          const server = this.serverNamed(name)
-          if (server) return stay(await this.turnServer(server.name, !server.on))
+          // Which switch this is, is the row's own to say and never its
+          // name's. For a server it is the server's own: `extensions.mcp-<it>`
+          // is not a second question, because a server's extension is only
+          // ever handed over when the server is already on.
           const was = host?.list().find((one) => one.name === name)
+          const server = this.serverRow(name, was)
+          if (server) return stay(await this.turnServer(server.name, !server.on))
           const tool = was ? null : this.writtenViews().find((one) => one.name === name)
           if (!was && !tool) return stay(null)
           const on = was ? was.state === 'off' : tool?.on !== true

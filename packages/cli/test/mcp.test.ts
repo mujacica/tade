@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 const server = fileURLToPath(new URL('../../mcp/stdio/test/fixtures/server.ts', import.meta.url))
@@ -123,5 +124,26 @@ describe('tade mcp', () => {
     })
     expect(said.code).toBe(2)
     expect(said.stderr).toContain('tade mcp enable github')
+    // A name nothing answers to takes the same redirect: the server is what
+    // somebody reaching for `github` meant, and there is no extension of it.
+    const bare = await tade(['extensions', 'enable', 'github', '-c', config], { TADE_HOME: dir })
+    expect(bare.code).toBe(2)
+    expect(bare.stderr).toContain('tade mcp enable github')
+  })
+
+  it('turns the extension on when a name is an extension and a server alike', async () => {
+    const { home: dir, config } = await home()
+    // `sentry` is Tade's own extension and the catalogue's server both, and
+    // answering with the server left the extension with no way to be turned
+    // on at all — the name somebody said is the extension's when there is one.
+    const said = await tade(['extensions', 'enable', 'sentry', '-c', config], { TADE_HOME: dir })
+    expect(said.code).toBe(0)
+    expect(said.stdout).toContain('sentry is on')
+    const written = parse(await readFile(config, 'utf8')) as {
+      extensions?: Record<string, { enabled?: boolean }>
+      mcp?: unknown
+    }
+    expect(written.extensions?.sentry?.enabled).toBe(true)
+    expect(written.mcp).toBeUndefined()
   })
 })
