@@ -1,4 +1,4 @@
-import type { Frame } from '../frame.ts'
+import type { Frame, McpState } from '../frame.ts'
 import { pointingIn, sameTarget, type Target } from '../hits.ts'
 import { keyCaps } from '../keys.ts'
 import {
@@ -555,6 +555,10 @@ export function renderTop(
       r.keys(keyCaps(frame.bindings?.search ?? 'ctrl+k')).space()
       r.text('search', sameTarget(state.hover, search) ? skin.link : skin.hint, search).space(3)
     }
+    // Beside the talk key, which is the other thing on this row that is true
+    // of the window rather than of a project: whether the tools agents are
+    // being handed are actually there.
+    mcpLight(r, frame, skin, show.word)
     talkChip(r, state, frame, skin, show.word)
     r.space()
   }
@@ -590,6 +594,79 @@ export function renderTop(
   plus(row)
   row.right(right(fits))
   return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
+}
+
+/**
+ * Which of however many servers the lamp is about: the worst of them.
+ *
+ * A light is one word, and the word somebody needs is the one they would have
+ * to do something about. In this order, so a server that has stopped answering
+ * is never hidden behind one that is merely off — and `off` only wins where
+ * every one of them is off, which is then the whole of what there is to say.
+ *
+ * Derived every frame out of what the broker was handed, and never kept: a lamp
+ * lit from a remembered answer says a server is up after it dropped, which is
+ * the one failure this is here to stop.
+ */
+const WORST: readonly McpState[] = ['unreachable', 'broken', 'unknown', 'on', 'off']
+
+function worstServer(states: readonly McpState[] | undefined): McpState | null {
+  return WORST.find((state) => states?.includes(state)) ?? null
+}
+
+/**
+ * What the lamp is in each state: a glyph, its tone, and what it says where
+ * there is room for more than the label.
+ *
+ * Every state has a shape of its own, for the reason a tab's marks do — the row
+ * is read at a glance, and on terminals with no colour in them. The two that
+ * need somebody keep a word: a mark on its own says something is wrong, and
+ * `broken` and `unreachable` are different jobs.
+ */
+function serverLook(
+  state: McpState,
+  skin: Skin,
+): { glyph: string; tone: (text: string) => string; says: string } {
+  switch (state) {
+    // It was reachable and has stopped answering: the drop, and the one state
+    // nobody had any way of seeing before this lamp.
+    case 'unreachable':
+      return { glyph: '✕', tone: skin.bad, says: 'down' }
+    // Something has to be done before it could work at all: a program that is
+    // not installed, a credential nothing has, an address nothing says.
+    case 'broken':
+      return { glyph: '!', tone: skin.waiting, says: 'broken' }
+    // On, and nothing has asked it anything yet. Never drawn as healthy: the
+    // warm-up happens after the window is up, and a green lamp before anybody
+    // had spoken to the server is the reassurance this lamp exists to refuse.
+    case 'unknown':
+      return { glyph: '◌', tone: skin.hint, says: '' }
+    case 'on':
+      return { glyph: '●', tone: skin.done, says: '' }
+    default:
+      return { glyph: '○', tone: skin.chrome, says: '' }
+  }
+}
+
+/**
+ * The MCP servers, as one small light: on, off, broken or not answering, where
+ * somebody can see it without opening the Extensions page — which is where it
+ * goes when it is pressed, because the page is what can actually say why.
+ *
+ * Nothing at all where nobody has decided about a server, which is nearly
+ * everybody: a dark lamp for software nobody here runs is a column spent on a
+ * question nobody asked.
+ */
+function mcpLight(r: Row, frame: Frame, skin: Skin, word = true): void {
+  const worst = worstServer(frame.mcp)
+  if (worst === null) return
+  const look = serverLook(worst, skin)
+  const open: Target = { kind: 'action', name: 'extensions' }
+  // The label stays at every width, even where the word beside it goes: a mark
+  // on its own next to the talk key is a mark nobody can place, and this row
+  // already has a `✕` on it for a muted speaker.
+  const said = word && look.says !== '' ? `${look.glyph} mcp ${look.says}` : `${look.glyph} mcp`
+  r.text(said, look.tone, open).space(3)
 }
 
 /**

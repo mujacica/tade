@@ -9,7 +9,7 @@ import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
 import type { Open } from '../editor.ts'
-import type { Frame } from '../frame.ts'
+import type { Frame, McpState } from '../frame.ts'
 import type { clipboardImage, clipboardState } from '../images.ts'
 import type { LayoutPrefs } from '../layout.ts'
 import type { Live } from '../live.ts'
@@ -148,6 +148,12 @@ export interface AppOptions {
    * are, because turning one on is a setting like any other.
    */
   mcpServers?: (config: Config) => readonly McpServerShown[]
+  /**
+   * How each of those servers is now, out of the broker's own state — whether
+   * it is up and whether it answers. Asked on every frame, so it looks at
+   * nothing: a broker answers it from what it has already been told.
+   */
+  mcpStanding?: () => readonly McpState[]
   /**
    * How the machine is asked whether it can reach a network at all — the one
    * thing that decides whether the watches look. The machine's own unless

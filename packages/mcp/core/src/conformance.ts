@@ -217,6 +217,40 @@ export function testTransport(
       })
     })
 
+    it('says a server went away without being asked, which is how a drop is noticed at all', async () => {
+      if (!options.dies) return
+      const transport = make()
+      const session = await transport.open(options.dies.server, context())
+      const heard: McpError[] = []
+      const stop = session.onGone((err) => heard.push(err))
+      try {
+        await session.callTool(options.dies.tool, {}, calling()).catch(() => {})
+        // Whoever is holding a session finds out the server has gone without
+        // having to poll for it: that is the whole of what this seam is for,
+        // because a drop nobody is told about is a drop nobody can report.
+        expect(heard.map((err) => err.trouble)).toEqual(['gone'])
+        // Once. A program that exits while a call is in flight ends twice over
+        // otherwise, and the second time is not news.
+        await session.callTool(options.dies.tool, {}, calling()).catch(() => {})
+        expect(heard.length).toBe(1)
+      } finally {
+        stop()
+        await session.close()
+      }
+    })
+
+    it('never calls an ending Tade asked for a server going away', async () => {
+      const transport = make()
+      const session = await transport.open(options.works, context())
+      const heard: McpError[] = []
+      const stop = session.onGone((err) => heard.push(err))
+      await session.close()
+      // Reported, a shutdown reads as the server dropping — which would be an
+      // issue filed for every window anybody ever closed.
+      expect(heard).toEqual([])
+      stop()
+    })
+
     it('only ever says it was told the list changed where it says it can be', async () => {
       const transport = make()
       const session = await transport.open(options.works, context())

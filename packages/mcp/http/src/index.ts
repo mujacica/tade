@@ -120,13 +120,22 @@ function conversation(name: string) {
   const waiting = new Map<number, Waiting>()
   const progressing = new Map<number, (text: string) => void>()
   const changed = new Set<() => void>()
+  /** Whoever wants to hear that the server went away without being asked. */
+  const going = new Set<(err: McpError) => void>()
+  /** Whether the ending was asked for, so nobody is told it was a drop. */
+  let shut = false
   let over: McpError | null = null
 
   const ended = (err: McpError) => {
+    const first = over === null
     over ??= err
     for (const one of [...waiting.values()]) one.reject(err)
     waiting.clear()
     progressing.clear()
+    // Said once, with what it went on. A session ended by `close()` calls
+    // `quiet()` first, so a shutdown Tade asked for is never reported as a
+    // server that went away.
+    if (first) for (const listener of [...going]) listener(over)
   }
 
   const took = (message: wire.Message): void => {
@@ -161,6 +170,18 @@ function conversation(name: string) {
     changed,
     took,
     ended,
+    onGone(listener: (err: McpError) => void) {
+      // One that has already gone — a stream that ended before anybody
+      // subscribed — is said now rather than never.
+      if (over && !shut) listener(over)
+      else going.add(listener)
+      return () => going.delete(listener)
+    },
+    /** Nobody is to be told about the ending that is about to be asked for. */
+    quiet: () => {
+      shut = true
+      going.clear()
+    },
     gone: () => over,
     closedError: () => over ?? new McpError('gone', `${name} was closed`),
   }
@@ -228,6 +249,18 @@ async function overPosts(
     }
   }
 
+  /**
+   * A server that has gone is gone for this session, not for this one call: it
+   * is ended here, so whoever is holding one is told once rather than finding
+   * out again on every call they make — and so there is something to tell at
+   * all over a shape nobody is listening on. Reopening is the caller's, and the
+   * broker's one retry does exactly that.
+   */
+  const departed = (err: McpError): McpError => {
+    if (err.trouble === 'gone') talk.ended(err)
+    return err
+  }
+
   /** Ask, and read the answer out of whichever shape it came back in. */
   const ask = async (
     message: wire.Asked,
@@ -240,13 +273,13 @@ async function overPosts(
     })
     const response = await post(message, signal).catch((err: unknown) => {
       talk.waiting.delete(message.id)
-      throw err
+      throw err instanceof McpError ? departed(err) : err
     })
     // A session the server has forgotten is a session to open again, which is
     // what `gone` means to whoever is holding one.
     if (response.status === 404 && session) {
       talk.waiting.delete(message.id)
-      throw new McpError('gone', `${name} does not know this session any more`)
+      throw departed(new McpError('gone', `${name} does not know this session any more`))
     }
     if (!response.ok) {
       const said = await bodySaid(response)
@@ -258,7 +291,8 @@ async function overPosts(
     void read(response)
       .catch(() => {
         // A body that could not be read is a request nobody will answer.
-        talk.waiting.get(message.id)?.reject(new McpError('gone', `${name} stopped mid-answer`))
+        const gone = departed(new McpError('gone', `${name} stopped mid-answer`))
+        talk.waiting.get(message.id)?.reject(gone)
         talk.waiting.delete(message.id)
       })
       .finally(() => {
@@ -317,6 +351,7 @@ async function overPosts(
         talk.progressing.delete(mine)
       }
     },
+    onGone: talk.onGone,
     onToolsChanged(listener: () => void) {
       talk.changed.add(listener)
       return () => talk.changed.delete(listener)
@@ -324,6 +359,7 @@ async function overPosts(
     async close() {
       if (closed) return
       closed = true
+      talk.quiet()
       talk.ended(new McpError('gone', `${name} was closed`))
       // Telling it we are done is a courtesy it may not offer; whether it
       // took it changes nothing here.
@@ -469,6 +505,7 @@ async function overStream(
         talk.progressing.delete(mine)
       }
     },
+    onGone: talk.onGone,
     onToolsChanged(listener: () => void) {
       talk.changed.add(listener)
       return () => talk.changed.delete(listener)
@@ -476,6 +513,7 @@ async function overStream(
     async close() {
       if (closed) return
       closed = true
+      talk.quiet()
       talk.ended(new McpError('gone', `${name} was closed`))
       stop.abort()
     },

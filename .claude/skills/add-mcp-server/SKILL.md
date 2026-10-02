@@ -22,6 +22,7 @@ below.
 | `packages/mcp/core/src/protocol.ts` | pure: what every transport says, and how to read what comes back |
 | `packages/mcp/{stdio,http,scripted}` | a program on its pipes · one already running (`http`, `sse`) · a table |
 | `packages/mcp/broker/src/shown.ts` | a server as a page says it: state, how it is reached, what it offered |
+| `packages/mcp/broker/src/standing.ts` | pure: how a server is in one word, for the light along the top |
 | `packages/mcp/broker/src/registry.ts` | `MCP_TRANSPORTS`: the one map a name becomes a transport in |
 | `packages/mcp/broker/src/broker.ts` | declared servers → `TadeExtension[]`. The only place that knows both vocabularies |
 | `packages/core/src/config.ts` | `mcp.servers.<name>`, strict, because the schema is the only reader |
@@ -38,6 +39,12 @@ below.
    filesystem and the credential it was handed.
    What to say and how to read the answer is `@tade/mcp-core/protocol` — shared, pure and
    table-tested. Only how the bytes travel is yours.
+   `onGone` is the one seam that is easy to get wrong: it says the server went away **without being
+   asked**, so `close()` must empty its listeners *before* it ends the conversation, and it fires at
+   most once. Reported, a shutdown reads as a drop — which is an issue filed every time anybody quits
+   Tade. How soon you can tell differs (a program's exit is immediate; a server reached over posts is
+   found gone at the call that fails) and nothing branches on which, so it is a contract rather than a
+   capability.
 2. Add one line to `MCP_TRANSPORTS` (`packages/mcp/broker/src/registry.ts`). That map is the only
    place a configured name becomes an implementation — never `new` one at a call site. It lives in
    the broker rather than beside the port because a port must not import its own implementations,
@@ -119,6 +126,17 @@ not duplicate something Tade already does better through a port of its own.
   scratch directory of its own to work in. That is all of it: nothing contains the program, it
   runs as you, and `SERVER_RUNS_AS_YOU` says so where somebody turns one on. Nothing waits
   without a deadline.
+- **A server dropping is said, and a server's output is not.** `onGone` and a call that comes back
+  `gone`, `timeout` or `unavailable` reach `onWarning`, which in the window is a journal `warning` and
+  from there Tade's own trouble wherever that is reported — once per drop, however many agents walk
+  into it, because one drop is one finding. What is said is `err.message`, Tade's own words; what the
+  server printed (`McpError.said`) goes to the page's `problem` and no further. A `refused` is the
+  server *answering*, so it is about the call and is neither said nor counted against the server.
+- **How a server is, is derived** (`standing.ts`, pure): off, unknown, on, unreachable, broken, out of
+  the declaration and what came of the last time anybody talked to it. `unknown` is first-class — the
+  warm-up is after the window is up, and a lamp green before anybody spoke to the server is the
+  reassurance it exists to refuse. The strip's light reads it per frame and never remembers it
+  (`mcpLight`, `packages/app/src/view/top.ts`).
 - **The page is the Extensions page.** A server somebody decided about is a row among the
   extensions (`ExtensionView.server`); the rest are the catalogue behind one group row. What a
   server's row says comes from `shownServers`, and it says only what is true — a server that is

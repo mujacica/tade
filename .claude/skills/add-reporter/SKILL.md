@@ -63,6 +63,11 @@ extension can watch Tade and hand an agent its own bug. It is off until someone 
   `import()` rejects, it never throws, so the frame was already drawn. Anything added to
   `watchProcess` inherits this: a handler that makes an outcome worse than Node's own default is a
   bug in the reporter, not a report.
+- **Somebody else's process going is Tade's own trouble, and its output is not.** A brokered MCP
+  server that died, would not start or stopped answering reaches the journal as a `warning` through
+  the broker's `onWarning` and so reaches Sentry — Tade's own words, the server's name and why. What
+  the server itself printed is never in it: that is `McpError.said`, and it stays on the Extensions
+  page. The same split applies to anything else Tade starts that is not Tade.
 - **Spans are named where the work is.** `doing(work)` answers a span that must be ended;
   `inside(work)` is what happened within it. Nothing is instrumented automatically, so a span that
   is not worth a name is not worth having. Time work that is already over with `startedAt`, which is

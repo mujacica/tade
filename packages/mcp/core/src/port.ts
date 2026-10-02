@@ -158,6 +158,21 @@ export interface ServerSession {
    * `capabilities.announces`; the returned function stops listening.
    */
   onToolsChanged(listener: () => void): () => void
+  /**
+   * Called when the server went away without being asked to: the program
+   * exited, the stream ended, the session a server was keeping is gone.
+   *
+   * **Never for a `close()`** — whoever ends a session knows they ended it,
+   * and a drop reported for a shutdown is a report nobody can act on. Called
+   * at most once, with the `gone` that every call after it will get.
+   *
+   * How soon is the transport's own: one talking to a program hears the exit
+   * the moment it happens, and one that only speaks when spoken to finds out
+   * at the call that fails. Neither is branched on — a caller reports what it
+   * learns when it learns it — so this is a contract rather than a capability.
+   * The returned function stops listening.
+   */
+  onGone(listener: (err: McpError) => void): () => void
   /** End it. Safe to call twice, and safe to call on one that already died. */
   close(): Promise<void>
 }

@@ -1,6 +1,6 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import type { Frame } from '../src/frame.ts'
+import type { Frame, McpState } from '../src/frame.ts'
 import {
   type AppState,
   initialState,
@@ -182,6 +182,81 @@ describe('the figures at the right', () => {
     expect(text).not.toContain('! 1')
     expect(text).toContain('checkout !')
     expect(text).toContain('search ✓')
+  })
+})
+
+describe('the MCP servers’ light', () => {
+  const lit = (mcp: McpState[] | undefined, width = 160): string =>
+    stripTerminalSequences(
+      renderTop(world([]), frame({ width, mcp }), width, COLOUR, NO_POINTER).rows[0] ?? '',
+    )
+
+  it('is not there at all where nobody has decided about a server', () => {
+    // Which is nearly everybody. A dark lamp for software nobody here runs is
+    // a column spent on a question nobody asked.
+    expect(lit(undefined)).not.toContain('mcp')
+    expect(lit([])).not.toContain('mcp')
+  })
+
+  it('is a quiet dot where one is on and answering', () => {
+    expect(lit(['on'])).toContain('● mcp')
+  })
+
+  it('is unlit where the server is off', () => {
+    expect(lit(['off'])).toContain('○ mcp')
+  })
+
+  it('says it is not answering, which is the drop nobody could see before', () => {
+    expect(lit(['unreachable'])).toContain('✕ mcp down')
+  })
+
+  it('says a server that needs something doing is broken, not down', () => {
+    // Two words because they are two jobs: one is a thing to go and fix, the
+    // other usually comes right on its own.
+    expect(lit(['broken'])).toContain('! mcp broken')
+  })
+
+  it('says nothing about health while nothing has asked the server anything', () => {
+    const text = lit(['unknown'])
+    expect(text).toContain('◌ mcp')
+    expect(text).not.toContain('●')
+  })
+
+  it('is the worst of however many there are, never the first or the kindest', () => {
+    const text = lit(['on', 'unreachable', 'off'])
+    expect(text).toContain('✕ mcp down')
+    // And `off` only ever wins where every one of them is off.
+    expect(lit(['off', 'off'])).toContain('○ mcp')
+  })
+
+  it('gives up the word beside it before the label, which says which lamp it is', () => {
+    // Swept rather than asserted at one width: which rung of the ladder a
+    // width lands on is the tabs' business and moves when they do, and what
+    // this is about is the order the lamp gives ground in. A bare `✕` beside
+    // the talk key is a mark nobody can place — this row already has one on it
+    // for a muted speaker — so the label outlives the word every time.
+    const forms = new Set<string>()
+    for (let width = 40; width <= 200; width++) {
+      const text = lit(['unreachable'], width)
+      if (!text.includes('✕')) continue
+      expect(text, `at ${width} columns`).toContain('✕ mcp')
+      forms.add(text.includes('✕ mcp down') ? 'with the word' : 'the label alone')
+    }
+    expect([...forms].sort()).toEqual(['the label alone', 'with the word'])
+  })
+
+  it('goes to the Extensions page, which is the only thing that can say why', () => {
+    const width = 160
+    const drawn = renderTop(
+      world([]),
+      frame({ width, mcp: ['unreachable'] }),
+      width,
+      COLOUR,
+      NO_POINTER,
+    )
+    expect(
+      drawn.hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'extensions'),
+    ).toBe(true)
   })
 })
 

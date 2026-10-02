@@ -156,6 +156,7 @@ export class Extensions implements Subject {
   facts(): Partial<Frame> {
     return {
       linkers: this.knownLinks(),
+      mcp: this.wire.opts.mcpStanding?.(),
       statuses: this.strip(),
       lists: this.lists().map((section) => ({
         id: section.id,

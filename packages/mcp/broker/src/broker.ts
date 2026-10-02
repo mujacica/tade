@@ -14,6 +14,7 @@ import {
   type MakeTransport,
   McpError,
   type McpTransport,
+  type McpTrouble,
   type NamedTool,
   namesFor,
   narrowed,
@@ -26,6 +27,7 @@ import {
   writeCache,
 } from '@tade/mcp-core'
 import { MCP_TRANSPORTS, makeTransport } from './registry.ts'
+import { type ServerStanding, standingsOf } from './standing.ts'
 
 // The broker: the one place that knows both vocabularies.
 //
@@ -126,8 +128,31 @@ export interface Brokered {
    * have the tools at all.
    */
   warm(signal?: AbortSignal): Promise<void>
+  /**
+   * How each server somebody has decided about is, in one word each, out of
+   * what the broker has already been told: no process looked at, no clock read,
+   * nothing dialled. Cheap enough to ask on every frame, which is what the
+   * light in the window does.
+   */
+  standing(): readonly ServerStanding[]
   /** End every session. Safe to call twice. */
   close(): Promise<void>
+}
+
+/**
+ * What came of the last time anybody talked to one server.
+ *
+ * `page` is for whoever is looking at the Extensions page, and carries what the
+ * server itself said on its way out — the part somebody can act on. It is kept
+ * apart from what is *said* for one reason: what goes to the journal and from
+ * there to wherever Tade's own trouble is reported is `why(err)`, Tade's own
+ * words, because a server's output is never Tade's to send on.
+ */
+interface Talked {
+  /** How it went wrong, or null where it answered. */
+  trouble: McpTrouble | null
+  /** What the page says, the server's own words included. */
+  page: string
 }
 
 /**
@@ -186,10 +211,62 @@ export function brokered(options: BrokerOptions): Brokered {
   const on = options.safe ? [] : workable(servers)
 
   const environment = options.env ?? process.env
-  // What went wrong the last time anybody talked to one, so the page can say
-  // it was broken rather than say nothing has asked it yet. Remembered here
-  // and never dialled for: `ready()` is asked on every look at the page.
-  const troubles = new Map<string, string>()
+  // What came of the last time anybody talked to one, so the page can say it
+  // was broken rather than say nothing has asked it yet, and so the light can
+  // say a server that was fine has stopped answering. Remembered here and
+  // never dialled for: `ready()` is asked on every look at the page, and the
+  // light on every frame.
+  const talked = new Map<string, Talked>()
+  const said = options.onWarning ?? (() => {})
+
+  /**
+   * A server went away, or would not answer: written down, and said once.
+   *
+   * Said because nothing goes wrong silently, and this is the one thing about
+   * a brokered server nobody could otherwise find out — a program that exits
+   * between two agents' calls is reopened on the next one, and without this
+   * the only trace of it was an agent's tool call that failed. Tade's own words
+   * only: a server's output is in `page` and goes no further than the page,
+   * because what Tade may report about somebody else's server is its name and
+   * why, and never what it printed.
+   */
+  const wentWrong = (name: string, err: McpError): void => {
+    const before = talked.get(name)
+    talked.set(name, { trouble: err.trouble, page: trouble(err) })
+    // Once per drop, however many agents walk into it: a server four agents
+    // are using must not become four of whatever reads the journal.
+    if (before?.trouble === err.trouble) return
+    try {
+      said(why(err))
+    } catch {
+      // Saying it may never be worse than the thing it is about, and both
+      // places this is called from would make it worse: a child process's exit
+      // handler, where a throw is an uncaught exception that under the `pty`
+      // driver takes every agent in the checkout down with the window, and a
+      // tool call's failure, where it would replace the server's own reason
+      // with whoever could not write it down. There is nowhere left to say it.
+    }
+  }
+
+  /** It answered, so whatever was wrong with it before is not now. */
+  const answered = (name: string): void => {
+    talked.set(name, { trouble: null, page: '' })
+  }
+
+  /**
+   * Hear it go, so a drop is noticed when it happens rather than at the next
+   * call that fails — which may be an hour later, in an agent, and healed by
+   * the broker's one retry before anybody sees it.
+   *
+   * Nothing is unsubscribed: a session only ever says this where it went away
+   * without being asked, so the end of one Tade closed is never reported as a
+   * drop, and the listener goes when the session it is on does.
+   */
+  const watched = (name: string, session: ServerSession): ServerSession => {
+    session.onGone((err) => wentWrong(name, err))
+    return session
+  }
+
   const made = on.map((server) =>
     extensionFor({
       server,
@@ -197,10 +274,12 @@ export function brokered(options: BrokerOptions): Brokered {
       transport: () => transportFor(server.declaration, transports),
       cached,
       sessions,
-      troubles,
+      talked,
+      watched,
+      answered,
+      wentWrong,
     }),
   )
-  const said = options.onWarning ?? (() => {})
 
   return {
     extensions: made,
@@ -223,12 +302,14 @@ export function brokered(options: BrokerOptions): Brokered {
         try {
           const transport = transportFor(declaration, transports)
           const session = await sessions.of(key, () =>
-            transport.open(declaration, {
-              ...contextFor(declaration, credentialOf(declaration, options), options.home, {
-                env: environment,
-              }),
-              ...(where ? { cwd: where } : {}),
-            }),
+            transport
+              .open(declaration, {
+                ...contextFor(declaration, credentialOf(declaration, options), options.home, {
+                  env: environment,
+                }),
+                ...(where ? { cwd: where } : {}),
+              })
+              .then((opened) => watched(declaration.name, opened)),
           )
           const write = async () => {
             const tools = await session.listTools(signal)
@@ -239,7 +320,7 @@ export function brokered(options: BrokerOptions): Brokered {
             })
           }
           await write()
-          troubles.delete(declaration.name)
+          answered(declaration.name)
           // A server that says its list changed is written down again, and
           // that is as far as it goes: agents are given their tools when they
           // launch, so a new list reaches the next window — the same rule as
@@ -256,11 +337,17 @@ export function brokered(options: BrokerOptions): Brokered {
           // window that refuses to open. Nothing here throws — and nothing
           // goes wrong silently either, so it is said once, in its own words.
           await sessions.drop(key)
-          troubles.set(declaration.name, trouble(err))
+          talked.set(declaration.name, {
+            trouble: err instanceof McpError ? err.trouble : 'unavailable',
+            page: trouble(err),
+          })
           said(`${declaration.name} could not be asked what it offers: ${why(err)}`)
         }
       }
     },
+    // The kind alone, which is all the pure derivation of a word needs, and
+    // looked up rather than copied: this is asked on every frame.
+    standing: () => standingsOf(servers, (name) => talked.get(name)?.trouble, options.servers),
     close: () => sessions.close(),
   }
 }
@@ -366,8 +453,12 @@ function extensionFor(opts: {
   transport: () => McpTransport
   cached: (name: string) => CachedServer | null
   sessions: ServerSessions
-  /** What went wrong the last time anybody talked to one, by server name. */
-  troubles: Map<string, string>
+  /** What came of the last time anybody talked to one, by server name. */
+  talked: ReadonlyMap<string, Talked>
+  /** Listen for it going away without being asked, which is a drop to report. */
+  watched: (name: string, session: ServerSession) => ServerSession
+  answered: (name: string) => void
+  wentWrong: (name: string, err: McpError) => void
 }): TadeExtension {
   const { declaration } = opts.server
   const name = declaration.name
@@ -399,15 +490,15 @@ function extensionFor(opts: {
           progress: ctx.progress,
         }),
     ).then(
-      (answered) => {
-        // It answered, so whatever was wrong with it before is not now.
-        opts.troubles.delete(name)
-        return answered
+      (answer) => {
+        opts.answered(name)
+        return answer
       },
       (err: unknown) => {
         // Not being able to ask at all is what the page has to say about it;
-        // a call the server itself refused is about the call, not the server.
-        if (err instanceof McpError) opts.troubles.set(name, trouble(err))
+        // a call the server itself refused is about the call, not the server,
+        // and is neither written down against it nor reported as its trouble.
+        if (err instanceof McpError && err.trouble !== 'refused') opts.wentWrong(name, err)
         throw err
       },
     )
@@ -423,10 +514,9 @@ function extensionFor(opts: {
 
   const start = (ctx: ExtensionContext, where?: string) => {
     const transport = opts.transport()
-    return transport.open(
-      declaration,
-      contextFor(declaration, credential(ctx), opts.home, ctx, where),
-    )
+    return transport
+      .open(declaration, contextFor(declaration, credential(ctx), opts.home, ctx, where))
+      .then((opened) => opts.watched(name, opened))
   }
 
   return {
@@ -461,8 +551,8 @@ function extensionFor(opts: {
       if (said) return said
       // What it could be asked is one thing; what happened when somebody did
       // is another, and it is the one worth reading.
-      const went = opts.troubles.get(name)
-      if (went) return went
+      const went = opts.talked.get(name)
+      if (went?.trouble) return went.page
       if (tools.length === 0) {
         return `nothing has asked ${name} what it offers yet${declaration.install ? `: ${declaration.install}` : ''}`
       }

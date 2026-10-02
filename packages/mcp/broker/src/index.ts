@@ -13,3 +13,9 @@ export {
   type ShownOptions,
   shownServers,
 } from './shown.ts'
+export {
+  type ServerStanding,
+  type ServerState,
+  standingsOf,
+  stateOf,
+} from './standing.ts'

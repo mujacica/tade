@@ -200,6 +200,8 @@ async function handshake(
   const waiting = new Map<number, Waiting>()
   const progressing = new Map<number, (text: string) => void>()
   const changed = new Set<() => void>()
+  /** Whoever wants to hear that the program went away on its own. */
+  const going = new Set<(err: McpError) => void>()
   let next = 1
   let said = ''
   let over: McpError | null = null
@@ -208,10 +210,16 @@ async function handshake(
 
   /** Everything still waiting comes back with why, rather than waiting for ever. */
   const ended = (err: McpError) => {
+    const first = over === null
     over ??= err
     for (const one of [...waiting.values()]) one.reject(err)
     waiting.clear()
     progressing.clear()
+    // Said once, with what it went on: a program that exits while a call is in
+    // flight ends twice over otherwise, and the second is not news. `close()`
+    // empties these before it ends the conversation, so a shutdown Tade asked
+    // for is never reported as a program that went away.
+    if (first) for (const listener of [...going]) listener(over)
   }
 
   const send = (message: wire.Message): void => {
@@ -303,6 +311,7 @@ async function handshake(
   const close = async (): Promise<void> => {
     if (closed) return
     closed = true
+    going.clear()
     ended(over ?? new McpError('gone', `${server.name} was closed`))
     try {
       child.stdin?.end()
@@ -406,6 +415,15 @@ async function handshake(
     onToolsChanged(listener: () => void) {
       changed.add(listener)
       return () => changed.delete(listener)
+    },
+    onGone(listener: (err: McpError) => void) {
+      // A program that exited between the handshake and this is one whoever
+      // just asked has missed: told now rather than never, since the one thing
+      // this is for is that nobody has to poll to find out. Never after a
+      // `close()`, which is an ending somebody already knows about.
+      if (over && !closed) listener(over)
+      else going.add(listener)
+      return () => going.delete(listener)
     },
     close,
   }

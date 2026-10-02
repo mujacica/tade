@@ -458,6 +458,17 @@ export interface Frame {
     tone: 'quiet' | 'warning' | 'bad'
     viewable: boolean
   }[]
+  /**
+   * How each MCP server somebody has decided about is, for the light along the
+   * top. Read out of the broker on every frame and never kept: a lamp lit from
+   * a remembered answer is a lamp that says a server is up after it dropped,
+   * which is the thing it was added to stop.
+   *
+   * Empty, or absent, draws nothing: a window with no server anybody ever
+   * turned on has no lamp, because a light for software nobody here runs is a
+   * column spent on a question nobody asked.
+   */
+  mcp?: readonly McpState[]
   /** The orchestrator's model, shown on its tab: undefined where the window has no orchestrator. */
   orchestratorModel?: string | null
   /** How hard the orchestrator thinks, as the config has it; null where nothing was chosen. */
@@ -485,6 +496,24 @@ export interface Frame {
   /** How to colour it. Plain unless told otherwise. */
   skin?: Skin
 }
+
+/**
+ * How one MCP server is, in the one word a light has room for.
+ *
+ * The window's own word for what the broker says (`ServerState`), the way
+ * `McpServerShown` is the window's word for a server as a page shows it: the
+ * drawing takes a shape rather than a dependency.
+ *
+ * A word each and not a name each, because a lamp is one word about however
+ * many servers there are and never says which — that is the page it opens, and
+ * what the frame carries is what the drawing draws.
+ *
+ * `off` is one nobody turned on, `unknown` one nothing has asked anything of
+ * yet, `on` one that answered, `unreachable` one that was reachable and has
+ * stopped answering — the drop — and `broken` one that needs something doing
+ * before it can work at all.
+ */
+export type McpState = 'off' | 'unknown' | 'on' | 'unreachable' | 'broken'
 
 export interface Spend {
   tokens: number

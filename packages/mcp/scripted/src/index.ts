@@ -47,6 +47,12 @@ export interface ScriptedServer {
   /** It says its tool list changed, this long after it was opened. */
   changesAfterMs?: number
   /**
+   * It goes away on its own this long after it was opened, the way a program
+   * that crashed while nobody was asking it anything does — which is the case
+   * a drop nobody would otherwise notice is written down against.
+   */
+  goesAfterMs?: number
+  /**
    * It goes away after this many calls on one session, the way a program
    * that crashed or a session a server forgot does: every call from then on
    * is `gone`, and opening it again gets a session that works.
@@ -111,10 +117,26 @@ function session(name: string, one: ScriptedServer, cap: number): ServerSession 
   // one retry untestable, because it would never have anything to retry onto.
   let calls = 0
   const listeners = new Set<() => void>()
+  /** Whoever wants to hear that it went away without being asked. */
+  const going = new Set<(err: McpError) => void>()
+  let over: McpError | null = null
+  /** Said once, and never for a `close()`, which empties these first. */
+  const went = (err: McpError) => {
+    if (over) return
+    over = err
+    for (const listener of [...going]) listener(err)
+  }
   if (one.changesAfterMs !== undefined) {
     const timer = setTimeout(() => {
       for (const listener of listeners) listener()
     }, one.changesAfterMs)
+    timer.unref?.()
+  }
+  if (one.goesAfterMs !== undefined) {
+    const timer = setTimeout(() => {
+      open = false
+      went(new McpError('gone', `${name} stopped`))
+    }, one.goesAfterMs)
     timer.unref?.()
   }
   const shaped = (): OfferedTool[] => [
@@ -136,7 +158,9 @@ function session(name: string, one: ScriptedServer, cap: number): ServerSession 
       if (!open) throw new McpError('gone', `${name} was closed`)
       if (one.diesAfter !== undefined && calls >= one.diesAfter) {
         open = false
-        throw new McpError('gone', `${name} stopped`)
+        const gone = new McpError('gone', `${name} stopped`)
+        went(gone)
+        throw gone
       }
       calls += 1
       if (!shaped().some((offered) => offered.name === tool)) {
@@ -167,9 +191,15 @@ function session(name: string, one: ScriptedServer, cap: number): ServerSession 
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    onGone(listener: (err: McpError) => void) {
+      if (over) listener(over)
+      else going.add(listener)
+      return () => going.delete(listener)
+    },
     async close() {
       open = false
       listeners.clear()
+      going.clear()
     },
   }
 }
