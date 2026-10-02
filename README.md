@@ -247,6 +247,15 @@ figures at the right are everybody's, and say whose.
 
 ![The tabs along the top, each saying what is happening in its own project](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs.svg)
 
+Open more than fit and none of them is lost. The row shortens as far as it shortens — the counts,
+then the marks — and only then does a tab go in the `⋯` beside the `+`, which says how many have
+none and carries the most urgent mark of all of them, so a project asking for a decision says so
+whether or not you can see it. Its menu is those projects, each with what its tab would have said,
+and going to one brings its tab back: the project you are in always has one. Which ones keep a tab
+is the order you arranged them in, so Move left is how one stays.
+
+![Twelve projects and room for eight, the rest in the `⋯` beside the `+`](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs-more.svg)
+
 Each tab has an `×` and a `≡` of its own, like a terminal's. The menu is where a project is renamed
 — what it is called here, never its name, which every task id, every `Tade-Task:` trailer and every
 line of the journal keeps — moved along the row, configured, or closed. **Closing one deletes

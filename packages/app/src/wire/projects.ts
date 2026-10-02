@@ -20,7 +20,7 @@ import {
   withProjectOrder,
   withProjects,
 } from '../model.ts'
-import { projectMenuItems } from '../panels/menu/state.ts'
+import { projectMenuItems, projectsMenuItems } from '../panels/menu/state.ts'
 import {
   nameFrom,
   type OpenProjectPanel,
@@ -47,6 +47,7 @@ import {
   whatIsAt,
 } from '../projects.ts'
 import { addProject } from '../settings.ts'
+import { projectSays, projectStandings } from '../view/top.ts'
 import {
   type Actions,
   configPathOf,
@@ -194,6 +195,32 @@ export class Projects implements Subject {
         },
         choose: (subject, item) => this.fromProjectMenu(subject.project, item),
       },
+      // The `⋯` beside the tabs: the projects the row had no room for, each
+      // carrying what its tab was saying, and choosing one goes there.
+      projects: {
+        title: (subject) =>
+          subject.hidden.length === 1
+            ? 'one more project'
+            : `${subject.hidden.length} more projects`,
+        items: (subject) => {
+          const standings = projectStandings(this.wire.state)
+          const now = this.wire.now()
+          // Read against what is open now, not against the list the row drew:
+          // a project closed while its menu is up is one the menu stops
+          // offering, rather than an item that would arrive somewhere gone.
+          const open = projects(this.wire.state)
+          return projectsMenuItems(
+            subject.hidden
+              .filter((project) => open.includes(project))
+              .map((project) => ({
+                project,
+                label: shownProject(this.wire.state, project),
+                says: projectSays(standings.get(project), now),
+              })),
+          )
+        },
+        choose: (_subject, project) => this.goTo(project),
+      },
     }
   }
 
@@ -219,6 +246,19 @@ export class Projects implements Subject {
         }
       },
     }
+  }
+
+  /**
+   * Go to a project with no tab on the row. The same arrival its tab would
+   * have been, down to the recent list: a project reached through the menu is
+   * one you went to, and the list that says what you went to lately is read by
+   * the panel the `+` opens.
+   */
+  private goTo(project: string): void {
+    this.wire.put(selectProject(this.wire.state, project))
+    const root = this.wire.opts.config.projects[project]?.root
+    if (root) noteRecent(this.wire.opts.home, project, root, this.wire.now())
+    this.wire.draw()
   }
 
   /** What a project's menu does: its name here, where its tab sits, its settings, or closing it. */

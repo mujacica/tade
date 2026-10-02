@@ -35,6 +35,12 @@ export type MenuSubject =
   | { kind: 'schedule'; id: string }
   /** A project's tab along the top. `project` is its name, which is its id. */
   | { kind: 'project'; project: string }
+  /**
+   * The projects the row along the top had no room for. `hidden` is them, in
+   * the order the tabs are arranged in: which ones those are is the drawing's
+   * to say, so the drawing says it (`tabsShown`, `view/top.ts`).
+   */
+  | { kind: 'projects'; hidden: string[] }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -131,6 +137,26 @@ export function projectMenuItems(opts: {
         : {}),
     },
   ]
+}
+
+/**
+ * The projects with no room on the row: one item each, going to it, with what
+ * its tab would have said beside it — so a project put away keeps its marks
+ * and its counts rather than going quiet.
+ *
+ * Nothing here is off and nothing here is a second act. A project you cannot
+ * see is one you want to be looking at, and everything else a project's menu
+ * offers — its name here, where its tab sits, its settings, closing it — is on
+ * its own tab the moment you are there.
+ */
+export function projectsMenuItems(
+  projects: readonly { project: string; label: string; says: string }[],
+): MenuItem[] {
+  return projects.map(({ project, label, says }) => ({
+    id: project,
+    label,
+    ...(says === '' ? {} : { note: says }),
+  }))
 }
 
 /**

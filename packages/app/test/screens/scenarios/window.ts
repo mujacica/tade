@@ -10,7 +10,12 @@ import {
   withTasks,
   withTerminals,
 } from '../../../src/model.ts'
-import { imageMenuItems, menuPanel, projectMenuItems } from '../../../src/panels/menu/state.ts'
+import {
+  imageMenuItems,
+  menuPanel,
+  projectMenuItems,
+  projectsMenuItems,
+} from '../../../src/panels/menu/state.ts'
 import { findPanel, keysPanel, notePanel } from '../../../src/panels/small/state.ts'
 import {
   emptyTranscript,
@@ -70,56 +75,94 @@ const emptyProjectFrame = frame({
  * done. What the tabs along the top are for.
  */
 const inFourProjects = () =>
-  withTasks(withProjects(initialState(), ['checkout', 'search', 'infra', 'docs']), [
-    ...tasks.slice(0, 2),
-    { task: 'search/rankings', state: 'blocked', reason: IDLE_REASON },
-    {
-      task: 'infra/rotate-keys',
-      state: 'queued',
-      by: 'orchestrator',
-      queued: {
-        state: {
-          kind: 'held',
-          on: 'infra/bump-node',
-          because: 'infra/bump-node failed: the image no longer builds',
-        },
-        after: [{ task: 'infra/bump-node', why: 'both change the Dockerfile' }],
-        prompt: 'Rotate the deploy keys and put the new ones in the secret store.',
-        touches: ['deploy/'],
-        at: null,
+  withTasks(withProjects(initialState(), ['checkout', 'search', 'infra', 'docs']), FOUR_PROJECTS)
+
+const FOUR_PROJECTS: TaskSnapshot[] = [
+  ...tasks.slice(0, 2),
+  { task: 'search/rankings', state: 'blocked', reason: IDLE_REASON },
+  {
+    task: 'infra/rotate-keys',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: {
+        kind: 'held',
+        on: 'infra/bump-node',
+        because: 'infra/bump-node failed: the image no longer builds',
       },
+      after: [{ task: 'infra/bump-node', why: 'both change the Dockerfile' }],
+      prompt: 'Rotate the deploy keys and put the new ones in the secret store.',
+      touches: ['deploy/'],
+      at: null,
     },
-    {
-      task: 'infra/tidy-logs',
-      state: 'queued',
-      by: 'orchestrator',
-      queued: {
-        state: { kind: 'waiting', on: ['infra/rotate-keys'] },
-        after: [{ task: 'infra/rotate-keys', why: 'it writes the log shipper’s key' }],
-        prompt: 'Drop the log lines nobody reads.',
-        touches: ['deploy/logs.ts'],
-        at: null,
+  },
+  {
+    task: 'infra/tidy-logs',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['infra/rotate-keys'] },
+      after: [{ task: 'infra/rotate-keys', why: 'it writes the log shipper’s key' }],
+      prompt: 'Drop the log lines nobody reads.',
+      touches: ['deploy/logs.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'infra/prune-images',
+    state: 'queued',
+    queued: {
+      state: { kind: 'ready' },
+      after: [],
+      prompt: 'Prune the images nothing runs any more.',
+      touches: [],
+      at: null,
+    },
+  },
+  { task: 'docs/api-reference', state: 'merged' },
+  {
+    task: 'docs/readme-pictures',
+    state: 'blocked',
+    reason: IDLE_REASON,
+    finished: { by: 'agent', summary: 'The pictures are redrawn and committed' },
+  },
+]
+
+/**
+ * The same four projects with eight more opened beside them, which is more
+ * than any ordinary terminal has room for. Nothing has been asked of the eight:
+ * what these screens are about is the row, not what is in them.
+ */
+const inTwelveProjects = () =>
+  withTasks(
+    withProjects(initialState(), [
+      'checkout',
+      'search',
+      'infra',
+      'docs',
+      'payments',
+      'billing',
+      'identity',
+      'mobile',
+      'analytics',
+      'platform',
+      'ledger',
+      'webhooks',
+    ]),
+    [
+      ...FOUR_PROJECTS,
+      // The twelfth, and the one with no room: an agent waiting on a decision
+      // in a project whose tab is in the `⋯`. The whole claim of a tab is that
+      // this says so wherever you are standing, so the `⋯` carries it.
+      {
+        task: 'webhooks/signing-keys',
+        state: 'blocked',
+        lane: 'webhooks/signing-keys/agent',
+        waiting: true,
+        approval: { tool: 'bash', summary: 'openssl genpkey -algorithm ed25519' },
       },
-    },
-    {
-      task: 'infra/prune-images',
-      state: 'queued',
-      queued: {
-        state: { kind: 'ready' },
-        after: [],
-        prompt: 'Prune the images nothing runs any more.',
-        touches: [],
-        at: null,
-      },
-    },
-    { task: 'docs/api-reference', state: 'merged' },
-    {
-      task: 'docs/readme-pictures',
-      state: 'blocked',
-      reason: IDLE_REASON,
-      finished: { by: 'agent', summary: 'The pictures are redrawn and committed' },
-    },
-  ])
+    ],
+  )
 
 export const WINDOW_SCREENS: Scenario[] = [
   {
@@ -525,6 +568,43 @@ export const WINDOW_SCREENS: Scenario[] = [
       'no figure at all.',
     state: focusTask(inFourProjects(), 'checkout/refunds'),
     frame: frame({ width: 100, height: 28 }),
+  },
+  {
+    name: 'more-projects-than-room',
+    about:
+      'Twelve projects and room for six: the ones arranged first keep a tab, each still saying ' +
+      'what is happening in it, and the `⋯` beside them says how many have none and carries the ' +
+      'most urgent mark of all of them. The row used to be cut off at the edge of the terminal ' +
+      'here — the last tab half drawn, and the `+` and the talk key gone with it.',
+    state: focusTask(inTwelveProjects(), 'checkout/refunds'),
+    frame: frame({ width: 160, height: 34 }),
+  },
+  {
+    name: 'the-projects-with-no-room',
+    about:
+      'The `⋯` opened: the four projects with no tab, each carrying what its tab would have said, ' +
+      'and choosing one goes there. Which projects these are is the drawing’s answer — what fits is ' +
+      'the only thing that knows — and `webhooks` is why the `⋯` itself says `!`.',
+    state: {
+      ...focusTask(inTwelveProjects(), 'checkout/refunds'),
+      panel: menuPanel(
+        { kind: 'projects', hidden: ['analytics', 'platform', 'ledger', 'webhooks'] },
+        '4 more projects',
+        { row: 1, col: 81 },
+      ),
+    },
+    frame: frame({
+      width: 160,
+      height: 34,
+      panel: {
+        items: projectsMenuItems([
+          { project: 'analytics', label: 'analytics', says: '' },
+          { project: 'platform', label: 'platform', says: '' },
+          { project: 'ledger', label: 'ledger', says: '' },
+          { project: 'webhooks', label: 'webhooks', says: '!' },
+        ]),
+      },
+    }),
   },
   {
     name: 'voice-off',

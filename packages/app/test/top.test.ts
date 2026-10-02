@@ -1,16 +1,17 @@
-import { stripTerminalSequences } from '@earendil-works/pi-tui'
+import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import type { Frame } from '../src/frame.ts'
 import {
   type AppState,
   initialState,
+  selectProject,
   type TaskSnapshot,
   withProjects,
   withTasks,
 } from '../src/model.ts'
 import { COLOUR } from '../src/skin.ts'
 import { NO_POINTER } from '../src/ui.ts'
-import { projectStandings, renderTop } from '../src/view/top.ts'
+import { projectStandings, renderTop, tabsShown } from '../src/view/top.ts'
 
 // What the row along the top says about the projects you are not looking at.
 //
@@ -181,5 +182,112 @@ describe('the figures at the right', () => {
     expect(text).not.toContain('! 1')
     expect(text).toContain('checkout !')
     expect(text).toContain('search ✓')
+  })
+})
+
+// More projects than the row has room for.
+//
+// It used to be cut off at the edge of the terminal: the last tab half drawn,
+// the `+` gone, the marks gone, and the talk key — the one thing on this row
+// that must survive a narrow window — gone with them. Twelve projects at 120
+// columns drew `checkout search infra … platfor` and nothing else at all.
+
+const TWELVE = [
+  'checkout',
+  'search',
+  'infra',
+  'docs',
+  'payments',
+  'billing',
+  'identity',
+  'mobile',
+  'analytics',
+  'platform',
+  'ledger',
+  'webhooks',
+]
+
+describe('more projects than room', () => {
+  const crowded = (at?: string): AppState => {
+    const state = world([working, wantsYou, finished, held], TWELVE)
+    return at === undefined ? state : selectProject(state, at)
+  }
+  const drawnAt = (width: number, at?: string) =>
+    renderTop(crowded(at), frame({ width }), width, COLOUR, NO_POINTER)
+  const row = (width: number, at?: string): string => strip(crowded(at), width)
+
+  it('keeps the ones arranged first, and never leaves out the one you are in', () => {
+    expect(tabsShown(['a', 'b', 'c', 'd'], 'a', 2)).toEqual(['a', 'b'])
+    expect(tabsShown(['a', 'b', 'c', 'd'], 'd', 2)).toEqual(['a', 'd'])
+    expect(tabsShown(['a', 'b', 'c', 'd'], 'd', 1)).toEqual(['d'])
+    // Room for more than there are is all of them; and no room at all is still
+    // the one you are standing in, because a row with no tab for where you are
+    // is not a shortened row, it is a wrong one.
+    expect(tabsShown(['a', 'b'], 'a', 9)).toEqual(['a', 'b'])
+    expect(tabsShown(['a', 'b', 'c'], 'c', 0)).toEqual(['c'])
+  })
+
+  it('says nothing about room while there is room for every tab', () => {
+    expect(strip(world([working, finished]))).not.toContain('⋯')
+  })
+
+  it('puts the ones with no room in the `⋯` rather than cutting the row', () => {
+    const text = row(120)
+    expect(text).toContain('⋯')
+    // The `+` is still there, and so is the talk key.
+    expect(text).toContain('+')
+    expect(text).toContain('space')
+  })
+
+  it('says how many have no tab, and that one of them wants you', () => {
+    // The whole point of a tab is that an agent wanting you where you are not
+    // looking says so, and `webhooks` is the twelfth of twelve: the `⋯` carries
+    // the most urgent mark of everything behind it, so putting a tab away is
+    // never putting a decision away.
+    const far: TaskSnapshot = { ...wantsYou, task: 'webhooks/certs', lane: 'webhooks/certs/agent' }
+    const text = strip(world([working, finished, far], TWELVE), 120)
+    expect(text).not.toContain('webhooks')
+    expect(text).toMatch(/⋯\d+ !/)
+  })
+
+  it('keeps the tab of the project you are in, last in the row or not', () => {
+    expect(row(120, 'webhooks')).toContain('webhooks')
+    expect(row(80, 'webhooks')).toContain('webhooks')
+    expect(row(64, 'ledger')).toContain('ledger')
+  })
+
+  it('keeps a mark on every tab it does draw, rather than a row of plain names', () => {
+    // Twelve names fit at 140 where twelve names and a glyph each do not, and
+    // the row takes the glyphs: a tab that says nothing is the row this file
+    // was written to be rid of.
+    const text = row(140, 'checkout')
+    expect(text).toMatch(/checkout\s+!/)
+    expect(text).toContain('⋯')
+  })
+
+  it('draws exactly the width it was given, however many there are', () => {
+    for (const width of [200, 160, 140, 120, 100, 80, 64]) {
+      const drawn = drawnAt(width, 'webhooks')
+      for (const line of drawn.rows) expect(visibleWidth(line), `${width} columns`).toBe(width)
+    }
+  })
+
+  it('offers the ones with no tab as a menu of exactly them', () => {
+    // Nothing is cut from the program: every project is a tab or an item in
+    // that menu, and never both.
+    const drawn = drawnAt(120, 'webhooks')
+    const hidden = drawn.hits.flatMap((hit) =>
+      hit.target.kind === 'menu' && hit.target.subject.kind === 'projects'
+        ? hit.target.subject.hidden
+        : [],
+    )
+    const tabs = [
+      ...new Set(
+        drawn.hits.flatMap((hit) => (hit.target.kind === 'project' ? [hit.target.project] : [])),
+      ),
+    ]
+    expect(hidden.length).toBeGreaterThan(0)
+    expect(hidden.filter((name) => tabs.includes(name))).toEqual([])
+    expect([...tabs, ...hidden].sort()).toEqual([...TWELVE].sort())
   })
 })

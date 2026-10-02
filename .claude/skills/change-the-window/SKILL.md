@@ -424,6 +424,25 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   own. Two ladders would fit the two ends of one row against each other, so both ends are steps of
   this one: the tabs from counts to marks to the one that matters most to nothing, the total from
   words to figures to nothing. The talk key is the one thing that may never be given up.
+- **More projects than room is a rung of that ladder, and never a cut row.** Past the rungs that
+  draw every project, `Fits.hide` lets a tab go in the `⋯` beside the `+` — a chip whose menu
+  (`MenuSubject` `projects`, `projectsMenuItems`) is the projects with no tab, each carrying what
+  its tab would have said. Which ones keep a tab is `tabsShown` (`view/top.ts`): the ones arranged
+  first, plus the one you are in, which is never in the menu. **Not recency**, though it is the
+  obvious other answer: where a tab sits is already somebody's to arrange (`moveProject`, Move left
+  in a tab's own menu), and choosing the visible ones by where you have been would be a second,
+  silent answer to the question the arrangement already answers. It is the **last** thing the row
+  gives up — under the total at the right, under the tabs' counts and under their marks — because
+  it is the only thing here that takes something off the screen rather than shortening it, and a
+  row of plain names that fits still has every project one click away. The three hiding rungs are
+  the three above them again in the same order, so the first thing putting a tab away buys back is
+  the marks. The `⋯` says how many have no tab and carries the most urgent mark of all of them, so
+  a project asking for a decision says so from inside the menu. **Where nothing fits at all the
+  tabs are measured against the whole row**, because `Row.build` then drops the right-hand group
+  whole: a tab put away for columns that are not going to be drawn is a tab given up for nothing,
+  and that bug showed up as one tab and a `⋯2` on a 56-column screen that used to fit three.
+  Nothing is cut from the program either way: `ctrl+shift+1–9` and Search reach every project
+  whether it has a tab or not.
 - **A project tab says what is happening in its project, and a figure that cannot be placed is not
   drawn.** Two projects and two plain names said nothing at all — which of them the spinner at the
   right belonged to, least of all — so each tab carries the marks the agent list carries

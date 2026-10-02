@@ -325,6 +325,16 @@ export const PICTURES: readonly Picture[] = [
       'everybody’s, and say which projects they come from.',
   },
   {
+    file: 'project-tabs-more.svg',
+    scenario: 'more-projects-than-room',
+    crop: { top: 0, height: 3 },
+    about:
+      'Twelve projects and room for eight: the ones arranged first keep a tab, each still saying ' +
+      'what is happening in it, and the `⋯4` beside them says four have none and carries the most ' +
+      'urgent mark of all four — so an agent asking for a decision in a project with no tab still ' +
+      'says so. Its menu is the four of them, and going to one brings its tab back.',
+  },
+  {
     file: 'project-menu.svg',
     scenario: 'a-projects-menu',
     crop: 'panel',

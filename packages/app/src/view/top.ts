@@ -266,14 +266,28 @@ interface Fits {
   search: boolean
   counts: Counts
   word: boolean
+  /**
+   * A tab with nowhere left to go may go in the `⋯` beside the `+` rather
+   * than the row being cut off at the edge of the terminal. Only the bottom
+   * rungs have it, for the reason in `LADDER`.
+   */
+  hide: boolean
 }
 
 /**
- * Room for the caps and nothing else. Dropping the word is the last thing left
- * to drop, and it is the caps that say what to press — a bar that gave up the
- * talk key to keep the word `talk` would have it backwards.
+ * Room for the caps and nothing else, and a tab in the menu if even that will
+ * not do. Dropping the word is the last thing left to drop, and it is the caps
+ * that say what to press — a bar that gave up the talk key to keep the word
+ * `talk` would have it backwards.
  */
-const LAST: Fits = { tabs: 'none', manage: false, search: false, counts: 'none', word: false }
+const LAST: Fits = {
+  tabs: 'none',
+  manage: false,
+  search: false,
+  counts: 'none',
+  word: false,
+  hide: true,
+}
 
 /**
  * Everything along the top, in the order it gives ground.
@@ -290,9 +304,9 @@ const LAST: Fits = { tabs: 'none', manage: false, search: false, counts: 'none',
  * the two ends of one row against each other.
  */
 const LADDER: readonly Fits[] = [
-  { tabs: 'counts', manage: true, search: true, counts: 'full', word: true },
-  { tabs: 'counts', manage: true, search: true, counts: 'short', word: true },
-  { tabs: 'counts', manage: true, search: true, counts: 'waiting', word: true },
+  { tabs: 'counts', manage: true, search: true, counts: 'full', word: true, hide: false },
+  { tabs: 'counts', manage: true, search: true, counts: 'short', word: true, hide: false },
+  { tabs: 'counts', manage: true, search: true, counts: 'waiting', word: true, hide: false },
   // Then the buttons, and giving them up buys the whole right-hand group
   // back — the same trade giving up the search key makes further down. They go
   // here, after the total at the right has shortened as far as it shortens and
@@ -301,19 +315,116 @@ const LADDER: readonly Fits[] = [
   // and they are the only thing here that is a second way to something: the
   // menu is a right-click on the tab either way, and closing is in it. What a
   // mark says is not reachable any other way, so every mark outlives them.
-  { tabs: 'counts', manage: false, search: true, counts: 'full', word: true },
-  { tabs: 'counts', manage: false, search: true, counts: 'short', word: true },
-  { tabs: 'counts', manage: false, search: true, counts: 'waiting', word: true },
-  { tabs: 'marks', manage: false, search: true, counts: 'waiting', word: true },
+  { tabs: 'counts', manage: false, search: true, counts: 'full', word: true, hide: false },
+  { tabs: 'counts', manage: false, search: true, counts: 'short', word: true, hide: false },
+  { tabs: 'counts', manage: false, search: true, counts: 'waiting', word: true, hide: false },
+  { tabs: 'marks', manage: false, search: true, counts: 'waiting', word: true, hide: false },
   // Giving up search buys the working count back, as it always did: down here
   // the counts are worth more than a key that has a shortcut of its own.
-  { tabs: 'marks', manage: false, search: false, counts: 'short', word: true },
-  { tabs: 'marks', manage: false, search: false, counts: 'waiting', word: true },
-  { tabs: 'busiest', manage: false, search: false, counts: 'waiting', word: true },
-  { tabs: 'busiest', manage: false, search: false, counts: 'none', word: true },
-  { tabs: 'none', manage: false, search: false, counts: 'none', word: true },
+  { tabs: 'marks', manage: false, search: false, counts: 'short', word: true, hide: false },
+  { tabs: 'marks', manage: false, search: false, counts: 'waiting', word: true, hide: false },
+  { tabs: 'busiest', manage: false, search: false, counts: 'waiting', word: true, hide: false },
+  { tabs: 'busiest', manage: false, search: false, counts: 'none', word: true, hide: false },
+  { tabs: 'none', manage: false, search: false, counts: 'none', word: true, hide: false },
+  // The row at its poorest with every project still on it: names alone, and
+  // the word beside the caps gone. `LAST` is this rung again at the bottom,
+  // and the only thing between them is whether a tab may be put away.
+  { tabs: 'none', manage: false, search: false, counts: 'none', word: false, hide: false },
+  // Everything above here draws every project there is. Below it a tab goes in
+  // the `⋯` beside the `+`, which says how many went and the most urgent thing
+  // in any of them, and whose menu is the list of them.
+  //
+  // It is the last thing the row gives up — under the total at the right, under
+  // the tabs' own counts and under their marks — because it is the only thing
+  // here that takes something off the screen rather than shortening it. A row
+  // of plain names that fits is still a row where every project is one click
+  // away, and that is worth more than a mark.
+  //
+  // And then the first thing putting a tab away buys is the marks back, which
+  // is why these three are the three above them again, in the same order: by
+  // the time a tab has gone there is room for the rest to say something, and a
+  // tab that says nothing in a row that is already not showing everything
+  // would be giving up twice over.
+  { tabs: 'busiest', manage: false, search: false, counts: 'none', word: true, hide: true },
+  { tabs: 'none', manage: false, search: false, counts: 'none', word: true, hide: true },
   LAST,
 ]
+
+/** What there is room for on the row, and what the `⋯` beside it holds. */
+interface Strip {
+  /** The tabs drawn, in the order the tabs are arranged in. */
+  shown: readonly string[]
+  /** The rest, in that same order: what the `⋯` menu lists. */
+  hidden: readonly string[]
+  /** Columns the left-hand group takes, the `⋯` and the `+` included. */
+  used: number
+  /** Whether that is room the rung being tried actually has. */
+  fits: boolean
+}
+
+/**
+ * Which projects keep a tab where there is not room for every one of them: the
+ * ones arranged first, and the one you are in — which is never in the menu.
+ *
+ * Two rules, and deliberately not three. Where a tab sits is already somebody's
+ * to arrange — `moveProject`, and Move left in a tab's own menu — so what is on
+ * the row is that same arrangement read from the front, one answer to one
+ * question. The other shape this could have had is recency, keeping the projects
+ * you were in last: not taken, because it would be a second and silent answer to
+ * the question the arrangement already answers, and a row whose tabs come and go
+ * as you move about is a row you have to read again every time you look at it.
+ *
+ * Where you are is the one exception, and it is not a third rule but what makes
+ * the first one safe: a row with no tab for the project you are standing in is
+ * not a shortened row, it is a wrong one.
+ */
+export function tabsShown(
+  order: readonly string[],
+  active: string | null,
+  how: number,
+): readonly string[] {
+  const keep = Math.max(1, Math.min(order.length, how))
+  if (keep === order.length) return order
+  const here = active !== null && order.includes(active) ? active : null
+  const held = new Set(
+    order.filter((project) => project !== here).slice(0, keep - (here === null ? 0 : 1)),
+  )
+  if (here !== null) held.add(here)
+  return order.filter((project) => held.has(project))
+}
+
+/**
+ * What the `⋯` says: how many projects have no tab, and the most urgent thing
+ * happening in any of them.
+ *
+ * The count, because "is anything missing" is the question a row that does not
+ * show everything raises, and a row that quietly showed eight of twelve would
+ * never answer it. The mark, because the whole point of a tab is that an agent
+ * wanting you in a project you are not looking at says so — and a project
+ * whose marks went in a menu would be the one place that stopped being true.
+ *
+ * `✓` is not among them, for `tabSays`' reason: this is what is *not*
+ * finished, and a tick standing for some of several projects says nothing.
+ */
+function moreLabel(
+  hidden: readonly string[],
+  standings: Map<string, ProjectStanding>,
+  now: number,
+): string {
+  const mark = MARKS.find((one) =>
+    hidden.some((project) => (standings.get(project)?.counts[one] ?? 0) > 0),
+  )
+  return mark === undefined ? `⋯${hidden.length}` : `⋯${hidden.length} ${markGlyph(mark, now)}`
+}
+
+/**
+ * What a tab would have said beside its name, for a project with no tab: the
+ * menu of them carries the same marks and counts the row does, so putting a
+ * tab away never loses what it was saying.
+ */
+export function projectSays(standing: ProjectStanding | undefined, now: number): string {
+  return standing === undefined ? '' : tabSays(standing, 'counts', now)
+}
 
 export function renderTop(
   state: AppState,
@@ -338,38 +449,90 @@ export function renderTop(
     working += standing.counts.working
   }
 
-  // The wordmark, a tab per project, then the `+`. Built as a function of how
-  // much a tab says, because what fits is decided by trying, and neither end
-  // of the row can be measured without the other.
-  //
+  // The wordmark, a tab per project, the `⋯` for any with no room, then the
+  // `+` — one function per control, because what a thing costs is asked of the
+  // thing that draws it. Working out what fits calls these exactly as the
+  // drawing does, so the row can never be measured as one shape and drawn as
+  // another.
+  const wordmark = (r: Row): void => void r.space().mark('TADE').space(2)
+  const plus = (r: Row): void =>
+    void r.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
   // A tab's own `×` and `≡` are drawn the way a terminal's are, and the
   // argument is that file's (`bottomTabs`, `view/foot.ts`): always there, so
   // the room is paid for once rather than taken out from under the hand
   // sweeping along the row, and the tab stays lit while the pointer is on
   // either of them, so reaching for a close is never leaving the tab.
-  const left = (fits: Pick<Fits, 'tabs' | 'manage'>) => (r: Row) => {
-    r.space().mark('TADE').space(2)
-    for (const project of open) {
-      const target: Target = { kind: 'project', project }
-      const menu: Target = { kind: 'menu', subject: { kind: 'project', project } }
-      const close: Target = { kind: 'action', name: `close-project:${project}` }
-      const label = tabLabel(shownProject(state, project), standings.get(project), fits.tabs, now)
-      const within = fits.manage && pointingIn(state.hover, [target, menu, close])
-      r.tab(label, target, project === state.project, within)
-      if (fits.manage) r.icon('×', close, 'danger').icon('≡', menu)
-    }
-    r.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
+  const tabOf = (r: Row, project: string, label: string, manage: boolean): void => {
+    const target: Target = { kind: 'project', project }
+    const menu: Target = { kind: 'menu', subject: { kind: 'project', project } }
+    const close: Target = { kind: 'action', name: `close-project:${project}` }
+    const within = manage && pointingIn(state.hover, [target, menu, close])
+    r.tab(label, target, project === state.project, within)
+    if (manage) r.icon('×', close, 'danger').icon('≡', menu)
   }
-  // Six widths at most, and the ladder asks for them thirteen times.
-  const measured = new Map<string, number>()
-  const leftWidth = (fits: Pick<Fits, 'tabs' | 'manage'>): number => {
+  // The one control that is a project you cannot see. A chip rather than a tab,
+  // because it is not one of them and must never read as the project you are
+  // in, and it carries the names so that the menu it opens is the list of them
+  // — what fits is the drawing's to say, and this is the drawing saying it.
+  const moreOf = (r: Row, hidden: readonly string[], label: string): void =>
+    void r.chip(label, { kind: 'menu', subject: { kind: 'projects', hidden: [...hidden] } })
+
+  const probed = (draw: (r: Row) => void): number => {
+    const probe = new Row(width, skin)
+    draw(probe)
+    return probe.used
+  }
+  // The wordmark and the `+`, which no rung of the ladder changes.
+  const chrome = probed(wordmark) + probed(plus)
+  // Four labellings and six costings at most, and the ladder asks for them
+  // fourteen times.
+  const labelled = new Map<TabDetail, Map<string, string>>()
+  const labels = (detail: TabDetail): Map<string, string> => {
+    const already = labelled.get(detail)
+    if (already) return already
+    const made = new Map<string, string>()
+    for (const project of open)
+      made.set(project, tabLabel(shownProject(state, project), standings.get(project), detail, now))
+    labelled.set(detail, made)
+    return made
+  }
+  const measured = new Map<string, Map<string, number>>()
+  const costs = (fits: Fits): Map<string, number> => {
     const key = `${fits.tabs}\u0000${fits.manage}`
     const already = measured.get(key)
-    if (already !== undefined) return already
-    const probe = new Row(width, skin)
-    left(fits)(probe)
-    measured.set(key, probe.used)
-    return probe.used
+    if (already) return already
+    const label = labels(fits.tabs)
+    const cost = new Map<string, number>()
+    for (const project of open)
+      cost.set(
+        project,
+        probed((r) => tabOf(r, project, label.get(project) ?? project, fits.manage)),
+      )
+    measured.set(key, cost)
+    return cost
+  }
+
+  /** What one rung draws in the room it is left, and what it has to put away. */
+  const stripFor = (fits: Fits, room: number): Strip => {
+    const cost = costs(fits)
+    const spent = (tabs: readonly string[]): number =>
+      tabs.reduce((sum, project) => sum + (cost.get(project) ?? 0), 0)
+    const every = chrome + spent(open)
+    const all: Strip = { shown: open, hidden: [], used: every, fits: every <= room }
+    if (all.fits || !fits.hide) return all
+    for (let how = open.length - 1; how >= 1; how--) {
+      const shown = tabsShown(open, state.project, how)
+      const hidden = open.filter((project) => !shown.includes(project))
+      // The `⋯` measured as it will be drawn, label and all, rather than at the
+      // widest it could ever be: a column guessed high here is a whole tab put
+      // away to make room for one that was never going to be used.
+      const used =
+        chrome + probed((r) => moreOf(r, hidden, moreLabel(hidden, standings, now))) + spent(shown)
+      // One tab and the `⋯`, in a terminal with room for neither, is where this
+      // gives out — and what to do about that is the caller's.
+      if (used <= room || how === 1) return { shown, hidden, used, fits: used <= room }
+    }
+    return all
   }
 
   const right = (show: Fits) => (r: Row) => {
@@ -396,14 +559,35 @@ export function renderTop(
     r.space()
   }
 
-  const fits =
-    LADDER.find((show) => {
-      const probe = new Row(width, skin)
-      right(show)(probe)
-      return leftWidth(show) + 1 + probe.used <= width
-    }) ?? LAST
+  // Each rung tried once and kept, because the rung that fits is asked for its
+  // strip again and the two answers have to be the one answer.
+  const tried = new Map<Fits, Strip>()
+  const stripOf = (show: Fits): Strip => {
+    const already = tried.get(show)
+    if (already) return already
+    const probe = new Row(width, skin)
+    right(show)(probe)
+    // A column of clear between the two groups, which is what `Row` keeps for
+    // a right-hand group of its own.
+    const strip = stripFor(show, width - probe.used - 1)
+    tried.set(show, strip)
+    return strip
+  }
+  const found = LADDER.find((show) => stripOf(show).fits)
+  const fits = found ?? LAST
+  // Nothing fitted at all, and then the right-hand group is dropped whole
+  // (`Row.build` keeps the row's width and lets its pinned group go) — so the
+  // room the tabs have is the whole row, and they are measured against that
+  // instead. A tab put away to make space for something that is not going to
+  // be drawn is a tab given up for nothing, and that is what a very narrow
+  // window got: one tab and a `⋯2` where three tabs fitted.
+  const strip = found ? stripOf(found) : stripFor(LAST, width)
   const row = new Row(width, skin, pointer)
-  left(fits)(row)
+  wordmark(row)
+  const label = labels(fits.tabs)
+  for (const project of strip.shown) tabOf(row, project, label.get(project) ?? project, fits.manage)
+  if (strip.hidden.length > 0) moreOf(row, strip.hidden, moreLabel(strip.hidden, standings, now))
+  plus(row)
   row.right(right(fits))
   return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
 }
