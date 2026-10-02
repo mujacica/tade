@@ -64,6 +64,30 @@ describe('a row of controls', () => {
     expect(plain(coloured.text).length).toBe(plain(bare.text).length)
   })
 
+  it('throws a switch and picks an option in the same columns, with or without colour', () => {
+    // The two controls a form is made of, and both of them changed size: a
+    // switch is 12 columns and an option is its mark, its label and a block's
+    // four — whatever the skin, because the map of what is clickable is the
+    // same map in both and a plain skin is not a degraded layout.
+    const build = (skin: typeof PLAIN, on: boolean) =>
+      new Row(40, skin)
+        .toggle(on, { kind: 'control', id: 'toggle:telemetry.errors' })
+        .space()
+        .option(on, 'worktree', { kind: 'control', id: 'set:agents.workspace=worktree' })
+        .build()
+    for (const on of [true, false]) {
+      const coloured = build(COLOUR, on)
+      const bare = build(PLAIN, on)
+      expect(coloured.hits).toEqual(bare.hits)
+      const [knob, picked] = bare.hits
+      // A switch is the same width thrown either way, so a column of them
+      // lines up and nothing moves as one is thrown.
+      expect((knob?.to ?? 0) - (knob?.from ?? 0) + 1).toBe(12)
+      expect((picked?.to ?? 0) - (picked?.from ?? 0) + 1).toBe(visibleWidth('◉ worktree') + 4)
+      expect(plain(coloured.text).length).toBe(plain(bare.text).length)
+    }
+  })
+
   it('pins the right group to the edge, and drops it before it overlaps', () => {
     const roomy = new Row(40, PLAIN)
       .text('left')

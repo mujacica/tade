@@ -7,6 +7,7 @@ import {
   parseSetting,
   type SettingGroup,
   settingFound,
+  settingLabel,
   settingsOf,
   stepped,
 } from '../src/settings.ts'
@@ -32,6 +33,30 @@ describe('what there is to change', () => {
     // A blank where a value should be reads as broken. What it will do
     // instead, marked as not-your-choice, reads as a default.
     expect(describeSetting(find('orchestrator.model'))).toContain('(the harness decides)')
+  })
+
+  it('says which project a scoped setting is about, where a list crosses them', () => {
+    // One project's rows are titled for the *setting* — `Brief`, not
+    // `app brief` — because the page shows one project at a time and says
+    // which once, above. Everything that draws a list across projects says it
+    // per row through the one spelling of it: three rows called Brief are
+    // three rows nobody can tell apart.
+    const over = { projects: { shop: { root: '/tmp/shop' }, docs: { root: '/tmp/docs' } } }
+    const brief = find('projects.shop.brief', over)
+    expect(brief.title).toBe('Brief')
+    expect(brief.scope).toBe('shop')
+    expect(settingLabel(brief)).toBe('shop — Brief')
+    expect(describeSetting(brief)).toContain('shop — Brief')
+    // And nothing is prefixed that is not one of several: a machine-wide
+    // setting has no scope and is drawn as its own name.
+    const machine = find('agents.workspace', over)
+    expect(machine.scope).toBeUndefined()
+    expect(settingLabel(machine)).toBe('Where agents work')
+    // Every row of every project carries its project, so the page can show one.
+    const projects = settingsOf(config(over))
+      .find((group) => group.id === 'projects')
+      ?.settings.map((one) => one.scope)
+    expect(new Set(projects)).toEqual(new Set(['shop', 'docs']))
   })
 
   it('says what changing it does, not just what it is called', () => {
