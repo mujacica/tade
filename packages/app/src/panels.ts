@@ -21,6 +21,7 @@ import {
   type McpServerOffer,
   type WrittenToolView,
 } from './panels/extensions/state.ts'
+import type { InlineRow } from './panels/file/inline.ts'
 import { type FilePanel, fileClick, fileDismiss, fileKey } from './panels/file/state.ts'
 import { type MenuItem, type MenuPanel, menuClick, menuKey } from './panels/menu/state.ts'
 import { type ModelChoice, type ModelPanel, modelClick, modelKey } from './panels/models/state.ts'
@@ -123,6 +124,12 @@ export interface PanelInputs {
   /** How many lines the file panel shows at once, and how wide they are drawn. */
   body?: number
   columns?: number
+  /**
+   * The rows the open file is drawn as with git's answer laid into it, whether
+   * or not that is what it is showing: turning it on has to know where a line
+   * will be drawn, and turning it off where the row at the top of the view is.
+   */
+  diffRows?: readonly InlineRow[] | null
   /** The project's branches, for switching. */
   branches?: readonly BranchRow[]
   /** How many lines the find panel's query matches. */

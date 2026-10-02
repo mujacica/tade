@@ -24,6 +24,7 @@ import {
   typeIn,
 } from '../../viewer.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { drawnRow, type InlineRow, lineAtRow } from './inline.ts'
 
 // A file read inside the window, and what a key or a click does to it.
 //
@@ -49,6 +50,16 @@ export interface FilePanel {
   scroll: number
   /** Markdown laid out rather than shown as source. */
   formatted: boolean
+  /**
+   * What git says about the file, drawn into it: added lines marked, lines it
+   * says are gone shown where they were. A diff and the file itself are two
+   * things you want separately, so it is a toggle and not how a file opens.
+   *
+   * Never on at the same time as `formatted`, for `asking`'s reason: laid-out
+   * Markdown has no line of the file to draw a mark beside. Each of them turns
+   * the other off, so everything else can read one of them and be right.
+   */
+  inline: boolean
   /** The one bar under the file's name: finding in it, or going to a line. */
   asking: FileAsk | null
   /** What has been typed into it, once you have clicked in. */
@@ -76,13 +87,19 @@ export type FileAsk =
  * stay in view, so the line is read in its place. A line asked for means the
  * source, since formatted Markdown has no line numbers to go to.
  */
-export function filePanel(path: string, line: number | null = null, markdown = false): FilePanel {
+export function filePanel(
+  path: string,
+  line: number | null = null,
+  markdown = false,
+  inline = false,
+): FilePanel {
   return {
     kind: 'file',
     path,
     line,
     scroll: line ? Math.max(0, line - 6) : 0,
-    formatted: markdown && line === null,
+    formatted: markdown && line === null && !inline,
+    inline,
     asking: null,
     edit: null,
     anchor: null,
@@ -149,7 +166,7 @@ export function fileKey(
   const lines = inputs.lines ?? 0
   const body = Math.max(1, inputs.body ?? 20)
   if (panel.asking) return askKey(panel, panel.asking, key, data, inputs)
-  if (panel.edit) return typingKey(panel, panel.edit, key, data, body)
+  if (panel.edit) return typingKey(panel, panel.edit, key, data, body, inputs)
   const last = Math.max(0, lines - 1)
   const to = (scroll: number) => stay({ ...panel, scroll: Math.max(0, Math.min(last, scroll)) })
   switch (key) {
@@ -160,6 +177,8 @@ export function fileKey(
       return stay(asking(panel, { kind: 'find', query: '', index: 0 }))
     case 'ctrl+g':
       return stay(asking(panel, { kind: 'goto', digits: '' }))
+    case 'ctrl+d':
+      return stay(withInline(panel, inputs))
     case 'down':
       return to(panel.scroll + 1)
     case 'up':
@@ -200,13 +219,16 @@ function typingKey(
   key: string | undefined,
   data: string,
   body: number,
+  inputs: PanelInputs,
 ): PanelOutcome {
+  const rows = shownRows(panel, inputs)
   if (key === 'ctrl+s')
     return edit.dirty
       ? { panel: { ...panel, warned: false }, submit: true, choice: 'save' }
       : stay(panel)
   if (key === 'ctrl+f') return stay(asking(panel, { kind: 'find', query: '', index: 0 }))
   if (key === 'ctrl+g') return stay(asking(panel, { kind: 'goto', digits: '' }))
+  if (key === 'ctrl+d') return stay(withInline(panel, inputs))
   if (key === 'escape') return edit.dirty && !panel.warned ? stay(warn(panel)) : close
   const selected = fileSelection(panel)
   // With its modifiers in one order, because a terminal reports them in its
@@ -221,9 +243,9 @@ function typingKey(
   if (what?.do === 'select all') {
     const last = Math.max(0, edit.lines.length - 1)
     const all = caretAt(edit, last, (edit.lines[last] ?? '').length)
-    return stay(typedInto({ ...panel, anchor: 0 }, all, body))
+    return stay(typedInto({ ...panel, anchor: 0 }, all, body, rows))
   }
-  if (what?.do === 'move') return stay(movedIn(panel, edit, what, selected, body))
+  if (what?.do === 'move') return stay(movedIn(panel, edit, what, selected, body, rows))
   // Everything below changes the text, so what is selected is what it
   // replaces: the file with it taken out is what each of them starts from.
   // Worked out only where something is about to change it — a key this editor
@@ -233,18 +255,51 @@ function typingKey(
   // Backspace and delete take the selection and nothing more: taking it out
   // is the whole of what they were asked for.
   if (selected && (key === 'backspace' || key === 'delete'))
-    return stay(typedInto(letGo, without(), body))
+    return stay(typedInto(letGo, without(), body, rows))
   // A paste is text like any other here, newlines and all — pasting a line in
   // is half of what a short edit is for.
   const paste = pastedText(data)
-  if (paste !== null) return stay(typedInto(letGo, typeIn(without(), paste), body))
+  if (paste !== null) return stay(typedInto(letGo, typeIn(without(), paste), body, rows))
   const text = typed(data, key)
-  if (text) return stay(typedInto(letGo, typeIn(without(), text), body))
+  if (text) return stay(typedInto(letGo, typeIn(without(), text), body, rows))
   // What is left of the editor's own keys, every one of which changes the
   // text: the motions were answered above, and none of these types anything
   // `typed` would have taken first.
   const moved = editKey(without(), key, body)
-  return moved ? stay(typedInto(letGo, moved, body)) : stay(panel)
+  return moved ? stay(typedInto(letGo, moved, body, rows)) : stay(panel)
+}
+
+/**
+ * The rows the file is drawn as, where it is drawn with git's answer in it.
+ * Nothing while the inline diff is off: a line is then its own row, which is
+ * what everything below means by one when there is nothing to ask.
+ */
+function shownRows(panel: FilePanel, inputs: PanelInputs): readonly InlineRow[] | null {
+  return panel.inline ? (inputs.diffRows ?? null) : null
+}
+
+/** Whether the panel is drawing the file with git's answer in it. */
+export function showsDiff(panel: FilePanel): boolean {
+  return panel.inline && !panel.formatted
+}
+
+/**
+ * The inline diff turned on or off, with the top of the view left on the same
+ * line of the file. The lines git says are gone are rows that come and go, so
+ * a scroll kept as a number would jump by however many of them are above it.
+ */
+function withInline(panel: FilePanel, inputs: PanelInputs): FilePanel {
+  const rows = inputs.diffRows ?? null
+  const scroll = panel.inline ? lineAtRow(rows, panel.scroll) : drawnRow(rows, panel.scroll)
+  return {
+    ...panel,
+    inline: !panel.inline,
+    // Over the source, like the two bars: there is no mark to draw beside a
+    // line of laid-out Markdown, because it is not a line of the file.
+    formatted: false,
+    scroll: Math.max(0, scroll),
+    said: null,
+  }
 }
 
 /** The key of the editor's own that makes a motion: one decoder, both editors. */
@@ -278,18 +333,21 @@ function movedIn(
   what: Extract<LineKey, { do: 'move' }>,
   selected: Span | null,
   body: number,
+  rows: readonly InlineRow[] | null,
 ): FilePanel {
   if (!what.extend) {
     if (selected && what.by === 'char') {
       const at = placeOf(edit.lines, what.back ? selected.from : selected.to)
-      return typedInto({ ...panel, anchor: null }, caretAt(edit, at.line, at.col), body)
+      return typedInto({ ...panel, anchor: null }, caretAt(edit, at.line, at.col), body, rows)
     }
     const moved = editKey(edit, motionKey(what), body)
-    return moved ? typedInto({ ...panel, anchor: null }, moved, body) : { ...panel, anchor: null }
+    return moved
+      ? typedInto({ ...panel, anchor: null }, moved, body, rows)
+      : { ...panel, anchor: null }
   }
   const anchor = panel.anchor ?? offsetOf(edit.lines, { line: edit.row, col: edit.column })
   const moved = editKey(edit, motionKey(what), body)
-  return moved ? typedInto({ ...panel, anchor }, moved, body) : { ...panel, anchor }
+  return moved ? typedInto({ ...panel, anchor }, moved, body, rows) : { ...panel, anchor }
 }
 
 /**
@@ -313,14 +371,19 @@ function warn(panel: FilePanel): FilePanel {
 }
 
 /** The file as it now is, with the caret in view and the last answer cleared. */
-function typedInto(panel: FilePanel, edit: Edited, body: number): FilePanel {
+function typedInto(
+  panel: FilePanel,
+  edit: Edited,
+  body: number,
+  rows: readonly InlineRow[] | null,
+): FilePanel {
   return {
     ...panel,
     edit,
     line: null,
     warned: false,
     said: null,
-    scroll: inView(panel.scroll, edit.row, body),
+    scroll: inView(panel.scroll, drawnRow(rows, edit.row), body),
   }
 }
 
@@ -334,12 +397,13 @@ function askKey(
 ): PanelOutcome {
   const body = Math.max(1, inputs.body ?? 20)
   const text = inputs.text ?? []
+  const rows = shownRows(panel, inputs)
   if (key === 'escape') return stay({ ...panel, asking: null })
   if (ask.kind === 'goto') {
     if (key === 'enter') {
       const line = Number(ask.digits)
       if (!line) return stay({ ...panel, asking: null })
-      return stay(atLine(panel, Math.min(Math.max(1, line), Math.max(1, text.length)), body))
+      return stay(atLine(panel, Math.min(Math.max(1, line), Math.max(1, text.length)), body, rows))
     }
     if (key === 'backspace') return stay(asking(panel, { ...ask, digits: ask.digits.slice(0, -1) }))
     const digits = typed(data, key).replace(/\D/g, '')
@@ -350,7 +414,7 @@ function askKey(
     const next = found.length === 0 ? 0 : ((index % found.length) + found.length) % found.length
     const match = found[next]
     const moved = asking(panel, { ...ask, query, index: next })
-    return stay(match ? atLine(moved, match.line + 1, body, match.column) : moved)
+    return stay(match ? atLine(moved, match.line + 1, body, rows, match.column) : moved)
   }
   if (key === 'enter' || key === 'down' || key === 'ctrl+f') return at(ask.index + 1)
   if (key === 'up') return at(ask.index - 1)
@@ -371,11 +435,17 @@ function asking(panel: FilePanel, ask: FileAsk): FilePanel {
 }
 
 /** The line found or asked for: marked, brought into view, and taken by the caret. */
-function atLine(panel: FilePanel, line: number, body: number, column = 0): FilePanel {
+function atLine(
+  panel: FilePanel,
+  line: number,
+  body: number,
+  rows: readonly InlineRow[] | null,
+  column = 0,
+): FilePanel {
   return {
     ...panel,
     line,
-    scroll: inView(panel.scroll, line - 1, body),
+    scroll: inView(panel.scroll, drawnRow(rows, line - 1), body),
     // A caret sent somewhere else is a selection nobody can see the point of.
     anchor: null,
     ...(panel.edit ? { edit: caretAt(panel.edit, line - 1, column) } : {}),
@@ -452,9 +522,11 @@ export function fileClick(panel: FilePanel, control: string, inputs: PanelInputs
     case 'formatted':
       return losing
         ? stay(warn(panel))
-        : stay({ ...panel, formatted: true, scroll: 0, edit: null, anchor: null })
+        : stay({ ...panel, formatted: true, inline: false, scroll: 0, edit: null, anchor: null })
     case 'source':
       return stay({ ...panel, formatted: false, scroll: 0 })
+    case 'inline':
+      return stay(withInline(panel, inputs))
     default:
       return stay(panel)
   }

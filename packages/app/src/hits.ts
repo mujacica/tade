@@ -58,8 +58,12 @@ export type Target =
    * far along the hit the click landed, which only the hit knows.
    */
   | { kind: 'caret'; line: number }
-  /** A file the task changed: clicking it shows the change. */
-  | { kind: 'change'; task: string; path: string }
+  /**
+   * A changed file: clicking it opens the editor with the change drawn into it.
+   * The task is whose changes they are, and nothing where they are the
+   * checkout's own — which in a shared checkout is every uncommitted change.
+   */
+  | { kind: 'change'; task: string | null; path: string }
   /**
    * A cell of a lane's own screen, on a lane that took the whole screen, asked
    * for the mouse and has the keyboard: what the pointer does here is the

@@ -12,6 +12,7 @@ import type { ViewedFile } from '../viewer.ts'
 import type { SetupFieldView } from './extensions/setup.ts'
 import type { ExtensionView, McpServerOffer, WrittenToolView } from './extensions/state.ts'
 import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
+import type { InlineRow } from './file/inline.ts'
 import { fileView } from './file/view.ts'
 import type { MenuItem } from './menu/state.ts'
 import { menu } from './menu/view.ts'
@@ -77,7 +78,10 @@ export interface PanelContext {
   ahead: number | null
   branch: string | null
   base: string | null
-  /** The file the diff panel is showing, once git has said. */
+  /**
+   * What git says about the file the panel is showing, once it has said: the
+   * patch the diff panel draws, and the counts in the file panel's heading.
+   */
   diff: ParsedDiff | null
   /** Models an agent can be started on. */
   choices: readonly Choice[]
@@ -126,6 +130,13 @@ export interface PanelContext {
     formatted: readonly string[] | null
     /** The same lines with no colour: what a find looks through and a caret counts in. */
     text: readonly string[]
+    /**
+     * The rows it is drawn as with git's answer laid into them, once git has
+     * said — null while nobody has asked, or where there is nothing to lay in.
+     * Worked out beside the lines and not per frame: a row list is a pass over
+     * the whole file, and the file is drawn four times a second.
+     */
+    inline: readonly InlineRow[] | null
   } | null
   /** The key you talk with, and how. */
   talkKey: string

@@ -69,7 +69,7 @@ export interface SearchDeps {
   /** Stop an agent. */
   stopAgent(task: string): Promise<void>
   /** Show one of an agent's changes. */
-  openDiff(task: string, path: string): Promise<void>
+  openChange(task: string | null, path: string): Promise<void>
   /** Open Settings on a category, and on one project of it where it has them. */
   openSettings(category: string, search?: string, project?: string): Promise<string>
   /** Put a terminal in front. */
@@ -334,7 +334,7 @@ export class Search implements Subject {
         return
       case 'changes': {
         const first = this.wire.live?.changes(arg)[0]
-        if (first) await this.deps.openDiff(arg, first.path)
+        if (first) await this.deps.openChange(arg, first.path)
         else this.wire.put(notice(this.wire.state, `${arg} has not changed anything yet`))
         break
       }

@@ -21,7 +21,7 @@ import {
 import { tildeOf } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import { BAR, bar, panelSize } from '../frame.ts'
-import { type FileAsk, type FilePanel, fileMatches, fileSelection } from './state.ts'
+import { type FileAsk, type FilePanel, fileMatches, fileSelection, showsDiff } from './state.ts'
 
 // What the file viewer looks like: the lines, the selection laid over them,
 // the bar along the bottom and what it is asking. What a key does to it is
@@ -55,9 +55,13 @@ export function fileBodySize(
   height: number,
   lines: number,
   bar = false,
+  inline = false,
 ): { rows: number; columns: number; gutter: number } {
   const size = fileViewSize(width, height)
-  const gutter = Math.max(3, String(Math.max(1, lines)).length) + 4
+  // A column in front of the numbers for what git says about the line, where
+  // that is being shown: the sign is the half of the answer colour is not, and
+  // it is what the golden screens read.
+  const gutter = Math.max(3, String(Math.max(1, lines)).length) + 4 + (inline ? 1 : 0)
   return {
     rows: Math.max(1, size.height - 6 - (bar ? 1 : 0)),
     columns: Math.max(1, size.width - 2 - BAR - gutter),
@@ -89,26 +93,68 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   const typeable = file !== null && !formatted && editable(file) === null
   const control = (id: string) => ({ kind: 'control' as const, id })
 
+  // What git says about the file, laid into it — once it has been asked, which
+  // is what pressing the chip does. The chip itself is drawn wherever git could
+  // have something to say, on or off: a toggle you cannot see is a toggle
+  // nobody finds twice, and one that appears only once it is on is worse.
+  const inline = showsDiff(panel) ? (viewing?.inline ?? null) : null
+  const changes =
+    !formatted && (inline !== null || (file !== null && !file.binary && file.error === null))
+  // What git counted, where it has answered and the answer is the file's own:
+  // a file that matches its base is told so in words, because `+0 −0` is a
+  // figure drawn for an answer that is not a figure.
+  const counted = inline && ctx.diff && !ctx.diff.binary ? ctx.diff : null
+  const counts = counted && counted.added + counted.removed > 0 ? counted : null
+  const unchanged = counted !== null && counts === null
+  const facts =
+    file && !file.error
+      ? [
+          file.language ?? (file.binary ? 'binary' : 'text'),
+          file.binary ? null : `${lines.length} line${lines.length === 1 ? '' : 's'}`,
+          bytes(file.size),
+          file.truncated ? 'first 1 MB' : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : ''
+  const dirty = file && !file.error && edit?.dirty === true
+  // Everything else on the row, measured before the path is drawn, so the path
+  // is what gives way: a heading that pushes its own controls off the row is a
+  // heading nobody can press, and a path in a worktree is as long as it likes.
+  const beside =
+    (facts ? visibleCells(facts) + 2 : 0) +
+    (dirty ? '● not saved'.length + 2 : 0) +
+    (counts ? `+${counts.added} −${counts.removed}`.length + 2 : 0) +
+    (unchanged ? NOTHING.length + 2 : 0) +
+    (markdown ? 'Formatted'.length + 'Source'.length + 8 : 0) +
+    (changes ? 'Changes'.length + 2 : 0) +
+    2
   const head = new Row(inner, skin, ctx.pointer)
     .space()
-    .text(tildeOf(panel.path, ctx.homeDir), skin.you)
-  if (file && !file.error) {
-    const facts = [
-      file.language ?? (file.binary ? 'binary' : 'text'),
-      file.binary ? null : `${lines.length} line${lines.length === 1 ? '' : 's'}`,
-      bytes(file.size),
-      file.truncated ? 'first 1 MB' : null,
-    ].filter(Boolean)
-    head.space(2).text(facts.join(' · '), skin.hint)
-    if (edit?.dirty) head.space(2).text('● not saved', skin.waiting)
+    .text(shownPath(tildeOf(panel.path, ctx.homeDir), Math.max(12, inner - 1 - beside)), skin.you)
+  if (facts) head.space(2).text(facts, skin.hint)
+  if (dirty) head.space(2).text('● not saved', skin.waiting)
+  if (counts) {
+    head.space(2).text(`+${counts.added}`, skin.done).space().text(`−${counts.removed}`, skin.bad)
   }
-  if (markdown) {
-    head.right((r) =>
-      r
-        .tab('Formatted', control('formatted'), panel.formatted)
-        .tab('Source', control('source'), !panel.formatted)
-        .space(),
-    )
+  if (unchanged) head.space(2).text(NOTHING, skin.hint)
+  if (markdown || changes) {
+    head.right((r) => {
+      if (markdown) {
+        r.tab('Formatted', control('formatted'), panel.formatted).tab(
+          'Source',
+          control('source'),
+          !panel.formatted,
+        )
+      }
+      // Off is a chip at rest rather than a chip missing: a toggle you cannot
+      // see is a toggle nobody finds twice.
+      if (changes) {
+        if (markdown) r.space()
+        r.chip('Changes', control('inline'), panel.inline ? 'primary' : 'rest')
+      }
+      r.space()
+    })
   }
   const rows: { text: string; hits: Hit[] }[] = [
     head.build(),
@@ -120,11 +166,23 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   // keeps the height it had and nothing under the pointer moves.
   const matches = fileMatches(panel, plain)
   if (panel.asking) rows.push(fileBar(panel.asking, matches, inner, ctx))
-  const geometry = fileBodySize(ctx.width, ctx.height, lines.length, panel.asking !== null)
+  // How much there is to scroll through: the rows, which the lines git says are
+  // gone add to. One answer, and `Files.lines()` reads it the same way.
+  const total = inline ? inline.length : lines.length
+  const geometry = fileBodySize(
+    ctx.width,
+    ctx.height,
+    total,
+    panel.asking !== null,
+    inline !== null,
+  )
   const body = geometry.rows
   if (!viewing) {
     rows.push(new Row(inner, skin).space(2).text('Reading…', skin.hint).build())
-  } else if (file?.error || file?.binary) {
+    // A file git says is gone has no lines of its own and still has a diff: what
+    // it said is the whole of what there is to show, so the rows win over the
+    // reason it could not be read.
+  } else if ((file?.error && !inline) || file?.binary) {
     rows.push(blank(inner))
     rows.push(
       new Row(inner, skin)
@@ -136,8 +194,8 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     // A column down the right is the file's scrollbar: where in it you are
     // reading, and a handle to move.
     const text = inner - BAR
-    const digits = geometry.gutter - 4
-    const scroll = Math.max(0, Math.min(panel.scroll, lines.length - body))
+    const digits = geometry.gutter - 4 - (inline ? 1 : 0)
+    const scroll = Math.max(0, Math.min(panel.scroll, total - body))
     // Where the caret is drawn, and how far the body has slid left to keep it
     // on screen: a long line is edited at its end as often as at its start.
     const gutterWidth = formatted ? 0 : geometry.gutter
@@ -149,39 +207,57 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     const read: { text: string; hits: Hit[] }[] = []
     for (let offset = 0; offset < body; offset++) {
       const at = scroll + offset
-      const number = at + 1
-      const there = at < lines.length
-      const marked = !formatted && panel.line === number
+      // Which line of the file this row is — and the row is the line itself,
+      // until the gone lines put themselves between them. A gone line is no
+      // line of the file, so it has no number, no caret and nothing laid over.
+      const shown = inline ? inline[at] : null
+      const gone = shown?.kind === 'remove'
+      const line = inline ? (shown?.line ?? null) : at < lines.length ? at : null
+      const there = inline ? shown !== undefined : at < lines.length
+      const number = line === null ? null : line + 1
+      const marked = !formatted && number !== null && panel.line === number
+      const sign = inline ? SIGNS[shown?.kind ?? 'context'] : ''
       const gutter =
-        formatted || !there ? '' : `${marked ? '▶' : ' '}${String(number).padStart(digits)} │ `
+        formatted || !there
+          ? ''
+          : `${sign}${marked ? '▶' : ' '}${(number === null ? '' : String(number)).padStart(digits)} │ `
       const room = Math.max(1, text - visibleCells(gutter))
-      const source = there ? colouredAt(at, edit, viewing, ctx) : ''
+      const source = !there
+        ? ''
+        : gone
+          ? skin.bad(shown?.text ?? '')
+          : line === null
+            ? ''
+            : colouredAt(line, edit, viewing, ctx)
       const tabbed = source.replaceAll('\t', TAB)
       const cut = fitRow(left === 0 ? tabbed : sliceByColumn(tabbed, left, room), room)
-      const painted = `${formatted || !there ? '' : marked ? skin.signal(gutter.slice(0, 1)) + skin.you(gutter.slice(1, -2)) + skin.chrome('│ ') : skin.hint(gutter.slice(0, -2)) + skin.chrome('│ ')}${cut}`
+      const painted = `${formatted || !there ? '' : paintGutter(gutter, sign, marked, skin)}${cut}`
       const hits: Hit[] = [
         { row: 0, from: 0, to: text - 1, target: { kind: 'scroll', area: 'panel' } },
       ]
       // Clicking the text puts the caret in it; clicking the numbers does not,
       // so the gutter is still somewhere to take hold of the file and scroll.
-      if (typeable && lines.length > 0)
+      // A gone line is nowhere to put one: it is not in the file to be typed in.
+      if (typeable && line !== null)
         hits.push({
           row: 0,
           from: gutterWidth,
           to: text - 1,
-          target: { kind: 'caret', line: Math.min(at, lines.length - 1) },
+          target: { kind: 'caret', line: Math.min(line, lines.length - 1) },
         })
       read.push({
         text: laidOver(marked ? skin.selected(painted) : painted, {
-          at,
-          line: plain[at] ?? '',
+          // Never a row the file has no line on: the selection, the matches and
+          // the caret are all placed in the file's own lines.
+          at: line ?? -1,
+          line: (line === null ? '' : plain[line]) ?? '',
           gutter: gutterWidth,
           left,
           width: text,
           matches,
           current: panel.asking?.kind === 'find' ? matches[panel.asking.index] : undefined,
           ...(selection ? { selection } : {}),
-          ...(edit && edit.row === at ? { caret: caretCell, caretCells } : {}),
+          ...(edit && line !== null && edit.row === line ? { caret: caretCell, caretCells } : {}),
           skin,
         }),
         hits,
@@ -189,11 +265,7 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     }
     // The same bar every other panel draws, from the same three numbers: how
     // much there is, how much is in view, and where in it you are.
-    const cells = bar(
-      { total: lines.length, shown: body, offset: scroll, rows: body },
-      'panel',
-      ctx,
-    )
+    const cells = bar({ total, shown: body, offset: scroll, rows: body }, 'panel', ctx)
     read.forEach((row, i) => {
       const cell = cells[i]
       rows.push({
@@ -211,10 +283,7 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
       hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'scroll', area: 'panel' } }],
     })
   rows.push({ text: skin.chrome('─'.repeat(inner)), hits: [] })
-  const shownTo = Math.min(
-    lines.length,
-    Math.max(0, Math.min(panel.scroll, lines.length - body)) + body,
-  )
+  const shownTo = Math.min(total, Math.max(0, Math.min(panel.scroll, total - body)) + body)
   const foot = new Row(inner, skin, ctx.pointer).space()
   // The buttons are what the footer is for; where they are position is said,
   // and the keys only where there is room for them too.
@@ -228,21 +297,33 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     3
   if (panel.said) {
     foot.text(panel.said, skin.waiting)
-  } else if (lines.length > 0) {
-    const from = Math.max(0, Math.min(panel.scroll, lines.length - body)) + 1
-    const where = `${formatted ? 'rows' : 'lines'} ${from}–${shownTo} of ${lines.length}`
-    const keys =
+  } else if (total > 0) {
+    const from = Math.max(0, Math.min(panel.scroll, total - body)) + 1
+    const where = `${formatted || inline ? 'rows' : 'lines'} ${from}–${shownTo} of ${total}`
+    // Longest first, and the first of them that fits: a fourth key on this row
+    // used to mean the row said one key less at every width, rather than at the
+    // widths where there is genuinely no room for it.
+    const hints =
       panel.asking?.kind === 'find'
-        ? '  enter the next · ↑↓ move · esc shuts the bar'
+        ? ['  enter the next · ↑↓ move · esc shuts the bar']
         : edit
           ? selection
-            ? '  ctrl+shift+c copies · ctrl+s saves · esc leaves'
-            : '  ctrl+s saves · ctrl+f finds · esc leaves'
+            ? ['  ctrl+shift+c copies · ctrl+s saves · esc leaves']
+            : ['  ctrl+s saves · ctrl+f finds · esc leaves']
           : typeable
-            ? '  click to edit · ctrl+f find · ctrl+g line'
-            : '  ↑↓ scroll · space a page · e editor'
+            ? changes
+              ? // `ctrl+d` goes first where there is no room for all four,
+                // because the chip in the heading says it and nothing says
+                // `ctrl+g` but this row.
+                [
+                  '  click to edit · ctrl+f find · ctrl+g line · ctrl+d changes',
+                  '  click to edit · ctrl+f find · ctrl+g line',
+                ]
+              : ['  click to edit · ctrl+f find · ctrl+g line']
+            : ['  ↑↓ scroll · space a page · e editor']
     if (1 + where.length + buttons + 2 <= inner) foot.text(where, skin.hint)
-    if (1 + where.length + keys.length + buttons + 2 <= inner) foot.text(keys, skin.hint)
+    const keys = hints.find((one) => 1 + where.length + one.length + buttons + 2 <= inner)
+    if (keys) foot.text(keys, skin.hint)
   }
   foot.right((r) => {
     if (saving) r.button('Save', control('save'), 'attention').space()
@@ -255,6 +336,40 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   })
   rows.push(foot.build())
   return box('File', rows, size.width, skin, { corner: 'esc' })
+}
+
+/** What the heading says where git has looked and the file matches its base. */
+const NOTHING = 'no changes'
+
+/**
+ * The path, shortened from its front where the row has no room for all of it:
+ * the end of a path is the part that names the file, so that is the end kept.
+ */
+function shownPath(path: string, room: number): string {
+  if (visibleWidth(path) <= room) return path
+  return `…${path.slice(-Math.max(1, room - 1))}`
+}
+
+/**
+ * What each kind of row says it is in the column in front of the numbers. The
+ * sign and not only the colour, because a diff read with no colour — a golden
+ * screen, a pipe, `NO_COLOR` — still has to say which side of the change a line
+ * is on.
+ */
+const SIGNS = { context: ' ', add: '+', remove: '−' } as const
+
+/**
+ * The numbers down the side, painted: the sign in its own tone, then the mark
+ * and the number, then the rule. One place, because the row is built as one
+ * string and the slices have to add back up to the gutter's own width.
+ */
+function paintGutter(gutter: string, sign: string, marked: boolean, skin: Skin): string {
+  const signed = sign === '+' ? skin.done(sign) : sign === '−' ? skin.bad(sign) : sign
+  const rest = gutter.slice(sign.length)
+  const numbers = marked
+    ? skin.signal(rest.slice(0, 1)) + skin.you(rest.slice(1, -2))
+    : skin.hint(rest.slice(0, -2))
+  return `${signed}${numbers}${skin.chrome('│ ')}`
 }
 
 /**

@@ -656,10 +656,9 @@ function changeRow(
       : change.mark === 'D' || change.mark === 'U'
         ? skin.bad
         : skin.waiting
-  // A changed file shows its change; with no task to diff against, it opens.
-  const target: Target = task
-    ? { kind: 'change', task, path: change.path }
-    : { kind: 'file', path: change.path }
+  // A changed file shows its change, measured from the checkout it is in —
+  // which is there whether the row belongs to a task or to nobody.
+  const target: Target = { kind: 'change', task, path: change.path }
   const counts = [
     change.added ? `+${change.added}` : '',
     change.removed ? `−${change.removed}` : '',

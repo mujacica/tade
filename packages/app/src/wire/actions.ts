@@ -50,6 +50,8 @@ export interface RouterDeps {
   onScreen(name: string): Promise<void>
   /** Read a diff, because the diff panel moved to another file. */
   loadDiff(task: string, path: string): Promise<void>
+  /** Ask git about the open file, because it is now being shown with its changes in it. */
+  loadFileDiff(path: string): Promise<void>
   /** Ask an extension for its page again, for the tab and window its panel is on. */
   loadExtensionView(panel: ExtensionViewPanel): Promise<void>
   /** Search was opened: the slow halves of it start. */
@@ -130,6 +132,16 @@ export class Router {
       const was = before?.kind === 'diff' ? before : null
       if (!was || was.file !== outcome.panel.file || was.task !== outcome.panel.task) {
         void this.deps.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
+      }
+    }
+    // The file panel asked for what git says about it: asked now rather than on
+    // the next status beat, because a toggle that takes a second to answer is a
+    // toggle that looks broken. Only on the press that turned it on — it is
+    // asked again when the file changes, and that is the save's to do.
+    if (outcome.panel?.kind === 'file' && outcome.panel.inline) {
+      const was = before?.kind === 'file' ? before : null
+      if (!was?.inline || was.path !== outcome.panel.path) {
+        void this.deps.loadFileDiff(outcome.panel.path)
       }
     }
     // A different tab or a different window is a different page: the extension

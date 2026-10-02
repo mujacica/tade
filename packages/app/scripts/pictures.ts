@@ -183,10 +183,11 @@ export const PICTURES: readonly Picture[] = [
   },
   {
     file: 'diff.svg',
-    scenario: 'diff',
+    scenario: 'a-change-in-the-editor',
     crop: 'panel',
     about:
-      'A changed file as a diff, with buttons to open it in your editor or ask the agent about it.',
+      'A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it — ' +
+      'added lines green, the line that was there red, and ctrl+s to save what you fix.',
   },
   {
     file: 'search.svg',

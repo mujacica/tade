@@ -147,12 +147,14 @@ else, letters and all; `Answer search` off on Jev's own page stops the question 
 
 ## Changes, tracked as they happen
 
-Every file an agent touches, marked the way git marks it, with the diff a click away.
+Every file an agent touches, marked the way git marks it. Click one and it opens in the window's own
+editor with git's answer drawn into it — added lines green, the lines that were there red — where you
+can fix it and press ctrl+s, rather than read it here and go and fix it somewhere else.
 
 <table>
 <tr>
 <td width="30%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
-<td width="70%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/diff.svg" alt="A changed file as a diff, with buttons to open it in your editor or ask the agent about it"></td>
+<td width="70%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/diff.svg" alt="A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it"></td>
 </tr>
 </table>
 

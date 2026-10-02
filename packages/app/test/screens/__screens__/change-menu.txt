@@ -15,13 +15,13 @@
   A │▌ Show changes        click ▕│                                                                                     
   M │  Open file                 ▕│Read src/webhooks.ts                                                                 
     │  Open in editor            ▕│Edit src/webhooks.ts  +12 −4                                                         
- ▾ F│  Ask the agent about it    ▕│bash npm i stripe@15                                                                 
-   ▾│────────────────────────────▕│ wants approval ─────────────────────────────────────────────╮                       
-    │  Copy path                 ▕│bash  npm i stripe@15                                        │                       
-    │────────────────────────────▕│  Allow once     Deny                                        │                       
-   ▸│  Discard changes…          ▕│─────────────────────────────────────────────────────────────╯                       
-    ╰─────────────────────────────╯                                                                                     
-━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+ ▾ F│  Read as a patch           ▕│bash npm i stripe@15                                                                 
+   ▾│  Ask the agent about it    ▕│ wants approval ─────────────────────────────────────────────╮                       
+    │────────────────────────────▕│bash  npm i stripe@15                                        │                       
+    │  Copy path                 ▕│  Allow once     Deny                                        │                       
+   ▸│────────────────────────────▕│─────────────────────────────────────────────────────────────╯                       
+    │  Discard changes…          ▕│                                                                                     
+━   ╰─────────────────────────────╯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕

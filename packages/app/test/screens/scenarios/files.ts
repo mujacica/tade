@@ -1,9 +1,11 @@
-import { parseDiff } from '../../../src/diff.ts'
+import { type ParsedDiff, parseDiff } from '../../../src/diff.ts'
 import { offsetOf } from '../../../src/input.ts'
 import { initialState, toggleSection, withProjects } from '../../../src/model.ts'
+import { inlineRows } from '../../../src/panels/file/inline.ts'
 import { filePanel } from '../../../src/panels/file/state.ts'
 import { branchPanel, diffPanel } from '../../../src/panels/small/state.ts'
 import {
+  type Edited,
   editFrom,
   formattedLines,
   sourceLines,
@@ -71,14 +73,48 @@ const readmeFile: ViewedFile = {
   ].join('\n'),
 }
 
-function viewing(file: ViewedFile, width?: number) {
+function viewing(file: ViewedFile, width?: number, diff?: ParsedDiff, edit?: Edited) {
+  const text = textLines(file)
   return {
     file,
     source: sourceLines(file, false),
-    text: textLines(file),
+    text,
     formatted: width ? formattedLines(file, width, false) : null,
+    // The rows git's answer makes of it, worked out the way the window works
+    // them out: from where each line the panel holds came from in the file.
+    inline: diff
+      ? inlineRows(diff, edit?.from ?? null, edit ? edit.lines.length : text.length)
+      : null,
   }
 }
+
+/**
+ * What `git diff` says about `webhooks.ts` as the fixture has it: the one call
+ * replaced by four lines, which is a removal and four additions in the middle
+ * of a file whose other eleven lines nobody touched.
+ */
+const webhooksDiff = parseDiff(
+  [
+    'diff --git a/src/webhooks.ts b/src/webhooks.ts',
+    '--- a/src/webhooks.ts',
+    '+++ b/src/webhooks.ts',
+    '@@ -5,7 +5,10 @@ export async function handle(body: string, sig: string): Promise<void> {',
+    ' export async function handle(body: string, sig: string): Promise<void> {',
+    '   const key = process.env.STRIPE_WEBHOOK_SECRET',
+    "   if (!key) throw new Error('no webhook secret')",
+    '-  const event = stripe.webhooks.constructEvent(body, sig, key)',
+    '+  const cryptoProvider = Stripe.createSubtleCryptoProvider()',
+    '+  const event = await stripe.webhooks.constructEventAsync(',
+    '+    body, sig, key, undefined, cryptoProvider,',
+    '+  )',
+    "   if (event.type === 'charge.refunded') {",
+    '     await refund(event)',
+    '   }',
+  ].join('\n'),
+)
+
+/** A word typed onto the line above the change, with the diff still drawn in. */
+const typedIntoChange = typeIn(editFrom(textLines(webhooksFile), 6, 51), ' // always')
 
 export const FILE_SCREENS: Scenario[] = [
   {
@@ -178,6 +214,40 @@ export const FILE_SCREENS: Scenario[] = [
       },
     },
     frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(webhooksFile) } }),
+  },
+  {
+    name: 'a-change-in-the-editor',
+    about:
+      'A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it.',
+    state: {
+      ...base(),
+      panel: filePanel('/Users/me/src/checkout/src/webhooks.ts', null, false, true),
+    },
+    frame: frame({
+      panel: {
+        homeDir: '/Users/me',
+        diff: webhooksDiff,
+        viewing: viewing(webhooksFile, undefined, webhooksDiff),
+      },
+    }),
+  },
+  {
+    name: 'editing-a-change-in-place',
+    about: 'Typed into a changed file with the diff still on it: the new line is an addition too.',
+    state: {
+      ...base(),
+      panel: {
+        ...filePanel('/Users/me/src/checkout/src/webhooks.ts', null, false, true),
+        edit: typedIntoChange,
+      },
+    },
+    frame: frame({
+      panel: {
+        homeDir: '/Users/me',
+        diff: webhooksDiff,
+        viewing: viewing(webhooksFile, undefined, webhooksDiff, typedIntoChange),
+      },
+    }),
   },
   {
     name: 'selecting-in-a-file',

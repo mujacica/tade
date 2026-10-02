@@ -125,7 +125,7 @@ export interface MouseDeps {
   resolvePath(path: string): string
   openFile(path: string, line?: number | null): void
   openLink(url: string): void
-  openDiff(task: string, path: string): void
+  openChange(task: string | null, path: string): void
   openNote(note: { at: string; text: string }): void
   /** Clicking a task that is not running opens its agent again. */
   openAgent(): void
@@ -522,7 +522,7 @@ export class Mouse {
         this.deps.openMenu({ kind: 'branch' }, at)
         return
       case 'change':
-        this.deps.openDiff(target.task, target.path)
+        this.deps.openChange(target.task, target.path)
         return
       case 'project': {
         this.wire.put(selectProject(this.wire.state, target.project))

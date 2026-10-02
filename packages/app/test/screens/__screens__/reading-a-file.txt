@@ -1,7 +1,7 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ File ─────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
-   │ ~/src/checkout/src/webhooks.ts  typescript · 15 lines · 1 KB                                                   │───
+   │ ~/src/checkout/src/webhooks.ts  typescript · 15 lines · 1 KB                                          Changes  │───
  ▌ │────────────────────────────────────────────────────────────────────────────────────────────────────────────────│   
  ▌ │   1 │ import Stripe from 'stripe'                                                                             ▕│   
    │   2 │ import { refund } from './ledger.ts'                                                                    ▕│   

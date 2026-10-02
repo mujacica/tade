@@ -1,4 +1,4 @@
-import { basename, isAbsolute, resolve } from 'node:path'
+import { basename, isAbsolute, relative, resolve } from 'node:path'
 import { expandHome, type LaneId } from '@tade/core'
 import { git } from '@tade/status'
 import { type ParsedDiff, parseDiff } from '../diff.ts'
@@ -12,24 +12,14 @@ import {
 } from '../editor.ts'
 import type { Frame } from '../frame.ts'
 import { focusTask, notice, shownName, toggleFolder, viewLane } from '../model.ts'
-import { type FilePanel, filePanel, savedFile } from '../panels/file/state.ts'
-import { fileBodySize, fileViewSize } from '../panels/file/view.ts'
+import { type FilePanel, filePanel, savedFile, showsDiff } from '../panels/file/state.ts'
+import { fileBodySize } from '../panels/file/view.ts'
 import { branchMenuItems, changeMenuItems, fileMenuItems } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { type BranchRow, branchPanel, diffPanel, promptPanel } from '../panels/small/state.ts'
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
-import {
-  editedText,
-  formattable,
-  formattedLines,
-  readForView,
-  saveEdited,
-  sourceLines,
-  textLines,
-  type ViewedFile,
-} from '../viewer.ts'
 import {
   type Actions,
   type Menus,
@@ -41,6 +31,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { Viewed } from './viewed.ts'
 
 // The file you have open, the diff beside it, and the branch underneath.
 //
@@ -51,9 +42,10 @@ import {
 // git says changed about it, throw those changes away, or move the whole
 // checkout to another branch.
 //
-// The viewer keeps the file it read rather than reading again per frame: a
-// file is coloured as a whole file, and Markdown is laid out for the width it
-// has, so both are kept beside the lines and redone only when the width moves.
+// The file the viewer has open is `viewed.ts` beside this, read once and kept:
+// this subject is what git says about the checkout, that one is the one file.
+// Clicking a changed file goes through `openChange`, which opens that same
+// viewer with git's answer in it — so a change you can read you can also fix.
 
 /** What this subject needs from the rest of the window. */
 export interface FilesDeps {
@@ -80,14 +72,8 @@ export interface FilesDeps {
 export class Files implements Subject {
   private readonly wire: Wiring
   private readonly deps: FilesDeps
-  /** The file the viewer is showing, its coloured source, and its Markdown laid out at a width. */
-  private viewed: {
-    file: ViewedFile
-    source: string[]
-    /** The same lines uncoloured: what a find looks through and a caret counts in. */
-    text: string[]
-    formatted: { width: number; lines: string[] } | null
-  } | null = null
+  /** The file the viewer has open: read once, coloured once, laid out once. */
+  private readonly viewed = new Viewed()
   /** The diff the diff panel is showing, once git has answered. */
   private diff: ParsedDiff | null = null
   /** The project checkout's branches, for the Switch branch panel. */
@@ -153,7 +139,7 @@ export class Files implements Subject {
   /** The file being read, the diff beside it, or the branches to switch to. */
   panel(width: number): Frame['panel'] {
     const panel = this.wire.state.panel
-    if (panel?.kind === 'file') return { viewing: this.viewing(width) }
+    if (panel?.kind === 'file') return { viewing: this.viewing(width), diff: this.viewed.diff() }
     if (panel?.kind === 'diff') return { diff: this.diff }
     if (panel?.kind === 'branch') return { branches: this.branchRows }
     return {}
@@ -165,6 +151,7 @@ export class Files implements Subject {
     return {
       text: this.textAt(panel),
       branches: this.branchRows,
+      ...(panel?.kind === 'file' ? { diffRows: this.viewed.rows(panel.edit) } : {}),
       ...(file ? { lines: this.lines(), body: file.rows, columns: file.columns } : {}),
     }
   }
@@ -189,23 +176,22 @@ export class Files implements Subject {
         title: (subject) => subject.path.split('/').at(-1) ?? subject.path,
         items: (subject) => {
           const focused = this.focusedPane()
-          const marks = this.wire.live?.marksAt(this.hereOnDisk()) ?? {}
+          const here = this.hereOnDisk()
+          const marks = this.wire.live?.marksAt(here) ?? {}
           return fileMenuItems({
             folder: subject.folder,
             open: this.wire.state.expanded.includes(subject.path),
+            // The checkout the tree beside it is drawn from, agent or not: it
+            // used to need an agent *and* a mark, which left the orchestrator's
+            // own edits with the item turned off.
             changed:
-              focused !== undefined &&
-              (this.wire.live?.changes(focused.task) ?? []).some(
-                (change) => change.path === subject.path,
-              ),
+              marks[subject.path] !== undefined ||
+              this.wire.live
+                ?.changesAt(here, this.wire.live.baseOf(this.wire.state.focused))
+                .some((change) => change.path === subject.path) === true,
             agent: focused?.lane != null,
             platform: process.platform,
-          }).map((item) =>
-            // A file with uncommitted changes can always show them, agent or not.
-            item.id === 'changes' && marks[subject.path] && focused
-              ? { id: item.id, label: item.label }
-              : item,
-          )
+          })
         },
         choose: (subject, item) => this.fromFileMenu(subject.path, subject.folder, item),
       },
@@ -345,24 +331,13 @@ export class Files implements Subject {
     )
   }
 
-  /** The diff the diff panel is showing, or nothing while git is still answering. */
-  shownDiff(): ParsedDiff | null {
-    return this.diff
-  }
-
-  /** The branches the Switch branch panel offers, as last read. */
-  branches(): readonly BranchRow[] {
-    return this.branchRows
-  }
-
   /**
    * The file's own lines, and only while they are the file the panel is on: a
    * caret counts columns in them, and in the wrong file it would land
    * somewhere nobody pointed at.
    */
   textAt(panel: Panel | null): readonly string[] {
-    if (panel?.kind !== 'file' || this.viewed?.file.path !== panel.path) return []
-    return this.viewed?.text ?? []
+    return panel?.kind === 'file' ? this.viewed.text(panel.path) : []
   }
 
   /**
@@ -423,38 +398,28 @@ export class Files implements Subject {
     return root ? expandHome(root) : null
   }
 
-  /** Read a file into the viewer, at a line if there is one. */
-  openFile(path: string, line: number | null = null): void {
-    const file = readForView(path)
-    this.viewed = {
-      file,
-      source: sourceLines(file, !this.deps.skin.colour),
-      text: textLines(file),
-      formatted: null,
-    }
-    this.wire.put({ ...this.wire.state, panel: filePanel(path, line, formattable(file)) })
+  /**
+   * Read a file into the viewer, at a line if there is one — and, where it was
+   * opened as a change, with git's answer in it from the first frame.
+   */
+  openFile(path: string, line: number | null = null, inline = false): void {
+    this.viewed.open(path, !this.deps.skin.colour)
+    this.wire.put({
+      ...this.wire.state,
+      panel: filePanel(path, line, this.viewed.markdown(), inline),
+    })
     this.wire.draw()
   }
 
   /** What the viewer draws, with Markdown laid out for the width it has now. */
   viewing(width: number): NonNullable<Frame['panel']>['viewing'] {
-    const viewed = this.viewed
-    if (!viewed) return null
-    if (!formattable(viewed.file))
-      return { file: viewed.file, source: viewed.source, text: viewed.text, formatted: null }
-    const room = fileViewSize(width, this.deps.size().rows).width - 4
-    if (viewed.formatted?.width !== room) {
-      viewed.formatted = {
-        width: room,
-        lines: formattedLines(viewed.file, room, !this.deps.skin.colour),
-      }
-    }
-    return {
-      file: viewed.file,
-      source: viewed.source,
-      text: viewed.text,
-      formatted: viewed.formatted.lines,
-    }
+    const panel = this.wire.state.panel
+    return this.viewed.showing(
+      width,
+      this.deps.size().rows,
+      !this.deps.skin.colour,
+      panel?.kind === 'file' ? panel.edit : null,
+    )
   }
 
   /**
@@ -466,23 +431,20 @@ export class Files implements Subject {
    * and everything typed still in it.
    */
   async saveFile(panel: FilePanel): Promise<void> {
-    const viewed = this.viewed
     const edit = panel.edit
-    if (!viewed || !edit || viewed.file.path !== panel.path) return
+    if (!edit || !this.viewed.has(panel.path)) return
+    const about = this.viewed.about()
     try {
-      const file = saveEdited(viewed.file, editedText(edit, viewed.file))
-      this.viewed = {
-        file,
-        source: sourceLines(file, !this.deps.skin.colour),
-        text: textLines(file),
-        formatted: null,
-      }
+      const lines = this.viewed.save(edit, !this.deps.skin.colour)
       this.wire.put({
         ...this.wire.state,
-        panel: savedFile(panel, this.viewed.text, `Saved ${basename(panel.path)}.`),
+        panel: savedFile(panel, lines, `Saved ${basename(panel.path)}.`),
       })
       this.wire.draw()
       await this.wire.live?.refresh()
+      // What was saved is a change, so what git says about it has changed too:
+      // the file it was asked about is the file that was just written.
+      await this.loadFileDiff(about, panel.path)
     } catch (err) {
       this.wire.put({ ...this.wire.state, panel: { ...panel, said: why(err), warned: true } })
     }
@@ -551,7 +513,7 @@ export class Files implements Subject {
         await this.openPlace({ path: full })
         return
       case 'changes':
-        if (focused) await this.openDiff(focused.task, path)
+        await this.openChange(focused?.task ?? null, path)
         return
       case 'ask':
         if (focused) await this.askAbout(focused.task, path)
@@ -575,6 +537,9 @@ export class Files implements Subject {
     const full = this.resolvePath(path)
     switch (item) {
       case 'diff':
+        await this.openChange(task, path)
+        return
+      case 'patch':
         if (task) await this.openDiff(task, path)
         return
       case 'open':
@@ -660,7 +625,7 @@ export class Files implements Subject {
       case 'changes': {
         if (!focused) break
         const first = this.wire.live?.changes(focused.task)[0]
-        if (first) await this.openDiff(focused.task, first.path)
+        if (first) await this.openChange(focused.task, first.path)
         else
           this.wire.put(
             notice(this.wire.state, `${shownName(focused)} has not changed anything yet`),
@@ -724,6 +689,34 @@ export class Files implements Subject {
     }
     this.wire.put(notice({ ...this.wire.state, panel: null }, `discarded ${path}`))
   }
+  /**
+   * A changed file, opened in the editor with git's answer drawn into it: the
+   * same panel a file opens in from FILES or from search, so a change is read
+   * and fixed in one place rather than read in one and fixed in another. The
+   * task is whose changes these are, and nothing where they are the checkout's.
+   */
+  async openChange(task: string | null, path: string): Promise<void> {
+    this.openFile(this.resolvePath(path), null, true)
+    await this.loadFileDiff(task, path)
+  }
+
+  /**
+   * Ask git about the file that is open, and keep the answer with it. Asked
+   * where the CHANGES section asks: the task's own worktree when the changes are
+   * a task's, and otherwise the checkout in front of you.
+   */
+  async loadFileDiff(task: string | null, path: string): Promise<void> {
+    const live = this.wire.live
+    const root = (task ? live?.worktreeOf(task) : null) ?? this.hereOnDisk()
+    const open = this.resolvePath(path)
+    if (!live || !root) return
+    const base = live.baseOf(task ?? this.wire.state.focused)
+    const text = await live.diffAt(root, base, relative(root, open)).catch(() => null)
+    // A slow git must never draw one file's changes into another, so the answer
+    // is offered to the file it was about and dropped if that is not the one open.
+    if (this.viewed.tell(open, task, parseDiff(text ?? ''))) this.wire.draw()
+  }
+
   /** The diff panel, on a changed file, with every other changed file a step away. */
   async openDiff(task: string, path: string): Promise<void> {
     const files = (this.wire.live?.changes(task) ?? []).map((change) => change.path)
@@ -737,7 +730,10 @@ export class Files implements Subject {
   async loadDiff(task: string, path: string): Promise<void> {
     this.diff = null
     this.wire.draw()
-    const text = await this.wire.live?.diffOf(task, path).catch(() => null)
+    const live = this.wire.live
+    const root = live?.worktreeOf(task)
+    const text =
+      live && root ? await live.diffAt(root, live.baseOf(task), path).catch(() => null) : null
     const panel = this.wire.state.panel
     // Only if the panel is still on that file: a slow git must not draw an old diff.
     if (panel?.kind === 'diff' && panel.task === task && panel.files[panel.file] === path) {
@@ -766,12 +762,16 @@ export class Files implements Subject {
   /** How many lines the viewer has to scroll through, as it is showing the file now. */
   lines(): number {
     const panel = this.wire.state.panel
-    if (panel?.kind !== 'file' || !this.viewed) return 0
-    const viewing = this.viewing(this.deps.size().columns)
-    if (panel.edit) return panel.edit.lines.length
-    return panel.formatted && viewing?.formatted
-      ? viewing.formatted.length
-      : this.viewed.source.length
+    if (panel?.kind !== 'file') return 0
+    const size = this.deps.size()
+    return this.viewed.lines({
+      edit: panel.edit,
+      formatted: panel.formatted,
+      inline: showsDiff(panel),
+      width: size.columns,
+      height: size.rows,
+      plain: !this.deps.skin.colour,
+    })
   }
 
   /** The size of the viewer's body, for keeping the caret in it and for reading a click. */
@@ -781,6 +781,7 @@ export class Files implements Subject {
       this.deps.size().rows,
       this.lines(),
       panel.asking !== null,
+      showsDiff(panel) && this.viewed.rows(panel.edit) !== null,
     )
   }
 }

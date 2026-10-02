@@ -56,7 +56,7 @@ export interface AgentsDeps {
   /** Put a half-written command back on the line, ready to be finished. */
   prefill(line: string): void
   /** Where an agent's own menu leads. */
-  openDiff(task: string, path: string): Promise<void>
+  openChange(task: string | null, path: string): Promise<void>
   openPlace(target: { path: string }): Promise<void>
   /** Queued work is changed through the queue, so what did it and why is written down. */
   changeQueue(task: string, change: string): Promise<void>
@@ -274,7 +274,7 @@ export class Agents implements Subject {
         break
       case 'changes': {
         const first = this.wire.live?.changes(task)[0]
-        if (first) await this.deps.openDiff(task, first.path)
+        if (first) await this.deps.openChange(task, first.path)
         return
       }
       case 'editor':

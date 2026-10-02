@@ -37,6 +37,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `happening.ts` | What is happening about each thing search can go to (`happeningOn`, `happeningIn`) | a terminal |
 | `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line | a terminal |
 | `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out, finding in it and typing into it | a terminal (not a disk) |
+| `wire/viewed.ts` | The one file the window has open: read once, coloured once, laid out for the width it has, and the rows git's answer makes of it — `files.ts` owns what is on disk *here*, this owns what is open | a terminal |
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Tade | a terminal |
@@ -569,6 +570,37 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   editing these files while you read them. An `Edited` remembers where each line came from, so a
   line nobody touched keeps the colour the whole-file pass gave it and only the line you changed is
   coloured again: colouring a megabyte on every keystroke is tens of milliseconds.
+- **A changed file opens in that same panel, with what git says drawn into it** — one surface, so a
+  diff you can read is a diff you can fix. Every door to a file's changes goes through
+  `Files.openChange` (the CHANGES row, the two menus, an agent's `changes`), and the patch reader is
+  the other thing (`Read as a patch`): a whole task's changed files, stepped through, read-only.
+  The rules the drawing turns on:
+  - **The thing being edited is the working file, and nothing else is ever in the buffer.** A diff has
+    a kind of line the file does not — one that is gone — so the inline view is a *list of rows over*
+    the file (`panels/file/inline.ts`), each either a line of it or a gone line carrying its own text.
+    A gone line has no number, no caret hit and nothing laid over it, and `ctrl+s` cannot write one
+    back because it was never in what a save writes.
+  - **A row is not a line, so everything that counts either must say which.** `panel.scroll` and
+    `inputs.lines` are *rows*; a caret, a selection, a match and `panel.line` are *lines*; `drawnRow`
+    and `lineAtRow` are the only crossings, and `inputs.diffRows` is handed in whether the diff is
+    being shown or not, because turning it on has to know where a line will be drawn and turning it
+    off where the row at the top of the view is.
+  - **What git said is keyed by the lines git read, never by the lines the panel has now**
+    (`Edited.from`): a line nobody touched finds its own mark however much is typed above it, a line
+    typed since is an addition nobody has asked git about, and a gone line is placed by the next line
+    that still knows where it came from — placing it by the line itself made it jump below the line
+    you were typing on, on every keystroke.
+  - **The sign is the answer and the colour is the emphasis**: `+` green, `−` red, a blank for context,
+    in a column of its own in front of the numbers (`fileBodySize`'s `inline`). A golden screen, a
+    pipe and `NO_COLOR` all read the sign.
+  - **The chip is drawn on or off** (`Changes`, `ctrl+d`), and pressing it is what asks git
+    (`Router.applyPanel` → `loadFileDiff`): a toggle that appears only once it is on is one nobody
+    finds twice. A save asks again, because what was saved is what the diff is now of. A file that
+    matches its base says so in words — `+0 −0` is a figure drawn for an answer that is not one.
+  - **It is never on with `formatted`**, for `asking`'s reason: laid-out Markdown has no line of the
+    file to mark. Each turns the other off, so `showsDiff` is the one answer everything else reads,
+    and the heading pins its own controls before the path, which gives way (`shownPath`) — a heading
+    that pushes its controls off the row is a heading nobody can press.
 - **Extensions reach the window through the host, never by name.** Their status items come from
   `ExtensionHost.statuses()` (polled in `tick`, never awaited by a frame) into `Frame.statuses`; a
   click opens the `extension-view` panel on `host.view()`. Add a hook to the extension port rather

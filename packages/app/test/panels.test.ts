@@ -694,17 +694,19 @@ describe('menus beside the agents', () => {
     ).toBe('committed')
   })
 
-  it('says why there is nothing to diff against rather than offering a dead item', () => {
-    // CHANGES shows a checkout's changes agent or no agent, and a row with no
-    // task behind it has nothing to measure a diff from. Unsaid is on, so a
-    // caller that never knew about this keeps what it had.
-    const off = (diffable?: boolean) =>
-      changeMenuItems({ uncommitted: true, agent: false, ...{ diffable } }).find(
-        (i) => i.id === 'diff',
-      )?.off
-    expect(off(false)).toBe('no agent')
-    expect(off(true)).toBeUndefined()
-    expect(off()).toBeUndefined()
+  it('says why a patch has nothing to step through rather than offering a dead item', () => {
+    // Showing the changes never needs a task — they are measured from the
+    // checkout, which is there agent or no agent — so that is what a click does
+    // and it is never off. Reading one as a patch steps through a task's whole
+    // set of changed files, and a row with no task behind it has no set.
+    // Unsaid is on, so a caller that never knew about this keeps what it had.
+    const off = (id: string, diffable?: boolean) =>
+      changeMenuItems({ uncommitted: true, agent: false, ...{ diffable } }).find((i) => i.id === id)
+        ?.off
+    expect(off('patch', false)).toBe('no agent')
+    expect(off('patch', true)).toBeUndefined()
+    expect(off('patch')).toBeUndefined()
+    expect(off('diff', false)).toBeUndefined()
   })
 
   it("switch the project, but rename an agent's branch rather than switch it out from under it", () => {

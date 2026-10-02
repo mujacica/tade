@@ -294,10 +294,11 @@ export function fileMenuItems(file: {
  * What can be done with a changed file. Discarding asks first, and only touches
  * what is not committed.
  *
- * `diffable` is whether there is a task to measure the diff against: the
- * section shows a checkout's changes whether an agent is in front of you or not,
- * and with none there is nothing to diff from. Said rather than left on, because
- * a menu item that quietly does nothing is worse than one that says why not.
+ * `diffable` is whether there is a task to measure a *patch* against: reading
+ * one steps through the whole set of a task's changed files, and a row of the
+ * checkout's own changes belongs to no task to step through. Showing the changes
+ * never needs one — they are measured from the checkout, which is there whether
+ * an agent is in front of you or not — so that is what a click does.
  */
 export function changeMenuItems(change: {
   uncommitted: boolean
@@ -305,13 +306,14 @@ export function changeMenuItems(change: {
   diffable?: boolean
 }): MenuItem[] {
   return [
-    {
-      id: 'diff',
-      label: 'Show changes',
-      ...(change.diffable === false ? { off: 'no agent' } : { note: 'click' }),
-    },
+    { id: 'diff', label: 'Show changes', note: 'click' },
     { id: 'open', label: 'Open file' },
     { id: 'editor', label: 'Open in editor' },
+    {
+      id: 'patch',
+      label: 'Read as a patch',
+      ...(change.diffable === false ? { off: 'no agent' } : {}),
+    },
     { id: 'ask', label: 'Ask the agent about it', ...(change.agent ? {} : { off: 'no agent' }) },
     { id: 'copy-path', label: 'Copy path', divider: true },
     {

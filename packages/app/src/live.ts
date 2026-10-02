@@ -977,18 +977,22 @@ export class Live {
     return this.facts.get(task) ?? null
   }
 
-  /** One changed file's diff, from where the task branched. */
-  async diffOf(task: string, path: string): Promise<string | null> {
-    const root = this.worktrees.get(task)
-    if (!root) return null
-    const base = this.bases.get(task)
+  /**
+   * One file's diff, measured from a root and a base — like `changesAt` and
+   * `marksAt`: a change in a shared checkout is nobody's, so a task is only one
+   * way of naming where to look.
+   */
+  async diffAt(root: string, base: string | null, path: string): Promise<string | null> {
     const since = base ? await git(root, ['merge-base', 'HEAD', base]) : null
     const from = since?.ok ? since.stdout.trim() : 'HEAD'
     const tracked = await git(root, ['diff', '--no-color', '-U3', from, '--', path])
     if (tracked.ok && tracked.stdout.trim() !== '') return tracked.stdout
-    // Untracked: git has no diff for it, but it is all new.
-    const added = await git(root, ['diff', '--no-color', '-U3', '--no-index', '/dev/null', path])
-    return added.stdout
+    // Nothing from `git diff` is two opposite answers: a file git tracks that
+    // nobody changed, and one it never heard of, which is all new. Asking about
+    // an unchanged file used to come back as the whole of it in green.
+    const known = await git(root, ['ls-files', '--error-unmatch', '--', path])
+    if (known.ok) return tracked.stdout
+    return (await git(root, ['diff', '--no-color', '-U3', '--no-index', '/dev/null', path])).stdout
   }
 
   /** The branch a task's changes are counted against: `main`, usually. */
