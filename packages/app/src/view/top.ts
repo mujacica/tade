@@ -484,8 +484,9 @@ export function renderTop(
   }
   // The wordmark and the `+`, which no rung of the ladder changes.
   const chrome = probed(wordmark) + probed(plus)
-  // Four labellings and six costings at most, and the ladder asks for them
-  // fourteen times.
+  // Four labellings and five costings at most — one per detail, one per detail
+  // and whether the buttons are there — and the ladder's sixteen rungs ask for
+  // them over and over.
   const labelled = new Map<TabDetail, Map<string, string>>()
   const labels = (detail: TabDetail): Map<string, string> => {
     const already = labelled.get(detail)
