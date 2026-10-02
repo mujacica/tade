@@ -1,6 +1,6 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import type { Frame, McpState } from '../src/frame.ts'
+import type { Frame } from '../src/frame.ts'
 import {
   type AppState,
   initialState,
@@ -185,48 +185,43 @@ describe('the figures at the right', () => {
   })
 })
 
-describe('the MCP servers’ light', () => {
-  const lit = (mcp: McpState[] | undefined, width = 160): string =>
+describe('Tade’s own MCP server, as the light along the top', () => {
+  const lit = (mcp: Frame['mcp'], width = 160): string =>
     stripTerminalSequences(
       renderTop(world([]), frame({ width, mcp }), width, COLOUR, NO_POINTER).rows[0] ?? '',
     )
 
-  it('is not there at all where nobody has decided about a server', () => {
-    // Which is nearly everybody. A dark lamp for software nobody here runs is
-    // a column spent on a question nobody asked.
+  it('is not there at all where no agent takes its tools that way', () => {
+    // pi is handed Tade's tools directly rather than over MCP, so a window with
+    // only pi agents in it has no server of this kind to be lit about.
     expect(lit(undefined)).not.toContain('mcp')
-    expect(lit([])).not.toContain('mcp')
+    expect(lit({ expected: 0, alive: 0, looked: true })).not.toContain('mcp')
   })
 
-  it('is a quiet dot where one is on and answering', () => {
-    expect(lit(['on'])).toContain('● mcp')
+  it('is a quiet dot while every agent still has its tools', () => {
+    expect(lit({ expected: 4, alive: 4, looked: true })).toContain('● mcp')
   })
 
-  it('is unlit where the server is off', () => {
-    expect(lit(['off'])).toContain('○ mcp')
+  it('says how many agents have lost their tools, which is the drop', () => {
+    // One of four gone and all four gone are different mornings, so the lamp
+    // says which: the count is the part you could not have guessed.
+    expect(lit({ expected: 4, alive: 3, looked: true })).toContain('✕ mcp 1 down')
+    expect(lit({ expected: 4, alive: 0, looked: true })).toContain('✕ mcp 4 down')
   })
 
-  it('says it is not answering, which is the drop nobody could see before', () => {
-    expect(lit(['unreachable'])).toContain('✕ mcp down')
-  })
-
-  it('says a server that needs something doing is broken, not down', () => {
-    // Two words because they are two jobs: one is a thing to go and fix, the
-    // other usually comes right on its own.
-    expect(lit(['broken'])).toContain('! mcp broken')
-  })
-
-  it('says nothing about health while nothing has asked the server anything', () => {
-    const text = lit(['unknown'])
+  it('never draws a scan that could not look as every server having gone', () => {
+    // A `ps` that lost its race with four agents running a suite is not four
+    // dead servers, and a lamp that cried wolf then would be worth nothing.
+    const text = lit({ expected: 4, alive: 0, looked: false })
     expect(text).toContain('◌ mcp')
-    expect(text).not.toContain('●')
+    expect(text).not.toContain('down')
+    expect(text).not.toContain('✕')
   })
 
-  it('is the worst of however many there are, never the first or the kindest', () => {
-    const text = lit(['on', 'unreachable', 'off'])
-    expect(text).toContain('✕ mcp down')
-    // And `off` only ever wins where every one of them is off.
-    expect(lit(['off', 'off'])).toContain('○ mcp')
+  it('is a dot and never a complaint where more are alive than were expected', () => {
+    // A run that has just ended still has its server for a moment, so `alive`
+    // can lead `expected`. That is not news, and must not read as one.
+    expect(lit({ expected: 1, alive: 2, looked: true })).toContain('● mcp')
   })
 
   it('gives up the word beside it before the label, which says which lamp it is', () => {
@@ -237,19 +232,19 @@ describe('the MCP servers’ light', () => {
     // for a muted speaker — so the label outlives the word every time.
     const forms = new Set<string>()
     for (let width = 40; width <= 200; width++) {
-      const text = lit(['unreachable'], width)
+      const text = lit({ expected: 2, alive: 1, looked: true }, width)
       if (!text.includes('✕')) continue
       expect(text, `at ${width} columns`).toContain('✕ mcp')
-      forms.add(text.includes('✕ mcp down') ? 'with the word' : 'the label alone')
+      forms.add(text.includes('1 down') ? 'with the count' : 'the label alone')
     }
-    expect([...forms].sort()).toEqual(['the label alone', 'with the word'])
+    expect([...forms].sort()).toEqual(['the label alone', 'with the count'])
   })
 
-  it('goes to the Extensions page, which is the only thing that can say why', () => {
+  it('goes to the Extensions page, which is where everything about tools lives', () => {
     const width = 160
     const drawn = renderTop(
       world([]),
-      frame({ width, mcp: ['unreachable'] }),
+      frame({ width, mcp: { expected: 1, alive: 0, looked: true } }),
       width,
       COLOUR,
       NO_POINTER,

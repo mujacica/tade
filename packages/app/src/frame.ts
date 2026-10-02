@@ -459,16 +459,18 @@ export interface Frame {
     viewable: boolean
   }[]
   /**
-   * How each MCP server somebody has decided about is, for the light along the
-   * top. Read out of the broker on every frame and never kept: a lamp lit from
-   * a remembered answer is a lamp that says a server is up after it dropped,
-   * which is the thing it was added to stop.
+   * Tade's own tools, lent into each agent as an MCP server of its own, for the
+   * light along the top: how many agents should have one, and how many do.
    *
-   * Empty, or absent, draws nothing: a window with no server anybody ever
-   * turned on has no lamp, because a light for software nobody here runs is a
-   * column spent on a question nobody asked.
+   * This and not the brokered servers. The lamp is about whether the
+   * `tade_*` tools an agent is holding actually work — a server that died takes
+   * them with it, and because it is the harness's child rather than Tade's,
+   * nothing is told when it goes. The brokered servers have the Extensions
+   * page, which can say *why* about each of them.
+   *
+   * `expected` of nought draws nothing: no agent here takes its tools that way.
    */
-  mcp?: readonly McpState[]
+  mcp?: { expected: number; alive: number; looked: boolean }
   /** The orchestrator's model, shown on its tab: undefined where the window has no orchestrator. */
   orchestratorModel?: string | null
   /** How hard the orchestrator thinks, as the config has it; null where nothing was chosen. */
@@ -498,22 +500,13 @@ export interface Frame {
 }
 
 /**
- * How one MCP server is, in the one word a light has room for.
+ * How Tade's own tool servers are, in the one word a light has room for.
  *
- * The window's own word for what the broker says (`ServerState`), the way
- * `McpServerShown` is the window's word for a server as a page shows it: the
- * drawing takes a shape rather than a dependency.
- *
- * A word each and not a name each, because a lamp is one word about however
- * many servers there are and never says which — that is the page it opens, and
- * what the frame carries is what the drawing draws.
- *
- * `off` is one nobody turned on, `unknown` one nothing has asked anything of
- * yet, `on` one that answered, `unreachable` one that was reachable and has
- * stopped answering — the drop — and `broken` one that needs something doing
- * before it can work at all.
+ * `unknown` where nothing could look — never drawn as nought, which would read
+ * as every one of them having gone. `gone` is the drop: an agent that should
+ * have Tade's tools and has not got them.
  */
-export type McpState = 'off' | 'unknown' | 'on' | 'unreachable' | 'broken'
+export type McpState = 'unknown' | 'alive' | 'gone'
 
 export interface Spend {
   tokens: number

@@ -22,7 +22,7 @@ function opts(over: Partial<StatusOptions> & { config: Config }): StatusOptions 
     // A home with nothing in it: a test about a project with no tasks.
     tadeHome: tmp('tade-own-'),
     pr: false,
-    processes: async () => ({ processes: [], warnings: [] }),
+    processes: async () => ({ processes: [], servers: { looked: true, alive: 0 }, warnings: [] }),
     ...over,
   }
 }
@@ -170,6 +170,7 @@ describe('collectStatus', () => {
         tadeHome: r.home,
         processes: async () => ({
           processes: [{ pid: 1, provider: 'codex', cwd: wt }],
+          servers: { looked: true, alive: 0 },
           warnings: [],
         }),
       }),

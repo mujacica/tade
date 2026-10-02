@@ -25,8 +25,25 @@ const notInstalled: Ran = {
 function scripted(pid: number) {
   return async (command: string): Promise<Ran> =>
     command === 'ps'
-      ? answered(`  ${pid} /usr/local/bin/claude --resume\n  1 /sbin/launchd\n`)
+      ? answered(`  ${pid} 1 /usr/local/bin/claude --resume\n  1 0 /sbin/launchd\n`)
       : answered(`p${pid}\nn/Users/me/shop\n`)
+}
+
+/**
+ * A `ps` holding an agent and whatever tool servers are said to be beside it:
+ * `pid ppid args`, which is the shape the scan reads.
+ */
+function withServers(agent: number, servers: Array<{ pid: number; parent: number }>) {
+  const rows = [
+    `  ${agent} 1 /usr/local/bin/claude --resume --mcp-config /h/.tade/runs/claude/abc123def456/mcp.json`,
+    '  1 0 /sbin/launchd',
+    ...servers.map(
+      (one) =>
+        `  ${one.pid} ${one.parent} /usr/bin/node /opt/tade/packages/harnesses/claude/src/mcp.ts`,
+    ),
+  ]
+  return async (command: string): Promise<Ran> =>
+    command === 'ps' ? answered(`${rows.join('\n')}\n`) : answered(`p${agent}\nn/Users/me/shop\n`)
 }
 
 describe('why a probe came back with nothing', () => {
@@ -101,5 +118,44 @@ describe('scanning for agents', () => {
     expect(matchProvider('/usr/local/bin/claude --resume')).toBe('claude-code')
     expect(matchProvider('node /x/codex')).toBe('codex')
     expect(matchProvider('vim claudette.ts')).toBeNull()
+  })
+})
+
+describe('Tade’s own tool servers, found on the same pass', () => {
+  it('counts the one beside each agent, and never the agent itself', async () => {
+    // The server's command line names the harness package, so a scan that
+    // matched providers first would read it as a second Claude Code.
+    const found = await listAgentProcesses({
+      run: withServers(process.pid, [{ pid: process.pid, parent: process.pid }]),
+    })
+    expect(found.servers).toEqual({ looked: true, alive: 1 })
+    expect(found.processes.map((one) => one.provider)).toEqual(['claude-code'])
+  })
+
+  it('does not count one whose agent has gone, which is what makes a count honest', async () => {
+    // A server left behind is reparented away from any harness. Counted, it
+    // would prop the figure up with a process nobody is using — and the lamp
+    // would read green while an agent sat there with dead tools.
+    const found = await listAgentProcesses({
+      run: withServers(process.pid, [{ pid: process.pid, parent: 1 }]),
+    })
+    expect(found.servers).toEqual({ looked: true, alive: 0 })
+  })
+
+  it('says it could not look rather than saying none are alive', async () => {
+    // Nought from a scan that never answered, read as "they have all gone", is
+    // the one wrong answer that matters: four agents running a suite at once is
+    // what makes `ps` slow, and that is exactly when it would fire.
+    const seen = await listAgentProcesses({
+      run: withServers(process.pid, [{ pid: process.pid, parent: process.pid }]),
+    })
+    expect(seen.servers.alive).toBe(1)
+    const late = await listAgentProcesses({ run: async () => timedOut })
+    // `looked` stays true because what is reported is evidence, not a guess:
+    // every pid left in it was signalled just now.
+    expect(late.servers).toEqual({ looked: true, alive: 1 })
+
+    const missing = await listAgentProcesses({ run: async () => notInstalled })
+    expect(missing.servers.looked).toBe(true)
   })
 })

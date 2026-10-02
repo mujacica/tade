@@ -22,7 +22,6 @@ below.
 | `packages/mcp/core/src/protocol.ts` | pure: what every transport says, and how to read what comes back |
 | `packages/mcp/{stdio,http,scripted}` | a program on its pipes · one already running (`http`, `sse`) · a table |
 | `packages/mcp/broker/src/shown.ts` | a server as a page says it: state, how it is reached, what it offered |
-| `packages/mcp/broker/src/standing.ts` | pure: how a server is in one word, for the light along the top |
 | `packages/mcp/broker/src/registry.ts` | `MCP_TRANSPORTS`: the one map a name becomes a transport in |
 | `packages/mcp/broker/src/broker.ts` | declared servers → `TadeExtension[]`. The only place that knows both vocabularies |
 | `packages/core/src/config.ts` | `mcp.servers.<name>`, strict, because the schema is the only reader |
@@ -132,11 +131,17 @@ not duplicate something Tade already does better through a port of its own.
   into it, because one drop is one finding. What is said is `err.message`, Tade's own words; what the
   server printed (`McpError.said`) goes to the page's `problem` and no further. A `refused` is the
   server *answering*, so it is about the call and is neither said nor counted against the server.
-- **How a server is, is derived** (`standing.ts`, pure): off, unknown, on, unreachable, broken, out of
-  the declaration and what came of the last time anybody talked to it. `unknown` is first-class — the
-  warm-up is after the window is up, and a lamp green before anybody spoke to the server is the
-  reassurance it exists to refuse. The strip's light reads it per frame and never remembers it
-  (`mcpLight`, `packages/app/src/view/top.ts`).
+- **Two different things are called "the MCP server", and only one of them is this.** A *brokered*
+  server is somebody else's, reached as a client, and what is wrong with one is said on the Extensions
+  page — never in the strip, which has room for a word and not a reason. **Tade's own MCP server** is
+  the other direction: `harnesses/<name>/src/mcp.ts`, started by a harness that declares
+  `capabilities.mcp`, lending the `tade_*` tools into one agent. That is what the light along the top
+  is about (`mcpLight`, `packages/app/src/view/top.ts`), because it is the one that takes an agent's
+  tools with it when it goes and the one nothing is told about — it is the harness's child, so looking
+  is the only way to know (`toolServers`, `packages/status/src/processes.ts`, read off the `ps` pass
+  the adoption scan already makes). A lamp for brokered servers was built first and taken out again:
+  it sat grey saying "you have one server and it is off", which is true and is not what anybody was
+  asking.
 - **The page is the Extensions page.** A server somebody decided about is a row among the
   extensions (`ExtensionView.server`); the rest are the catalogue behind one group row. What a
   server's row says comes from `shownServers`, and it says only what is true — a server that is

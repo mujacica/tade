@@ -127,7 +127,30 @@ export class Routes implements Subject {
       },
       vitals: this.wire.live?.vitals(state.focused) ?? null,
       offers: state.focused ? this.offersFor(state.focused) : null,
+      mcp: this.toolServers(),
     }
+  }
+
+  /**
+   * Tade's own tools, lent into the agents as an MCP server each: how many
+   * agents should have one, and how many the last look at the machine found.
+   *
+   * The two halves come from different places because only one of them can be
+   * looked up. What *should* have one is the window's own knowledge — it
+   * launched these runs, and whether a harness takes its tools this way is that
+   * harness's declared answer (`capabilities.mcp`), never a guess from its
+   * name. What *has* one is a look at the machine, because the server is the
+   * harness's child: Tade did not start it and is never told when it goes.
+   *
+   * Counted here and never kept, every frame, out of two things already held.
+   */
+  private toolServers(): Frame['mcp'] {
+    const client = this.wire.opts.client
+    const expected = client
+      .runs()
+      .filter((run) => client.capabilitiesOf(run.harness ?? '')?.mcp === true).length
+    const servers = this.wire.live?.servers
+    return { expected, alive: servers?.alive ?? 0, looked: servers?.looked ?? false }
   }
 
   /** Which model to start on, and — in Settings — which ones there are. */

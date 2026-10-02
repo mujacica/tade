@@ -77,7 +77,7 @@ describe('task/park over the socket', () => {
       home: tmp('tade-park-home-'),
       tadeHome: home,
       pr: false,
-      processes: async () => ({ processes: [], warnings: [] }),
+      processes: async () => ({ processes: [], servers: { looked: true, alive: 0 }, warnings: [] }),
     })
     expect(before.projects[0]?.tasks[0]).toMatchObject({ id: 'app/migration', state: 'queued' })
 
@@ -92,7 +92,7 @@ describe('task/park over the socket', () => {
       home: tmp('tade-park-home-'),
       tadeHome: home,
       pr: false,
-      processes: async () => ({ processes: [], warnings: [] }),
+      processes: async () => ({ processes: [], servers: { looked: true, alive: 0 }, warnings: [] }),
     })
     expect(after.projects[0]?.tasks[0]).toMatchObject({
       id: 'app/migration',
@@ -115,7 +115,7 @@ describe('task/park over the socket', () => {
       home: tmp('tade-park-home-'),
       tadeHome: home,
       pr: false,
-      processes: async () => ({ processes: [], warnings: [] }),
+      processes: async () => ({ processes: [], servers: { looked: true, alive: 0 }, warnings: [] }),
     })
     expect(status.projects[0]?.tasks[0]?.state).toBe('queued')
   })

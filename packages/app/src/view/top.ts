@@ -598,21 +598,23 @@ export function renderTop(
 }
 
 /**
- * Which of however many servers the lamp is about: the worst of them.
+ * How Tade's own tool servers are, in one word.
  *
- * A light is one word, and the word somebody needs is the one they would have
- * to do something about. In this order, so a server that has stopped answering
- * is never hidden behind one that is merely off — and `off` only wins where
- * every one of them is off, which is then the whole of what there is to say.
+ * `unknown` beats everything, because the honest answer to "nothing could look"
+ * is not a count: nought alive out of four, drawn as four gone, would send
+ * somebody after a failure that is only a busy machine. Then `gone` — an agent
+ * holding `tade_*` tools that no longer work — and `alive` last, which is the
+ * only one that is good news.
  *
- * Derived every frame out of what the broker was handed, and never kept: a lamp
- * lit from a remembered answer says a server is up after it dropped, which is
- * the one failure this is here to stop.
+ * Derived every frame out of two things the window already holds, and never
+ * kept: a lamp lit from a remembered answer is one that says the tools are
+ * there after they went, which is the whole failure this exists to catch.
  */
-const WORST: readonly McpState[] = ['unreachable', 'broken', 'unknown', 'on', 'off']
-
-function worstServer(states: readonly McpState[] | undefined): McpState | null {
-  return WORST.find((state) => states?.includes(state)) ?? null
+function serverState(mcp: Frame['mcp']): McpState | null {
+  // No agent here takes its tools this way, so there is no lamp to light.
+  if (!mcp || mcp.expected === 0) return null
+  if (!mcp.looked) return 'unknown'
+  return mcp.alive >= mcp.expected ? 'alive' : 'gone'
 }
 
 /**
@@ -620,48 +622,43 @@ function worstServer(states: readonly McpState[] | undefined): McpState | null {
  * there is room for more than the label.
  *
  * Every state has a shape of its own, for the reason a tab's marks do — the row
- * is read at a glance, and on terminals with no colour in them. The two that
- * need somebody keep a word: a mark on its own says something is wrong, and
- * `broken` and `unreachable` are different jobs.
+ * is read at a glance, and on terminals with no colour in them.
  */
 function serverLook(
   state: McpState,
+  missing: number,
   skin: Skin,
 ): { glyph: string; tone: (text: string) => string; says: string } {
   switch (state) {
-    // It was reachable and has stopped answering: the drop, and the one state
-    // nobody had any way of seeing before this lamp.
-    case 'unreachable':
-      return { glyph: '✕', tone: skin.bad, says: 'down' }
-    // Something has to be done before it could work at all: a program that is
-    // not installed, a credential nothing has, an address nothing says.
-    case 'broken':
-      return { glyph: '!', tone: skin.waiting, says: 'broken' }
-    // On, and nothing has asked it anything yet. Never drawn as healthy: the
-    // warm-up happens after the window is up, and a green lamp before anybody
-    // had spoken to the server is the reassurance this lamp exists to refuse.
+    // An agent is holding Tade's tools and they do not work any more. The
+    // count, because one of four gone and all four gone are different mornings.
+    case 'gone':
+      return { glyph: '✕', tone: skin.bad, says: `${missing} down` }
+    // Nothing could look. Never drawn as gone: a scan that lost its race with a
+    // loaded machine is not a server that died, and this is the lamp that would
+    // otherwise cry wolf every time four agents ran a suite at once.
     case 'unknown':
       return { glyph: '◌', tone: skin.hint, says: '' }
-    case 'on':
-      return { glyph: '●', tone: skin.done, says: '' }
     default:
-      return { glyph: '○', tone: skin.chrome, says: '' }
+      return { glyph: '●', tone: skin.done, says: '' }
   }
 }
 
 /**
- * The MCP servers, as one small light: on, off, broken or not answering, where
- * somebody can see it without opening the Extensions page — which is where it
- * goes when it is pressed, because the page is what can actually say why.
+ * Tade's own MCP server, as one small light: whether the agents that were given
+ * Tade's tools still have them.
  *
- * Nothing at all where nobody has decided about a server, which is nearly
- * everybody: a dark lamp for software nobody here runs is a column spent on a
- * question nobody asked.
+ * Not the brokered servers — those are somebody else's software, and the
+ * Extensions page says what is wrong with each. This is the one that takes the
+ * `tade_*` tools down with it when it goes, and because the harness starts it
+ * rather than Tade, nothing is told when that happens. Pressing it opens the
+ * Extensions page, which is where everything about tools lives.
  */
 function mcpLight(r: Row, frame: Frame, skin: Skin, word = true): void {
-  const worst = worstServer(frame.mcp)
-  if (worst === null) return
-  const look = serverLook(worst, skin)
+  const state = serverState(frame.mcp)
+  if (state === null) return
+  const mcp = frame.mcp
+  const look = serverLook(state, Math.max(0, (mcp?.expected ?? 0) - (mcp?.alive ?? 0)), skin)
   const open: Target = { kind: 'action', name: 'extensions' }
   // The label stays at every width, even where the word beside it goes: a mark
   // on its own next to the talk key is a mark nobody can place, and this row

@@ -304,11 +304,37 @@ export const Project = z.object({
 })
 export type Project = z.infer<typeof Project>
 
+/**
+ * Tade's own tools, lent into an agent as an MCP server of its own, as a look
+ * at the machine found them.
+ *
+ * The other direction from a brokered server: a harness that speaks MCP starts
+ * a small program of Tade's and every tool the agent calls through it comes
+ * back into the window. It is the harness's child, so Tade never started it and
+ * is never told when it goes — looking is the only way to know.
+ *
+ * `looked` is why this is two fields rather than one number: nought from a scan
+ * that could not run is `unknown`, and reading it as "every one of them has
+ * gone" is the one lie that would make a light about this worthless.
+ */
+export const ToolServers = z.object({
+  looked: z.boolean(),
+  /**
+   * How many agents have one alive beside them. Only ones still beside a living
+   * harness are counted, so a server left behind by an agent that has gone
+   * cannot prop the figure up.
+   */
+  alive: z.number(),
+})
+export type ToolServers = z.infer<typeof ToolServers>
+
 export const Workspace = z.object({
   generatedAt: z.string(),
   projects: z.array(Project),
   /** Recently active agent sessions outside any known project. */
   elsewhere: z.array(AgentSignal.extend({ cwd: z.string() })),
+  /** Which agents still have Tade's own tools beside them. */
+  toolServers: ToolServers,
   warnings: z.array(z.string()),
 })
 export type Workspace = z.infer<typeof Workspace>

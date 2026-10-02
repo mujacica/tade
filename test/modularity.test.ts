@@ -34,7 +34,13 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
  * doing that in review is the conversation this test exists to force.
  */
 const BUDGET: Record<string, number> = {
-  'packages/app/src/live.ts': 1_300,
+  // Was 1,300. What came out is `reality.ts`: the pure reading of what git and
+  // the journal said into the shapes the window draws — text in, values out,
+  // no clock and no `Live`. It was never this file's subject, which is the
+  // polling and the holding, and it was what left no room for a fact the strip
+  // needed. The pacing constants stayed, because how often something is read
+  // belongs with the reading of it.
+  'packages/app/src/live.ts': 1_150,
   'packages/app/src/model.ts': 2_000,
   'packages/app/src/wire/extensions.ts': 900,
   // Both lost their SMART QUEUE corner to `packages/app/test/queue-view.test.ts`:
@@ -273,6 +279,7 @@ describe('app.ts is wiring', () => {
  */
 const PURE = [
   'packages/app/src/frame.ts',
+  'packages/app/src/reality.ts',
   'packages/app/src/happening.ts',
   'packages/app/src/pace.ts',
   'packages/app/src/hits.ts',

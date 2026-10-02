@@ -12,6 +12,40 @@ export interface AgentProcess {
 }
 
 /**
+ * Tade's own tools, lent into an agent as an MCP server of its own.
+ *
+ * Not a brokered server — this is the other direction. A harness that speaks
+ * MCP is handed a config naming a small program of Tade's, starts it for the
+ * life of the session, and every tool the agent calls through it comes back
+ * into the window. It is the harness's child, in the harness's process tree,
+ * so Tade never started it and cannot be told when it goes: the only way to
+ * know is to look for it.
+ *
+ * Counted, but only the ones whose harness is still there: a server is its
+ * harness process's child, so one left behind by an agent that has gone has
+ * been reparented away from any of them and is not counted as somebody's. That
+ * is what makes a count worth having here — it cannot be propped up by a
+ * stray — and it is why this reads `ppid` rather than matching names.
+ */
+export interface ToolServers {
+  /**
+   * Whether the scan could look at all. False is `unknown`, and everything
+   * above reads it as such: nought from a scan that never answered must never
+   * be read as every server having gone.
+   */
+  looked: boolean
+  /** How many agent processes have a server of Tade's alive beside them. */
+  alive: number
+}
+
+/**
+ * Tade's own tool server, as its command line gives it away: the program is
+ * `<anywhere>/harnesses/<name>/src/mcp.ts`, so it is found wherever Tade is
+ * installed rather than only in a checkout.
+ */
+const TOOL_SERVER = /\/harnesses\/[a-z][a-z0-9-]*\/src\/mcp\.ts$/
+
+/**
  * How long a probe waits on a program before it gives up on it.
  *
  * Not how long the program takes — `ps` over eight hundred processes is thirty
@@ -99,6 +133,14 @@ export function problemWith(program: string, ran: Ran): string | null {
  */
 let lastScan: AgentProcess[] = []
 
+/**
+ * The last tool servers seen, by pid, for the same reason `lastScan` exists —
+ * and filtered the same way, by whether the pid is still there. A remembered
+ * answer about a process that has gone would be the one lie this lamp must
+ * never tell, so what is kept is only ever re-checked, never trusted.
+ */
+let lastServers: number[] = []
+
 /** Whether a pid is still there. EPERM is somebody else's process, which counts. */
 function alive(pid: number): boolean {
   try {
@@ -115,11 +157,25 @@ function stale(): AgentProcess[] {
   return lastScan
 }
 
+/**
+ * The tool servers still provably there: what was seen last time, less whatever
+ * has since gone. `looked` stays true because this is evidence rather than a
+ * guess — every pid in it was signalled just now.
+ */
+function staleServers(): ToolServers {
+  lastServers = lastServers.filter((pid) => alive(pid))
+  return { looked: true, alive: lastServers.length }
+}
+
 export async function listAgentProcesses(
   options: { run?: Run } = {},
-): Promise<{ processes: AgentProcess[]; warnings: string[] }> {
+): Promise<{ processes: AgentProcess[]; servers: ToolServers; warnings: string[] }> {
   const run = options.run ?? spawn
-  const ps = await run('ps', ['-axo', 'pid=,args='])
+  // `ppid` as well, which is what ties Tade's own tool server to the agent it
+  // was started for: the server is the harness process's child. One more
+  // column on a scan that was already being made, rather than a second spawn —
+  // this runs on every poll.
+  const ps = await run('ps', ['-axo', 'pid=,ppid=,args='])
   const problem = problemWith('ps', ps)
   if (problem) {
     // Stable wording, whatever it found: a warning is drawn where you are
@@ -128,6 +184,7 @@ export async function listAgentProcesses(
     const still = stale()
     return {
       processes: still,
+      servers: staleServers(),
       warnings: [
         still.length === 0
           ? `process scan could not look: ${problem}`
@@ -136,15 +193,31 @@ export async function listAgentProcesses(
     }
   }
   const found: Array<{ pid: number; provider: string }> = []
+  /** Tade's own tool servers, each with the process that started it. */
+  const servers: Array<{ pid: number; parent: number }> = []
   for (const line of ps.stdout.split('\n')) {
-    const m = /^\s*(\d+)\s+(.*)$/.exec(line)
+    const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)
     if (!m) continue
-    const provider = matchProvider(m[2]!)
-    if (provider) found.push({ pid: Number(m[1]), provider })
+    const pid = Number(m[1])
+    const args = m[3]!
+    // Checked before the providers, because the server's own line names the
+    // harness package and would otherwise read as the harness itself.
+    if (TOOL_SERVER.test(args.split(/\s+/).at(-1) ?? '')) {
+      servers.push({ pid, parent: Number(m[2]) })
+      continue
+    }
+    const provider = matchProvider(args)
+    if (provider) found.push({ pid, provider })
   }
+  // Only the ones still beside an agent: a server whose harness has gone was
+  // reparented away from it, and counting it would prop the answer up with a
+  // process nobody is using.
+  const harnesses = new Set(found.map((one) => one.pid))
+  lastServers = servers.filter((one) => harnesses.has(one.parent)).map((one) => one.pid)
+  const toolServers: ToolServers = { looked: true, alive: lastServers.length }
   if (found.length === 0) {
     lastScan = []
-    return { processes: [], warnings: [] }
+    return { processes: [], servers: toolServers, warnings: [] }
   }
 
   const { cwds, warnings } = await processCwds(
@@ -160,9 +233,9 @@ export async function listAgentProcesses(
   // throw away the answer a busy machine still has.
   if (warnings.length === 0) {
     lastScan = processes
-    return { processes, warnings }
+    return { processes, servers: toolServers, warnings }
   }
-  return { processes: processes.length > 0 ? processes : stale(), warnings }
+  return { processes: processes.length > 0 ? processes : stale(), servers: toolServers, warnings }
 }
 
 /**

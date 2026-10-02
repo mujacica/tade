@@ -13,6 +13,7 @@ import {
   type Task,
   TaskFile,
   TaskId,
+  type ToolServers,
   taskFolder,
   type Workspace,
 } from '@tade/core'
@@ -42,7 +43,11 @@ export interface StatusOptions {
   /** Query `gh` for PR state (network). */
   pr: boolean
   liveness?: LivenessProbe
-  processes?: () => Promise<{ processes: AgentProcess[]; warnings: string[] }>
+  processes?: () => Promise<{
+    processes: AgentProcess[]
+    servers: ToolServers
+    warnings: string[]
+  }>
 }
 
 interface ProjectRef {
@@ -59,7 +64,15 @@ export async function collectStatus(opts: StatusOptions): Promise<Workspace> {
     return await collect(opts, warnings)
   } catch (err) {
     warnings.push(`status: unexpected error: ${err instanceof Error ? err.message : String(err)}`)
-    return { generatedAt: new Date(opts.now).toISOString(), projects: [], elsewhere: [], warnings }
+    // Nothing was looked at, which is `unknown` and never "every server has
+    // gone" — the one answer about this that must not be given wrongly.
+    return {
+      generatedAt: new Date(opts.now).toISOString(),
+      projects: [],
+      elsewhere: [],
+      toolServers: { looked: false, alive: 0 },
+      warnings,
+    }
   }
 }
 
@@ -67,7 +80,17 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
   const { now } = opts
   const liveness = opts.liveness ?? noLanes
   const projects = await resolveProjects(opts, warnings)
-  const sessions = opts.config.workspace.adopt ? await adoptSessions(opts, warnings) : []
+  // One look at the machine's processes, whatever else is wanted from it.
+  // Adopting sessions reads it to prove a quiet one alive; Tade's own tool
+  // servers are read off the same pass, because they are the harness's children
+  // and looking is the only way to know one has gone. It is one spawn either
+  // way, and it used to happen only where adoption was on — which left a window
+  // with adoption off unable to say anything about either.
+  const procs = await (opts.processes ?? listAgentProcesses)()
+  warnings.push(...procs.warnings)
+  const sessions = opts.config.workspace.adopt
+    ? await adoptSessions(opts, procs.processes, warnings)
+    : []
   const claimed = new Set<Located>()
 
   const out: Project[] = []
@@ -123,6 +146,7 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     generatedAt: new Date(now).toISOString(),
     projects: out,
     elsewhere,
+    toolServers: procs.servers,
     warnings: [...new Set(warnings)].sort(),
   }
 }
@@ -371,13 +395,18 @@ async function resolveProjects(opts: StatusOptions, warnings: string[]): Promise
   return [{ name, root, brief: null }]
 }
 
-async function adoptSessions(opts: StatusOptions, warnings: string[]): Promise<Located[]> {
-  const [scan, procs] = await Promise.all([
-    scanTranscripts({ home: opts.home, now: opts.now, windowMs: TRANSCRIPT_WINDOW_MS }),
-    (opts.processes ?? listAgentProcesses)(),
-  ])
-  warnings.push(...scan.warnings, ...procs.warnings)
-  return toSignals(scan.sessions, procs.processes)
+async function adoptSessions(
+  opts: StatusOptions,
+  processes: AgentProcess[],
+  warnings: string[],
+): Promise<Located[]> {
+  const scan = await scanTranscripts({
+    home: opts.home,
+    now: opts.now,
+    windowMs: TRANSCRIPT_WINDOW_MS,
+  })
+  warnings.push(...scan.warnings)
+  return toSignals(scan.sessions, processes)
 }
 
 /**

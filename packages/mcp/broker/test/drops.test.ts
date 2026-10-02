@@ -3,17 +3,21 @@ import type { CachedServer, CatalogueEntry, OfferedTool } from '@tade/mcp-core'
 import { makeScriptedTransport, type ScriptedServer } from '@tade/mcp-scripted'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { brokered, type ServerState, stateOf } from '../src/index.ts'
+import { brokered } from '../src/index.ts'
 
-// Whether a brokered server is there, and what is said when it stops being.
+// What is said when a brokered server stops being there.
 //
 // The MCP server dropping was the one thing about this feature nobody could
 // find out. A program that exits between two agents' calls is reopened on the
 // next one, so the only trace of it was a tool call that failed inside an
 // agent — nothing in the journal, nothing on the way to Sentry, and nothing on
-// screen. Both halves of the answer are here: it is **said** when it happens,
-// in Tade's own words and never in the server's, and it is a **word** anybody
-// can read off the window without opening a page.
+// screen. It is **said** when it happens now — in Tade's own words and never in
+// the server's — which is what carries it to the journal and from there to
+// wherever Tade's own trouble is reported.
+//
+// What a *brokered* server's state is drawn as is the Extensions page's and is
+// tested through `ready()` below. The light along the top is about Tade's own
+// MCP server, which is a different thing entirely (`view/top.ts`).
 
 const tool = (name: string): OfferedTool => ({
   name,
@@ -55,10 +59,6 @@ function broke(
   return { made, said }
 }
 
-/** How the one server is, in the word a light has room for. */
-const word = (made: ReturnType<typeof brokered>): ServerState | undefined =>
-  made.standing().find((one) => one.name === 'linear')?.state
-
 /** A host over a broker's extensions, so a tool can actually be called. */
 const hosting = (made: ReturnType<typeof brokered>) =>
   ExtensionHost.load({
@@ -69,62 +69,20 @@ const hosting = (made: ReturnType<typeof brokered>) =>
 
 const working: ScriptedServer = { tools: [tool('ping')], answers: {} }
 
-describe('how a server is, in one word', () => {
-  it('is off until somebody turns it on, whatever else is true about it', () => {
-    const { made } = broke(working, { servers: { linear: { enabled: false } } })
-    expect(word(made)).toBe('off')
-  })
-
-  it('is unknown while nothing has asked it anything, and never already healthy', () => {
-    // The warm-up happens after the window is up. A lamp that went green
-    // before anybody had spoken to the server is the one reassurance this
-    // whole thing exists to refuse.
-    const { made } = broke(working)
-    expect(word(made)).toBe('unknown')
-  })
-
-  it('is on once it has answered', async () => {
-    const { made } = broke(working)
-    await made.warm()
-    expect(word(made)).toBe('on')
-    await made.close()
-  })
-
-  it('is broken where something has to be done before it could work at all', () => {
-    const { made } = broke(working, {
-      servers: { nowhere: { enabled: true, transport: 'nothing-speaks-this' } },
-    })
-    expect(made.standing()).toEqual([{ name: 'nowhere', state: 'broken' }])
-  })
-
-  it('is broken where what it needs is not here, which is not the same as down', async () => {
-    const { made } = broke({ problem: 'linear-mcp is not on this machine' })
-    await made.warm()
-    // `unavailable` is somebody's to fix; only a server that was reachable and
-    // has stopped being is `unreachable`. Two words because they are two jobs.
-    expect(word(made)).toBe('broken')
-  })
-
-  it('is unreachable the moment it goes away, with nobody having asked it anything', async () => {
+describe('a server that drops', () => {
+  it('is said with nobody having asked it anything, which is the whole point', async () => {
+    // The case `onGone` exists for: a program that exits while no agent happens
+    // to be calling it. Nothing polls for this — the session says so — and
+    // without it the first anybody would know is an agent's tool call failing
+    // an hour later, healed by the broker's one retry before it was ever seen.
     const { made, said } = broke({ ...working, goesAfterMs: 1 })
     await made.warm()
-    expect(word(made)).toBe('on')
+    expect(said).toEqual([])
     await new Promise((resolve) => setTimeout(resolve, 20))
-    // Nothing polled and nothing was called: the session said so.
-    expect(word(made)).toBe('unreachable')
     expect(said).toEqual(['linear stopped'])
     await made.close()
   })
 
-  it('leaves the catalogue’s own out, because a list of what you could turn on is not a lamp each', () => {
-    const { made } = broke(working, { servers: {} })
-    // `linear` is in the catalogue here and nobody has decided about it.
-    expect(made.servers.map((one) => one.declaration.name)).toContain('linear')
-    expect(made.standing()).toEqual([])
-  })
-})
-
-describe('a server that drops', () => {
   it('is said when it happens, rather than at whichever agent’s call fails next', async () => {
     const { made, said } = broke({ ...working, diesAfter: 1 })
     const host = await hosting(made)
@@ -135,9 +93,6 @@ describe('a server that drops', () => {
     // would anybody else.
     await expect(call()).resolves.toBeTruthy()
     expect(said).toEqual(['linear stopped'])
-    // And the lamp is back on, because the server that answered is the truth
-    // about it now — the record of the drop is in the journal, not the light.
-    expect(word(made)).toBe('on')
     await made.close()
   })
 
@@ -151,7 +106,6 @@ describe('a server that drops', () => {
     // One drop is one finding: a server four agents are using must not become
     // four issues, and the journal is read by something that files them.
     expect(said).toEqual(['linear stopped'])
-    expect(word(made)).toBe('unreachable')
     await made.close()
   })
 
@@ -179,7 +133,6 @@ describe('a server that drops', () => {
     // Closing the window ends every session. Reported, that is an issue filed
     // every time anybody quits.
     expect(said).toEqual([])
-    expect(word(made)).toBe('on')
   })
 
   it('is never worse than the drop it is about, when saying it is what fails', async () => {
@@ -199,7 +152,6 @@ describe('a server that drops', () => {
     await expect(
       host.call('mcp_linear_ping', {}, { caller: { kind: 'orchestrator' } }),
     ).rejects.toThrow(/stopped/)
-    expect(word(made)).toBe('unreachable')
     await made.close()
   })
 
@@ -213,25 +165,6 @@ describe('a server that drops', () => {
     // A server answering "no" is an answer a model reads and routes around.
     // Counted against the server it would light a lamp for every bad query.
     expect(said).toEqual([])
-    expect(word(made)).toBe('on')
     await made.close()
-  })
-})
-
-describe('the word itself', () => {
-  it('is read off the declaration and what happened, and asks the world nothing', () => {
-    const { made } = broke(working)
-    const [server] = made.servers.filter((one) => one.declaration.name === 'linear')
-    if (!server) throw new Error('the suite needs a declared server')
-    expect(stateOf(server, undefined)).toBe('unknown')
-    expect(stateOf(server, null)).toBe('on')
-    expect(stateOf(server, 'gone')).toBe('unreachable')
-    expect(stateOf(server, 'timeout')).toBe('unreachable')
-    expect(stateOf(server, 'unavailable')).toBe('broken')
-    expect(stateOf(server, 'unsupported')).toBe('broken')
-    // Off beats everything, including a trouble from before it was turned off.
-    expect(
-      stateOf({ ...server, declaration: { ...server.declaration, enabled: false } }, 'gone'),
-    ).toBe('off')
   })
 })

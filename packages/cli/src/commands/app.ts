@@ -361,14 +361,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               home,
               servers: now.mcp.servers,
             }),
-          // How each of them is *now*, from the broker the window is actually
-          // using — whether it is up and whether it answers. The one this is
-          // asked of has to be that broker and not another made from the same
-          // config: a fresh one has talked to nothing, so its lamp would be
-          // permanently unlit. Asked on every frame, and answered from what it
-          // has already been told. A word each: which server is which is the
-          // Extensions page's, and the light never says.
-          mcpStanding: () => mcp.standing().map((one) => one.state),
         })
         timingOpen.end()
         // Now that there is a window, ask each server that is on what it

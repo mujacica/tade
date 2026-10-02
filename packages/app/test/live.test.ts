@@ -7,15 +7,15 @@ import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { Live } from '../src/live.ts'
 import {
   CHANGED_FORMAT,
   changedFrom,
   changesFrom,
   commitsFrom,
   knownTasks,
-  Live,
   snapshotsFrom,
-} from '../src/live.ts'
+} from '../src/reality.ts'
 
 // What the window shows is a fold of three sources that each know part of the
 // truth: status knows the states, the registry knows the screens, the approval
@@ -40,6 +40,7 @@ const workspace = (tasks: Task[]): Workspace => ({
   generatedAt: '2026-09-11T14:00:00.000Z',
   projects: [{ name: 'checkout', root: '/src/checkout', brief: null, tasks, untracked: [] }],
   elsewhere: [],
+  toolServers: { looked: true, alive: 0 },
   warnings: [],
 })
 

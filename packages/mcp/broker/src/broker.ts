@@ -27,7 +27,6 @@ import {
   writeCache,
 } from '@tade/mcp-core'
 import { MCP_TRANSPORTS, makeTransport } from './registry.ts'
-import { type ServerStanding, standingsOf } from './standing.ts'
 
 // The broker: the one place that knows both vocabularies.
 //
@@ -128,13 +127,6 @@ export interface Brokered {
    * have the tools at all.
    */
   warm(signal?: AbortSignal): Promise<void>
-  /**
-   * How each server somebody has decided about is, in one word each, out of
-   * what the broker has already been told: no process looked at, no clock read,
-   * nothing dialled. Cheap enough to ask on every frame, which is what the
-   * light in the window does.
-   */
-  standing(): readonly ServerStanding[]
   /** End every session. Safe to call twice. */
   close(): Promise<void>
 }
@@ -345,9 +337,6 @@ export function brokered(options: BrokerOptions): Brokered {
         }
       }
     },
-    // The kind alone, which is all the pure derivation of a word needs, and
-    // looked up rather than copied: this is asked on every frame.
-    standing: () => standingsOf(servers, (name) => talked.get(name)?.trouble, options.servers),
     close: () => sessions.close(),
   }
 }
