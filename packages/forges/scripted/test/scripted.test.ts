@@ -78,6 +78,15 @@ describe('a forge that answers from a table', () => {
     expect(found?.task).toBe('shop/new')
   })
 
+  it('publishes a head ref only when it is told to, because both answers are real', async () => {
+    // Which is why the table's default is `null`: a forge that publishes no ref
+    // for a review's head is the half nothing else here covers, and a checkout
+    // of one can only ever be its own branch.
+    const ref = { repo: 'acme/api', number: 412, host: 'scripted.test' }
+    expect(makeScriptedForge({ reviews }).headRef(ref)).toBeNull()
+    expect(makeScriptedForge({ reviews, headRefs: true }).headRef(ref)).toBe('refs/pull/412/head')
+  })
+
   it('says what ran on a commit nobody opened anything for, and hands back its log', async () => {
     // A push to `main` has no review to ask through, so the commit is the
     // whole address: this is what watching CI on the branch you are on reads.
