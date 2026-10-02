@@ -11,7 +11,7 @@ import {
 } from '../src/model.ts'
 import { COLOUR } from '../src/skin.ts'
 import { NO_POINTER } from '../src/ui.ts'
-import { projectStandings, renderTop, tabsShown } from '../src/view/top.ts'
+import { projectSays, projectStandings, renderTop, tabsShown } from '../src/view/top.ts'
 
 // What the row along the top says about the projects you are not looking at.
 //
@@ -345,6 +345,18 @@ describe('more projects than room', () => {
       const drawn = drawnAt(width, 'webhooks')
       for (const line of drawn.rows) expect(visibleWidth(line), `${width} columns`).toBe(width)
     }
+  })
+
+  it('carries what a hidden tab was saying into the menu beside the row', () => {
+    // A project put away keeps its marks and its counts: the menu says what the
+    // tab would have, which is what makes putting one away a shortening of the
+    // row rather than a hole in it.
+    const standings = projectStandings(world([working, wantsYou], TWELVE))
+    expect(projectSays(standings.get('checkout'), 0)).toBe('! ⠋')
+    // Nothing has been asked of it, so there is nothing to say — which is not
+    // the same as everything in it being done.
+    expect(projectSays(standings.get('ledger'), 0)).toBe('')
+    expect(projectSays(undefined, 0)).toBe('')
   })
 
   it('offers the ones with no tab as a menu of exactly them', () => {
