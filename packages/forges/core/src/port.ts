@@ -299,6 +299,20 @@ export interface Forge {
   review(ref: ReviewRef): Promise<ReviewDetail>
   /** The review a branch has, if any: the one narrow question `packages/status` asks. */
   reviewOf(repo: string, branch: string): Promise<Review | null>
+  /**
+   * The ref on the remote a review's head can be fetched by, where the forge
+   * publishes one — `refs/pull/412/head`. Pure: a name, not a request.
+   *
+   * It is not how a review is ordinarily checked out, and must never be read as
+   * one: the branch to be on is `head.branch`, the branch the review was
+   * opened from, and the only thing this answers is *where its commits are to
+   * be had from* when that branch is not on this remote at all — a review from
+   * a fork, whose branch lives in somebody else's repository. `null` is a
+   * first-class answer: a forge that publishes no such ref can only be checked
+   * out from its head branch, and saying so is what stops a caller inventing a
+   * local branch named after the number instead.
+   */
+  headRef(ref: ReviewRef): string | null
   checks(ref: ReviewRef): Promise<readonly CheckRun[]>
   /**
    * What ran on one commit, whoever it belongs to and whether or not anything

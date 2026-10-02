@@ -53,6 +53,12 @@ export interface ScriptedForgeOptions {
   hosts?: readonly string[]
   /** Repositories this sign-in cannot see, for the `no access` answer. */
   unseen?: readonly string[]
+  /**
+   * Whether it publishes a review's head as a ref of its own. Off, so the
+   * default table is the other kind of forge — one a review can only be checked
+   * out from its own head branch — which is the half nothing else would cover.
+   */
+  headRefs?: boolean
   capabilities?: Partial<ForgeCapabilities>
   now?: () => number
 }
@@ -167,6 +173,9 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
       complain()
       const one = table.find((review) => review.ref.repo === repo && review.head.branch === branch)
       return one ? plain(one) : null
+    },
+    headRef(ref) {
+      return options.headRefs ? `refs/pull/${ref.number}/head` : null
     },
     async checks(ref) {
       if (!capabilities.checks) {

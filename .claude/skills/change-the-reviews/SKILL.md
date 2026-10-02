@@ -20,6 +20,7 @@ by what the code cannot express, not by being careful at the call site.
 | `packages/status/src/git.ts` | `probeReview`: the one narrow question status asks, with the window closed |
 | `packages/extensions/review/src/forge.ts` | finding the forge and asking it as little as possible: `whereOf`, `everywhere`, `snapshot`, `POLL_MS`, `forget`, `settingsOf`, `refFrom`, `credentialProblem` |
 | `packages/extensions/review/src/extension.ts` | `TASK_TRAILER`, the settings, the surfaces, the `review_*` tools, the three review watches |
+| `packages/extensions/review/src/checkout.ts` | the one place a review becomes a local branch: `checkoutPlan`, `ontoReview`, `rootFor`, `checkoutReview` |
 | `packages/extensions/review/src/branch.ts` | `branchChecks`: CI on every branch the project has checked out — `readKey`, `REVIEWS_WATCH` |
 | `packages/extensions/review/src/commit.ts` | what CI can say about a commit here, and every honest reason it cannot: `standingOn`, `standingEverywhere`, `onRemote`, `ciOn`, `whatRan`, `cannotLook` |
 | `packages/extensions/review/src/record.ts` | what the watches found, out of the journal: `found`, `attemptsUnder`, `watchIsOn` |
@@ -38,7 +39,11 @@ by what the code cannot express, not by being careful at the call site.
    not: `github` declares `mergeQueue: false` for exactly that reason. `costPerPoll` is how many of
    its own units one poll of the lists costs.
 3. **Declare `words`.** `{ one, many, short, number(n) }` — what the window says when it says
-   `PR #412` or `MR !88`. Nothing anywhere may check which forge it is to decide this.
+   `PR #412` or `MR !88`. Nothing anywhere may check which forge it is to decide this. **`headRef`
+   is the other pure declaration**: the ref on the remote a review's head can be fetched by
+   (`refs/pull/412/head`), or `null` where the forge publishes none, which is a first-class answer.
+   It is only where a **fork's** commits come from — never a name to check a review out *as*, which
+   is always `head.branch`.
 4. **`serves(remote)` is pure.** The hosts it knows plus the hosts the config gave it
    (`ForgeOptions.hosts`, for an enterprise install). No network, no guessing.
 5. **Implement `placeOf` and `access`.** `placeOf(remote)` is where a remote goes and **whose
@@ -134,6 +139,24 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   first project iterated for every review in the account: the side then drew all of them in every
   project. A review on a repository nothing here is a checkout of is `project: null`, which the
   window draws wherever you are rather than nowhere.
+- **Checking a review out is its own branch, and `checkout.ts` is the only place that decides it.**
+  The branch is `head.branch` — the branch the review was opened from — fetched and set tracking
+  `origin/<branch>`, which is what makes a push go to the review. **Nothing may ever name a branch
+  after the number**: `git fetch origin pull/151/head:pr-151` is the short way by hand and it leaves
+  you on a branch that tracks nothing, is on nobody else's machine and cannot be pushed back, so the
+  work goes beside the review instead of to it. That happened — a checkout of #151 landed on `pr-151`
+  while `feat/teapot-service` existed and had moved on — which is why this is a tool rather than a
+  sentence in a prompt, and why the rule is in three places: the tool, the prompts
+  (`orchestrator()`/`agents()`) and the `open-a-review` skill. Three answers rather than two about
+  where the commits are: the branch is on this remote, it is not (a fork, and then
+  `Forge.headRef` — `refs/pull/<n>/head` — is the only way to them, tracking nothing, said), or
+  origin could not be asked, which is an outage and never a fork. A branch already here is
+  fast-forwarded and **never reset**: commits it has that the review does not are somebody's work, so
+  both counts are reported and nothing is merged. Uncommitted work is a refusal. And **a task's own
+  worktree is a refusal** (`rootFor`): its `tade/*` branch is how `status` finds the task among a
+  project's worktrees, so putting a review's branch there loses the task rather than putting an agent
+  on the review — which is also why `review_fix` tells an agent the branch and tells it to stop
+  rather than push one of its own.
 - **Which work a review is, is read out of a trailer, never out of a table.** `review_open` writes
   `Tade-Task: <task>` into the body (`TASK_TRAILER`), and `taskIn` reads it back — the same fact the
   ACTIONS tab, the queue's look at the trees and Jev's unit all read off commits. A table Tade kept
@@ -211,7 +234,9 @@ beside it. Then, in order of how likely each is to have moved:
   `globalThis.fetch` away for the whole file, and anything reaching past the replay would pass on a
   laptop and fail in CI.
 - `pnpm vitest run packages/extensions/review` — the tools (`review.test.ts`), the branch watch
-  (`branch.test.ts`), the surfaces (`surfaces.test.ts`), and `extensionConformance`.
+  (`branch.test.ts`), checking a review out (`checkout.test.ts`, real repositories and a real fetch,
+  rewritten to a bare repository next door with git's own `insteadOf`), the surfaces
+  (`surfaces.test.ts`), and `extensionConformance`.
 - `pnpm vitest run packages/status/test/forges.test.ts` if the registry or `forgeFor` moved.
 - `pnpm vitest run test/modularity.test.ts` if a file grew: `review/src/extension.ts` has a budget
   line of its own, and a number in it may only go down.

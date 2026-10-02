@@ -6,7 +6,6 @@ import {
   type ListRow,
   object,
   oneOf,
-  type ProjectRef,
   string,
   type TadeExtension,
   type ToolContext,
@@ -14,17 +13,19 @@ import {
 import type { Review, ReviewDetail, ReviewRef } from '@tade/forges-core'
 import { ForgeError } from '@tade/forges-core'
 import { branchChecks } from './branch.ts'
+import { checkoutReview } from './checkout.ts'
 import {
   asLookFailed,
   credentialProblem,
   everywhere,
   forget,
+  located,
   POLL_MS,
-  refFrom,
   settingsOf,
   snapshot,
   type Where,
   whereOf,
+  workingIn,
 } from './forge.ts'
 import {
   COMMENTS_ARE_MATERIAL,
@@ -300,6 +301,7 @@ export const reviewExtension: TadeExtension = {
     return [
       'For what is open, what is red and what wants a person, call review_list — it reads one poll and asks nothing extra.',
       'review_show, review_checks and review_threads say what is going on with one of them; review_fix puts an agent on failing checks or unanswered comments.',
+      "Checking out a review means its own branch — the branch it was opened from — and review_checkout is the only way to it: it fetches that branch into the project's checkout and tracks it, so a push goes to the review. Never ask anybody to do it with git in a terminal and never name a branch after the number: `pr-151` is a name nobody else has, tracking nothing, and work on it is work on a copy of the review. Say the branch you ended up on when you report it.",
       'CI on the branch each project is on is watched already (review.branch-checks, on by default): a red commit with no review open puts one agent on it — one per commit, however many checks went red — and past `attempts` fixes on one branch in six hours it only reports. Pause or remove its schedule like any other.',
       'For failures on the reviews you opened, turn on the watch review.checks-failed with tade_schedule; the watches tell you rather than starting agents unless the settings say otherwise.',
       'Never merge anything unless somebody asked for exactly that, and never mark a review ready while its checks are failing.',
@@ -310,6 +312,7 @@ export const reviewExtension: TadeExtension = {
     return [
       `When your work is pushed and ready for somebody to look at, open a review with review_open rather than \`gh pr create\`: Tade fills in the \`${TASK_TRAILER}:\` trailer that makes it yours, and keeps its link with your task.`,
       `Put \`${TASK_TRAILER}: <your task>\` in every commit message in ${project.name}. It is the only thing that says which work a commit belongs to once it is on somebody else's machine.`,
+      "To work on a review that already exists, get onto its own branch with review_checkout rather than fetching it by hand: a branch named after the number — `pr-412` — tracks nothing, is on nobody else's machine, and cannot be pushed back to the review.",
     ].join(' ')
   },
 
@@ -370,6 +373,14 @@ export const reviewExtension: TadeExtension = {
           links: [{ title: detail.title, url: detail.url }],
         }
       },
+    },
+    {
+      name: 'review_checkout',
+      description:
+        'Put a project\'s checkout on a review\'s own branch: the branch it was opened from, fetched and tracking the remote, so a push goes to the review. Use it for every "check out #412", "look at that PR", "work on somebody\'s branch" — never git by hand, which leaves you on a `pr-412` that tracks nothing and cannot be pushed back. Refuses rather than touching uncommitted work.',
+      parameters: object({ review: reviewInput, project: projectInput }, ['review']),
+      for: ['orchestrator', 'agent'],
+      run: checkoutReview,
     },
     {
       name: 'review_checks',
@@ -962,45 +973,9 @@ export const reviewExtension: TadeExtension = {
 }
 
 // ── the bits the tools and watches share ─────────────────────────────────────
-
-/** Where a tool works: an agent's own project, or the one it was told. */
-async function workingIn(input: Record<string, unknown>, ctx: ToolContext): Promise<Where> {
-  const named = input.project ? String(input.project) : null
-  const caller = ctx.caller
-  const project: ProjectRef =
-    !named && caller.kind === 'agent'
-      ? (ctx.projects.find((one) => one.name === caller.project) ?? {
-          name: caller.project,
-          root: caller.cwd,
-        })
-      : ctx.project(named)
-  const where = await whereOf(ctx, project)
-  if ('problem' in where) throw new Error(where.problem)
-  return where
-}
-
-/** The review a tool was asked about, and the forge that serves it. */
-async function located(
-  input: Record<string, unknown>,
-  ctx: ToolContext,
-): Promise<{ where: Where; ref: ReviewRef }> {
-  const said = String(input.review ?? '')
-  const all = await everywhere(ctx)
-  if (all.length === 0) {
-    throw new Error(
-      'no project here has a forge: add a remote, or say which project with `project`',
-    )
-  }
-  const first = input.project ? await workingIn(input, ctx) : null
-  const ref = refFrom(said, first ?? (all.length === 1 ? (all[0] ?? null) : null))
-  const where = first ?? all.find((one) => one.repo === ref.repo) ?? all[0]
-  if (!where) throw new Error(`nothing here serves ${ref.repo}`)
-  return { where, ref: { ...ref, host: ref.host || (await hostOf(where)) } }
-}
-
-async function hostOf(where: Where): Promise<string> {
-  return /^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)/.exec(where.remote)?.[1] ?? ''
-}
+// Which project a tool works in and which review it was asked about are
+// `workingIn` and `located`, in `forge.ts`: the same question as `whereOf`,
+// asked from a tool's input rather than from a project.
 
 function moved(review: Review, since: string): boolean {
   return review.updatedAt >= since || since === ''
@@ -1042,6 +1017,11 @@ async function fixContext(
     '',
     detail.url,
     `Branch \`${detail.head.branch}\` → \`${detail.base.branch}\`. Checks ${detail.checks}. Verdict ${detail.decision}.`,
+    '',
+    // The branch is said as the thing to be *on*, because a fix pushed from
+    // anywhere else is a second review rather than a fix to this one — and the
+    // one door onto it is named, because by hand the short way invents `pr-412`.
+    `A fix for this belongs on \`${detail.head.branch}\`, the branch the review was opened from: get onto it with review_checkout, which fetches it and tracks the remote. Never make a branch named after the number — nothing can push one back to the review. If you are in a worktree of your own, review_checkout will say so: then say that the fix needs the review's own branch and stop, rather than pushing a branch of yours.`,
     '',
   ]
   if (what === 'checks') {

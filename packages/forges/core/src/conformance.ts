@@ -135,6 +135,27 @@ export function testForge(
       }
     })
 
+    it('says where a head may be fetched from without asking anybody, or says it publishes none', async () => {
+      // A checkout of a review is its own branch (`head.branch`) and nothing
+      // else; this is only where that branch's commits are to be had from when
+      // the branch is not on this remote at all — a fork. So `null` has to be
+      // sayable, and what is said has to be a ref rather than a branch name:
+      // anything else and a caller ends up with a local branch called after the
+      // number, which is a name nobody else has and nothing can push back.
+      const forge = await make()
+      const fetch = globalThis.fetch
+      globalThis.fetch = (() => {
+        throw new Error('headRef() must not touch the network')
+      }) as typeof globalThis.fetch
+      try {
+        const said = forge.headRef(options.ref)
+        expect(said === null || said.startsWith('refs/')).toBe(true)
+        expect(forge.headRef(options.ref)).toBe(said)
+      } finally {
+        globalThis.fetch = fetch
+      }
+    })
+
     it('says whether a repository can be seen from here, and never throws saying it', async () => {
       // Every way of not being able to see one is an answer: the caller is a
       // watch that has to say something honest rather than fail, and "signed

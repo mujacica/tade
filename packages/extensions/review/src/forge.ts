@@ -1,6 +1,11 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { type ExtensionContext, type ProjectRef, Unreachable } from '@tade/extensions-core'
+import {
+  type ExtensionContext,
+  type ProjectRef,
+  type ToolContext,
+  Unreachable,
+} from '@tade/extensions-core'
 import type { Forge, Review, ReviewRef } from '@tade/forges-core'
 import { ForgeError, hostOf, repoOf } from '@tade/forges-core'
 import { forgeFor } from '@tade/status'
@@ -340,4 +345,49 @@ export function credentialProblem(ctx: ExtensionContext): string | null {
   return found
     ? null
     : `install the GitHub CLI and run \`gh auth login\`, or set $${names[0]} to a token`
+}
+
+/**
+ * Where a tool works: an agent's own project, or the one it was told.
+ *
+ * Here rather than beside the tools because it is the same question as
+ * `whereOf` — which forge serves the work in front of us — asked from a tool's
+ * input instead of from a project.
+ */
+export async function workingIn(input: Record<string, unknown>, ctx: ToolContext): Promise<Where> {
+  const named = input.project ? String(input.project) : null
+  const caller = ctx.caller
+  const project: ProjectRef =
+    !named && caller.kind === 'agent'
+      ? (ctx.projects.find((one) => one.name === caller.project) ?? {
+          name: caller.project,
+          root: caller.cwd,
+        })
+      : ctx.project(named)
+  const where = await whereOf(ctx, project)
+  if ('problem' in where) throw new Error(where.problem)
+  return where
+}
+
+/** The review a tool was asked about, and the forge that serves it. */
+export async function located(
+  input: Record<string, unknown>,
+  ctx: ToolContext,
+): Promise<{ where: Where; ref: ReviewRef }> {
+  const said = String(input.review ?? '')
+  const all = await everywhere(ctx)
+  if (all.length === 0) {
+    throw new Error(
+      'no project here has a forge: add a remote, or say which project with `project`',
+    )
+  }
+  const first = input.project ? await workingIn(input, ctx) : null
+  const ref = refFrom(said, first ?? (all.length === 1 ? (all[0] ?? null) : null))
+  const where = first ?? all.find((one) => one.repo === ref.repo) ?? all[0]
+  if (!where) throw new Error(`nothing here serves ${ref.repo}`)
+  return { where, ref: { ...ref, host: ref.host || hostOfRemote(where) } }
+}
+
+function hostOfRemote(where: Where): string {
+  return /^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^/:]+)/.exec(where.remote)?.[1] ?? ''
 }

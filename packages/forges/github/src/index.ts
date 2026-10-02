@@ -386,6 +386,15 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       return node ? asReview(node, who, host) : null
     },
 
+    // GitHub publishes every pull request's head under the base repository,
+    // which is the only way to a review opened from a fork: its branch is in
+    // somebody else's repository and `origin` has never heard of it. Not a
+    // name to check out *as* — the branch is still the one the review was
+    // opened from.
+    headRef(ref) {
+      return `refs/pull/${ref.number}/head`
+    },
+
     // Both of these were always a question about a commit underneath: a
     // review's number buys nothing but the sha, so the commit-addressed pair
     // is the real call and the review-addressed pair resolves the head first.
