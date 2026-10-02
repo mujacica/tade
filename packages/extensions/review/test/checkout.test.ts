@@ -44,7 +44,7 @@ function load(options: ReplayOptions & { root: string }) {
  * A project whose remote really has the review's branch on it, and which has
  * never fetched it — which is every "check out that PR" there has ever been.
  */
-function withTheBranch(options: { fork?: boolean } = {}) {
+function withTheBranch(options: { fork?: boolean; collides?: boolean } = {}) {
   const { repo } = project()
   const bare = repo.remote ?? ''
   repo.git('config', `url.${bare}.insteadOf`, 'git@github.com:acme/api.git')
@@ -56,13 +56,28 @@ function withTheBranch(options: { fork?: boolean } = {}) {
   // Nothing here has ever heard of the branch: the remote-tracking ref the push
   // left behind goes, so landing on the right commit is evidence of a fetch.
   repo.git('update-ref', '-d', `refs/remotes/origin/${BRANCH}`)
+  // GitHub publishes every pull request's head under the base repository, so
+  // the remote has it whether or not the review came from a fork — a fixture
+  // without it would have let the fork path go untested in the ordinary case.
+  runGit(bare, 'update-ref', 'refs/pull/412/head', head)
   if (options.fork) {
-    // A review opened from somebody else's repository: `origin` has the head
-    // under the ref GitHub publishes for it, and no branch of that name at all.
-    runGit(bare, 'update-ref', 'refs/pull/412/head', head)
+    // A review opened from somebody else's repository: no branch of that name
+    // here at all, and the published head is the only way to its commits.
     runGit(bare, 'update-ref', '-d', `refs/heads/${BRANCH}`)
   }
-  return { repo, head, bare }
+  if (options.collides) {
+    // The one that must not be taken on the name: `origin` has a branch of that
+    // name and it is **not** the review's — a review opened from a fork whose
+    // branch happens to be called the same, which is `someone:main`.
+    repo.git('checkout', '-q', '-b', 'ours', 'main')
+    const theirs = repo.commit('what this repository has under that name')
+    repo.git('push', '-q', '-f', 'origin', `ours:${BRANCH}`)
+    repo.git('checkout', '-q', 'main')
+    repo.git('branch', '-D', 'ours')
+    repo.git('update-ref', '-d', `refs/remotes/origin/${BRANCH}`)
+    return { repo, head, bare, theirs }
+  }
+  return { repo, head, bare, theirs: head }
 }
 
 const on = (root: string) => runGit(root, 'rev-parse', '--abbrev-ref', 'HEAD').trim()
@@ -186,6 +201,32 @@ describe('checking out a review', () => {
     expect(invented(repo.root)).toBe('')
     expect(answer.text).toContain('refs/pull/412/head')
     expect(answer.text).toContain('tracking nothing')
+  })
+
+  it('never takes a branch of that name on the remote for the review’s when it is not', async () => {
+    // `origin` has a `shop/refunds-retry` and it is somebody else's: the review
+    // was opened from a fork whose branch is called the same. Checking out the
+    // remote's would be this repository's own code read as the review.
+    const { repo, head, theirs } = withTheBranch({ collides: true })
+    const answer = await checkout(await load({ root: repo.root }))
+    expect(on(repo.root)).toBe(BRANCH)
+    expect(at(repo.root)).toBe(head)
+    expect(at(repo.root)).not.toBe(theirs)
+    expect(tracks(repo.root, BRANCH)).toBe('')
+    expect(answer.text).toContain(`\`origin/${BRANCH}\` is a different branch`)
+  })
+
+  it('refuses rather than switching to this repository’s own branch of that name', async () => {
+    const { repo, theirs } = withTheBranch({ collides: true })
+    // The project's own branch of that name, tracking the remote, as a checkout
+    // that has ever fetched has it.
+    repo.git('fetch', '-q', 'origin', `refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}`)
+    repo.git('branch', BRANCH, `origin/${BRANCH}`)
+    repo.git('branch', `--set-upstream-to=origin/${BRANCH}`, BRANCH)
+    const host = await load({ root: repo.root })
+    await expect(checkout(host)).rejects.toThrow(/this repository's own branch/)
+    expect(on(repo.root)).toBe('main')
+    expect(runGit(repo.root, 'rev-parse', BRANCH).trim()).toBe(theirs)
   })
 
   it('refuses in a task’s own worktree, because its branch is how Tade finds the task', async () => {

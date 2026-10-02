@@ -1,4 +1,4 @@
-import type { ExtensionContext, ToolAnswer, ToolContext } from '@tade/extensions-core'
+import type { ExecResult, ExtensionContext, ToolAnswer, ToolContext } from '@tade/extensions-core'
 import type { Forge, ReviewDetail } from '@tade/forges-core'
 import { located, type Where } from './forge.ts'
 
@@ -18,13 +18,17 @@ import { located, type Where } from './forge.ts'
 // was opened from, and nothing here ever makes a name up.** What it takes to
 // get there is three facts, each asked rather than assumed:
 //
-//   · **Whether that branch is on this remote** (`ls-remote`). It is, for every
-//     review opened from the repository itself, and then the branch here tracks
-//     `origin/<branch>` — which is what makes `git push` go to the review. A
-//     review opened from a fork is the other case: `origin` has never heard of
-//     the branch, and its commits can only come from the ref the forge
-//     publishes for a head (`Forge.headRef`). A forge that publishes none is a
-//     third answer and is said, never guessed around.
+//   · **Whether the branch on this remote is the review's** (`originsOwn`). It
+//     is, for every review opened from the repository itself, and then the
+//     branch here tracks `origin/<branch>` — which is what makes `git push` go
+//     to the review. A review opened from a fork is the other case: its commits
+//     can only come from the ref the forge publishes for a head
+//     (`Forge.headRef`), and a forge that publishes none is a third answer and
+//     is said rather than guessed around. The one that must not be taken on the
+//     name alone is a fork's branch *called the same as one here* —
+//     `someone:main` — which is why the sha is compared and, where it differs,
+//     the review's head is looked for in `origin`'s branch before anything is
+//     checked out.
 //   · **Whether this checkout already has that branch.** Then it is switched to
 //     and fast-forwarded — never reset: a commit here the review does not have
 //     is somebody's work, and it is reported rather than thrown away.
@@ -123,17 +127,9 @@ export async function ontoReview(opts: {
     )
   }
   const branch = review.head.branch
-  const heads = await git(['ls-remote', '--heads', 'origin', `refs/heads/${branch}`], 30_000)
-  // Three answers, never two: the branch is there, the branch is not there, and
-  // origin could not be asked — which is not a fork and must never be read as
-  // one, or an outage turns into a branch tracking nothing.
-  if (heads.code !== 0) {
-    throw new Error(`could not ask origin what branches it has: ${firstLine(heads.stderr)}`)
-  }
-  const plan = checkoutPlan(
-    { number: review.ref.number, branch },
-    { hasBranch: heads.stdout.trim() !== '', headRef: forge.headRef(review.ref) },
-  )
+  const headRef = forge.headRef(review.ref)
+  const origins = await originsOwn(git, review, headRef)
+  const plan = checkoutPlan({ number: review.ref.number, branch }, { ...origins, headRef })
   if ('problem' in plan) throw new Error(plan.problem)
   const fetched = await git(['fetch', 'origin', plan.fetch.refspec], 120_000)
   if (fetched.code !== 0) {
@@ -145,6 +141,23 @@ export async function ontoReview(opts: {
   const was = (await git(['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()
   let how: CheckedOut['how'] = 'made'
   if (had.code === 0) {
+    // A branch of that name here which tracks the remote, where `origin`'s
+    // branch of that name is *not* this review's, is this repository's own
+    // branch — `main`, against a review opened from a fork's `main`. Switching
+    // to it would leave somebody on the project's own code believing they were
+    // on the review, which is the whole failure this exists to stop, so it
+    // refuses and nothing is moved. One Tade made for a fork's review tracks
+    // nothing, which is what tells them apart.
+    const upstream = plan.tracks
+      ? ''
+      : (
+          await git(['for-each-ref', '--format=%(upstream:short)', `refs/heads/${branch}`])
+        ).stdout.trim()
+    if (upstream) {
+      throw new Error(
+        `\`${branch}\` here tracks \`${upstream}\` and is this repository's own branch, not ${forge.words.short} ${forge.words.number(review.ref.number)}'s: the review was opened from a fork whose branch has the same name. Nothing was moved. Rename or remove yours first if you want the review's under that name.`,
+      )
+    }
     how = was === branch ? 'already on it' : 'switched'
     if (how === 'switched') {
       // `switch`, never `checkout`: it cannot be handed a path, so it cannot be
@@ -184,6 +197,7 @@ export async function ontoReview(opts: {
     `${root} ${how === 'made' ? 'is now' : how === 'switched' ? 'has switched to' : 'was already on'} \`${branch}\` at \`${commit.slice(0, 12)}\` — ${where}, ${plan.tracks ? `tracking \`${plan.tracks}\`` : 'tracking nothing'}.`,
   ]
   if (plan.why) lines.push(plan.why)
+  if (origins.instead) lines.push(origins.instead)
   if (ahead > 0 && behind > 0) {
     lines.push(
       `It had diverged: ${count(ahead, 'commit')} here the review does not have, ${behind} on the review that ${behind === 1 ? 'is' : 'are'} not here. Nothing was merged and nothing was moved — read them before you push.`,
@@ -200,6 +214,56 @@ export async function ontoReview(opts: {
     )
   }
   return { branch, tracks: plan.tracks, commit, how, ahead, behind, said: lines.join(' ') }
+}
+
+type Git = (args: readonly string[], timeoutMs?: number) => Promise<ExecResult>
+
+/**
+ * Whether the branch `origin` has under the review's own name is the review's
+ * branch — and not somebody else's that happens to be called the same.
+ *
+ * Three answers, and the third is the one that was nearly missed. The sha
+ * `origin` reports **is** the review's head: certainly its branch. There is no
+ * branch of that name: a fork, and the published head ref is the way to its
+ * commits. The sha is **different**, which is either a review that has moved on
+ * since it was polled — the ordinary case, a minute after anybody pushes — or a
+ * review opened from a fork whose branch is called the same as one here, which
+ * is `someone:main` and is as common as forks get. Those two must not be guessed
+ * between: `origin/main` is not that review's branch, and checking it out would
+ * put somebody on this repository's own code believing they were on the review.
+ * So with a published head ref to go on, both are fetched and the question
+ * asked is whether the review's head is in `origin`'s branch at all. With none
+ * there is nothing better to go on than the branch itself, and the sentence
+ * about a head that has moved is said either way.
+ *
+ * `ls-remote` failing is neither answer and is never read as a fork: an outage
+ * would otherwise come out as a branch tracking nothing.
+ */
+async function originsOwn(
+  git: Git,
+  review: ReviewDetail,
+  headRef: string | null,
+): Promise<{ hasBranch: boolean; instead: string | null }> {
+  const branch = review.head.branch
+  const heads = await git(['ls-remote', '--heads', 'origin', `refs/heads/${branch}`], 30_000)
+  if (heads.code !== 0) {
+    throw new Error(`could not ask origin what branches it has: ${firstLine(heads.stderr)}`)
+  }
+  const sha = heads.stdout.trim().split(/\s+/)[0] ?? ''
+  if (!sha) return { hasBranch: false, instead: null }
+  if (sha === review.head.sha || !headRef) return { hasBranch: true, instead: null }
+  const theirs = await git(
+    ['fetch', 'origin', `refs/heads/${branch}:refs/remotes/origin/${branch}`],
+    120_000,
+  )
+  const head = await git(['fetch', 'origin', headRef], 120_000)
+  if (theirs.code !== 0 || head.code !== 0) return { hasBranch: true, instead: null }
+  const inIt = await git(['merge-base', '--is-ancestor', 'FETCH_HEAD', `origin/${branch}`])
+  if (inIt.code === 0) return { hasBranch: true, instead: null }
+  return {
+    hasBranch: false,
+    instead: `\`origin/${branch}\` is a different branch — it does not have this review's head in it, so the review was opened from a fork whose branch has the same name. Nothing pushed to \`origin/${branch}\` would reach the review.`,
+  }
 }
 
 /**

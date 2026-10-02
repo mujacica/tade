@@ -150,7 +150,12 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   (`orchestrator()`/`agents()`) and the `open-a-review` skill. Three answers rather than two about
   where the commits are: the branch is on this remote, it is not (a fork, and then
   `Forge.headRef` — `refs/pull/<n>/head` — is the only way to them, tracking nothing, said), or
-  origin could not be asked, which is an outage and never a fork. A branch already here is
+  origin could not be asked, which is an outage and never a fork. **And a branch of that name on
+  the remote is not the same thing as the review's branch** (`originsOwn`): a fork's branch called
+  `main` would otherwise check out this repository's own `main` and read as the review, so where
+  the sha `ls-remote` reports is not the review's head, the head is looked for *in* that branch
+  before anything is checked out, and a local branch of that name that tracks the remote is this
+  repository's own and a refusal. A branch already here is
   fast-forwarded and **never reset**: commits it has that the review does not are somebody's work, so
   both counts are reported and nothing is merged. Uncommitted work is a refusal. And **a task's own
   worktree is a refusal** (`rootFor`): its `tade/*` branch is how `status` finds the task among a
