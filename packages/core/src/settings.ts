@@ -82,6 +82,28 @@ export interface Setting {
    * happen to say. Searching for the thing you want should find it.
    */
   keywords?: readonly string[]
+  /**
+   * What this setting is one of, where a group holds the same settings over
+   * and over: a project's name.
+   *
+   * The title is then the setting's own — `Brief`, not `checkout brief` — and
+   * a page showing one scope at a time says which once, at the top. Whoever
+   * draws a list *across* scopes says which per row (`settingLabel`), because
+   * three rows called `Brief` are three rows nobody can tell apart.
+   */
+  scope?: string
+}
+
+/**
+ * What to call a setting in a list that crosses scopes: its own name where it
+ * has no scope, and the scope with it where it has one.
+ *
+ * One spelling of it, because `tade config`, the orchestrator's listing, the
+ * search results and the Settings page's own search all draw the same list and
+ * all have to answer the same question.
+ */
+export function settingLabel(setting: Pick<Setting, 'title' | 'scope'>): string {
+  return setting.scope ? `${setting.scope} — ${setting.title}` : setting.title
 }
 
 /** A credential something asked for, as Settings offers a field for it. */
@@ -156,7 +178,8 @@ export function settingsOf(
       id: 'agents',
       title: 'Agents',
       about:
-        'Where agents work, what they commit, what they push, and what happens to them when Tade closes.',
+        'Where agents work, what they commit, what they push, when they have to ask before they act, and what happens to them when Tade closes.',
+      keywords: ['approval', 'approvals', 'ask', 'permission', 'policy', 'bypass'],
       settings: [
         {
           path: 'agents.workspace',
@@ -190,6 +213,21 @@ export function settingsOf(
           type: { kind: 'choice', options: [...PUSH_MODES] },
           live: true,
           keywords: ['push', 'pushing', 'remote', 'review', 'pull request'],
+        },
+        {
+          // One setting about agents, on the page about agents. It had a
+          // top-level menu item of its own holding this one row, which is how
+          // a menu of seventeen items comes to exist: the question it answers
+          // — when an agent has to ask before it acts — is asked by somebody
+          // already reading what agents may do.
+          path: 'approvals.mode',
+          title: 'Approvals',
+          means: 'bypass never interrupts; policy holds risky commands until you answer',
+          value: config.approvals.mode,
+          fallback: 'bypass',
+          type: { kind: 'choice', options: ['bypass', 'policy'] },
+          live: false,
+          keywords: ['approval', 'approvals', 'ask', 'permission', 'policy', 'bypass', 'gate'],
         },
         {
           path: 'agents.instructions',
@@ -324,22 +362,6 @@ export function settingsOf(
           fallback: 'true',
           type: { kind: 'flag' },
           live: true,
-        },
-      ],
-    },
-    {
-      id: 'approvals',
-      title: 'Approvals',
-      about: 'When an agent has to ask before it acts.',
-      settings: [
-        {
-          path: 'approvals.mode',
-          title: 'Mode',
-          means: 'bypass never interrupts; policy holds risky commands until you answer',
-          value: config.approvals.mode,
-          fallback: 'bypass',
-          type: { kind: 'choice', options: ['bypass', 'policy'] },
-          live: false,
         },
       ],
     },
@@ -489,28 +511,14 @@ export function settingsOf(
       ],
     },
     {
-      id: 'search',
-      title: 'Search',
-      about: 'What ctrl+k can find, and what leaves the machine to find it.',
-      keywords: ['ctrl+k', 'find', 'command palette', 'might mean'],
-      settings: [
-        {
-          path: 'surfaces.search.context',
-          title: 'Send what is happening',
-          means:
-            'what a sentence typed into search is put to whoever reads one with: what each agent is doing, what it was asked for, what queued work waits on, your notes — which reaches their provider. Off they get names and where they are, and the letters go on matching all of it here, which sends nothing anywhere',
-          value: search.context ? 'on' : 'off',
-          fallback: 'on',
-          type: { kind: 'flag' },
-          live: true,
-          keywords: ['privacy', 'judge', 'jev', 'might mean', 'intent', 'notes', 'sentence'],
-        },
-      ],
-    },
-    {
       id: 'window',
       title: 'Window',
-      about: 'How the window is laid out, and where things open.',
+      about:
+        'How the window is laid out, where things open, and what search may send to find them.',
+      // Search was its own menu item over one switch. What ctrl+k can find is
+      // part of the window it is typed into, and the words that used to find
+      // that item find it here.
+      keywords: ['ctrl+k', 'find', 'command palette', 'might mean', 'search'],
       settings: [
         {
           path: 'surfaces.window.sidebar_width',
@@ -538,6 +546,17 @@ export function settingsOf(
           fallback: 'the editor Tade is running in',
           type: { kind: 'choice', options: EDITORS },
           live: true,
+        },
+        {
+          path: 'surfaces.search.context',
+          title: 'What search sends',
+          means:
+            'what a sentence typed into search is put to whoever reads one with: what each agent is doing, what it was asked for, what queued work waits on, your notes — which reaches their provider. Off they get names and where they are, and the letters go on matching all of it here, which sends nothing anywhere',
+          value: search.context ? 'on' : 'off',
+          fallback: 'on',
+          type: { kind: 'flag' },
+          live: true,
+          keywords: ['privacy', 'judge', 'jev', 'might mean', 'intent', 'notes', 'sentence'],
         },
       ],
     },
@@ -1010,7 +1029,9 @@ export function settingFound(
 /** One line per setting, for a list you choose from. */
 export function describeSetting(setting: Setting): string {
   const shown = setting.value === '' ? `(${setting.fallback})` : setting.value
-  return `${setting.title.padEnd(30)} ${shown}`
+  // Which project's brief, where it is one of several: a list that crosses
+  // scopes says which per row, since the heading above it cannot.
+  return `${settingLabel(setting).padEnd(30)} ${shown}`
 }
 
 /** A map setting as it is typed: `tade=tade-app, web=web-a+web-b`. */

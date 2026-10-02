@@ -5,6 +5,7 @@ import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from '../../keys.ts'
 import { box, type Drawn, keysWidth, Row } from '../../ui.ts'
 import { cap, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
+import { PROJECTS, projectsIn } from './projects.ts'
 import {
   ACCOUNTS,
   choicesFor,
@@ -35,13 +36,31 @@ export function spellsOut(setting: Setting): boolean {
   return setting.type.kind === 'choice' && !usesDropdown(setting)
 }
 
+/**
+ * What the empty option is called, where a setting offers one: nothing set
+ * means the answer somebody else already gave — the rule every project follows,
+ * for one project's own row — and what that answer is right now.
+ *
+ * A circle beside no word at all is a control with a hole in it, which is what
+ * one project's own answers used to draw — and the option being *on* is the
+ * ordinary case, so it was the ordinary case that read as broken.
+ */
+function emptyMeans(setting: Setting): string {
+  const as = setting.scope === undefined ? 'as it comes' : 'as all projects do'
+  return setting.fallback === '' ? as : `${as} (${setting.fallback})`
+}
+
 export function optionsOf(setting: Setting): { value: string; label: string; on: boolean }[] {
   if (setting.type.kind !== 'choice') return []
-  const value = setting.value || setting.fallback
+  // A set with an empty option in it is answering "this project's own, or the
+  // rule for all of them": empty is a value there, not the absence of one, so
+  // the fallback never stands in for it.
+  const optional = setting.type.options.includes('')
+  const chosen = optional ? setting.value : setting.value || setting.fallback
   return setting.type.options.map((option) => ({
     value: option,
-    label: CHOICE_LABELS[setting.path]?.[option] ?? option,
-    on: value === option,
+    label: CHOICE_LABELS[setting.path]?.[option] ?? (option === '' ? emptyMeans(setting) : option),
+    on: chosen === option,
   }))
 }
 
@@ -54,8 +73,11 @@ export function fitsInline(setting: Setting, room: number): boolean {
   if (usesDropdown(setting)) return room >= 8
   const options = optionsOf(setting)
   if (options.length === 0) return true
-  const width = options.reduce((sum, option) => sum + 2 + visibleWidth(option.label), 0)
-  return width + 3 * (options.length - 1) <= room
+  // What `Row.option` takes: the mark, a space, the label, and the block's four
+  // columns — with one clear column between two of them, the way a row of
+  // buttons is spaced.
+  const width = options.reduce((sum, option) => sum + 6 + visibleWidth(option.label), 0)
+  return width + (options.length - 1) <= room
 }
 
 /**
@@ -103,10 +125,28 @@ export function control(
         return
       }
       const shown = { kind: 'control' as const, id: `edit:${setting.path}` }
-      row
-        .icon('‹', { kind: 'control', id: `step:${setting.path}=-1` }, 'signal')
-        .text(` ${value || setting.fallback} `, lit(shown, value ? skin.you : skin.hint), shown)
-        .icon('›', { kind: 'control', id: `step:${setting.path}=1` }, 'signal')
+      const down = { kind: 'control' as const, id: `step:${setting.path}=-1` }
+      const up = { kind: 'control' as const, id: `step:${setting.path}=1` }
+      const said = value || setting.fallback
+      // Two buttons and the value between them, where there is room for that:
+      // a glyph button is three columns, which is a target the size of the
+      // arrow drawn in it, and these are pressed over and over to walk a
+      // number up. Where there is not — a narrow panel, a long default written
+      // out in place of a value — the glyphs are what fits, and a stepper that
+      // ran off the edge would lose the one you press to go back.
+      if (room >= visibleWidth(said) + 16) {
+        row
+          .button('‹', down)
+          .space()
+          .text(said, lit(shown, value ? skin.you : skin.hint), shown)
+          .space()
+          .button('›', up)
+      } else {
+        row
+          .icon('‹', down, 'signal')
+          .text(` ${said} `, lit(shown, value ? skin.you : skin.hint), shown)
+          .icon('›', up, 'signal')
+      }
       if (type.unit && room - row.used >= visibleWidth(type.unit) + 2)
         row.space(2).text(type.unit, skin.hint)
       return
@@ -160,8 +200,8 @@ export function control(
         return
       }
       optionsOf(setting).forEach((option, i) => {
-        if (i > 0) row.space(3)
-        row.radio(option.on, option.label, {
+        if (i > 0) row.space()
+        row.option(option.on, option.label, {
           kind: 'control',
           id: `set:${setting.path}=${option.value}`,
         })
@@ -172,11 +212,12 @@ export function control(
 
 /**
  * How wide a text setting's field is, out of the room its row leaves it.
- * Forty at the widest, because a field that runs the whole width of a wide
- * terminal stops reading as a field.
+ * Forty-eight at the widest, because a field that runs the whole width of a
+ * wide terminal stops reading as a field — and not forty, which was narrower
+ * than a DSN by enough that every one of them was read behind an ellipsis.
  */
 export function fieldWidth(room: number): number {
-  return Math.max(8, Math.min(40, room))
+  return Math.max(10, Math.min(48, room))
 }
 
 /**
@@ -222,16 +263,21 @@ export function controlOf(setting: Setting): string | null {
 /** A badge beside a category, when something there is worth a look. */
 export function badgeFor(id: string, ctx: PanelContext): ((row: Row) => void) | null {
   const { skin } = ctx
-  if (id === 'approvals') {
-    const mode = ctx.settings.find((g) => g.id === 'approvals')?.settings[0]?.value
+  if (id === 'agents') {
+    // Approvals is a row of this page now, and the mode is the one thing about
+    // it worth saying from the side: `policy` means an agent can be held.
+    const mode = ctx.settings
+      .find((g) => g.id === 'agents')
+      ?.settings.find((one) => one.path === 'approvals.mode')?.value
     return mode ? (row) => row.text(mode, skin.hint) : null
   }
-  if (id === 'projects') {
-    const count = ctx.settings.find((g) => g.id === 'budgets')?.settings.length ?? 0
+  if (id === PROJECTS) {
+    // A budget that is nearly spent first, because it is the one that is about
+    // to stop work; how many projects there are otherwise.
+    if (ctx.budgetWarnings > 0) return (row) => row.text(`● ${ctx.budgetWarnings}`, skin.waiting)
+    const count = projectsIn(ctx.settings).length
     return count > 0 ? (row) => row.badge(count) : null
   }
-  if (id === 'budgets' && ctx.budgetWarnings > 0)
-    return (row) => row.text(`● ${ctx.budgetWarnings}`, skin.waiting)
   const signedIn = ctx.accounts.filter((one) => one.status.signedIn).length
   if (id === ACCOUNTS && signedIn > 0) return (row) => row.text(`● ${signedIn}`, skin.done)
   if (id === UPDATES && ctx.updates) {

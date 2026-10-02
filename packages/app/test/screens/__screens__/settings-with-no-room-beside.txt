@@ -3,18 +3,18 @@
  ▾ ╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮l  
    │  search sett…   │ Telemetry                    │───
  ▌ │                 │                              │   
- ▌ │  Models        ▕│ Send to                   ↻ █│   
-   │  Orchestrator  █│    $TADE_TELEMETRY_DSN, o…  █│+12
-   │  Approvals     █│                             ▕│   
-   │  Checks        █│▌Reporter                  ↻ ▕│   
-   │  Voice         █│▌  ◉ sentry                  ▕│   
- ▸ │  Search        █│▌  ○ none                    ▕│   
- ▸ │  Window        █│▌  sentry sends through      ▕│   
- ▾ │  Projects   3  █│▌  Sentry’s own SDK, import… ▕│   
-━  │  Checks per p… █│                             ▕│  ━
-   │  Budgets   ● 1 █│ Crashes and warnings      ↻ ▕│   
-   │  Journal       ▕│ ● Saved as you change it.    │  ▕
-   │▌ Telemetry     ▕│                      Done    │  ▕
+ ▌ │  Checks        ▕│ Send to                   ↻ █│   
+   │                ▕│    $TADE_TELEMETRY_DSN, o…  █│+12
+   │  Voice         ▕│                             ▕│   
+   │                █│▌Reporter                  ↻ ▕│   
+   │  Window        █│▌    ◉ sentry                ▕│   
+ ▸ │                █│▌    ○ none                  ▕│   
+ ▸ │  Projects  ● 1 █│▌  sentry sends through      ▕│   
+ ▾ │                █│▌  Sentry’s own SDK, import… ▕│   
+━  │  Journal       █│▌                            ▕│  ━
+   │                ▕│ Crashes and warnings      ↻ ▕│   
+   │▌ Telemetry     ▕│ ● Saved as you change it.    │  ▕
+   │▌               ▕│                      Done    │  ▕
  ❯ ╰────────────────────────────────────────────────╯d ▕
 ────────────────────────────────────────────────────────
  Ask Tade anything  type, or hold    ctrl   +   space   

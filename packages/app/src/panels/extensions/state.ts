@@ -1,7 +1,7 @@
 // Type-only, so the pure panel model never loads the extension host behind it.
 import type { LoadedExtension } from '@tade/extensions-core'
 import type { PanelInputs } from '../../panels.ts'
-import { listStart } from '../frame.ts'
+import { ITEM, itemSpan, startOf } from '../frame.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The extensions this window runs with, the servers it brokers, and setting
@@ -486,7 +486,7 @@ export function extensionsKey(
       0,
       entries.findIndex((entry) => entry.id === id),
     )
-    const room = Math.max(1, inputs.listRoom ?? entries.length)
+    const room = Math.max(1, inputs.listRoom ?? entries.length * ITEM)
     return stay({
       ...panel,
       chosen: id,
@@ -494,7 +494,8 @@ export function extensionsKey(
       scroll: 0,
       following: true,
       focus: 'list',
-      listScroll: listStart(panel.listScroll, entries.length, room, index),
+      // In lines, because a row of the list is two of them.
+      listScroll: startOf(panel.listScroll, entries.length * ITEM, room, itemSpan(index)),
     })
   }
 

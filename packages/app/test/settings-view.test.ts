@@ -4,8 +4,11 @@ import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
 import { cap, sideWidth } from '../src/panels/cells.ts'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
+import { ITEM } from '../src/panels/frame.ts'
+import { PROJECTS, projectHere, projectsIn } from '../src/panels/settings/projects.ts'
 import { type SettingsPanel, settingsPanel, visibleSettings } from '../src/panels/settings/state.ts'
 import { formLayout } from '../src/panels/settings/view.ts'
+import { panelKey } from '../src/panels.ts'
 import { COLOUR } from '../src/skin.ts'
 import type { Drawn } from '../src/ui.ts'
 
@@ -216,27 +219,143 @@ const readAcross = (rows: readonly string[], value: string): string => {
 /** The widths worth trying: from a terminal nobody should use to a wide one. */
 const WIDTHS = [40, 48, 56, 64, 72, 80, 96, 104, 120, 160]
 
-describe('Settings, opened for one project', () => {
-  it('shows that project’s settings, wherever each of them is grouped', () => {
-    // What Configure on a project's tab does: the same rows, in the same
-    // place, written by the same writer. A third page that configured a
-    // project would be a third answer to what a project's settings are.
-    const groups = settingsOf(config)
-    const shown = visibleSettings(settingsPanel('projects', 'checkout'), groups).map(
+describe('the Projects page, which is one project at a time', () => {
+  const groups = settingsOf(config)
+
+  it('shows one project’s own answers, and the selector says which', () => {
+    // What Configure on a project's tab does, and what the page does on its
+    // own: everything that project answers for itself, in one place, written
+    // by the same writer. It was three pages — Projects, Checks per project
+    // and Budgets — each listing every project.
+    const shown = visibleSettings(settingsPanel(PROJECTS, '', 'checkout'), groups).map(
       (setting) => setting.path,
     )
-    expect(shown).toEqual(
-      expect.arrayContaining([
-        'projects.checkout.root',
-        'projects.checkout.title',
-        'projects.checkout.brief',
-        'projects.checkout.workspace',
-        'projects.checkout.checks.before',
-        'projects.checkout.budget.usd_per_day',
-      ]),
-    )
+    expect(shown).toEqual([
+      'projects.checkout.root',
+      'projects.checkout.title',
+      'projects.checkout.brief',
+      'projects.checkout.workspace',
+      'projects.checkout.push',
+      'projects.checkout.budget.usd_per_day',
+      'projects.checkout.checks.before',
+      'projects.checkout.checks.on_red',
+      'projects.checkout.checks.parallel',
+    ])
     // And only that project's: the row beside it is somebody else's budget.
     expect(shown).not.toContain('projects.search.budget.usd_per_day')
+  })
+
+  it('names a project nobody chose, and falls back to one that exists', () => {
+    // A project closed while the page is open leaves the page on one there is,
+    // rather than on an empty form.
+    expect(projectsIn(groups)).toEqual(['checkout', 'search'])
+    expect(projectHere('', groups)).toBe('checkout')
+    expect(projectHere('gone', groups)).toBe('checkout')
+    expect(projectHere('search', groups)).toBe('search')
+  })
+
+  it('offers every project to click, and the one you are on is the one drawn', () => {
+    const drawn = drawnAt(PROJECTS, {}, panelFor(PROJECTS, { project: 'search' }))
+    const ids = drawn.hits
+      .map((hit) => (hit.target.kind === 'control' ? hit.target.id : ''))
+      .filter((id) => id.startsWith('project:'))
+    expect([...new Set(ids)]).toEqual(['project:checkout', 'project:search'])
+    // The rows are that project's, and the heading above them is the page's.
+    const said = plainRows(drawn).join('\n')
+    expect(said).toContain('~/src/search')
+    expect(said).not.toContain('~/src/checkout')
+  })
+
+  it('walks the projects with the keyboard, above the first row of the form', () => {
+    // ↑ from the first setting reaches the selector, ←→ walks it, ↓ goes back
+    // into that project's rows — the selector is a pane of the page, not a row
+    // of the form, because a selector that scrolls away is one you cannot see
+    // the answer of while you read what it chose.
+    const inputs = { settings: groups }
+    const up = panelKey(panelFor(PROJECTS, { focus: 'form', row: 0 }), 'up', '', inputs)
+      .panel as SettingsPanel
+    expect(up.focus).toBe('projects')
+    const right = panelKey(up, 'right', '', inputs).panel as SettingsPanel
+    expect(right.project).toBe('search')
+    // Round the list rather than stopping at its end, the way the categories go.
+    expect((panelKey(right, 'right', '', inputs).panel as SettingsPanel).project).toBe('checkout')
+    const down = panelKey(right, 'down', '', inputs).panel as SettingsPanel
+    expect(down).toMatchObject({ focus: 'form', row: 0, project: 'search' })
+    // And nowhere else: no other page has a selector to walk into.
+    const elsewhere = panelKey(panelFor('telemetry', { focus: 'form', row: 0 }), 'up', '', inputs)
+      .panel as SettingsPanel
+    expect(elsewhere.focus).toBe('search')
+  })
+
+  it('says which project a row is about only where the page cannot', () => {
+    // On the page itself the selector says it once. A search crosses projects,
+    // so three rows called Brief would be three rows nobody can tell apart.
+    const here = plainRows(drawnAt(PROJECTS, {}, panelFor(PROJECTS, { project: 'checkout' })))
+    expect(here.join('\n')).toContain('Brief')
+    expect(here.join('\n')).not.toContain('checkout — Brief')
+    const found = plainRows(drawnAt(PROJECTS, {}, panelFor(PROJECTS, { search: 'brief' })))
+    expect(found.join('\n')).toContain('checkout — Brief')
+    expect(found.join('\n')).toContain('search — Brief')
+  })
+})
+
+describe('what the menu down the side is', () => {
+  it('has no page of its own for approvals, and asks it where agents are', () => {
+    // One setting about agents, on the page about agents: it had a top-level
+    // item of its own holding one row.
+    expect(GROUPS.map((group) => group.id)).not.toContain('approvals')
+    const agents = GROUPS.find((group) => group.id === 'agents')
+    expect(agents?.settings.map((one) => one.path)).toContain('approvals.mode')
+    // And what search sends is a row of the Window page, which was its own
+    // item over one switch.
+    expect(GROUPS.map((group) => group.id)).not.toContain('search')
+    expect(
+      GROUPS.find((group) => group.id === 'window')?.settings.map((one) => one.path),
+    ).toContain('surfaces.search.context')
+    // Three of them were a list of every project each.
+    expect(GROUPS.map((group) => group.id)).not.toContain('project-checks')
+    expect(GROUPS.map((group) => group.id)).not.toContain('budgets')
+  })
+
+  it('draws every item as tall as it is clickable, the whole width of the list', () => {
+    // What "the menu items are hard to click" was: a row of text, one row
+    // tall. Every item is `ITEM` rows now, and all of them press the same
+    // thing, so there is no half of one that does nothing.
+    const drawn = drawnAt('telemetry')
+    const width = visibleWidth(plainRows(drawn)[0] ?? '')
+    const side = sideWidth(width - 2)
+    for (const category of CATEGORIES) {
+      const mine = drawn.hits.filter(
+        (hit) => hit.target.kind === 'control' && hit.target.id === `category:${category}`,
+      )
+      if (mine.length === 0) continue
+      const where = [...new Set(mine.map((hit) => hit.row))]
+      expect(where.length, category).toBe(ITEM)
+      // Each of those rows has the whole list under it, so there is no half of
+      // an item that does nothing.
+      for (const row of where) {
+        const widest = mine
+          .filter((hit) => hit.row === row)
+          .reduce((most, hit) => Math.max(most, hit.to - hit.from + 1), 0)
+        expect(widest, `${category} at ${row}`).toBe(side)
+      }
+    }
+  })
+
+  it('makes every setting at least two rows of its own, band and all', () => {
+    const drawn = drawnAt('telemetry')
+    const rows = new Map<string, number[]>()
+    for (const hit of drawn.hits) {
+      if (hit.target.kind !== 'control' || !hit.target.id.startsWith('row:')) continue
+      rows.set(hit.target.id, [...(rows.get(hit.target.id) ?? []), hit.row])
+    }
+    expect(rows.size).toBeGreaterThan(3)
+    for (const [id, where] of rows) {
+      expect(new Set(where).size, id).toBeGreaterThanOrEqual(ITEM)
+      // Each of them is a row of the form and nothing else: a run with no gap.
+      const sorted = [...new Set(where)].sort((a, b) => a - b)
+      expect(sorted.at(-1), id).toBe((sorted[0] ?? 0) + sorted.length - 1)
+    }
   })
 })
 

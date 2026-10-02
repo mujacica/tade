@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
-   │  search extensions      │ Jev  built-in                                                                 ready  │───
- ▌ │                         │ 9 tools · 3 watches · 5 settings                                                     │   
- ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ jev_findings          What the review watch has looked at, what it flagged, what ca…▕│   
-   │ ● Jev                  ▕│ jev_account           Say what you found when you read something Jev flagged about …▕│   
-   │ ◐ Sentry             ! ▕│ jev_verdict           Write down what a finding turned out to be… orchestrator only ▕│   
-   │ ✗ standup            ! ▕│ jev_read_request      A second, independent reading of what some… orchestrator only ▕│   
- ▸ │ ● GitHub               ▕│ jev_plan_check        Read a plan before you keep it, and say wh… orchestrator only ▕│   
- ▸ │ ○ release-notes        ▕│ jev_queue_order       Suggest what should come first out of what… orchestrator only ▕│   
- ▾ │ · Written by Tade    1 ▕│                                                                                     ▕│   
-  M│ · MCP servers        4 ▕│ WATCHES  none on until you turn one on                                              ▕│   
-  A│ · Harnesses' own     2 ▕│ ◎ Review what agents change  every 10m                                    Turn on   ▕│   
-  M│                        ▕│   reads each agent’s own change once it has stopped moving, and reports what it     ▕│   
-   │                        ▕│   flags                                                                             █│   
- ▾ │                        ▕│ ◎ Agents going in circles  every 10m                                      Turn on   █│   
-   │                        ▕│   reads the agents that keep making the same failing call, and says which           █│   
-   │                        ▕│ ◎ Findings nobody has answered  every 1h                                  Turn on   █│   
-   │                        ▕│   looks for findings an agent has accounted for and nobody has judged, and ones     █│   
-   │                        ▕│   whose agent is gone                                                               █│   
-   │                        ▕│                                                                                     █│   
-━  │                        ▕│ OPTIONS  Settings…                                                                  █│  ━
-   │                        ▕│ API key             tsk_0123456789                                                  █│   
-   │                        ▕│ Version             jev-1.13.0                                                      █│  ▕
-   │                        ▕│ Projects            not set                                                         ▕│  ▕
-   │                        ▕│                                                                                      │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
- ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+ ▾ A╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
+    │  search extensions          │ Jev  built-in                                                           ready  │────
+ ▌ !│                             │ 9 tools · 3 watches · 5 settings                                               │    
+ ▌  │ ● Checks                   ▕│                                                                                │    
+    │                            ▕│   review.                                                                     ▕│    
+   ⠋│ ● Dependencies             ▕│                                                                               ▕│    
+    │                            ▕│ TOOLS                                                                         ▕│    
+    │ ● Jev                      ▕│ jev_ask          Judge anything against questions you write                   ▕│    
+ ▸ S│                            ▕│ jev_grep         Grep that reads                                              ▕│    
+ ▸ S│ ◐ Sentry                 ! ▕│ jev_review       Read a change against the review pack and say what it flags  ▕│    
+ ▾ C│                            ▕│ jev_findings     What the review watch has looked at, what it flagged, what c…▕│    
+  M │ ✗ standup                ! ▕│ jev_account      Say what you found when you read something Jev flagged about…▕│    
+  A │                            ▕│ jev_verdict      Write down what a finding turned out to b… orchestrator only ▕│    
+  M │ ● GitHub                   ▕│ jev_read_request A second, independent reading of what som… orchestrator only █│    
+    │                            ▕│ jev_plan_check   Read a plan before you keep it, and say w… orchestrator only █│    
+ ▾ F│ ○ release-notes            ▕│ jev_queue_order  Suggest what should come first out of wha… orchestrator only █│    
+   ▾│                            ▕│                                                                               █│    
+    │ · Written by Tade        1 ▕│ WATCHES  none on until you turn one on                                        █│    
+    │                            ▕│ ◎ Review what agents change  every 10m                              Turn on   █│    
+   ▸│ · MCP servers            4 ▕│   reads each agent’s own change once it has stopped moving, and reports what  █│    
+    │                            ▕│   it flags                                                                    █│    
+━   │ · Harnesses' own         2 ▕│ ◎ Agents going in circles  every 10m                                Turn on   █│   ━
+    │                            ▕│   reads the agents that keep making the same failing call, and says which     ▕│    
+    │                            ▕│ ◎ Findings nobody has answered  every 1h                            Turn on   ▕│   ▕
+    │                            ▕│   looks for findings an agent has accounted for and nobody has judged, and    ▕│   ▕
+    │                            ▕│                                                                                │   ▕
+    │                            ▕│ tab moves · ↑↓ reads · enter presses                                   Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

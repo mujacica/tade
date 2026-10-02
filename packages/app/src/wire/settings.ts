@@ -332,9 +332,12 @@ export class Settings implements Subject {
     return configPathOf(this.wire.opts)
   }
 
-  /** Open the Settings page, on a category — or on everything matching `search`. */
-  async open(category = 'agents', search = ''): Promise<string> {
-    this.wire.put({ ...this.wire.state, panel: settingsPanel(category, search) })
+  /**
+   * Open the Settings page: on a category, on one project of the Projects page,
+   * or on everything matching `search`.
+   */
+  async open(category = 'agents', search = '', project = ''): Promise<string> {
+    this.wire.put({ ...this.wire.state, panel: settingsPanel(category, search, project) })
     this.wire.draw()
     // Asked each time the page opens: a sign-in made in another terminal counts.
     this.deps.loadAccounts()

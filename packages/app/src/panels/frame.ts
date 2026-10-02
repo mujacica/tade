@@ -49,6 +49,69 @@ const LEAST = 6
 /** The narrowest a box is worth drawing, whatever the terminal. */
 const NARROWEST = 24
 
+/**
+ * The widest the two-pane panels are worth being: a list down the left and
+ * what it is showing on the right.
+ *
+ * One number for both, because Settings and Extensions are the same panel with
+ * different lists in it — 104 and 120 meant two panels that were plainly meant
+ * to match were four columns and sixteen columns different, which somebody
+ * notices without being able to say why.
+ */
+export const TWO_PANE = 112
+
+/**
+ * Rows one row of a panel's list takes: the line it says itself on, and the
+ * blank one under it that is still it.
+ *
+ * Why a list row is two rows. A terminal row is about 18 pixels tall on an
+ * ordinary font and a menu of them is a column of 18-pixel targets, which is
+ * what "the menu items are super small and hard to click" is — three reworks
+ * of this page in a row left it as a complaint about the size of what you
+ * press, not about what the page said. Two rows is 36 pixels, which is the
+ * height of a button in anything that is not a terminal, and it costs a page
+ * of thirteen items nothing it was using: the list scrolls, as it already did.
+ */
+export const ITEM = 2
+
+/**
+ * One row of a panel's list, as tall as it is clickable: the line as it was
+ * built, the row under it, both on the same ground and both pressing the same
+ * thing.
+ *
+ * The marker runs down both, so the bar beside the one you are on is one clean
+ * line rather than a dash a third of the way down it — the same reason the
+ * Settings form's own marked rows take the column on every line they have.
+ */
+export function listRow(
+  built: Line,
+  opts: {
+    width: number
+    target: Target
+    /** The row this list is showing: it keeps the selection ground wherever the keyboard is. */
+    on: boolean
+    pointed: boolean
+    /** Whether the keyboard is on it, which is what the bar down its left says. Defaults to `on`. */
+    marked?: boolean
+  },
+  skin: Skin,
+): Line[] {
+  const { width, target, on, pointed } = opts
+  const whole: Hit = { row: 0, from: 0, to: Math.max(0, width - 1), target }
+  const under = new Row(width, skin).marker(opts.marked ?? on, target).build()
+  return [built, under].map((line) => ({
+    text: rowLook(fitTo(line.text, width), skin, { on, pointed }),
+    // Laid under whatever the row drew for itself, so a control on it still
+    // takes the click where it is drawn.
+    hits: [whole, ...line.hits],
+  }))
+}
+
+/** Where item `at` of a list begins and ends, in the lines the list is drawn in. */
+export function itemSpan(at: number): { from: number; to: number } {
+  return { from: at * ITEM, to: at * ITEM + ITEM - 1 }
+}
+
 /** A panel's geometry: the box, and the room inside it. */
 export interface PanelSize {
   /** The whole panel, its border included. */
@@ -104,11 +167,6 @@ export function startOf(
   if (chosen.to >= from + room) from = Math.min(most, chosen.to - room + 1)
   if (chosen.from < from) from = chosen.from
   return Math.max(0, Math.min(from, most))
-}
-
-/** The same, for a list whose rows are one line each. */
-export function listStart(scroll: number, total: number, room: number, chosen: number): number {
-  return startOf(scroll, total, room, { from: chosen, to: chosen })
 }
 
 /**

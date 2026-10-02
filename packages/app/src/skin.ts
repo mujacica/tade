@@ -118,10 +118,16 @@ export interface Skin {
   /** A field's body, already padded to its width by the caller. */
   field(text: string, hint: boolean, hover?: boolean): string
   /**
-   * A switch: a knob in a four-cell track, at the end it is thrown to, then
-   * the word for it. Exactly 8 columns, painted or not, so a column of them
+   * A switch: a knob in an eight-cell track, at the end it is thrown to, then
+   * the word for it. Exactly 12 columns, painted or not, so a column of them
    * lines up whatever the skin — and the word is there because a colour is
    * not an answer to "is this on?".
+   *
+   * It was eight columns, which is four cells of track and a four-cell knob at
+   * one end of it: a target the width of a word, on one row, that people said
+   * three reworks running was hard to hit. Twelve is a target you can throw
+   * with the side of a thumb, and the knob keeps the same share of the track
+   * so what it draws is the same picture, bigger.
    */
   toggle(on: boolean, state: SwitchState): string
   /** The microphone is open. */
@@ -497,7 +503,11 @@ export const markLabel = (label: string) => [...label].join(' ')
  * things that drift apart the first time the palette moves.
  */
 function tabBlock(label: string, on: boolean, hover: boolean): string {
-  if (on) return block(label, { ground: TONE.amber, bold: true })
+  // The one you are on lights too, a shade lighter, the way a primary button
+  // does: it keeps the colour that says it is the one, and still says it is
+  // under the hand. Not lighting it at all left the tab you were about to
+  // press as the only control in the window that gave no sign of it.
+  if (on) return block(label, { ground: hover ? TONE.amberLight : TONE.amber, bold: true })
   if (hover) return block(label, { ground: GREY.control })
   return paint(fg(GREY.tab))(`  ${label}  `)
 }
@@ -561,10 +571,12 @@ export const PLAIN: Skin = {
   keycap: (label) => `[${label}]`,
   badge: (text) => `(${text.trim()})`.padEnd(text.length),
   field: (text) => text,
-  // The same 8 columns and the same shape the painted switch has: a knob in a
+  // The same 12 columns and the same shape the painted switch has: a knob in a
   // track, at the right for on and at the left for off, with the word saying
-  // which without reading the picture.
-  toggle: (on) => (on ? '[ █] on ' : '[█ ] off'),
+  // which without reading the picture. Six cells inside the brackets against
+  // the painted eight, because the brackets are this skin's word for a control
+  // and they take the two columns the paint does not need.
+  toggle: (on) => (on ? '[   ███] on ' : '[███   ] off'),
   transmit: identity,
   // Without colour the one you are on is marked the way focus is marked everywhere else.
   item: (row, band) => (band === 'selected' ? `▌${row} ` : ` ${row} `),
@@ -634,8 +646,8 @@ export const COLOUR: Skin = {
     paint(
       `${bg(hover === true ? GREY.hovered : GREY.raised)}${fg(hint ? GREY.quiet : GREY.bright)}`,
     )(text),
-  // A knob in a track: two cells of solid knob at the end the switch is thrown
-  // to, and the two cells it is not at are the track, with a rule along them.
+  // A knob in a track: four cells of solid knob at the end the switch is
+  // thrown to, and the four it is not at are the track, with a rule along them.
   //
   // The knob is what says the state, and it says it twice — by which end it is
   // at, and by its colour: Tade's amber for on, the grey of a key cap for off,
@@ -665,13 +677,13 @@ export const COLOUR: Skin = {
     const rule = rest ? GREY.quiet : GREY.heading
     const knob = on ? (rest ? TONE.amber : TONE.amberLight) : rest ? GREY.pressed : GREY.bright
     const groove = (cells: number) => `${bg(track)}${fg(rule)}${'─'.repeat(cells)}${RESET}`
-    const held = `${bg(knob)}${fg(knob)}██${RESET}`
+    const held = `${bg(knob)}${fg(knob)}████${RESET}`
     const shown =
       state === 'pressed'
-        ? `${groove(1)}${held}${groove(1)}`
+        ? `${groove(2)}${held}${groove(2)}`
         : on
-          ? `${groove(2)}${held}`
-          : `${held}${groove(2)}`
+          ? `${groove(4)}${held}`
+          : `${held}${groove(4)}`
     const word = on
       ? `${fg(GREY.bright)}${BOLD}on ${RESET}`
       : `${fg(rest ? GREY.tab : GREY.bright)}off${RESET}`

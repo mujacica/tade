@@ -11,7 +11,7 @@
  ▸ SMART QUEUE          │ NOTE ABOUT CHECKOUT                                                  │                        
  ▸ SCHEDULES            │  The staging key rotates on the 1st▏                                 │                        
  ▾ CHANGES  3        vs │                                                                      │                        
-  M package.json       +│ ◉ About checkout   ○ About everything                                │                        
+  M package.json       +│   ◉ About checkout     ○ About everything                            │                        
   A …/webhooks.test.ts  │ Kept word for word.                                                  │                        
   M src/webhooks.ts   +1│                                                                      │                        
                         │                                             Cancel     Save note ⏎   │                        

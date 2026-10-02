@@ -4,6 +4,8 @@ import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 import { normalKey } from '../../keys.ts'
 import type { PanelInputs } from '../../panels.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { accountChoice } from './accounts.ts'
+import { PROJECTS, projectHere, projectRows, projectsIn } from './projects.ts'
 
 export type { UpdatesShown }
 
@@ -62,7 +64,18 @@ export interface SettingsPanel {
    * back to a row every time you read past it is a page nobody can read.
    */
   following: boolean
-  focus: 'categories' | 'form' | 'search'
+  /**
+   * Which pane of the page the keyboard is in. `projects` is the selector at
+   * the top of the Projects page — the row of projects the page is one of, and
+   * the only page that has one.
+   */
+  focus: 'categories' | 'form' | 'search' | 'projects'
+  /**
+   * The project the Projects page is configuring. Empty means the first one
+   * there is: which projects exist is the config's to say, and a name written
+   * down here would outlive a project somebody closed.
+   */
+  project: string
   search: string
   /** A text setting being typed into. */
   editing: { path: string; text: string } | null
@@ -150,17 +163,18 @@ export function updateActions(look: UpdatesShown | null, busy: boolean): UpdateA
 }
 
 /**
- * The Settings page, on a category — or, given words, on everything that
- * matches them, whatever category each of those lives in.
+ * The Settings page, on a category — on one project of the Projects page, or,
+ * given words, on everything that matches them whatever category each lives in.
  *
- * The second form is how somewhere else in the window sends you here: a
- * project's Configure is its name typed into this box, which is one page
- * showing that project's root, its name, its brief, where its agents work,
- * its own answers to the check rules and its budget — the same rows, in the
- * same place, written by the same writer. A third page that configured a
- * project would be a third answer to what a project's settings are.
+ * The last two are how somewhere else in the window sends you here. A
+ * project's Configure is the Projects page with that project chosen: one page
+ * showing its root, its name, its brief, where its agents work, what it
+ * pushes, what it may spend and its own answers to the check rules — the same
+ * rows, in the same place, written by the same writer. A second page that
+ * configured a project would be a second answer to what a project's settings
+ * are.
  */
-export function settingsPanel(category = 'agents', search = ''): SettingsPanel {
+export function settingsPanel(category = 'agents', search = '', project = ''): SettingsPanel {
   return {
     kind: 'settings',
     category,
@@ -169,6 +183,7 @@ export function settingsPanel(category = 'agents', search = ''): SettingsPanel {
     listScroll: 0,
     following: true,
     focus: 'form',
+    project,
     search,
     editing: null,
     dropdown: null,
@@ -198,6 +213,10 @@ export function visibleSettings(panel: SettingsPanel, groups: readonly SettingGr
         return true
       })
   }
+  // The Projects page is one project at a time, behind its selector: the group
+  // holds every project's rows, and which of them you are configuring is the
+  // page's own question.
+  if (panel.category === PROJECTS) return projectRows(panel.project, groups).rows
   return groups.find((group) => group.id === panel.category)?.settings ?? []
 }
 
@@ -455,6 +474,23 @@ function settingsPress(
   if (key === 'escape') return close
   if (key === 'ctrl+f' || data === '/') return stay({ ...panel, focus: 'search' })
 
+  // The selector at the top of the Projects page: ←→ walks the projects, and
+  // ↓ goes into that project's settings. The one page with a pane of its own,
+  // kept above the form rather than in it, because a selector that scrolls
+  // away is one you cannot see the answer of while you read the rows under it.
+  if (panel.focus === 'projects') {
+    const names = projectsIn(groups)
+    const at = Math.max(0, names.indexOf(projectHere(panel.project, groups) ?? ''))
+    if (key === 'left' || key === 'right') {
+      const next = names[(at + (key === 'right' ? 1 : -1) + names.length) % names.length]
+      return next === undefined ? stay(panel) : stay({ ...panel, project: next, row: 0, scroll: 0 })
+    }
+    if (key === 'down' || key === 'enter' || key === 'tab')
+      return stay({ ...panel, focus: 'form', row: 0 })
+    if (key === 'up') return stay({ ...panel, focus: 'search' })
+    return stay(panel)
+  }
+
   if (panel.focus === 'categories') {
     const ids = [...groups.map((group) => group.id), ACCOUNTS, UPDATES]
     const at = Math.max(0, ids.indexOf(panel.category))
@@ -487,9 +523,9 @@ function settingsPress(
   if (key === 'down')
     return stay({ ...panel, row: Math.min(Math.max(0, count - 1), panel.row + 1) })
   if (key === 'up') {
-    return panel.row === 0
-      ? stay({ ...panel, focus: 'search' })
-      : stay({ ...panel, row: panel.row - 1 })
+    if (panel.row > 0) return stay({ ...panel, row: panel.row - 1 })
+    const selector = panel.category === PROJECTS && !panel.search
+    return stay({ ...panel, focus: selector ? 'projects' : 'search' })
   }
   if (panel.category === ACCOUNTS && !panel.search) {
     const action = (inputs.accountActions ?? [])[panel.row]
@@ -503,101 +539,6 @@ function settingsPress(
   }
   if (!here) return key === 'left' ? stay({ ...panel, focus: 'categories' }) : stay(panel)
   return operate(panel, here, key)
-}
-
-/**
- * One thing that can be done on the Accounts page: `account:<verb>:<harness>:<name>`,
- * the name empty for a harness's own sign-in.
- */
-export interface AccountAction {
-  id: string
-  label: string
-  danger?: boolean
-  /** The harness it is about. */
-  harness: string
-  /** The account it is about, `null` being its harness's own sign-in; absent for adding one. */
-  account?: string | null
-}
-
-/** What an account needs from the page: enough to say how it stands and what can be done. */
-export interface AccountShown {
-  harness: string
-  name: string | null
-  kind: 'subscription' | 'api-key'
-  canAdd: boolean
-  why: string | null
-  status: { signedIn: boolean; who: string | null; plan: string | null; problem: string | null }
-  limits: { fiveHour: { used: number; resetsAt: number } | null } | null
-  agents: number
-  forNewAgents: boolean
-  canSignIn: boolean
-}
-
-/**
- * Everything that can be done to accounts, account by account and harness by
- * harness, in the order the page draws them — which is the order the
- * keyboard walks them, since both come from here.
- */
-export function accountActions(accounts: readonly AccountShown[]): AccountAction[] {
-  const actions: AccountAction[] = []
-  const id = (verb: string, harness: string, name: string | null) =>
-    `account:${verb}:${harness}:${name ?? ''}`
-  const harnesses = [...new Set(accounts.map((one) => one.harness))]
-  for (const harness of harnesses) {
-    const mine = accounts.filter((one) => one.harness === harness)
-    for (const one of mine) {
-      const at = one.name
-      if (one.kind === 'api-key') {
-        actions.push({
-          id: id('key', harness, at),
-          label: one.status.signedIn ? 'Change its key…' : 'Set its key…',
-          harness,
-          account: at,
-        })
-      } else if (one.canSignIn) {
-        actions.push({
-          id: id('sign-in', harness, at),
-          label: one.status.signedIn ? 'Sign in again…' : 'Sign in…',
-          harness,
-          account: at,
-        })
-        // Signing out is the harness's own, for one that keeps accounts apart.
-        if (one.status.signedIn && one.canAdd) {
-          actions.push({ id: id('sign-out', harness, at), label: 'Sign out', harness, account: at })
-        }
-      }
-      if (!one.forNewAgents && (one.canAdd || mine.length > 1)) {
-        actions.push({
-          id: id('use', harness, at),
-          label: 'Use for new agents',
-          harness,
-          account: at,
-        })
-      }
-      if (at !== null) {
-        actions.push({
-          id: id('remove', harness, at),
-          label: 'Remove',
-          danger: true,
-          harness,
-          account: at,
-        })
-      }
-    }
-    if (mine.some((one) => one.canAdd)) {
-      actions.push({ id: id('add', harness, null), label: 'Add an account…', harness })
-      actions.push({ id: id('add-key', harness, null), label: 'Add an API-key account…', harness })
-    }
-  }
-  return actions
-}
-
-/** Carry out an account action, asking twice for the one that cannot be undone. */
-function accountChoice(panel: SettingsPanel, id: string): PanelOutcome {
-  if (id.startsWith('account:remove:') && panel.confirm !== id) {
-    return stay({ ...panel, confirm: id, saved: null, error: null })
-  }
-  return { panel: { ...panel, confirm: null }, submit: true, choice: id }
 }
 
 /** What a key does to the setting the keyboard is on. */
@@ -705,6 +646,19 @@ function clicked(
         row: 0,
         focus: 'form',
         search: '',
+        editing: null,
+        dropdown: null,
+      })
+    // Which project the Projects page is configuring. The page starts again at
+    // its first row: the rows are a different project's, so the row the
+    // keyboard was on is not a row any more.
+    case 'project':
+      return stay({
+        ...panel,
+        project: arg,
+        row: 0,
+        scroll: 0,
+        focus: 'projects',
         editing: null,
         dropdown: null,
       })

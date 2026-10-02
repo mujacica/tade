@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
-   │  search extensions      │ Sentry  built-in                                                        needs setup  │───
- ▌ │                         │ 8 tools · 1 watch · 2 settings                                                       │   
- ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ Reads the errors, traces, logs and metrics your projects send to Sentry, and hands  █│   
-   │ ● Jev                  ▕│ fixes to agents.                                                                    █│   
-   │ ◐ Sentry             ! ▕│                                                                                     █│   
-   │ ✗ standup            ! ▕│ ▲ no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read,           █│   
- ▸ │ ● GitHub               ▕│   project:read, event:read, event:write), or log in with sentry-cli                 █│   
- ▸ │ ○ release-notes        ▕│                                                                                     █│   
- ▾ │ · Written by Tade    1 ▕│ Not read: extensions.sentry.orgg                                                    █│   
-  M│ · MCP servers        4 ▕│                                                                                     █│   
-  A│ · Harnesses' own     2 ▕│   Set up…     Turn off                                                              █│   
-  M│                        ▕│                                                                                     █│   
-   │                        ▕│ HOW IT IS USED                                                                      █│   
- ▾ │                        ▕│ · Says what is breaking in production (sentry_issues, sentry_issue, sentry_trace).  █│   
-   │                        ▕│ · Turns an error into work (sentry_fix): an agent with the stack already in hand.   █│   
-   │                        ▕│ · Lets new errors find you: the new-errors watch starts an agent on each.           ▕│   
-   │                        ▕│ · Says something back — resolve, ignore, assign — only when you asked for it.       ▕│   
-   │                        ▕│ · The token is kept in `config.yaml`, which any agent you run can read.             ▕│   
-   │                        ▕│                                                                                     ▕│   
-━  │                        ▕│ TOOLS                                                                               ▕│  ━
-   │                        ▕│ sentry_issues         List a project's Sentry issues                                ▕│   
-   │                        ▕│ sentry_issue          Everything Sentry knows about one issue                       ▕│  ▕
-   │                        ▕│ sentry_events         Query Sentry's Explore data                                   ▕│  ▕
-   │                        ▕│                                                                                      │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
- ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+ ▾ A╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
+    │  search extensions          │ Sentry  built-in                                                  needs setup  │────
+ ▌ !│                             │ 8 tools · 1 watch · 2 settings                                                 │    
+ ▌  │ ● Checks                   ▕│                                                                                │    
+    │                            ▕│ Reads the errors, traces, logs and metrics your projects send to Sentry, and  █│    
+   ⠋│ ● Dependencies             ▕│ hands fixes to agents.                                                        █│    
+    │                            ▕│                                                                               █│    
+    │ ● Jev                      ▕│ ▲ no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read,     █│    
+ ▸ S│                            ▕│   project:read, event:read, event:write), or log in with sentry-cli           █│    
+ ▸ S│ ◐ Sentry                 ! ▕│                                                                               █│    
+ ▾ C│                            ▕│ Not read: extensions.sentry.orgg                                              █│    
+  M │ ✗ standup                ! ▕│                                                                               █│    
+  A │                            ▕│   Set up…     Turn off                                                        █│    
+  M │ ● GitHub                   ▕│                                                                               █│    
+    │                            ▕│ HOW IT IS USED                                                                █│    
+ ▾ F│ ○ release-notes            ▕│ · Says what is breaking in production (sentry_issues, sentry_issue,           █│    
+   ▾│                            ▕│   sentry_trace).                                                              ▕│    
+    │ · Written by Tade        1 ▕│ · Turns an error into work (sentry_fix): an agent with the stack already in   ▕│    
+    │                            ▕│   hand.                                                                       ▕│    
+   ▸│ · MCP servers            4 ▕│ · Lets new errors find you: the new-errors watch starts an agent on each.     ▕│    
+    │                            ▕│ · Says something back — resolve, ignore, assign — only when you asked for     ▕│    
+━   │ · Harnesses' own         2 ▕│   it.                                                                         ▕│   ━
+    │                            ▕│ · The token is kept in `config.yaml`, which any agent you run can read.       ▕│    
+    │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│ TOOLS                                                                         ▕│   ▕
+    │                            ▕│                                                                                │   ▕
+    │                            ▕│ tab moves · ↑↓ reads · enter presses                                   Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

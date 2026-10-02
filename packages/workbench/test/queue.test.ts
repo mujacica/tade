@@ -31,7 +31,13 @@ describe('queued work', () => {
       join(home, 'config.yaml'),
       `agents:\n  workspace: worktree\nprojects:\n  app:\n    root: ${repo.root}\n`,
     )
-    client = await Workbench.open({ home, version: '9.9.9' })
+    // Its own sessions directory, like the test below that writes into one.
+    // Without it `recordsAt` falls back to the real `~/.pi/agent/sessions`, so
+    // the first run of this suite leaves a session behind for `app/add-refunds`
+    // and every run after it on that machine reads the queue as *reopening* an
+    // agent that has already been told what it is for — which is a failure a
+    // fresh CI runner can never see.
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: tmp('tade-sessions-') })
   })
 
   afterEach(async () => {

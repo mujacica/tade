@@ -1,6 +1,6 @@
 import { ConfigSchema, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { listStart, panelSize, startOf } from '../src/panels/frame.ts'
+import { ITEM, itemSpan, panelSize, startOf } from '../src/panels/frame.ts'
 import { modelPanel } from '../src/panels/models/state.ts'
 import { openProjectPanel } from '../src/panels/project/state.ts'
 import { searchPanel } from '../src/panels/search/state.ts'
@@ -82,9 +82,11 @@ describe('where a body is scrolled to', () => {
     expect(startOf(3, 4, 10)).toBe(0)
   })
 
-  it('is what a one-line list asks, said the short way', () => {
-    for (const at of [0, 3, 9, 11])
-      expect(listStart(4, 12, 5, at)).toBe(startOf(4, 12, 5, { from: at, to: at }))
+  it('keeps the whole of a row that takes more than one line in view', () => {
+    // A row of a panel's list is `ITEM` lines, and the top of it is what a
+    // list scrolls to: half a row in view is half a name.
+    for (const at of [0, 3, 9])
+      expect(startOf(99, 24, 5, itemSpan(at))).toBe(Math.min(19, at * ITEM))
   })
 })
 

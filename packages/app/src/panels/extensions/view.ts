@@ -7,7 +7,20 @@ import { blank, box, type Drawn, NO_POINTER, Row } from '../../ui.ts'
 import { markdownLines } from '../../viewer.ts'
 import { cap, count, sideWidth, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
-import { BAR, beside, column, type Line, panelSize, searchRow, startOf, tabRow } from '../frame.ts'
+import {
+  BAR,
+  beside,
+  column,
+  ITEM,
+  itemSpan,
+  type Line,
+  listRow,
+  panelSize,
+  searchRow,
+  startOf,
+  TWO_PANE,
+  tabRow,
+} from '../frame.ts'
 import { type ExtensionFacts, extensionBody } from './body.ts'
 import { type ExtensionSetupPanel, type ExtensionViewPanel, setupControls } from './setup.ts'
 import { chosenEntry, type ExtensionsPanel, extensionControls, extensionEntries } from './state.ts'
@@ -20,10 +33,11 @@ import { chosenEntry, type ExtensionsPanel, extensionControls, extensionEntries 
  * How big the Extensions panel is, and how its two sides divide the room.
  *
  * The size is `panelSize`, like every other panel's: the room there is, less
- * the margin and the strip at the foot it must never cover. Capped at 120
- * columns only because prose read across a whole ultrawide is prose nobody
- * reads. What is its own is the split — a list down the left, an extension's
- * own account of itself on the right, each with its own bar.
+ * the margin and the strip at the foot it must never cover. Capped at the width
+ * Settings is capped at — the two are the same panel with a different list in
+ * it, and prose read across a whole ultrawide is prose nobody reads. What is
+ * its own is the split — a list down the left, an extension's own account of
+ * itself on the right, each with its own bar.
  */
 export function extensionsSize(
   width: number,
@@ -41,7 +55,7 @@ export function extensionsSize(
   /** Rows of the list that scroll. */
   listRoom: number
 } {
-  const size = panelSize({ width, height }, { max: 120 })
+  const size = panelSize({ width, height }, { max: TWO_PANE })
   const side = sideWidth(size.inner) + BAR
   return {
     width: size.width,
@@ -137,11 +151,16 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
       else r.text(' ')
       r.space()
     })
-    const built = row.build()
-    aside.push({
-      text: on ? skin.selected(built.text) : pointed ? skin.hovered(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: names - 1, target }],
-    })
+    // The same two rows a row of the Settings list is, drawn by the same
+    // function: the two panels are one shape, and a list whose rows are a
+    // different height in each is where that stops being true.
+    aside.push(
+      ...listRow(
+        row.build(),
+        { width: names, target, on, pointed, marked: on && panel.focus === 'list' },
+        skin,
+      ),
+    )
   }
 
   // ── the head, which stays put: which one this is, and the shape of it ──
@@ -249,7 +268,7 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
         lines: aside,
         width: names,
         scroll: panel.listScroll,
-        chosen: { from: at, to: at },
+        chosen: itemSpan(at),
         area: 'panel-side',
       },
       rows: tall,
@@ -299,7 +318,8 @@ export function extensionsScrollable(
   const lines = extensionBody(facts, here, size.body - BAR, NO_POINTER, null)
   return {
     body: Math.max(0, lines.length - size.room),
-    list: Math.max(0, entries.length - size.listRoom),
+    // Lines, not entries: a row of the list is two of them.
+    list: Math.max(0, entries.length * ITEM - size.listRoom),
     listRoom: size.listRoom,
   }
 }
@@ -493,10 +513,11 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
       .space()
       .text(field.label.padEnd(label).slice(0, label), focused ? skin.you : skin.label)
     if (field.kind === 'flag') {
-      r.check(value === 'on', value === '' ? 'as it comes' : value, {
-        kind: 'control',
-        id: `field:${field.key}`,
-      })
+      // The same switch a flag is on the Settings page. It was a checkbox here
+      // and a switch there, for the same question — which is the kind of
+      // difference nobody chooses, and the kind somebody notices.
+      r.toggle(value === 'on', { kind: 'control', id: `field:${field.key}` })
+      if (value === '') r.space().text('as it comes', skin.hint)
     } else {
       // A key is drawn as itself, here and everywhere else: it is in the
       // config in plain text, and one you cannot read is one you cannot check

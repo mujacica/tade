@@ -19,7 +19,8 @@ import {
   thinkingMenuItems,
 } from '../panels/menu/state.ts'
 import { type ModelChoice, type ModelPanel, modelPanel, priceSaid } from '../panels/models/state.ts'
-import type { AccountShown, Choice } from '../panels/settings/state.ts'
+import type { AccountShown } from '../panels/settings/accounts.ts'
+import type { Choice } from '../panels/settings/state.ts'
 import { writeSetting } from '../settings.ts'
 import {
   type Actions,

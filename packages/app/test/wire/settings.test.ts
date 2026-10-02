@@ -40,8 +40,9 @@ describe('the window, and its settings', () => {
     await until('the settings', () => terminal.written.includes('Where agents work'))
     // A second category beside the controls, so this is the page and not one
     // group of it. Which one is not the point — the list is longer than a
-    // 24-row terminal and scrolls, so this names one that is drawn.
-    expect(terminal.written).toContain('Telemetry')
+    // 24-row terminal and scrolls, and a row of it is two rows tall, so this
+    // names one that is drawn.
+    expect(terminal.written).toContain('Models')
   })
 
   it('saves where agents work so the workbench starts the next one there', async () => {

@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
-        │  search settings        │ Voice                                                                      │────────
- ▌ ! str│                         │                                                                            │        
- ▌   wan│  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                   ▕│        
-        │  Models            │                                                            │                   ▕│        
-   ⠋ ref│  Orchestrator      │            Press the keys you want to hold to talk.        │                   ▕│        
-     wor│  Approvals      byp│                                                            │s to stop          ▕│        
-        │  Checks            │                        ctrl   +   r                        │                   ▕│        
- ▸ SMART│▌ Voice             │                                                            │      ↻ on restart ▕│        
- ▸ SCHED│  Search            │ ▲ Pi and most shells search history with ctrl+r.           │                   ▕│        
- ▾ CHANG│  Window            │   While Tade holds it, your agents never see it.           │      ↻ on restart ▕│        
-  M pack│  Projects          │                                                            │                   ▕│        
-  A …/we│  Checks per project│ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                   ▕│        
-  M src/│  Budgets           │ Not a key that types a character.                          │                   ▕│        
-        │  Journal           │                                                            │                   ▕│        
- ▾ FILES│  Telemetry         │                        Try another     Use ctrl+r anyway   │                   ▕│        
-   ▾ src│  Shortcuts         ╰────────────────────────────────────────────────────────────╯                   ▕│        
-       w│  Accounts          ● 3 ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
-       w│  Updates               ▕│                                                                           ▕│        
-   ▸ tes│                        ▕│ Quiet hours      22:00    to  07:00                          ↻ on restart ▕│        
-     pac│                        ▕│                                                                           ▕│        
-━   orch│                        ▕│                                                                           ▕│   ▾   ━
-        │                        ▕│                                                                           ▕│        
-        │                        ▕│                                                                           ▕│       ▕
-        │                        ▕│                                                                           ▕│       ▕
-        │                        ▕│ ● Saved as you change it.                                                  │       ▕
-        │                        ▕│                                               Open config.yaml     Done    │       ▕
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  search settings            │ Voice                                                                          │────
+ ▌ !│                             │                                                                                │    
+ ▌  │  Agents             byp╭─ Push to talk ─────────────────────────────────────── esc ─╮                       ▕│    
+    │                        │                                                            │                       ▕│    
+   ⠋│  Models                │            Press the keys you want to hold to talk.        │                       ▕│    
+    │                        │                                                            │press to stop          ▕│    
+    │  Orchestrator          │                        ctrl   +   r                        │                       ▕│    
+ ▸ S│                        │                                                            │          ↻ on restart ▕│    
+ ▸ S│  Checks                │ ▲ Pi and most shells search history with ctrl+r.           │                       ▕│    
+ ▾ C│                        │   While Tade holds it, your agents never see it.           │          ↻ on restart ▕│    
+  M │▌ Voice                 │                                                            │                       ▕│    
+  A │▌                       │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                       ▕│    
+  M │  Window                │ Not a key that types a character.                          │                       ▕│    
+    │                        │                                                            │                       ▕│    
+ ▾ F│  Projects              │                        Try another     Use ctrl+r anyway   │                       ▕│    
+   ▾│                        ╰────────────────────────────────────────────────────────────╯                       ▕│    
+    │  Journal                   ▕│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+    │                            ▕│                                                                               ▕│    
+   ▸│  Telemetry                 ▕│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+    │                            ▕│                                                                               ▕│    
+━   │  Shortcuts                 ▕│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │  Accounts              ● 3 ▕│                                                                               ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
+    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+    │                            ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

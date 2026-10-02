@@ -25,7 +25,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `input.ts` | What is selected in the line you type on and in the file you have open — one model for both (`spanOf`, `wordAt`, `clickedSpan`, `putCaret`, `cutSpan`, `rowStarts`) | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
 | `panels.ts` | The `Panel` union, `PanelInputs`, and the two dispatches — `panelKey` and `panelClick` — and nothing else | a terminal |
-| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, `summary` (one row of a list, in full), and `small` for the ten that are one question each. Over four shared ones: `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow` — the shell every panel is drawn in), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
+| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, `summary` (one row of a list, in full), and `small` for the ten that are one question each. Over four shared ones: `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow`, `listRow`/`ITEM` — the shell every panel is drawn in, down to how tall a row of its list is), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events, and which window a day is (`sinceOf`) | a terminal |
 | `queue-view.ts` | What the SMART QUEUE shows (`QueueView`, `shownBy`) and nothing about what is in it | a terminal |
 | `queue.ts` | What the queue says in words, including what an empty list says (`queueEmptySays`) | a terminal |
@@ -377,7 +377,10 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   buttons. Two panels side by side is `beside`. How a row looks is `rowLook`: the marker says where
   the keyboard is, the lighter ground says what the mouse is over, and they are never the same thing —
   a menu drawing the pointed item as *chosen* made the keyboard appear to move when only the mouse had.
-  A search box is `searchRow`. Nothing cuts its own rows with `slice` to fit: `rows.slice(0, room)` is
+  How tall a row of its list is, is `listRow` — `ITEM` rows, all of
+  them that row, all of them pressing it: a list of one-row items is a column of targets the height
+  of a line of text, which is what three reworks of Settings left as the complaint. A search box is
+  `searchRow`. Nothing cuts its own rows with `slice` to fit: `rows.slice(0, room)` is
   what took the setup page's own Save button off the bottom, and a cap with `+7 more` under it is what
   the Spend table said instead of scrolling — three times on one page.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task

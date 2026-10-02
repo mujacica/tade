@@ -269,7 +269,12 @@ export function extensionBody(
   if (view.tools.length > 0) {
     lines.push(blank(form))
     heading('TOOLS')
-    const named = Math.min(22, Math.max(10, Math.floor(form / 3)))
+    // The longest name there is, and never more than half the room: the same
+    // rule the Settings form's name column follows, for the same reason — a
+    // column that starts at a third of the width cuts `jev_read_request` to
+    // make room for a summary that had columns to spare.
+    const longest = Math.max(0, ...view.tools.map((tool) => visibleWidth(tool.name)))
+    const named = Math.max(10, Math.min(longest + 1, Math.floor(form / 2)))
     for (const tool of view.tools) {
       // Who may call it, said only where it is not both: anything that changes
       // something outside a project is the orchestrator's alone.

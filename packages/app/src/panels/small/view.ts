@@ -263,12 +263,12 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
     rows.push(
       row()
         .space()
-        .radio(!panel.everywhere, `About ${ctx.project ?? 'this project'}`, {
+        .option(!panel.everywhere, `About ${ctx.project ?? 'this project'}`, {
           kind: 'control',
           id: 'everywhere',
         })
-        .space(3)
-        .radio(panel.everywhere, 'About everything', { kind: 'control', id: 'everywhere' })
+        .space()
+        .option(panel.everywhere, 'About everything', { kind: 'control', id: 'everywhere' })
         .build(),
     )
     rows.push(row().space().text('Kept word for word.', skin.hint).build())

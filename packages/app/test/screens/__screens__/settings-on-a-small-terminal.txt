@@ -3,20 +3,20 @@
  ▾ ╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮   
    │  search settin…   │ Telemetry                                          │───
  ▌ │                   │                                                    │t s
- ▌ │  Agents          █│ Send to                  $TADE_TELEMETRY_DSN…   ↻ █│   
-   │  Models          █│                                                   █│   
-   │  Orchestrator    █│▌Reporter                ◉ sentry   ○ none       ↻ █│   
-   │  Approvals       █│▌  sentry sends through Sentry’s own SDK, imported █│   
-   │  Checks          █│▌  only when there is a DSN; none sends nothing    █│╮  
- ▸ │  Voice           █│                                                   ▕││  
- ▸ │  Search          █│ Crashes and warnings    ──██ on                 ↻ ▕││  
- ▾ │  Window          █│                                                   ▕│╯  
-  M│  Projects     3  █│ What happened around …  ──██ on                 ↻ ▕│   
-━  │  Checks per pro… █│                                                   ▕│  ━
-   │  Budgets     ● 1 █│ Numbers                 ──██ on                 ↻ ▕│   
-   │  Journal         █│                                                   ▕│  ▕
+ ▌ │  Orchestrator    ▕│ Send to                  $TADE_TELEMETRY_DSN…   ↻ █│   
+   │                  ▕│                                                   █│   
+   │  Checks          █│▌Reporter                                        ↻ █│   
+   │                  █│▌    ◉ sentry                                      █│   
+   │  Voice           █│▌    ○ none                                        ▕│╮  
+ ▸ │                  █│▌  sentry sends through Sentry’s own SDK, imported ▕││  
+ ▸ │  Window          █│▌  only when there is a DSN; none sends nothing    ▕││  
+ ▾ │                  █│▌                                                  ▕│╯  
+  M│  Projects    ● 1 █│ Crashes and warnings    ────████ on             ↻ ▕│   
+━  │                  █│                                                   ▕│  ━
+   │  Journal         ▕│ What happened around …  ────████ on             ↻ ▕│   
+   │                  ▕│                                                   ▕│  ▕
    │▌ Telemetry       ▕│ ● Saved as you change it.                          │  ▕
-   │  Shortcuts       ▕│                       Open config.yaml     Done    │  ▕
+   │▌                 ▕│                       Open config.yaml     Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────╯  ▕
 ────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                          type, or hold    ctrl   +   space   

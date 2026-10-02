@@ -1,10 +1,22 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { HARNESS_CHOICES, type Setting } from '@tade/core'
+import { HARNESS_CHOICES, type Setting, settingLabel } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { blank, box, NO_POINTER, type Pointer, Row } from '../../ui.ts'
 import { cap, padTo, sideWidth, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext, PanelDrawing } from '../context.ts'
-import { BAR, beside, column, type Line, panelSize, searchRow } from '../frame.ts'
+import {
+  BAR,
+  beside,
+  column,
+  itemSpan,
+  type Line,
+  listRow,
+  panelSize,
+  searchRow,
+  TWO_PANE,
+  tabRow,
+} from '../frame.ts'
+import { accountActions } from './accounts.ts'
 import {
   badgeFor,
   capture,
@@ -16,7 +28,8 @@ import {
   spellsOut,
   valueTooWide,
 } from './control.ts'
-import { ACCOUNTS, accountActions, type SettingsPanel, UPDATES, visibleSettings } from './state.ts'
+import { PROJECTS, projectHere, projectsIn } from './projects.ts'
+import { ACCOUNTS, type SettingsPanel, UPDATES, visibleSettings } from './state.ts'
 import { drawUpdates } from './updates.ts'
 
 // How the Settings panel is laid out: the categories down the side, the group
@@ -50,13 +63,19 @@ export interface FormLayout {
   stacked: boolean
 }
 
-export function formLayout(form: number, rows: readonly Setting[]): FormLayout {
+export function formLayout(
+  form: number,
+  rows: readonly Setting[],
+  labelOf: (setting: Setting) => string = (setting) => setting.title,
+): FormLayout {
   const waits = rows.some((setting) => !setting.live)
   // Said in words where they fit, and as the mark alone where they do not:
   // that a setting waits for a restart is not something to leave out.
   const restart = !waits ? null : form >= 56 ? '↻ on restart' : form >= 22 ? '↻' : null
   const note = restart ? visibleWidth(restart) + 3 : 0
-  const longest = Math.max(0, ...rows.map((setting) => visibleWidth(setting.title)))
+  // Measured on what will be drawn, which is not always the title: a list that
+  // crosses projects says which project each row is about.
+  const longest = Math.max(0, ...rows.map((setting) => visibleWidth(labelOf(setting))))
   const most = Math.max(8, Math.floor((form - 1 - GAP - note) / 2))
   const label = Math.max(8, Math.min(longest, most))
   const control = form - 1 - label - GAP - note
@@ -88,7 +107,44 @@ function chosenCategory(
 ): { from: number; to: number } | null {
   if (panel.search !== '') return null
   const at = categories.findIndex((one) => one.id === panel.category)
-  return at < 0 ? null : { from: at, to: at }
+  return at < 0 ? null : itemSpan(at)
+}
+
+/**
+ * Which project the Projects page is configuring: every project as a tab,
+ * under the word for them — the shape the projects along the top of the window
+ * have, which is what somebody already knows how to use.
+ *
+ * `for` is the lead word the Spend page's ranges use, and means the same thing
+ * here: this page, over that one of them. Lit where the keyboard is on the
+ * selector, so walking into it with ↑ shows which it is on.
+ */
+function projectRow(
+  panel: SettingsPanel,
+  ctx: PanelContext,
+  form: number,
+  chosen: string | null,
+): Line[] {
+  const names = projectsIn(ctx.settings)
+  if (names.length === 0) {
+    return [
+      new Row(form, ctx.skin)
+        .space()
+        .text(cap('No projects are open.', form - 2), ctx.skin.hint)
+        .build(),
+    ]
+  }
+  const pointer =
+    panel.focus === 'projects' ? withFocus(ctx.pointer, `project:${chosen ?? ''}`) : ctx.pointer
+  return tabRow(
+    () => new Row(form, ctx.skin, pointer),
+    ctx.skin,
+    'for',
+    names.map((name) => ({ id: name, label: name })),
+    chosen ?? '',
+    'project',
+    form,
+  )
 }
 
 /** Whether the pointer is on this setting: its row, or any control of it. */
@@ -103,7 +159,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   // The room there is, never a number somebody typed: it used to stop at
   // twenty-eight rows however tall the terminal, which is where "the Settings
   // window is too small" came from.
-  const { width, height, inner, rows: tall } = panelSize(ctx, { max: 104 })
+  const { width, height, inner, rows: tall } = panelSize(ctx, { max: TWO_PANE })
   // Each side keeps a column for its own bar, so the two are the same object
   // the rest of the window uses and the text never runs under one.
   const side = sideWidth(inner) + BAR
@@ -134,17 +190,16 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     const row = new Row(names, skin, pointer)
       .marker(on, target)
       .space()
-      .text(cap(category.title, names - 3), on ? skin.you : pointed ? skin.link : plain, target)
+      .text(cap(category.title, names - 5), on ? skin.you : pointed ? skin.link : plain, target)
     row.right((r) => {
       const badge = badgeFor(category.id, ctx)
       if (badge) badge(r)
       r.space()
     })
-    const built = row.build()
-    aside.push({
-      text: on ? skin.selected(built.text) : pointed ? skin.hovered(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: names - 1, target }],
-    })
+    // Two rows, both of them this category: `listRow` is the one answer to how
+    // tall a row of a panel's list is, and the Extensions list is drawn by it
+    // too.
+    aside.push(...listRow(row.build(), { width: names, target, on, pointed }, skin))
   }
 
   // ── the head of the form: the heading, and then the settings ──
@@ -162,6 +217,13 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       .text(cap(title, form - 2), skin.brand)
       .build(),
   ]
+  // The Projects page is one project at a time, and which one is a row of them
+  // above the form — the shape the projects along the top of the window have,
+  // and in the head rather than in the body so that it is still on screen when
+  // you have scrolled down to that project's checks.
+  const onProjects = panel.category === PROJECTS && !panel.search
+  const chosenProject = onProjects ? projectHere(panel.project, ctx.settings) : null
+  if (onProjects) formHead.push(...projectRow(panel, ctx, form, chosenProject))
   // A heading and then the settings. What a group is about is still written
   // down — `about` is half of what the search box matches on, and `tade
   // config` reads it — but three lines of prose over every page, saying what
@@ -172,7 +234,12 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   // ── the form ──
   const rows =
     panel.category === ACCOUNTS && !panel.search ? [] : visibleSettings(panel, ctx.settings)
-  const layout = formLayout(form, rows)
+  // Which project a row is about, on the one page that crosses them: a search
+  // finds three settings called Brief, and a page of three identical names is
+  // a page nobody can use. The Projects page itself says it once, above.
+  const labelOf = (setting: Setting) =>
+    panel.search === '' ? setting.title : settingLabel(setting)
+  const layout = formLayout(form, rows, labelOf)
   const body: { text: string; hits: Hit[] }[] = []
   /** Where the focused setting's lines begin and end, so it is kept in view. */
   let focusFrom = 0
@@ -283,7 +350,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       focusFrom = from
       focusTo = to
     })
-  } else if (rows.length === 0) {
+  } else if (rows.length === 0 && !onProjects) {
     body.push(
       new Row(form, skin)
         .space()
@@ -291,6 +358,9 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
         .build(),
     )
   }
+  // Nothing is said on the Projects page with no projects open: the selector
+  // has already said it, in the words that are true of it rather than in the
+  // ones about a search.
 
   rows.forEach((setting, at) => {
     const focused = panel.focus === 'form' && at === panel.row
@@ -304,8 +374,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     const lines: { text: string; hits: Hit[] }[] = []
     const restart = !setting.live && layout.restart ? layout.restart : null
 
-    // Clicking anywhere along a setting's line puts the keyboard on it, laid
-    // under its controls so a click still presses what it is on.
+    // Clicking anywhere on a setting — any line of it, not only the one its
+    // name is on — puts the keyboard on it, laid under its controls so a click
+    // still presses what it is on. Applied to every line the setting has once
+    // they are all built, because the band marks all of them and a band that is
+    // only clickable along its first row is a target that lies about its size.
     const wholeRow = (built: { text: string; hits: Hit[] }) => ({
       text: built.text,
       hits: [{ row: 0, from: 0, to: form - 1, target: rowTarget }, ...built.hits],
@@ -331,7 +404,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
 
     const line = new Row(form, skin, keys)
     line.marker(focused, rowTarget)
-    line.text(padTo(setting.title, layout.label), focused || pointed ? skin.you : plain, rowTarget)
+    line.text(
+      padTo(labelOf(setting), layout.label),
+      focused || pointed ? skin.you : plain,
+      rowTarget,
+    )
     let controlCol = line.used + GAP
     if (beside) {
       line.space(GAP)
@@ -339,13 +416,13 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       control(line, setting, panel, ctx, room)
     }
     if (restart) line.right((r) => r.text(restart, skin.hint).space())
-    lines.push(wholeRow(line.build()))
+    lines.push(line.build())
     if (!beside) {
       if (spellsOut(setting)) {
         for (const option of optionsOf(setting)) {
           lines.push(
             beneath(3)
-              .radio(option.on, cap(option.label, form - 6), {
+              .option(option.on, cap(option.label, form - 10), {
                 kind: 'control',
                 id: `set:${setting.path}=${option.value}`,
               })
@@ -411,23 +488,26 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
         lines.push(r.text(piece, skin.hint).build())
       })
     }
+    // The row under every setting, which belongs to that setting: the band
+    // covers it, clicking it lands on the setting, and the marker runs down it.
+    //
+    // There has always been a clear line between one setting and the next —
+    // almost every control here is a knob on its own painted ground, so two
+    // with nothing between them run into one block of colour. What changed is
+    // whose line it is. As nobody's, every setting was one row tall: a
+    // target the height of a line of text, which is what "the fields and
+    // switches are hard to hit" was about after two reworks of what the page
+    // *said*. As the setting's own it is two, and the page is drawn exactly as
+    // it was.
+    lines.push(beneath(1, NO_POINTER).build())
     if (focused) {
       focusFrom = body.length
       focusTo = body.length + lines.length - 1
     }
-    for (const built of lines)
+    for (const own of lines) {
+      const built = wholeRow(own)
       body.push(band ? { text: band(built.text), hits: built.hits } : built)
-    // A clear line between every setting and the next, the same one every
-    // time. Almost every control here is a label or a knob on its own painted
-    // ground, so two settings with nothing between them run into one block of
-    // colour — the same reason the rows of buttons on the Accounts page are
-    // given a gap. Sparing it for the shorter kinds only made the top of a
-    // group breathe and the bottom of it crowd, which is what made the page
-    // read as unconsidered: a rhythm that changes half way down is one nobody
-    // chose. A group longer than the panel scrolls rather than closing up —
-    // the form already follows the row you are on, and a list of fifteen key
-    // caps with nothing between them is one nobody can read anyway.
-    if (at < rows.length - 1) body.push(blank(form))
+    }
   })
 
   // ── the foot of the form ──

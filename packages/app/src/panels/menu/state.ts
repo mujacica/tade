@@ -1,7 +1,7 @@
 import { THINKING_LEVELS } from '@tade/core'
 import { type Offer, offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import { close, type PanelOutcome, stay } from '../outcome.ts'
-import type { AccountShown } from '../settings/state.ts'
+import type { AccountShown } from '../settings/accounts.ts'
 
 // What can be done with the thing you right-clicked, as a list to pick from.
 //

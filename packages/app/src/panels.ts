@@ -27,8 +27,8 @@ import { type ModelChoice, type ModelPanel, modelClick, modelKey } from './panel
 import { close, type PanelOutcome, stay } from './panels/outcome.ts'
 import { type OpenProjectPanel, type OpenRow, openClick, openKey } from './panels/project/state.ts'
 import { type SearchPanel, searchClick, searchKey } from './panels/search/state.ts'
+import type { AccountAction } from './panels/settings/accounts.ts'
 import {
-  type AccountAction,
   type Choice,
   DONE,
   type SettingsPanel,

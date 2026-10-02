@@ -387,7 +387,7 @@ export class App {
       useConfig: (loaded) => this.settings.use(loaded),
       changeSetting: (req) => this.settings.change(req),
       writeSetting: (path, value) => this.settings.write(path, value),
-      openSettings: (page, find) => this.settings.open(page, find),
+      openSettings: (page, find, project) => this.settings.open(page, find, project),
       rememberWindow: () => this.window.remember(),
     })
     this.spend = new Spend(this.wire)

@@ -14,7 +14,8 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 | Path | What |
 |---|---|
 | `packages/core/src/config.ts` | `ConfigSchema`, `loadConfig`, `writeSetting`, `ownerOnly` |
-| `packages/core/src/settings.ts` | `settingsOf`, `parseSetting`, `findableBy`, `SettingKind`, the Keys and tokens group |
+| `packages/core/src/settings.ts` | `settingsOf`, `parseSetting`, `findableBy`, `settingLabel`, `SettingKind`, the Keys and tokens group |
+| `packages/core/src/settings-projects.ts` | the one `projects` group: every row of it one project's, by `scope` |
 | `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `OPEN`, `OPEN_UNDER`, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |
 | `packages/core/src/project.ts` | what one project answers for itself: `workspaceFor`, `pushFor`, `PUSH_MODES`, `pushProblems` |
 | `packages/core/src/secrets.ts` | a credential: `findSecret`, `secretPath`, `secretCommand`, `IN_CONFIG`, `KEYS_AND_AGENTS`, `SEEN_BY_AGENTS` |
@@ -158,9 +159,13 @@ are exactly two files it can go wrong in:
   the moment somebody changed the setting under it.
 - Anything that already exists keeps what it was made with. A task file records its own answer;
   changing the setting must never move an agent that is already working.
-- Add it to the `projects` group in `settingsOf` with `value: project.<key> ?? ''` and
-  `fallback: config.<the global>`, and put `''` first in a `choice` — empty is how somebody gives
-  the question back to the machine, and `writeSetting` deletes the key.
+- Add it to the one `projects` group (`settings-projects.ts`) with `value: project.<key> ?? ''`,
+  `fallback: config.<the global>` and **`scope: name`**, and put `''` first in a `choice` — empty is
+  how somebody gives the question back to the machine, and `writeSetting` deletes the key. The
+  title names the *setting* and never the project (`Brief`, not `app brief`): the page shows one
+  project at a time behind a selector and says which once, and a list that crosses projects says
+  which per row through `settingLabel`. `''` draws as `as all projects do (<fallback>)`, so the
+  ordinary answer reads as an answer rather than as an empty circle.
 - Add the path to `ALLOWED_UNDER` in `reach.ts`, or it is `never`: `projects` is a `never` subtree
   because of `root`, so a new key under it is refused until somebody decides — which is the rule
   working, not the rule in the way.

@@ -1,29 +1,29 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
-    │  search settings            │ Telemetry                                                                      │────
- ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass ▕│ Send to                     $TADE_TELEMETRY_DSN, or nothing i…   ↻ on restart █│    
+    │  search settings            │ Projects                                                                       │────
+ ▌ !│                             │ for   checkout    search    infra                                              │    
+ ▌  │  Agents             bypass ▕│                                                                                │    
+    │                            ▕│ Where the repository is   ~/src/search                           ↻ on restart █│    
+   ⠋│  Models                    ▕│                                                                               █│    
+    │                            ▕│ Shown as                  search                                              █│    
+    │  Orchestrator              ▕│                                                                               █│    
+ ▸ S│                            ▕│ Brief                     none                                   ↻ on restart █│    
+ ▸ S│  Checks                    ▕│                                                                               █│    
+ ▾ C│                            ▕│ Where agents work                                                             █│    
+  M │  Voice                     ▕│     ◉ as all projects do (checkout)                                           █│    
+  A │                            ▕│     ○ checkout                                                                █│    
+  M │  Window                    ▕│     ○ worktree                                                                █│    
     │                            ▕│                                                                               █│    
-   ⠋│  Models                    ▕│ Reporter                     ◉ sentry     ○ none                 ↻ on restart █│    
+ ▾ F│▌ Projects              ● 1 ▕│▌What is pushed            never                                ▾              █│    
+   ▾│▌                           ▕│▌                         never: nothing of search reaches its remote; branch: █│    
+    │  Journal                   ▕│▌                         agents push the branch they are on; branch-and-revi… █│    
+    │                            ▕│▌                                                                              █│    
+   ▸│  Telemetry                 ▕│ Budget a day               ‹   no budget   ›                     ↻ on restart █│    
     │                            ▕│                                                                               █│    
-    │  Orchestrator              ▕│▌Crashes and warnings       ────████ on                           ↻ on restart █│    
- ▸ S│                            ▕│▌                           Tade’s crashes and warnings as issues, with source █│    
- ▸ S│  Checks                    ▕│▌                           lines from its files, never yours                  █│    
- ▾ C│                            ▕│▌                                                                              █│    
-  M │  Voice                     ▕│ What happened around them  ────████ on                           ↻ on restart █│    
-  A │                            ▕│                                                                               █│    
-  M │  Window                    ▕│ Numbers                    ────████ on                           ↻ on restart █│    
+━   │  Shortcuts                 ▕│ Checks needed before      push                                 ▾              █│   ━
     │                            ▕│                                                                               █│    
- ▾ F│  Projects              ● 1 ▕│ What agents do             ────████ on                           ↻ on restart █│    
-   ▾│                            ▕│                                                                               █│    
-    │  Journal                   ▕│ How much of Tade is timed    ‹   0.1   ›                         ↻ on restart █│    
-    │                            ▕│                                                                               ▕│    
-   ▸│▌ Telemetry                 ▕│ Which Tade this is          laptop                               ↻ on restart ▕│    
-    │▌                           ▕│                                                                               ▕│    
-━   │  Shortcuts                 ▕│ Read Sentry back           ────████ on                           ↻ on restart ▕│   ━
-    │                            ▕│                                                                               ▕│    
-    │  Accounts              ● 3 ▕│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default              ▕│   ▕
+    │  Accounts              ● 3 ▕│ When a check is red       hold                                 ▾              ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
     │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕

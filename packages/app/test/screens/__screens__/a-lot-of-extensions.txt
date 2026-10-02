@@ -1,18 +1,18 @@
    T A D E      checkout !    search ✓    infra      +                      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────── esc ─╮   
-   │  search extensions      │ screenshots  yours                                        ready  │───
- ▌ │                         │ 1 tool                                                           │   
- ▌ │ ● GitHub               ▕│                                                                  │   
-   │ ○ release-notes        ▕│ Takes a picture of the app at a route.                          █│   
-   │ ● changelog            ▕│                                                                 █│   
-   │ ● linear               █│   Open folder     Turn off                                      █│   
-   │ ● oncall               █│                                                                 █│   
- ▸ │ ● postgres             █│ TOOLS                                                           █│   
- ▸ │▌● screenshots          █│ screenshots_run      Takes a picture of the … orchestrator only █│   
-━  │ ● translations         █│                                                                 ▕│  ━
-   │ · Written by Tade    1 █│                                                                  │   
-   │ · MCP servers        4 ▕│ tab moves · ↑↓ reads · enter presses                     Done    │  ▕
+   │  search extensions          │ screenshots  yours                                    ready  │───
+ ▌ │                             │ 1 tool                                                       │   
+ ▌ │ ● changelog                ▕│                                                              │   
+   │                            ▕│ Takes a picture of the app at a route.                      █│   
+   │ ● linear                   ▕│                                                             █│   
+   │                            ▕│   Open folder     Turn off                                  █│   
+   │ ● oncall                   █│                                                             █│   
+ ▸ │                            █│ TOOLS                                                       █│   
+ ▸ │ ● postgres                 █│ screenshots_run Takes a picture of the a… orchestrator only █│   
+━  │                            ▕│                                                             ▕│  ━
+   │▌● screenshots              ▕│                                                              │   
+   │▌                           ▕│ tab moves · ↑↓ reads · enter presses                 Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                              type, or hold    ctrl   +   space   

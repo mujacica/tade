@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
-        │  search settings        │ Updates                                                                    │────────
- ▌ ! str│                         │                                                                            │        
- ▌   wan│  Agents                ▕│     Check for updates                                                     █│        
-        │  Models                ▕│   checked just now                                                        █│        
-   ⠋ ref│  Orchestrator          ▕│                                                                           █│        
-     wor│  Approvals      bypass ▕│ Tade                                                                      █│        
-        │  Checks                ▕│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                   █│        
- ▸ SMART│  Voice                 ▕│   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1             █│        
- ▸ SCHED│  Search                ▕│   git -C ~/src/tade pull --ff-only && pnpm install                        █│        
- ▾ CHANG│  Window                ▕│     Update Tade…     Reload Tade…                                         █│        
-  M pack│  Projects           3  ▕│                                                                           █│        
-  A …/we│  Checks per project    ▕│ Programs it runs                                                          █│        
-  M src/│  Budgets           ● 1 ▕│   git             2.39.5      · cannot tell                               █│        
-        │  Journal               ▕│                   the system’s own · /usr/bin/git                         █│        
- ▾ FILES│  Telemetry             ▕│                   no command · the system updates it — macOS:             █│        
-   ▾ src│  Shortcuts             ▕│                   `xcode-select --install`                                █│        
-       w│  Accounts          ● 3 ▕│                                                                           █│        
-       w│▌ Updates           ● 2 ▕│   tmux            —           ▲ not installed                             █│        
-   ▸ tes│                        ▕│                   nothing here needs it                                   █│        
-     pac│                        ▕│                   no command · nothing on your PATH answers to `tmux`     ▕│        
-━   orch│                        ▕│                                                                           ▕│   ▾   ━
-        │                        ▕│   pi              0.85.1      · cannot tell                               ▕│        
-        │                        ▕│                   shipped with Tade · ~/src/tade/node_modules/@earendil-… ▕│       ▕
-        │                        ▕│                   no command · it comes with Tade, so updating Tade is    ▕│       ▕
-        │                        ▕│ ● Saved as you change it.                                                  │       ▕
-        │                        ▕│                                               Open config.yaml     Done    │       ▕
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  search settings            │ Updates                                                                        │────
+ ▌ !│                             │                                                                                │    
+ ▌  │  Agents             bypass ▕│     Check for updates                                                         █│    
+    │                            ▕│   checked just now                                                            █│    
+   ⠋│  Models                    ▕│                                                                               █│    
+    │                            ▕│ Tade                                                                          █│    
+    │  Orchestrator              ▕│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                       █│    
+ ▸ S│                            ▕│   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1                 █│    
+ ▸ S│  Checks                    ▕│   git -C ~/src/tade pull --ff-only && pnpm install                            █│    
+ ▾ C│                            ▕│     Update Tade…     Reload Tade…                                             █│    
+  M │  Voice                     ▕│                                                                               █│    
+  A │                            ▕│ Programs it runs                                                              █│    
+  M │  Window                    ▕│   git             2.39.5      · cannot tell                                   █│    
+    │                            ▕│                   the system’s own · /usr/bin/git                             █│    
+ ▾ F│  Projects              ● 1 ▕│                   no command · the system updates it — macOS: `xcode-select   █│    
+   ▾│                            ▕│                   --install`                                                  █│    
+    │  Journal                   ▕│                                                                               █│    
+    │                            ▕│   tmux            —           ▲ not installed                                 █│    
+   ▸│  Telemetry                 ▕│                   nothing here needs it                                       █│    
+    │                            ▕│                   no command · nothing on your PATH answers to `tmux`         ▕│    
+━   │  Shortcuts                 ▕│                                                                               ▕│   ━
+    │                            ▕│   pi              0.85.1      · cannot tell                                   ▕│    
+    │  Accounts              ● 3 ▕│                   shipped with Tade · ~/src/tade/node_modules/@earendil-work… ▕│   ▕
+    │                            ▕│                   no command · it comes with Tade, so updating Tade is what   ▕│   ▕
+    │▌ Updates               ● 2 ▕│ ● Saved as you change it.                                                      │   ▕
+    │▌                           ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

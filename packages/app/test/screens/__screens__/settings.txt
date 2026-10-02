@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
-        │  search settings        │ Voice                                                                      │────────
- ▌ ! str│                         │                                                                            │        
- ▌   wan│  Agents                ▕│▌Push to talk       ctrl   +   space       Change…                         ▕│        
-        │  Models                ▕│▌                ✓ hold works here                                         ▕│        
-   ⠋ ref│  Orchestrator          ▕│                                                                           ▕│        
-     wor│  Approvals      bypass ▕│ Mode            ◉ Hold to talk   ○ Press to start, press to stop          ▕│        
-        │  Checks                ▕│                                                                           ▕│        
- ▸ SMART│▌ Voice                 ▕│ Speech to text   whisper · base.en · on this machine  ▾      ↻ on restart ▕│        
- ▸ SCHED│  Search                ▕│                                                                           ▕│        
- ▾ CHANG│  Window                ▕│ Microphone       MacBook Pro Microphone                      ↻ on restart ▕│        
-  M pack│  Projects           3  ▕│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                    ▕│        
-  A …/we│  Checks per project    ▕│                                                                           ▕│        
-  M src/│  Budgets           ● 1 ▕│ Muted           ██── off                                                  ▕│        
-        │  Journal               ▕│                                                                           ▕│        
- ▾ FILES│  Telemetry             ▕│ Spoken replies  ──██ on                                                   ▕│        
-   ▾ src│  Shortcuts             ▕│                                                                           ▕│        
-       w│  Accounts          ● 3 ▕│ Interruptions    ‹  6  ›                                     ↻ on restart ▕│        
-       w│  Updates               ▕│                                                                           ▕│        
-   ▸ tes│                        ▕│ Quiet hours      22:00    to  07:00                          ↻ on restart ▕│        
-     pac│                        ▕│                                                                           ▕│        
-━   orch│                        ▕│                                                                           ▕│   ▾   ━
-        │                        ▕│                                                                           ▕│        
-        │                        ▕│                                                                           ▕│       ▕
-        │                        ▕│                                                                           ▕│       ▕
-        │                        ▕│ ● Saved as you change it.                                                  │       ▕
-        │                        ▕│                                               Open config.yaml     Done    │       ▕
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  search settings            │ Voice                                                                          │────
+ ▌ !│                             │                                                                                │    
+ ▌  │  Agents             bypass ▕│▌Push to talk       ctrl   +   space       Change…                             ▕│    
+    │                            ▕│▌                ✓ hold works here                                             ▕│    
+   ⠋│  Models                    ▕│▌                                                                              ▕│    
+    │                            ▕│ Mode              ◉ Hold to talk     ○ Press to start, press to stop          ▕│    
+    │  Orchestrator              ▕│                                                                               ▕│    
+ ▸ S│                            ▕│ Speech to text   whisper · base.en · on this machine  ▾          ↻ on restart ▕│    
+ ▸ S│  Checks                    ▕│                                                                               ▕│    
+ ▾ C│                            ▕│ Microphone       MacBook Pro Microphone                          ↻ on restart ▕│    
+  M │▌ Voice                     ▕│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
+  A │▌                           ▕│                                                                               ▕│    
+  M │  Window                    ▕│ Muted           ████──── off                                                  ▕│    
+    │                            ▕│                                                                               ▕│    
+ ▾ F│  Projects              ● 1 ▕│ Spoken replies  ────████ on                                                   ▕│    
+   ▾│                            ▕│                                                                               ▕│    
+    │  Journal                   ▕│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+    │                            ▕│                                                                               ▕│    
+   ▸│  Telemetry                 ▕│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+    │                            ▕│                                                                               ▕│    
+━   │  Shortcuts                 ▕│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │  Accounts              ● 3 ▕│                                                                               ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
+    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+    │                            ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

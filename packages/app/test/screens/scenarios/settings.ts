@@ -234,6 +234,24 @@ export const SETTINGS_SCREENS: Scenario[] = [
     frame: frame({ panel: settingsFacts() }),
   },
   {
+    name: 'settings-projects',
+    about:
+      'One project at a time: which project you are configuring along the top, the way the ' +
+      'projects along the top of the window are chosen, and then everything that project answers ' +
+      'for itself — where it is, what it is called, what its agents push, what it checks before ' +
+      'they do, and what it may spend a day.',
+    state: { ...base(), panel: { ...settingsPanel('projects', '', 'search'), row: 4 } },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-searched',
+    about:
+      'Words rather than a category: every setting that matches them, whatever page each lives ' +
+      'on, with the project named on the rows that are one project’s own.',
+    state: { ...base(), panel: { ...settingsPanel('agents', 'push'), row: 1 } },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
     name: 'settings-updates',
     about:
       'Keeping what Tade runs current: which of the programs it shells out to are here, how each ' +

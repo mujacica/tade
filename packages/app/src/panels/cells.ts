@@ -19,9 +19,17 @@ export function count(n: number, one: string, many = `${one}s`): string {
 /**
  * How wide the list of categories is. Pared back rather than dropped: a panel
  * you cannot change category in is a panel with one category.
+ *
+ * Four columns wider than it was on a terminal with room for them. The rows are
+ * what somebody clicks, so the list is a column of targets, and a target you
+ * have to aim at sideways is no better than one you have to aim at downwards —
+ * at 24 columns the longest name there is (`Keys and tokens`, with a count
+ * beside it) was the one cut. The two narrow steps keep what they had: the
+ * columns come out of what is beside the list, and on a narrow terminal that is
+ * a tool's name or a watch's title giving up its end instead.
  */
 export function sideWidth(inner: number): number {
-  if (inner >= 76) return 24
+  if (inner >= 76) return 28
   if (inner >= 58) return 18
   return 16
 }

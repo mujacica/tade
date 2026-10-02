@@ -25,7 +25,6 @@ import {
   savedFile,
   scrollFile,
 } from '../src/panels/file/state.ts'
-import { listStart } from '../src/panels/frame.ts'
 import {
   accountMenuItems,
   agentOffers,
@@ -40,7 +39,8 @@ import {
 } from '../src/panels/menu/state.ts'
 import { perMillion, priceCells, priceSaid } from '../src/panels/models/state.ts'
 import { searchPanel } from '../src/panels/search/state.ts'
-import { accountActions, settingsPanel } from '../src/panels/settings/state.ts'
+import { accountActions } from '../src/panels/settings/accounts.ts'
+import { settingsPanel } from '../src/panels/settings/state.ts'
 import {
   branchChoices,
   branchPanel,
@@ -1050,21 +1050,16 @@ describe('the Extensions panel', () => {
   })
 
   it('brings the list back to what the keyboard chose, and leaves where you scrolled it alone', () => {
-    // Somebody scrolled the list away from what is chosen: it stays where
-    // they put it, because they are reading it.
-    expect(listStart(4, 12, 5, 0)).toBe(0)
-    expect(listStart(4, 12, 5, 6)).toBe(4)
-    expect(listStart(0, 12, 5, 9)).toBe(5)
-    // Never past the end, and never before the start.
-    expect(listStart(99, 12, 5, 11)).toBe(7)
-    expect(listStart(-3, 12, 5, 0)).toBe(0)
-    // Nothing to scroll is nothing scrolled.
-    expect(listStart(4, 3, 5, 0)).toBe(0)
-
-    // Walking down past the last row in view brings the list with it.
+    // Somebody scrolled the list away from what is chosen: it stays where they
+    // put it, because they are reading it. What the clamp itself does is
+    // `startOf`, in `panel-frame.test.ts`; this is the panel asking it.
+    //
+    // Walking down past the last row in view brings the list with it, to the
+    // *first* line of the row it is on: a row of the list is two lines, and
+    // half a row in view is half a name.
     let panel = { ...extensionsPanel('deps'), listScroll: 0 }
     panel = panelKey(panel, 'down', '', { ...inputs, listRoom: 1 }).panel as typeof panel
-    expect(panel).toMatchObject({ chosen: 'sentry', listScroll: 1 })
+    expect(panel).toMatchObject({ chosen: 'sentry', listScroll: 2 })
     panel = panelKey(panel, 'up', '', { ...inputs, listRoom: 1 }).panel as typeof panel
     expect(panel).toMatchObject({ chosen: 'deps', listScroll: 0 })
   })

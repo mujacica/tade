@@ -28,6 +28,7 @@ import {
   type OpenRowView,
   openProjectPanel,
 } from '../panels/project/state.ts'
+import { PROJECTS } from '../panels/settings/projects.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import {
   ago,
@@ -96,8 +97,8 @@ export interface ProjectsDeps {
   changeSetting(req: { path: string; value: string; said: string }): Promise<string>
   /** The same write, from the window, where nobody has to be asked. */
   writeSetting(path: string, value: string): Promise<string>
-  /** Open Settings on everything matching these words. */
-  openSettings(category: string, search: string): Promise<string>
+  /** Open Settings on a category — on one project of it, or on matching words. */
+  openSettings(category: string, search: string, project?: string): Promise<string>
   /** Written down on the way out, so a row somebody arranged survives a close. */
   rememberWindow(): void
 }
@@ -230,7 +231,11 @@ export class Projects implements Subject {
       case 'move-right':
         return this.move(project, 1)
       case 'configure':
-        await this.deps.openSettings('projects', project)
+        // The Projects page, on this project: it is one page of that project's
+        // own answers, behind a selector that says which. It used to be the
+        // project's name typed into the search box, which showed every setting
+        // whose words happened to contain it as well.
+        await this.deps.openSettings(PROJECTS, '', project)
         return
       case 'close':
         return this.closeFromWindow(project)

@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
-   │  search extensions      │ GitHub  mcp                                                                   ready  │───
- ▌ │                         │ 2 tools · 1 setting                                                                  │   
- ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ Issues, pull requests and code search on GitHub. From the MCP server `github`,      ▕│   
-   │ ● Jev                  ▕│ which nobody here wrote.                                                            ▕│   
-   │ ◐ Sentry             ! ▕│                                                                                     ▕│   
-   │ ✗ standup            ! ▕│   Settings…     Turn off                                                            ▕│   
- ▸ │▌● GitHub               ▕│                                                                                     ▕│   
- ▸ │ ○ release-notes        ▕│ HOW IT IS USED                                                                      ▕│   
- ▾ │ · Written by Tade    1 ▕│ · Ask about an issue or a pull request by number and get what it actually says.     ▕│   
-  M│ · MCP servers        4 ▕│                                                                                     ▕│   
-  A│ · Harnesses' own     2 ▕│ TOOLS                                                                               ▕│   
-  M│                        ▕│ mcp_github_issue      Read an issue                                       get_issue ▕│   
-   │                        ▕│ mcp_github_search     Search code                                       search_code ▕│   
- ▾ │                        ▕│                                                                                     ▕│   
-   │                        ▕│ OPTIONS  Settings…                                                                  ▕│   
-   │                        ▕│ API key             tsk_0123456789                                                  ▕│   
-   │                        ▕│                                                                                     ▕│   
-   │                        ▕│ THE SERVER                                                                          ▕│   
-   │                        ▕│ https://api.githubcopilot.com/mcp/                                                  ▕│   
-━  │                        ▕│ last asked Mon 21 Sep 08:12                                                         ▕│  ━
-   │                        ▕│ Reviews, checks and merges are the Forge port’s, not this server’s.                 ▕│   
-   │                        ▕│                                                                                     ▕│  ▕
-   │                        ▕│                                                                                     ▕│  ▕
-   │                        ▕│                                                                                      │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
- ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+ ▾ A╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
+    │  search extensions          │ GitHub  mcp                                                             ready  │────
+ ▌ !│                             │ 2 tools · 1 setting                                                            │    
+ ▌  │ ● Checks                   ▕│                                                                                │    
+    │                            ▕│ Issues, pull requests and code search on GitHub. From the MCP server          ▕│    
+   ⠋│ ● Dependencies             ▕│ `github`, which nobody here wrote.                                            ▕│    
+    │                            ▕│                                                                               ▕│    
+    │ ● Jev                      ▕│   Settings…     Turn off                                                      ▕│    
+ ▸ S│                            ▕│                                                                               ▕│    
+ ▸ S│ ◐ Sentry                 ! ▕│ HOW IT IS USED                                                                ▕│    
+ ▾ C│                            ▕│ · Ask about an issue or a pull request by number and get what it actually     ▕│    
+  M │ ✗ standup                ! ▕│   says.                                                                       ▕│    
+  A │                            ▕│                                                                               ▕│    
+  M │▌● GitHub                   ▕│ TOOLS                                                                         ▕│    
+    │▌                           ▕│ mcp_github_issue  Read an issue                                     get_issue ▕│    
+ ▾ F│ ○ release-notes            ▕│ mcp_github_search Search code                                     search_code ▕│    
+   ▾│                            ▕│                                                                               ▕│    
+    │ · Written by Tade        1 ▕│ OPTIONS  Settings…                                                            ▕│    
+    │                            ▕│ API key             tsk_0123456789                                            ▕│    
+   ▸│ · MCP servers            4 ▕│                                                                               ▕│    
+    │                            ▕│ THE SERVER                                                                    ▕│    
+━   │ · Harnesses' own         2 ▕│ https://api.githubcopilot.com/mcp/                                            ▕│   ━
+    │                            ▕│ last asked Mon 21 Sep 08:12                                                   ▕│    
+    │                            ▕│ Reviews, checks and merges are the Forge port’s, not this server’s.           ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│                                                                                │   ▕
+    │                            ▕│ tab moves · ↑↓ reads · enter presses                                   Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

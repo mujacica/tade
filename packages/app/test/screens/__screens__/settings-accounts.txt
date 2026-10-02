@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
-        │  search settings        │ Accounts                                                                   │────────
- ▌ ! str│                         │                                                                            │        
- ▌   wan│  Agents                ▕│ pi                                                                        ▕│        
-        │  Models                ▕│ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                 ▕│        
-   ⠋ ref│  Orchestrator          ▕│     Sign in again…                                                        ▕│        
-     wor│  Approvals      bypass ▕│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, ▕│        
-        │  Checks                ▕│   and you sign in to them inside pi.                                      ▕│        
- ▸ SMART│  Voice                 ▕│                                                                           ▕│        
- ▸ SCHED│  Search                ▕│ Claude Code                                                               ▕│        
- ▾ CHANG│  Window                ▕│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents    ▕│        
-  M pack│  Projects           3  ▕│     Sign in again…     Sign out                                           ▕│        
-  A …/we│  Checks per project    ▕│   work                  ○ not signed in yet                               ▕│        
-  M src/│  Budgets           ● 1 ▕│     Sign in…     Use for new agents     Remove                            ▕│        
-        │  Journal               ▕│                                                                           ▕│        
- ▾ FILES│  Telemetry             ▕│     Add an account…     Add an API-key account…                           ▕│        
-   ▾ src│  Shortcuts             ▕│                                                                           ▕│        
-       w│▌ Accounts          ● 3 ▕│ Codex                                                                     ▕│        
-       w│  Updates               ▕│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                 ▕│        
-   ▸ tes│                        ▕│     Sign in again…     Sign out                                           ▕│        
-     pac│                        ▕│                                                                           ▕│        
-━   orch│                        ▕│     Add an account…     Add an API-key account…                           ▕│   ▾   ━
-        │                        ▕│                                                                           ▕│        
-        │                        ▕│                                                                           ▕│       ▕
-        │                        ▕│                                                                           ▕│       ▕
-        │                        ▕│ ● Saved as you change it.                                                  │       ▕
-        │                        ▕│                                               Open config.yaml     Done    │       ▕
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  search settings            │ Accounts                                                                       │────
+ ▌ !│                             │                                                                                │    
+ ▌  │  Agents             bypass ▕│ pi                                                                            ▕│    
+    │                            ▕│ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                     ▕│    
+   ⠋│  Models                    ▕│     Sign in again…                                                            ▕│    
+    │                            ▕│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and ▕│    
+    │  Orchestrator              ▕│   you sign in to them inside pi.                                              ▕│    
+ ▸ S│                            ▕│                                                                               ▕│    
+ ▸ S│  Checks                    ▕│ Claude Code                                                                   ▕│    
+ ▾ C│                            ▕│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        ▕│    
+  M │  Voice                     ▕│     Sign in again…     Sign out                                               ▕│    
+  A │                            ▕│   work                  ○ not signed in yet                                   ▕│    
+  M │  Window                    ▕│     Sign in…     Use for new agents     Remove                                ▕│    
+    │                            ▕│                                                                               ▕│    
+ ▾ F│  Projects              ● 1 ▕│     Add an account…     Add an API-key account…                               ▕│    
+   ▾│                            ▕│                                                                               ▕│    
+    │  Journal                   ▕│ Codex                                                                         ▕│    
+    │                            ▕│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                     ▕│    
+   ▸│  Telemetry                 ▕│     Sign in again…     Sign out                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+━   │  Shortcuts                 ▕│     Add an account…     Add an API-key account…                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │▌ Accounts              ● 3 ▕│                                                                               ▕│   ▕
+    │▌                           ▕│                                                                               ▕│   ▕
+    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+    │                            ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

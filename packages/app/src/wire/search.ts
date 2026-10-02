@@ -1,4 +1,4 @@
-import { expandHome, type SettingGroup } from '@tade/core'
+import { expandHome, type SettingGroup, settingLabel } from '@tade/core'
 import { grep, listFiles, type Match, type SearchRoot } from '../finder.ts'
 import type { Frame } from '../frame.ts'
 import { happeningIn, happeningOn } from '../happening.ts'
@@ -70,8 +70,8 @@ export interface SearchDeps {
   stopAgent(task: string): Promise<void>
   /** Show one of an agent's changes. */
   openDiff(task: string, path: string): Promise<void>
-  /** Open Settings on a category. */
-  openSettings(category: string): Promise<string>
+  /** Open Settings on a category, and on one project of it where it has them. */
+  openSettings(category: string, search?: string, project?: string): Promise<string>
   /** Put a terminal in front. */
   showTerminal(id: string): Promise<void>
   /** Close Tade. */
@@ -341,9 +341,14 @@ export class Search implements Subject {
       case 'project':
         this.deps.clicked({ kind: 'project', project: arg })
         return
-      case 'setting':
-        await this.deps.openSettings(arg)
+      case 'setting': {
+        // `setting:<category>` or `setting:<category>:<project>`: a project's
+        // own row opens the page on that project, rather than on whichever it
+        // happened to show first.
+        const [category = '', project = ''] = arg.split(':')
+        await this.deps.openSettings(category, '', project)
         return
+      }
       case 'show-terminal':
         await this.deps.showTerminal(arg)
         return
@@ -435,9 +440,11 @@ export class Search implements Subject {
     for (const group of this.deps.settings()) {
       for (const setting of group.settings) {
         entries.push({
-          id: `setting:${group.id}`,
+          id: setting.scope ? `setting:${group.id}:${setting.scope}` : `setting:${group.id}`,
           kind: 'setting',
-          label: `${group.title} › ${setting.title}`,
+          // Which project's brief: a list across scopes says which per row, or
+          // it is three rows nobody can tell apart.
+          label: `${group.title} › ${settingLabel(setting)}`,
           mark: '◇',
         })
       }

@@ -1,4 +1,4 @@
-import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import { sliceByColumn, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { SEEN_BY_AGENTS } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
@@ -365,6 +365,25 @@ function wholePage(panel: ExtensionsPanel, over: Partial<PanelContext> = {}): st
   return said.join('\n')
 }
 
+/**
+ * The same, as one flowing string: a sentence that wrapped over three lines is
+ * still the sentence somebody reads, and where it wrapped is not something a
+ * test should hold the page to. The list down the left and the borders are not
+ * part of it.
+ */
+function prose(panel: ExtensionsPanel, over: Partial<PanelContext> = {}): string {
+  const ctx = { width: 120, height: 34, ...over }
+  const { side, inner } = extensionsSize(ctx.width, ctx.height)
+  return (
+    wholePage(panel, over)
+      .split('\n')
+      // Its own columns only: not the border, not the list, and not the bar.
+      .map((row) => sliceByColumn(row, side + 2, inner - side - 2))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+  )
+}
+
 /** The widths worth trying: from a terminal nobody should use to a wide one. */
 const WIDTHS = [40, 48, 56, 64, 72, 80, 96, 104, 120, 160]
 
@@ -643,9 +662,11 @@ describe('the extensions page at any width', () => {
     expect(said).not.toContain('TOOLS')
     expect(said).not.toContain('Last asked')
     // Tade holds somebody else's program to nothing, and this is the row
-    // where somebody is about to decide, so this is where that is said.
-    expect(said).toContain('runs as you')
-    expect(said).toContain('scratch directory of its own')
+    // where somebody is about to decide, so this is where that is said. Read as
+    // prose, because the sentence wraps and where it wraps is the panel's.
+    const read = prose(extensionsPanel('mcp-postgres'), over)
+    expect(read).toContain('runs as you')
+    expect(read).toContain('scratch directory of its own')
   })
 
   it('lists what each harness loads by itself without claiming any of it', () => {

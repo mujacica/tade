@@ -221,7 +221,7 @@ export class Row {
   }
 
   /**
-   * A switch, thrown or not: exactly 8 columns whatever the skin, so a column
+   * A switch, thrown or not: exactly 12 columns whatever the skin, so a column
    * of them lines up and a switch never changes width as it is thrown.
    */
   toggle(on: boolean, target: Target): this {
@@ -230,7 +230,7 @@ export class Row {
       : sameTarget(this.pointer.hover, target)
         ? 'hover'
         : 'rest'
-    return this.put(this.skin.toggle(on, state), 8, target)
+    return this.put(this.skin.toggle(on, state), 12, target)
   }
 
   check(on: boolean, label: string, target: Target): this {
@@ -240,11 +240,26 @@ export class Row {
     return this.put(`${mark} ${said}`, 2 + visibleWidth(label), target)
   }
 
-  radio(on: boolean, label: string, target: Target): this {
-    const lit = sameTarget(this.pointer.hover, target)
-    const mark = on ? this.skin.busy('◉') : lit ? this.skin.signal('○') : this.skin.hint('○')
-    const said = lit ? this.skin.link(label) : label
-    return this.put(`${mark} ${said}`, 2 + visibleWidth(label), target)
+  /**
+   * One of a set: the mark and its label on their own block, filled in when it
+   * is the one chosen. Exactly the mark, a space, the label and the block's
+   * four columns, so a row of them is a row of the same control.
+   *
+   * It was `◉ label` — two columns of circle and the letters beside it, on one
+   * row, painted nothing. A circle is a thing you aim at, and the letters
+   * beside it did not look like part of the control even though they were, so
+   * what somebody could press was narrower than what they read. On a block it
+   * is the whole of what it says, and it lights and fills like every other
+   * control in the window.
+   */
+  option(on: boolean, label: string, target: Target): this {
+    const said = `${on ? '◉' : '○'} ${label}`
+    const look: Look = on ? 'primary' : 'rest'
+    return this.put(
+      this.skin.button(said, this.lookOf(target, look), this.litBy(target, look)),
+      visibleWidth(said) + 4,
+      target,
+    )
   }
 
   /**

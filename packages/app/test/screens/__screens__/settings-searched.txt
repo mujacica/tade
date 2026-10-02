@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  push                       │ Matching “push”                                                                │────
+ ▌ !│                             │                                                                                │    
+ ▌  │  Agents             bypass ▕│ What agents push                                                              █│    
+    │                            ▕│     ◉ never                                                                   █│    
+   ⠋│  Models                    ▕│     ○ branch                                                                  █│    
+    │                            ▕│     ○ branch-and-review                                                       █│    
+    │  Orchestrator              ▕│                                                                               █│    
+ ▸ S│                            ▕│▌Needed before                     push                                 ▾      █│    
+ ▸ S│  Checks                    ▕│▌                                 when a push or commit needs a green run      █│    
+ ▾ C│                            ▕│▌                                 behind it — held only under approvals.mode … █│    
+  M │  Voice                     ▕│▌                                                                              █│    
+  A │                            ▕│ Push to talk                        ctrl   +   space       Change…            █│    
+  M │  Window                    ▕│                                                                               █│    
+    │                            ▕│ checkout — What is pushed         never                                ▾      █│    
+ ▾ F│  Projects              ● 1 ▕│                                                                               █│    
+   ▾│                            ▕│ checkout — Checks needed before   push                                 ▾      █│    
+    │  Journal                   ▕│                                                                               █│    
+    │                            ▕│ search — What is pushed           never                                ▾      █│    
+   ▸│  Telemetry                 ▕│                                                                               █│    
+    │                            ▕│ search — Checks needed before     push                                 ▾      █│    
+━   │  Shortcuts                 ▕│                                                                               █│   ━
+    │                            ▕│ infra — What is pushed            never                                ▾      █│    
+    │  Accounts              ● 3 ▕│                                                                               █│   ▕
+    │                            ▕│ infra — Checks needed before      push                                 ▾      ▕│   ▕
+    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+    │                            ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

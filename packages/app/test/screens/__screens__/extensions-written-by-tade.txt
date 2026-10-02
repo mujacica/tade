@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
-   │  search extensions      │ Written by Tade                                                                      │───
- ▌ │                         │ 1 tool Tade wrote for itself                                                         │   
- ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ Tools Tade wrote for itself. One you turn on loads at the next start.               ▕│   
-   │ ● Jev                  ▕│                                                                                     ▕│   
-   │ ◐ Sentry             ! ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
-   │ ✗ standup            ! ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
- ▸ │ ● GitHub               ▕│                                                                                     ▕│   
- ▸ │ ○ release-notes        ▕│                                                                                     ▕│   
- ▾ │▌· Written by Tade    1 ▕│                                                                                     ▕│   
-  M│ · MCP servers        4 ▕│                                                                                     ▕│   
-  A│ · Harnesses' own     2 ▕│                                                                                     ▕│   
-  M│                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
- ▾ │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
-━  │                        ▕│                                                                                     ▕│  ━
-   │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│  ▕
-   │                        ▕│                                                                                     ▕│  ▕
-   │                        ▕│                                                                                      │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
- ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+ ▾ A╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
+    │  search extensions          │ Written by Tade                                                                │────
+ ▌ !│                             │ 1 tool Tade wrote for itself                                                   │    
+ ▌  │ ● Checks                   ▕│                                                                                │    
+    │                            ▕│ Tools Tade wrote for itself. One you turn on loads at the next start.         ▕│    
+   ⠋│ ● Dependencies             ▕│                                                                               ▕│    
+    │                            ▕│ ○ standup-notes  off                                       Read     Turn on   ▕│    
+    │ ● Jev                      ▕│   Reads out what each agent did yesterday, because you ask every morning.     ▕│    
+ ▸ S│                            ▕│                                                                               ▕│    
+ ▸ S│ ◐ Sentry                 ! ▕│                                                                               ▕│    
+ ▾ C│                            ▕│                                                                               ▕│    
+  M │ ✗ standup                ! ▕│                                                                               ▕│    
+  A │                            ▕│                                                                               ▕│    
+  M │ ● GitHub                   ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+ ▾ F│ ○ release-notes            ▕│                                                                               ▕│    
+   ▾│                            ▕│                                                                               ▕│    
+    │▌· Written by Tade        1 ▕│                                                                               ▕│    
+    │▌                           ▕│                                                                               ▕│    
+   ▸│ · MCP servers            4 ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+━   │ · Harnesses' own         2 ▕│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│                                                                                │   ▕
+    │                            ▕│ tab moves · ↑↓ reads · enter presses                                   Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
