@@ -710,11 +710,20 @@ export class Files implements Subject {
     const root = (task ? live?.worktreeOf(task) : null) ?? this.hereOnDisk()
     const open = this.resolvePath(path)
     if (!live || !root) return
+    // A file somewhere else is one this checkout cannot be asked about — search
+    // reaches into every worktree, and a path in an agent's own words reaches
+    // anywhere. Nothing is said about it rather than git being asked a question
+    // about `../..`, whose answer would read as "nothing changed".
+    const inside = relative(root, open)
+    if (inside === '' || inside.startsWith('..') || isAbsolute(inside)) return
     const base = live.baseOf(task ?? this.wire.state.focused)
-    const text = await live.diffAt(root, base, relative(root, open)).catch(() => null)
-    // A slow git must never draw one file's changes into another, so the answer
+    const text = await live.diffAt(root, base, inside).catch(() => null)
+    // A look that could not happen is not a look that found nothing, so a git
+    // that would not answer leaves the file with no answer beside it.
+    if (text === null) return
+    // And a slow git must never draw one file's changes into another: the answer
     // is offered to the file it was about and dropped if that is not the one open.
-    if (this.viewed.tell(open, task, parseDiff(text ?? ''))) this.wire.draw()
+    if (this.viewed.tell(open, task, parseDiff(text))) this.wire.draw()
   }
 
   /** The diff panel, on a changed file, with every other changed file a step away. */

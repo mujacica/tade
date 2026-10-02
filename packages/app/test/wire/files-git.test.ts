@@ -242,6 +242,64 @@ describe('where a path somebody clicked is', () => {
   })
 })
 
+describe('asking git about the file you have open', () => {
+  /** A `Live` that records what it was asked for a diff, and answers with this. */
+  function asking(world: ReturnType<typeof wiring>, answer: string | null) {
+    const asked: { root: string; base: string | null; path: string }[] = []
+    Object.assign(world.wire.live as unknown as Record<string, unknown>, {
+      baseOf: () => 'main',
+      diffAt: async (root: string, base: string | null, path: string) => {
+        asked.push({ root, base, path })
+        return answer
+      },
+    })
+    return asked
+  }
+
+  it('asks with the path relative to the checkout the file is in', async () => {
+    const repo = madeRepo()
+    const world = wiring(repo.root)
+    const asked = asking(world, '')
+    await new Files(world.wire, deps()).loadFileDiff(null, join(repo.root, 'README.md'))
+    expect(asked).toEqual([{ root: repo.root, base: 'main', path: 'README.md' }])
+  })
+
+  it('asks nothing at all about a file that is not in it', async () => {
+    // Search reaches into every worktree and a path in an agent's own words
+    // reaches anywhere, so the file open is not always one this checkout can be
+    // asked about. Asking anyway is asking about `../..`, and git's answer to
+    // that would be drawn as "nothing changed" — a claim about a file nobody
+    // ever looked at.
+    const repo = madeRepo()
+    const world = wiring(repo.root)
+    const asked = asking(world, '')
+    const elsewhere = join(tmp('tade-files-elsewhere-'), 'README.md')
+    await new Files(world.wire, deps()).loadFileDiff(null, elsewhere)
+    expect(asked).toEqual([])
+  })
+
+  it('tells the panel nothing when git could not look, and an empty diff when it could', async () => {
+    // The two answers a panel must never confuse: `no changes` is something git
+    // said, and a git that would not answer has said nothing at all.
+    const repo = madeRepo()
+    const path = join(repo.root, 'README.md')
+
+    const failed = wiring(repo.root)
+    asking(failed, null)
+    const one = new Files(failed.wire, deps())
+    one.openFile(path)
+    await one.loadFileDiff(null, path)
+    expect(one.panel(80)?.diff ?? null).toBe(null)
+
+    const looked = wiring(repo.root)
+    asking(looked, '')
+    const two = new Files(looked.wire, deps())
+    two.openFile(path)
+    await two.loadFileDiff(null, path)
+    expect(two.panel(80)?.diff).toMatchObject({ added: 0, removed: 0, binary: false })
+  })
+})
+
 describe('a shell beside the agent', () => {
   it('refuses where there is no agent, saying where a shell would have started', async () => {
     const repo = madeRepo()
