@@ -19,6 +19,7 @@ import {
 } from '../model.ts'
 import { narrowing } from '../queue-view.ts'
 import { windowTitle } from '../title.ts'
+import { onATurn } from '../transcript.ts'
 import { type Actions, clockOf, type Subject, tilde, type Wiring, whenShort } from './context.ts'
 
 // The window as a window: how big its regions are, what it says in the
@@ -250,10 +251,13 @@ export class Window implements Subject {
       waiting: count('needs-you'),
       failed: count('failed'),
       agents: this.wire.state.panes.length,
+      // The same rule the tab at the foot draws its mark from (`onATurn`), so
+      // the title and the window can never say two things about one turn. The
+      // microphone wins it: that is never something to have to infer.
       orchestrator:
         this.wire.state.listening && this.wire.state.talkingSince !== null
           ? 'listening'
-          : this.wire.state.transcript.thinking !== null
+          : onATurn(this.wire.state.transcript)
             ? 'thinking'
             : 'quiet',
       where,

@@ -11,11 +11,18 @@ import {
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, shift, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
-import { type AppState, activeTerminal, ORCHESTRATOR_TAB, terminalsOf } from '../model.ts'
+import {
+  type AppState,
+  activeTerminal,
+  markGlyph,
+  ORCHESTRATOR_TAB,
+  terminalsOf,
+} from '../model.ts'
 import type { HeldLines } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Look, Skin } from '../skin.ts'
+import { onATurn } from '../transcript.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
 import { blockAt, laneRegion, pointedIn, screenRows, scrolledBar, typingIn } from './lane.ts'
 import { gutterBeside } from './rows.ts'
@@ -112,6 +119,7 @@ export function bottomTabs(
   width: number,
   skin: Skin,
   pointer: Pointer,
+  now = 0,
 ): { text: string; hits: Hit[] } {
   const edge: Target = { kind: 'divider', edge: 'bottom' }
   const lit = state.resizing === 'bottom' || sameTarget(state.hover, edge)
@@ -119,7 +127,20 @@ export function bottomTabs(
   const line = '━'
   const row = new Row(width, skin, pointer).text(`${line} `, rule)
   const orchestrator: Target = { kind: 'bottom-tab', tab: ORCHESTRATOR_TAB }
-  row.tab('orchestrator', orchestrator, state.bottom === ORCHESTRATOR_TAB)
+  // The thing you talk to says it is working the way a project's tab says its
+  // agents are: the same turning mark (`markGlyph`, so the two can never be
+  // two vocabularies), inside the block rather than beside it, because a glyph
+  // outside a painted tab belongs to the tab on its left as much as to this
+  // one. Drawn whichever tab is in front — the moment it is worth seeing is
+  // the moment you are looking at a terminal instead — and only while it is
+  // actually on a turn, like the marks on a project's tab: a mark kept in
+  // reserve all day is a tab that never says anything.
+  const working = onATurn(state.transcript)
+  row.tab(
+    working ? `orchestrator ${markGlyph('working', now)}` : 'orchestrator',
+    orchestrator,
+    state.bottom === ORCHESTRATOR_TAB,
+  )
   for (const terminal of terminalsOf(state)) {
     const on = terminal.id === state.bottom
     const target: Target = { kind: 'bottom-tab', tab: terminal.id }

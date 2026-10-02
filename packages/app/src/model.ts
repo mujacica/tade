@@ -15,7 +15,7 @@ import type { Panel } from './panels.ts'
 import { type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
 import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
-import { emptyTranscript, fromTurn, type Transcript, tadeDid } from './transcript.ts'
+import { emptyTranscript, fromTurn, onATurn, type Transcript, tadeDid } from './transcript.ts'
 
 // What the app is showing, as data.
 //
@@ -1441,7 +1441,7 @@ export function doneTasks(state: AppState): AgentPane[] {
  * screen: the window asks it four times a second.
  */
 export function anythingWorking(state: AppState): boolean {
-  if (state.transcript.thinking !== null) return true
+  if (onATurn(state.transcript)) return true
   if (state.transcript.entries.some((one) => one.kind === 'tool' && one.state === 'running'))
     return true
   return state.panes.some((pane) => pane.project === state.project && markOf(pane) === 'working')
@@ -1523,7 +1523,7 @@ export function conversing(state: AppState): boolean {
   return (
     state.listening ||
     (state.dictation?.startsWith('/') ?? false) ||
-    state.transcript.thinking !== null ||
+    onATurn(state.transcript) ||
     state.transcript.entries.some((entry) => entry.kind === 'tool' && entry.state === 'running')
   )
 }
@@ -1927,7 +1927,7 @@ export function escapeMeans(state: AppState): EscapeMeans {
     if (state.focused !== null) return 'lane'
   }
   if (state.historySearch) return 'search'
-  if (state.transcript.thinking !== null) return 'interrupt'
+  if (onATurn(state.transcript)) return 'interrupt'
   // Stepping off the line, and only ever with nothing on it to lose: escape
   // backs out of where you are everywhere else, and here there is nothing for
   // it to back out of until the line is empty. With something typed it does

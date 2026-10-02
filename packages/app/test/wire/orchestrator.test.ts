@@ -385,4 +385,51 @@ describe('the window, talking to the orchestrator', () => {
       screenOf(terminal.written).some((row) => row.includes('thinks at medium')),
     )
   })
+
+  it('says it is working on its own tab and in the window’s own title', async () => {
+    // The turning mark an agent wears, worn by the thing you talk to: the one
+    // thing the window could not tell you before was whether the orchestrator
+    // was doing anything at all.
+    const turning = /orchestrator [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/
+    // Held in a box rather than a variable: a turn that never ends until the
+    // test says so is the whole point, and the resolver is handed over from
+    // inside the thinker.
+    const turn = { answer: (_text: string) => {} }
+    await start({
+      thinker: {
+        ask: async () =>
+          await new Promise<string>((resolve) => {
+            turn.answer = resolve
+          }),
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // At rest the tab says only its name.
+    expect(turning.test(screenOf(terminal.written).join('\n'))).toBe(false)
+
+    terminal.press('\x00') // opens the line you type into
+    for (const char of 'what is going on') terminal.press(char)
+    terminal.press('\r')
+
+    await until('the tab to say it is working', () =>
+      turning.test(screenOf(terminal.written).join('\n')),
+    )
+    // And the title, which is the one part of this you can read with the
+    // window buried behind something else.
+    await until('the title to say so too', () =>
+      (terminal.titles.at(-1) ?? '').includes('thinking'),
+    )
+
+    turn.answer('because the webhook retries twice')
+    await until('the turn to end on the tab', () => {
+      const shown = screenOf(terminal.written).join('\n')
+      return shown.includes('because the webhook retries twice') && !turning.test(shown)
+    })
+    // The title is written on the next look rather than on the same frame,
+    // so it is waited for like everything else here.
+    await until(
+      'the title to stop saying it',
+      () => !(terminal.titles.at(-1) ?? '').includes('thinking'),
+    )
+  })
 })

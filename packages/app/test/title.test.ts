@@ -46,6 +46,13 @@ describe('the window title', () => {
     )
   })
 
+  it('turns for the orchestrator with no agents at all: it works too', () => {
+    const busy = { ...quiet, orchestrator: 'thinking' } as const
+    const frames = new Set([0, 100, 200, 300].map((now) => titleMark({ ...busy, now })))
+    expect(frames.size).toBe(4)
+    expect(windowTitle({ ...busy, now: 0 })).toBe('⠋ tade · thinking')
+  })
+
   it('shows the microphone above everything else: that is never inferred', () => {
     expect(titleMark({ ...quiet, working: 3, orchestrator: 'listening' })).toBe('⏺')
     expect(titleMark({ ...quiet, waiting: 1, failed: 1 })).toBe('!')

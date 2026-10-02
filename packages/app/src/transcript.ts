@@ -73,6 +73,26 @@ export interface Transcript {
 /** Enough to scroll back through a morning; older entries fall off the top. */
 export const TRANSCRIPT_MAX = 300
 
+/**
+ * Whether the orchestrator is on a turn right now.
+ *
+ * Derived like an agent's own mark and remembered nowhere: it was handed
+ * something and has not gone idle again, which is the whole of what its run
+ * state is. There is no lane to read it off — the thing you talk to runs
+ * headlessly in another process — and the entries are not it either: a tool
+ * line left running is something *you* started (`ran`), and an answer still
+ * on screen is a turn that ended.
+ *
+ * One rule because five surfaces draw it — the window's own title
+ * (`titleMark`), its tab at the foot (`bottomTabs`), the room the
+ * conversation is given (`conversing`), whether a frame is worth drawing
+ * (`anythingWorking`) and what escape means (`escapeMeans`) — and five
+ * readings of one fact drift apart.
+ */
+export function onATurn(transcript: Transcript): boolean {
+  return transcript.thinking !== null
+}
+
 export function emptyTranscript(): Transcript {
   return { entries: [], thinking: null, stopped: false }
 }

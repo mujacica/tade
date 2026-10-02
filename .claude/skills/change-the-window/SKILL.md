@@ -137,6 +137,13 @@ regions in a cycle now.
   `MARK_TONES`. Draw an agent's state anywhere through those; a second mapping from state to colour
   is how every agent once wore the same dot. Whether an agent's turn is running comes from what it
   said (`turn_started`, `idle`), never from its lane, whose screen changes either way.
+- **What the orchestrator is doing is one rule too: `onATurn` (`transcript.ts`)** — it was handed
+  something and has not gone idle again, which is the whole of its turn: it runs headlessly in
+  another process and has no lane to read, and a tool line left running is something *you* started
+  (`ran`). The window's own title (`titleMark`), its tab at the foot (`bottomTabs`), the room the
+  conversation is given (`conversing`), whether a frame is news (`anythingWorking`) and what escape
+  means all read it, and the tab wears the agents' own turning mark (`markGlyph`) rather than a
+  second vocabulary for working.
 - **Work you start for someone is shown in the conversation.** An extension's action, the brief, a
   failure of the orchestrator: add it to `state.transcript` (`ran`, `said`, `suggest`, `problem` in
   `transcript.ts`) rather than as a `notice`, which the next notice overwrites and which has no room
