@@ -1,6 +1,6 @@
 {
   "name": "tade",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A voice-first control room for running coding agents on your own machine.",
   "license": "MIT",

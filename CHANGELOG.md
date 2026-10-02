@@ -5,6 +5,38 @@ Every change to Tade, newest first, in the words whoever made it wrote. Generate
 explains the reasoning in the body, and a tool that reshaped them into `feat:` and `fix:` would
 say less than the history already does.
 
+## [0.1.1](https://github.com/mujacica/tade/compare/v0.1.0...v0.1.1) — 2026-10-02
+
+- Delegating is about the work and not about editing, so a request that changes no code is still an agent's ([`e68ba0f`](https://github.com/mujacica/tade/commit/e68ba0fc78c30d85e0d283a8bdbdf7b421ad046e))
+- The light along the top is about Tade's own MCP server now, which is the one it was asked about ([`984d1a3`](https://github.com/mujacica/tade/commit/984d1a33a2d76f6ffb028bfe8a20f407525b3e99))
+- A look that could not happen is not a look that found nothing, and nor is a file git was never asked about ([`8d6ba3b`](https://github.com/mujacica/tade/commit/8d6ba3b05b13e055ff767db3172ec79e3a5f17c4))
+- A diff you could read in the window was a diff you had to leave it to fix ([`9b8be09`](https://github.com/mujacica/tade/commit/9b8be09a56e14e3557c6b894082e2848bb30dcfd))
+- A document a task produces goes with the task in Tade's home, not in the repository ([`f8ec7aa`](https://github.com/mujacica/tade/commit/f8ec7aa49d2580e2d48c38578026ce23fc57fa17))
+- Two numbers in a comment that were about the ladder before it grew ([`1f43759`](https://github.com/mujacica/tade/commit/1f43759a8d7ce9de1ab15da4ca80a50e563af0e9))
+- What a tab with no room was saying is held to, not just drawn ([`8f37b1f`](https://github.com/mujacica/tade/commit/8f37b1f3b74954aad9fde3412fe02f5a386ef803))
+- A brokered MCP server that goes away says so, and the row along the top says so ([`660d37f`](https://github.com/mujacica/tade/commit/660d37f1e2bdcbb6f998aa7753dd674ec1c848eb))
+- A project with no room on the row goes in a menu beside it, never off the edge ([`05191b7`](https://github.com/mujacica/tade/commit/05191b73c64df7d7372e46bb790a482470987bfa))
+- Two controls changed size and a setting learnt whose it is, with nothing holding either ([`8de839f`](https://github.com/mujacica/tade/commit/8de839f45f4124288acb12c81dadf8debfc664b6))
+- A menu item the height of a line of text is a target you have to aim at ([`d76b161`](https://github.com/mujacica/tade/commit/d76b161fdec42513d2eee9dfbaf71a70d4634711))
+- Two ways for a remote not to have the review's branch, and two sentences ([`e47360d`](https://github.com/mujacica/tade/commit/e47360dbb186b4e69bc94d905c5066a427b5620e))
+- Both answers about a published head ref are real, so the table says both ([`cf6dc71`](https://github.com/mujacica/tade/commit/cf6dc7148ed4a2c06fbf4034ae69912b98067821))
+- A branch of that name on the remote is not the review's branch ([`c9f8978`](https://github.com/mujacica/tade/commit/c9f897899143a11cdcbddd5d27927beb3e94298f))
+- The one thing the window never said was whether the orchestrator was working ([`47ac67d`](https://github.com/mujacica/tade/commit/47ac67dbae7b224ec63a56b5ae22b0e51fdba09d))
+- Checking out a review is its own branch, never a name made from the number ([`16ba965`](https://github.com/mujacica/tade/commit/16ba965a97667d5c0f60f0005cb5f72c4523e3d8))
+- A row is a server's by what it declares, not by a shape in its name ([`eea6bc6`](https://github.com/mujacica/tade/commit/eea6bc6e1ccdbfff14126515a54398125423127d))
+- The review floor follows the review up ([`4bc3cc6`](https://github.com/mujacica/tade/commit/4bc3cc64e3f50f42ffe769aa8f33955f38e25bb9))
+- Turn on beside the Sentry extension turned the Sentry server on ([`0f3ca29`](https://github.com/mujacica/tade/commit/0f3ca29cac7ddeac91c83e561fd2bb9d8ecd1e67))
+- The two rules a harness declares that nothing was reading ([`4ec6d7d`](https://github.com/mujacica/tade/commit/4ec6d7d39b586b0f7051684c6e5b60a588521a50))
+- Two program runs side by side is one wait, not two ([`0b1619c`](https://github.com/mujacica/tade/commit/0b1619c9a1ea02e995d6c6e8369c98fa5bd62c46))
+- A harness id in the model key stopped you from opening the window that fixes it ([`eaaf9ed`](https://github.com/mujacica/tade/commit/eaaf9ed4a1499085e532179199e8c083eae0114c))
+- Whose turn it was to ask is not whose work it is ([`db2309e`](https://github.com/mujacica/tade/commit/db2309ef7a1373e1cbf2d6973e0dc978f16d2c2a))
+- A heading the drawing does not draw is a comment that lies ([`be8a06b`](https://github.com/mujacica/tade/commit/be8a06b9d1dc292d92742a0a2e4a6356fa5b6a3e))
+- A late answer kept is as wrong as a late answer drawn ([`31121f1`](https://github.com/mujacica/tade/commit/31121f147952df82d593de73897b5e9b4e5c6438))
+- A review was one row, and the name lost to the word that said nothing ([`cc38ed3`](https://github.com/mujacica/tade/commit/cc38ed3bf00a157e9edd48593463591a42389908))
+- The changes view asked a task what had changed, so nobody's change was nothing ([`2503f04`](https://github.com/mujacica/tade/commit/2503f045c135069363d99fdc62aa89efb3ac4eed))
+- A score made of stars and downloads is not a list of things to fix ([`4265211`](https://github.com/mujacica/tade/commit/4265211b847bfa81d02f37c6ed6092a4f4fc7d2e))
+- A first release is not a list of every commit there has ever been ([`90ac8a8`](https://github.com/mujacica/tade/commit/90ac8a89c8a704833e8caa883905006a88553129))
+
 ## [0.1.0](https://github.com/mujacica/tade/releases/tag/v0.1.0) — 2026-10-01
 
 The first release — everything Tade is, rather than anything that changed.
