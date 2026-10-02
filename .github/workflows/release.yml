@@ -10,9 +10,10 @@
 # first publish cannot be taken back, so there is a way to do all of it except
 # the last step.
 #
-# It is not generated. `.github/workflows/ci.yml` is — from `.tade/checks.yaml`,
-# which is the one list of what this project checks — and this calls that file
-# rather than keeping a second copy of the gate.
+# Nothing here is generated, and nor is `.github/workflows/ci.yml` any more:
+# that file is the one place the gate is written down, and Tade reads it to know
+# what this project checks. So this calls it rather than keeping a second copy
+# — a release goes through the very workflow every pull request goes through.
 
 name: release
 

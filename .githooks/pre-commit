@@ -46,7 +46,8 @@ step "style and lint" pnpm exec biome ci .
 step "types" pnpm exec tsc -p tsconfig.json
 
 # The smoke end of the suite: the domain — state, config, prompts, speech,
-# done rules — plus the two tests that hold this repository to its own word,
-# that `.tade/checks.yaml`, `pnpm check` and the generated CI workflow all say
-# the same thing, and that the R3 lint rule still bites.
+# done rules — plus the tests that hold this repository to its own word: that
+# `pnpm check` and the CI workflow Tade reads its checks out of still run the
+# same commands, that the guide, the file budgets and the notices are still
+# true, and that the R3 lint rule still bites.
 step "smoke tests" pnpm run --silent test:smoke
