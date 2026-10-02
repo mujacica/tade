@@ -50,9 +50,15 @@ describe('what the orchestrator is told about where agents work', () => {
 describe('composePrompt', () => {
   it('says what it is and what it does not do', () => {
     const prompt = composePrompt({ config: config() })
-    // The single most important thing: it delegates rather than edits.
+    // The single most important thing: it delegates rather than does.
     expect(prompt).toContain('You delegate')
     expect(prompt).toContain('tade_status')
+    // And that delegating is about the work rather than about editing. While it
+    // said only "you do not edit code yourself", a request that said no code
+    // would change read as outside the rule: asked to work out everywhere an
+    // oauth scope widens and write it up, it read the repository itself and
+    // answered out of its own turn, which the live test caught twice running.
+    expect(prompt).toContain('Working something out of the code is not')
   })
 
   it('lists the projects with their briefs', () => {
