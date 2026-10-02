@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   type DoneRule,
+  producesPath,
   producesProblem,
   type StartCondition,
   TaskFile,
@@ -75,8 +76,8 @@ export interface CreateTaskOptions {
   /** How it counts as finished, kept in the task file. */
   done?: DoneRule
   /**
-   * The document it produces rather than a change to the code, at a path in
-   * the repository. Refused where it would not survive the task.
+   * The document it produces rather than a change to the code, as a name in the
+   * task's own folder. Refused where it would be a path out of that folder.
    */
   produces?: string
   /** When it starts, for queued work: kept in the task file until it does. */
@@ -411,7 +412,12 @@ export async function setTitle(
 /**
  * What a task said it produces, as the detail of the line that says it
  * finished: nothing at all where it produces nothing, and otherwise the path
- * it named plus whether the file was actually there.
+ * to read it at plus whether the file was actually there.
+ *
+ * The path is the resolved one (`producesPath`) and not the name off the task
+ * file, because whoever is handed this has to be able to open it without
+ * knowing which home or which task it came from — and because the folder it is
+ * in is the only copy there is.
  *
  * On `task_done` rather than looked up afterwards, because the journal is the
  * only thing that remembers: the task's folder goes when the task does, and a
@@ -425,15 +431,16 @@ export async function setTitle(
  */
 export async function producedDetail(
   home: string,
-  worktree: string | undefined,
   task: string | null,
 ): Promise<{ produces?: string; missing?: true }> {
-  if (!worktree || !task) return {}
-  const produces = (await readTaskFile(home, task))?.produces?.trim()
+  if (!task) return {}
+  const named = (await readTaskFile(home, task))?.produces?.trim()
   // Checked again on the way into the journal: the file on disk is somebody's
-  // to hand-edit, and a path Tade would not have written is not one it reads.
-  if (!produces || producesProblem(produces)) return {}
-  return existsSync(join(worktree, produces)) ? { produces } : { produces, missing: true }
+  // to hand-edit, and a name Tade would not have written is not one it joins
+  // onto a path.
+  if (!named || producesProblem(named)) return {}
+  const produces = producesPath(home, task, named)
+  return existsSync(produces) ? { produces } : { produces, missing: true }
 }
 
 /** A task's file, read and checked; null when there is none or it will not read. */

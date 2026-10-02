@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { taskDir } from '@tade/core'
+import { producedClause, producedIn, producesPath, taskDir } from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -54,10 +54,12 @@ describe('task and run RPC', () => {
     expect(event?.detail.intent_spoken).toBe(INTENT)
   })
 
-  it('puts the document a task produced on the line that says it finished', async () => {
+  it("puts the document in the task's own folder, and tells the orchestrator that path", async () => {
     // The point of the whole mechanism: whoever hears that a research task
     // finished hears where the document is, and the journal is what remembers
     // — a window shut when the agent finished still knows on its way back up.
+    // Where it is, is the task's own folder in Tade's home: nothing of this is
+    // the project's, so nothing of it is in the checkout or on the branch.
     const task = await client.createTask({
       project: 'app',
       slug: 'scope-audit',
@@ -65,20 +67,29 @@ describe('task and run RPC', () => {
       workspace: 'worktree',
       produces: 'notes/scope-audit.md',
     })
-    mkdirSync(join(task.worktree, 'notes'), { recursive: true })
-    writeFileSync(join(task.worktree, 'notes', 'scope-audit.md'), '# what I found\n')
-    // A lane is how the workbench knows where a task works; no prompt, so no model.
-    await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    const where = producesPath(home, task.id, 'notes/scope-audit.md')
+    expect(where).toBe(join(taskDir(home, 'app/scope-audit'), 'notes', 'scope-audit.md'))
+    mkdirSync(join(taskDir(home, 'app/scope-audit'), 'notes'), { recursive: true })
+    writeFileSync(where, '# what I found\n')
+    // No lane and no agent: where the document is does not depend on knowing
+    // where the agent worked, which is the other half of taking it out of the
+    // repository.
     await client.markDone(task.id, { by: 'you', summary: 'audit written up' })
 
     const [done] = await client.events({ types: ['task_done'] })
     expect(done?.detail).toMatchObject({
       by: 'you',
       summary: 'audit written up',
-      produces: 'notes/scope-audit.md',
+      produces: where,
     })
     expect(done?.detail.missing).toBeUndefined()
-    await client.stopAgent(task.id)
+    // Nothing was written into the project: no file, and nothing to commit.
+    expect(existsSync(join(task.worktree, 'notes', 'scope-audit.md'))).toBe(false)
+    // And what the orchestrator is told is that same path, read back out of the
+    // journal the way a briefing reads it.
+    const [doc] = producedIn(await client.events({ types: ['task_done'] }))
+    expect(doc?.path).toBe(where)
+    expect(producedClause(doc!)).toContain(where)
   })
 
   it('says a task named a document and did not write it, rather than sending anybody to it', async () => {
@@ -89,12 +100,13 @@ describe('task and run RPC', () => {
       workspace: 'worktree',
       produces: 'notes/scope-audit.md',
     })
-    await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
     await client.markDone(task.id, { by: 'you' })
 
     const [done] = await client.events({ types: ['task_done'] })
-    expect(done?.detail).toMatchObject({ produces: 'notes/scope-audit.md', missing: true })
-    await client.stopAgent(task.id)
+    expect(done?.detail).toMatchObject({
+      produces: producesPath(home, task.id, 'notes/scope-audit.md'),
+      missing: true,
+    })
   })
 
   it('writes no ignore rule into a project, and takes back the one it used to', async () => {

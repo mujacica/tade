@@ -52,16 +52,24 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   line — the summary its agent wrote — with nothing saying a document existed or where, so a person
   had to say "the research agent is done, go and read it" every single time. So a task names it
   (`produces` in its task file, written when the task is made like `done` and `start`), its agent is
-  told where to write it and to commit it (`composeAgentPrompt`), and the line that says it finished
-  carries the path and whether the file was actually there (`producedDetail` — which checks the path
+  told the one path to write it at (`composeAgentPrompt`), and the line that says it finished
+  carries that path and whether the file was actually there (`producedDetail` — which checks the name
   again on the way into the journal, because the file on disk is somebody's to hand-edit). **On
   `task_done` rather than looked up afterwards**, because the journal is the only thing that
   remembers: the task's folder goes when the task does, and a window that was shut when an agent
   finished still has to open knowing there is something to read — which is what the briefing's own
   section is for, uncapped like `held`, because a document lost to a per-project cap is the whole
-  bug back again. What happens to it afterwards is answered by where it may be: `producesProblem`
-  refuses anything outside the repository, so it is an ordinary file the agent commits and that
-  survives on its branch. Tade writes nothing inside a project, so it reserves no folder there. What has been done about one is
+  bug back again. **Where it goes is the task's own folder in Tade's home** (`producesPath`), beside
+  its task file and its context: `produces` is a *name*, `producesProblem` refuses anything that is a
+  path out of that folder, and nothing of it is in the repository or in a commit. It used to be a
+  path in the repository, committed, so that the document outlived its worktree — which bought one
+  thing, somebody being able to read it, and charged every project Tade touched an oauth-scope audit
+  in its history on a branch carrying no code. What it was paying for is the line saying the task
+  finished, which already hands over the path; so a document goes with the task and is removed with
+  it, and anything that genuinely is the project's — a README, a skill, a changelog — is an ordinary
+  change and never was this field. Both the agent's sentence and the tool's description say the home
+  and say *not committed*, because one place saying the repository is one place agents will believe.
+  What has been done about one is
   **derived, never remembered** (`producedIn`): work made since it finished that waits on it, and
   its own agent being started again — the two marks the two useful answers leave — so "nothing has
   been done about it yet" (`actedOnSays`) stops being said the moment something has. There is no

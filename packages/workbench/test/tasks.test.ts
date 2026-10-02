@@ -67,10 +67,10 @@ describe('createTask', () => {
     expect(fileOf(repo.home, task.id).produces).toBe('notes/scope-audit.md')
   })
 
-  it('refuses a document that would not be in the repository at all', async () => {
+  it("refuses a document that would not be in the task's own folder", async () => {
     const { repo, worktreeRoot } = setup()
-    // The whole reason a task names one is that somebody reads it later, which
-    // means it has to be a file the agent commits like any other change.
+    // The document goes with the task in Tade's home, so a name that climbs out
+    // of that folder is a write somewhere nobody asked for.
     await expect(
       createTask({
         home: repo.home,
@@ -81,7 +81,7 @@ describe('createTask', () => {
         worktreeRoot,
         produces: '../audit.md',
       }),
-    ).rejects.toThrow(/climbs out of the repository/)
+    ).rejects.toThrow(/climbs out of the task's folder/)
     expect(existsSync(join(worktreeRoot, 'checkout-scope-audit'))).toBe(false)
   })
 

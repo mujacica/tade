@@ -302,7 +302,7 @@
               },
               "produces": {
                 "type": "string",
-                "description": "for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository, committed like any other change. Tade tells you when it finishes, with this path, so you read it and decide what follows."
+                "description": "for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the name of the file it writes. Tade keeps it with the task, in the task’s own folder, never in the repository and never committed. Tade tells you when the task finishes, with the full path, so you read it and decide what follows. A file that belongs to the project itself — a README, a changelog — is an ordinary change and not this."
               },
               "after": {
                 "type": "array",
@@ -939,7 +939,7 @@
         },
         "produces": {
           "type": "string",
-          "description": "for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository, committed like any other change. Tade tells you when it finishes, with this path, so you read it and decide what follows."
+          "description": "for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the name of the file it writes. Tade keeps it with the task, in the task’s own folder, never in the repository and never committed. Tade tells you when the task finishes, with the full path, so you read it and decide what follows. A file that belongs to the project itself — a README, a changelog — is an ordinary change and not this."
         }
       },
       "required": [

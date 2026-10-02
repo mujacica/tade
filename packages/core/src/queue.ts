@@ -482,8 +482,8 @@ export interface PlannedAgent {
   prompt: string
   done?: DoneRule
   /**
-   * The document it writes rather than a change to the code, at a path in its
-   * own repository: how an agent sent to plan, audit or research says so.
+   * The document it writes rather than a change to the code, named in its own
+   * task's folder: how an agent sent to plan, audit or research says so.
    */
   produces?: string
   /** Other agents in the plan, or tasks already there, it waits on — with why. */

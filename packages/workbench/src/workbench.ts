@@ -26,6 +26,8 @@ import {
   type PlanSource,
   parseConfig,
   pricesFrom,
+  producesPath,
+  producesProblem,
   pushFor,
   type QueueChange,
   recordsDir,
@@ -214,8 +216,8 @@ export interface CreateTaskRequest {
   /** How it counts as finished; `said` unless chosen. */
   done?: DoneRule
   /**
-   * The document it produces rather than a change to the code, at a path in
-   * the repository: what an agent sent to plan, audit or research writes.
+   * The document it produces rather than a change to the code, named in the
+   * task's own folder: what an agent sent to plan, audit or research writes.
    */
   produces?: string
   /** When it starts: after other tasks, not before a time. Made now, started by the queue. */
@@ -1388,18 +1390,9 @@ export class Workbench {
         ...(how.rule ? { rule: how.rule } : {}),
         // Whatever finished it, the document it produced goes with the line:
         // an agent saying so itself is only one of five ways a task ends.
-        ...(await producedDetail(this.home, this.worktreeOf(task), task)),
+        ...(await producedDetail(this.home, task)),
       },
     })
-  }
-
-  /**
-   * Where a task's agent works, from the lane it works in — the only record
-   * the workbench itself keeps of a task's directory, and one that outlives
-   * the agent, since a dead lane keeps its spec.
-   */
-  private worktreeOf(task: string): string | undefined {
-    return this.registry.list(task).find((lane) => lane.kind === 'agent')?.spec.cwd
   }
 
   /**
@@ -1713,7 +1706,12 @@ export class Workbench {
       push: pushFor(this.config, project, workspace).mode,
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
       ...(await this.checksTold(project, cwd, task)),
-      ...(produces ? { produces } : {}),
+      // The resolved path, not the name: the agent is told the one place to
+      // write it, and a hand-edited name Tade would not have written is left
+      // out rather than joined onto a path.
+      ...(produces && !producesProblem(produces)
+        ? { produces: producesPath(this.home, task, produces) }
+        : {}),
       canSayDone,
     })
   }

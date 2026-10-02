@@ -243,15 +243,16 @@ export async function setup(
 
 /**
  * A worktree, and the home holding a task file saying what the task produces,
- * with the document in the worktree unless `wrote` says otherwise — the two cases the line
- * that says a task finished has to tell apart.
+ * with the document in the task's own folder unless `wrote` says otherwise — the
+ * two cases the line that says a task finished has to tell apart.
  */
-export function worktreeProducing(produces: string, wrote = true): { cwd: string; home: string } {
+export function taskProducing(produces: string, wrote = true): { cwd: string; home: string } {
   const cwd = tmp('tade-produces-')
   const home = tmp('tade-produces-home-')
-  mkdirSync(taskDir(home, 'app/refunds'), { recursive: true })
+  const dir = taskDir(home, 'app/refunds')
+  mkdirSync(dir, { recursive: true })
   writeFileSync(
-    join(taskDir(home, 'app/refunds'), 'task.yaml'),
+    join(dir, 'task.yaml'),
     [
       'id: app/refunds',
       'project: app',
@@ -261,7 +262,9 @@ export function worktreeProducing(produces: string, wrote = true): { cwd: string
     ].join('\n'),
   )
   if (!wrote) return { cwd, home }
-  mkdirSync(join(cwd, dirname(produces)), { recursive: true })
-  writeFileSync(join(cwd, produces), '# what I found\n')
+  // In the task's own folder, not the worktree: that is where the agent was
+  // told to write it, and the only place Tade looks.
+  mkdirSync(join(dir, dirname(produces)), { recursive: true })
+  writeFileSync(join(dir, produces), '# what I found\n')
   return { cwd, home }
 }

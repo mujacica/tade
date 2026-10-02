@@ -1,4 +1,6 @@
+import { join } from 'node:path'
 import type { TadeEvent } from './events.ts'
+import { taskDir } from './home.ts'
 
 // What a task produces that is not a change to the code.
 //
@@ -16,6 +18,12 @@ import type { TadeEvent } from './events.ts'
 // a window that was shut when an agent finished still has to be able to say,
 // when it opens, that there is a document waiting to be read.
 //
+// The document goes with the task, in the task's own folder in Tade's home
+// (`producesPath`) — so it is not the repository's, not committed, and it is
+// removed with the task's other files when somebody removes the task. The
+// orchestrator is told the path the moment the task finishes, and reads it
+// then, which is the one moment anybody ever needed it for.
+//
 // There is no research mode and no lifecycle of its own: a task is a task, and
 // this is one optional field on it.
 //
@@ -24,27 +32,48 @@ import type { TadeEvent } from './events.ts'
 // a document would fill the queue with somebody's guesses.
 
 /**
- * Why a path cannot be what a task produces, or null when it can.
+ * Why a name cannot be what a task produces, or null when it can.
  *
- * The rule exists to answer one question: what happens to the document after
- * the task is cleaned up. Anywhere in the tree it is an ordinary file the agent
- * commits like any other change, so it survives on its branch and in the
- * project's history; anywhere outside it is a file that goes with the worktree.
- * Tade's own folder used to be the third case and the one worth naming — a
- * document written there was ignored by git and removed with the task — and it
- * is not a case any more: Tade writes nothing inside a project.
+ * What a task names is a file in its own folder: a name, or a path under it,
+ * and never a way out of it — so the one question the rule exists to answer,
+ * what happens to the document, has one answer for every task. It is where
+ * Tade's bookkeeping for that task already is, and goes when that does.
+ *
+ * It used to be a path in the repository, committed like any other change,
+ * because a document only in a worktree is one nobody can read once the
+ * worktree has gone. That bought a document outliving its task and charged for
+ * it in every project Tade touched: somebody's oauth-scope audit in their
+ * history for good, on a branch that exists to carry no code. What it was
+ * really paying for is that somebody is told, which the line saying the task
+ * finished already does. A document that genuinely belongs to the repository —
+ * a README, a skill, a changelog — is an ordinary change and never was this
+ * field.
  */
 export function producesProblem(path: string): string | null {
   const said = path.trim()
-  if (!said) return 'name the file it writes, as a path in the repository'
+  if (!said) return "name the file it writes, as a name in the task's own folder"
   if (said.startsWith('/') || said.startsWith('~') || /^[a-z]:[\\/]/i.test(said)) {
-    return `${said} is not in the repository: give a path relative to where the agent works`
+    return `${said} is a path of its own: give a name in the task's own folder`
   }
   const parts = said.split(/[\\/]/)
   if (parts.includes('..')) {
-    return `${said} climbs out of the repository: give a path inside it`
+    return `${said} climbs out of the task's folder: give a name inside it`
   }
   return null
+}
+
+/**
+ * Where the document a task produces goes: the task's own folder in Tade's
+ * home, under the name the task gave it.
+ *
+ * The one reader, so the sentence its agent is told, the path written on
+ * `task_done` and the file Tade looks for are one string rather than three
+ * that agree today. A name `producesProblem` refuses is not one to join onto a
+ * path, so every caller checks first (`createTask`, `checkPlan`,
+ * `producedDetail`, and the agent's own prompt).
+ */
+export function producesPath(home: string, task: string, produces: string): string {
+  return join(taskDir(home, task), produces.trim())
 }
 
 /**
@@ -56,7 +85,7 @@ export function producesProblem(path: string): string | null {
  */
 export interface Document {
   task: string
-  /** Where it is, as the task named it: relative to where its agent worked. */
+  /** Where it is: the path in Tade's home the journal recorded, ready to read. */
   path: string
   /** What its agent said when it finished. */
   summary: string
@@ -80,8 +109,8 @@ export interface Document {
  * writes down that a document was dealt with, and a flag somebody had to set
  * is a flag that goes unset.
  *
- * A removed task is left out, as everywhere else in a briefing: its worktree
- * is gone, so the path no longer says where to look.
+ * A removed task is left out, as everywhere else in a briefing: its folder is
+ * gone, and so is the document in it, so the path no longer says where to look.
  */
 export function producedIn(
   events: readonly TadeEvent[],
@@ -131,7 +160,8 @@ export function producedIn(
 
 /**
  * What a task produced and what has come of it, as a clause after its own
- * name: "produced notes/audit.md, and nothing has been done about it yet".
+ * name: "produced …/tasks/audit/scope.md, and nothing has been done about it
+ * yet".
  *
  * One wording, said by the news the moment a task finishes and by the briefing
  * a window later, because two descriptions of one fact drift apart.

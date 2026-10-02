@@ -236,12 +236,12 @@ describe('what it opens knowing with several repositories', () => {
           event('task_done', 'app/scope-audit', {
             by: 'agent',
             summary: 'Four call sites take the token twice.',
-            produces: 'notes/scope-audit.md',
+            produces: '/h/.tade/projects/app/tasks/scope-audit/scope-audit.md',
           }),
         ],
       }) ?? ''
     expect(said).toContain(
-      '- app/scope-audit produced notes/scope-audit.md, and nothing has been done about it yet (finished 1h ago)',
+      '- app/scope-audit produced /h/.tade/projects/app/tasks/scope-audit/scope-audit.md, and nothing has been done about it yet (finished 1h ago)',
     )
   })
 
@@ -250,12 +250,12 @@ describe('what it opens knowing with several repositories', () => {
       composeBriefing({
         now: NOW,
         events: [
-          event('task_done', 'app/scope-audit', { by: 'agent', produces: 'notes/audit.md' }, 120),
+          event('task_done', 'app/scope-audit', { by: 'agent', produces: '/h/t/audit.md' }, 120),
           event('task_created', 'app/fix-scopes', { after: ['app/scope-audit'] }, 60),
         ],
       }) ?? ''
     expect(said).toContain(
-      '- app/scope-audit produced notes/audit.md, and app/fix-scopes was queued off it',
+      '- app/scope-audit produced /h/t/audit.md, and app/fix-scopes was queued off it',
     )
     expect(said).not.toContain('nothing has been done about it yet')
   })
@@ -268,11 +268,11 @@ describe('what it opens knowing with several repositories', () => {
           event(
             'task_done',
             'app/old-audit',
-            { by: 'agent', produces: 'notes/old.md' },
+            { by: 'agent', produces: '/h/t/old.md' },
             5 * 24 * 60,
           ),
         ],
       }) ?? ''
-    expect(said).not.toContain('notes/old.md')
+    expect(said).not.toContain('/h/t/old.md')
   })
 })

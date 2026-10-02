@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { EventType, TadeEvent } from '../src/events.ts'
-import { actedOnSays, producedClause, producedIn, producesProblem } from '../src/produces.ts'
+import {
+  actedOnSays,
+  producedClause,
+  producedIn,
+  producesPath,
+  producesProblem,
+} from '../src/produces.ts'
 
 let seq = 0
 function event(
@@ -22,30 +28,37 @@ function event(
   }
 }
 
-describe('a path a task may produce', () => {
-  it('takes an ordinary file in the repository', () => {
+describe('a name a task may produce', () => {
+  it('takes a file name, and a path under the folder', () => {
+    expect(producesProblem('scope-audit.md')).toBe(null)
     expect(producesProblem('notes/scope-audit.md')).toBe(null)
     expect(producesProblem('AUDIT.md')).toBe(null)
   })
 
-  it('takes a path under any folder, because Tade reserves none of them', () => {
-    // `.tade/` used to be refused here, because Tade wrote its bookkeeping
-    // there and removed it with the task. It writes nothing inside a project
-    // now, so a folder called that is an ordinary folder like any other.
-    expect(producesProblem('.tade/audit.md')).toBe(null)
-    expect(producesProblem('.tadepole/audit.md')).toBe(null)
-  })
-
-  it('refuses one that is not inside the repository at all', () => {
-    expect(producesProblem('/tmp/audit.md')).toContain('not in the repository')
-    expect(producesProblem('~/audit.md')).toContain('not in the repository')
-    expect(producesProblem('C:\\audit.md')).toContain('not in the repository')
-    expect(producesProblem('../elsewhere/audit.md')).toContain('climbs out')
-    expect(producesProblem('notes/../../out.md')).toContain('climbs out')
+  it('refuses a path of its own, wherever it would land', () => {
+    // Not "outside the repository" any more: the document goes in the task's
+    // own folder in Tade's home, so what is refused is anything that is not a
+    // name inside it — an absolute path included, however harmless it looks.
+    expect(producesProblem('/tmp/audit.md')).toContain('a path of its own')
+    expect(producesProblem('~/audit.md')).toContain('a path of its own')
+    expect(producesProblem('C:\\audit.md')).toContain('a path of its own')
+    expect(producesProblem('../elsewhere/audit.md')).toContain("climbs out of the task's folder")
+    expect(producesProblem('notes/../../out.md')).toContain("climbs out of the task's folder")
   })
 
   it('refuses nothing at all, which is the shape of a field left empty', () => {
     expect(producesProblem('   ')).toContain('name the file it writes')
+  })
+
+  it('goes in the task’s own folder in Tade’s home, and nowhere in the project', () => {
+    // The one reader: the sentence the agent is told, the path on `task_done`
+    // and the file Tade looks for are this string.
+    expect(producesPath('/h/.tade', 'shop/scope-audit', 'audit.md')).toBe(
+      '/h/.tade/projects/shop/tasks/scope-audit/audit.md',
+    )
+    expect(producesPath('/h/.tade', 'shop/scope-audit', ' notes/audit.md ')).toBe(
+      '/h/.tade/projects/shop/tasks/scope-audit/notes/audit.md',
+    )
   })
 })
 

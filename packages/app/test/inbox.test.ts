@@ -109,17 +109,28 @@ describe('news for the orchestrator', () => {
     })
     expect(
       eventNews(
-        done({ by: 'agent', summary: 'Four call sites.', produces: 'notes/scope-audit.md' }),
+        done({
+          by: 'agent',
+          summary: 'Four call sites.',
+          produces: '/h/.tade/projects/app/tasks/scope-audit/scope-audit.md',
+        }),
       ),
     ).toBe(
-      'app/scope-audit finished (its agent said so): Four call sites. It produced notes/scope-audit.md, and nothing has been done about it yet',
+      'app/scope-audit finished (its agent said so): Four call sites. It produced /h/.tade/projects/app/tasks/scope-audit/scope-audit.md, and nothing has been done about it yet',
     )
     // However it was finished — its rule being met says nothing about whether
     // the agent wrote what the task was made to write.
     expect(
-      eventNews(done({ by: 'rule', rule: 'idle', produces: 'notes/a.md', missing: true })),
+      eventNews(
+        done({
+          by: 'rule',
+          rule: 'idle',
+          produces: '/h/.tade/projects/app/tasks/scope-audit/a.md',
+          missing: true,
+        }),
+      ),
     ).toBe(
-      'app/scope-audit finished (its rule, idle, was met). It said it would produce notes/a.md and did not write it',
+      'app/scope-audit finished (its rule, idle, was met). It said it would produce /h/.tade/projects/app/tasks/scope-audit/a.md and did not write it',
     )
   })
 

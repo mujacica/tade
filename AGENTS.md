@@ -121,9 +121,9 @@ attached to the decision it governs. Load the matching one rather than working f
 - **A task is finished when the journal says so** (`task_done`); the rule is `done` in its task file.
   Never infer it from a turn ending — an agent that asked a question looks the same — or from an agent
   having stopped, which is `review`.
-- **A task may say what it produces** (`produces`, beside `done` and `start`): the path is one in the
-  repository (`producesProblem`), it rides on `task_done` (`producedDetail`), and what has been done
-  about one is derived (`producedIn`), never remembered.
+- **A task may say what it produces** (`produces`, beside `done` and `start`): a name, and the
+  document goes in the task's own folder in Tade's home, never in the repository and never
+  committed (`producesPath`). What came of one is derived (`producedIn`).
 - **Queued work is a task with `start` in its task file.** The window starts it by rule
   (`readyToStart`), never a model deciding again, and writes why. **Evidence may only ever hold**: the
   start-time look at the trees reaches that rule through `queueStateOf`, and a written `order` is only

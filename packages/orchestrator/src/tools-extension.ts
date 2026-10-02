@@ -219,11 +219,14 @@ export function orchestratorTools(
     description: 'where the work came from: an issue, a trace, a discussion',
     items: object({ title: string('what it is'), url: string('where it is') }, ['title', 'url']),
   }
-  // What a task made to plan, audit or research says about itself. The path is
-  // in the repository, so the agent commits it and it survives the task: the
-  // whole point is that somebody reads it later.
+  // What a task made to plan, audit or research says about itself. A name, not
+  // a path: the document goes with the task in Tade's home, so no project
+  // carries it and nothing commits it, and Tade hands over the whole path the
+  // moment the task finishes — which is the only thing the repository was ever
+  // buying. The last sentence is the other half: a README really is the
+  // project's, and this field is not how one gets written.
   const produces = string(
-    'for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the file it writes, as a path in the repository, committed like any other change. Tade tells you when it finishes, with this path, so you read it and decide what follows.',
+    'for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the name of the file it writes. Tade keeps it with the task, in the task’s own folder, never in the repository and never committed. Tade tells you when the task finishes, with the full path, so you read it and decide what follows. A file that belongs to the project itself — a README, a changelog — is an ordinary change and not this.',
   )
 
   tool(

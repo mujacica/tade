@@ -1,5 +1,7 @@
+import { join } from 'node:path'
+import { producesPath, taskDir } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { logged, setup, until, worktreeProducing } from './workers-harness.ts'
+import { logged, setup, taskProducing, until } from './workers-harness.ts'
 
 // The line that says a research task finished, and the document on it.
 //
@@ -18,39 +20,33 @@ describe('an agent finishing a task that produces a document', () => {
     close = null
   })
 
-  it('puts the path on the line the journal keeps', async () => {
+  it("puts the path in the task's own folder on the line the journal keeps", async () => {
     // The journal is the only thing that remembers: the task's folder goes
-    // when the task does, and somebody reads the document later.
-    const { log, adapter } = await setup(
-      'bypass',
-      undefined,
-      undefined,
-      worktreeProducing('notes/scope-audit.md'),
-    )
+    // when the task does, and somebody reads the document before then.
+    const where = taskProducing('notes/scope-audit.md')
+    const { log, adapter } = await setup('bypass', undefined, undefined, where)
     close = () => log.close()
     adapter.emit('r1', { type: 'done', summary: 'Four call sites take the token twice.' })
     await until(async () => (await logged(log, 'task_done')).length > 0)
+    const path = producesPath(where.home, 'app/refunds', 'notes/scope-audit.md')
+    expect(path).toBe(join(taskDir(where.home, 'app/refunds'), 'notes', 'scope-audit.md'))
     expect((await logged(log, 'task_done'))[0]?.detail).toMatchObject({
       by: 'agent',
       summary: 'Four call sites take the token twice.',
-      produces: 'notes/scope-audit.md',
+      produces: path,
     })
     // Not marked missing: the file is there, so nobody is sent to one that is not.
     expect((await logged(log, 'task_done'))[0]?.detail.missing).toBeUndefined()
   })
 
   it('says a task named a document and did not write one', async () => {
-    const { log, adapter } = await setup(
-      'bypass',
-      undefined,
-      undefined,
-      worktreeProducing('notes/scope-audit.md', false),
-    )
+    const where = taskProducing('notes/scope-audit.md', false)
+    const { log, adapter } = await setup('bypass', undefined, undefined, where)
     close = () => log.close()
     adapter.emit('r1', { type: 'done', summary: 'ran out of time' })
     await until(async () => (await logged(log, 'task_done')).length > 0)
     expect((await logged(log, 'task_done'))[0]?.detail).toMatchObject({
-      produces: 'notes/scope-audit.md',
+      produces: producesPath(where.home, 'app/refunds', 'notes/scope-audit.md'),
       missing: true,
     })
   })

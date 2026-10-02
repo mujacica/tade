@@ -118,11 +118,12 @@ export const TaskFile = z.object({
   /** How it counts as finished; `said` unless chosen. */
   done: z.enum(DONE_RULES).optional(),
   /**
-   * What it produces that is not a change to the code: a document at this
-   * path, relative to where its agent works. Named when the task is made, by
-   * whoever asked for the plan, the audit or the analysis — so that when the
-   * task finishes, the path goes with the summary and whoever reads it can
-   * read the document rather than be told one exists.
+   * What it produces that is not a change to the code: a document of this name,
+   * in the task's own folder in Tade's home (`producesPath`) and never in the
+   * repository. Named when the task is made, by whoever asked for the plan, the
+   * audit or the analysis — so that when the task finishes, the path goes with
+   * the summary and whoever reads it can read the document rather than be told
+   * one exists.
    *
    * A plain string and not refused by the schema: `producesProblem` refuses a
    * bad one where a task is made and again where the journal records it, and a

@@ -588,7 +588,7 @@ export class WorkerSupervisor {
         return
       }
       case 'done': {
-        const made = await producedDetail(this.home, state?.worktree, task)
+        const made = await producedDetail(this.home, task)
         const detail = { by: 'agent', summary: signal.summary, ...made }
         await this.log.append({ type: 'task_done', task, run, detail })
         return

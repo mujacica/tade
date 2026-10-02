@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { producesProblem } from '@tade/core'
 import { Workbench } from '@tade/workbench'
 import { afterAll, describe, expect, it, type TestContext } from 'vitest'
 import { LIVE } from '../../../scripts/release/repo.ts'
@@ -288,9 +289,10 @@ const CHOICES: readonly Choice[] = [
       const [created] = await world.tade.events({ types: ['task_created'] })
       const produces = String(created?.detail.produces ?? '')
       expect(produces).not.toBe('')
-      // Wherever it put it, it may not be somewhere that goes when the task
-      // does — which is the one thing the refusal already enforces.
-      expect(produces.startsWith('.tade/')).toBe(false)
+      // And a name rather than a path of its own: the document goes in the
+      // task's own folder, so the description only reads right if what comes
+      // back is something to join onto one.
+      expect(producesProblem(produces)).toBe(null)
     },
   },
   {

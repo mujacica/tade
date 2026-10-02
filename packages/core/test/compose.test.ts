@@ -220,13 +220,19 @@ describe('composeAgentPrompt', () => {
     expect(told).toContain('Tade-Task: shop/refunds')
   })
 
-  it('tells an agent writing a document where it goes, and to commit it', () => {
-    // The answer to "what happens to it once the task is cleaned up": it is an
-    // ordinary committed file, which is why the path is one in the repository.
-    // Silent for every agent that is changing code, which is most.
-    const told = composeAgentPrompt({ ...base, produces: 'notes/scope-audit.md' })
-    expect(told).toContain('a document at notes/scope-audit.md')
-    expect(told).toContain('commit it like any other change')
+  it('tells an agent writing a document the one path, and that it is not the repository’s', () => {
+    // The whole path, because the folder is not one the agent would guess, and
+    // twice over that it is not the project's: an agent handed a file name does
+    // what an agent does and commits it. Silent for every agent that is changing
+    // code, which is most.
+    const told = composeAgentPrompt({
+      ...base,
+      produces: '/h/.tade/projects/shop/tasks/refunds/scope-audit.md',
+    })
+    expect(told).toContain('a document at /h/.tade/projects/shop/tasks/refunds/scope-audit.md')
+    expect(told).toContain('not part of the repository')
+    expect(told).toContain('do not commit it')
+    expect(told).not.toContain('commit it like any other change')
     expect(composeAgentPrompt(base)).not.toContain('What this task produces')
   })
 
