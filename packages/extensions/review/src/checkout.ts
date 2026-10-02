@@ -61,7 +61,7 @@ export interface CheckoutPlan {
  */
 export function checkoutPlan(
   review: { number: number; branch: string },
-  remote: { hasBranch: boolean; headRef: string | null },
+  remote: { hasBranch: boolean; headRef: string | null; instead?: string | null },
 ): CheckoutPlan | { problem: string } {
   const branch = review.branch
   if (!branch) return { problem: 'the review does not say which branch it was opened from' }
@@ -76,6 +76,11 @@ export function checkoutPlan(
       why: null,
     }
   }
+  // Two ways for `origin` not to have the review's branch, and they are not the
+  // same sentence: it has nothing of that name, or it has something of that name
+  // which is not it. Saying the first where the second is true would contradict
+  // the very reason this is on the fork path.
+  const absent = remote.instead ?? `\`origin\` has no \`${branch}\` at all.`
   if (remote.headRef) {
     return {
       branch,
@@ -83,7 +88,7 @@ export function checkoutPlan(
       // `refs/`: the commits are wanted, a second name for them is not.
       fetch: { refspec: remote.headRef, at: 'FETCH_HEAD' },
       tracks: null,
-      why: `origin has no ${branch}, so the review was opened from a fork and its commits came from ${remote.headRef}. The branch here tracks nothing: pushing a fix to the review means whoever owns that fork, not you.`,
+      why: `${absent} The review was opened from a fork, so its commits came from \`${remote.headRef}\` and the branch here tracks nothing: pushing a fix to it means whoever owns that fork, not you.`,
     }
   }
   return {
@@ -197,7 +202,6 @@ export async function ontoReview(opts: {
     `${root} ${how === 'made' ? 'is now' : how === 'switched' ? 'has switched to' : 'was already on'} \`${branch}\` at \`${commit.slice(0, 12)}\` — ${where}, ${plan.tracks ? `tracking \`${plan.tracks}\`` : 'tracking nothing'}.`,
   ]
   if (plan.why) lines.push(plan.why)
-  if (origins.instead) lines.push(origins.instead)
   if (ahead > 0 && behind > 0) {
     lines.push(
       `It had diverged: ${count(ahead, 'commit')} here the review does not have, ${behind} on the review that ${behind === 1 ? 'is' : 'are'} not here. Nothing was merged and nothing was moved — read them before you push.`,
