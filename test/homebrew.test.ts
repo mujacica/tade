@@ -3,7 +3,15 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { className, descFor, FORMULA, formulaFor, tarballUrl } from '../scripts/release/homebrew.ts'
+import {
+  className,
+  descFor,
+  FORMULA,
+  formulaFor,
+  SCRATCH,
+  scratchTapAt,
+  tarballUrl,
+} from '../scripts/release/homebrew.ts'
 import { COMMAND, PUBLISHED, rootManifest } from '../scripts/release/repo.ts'
 
 // What has to be true of the second way in.
@@ -143,6 +151,26 @@ describe('what the generator is asked for', () => {
     expect(descFor('An example of a thing.')).toBe('Example of a thing')
     expect(descFor('The thing')).toBe('Thing')
     expect(descFor('Already fine')).toBe('Already fine')
+  })
+
+  it('can only ever name the scratch tap, whatever Homebrew answers', () => {
+    // The one path in here built out of a value from outside the program, and
+    // the one that is removed again — so what it may name is proved rather
+    // than argued about. Everything after the prefix is a constant, which is
+    // what makes a traversal out of it impossible; the refusals are about the
+    // prefix being a prefix at all.
+    const leaf = `/Library/Taps/${SCRATCH.split('/')[0]}/homebrew-${SCRATCH.split('/')[1]}`
+    expect(scratchTapAt('/opt/homebrew')).toBe(`/opt/homebrew${leaf}`)
+    expect(scratchTapAt('  /home/linuxbrew/.linuxbrew/Homebrew\n')).toBe(
+      `/home/linuxbrew/.linuxbrew/Homebrew${leaf}`,
+    )
+    // `..` in the prefix normalises away and still cannot reach past the leaf.
+    expect(scratchTapAt('/opt/homebrew/../elsewhere').endsWith(leaf)).toBe(true)
+    // A relative answer would hang the removal off the working directory, and
+    // one with a line break in it is Homebrew having said something as well as
+    // answered.
+    for (const answered of ['', '   ', 'homebrew', './homebrew', '/opt/a\n/opt/b'])
+      expect(() => scratchTapAt(answered), JSON.stringify(answered)).toThrow('not a path')
   })
 
   it('is a command this repository has', () => {

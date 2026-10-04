@@ -209,18 +209,40 @@ function brew(args: string[], opts: { quiet?: boolean } = {}): string {
  * `brew install <tap>/<formula>` writes all come off in the `finally`, whether
  * the build worked or not.
  */
+/** `tade-trying/scratch` → `tade-trying/homebrew-scratch`, which is how a tap sits on disk. */
+const TAP_DIR = SCRATCH.split('/')
+  .map((part, at) => (at === 1 ? `homebrew-${part}` : part))
+  .join('/')
+
+/**
+ * Where the scratch tap goes, under whatever Homebrew says its repository is.
+ *
+ * The one path here built out of a value from outside the program — `brew
+ * --repository`'s own answer — and the one that gets *removed*, so what it may
+ * ever name is worth being able to prove rather than argue about. Everything
+ * after the prefix is a constant, so the leaf can only ever be the scratch tap;
+ * the refusals are about the prefix being a prefix at all. An answer that is
+ * relative would hang a removal off the working directory, and one with a line
+ * break in it is Homebrew having said something as well as answered.
+ */
+export function scratchTapAt(repository: string): string {
+  const said = repository.trim()
+  if (!said.startsWith('/') || said.includes('\n'))
+    throw new Error(
+      `brew --repository answered ${JSON.stringify(said) || '(nothing)'}, which is not a path`,
+    )
+  return join(said, 'Library/Taps', TAP_DIR)
+}
+
 export function tryIt(): void {
-  const repository = brew(['--repository'], { quiet: true }).trim()
-  // Because the `finally` below removes this directory, and a path worked out
-  // from an answer that was not one would be a path somewhere else entirely.
-  if (!repository.startsWith('/'))
-    throw new Error(`brew --repository answered ${repository || '(nothing)'}, which is not a path`)
-  const where = join(
-    repository,
-    'Library/Taps',
-    ...SCRATCH.split('/').map((part, at) => (at === 1 ? `homebrew-${part}` : part)),
-  )
+  const where = scratchTapAt(brew(['--repository'], { quiet: true }))
   const formula = `${SCRATCH}/${COMMAND}`
+  // Whether there is anything to take off is read from what was done, never
+  // from how the taking-off went: three failed teardowns where nothing was
+  // installed and three failed teardowns over a `${COMMAND}` sitting in
+  // Homebrew's bin look identical from the `finally`, and only one of them is
+  // worth telling somebody about.
+  let installed = false
   try {
     rmSync(where, { recursive: true, force: true })
     brew(['tap-new', '--no-git', SCRATCH])
@@ -228,14 +250,13 @@ export function tryIt(): void {
     copyFileSync(join(ROOT, FORMULA), join(where, 'Formula', `${COMMAND}.rb`))
     // Typing the tap's full name is what trusts the formula, which is the one
     // thing Homebrew 7 asks of anything outside its own taps.
+    installed = true
     brew(['install', '--build-from-source', '--formula', formula])
     brew(['test', formula])
     process.stdout.write(`\n${formula} built from source and passed its test block.\n`)
   } finally {
     // Each on its own, because a teardown that stops at the first thing that
-    // was never made leaves the rest of it on the machine — and what it could
-    // not take off is **said**, because a `${COMMAND}` left in Homebrew's bin
-    // shadows the one somebody develops with and nothing else would mention it.
+    // was never made leaves the rest of it on the machine.
     const left: string[] = []
     for (const args of [
       ['uninstall', '--formula', formula],
@@ -249,12 +270,12 @@ export function tryIt(): void {
       }
     }
     rmSync(where, { recursive: true, force: true })
-    // `uninstall` and `untrust` fail where there was nothing installed to take
-    // off, which is every run that stopped before the install — so this is only
-    // worth saying when the install is the thing that may still be there.
-    if (left.length === 3)
-      process.stderr.write(`\nNothing was installed, so nothing was taken off.\n`)
-    else if (left.length > 0)
+    // Said, because a `${COMMAND}` left in Homebrew's bin shadows the one
+    // somebody develops with and nothing else here would mention it. `installed`
+    // is set before the install rather than after it: a build that died halfway
+    // leaves a cellar entry too, and the one unacceptable answer is silence
+    // about something still on the machine.
+    if (installed && left.length > 0)
       process.stderr.write(
         `\nStill on this machine — run these yourself:\n  ${left.join('\n  ')}\n`,
       )
