@@ -26,6 +26,10 @@ release does not add one: the types come off at publish and the repository still
 | `.github/workflows/ci.yml` | the gate itself, offered as `workflow_call` so the release runs *this* one |
 | `test/release.test.ts` | what the staged package, the exports map, the rewrite, the changelog and the workflow must be |
 | `test/build-tools.test.ts` | `missingFor`, `onPath`, `trouble`, and that the script is silent where it can build |
+| `scripts/release/homebrew.ts` | the second way in: `FORMULA`, `tarballUrl`, `descFor`, `className`, `formulaFor`, `sha256Of`, `tryIt`; `SCRATCH` |
+| `scripts/release/homebrew/tade.rb` | the formula itself — generated, never hand-edited |
+| `.github/workflows/homebrew.yml` | published → formula → built on macOS → a pull request on the tap |
+| `test/homebrew.test.ts` | what Homebrew's audit wants, the one decision in the formula, and that the workflow still waits for a workflow that exists |
 
 ## The four commands
 
@@ -216,6 +220,92 @@ the same tarball, uploaded as artifacts and **published nowhere**.
 **Nothing from the event is ever written into a shell line.** A tag name and a `workflow_dispatch`
 input are somebody's text, and a `run:` block with `${{ }}` in it is that text becoming the script;
 through the environment it stays an argument. `test/release.test.ts` holds the whole workflow to it.
+
+## Homebrew is a second way in, not a second thing to build
+
+The formula installs the npm package. Its `url` is the very tarball `npm i -g tade-sh`
+downloads, so one publish feeds both ways in and nothing in Homebrew can be a different version
+of Tade than npm has. A formula that built from this repository would be a second release with
+its own gate to keep green, and nobody needs two.
+
+```sh
+pnpm homebrew                  # regenerate the formula for what the manifest says, hash and all
+pnpm homebrew --version 0.2.0  # ... or for a version somebody has published
+pnpm homebrew --try            # build it from source and run its test block, then take it off again
+```
+
+`--try` is the only thing that proves it, and it is what the workflow runs on macOS. It needs a
+working toolchain: Homebrew always passes `--build-from-source`, because a bottle may not carry
+somebody else's prebuilt binary, so node-pty and better-sqlite3 are compiled. **Homebrew 7 refuses
+a formula that is not in a tap** — `brew install ./tade.rb` is gone — so `--try` makes a scratch
+tap (`SCRATCH`), builds in it, and removes the tap, the install and the trust entry afterwards
+whether the build worked or not.
+
+**The one decision in the file is `ignore_scripts: false`.** Homebrew's default is to ignore
+install scripts, and under it node-pty is never built and never gets its `spawn-helper` bit back:
+the install is green and `tade` cannot open a terminal.
+
+**It is not the only thing that decides whether they run.** npm 11.19 blocks a dependency's install
+scripts by default — its `allowScripts` policy — and says so in a warning rather than failing.
+Measured with Homebrew's own argument list on 2026-10-04: with it, node-pty's install script ran and
+there was no warning; with `--build-from-source` taken out of it and nothing else changed, five
+packages' scripts were skipped. So Homebrew's own flag is what carries it today, which is a thing
+nobody chose and npm could change. That is why the formula's `test do` block **loads node-pty**: it
+is the first thing that fails when this stops being true, and the alternative is an install that is
+green and a `tade` that cannot open a terminal.
+
+### The three ways in, and which one this is
+
+- **A personal tap** — `mujacica/homebrew-tade`, your repository, no review, and what the
+  automation below targets. Install is **one command**, `brew install mujacica/tade/tade`: in
+  Homebrew 7 nothing outside Homebrew's own taps is trusted, and typing the tap's full name is
+  what grants it (`brew install tade` on its own is refused with `brew trust`). What it costs is
+  that nothing else maintains it — no bottles, so every user compiles; and when Homebrew moves
+  `node` to a new major, nothing rebuilds the formula against it, where core does that for you.
+- **homebrew-core** — `brew install tade`, bottles built for every platform, and the `node`
+  rebuild cascade handled. What it asks for is **notability**: roughly 30 forks, 30 watchers and
+  75 stars, or a maintainer convinced the project is widely used. A new repository is declined on
+  that alone, so this is the path for later and not for 0.1.1. Once in, **the bumps stop being
+  ours**: the formula's `registry.npmjs.org` URL is one Homebrew's own `Npm` livecheck strategy
+  reads, so BrewTestBot's autobump sees a new version where core has the formula on that list,
+  and where it does not a bump is one `brew bump-formula-pr tade` from anybody. The submission
+  itself is a person's pull request — fork homebrew-core, drop this file in at
+  `Formula/t/tade.rb`, run `brew audit --new --strict --online tade`, open one PR — and a bot
+  opening pull requests there is how a project gets asked to stop.
+- **A cask** is for a binary or an `.app` somebody downloads. Tade is a package installed from a
+  registry, so it is a formula. There is nothing to decide here.
+
+### The automation, and what it needs once
+
+`.github/workflows/homebrew.yml` runs when `release` finishes green **on a tag** — not on a
+rehearsal from the Actions tab, which publishes nothing — and takes the version from the commit
+that release was cut from. It generates the formula, builds it from source on macOS and runs its
+test block, and only then opens a pull request on the tap. Running it from the Actions tab
+rehearses: same formula, same build, pushed nowhere.
+
+It is a **separate workflow** on purpose. `release.yml` is held to reading no secret at all
+(`test/release.test.ts`): npm takes a short-lived token from GitHub, and a token in that file
+would be a long-lived credential in a workflow that needs none. Opening a pull request on another
+repository does need one. And it has to be able to run again on its own, because a tap pull request
+that was never opened is a thing to fix afterwards, and re-tagging a release is not.
+
+A person's, once, and nothing here can do it:
+
+- **The tap** — a public repository called `homebrew-tade` on the account, with this formula at
+  `Formula/tade.rb`. Push the first copy by hand (`pnpm homebrew`, then commit it there); after
+  that the workflow keeps it current.
+- **`HOMEBREW_TAP`** — a repository *variable*, `mujacica/homebrew-tade`. Unset is the ordinary
+  state of a project with no tap, so the job warns and leaves the formula on the run as an
+  artifact rather than failing a release.
+- **`HOMEBREW_TAP_TOKEN`** — a repository secret: a fine-grained token on that tap with Contents
+  and Pull requests read/write. `GITHUB_TOKEN` cannot be used, because it reaches only this
+  repository. It is the one secret that workflow reads, and the test holds it to one.
+- **Merging** is yours, one click per release, which is the same rule as every other review here —
+  and the merge is what `brew upgrade` sees. Turn on auto-merge on the tap if you would rather not.
+
+**Say it in the README in the commit that makes it true**, in the install section and not before:
+`brew install mujacica/tade/tade`. Advertising a tap that does not exist yet is the one thing
+about this that cannot be taken back quietly.
 
 ## What a user's install runs is node-pty, twice
 

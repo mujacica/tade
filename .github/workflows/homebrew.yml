@@ -1,0 +1,227 @@
+# What happens to the Homebrew tap when a release has published, and what a
+# rehearsal does instead.
+#
+# Homebrew installs the npm package: the formula's `url` is the very tarball
+# `npm i -g tade-sh` downloads. So this cannot run before the publish — a
+# formula may only name a hash of bytes the registry already has — and it is a
+# separate workflow rather than a job in `release.yml` for two reasons. It needs
+# a credential, and `release.yml` is held by `test/release.test.ts` to reading no
+# secret at all: npm takes a short-lived token from GitHub, and a token in that
+# file would be a long-lived one in a workflow that needs none. And it has to be
+# able to run again on its own, because a tap pull request that was not opened —
+# an expired token, a variable nobody set — is a thing to fix afterwards, and
+# re-tagging a release is not something anybody can do.
+#
+# So: `release` finishes green on a tag, and this picks the version up from the
+# commit that release was cut from. Run it from the Actions tab instead and it
+# rehearses: the same formula, built and tested the same way, pushed nowhere.
+#
+# What it does not do is open a pull request against homebrew-core. That is the
+# main tap, its reviewers are volunteers, and a bot opening version bumps there
+# is how a project gets asked to stop. A formula in core is bumped by
+# BrewTestBot itself — the registry URL is one Homebrew's own `Npm` livecheck
+# strategy reads — and what the one-off submission looks like is in the recipe,
+# `.claude/skills/cut-a-release/SKILL.md`.
+
+name: homebrew
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Published version, e.g. 0.2.0 (blank: whatever this branch says)'
+        required: false
+        type: string
+      open:
+        description: 'Open the pull request. Off rehearses: the formula is built and pushed nowhere'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+# Two releases in a row must not race for one branch name in the tap.
+concurrency:
+  group: homebrew-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The formula for a version the registry already has. Everything below it is
+  # skipped when this is, which is why the whole condition is here and on
+  # nothing else.
+  formula:
+    # A real release and nothing else. `release` also runs from the Actions tab
+    # as a rehearsal, which publishes nothing and whose run is green all the
+    # same — and a formula naming a version npm does not have is a formula
+    # nobody can install. A tag whose gate went red, or whose publish a reviewer
+    # declined, is not a success and does not reach here either.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.formula.outputs.version }}
+      url: ${{ steps.formula.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The tree the release was cut from, so the licence, the homepage and
+          # the description in the formula are the released ones and not
+          # whatever main has become since. Blank for a dispatch: that is this
+          # branch, which is what somebody rehearsing is looking at.
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          # Off for the same reason as every job outside the gate: this one has
+          # no package manager and must not need one. `pnpm homebrew` reads
+          # `package.json` and fetches one tarball, and nothing else.
+          package-manager-cache: false
+
+      # Nothing from the event is ever written into a shell line. An input and a
+      # ref name are somebody's text, and a `run:` block with `${{ }}` in it is
+      # that text becoming the script; through the environment it stays an
+      # argument. Same rule as `release.yml`, and one test holds both.
+      - id: formula
+        name: the formula for a published version
+        env:
+          ASKED: ${{ inputs.version }}
+        run: |
+          version="${ASKED:-$(node -p "require('./package.json').version")}"
+          # Fails by name if the registry does not have it.
+          node scripts/release/homebrew.ts --version "$version" --print >> "$GITHUB_OUTPUT"
+          node scripts/release/homebrew.ts --version "$version"
+          {
+            echo "### Homebrew $version"
+            echo '```ruby'
+            cat scripts/release/homebrew/tade.rb
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-formula
+          path: scripts/release/homebrew/tade.rb
+          if-no-files-found: error
+
+  # The one thing nothing else can tell us: whether the formula builds. A tap
+  # has no CI of its own, so this is it — on macOS, from source, running the
+  # formula's own test block, before anything is offered to anybody. It is the
+  # same command a person runs on their own machine.
+  build:
+    needs: formula
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: homebrew-formula
+          # Over the one in the checkout, which is the previous release's: what
+          # is built has to be the formula this run just generated.
+          path: scripts/release/homebrew
+      - name: build it from source and run its test block
+        run: node scripts/release/homebrew.ts --try
+
+  tap:
+    needs: [formula, build]
+    runs-on: ubuntu-latest
+    steps:
+      # Which tap, and the credential for it, are both the repository's to say.
+      # Unset is the ordinary state of a project with no tap yet, so it is a
+      # warning and not a red run: a release must not go red for a tap nobody
+      # has made. Said in full, here, rather than left as a job that did nothing.
+      - id: tap
+        name: is there a tap to push to
+        env:
+          TAP: ${{ vars.HOMEBREW_TAP }}
+          TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          OPEN: ${{ inputs.open }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$OPEN" != "true" ]; then
+            echo "A rehearsal: the formula built, and is on this run as an artifact." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          missing=''
+          [ -n "$TAP" ] || missing="the HOMEBREW_TAP variable (e.g. mujacica/homebrew-tade)"
+          if [ -z "$TOKEN" ]; then
+            [ -z "$missing" ] || missing="$missing, and "
+            missing="${missing}the HOMEBREW_TAP_TOKEN secret (a token that may write to that tap)"
+          fi
+          if [ -n "$missing" ]; then
+            echo "::warning::No pull request was opened: this repository has no $missing."
+            echo "The formula built and is on this run as an artifact. The cut-a-release recipe says what to set up once." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "push=yes" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        if: steps.tap.outputs.push == 'yes'
+        with:
+          name: homebrew-formula
+
+      # Plain git and `gh`, both already on the runner, rather than an action
+      # from somebody else: what reaches the tap is a handful of commands
+      # anybody can read, and a release is not the place to find out what a
+      # third-party action does with a token that may write to a repository.
+      #
+      # The whole file is replaced rather than two lines edited, because the
+      # tap's copy of it is this one, generated. A bump that touched only `url`
+      # and `sha256` would leave every other line in the tap drifting away from
+      # the file this repository has.
+      - name: open the pull request on the tap
+        if: steps.tap.outputs.push == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP: ${{ vars.HOMEBREW_TAP }}
+          VERSION: ${{ needs.formula.outputs.version }}
+          URL: ${{ needs.formula.outputs.url }}
+        run: |
+          git clone --depth 1 "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" tap
+          mkdir -p tap/Formula
+          cp tade.rb tap/Formula/tade.rb
+          cd tap
+          if git diff --quiet -- Formula/tade.rb; then
+            echo "The tap already has $VERSION; nothing to open." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          branch="tade-$VERSION"
+          git switch -c "$branch"
+          git add -- Formula/tade.rb
+          git commit -m "tade $VERSION"
+          # Force, because this branch is this version's and a re-run of this
+          # workflow for the same version is the one thing that writes it twice.
+          git push --force -u origin "$branch"
+          # A pull request and not a push to the tap's own main branch: merging
+          # is a person's, here as everywhere else in this project, and the merge
+          # is what `brew upgrade` sees. One click per release — and GitHub's
+          # auto-merge is the tap's own setting if you would rather have none.
+          pr=$(gh pr list --repo "$TAP" --head "$branch" --json url --jq '.[0].url')
+          if [ -z "$pr" ]; then
+            # Through a file, because every line of a body written inline in a
+            # YAML `run:` block carries that block's indentation into the body,
+            # and four spaces of it is a markdown code block.
+            {
+              printf '`tade-sh` %s is on npm, and this is the formula for it:\n\n' "$VERSION"
+              printf '%s\n\n' "$URL"
+              printf 'It built from source on macOS and passed its own test block before this was opened.\n\n'
+              printf 'Generated whole by `scripts/release/homebrew.ts`, so read it as a file rather than\n'
+              printf 'as a diff of two lines. Merging it is what `brew upgrade tade` sees.\n'
+            } > ../body.md
+            pr=$(gh pr create --repo "$TAP" --head "$branch" \
+              --title "tade $VERSION" --body-file ../body.md)
+          fi
+          echo "[$VERSION on the tap]($pr)" >> "$GITHUB_STEP_SUMMARY"
