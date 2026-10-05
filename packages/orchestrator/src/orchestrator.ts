@@ -10,7 +10,7 @@ import type {
   ThinkingLevel,
   Unsubscribe,
 } from '@tade/core'
-import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
+import { composePrompt, expandHome, livingSkills, orchestratorRoute, wentQuiet } from '@tade/core'
 import {
   type HarnessModels,
   modelsOffered,
@@ -209,6 +209,13 @@ export type OrchestratorEvent =
   | { type: 'message'; text: string }
   | { type: 'tool'; id: string; tool: string; input: unknown }
   | { type: 'tool_done'; id: string; ok: boolean; text: string }
+  /**
+   * The turn ended on a tool call having said nothing after it: the silence
+   * that reads as thinking. Carries the tool it ended on, because that is the
+   * only true thing a surface can say about it. Sent before `idle`, so
+   * whatever stops drawing a spinner on `idle` has the reason already.
+   */
+  | { type: 'quiet'; tool: string }
   | { type: 'idle' }
   | { type: 'failed'; reason: string }
   /** A turn the model could not finish — a refused request — while the harness keeps running. */
@@ -224,6 +231,16 @@ export class Orchestrator {
   private readonly errorListeners = new Set<(reason: string) => void>()
   /** Why it stopped, once it has: asking it anything after that cannot work. */
   private gone: string | null = null
+  /**
+   * The tool this turn reached for last with nothing said since, or null while
+   * words are the last thing it produced.
+   *
+   * The whole of catching a turn that goes quiet, and it has to be a fold of
+   * the signals as they arrive: by the time `idle` says the turn is over there
+   * is nothing left to look at, and a harness that reports a turn's shape
+   * afterwards is a harness we would be inventing.
+   */
+  private quietOn: string | null = null
 
   private constructor(adapter: WorkerAdapter) {
     this.adapter = adapter
@@ -341,6 +358,24 @@ export class Orchestrator {
       for (const listener of orchestrator.eventListeners) listener(event)
     }
     adapter.onSignal(ORCHESTRATOR_RUN, (signal) => {
+      // Whether this turn has anything left unsaid, folded as the signals
+      // arrive. Only real words count: an empty final message is exactly how
+      // a turn ends up saying nothing, so reading one as speech would hide
+      // the case this exists to catch. And a turn that ended for a reason
+      // already said — you stopped it, the model could not finish it — is not
+      // a turn that went quiet: reporting those as silence would blame the
+      // model for what you did, or say one failure twice. A mid-turn
+      // `problem` is neither, because pi carries on after one and the turn
+      // can still end on a tool call with nothing said.
+      if (signal.type === 'tool_call') orchestrator.quietOn = signal.tool
+      else if (
+        (signal.type === 'message' || signal.type === 'message_delta') &&
+        signal.text.trim() !== ''
+      ) {
+        orchestrator.quietOn = null
+      } else if (signal.type === 'turn_done' && signal.status !== 'ok') {
+        orchestrator.quietOn = null
+      }
       if (signal.type === 'message') {
         for (const listener of orchestrator.messageListeners) listener(signal.text)
         emit({ type: 'message', text: signal.text })
@@ -360,6 +395,13 @@ export class Orchestrator {
         for (const listener of orchestrator.errorListeners) listener(reason)
         emit({ type: 'error', reason })
       } else if (signal.type === 'idle') {
+        // The turn is over, so this is the last moment anything can notice it
+        // ended on a tool call and said nothing. Said before `idle`, because
+        // `idle` is what stops the spinner and the reason has to be on screen
+        // by then rather than a frame later.
+        const quiet = orchestrator.quietOn
+        orchestrator.quietOn = null
+        if (quiet) emit({ type: 'quiet', tool: quiet })
         for (const listener of orchestrator.idleListeners) listener()
         emit({ type: 'idle' })
       } else if (signal.type === 'failed') {
@@ -484,8 +526,15 @@ export class Orchestrator {
   ): Promise<string> {
     const parts: string[] = []
     const errors: string[] = []
+    // The tool a turn that said nothing ended on. A list, like the two above,
+    // so what the callback does is push rather than assign: a captured `let`
+    // narrows to its initial value at the read and the answer is lost.
+    const quiet: string[] = []
     const offMessage = this.onMessage((part) => parts.push(part))
     const offError = this.onError((reason) => errors.push(reason))
+    const offEvent = this.onEvent((event) => {
+      if (event.type === 'quiet') quiet.push(event.tool)
+    })
     let offIdle: Unsubscribe = () => {}
     const settled = new Promise<void>((resolve) => {
       offIdle = this.onIdle(resolve)
@@ -503,9 +552,20 @@ export class Orchestrator {
       if (parts.length === 0 && errors.length > 0) {
         return `The orchestrator could not answer: ${errors.at(-1)}`
       }
-      return parts.join(' ').trim()
+      const answer = parts.join(' ').trim()
+      // The one thing a surface that speaks in turns must never be handed is
+      // an empty string, which it can only read as "still thinking" and say
+      // nothing at all about — which is how a quiet turn reached a voice as
+      // literal silence, with the window's own line about it sitting on a
+      // screen nobody was looking at. Only in place of an empty answer:
+      // whatever it did say before reaching for the tool has already been
+      // said out loud, and saying it twice is its own bug.
+      const ended = quiet.at(-1)
+      if (answer === '' && ended) return wentQuiet(ended)
+      return answer
     } finally {
       offError()
+      offEvent()
       offMessage()
       offIdle()
     }

@@ -192,6 +192,50 @@ describe('Orchestrator', () => {
     expect(events).toContainEqual({ type: 'message', text: 'There was nothing to stop.' })
   }, 90_000)
 
+  it('never ends a turn on a tool call with nothing said', async () => {
+    // The worst failure the conversation has, and the one that looks exactly
+    // like thinking: the tool answers, the turn ends, and the spinner is
+    // still turning over a model that has stopped. Scripted as it actually
+    // happened — a tool call, then a final message with nothing in it.
+    const events: OrchestratorEvent[] = []
+    const chat = await start({
+      tool: { name: 'tade_run_stop', arguments: { task: 'app/nothing-here' } },
+      finalText: '',
+    })
+    chat.onEvent((event) => events.push(event))
+
+    const answer = await chat.askFor('stop the nothing-here agent', 30_000)
+    // An empty answer is the bug: a surface can only read it as "still
+    // thinking" and draw nothing at all.
+    expect(answer).not.toBe('')
+    expect(answer).toContain('tade_run_stop')
+    expect(answer).toContain('without saying anything')
+    // And it is said as it happens, too, so a surface watching the turn does
+    // not have to wait for the answer to find out there isn't one.
+    const quiet = events.filter((event) => event.type === 'quiet')
+    expect(quiet).toEqual([{ type: 'quiet', tool: 'tade_run_stop' }])
+    // Before `idle`, which is what stops the spinner.
+    expect(events.findIndex((event) => event.type === 'quiet')).toBeLessThan(
+      events.findIndex((event) => event.type === 'idle'),
+    )
+  }, 90_000)
+
+  it('is silent about a turn that said something after its last tool call', async () => {
+    // The other half of the rule: a "done" that fires after every tool call
+    // would be a sentence nobody can trust, which is worse than silence.
+    const events: OrchestratorEvent[] = []
+    const chat = await start({
+      tool: { name: 'tade_run_stop', arguments: { task: 'app/nothing-here' } },
+      finalText: 'There was nothing to stop.',
+    })
+    chat.onEvent((event) => events.push(event))
+
+    expect(await chat.askFor('stop the nothing-here agent', 30_000)).toBe(
+      'There was nothing to stop.',
+    )
+    expect(events.some((event) => event.type === 'quiet')).toBe(false)
+  }, 90_000)
+
   it("calls an extension's tool through the window, and is told about the extension first", async () => {
     const extensions = await ExtensionHost.load({
       builtin: [

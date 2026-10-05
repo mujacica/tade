@@ -189,6 +189,77 @@ describe('the conversation', () => {
   })
 })
 
+describe('a turn that said nothing', () => {
+  /** A turn that calls a tool, gets its answer, and then just ends. */
+  function quietTurn(tool = 'tade_status'): Transcript {
+    let current = thinking(youSaid(emptyTranscript(), 'where are we', 0), 0)
+    current = fromThinker(current, { type: 'tool', id: '1', tool, input: {} }, 1)
+    current = fromThinker(current, { type: 'tool_done', id: '1', ok: true, text: '' }, 2)
+    return current
+  }
+
+  it('cannot end with nothing said after a tool call', () => {
+    // The worst failure the conversation has: a tool that worked is the most
+    // convincing possible picture of a model still thinking, so until this
+    // was said the person waited on a spinner that had already stopped and
+    // then asked again for something that had already happened.
+    let current = quietTurn()
+    current = fromThinker(current, { type: 'quiet', tool: 'tade_status' }, 3)
+    current = fromThinker(current, { type: 'idle' }, 3)
+    // Read wide, so the one sentence is one line to assert on.
+    const lines = text(current, 200).join('\n')
+    expect(lines).toContain('ran status and ended the turn without saying anything')
+    // The half the person cannot get from a spinner.
+    expect(lines).toContain('is not still thinking')
+    expect(current.thinking).toBeNull()
+    // And the answer is a click away rather than a question to retype.
+    const asking = transcriptLines(current, 80, PLAIN, pointer, 0).find((line) =>
+      line.hits.some((hit) => hit.target.kind === 'action'),
+    )
+    expect(asking?.hits[0]?.target).toMatchObject({
+      name: expect.stringContaining('what did it answer'),
+    })
+  })
+
+  it('is not reported when the turn said something after its last tool call', () => {
+    // A "done" after every tool call is a sentence nobody can trust, which is
+    // worse than the silence it replaces.
+    let current = quietTurn()
+    current = fromThinker(current, { type: 'message', text: 'Nothing is running.' }, 3)
+    current = fromThinker(current, { type: 'idle' }, 3)
+    expect(text(current, 200).join('\n')).not.toContain('without saying anything')
+  })
+
+  it('is still reported when the words came before the tool call', () => {
+    // "Let me look at that" and then three tool calls and nothing is the same
+    // failure as silence from the start: what was said does not answer what
+    // the tools found, and the person watching cannot tell the two apart.
+    let current = thinking(youSaid(emptyTranscript(), 'plan the refunds work', 0), 0)
+    current = fromThinker(current, { type: 'message', text: 'Let me plan that.' }, 1)
+    current = fromThinker(current, { type: 'tool', id: '1', tool: 'tade_plan', input: {} }, 2)
+    current = fromThinker(current, { type: 'quiet', tool: 'tade_plan' }, 3)
+    expect(text(current, 200).join('\n')).toContain(
+      'ran plan and ended the turn without saying anything',
+    )
+  })
+
+  it('is reported even where a tool call is the only thing on screen', () => {
+    // What used to happen here: `fromTurn` counted a tool line as an answer,
+    // so a turn whose whole visible output was one tool call reached the end
+    // of the exchange looking answered and nothing was ever said about it.
+    const settled = fromTurn(quietTurn(), {
+      utterance: 'where are we',
+      intent: 'free',
+      reply: '',
+      task: null,
+      why: null,
+      at: 3,
+    })
+    expect(text(settled, 200).join('\n')).toContain('without saying anything')
+    expect(settled.thinking).toBeNull()
+  })
+})
+
 describe('a turn you stopped', () => {
   it('keeps everything it said, and stops saying it is thinking', () => {
     let current = thinking(youSaid(emptyTranscript(), 'run the webhook tests', 0), 0)

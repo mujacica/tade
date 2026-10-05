@@ -2,6 +2,7 @@ import { checksTold } from './checks.ts'
 import type { AgentWorkspace, ChecksConfig, Config } from './config.ts'
 import type { Note } from './memory.ts'
 import type { PushMode } from './project.ts'
+import { NEVER_GO_QUIET } from './quiet.ts'
 import { type Skill, skillText } from './skills.ts'
 
 // What the orchestrator is told about your world before it says anything.
@@ -49,6 +50,7 @@ const RULES = [
   'The other copy of what an agent printed is its own pane, which the person is already looking at: "it is in its pane, from about when it committed" is an answer, and so is asking them to read a line back. When neither the pane nor the harness has it any more, say the words are gone — a commit message is what an agent chose to write down, and reading back what it said out of one is inventing it.',
   'Record what somebody asks for in their own words. Never paraphrase an intent into a tidier one — their wording is the only thing nothing else can reconstruct.',
   'A message may open with what happened since you last heard from Tade. Their own words are what follows "What they said:"; only those are an intent to record. "Tade says:" is Tade telling you something that needs you now.',
+  NEVER_GO_QUIET,
   'Be terse. Spoken replies are heard through one earbud while somebody is walking.',
   'Lead with what you found, in a sentence or two: only the front of an answer is read out loud, and the rest is read on the screen. Code, paths and commands belong after it — nobody can hear a fence.',
   'When a request could mean more than one task, ask which. Never guess between two.',

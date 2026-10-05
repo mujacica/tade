@@ -1,3 +1,4 @@
+import { wentQuiet } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
 
 // The conversation with the orchestrator, as it happens.
@@ -50,6 +51,8 @@ export type ThinkerEvent =
   | { type: 'tool'; id: string; tool: string; input: unknown }
   | { type: 'progress'; id: string; text: string }
   | { type: 'tool_done'; id: string; ok: boolean; text: string }
+  /** The turn ended on this tool having said nothing after it. */
+  | { type: 'quiet'; tool: string }
   | { type: 'idle' }
   | { type: 'failed'; reason: string }
   | { type: 'error'; reason: string }
@@ -154,9 +157,14 @@ export function fromTurn(transcript: Transcript, turn: Turn): Transcript {
   }
   if (turn.intent === 'free') {
     const since = lastYou(transcript.entries)
+    // A tool line is working, not answering. Counting one as an answer is
+    // exactly how a turn that ended on a tool call got through here looking
+    // finished: there was something on screen, so nothing said the turn had
+    // gone quiet, and a tool that worked is the most convincing possible
+    // picture of a model still thinking.
     const answered = transcript.entries
       .slice(since + 1)
-      .some((entry) => entry.kind === 'said' || entry.kind === 'tool' || entry.kind === 'problem')
+      .some((entry) => entry.kind === 'said' || entry.kind === 'problem')
     const settled = { ...transcript, thinking: null }
     if (answered) return settled
     // You stopped it, so it saying nothing is the answer you asked for rather
@@ -243,6 +251,26 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
         result: event.text === entry.tool ? '' : event.text,
         progress: null,
       }))
+    case 'quiet': {
+      // The turn ended on a tool call and said nothing after it, which is the
+      // silence this whole conversation exists to prevent: without this line
+      // the spinner simply stops and the last thing on screen is a tool that
+      // worked, so the person waits a while and then asks again for something
+      // that already happened.
+      //
+      // Reported rather than answered, because only the turn that called the
+      // tool knows what it said — Tade putting a "done" here would be making
+      // one up, and a sentence nobody can trust is worse than silence. What
+      // it can do is put the words that ask for the answer one click away,
+      // rather than leaving the person to retype the question.
+      const tool = toolName(event.tool)
+      return suggest(
+        push(settleStreaming(transcript), { kind: 'problem', text: wentQuiet(tool), at }),
+        'ask it what it found',
+        `you ran ${tool} and then said nothing: what did it answer, and what did you decide?`,
+        at,
+      )
+    }
     case 'idle':
       return { ...settleStreaming(transcript), thinking: null }
     case 'failed':

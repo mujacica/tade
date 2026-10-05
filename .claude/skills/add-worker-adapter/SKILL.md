@@ -31,6 +31,12 @@ closes, which is the thing this design exists to avoid.
   provider's `reason`; anything else that goes wrong while the agent carries on (a retry, a harness
   extension that threw) is `problem`. Both end up in front of the person — the orchestrator's
   refusals once ended in silence, because nothing carried the reason.
+- **`idle` means the turn is over, not that it paused.** Tade reads it as the end, and a turn that
+  reaches it having last emitted `tool_call` with nothing said after is reported to the person as
+  having gone quiet (`NEVER_GO_QUIET`, `core/src/quiet.ts`) — the worst failure the conversation
+  has, because silence looks exactly like thinking. So say `idle` once a turn has finished and never
+  between a tool call and the words that follow it: too eager invents that failure, and never saying
+  it leaves somebody on a spinner for ever.
 - **A request a provider in between refuses is rewritten in the harness**, not worked around in the
   config: pi's are in `harnesses/pi/src/compat.ts`, loaded into every pi Tade starts, each with a
   test of the payload before and after.
