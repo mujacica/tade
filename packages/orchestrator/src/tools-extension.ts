@@ -281,10 +281,12 @@ export function orchestratorTools(
 
   tool(
     'tade_plan',
-    'Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade\'s queue until what they wait on has finished, then start by themselves. A plan may span repositories — give an agent its own project and it works there, and a wait may name a task in another project, which waits for it to finish and then starts from its own repository\'s base. When the whole plan is one change, give it an effort: a short name, which every task it makes carries, so "two of three repos done" is one question later. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.',
+    "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. A plan may span repositories — give an agent its own project and it works there, and a wait may name a task in another project, which waits for it to finish and then starts from its own repository's base. The plan's own project is the default for a plan that is all one repository, and an agent that names none is put there: so when the work spans two, give every agent its own project, including the ones in the plan's. A plan where one agent names another repository and another names none is refused. When the whole plan is one change, give it an effort: a short name, which every task it makes carries, so \"two of three repos done\" is one question later. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
     object(
       {
-        project: string('project name, as configured; where an agent works unless it says'),
+        project: string(
+          'project name, as configured: where an agent that names no project of its own is put, which is the default for a plan that is all one repository',
+        ),
         said: string('the whole request, word for word'),
         effort: string(
           'what to call this one change, lowercase with dashes, when the whole plan is one change across repositories or one of several streams in a repository',
@@ -295,7 +297,9 @@ export function orchestratorTools(
           items: object(
             {
               name: string('its task name, lowercase with dashes'),
-              project: string('the repository it works in, when not the plan’s own'),
+              project: string(
+                'the repository it works in; required of every agent in a plan that spans more than one, the plan’s own included',
+              ),
               said: string('the words of the request this agent covers, word for word'),
               prompt: string('what to tell the agent first'),
               done,

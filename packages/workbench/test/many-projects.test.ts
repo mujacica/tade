@@ -171,6 +171,9 @@ describe('a change that spans repositories', () => {
     agents: [
       {
         name: 'oauth-scopes',
+        // Said, not left to the plan's project: a plan that spans repositories
+        // has to name one per agent, and is refused when it does not.
+        project: 'api',
         said: 'widen the scopes',
         prompt: 'widen them',
         after: [],
@@ -216,6 +219,25 @@ describe('a change that spans repositories', () => {
       projects: ['api', 'cli'],
       intent_spoken: 'widen the oauth scopes and bump the client',
     })
+  })
+
+  it('refuses the whole plan when an agent leans on the plan’s project to span two', async () => {
+    // How the wrong-repository bug was written: a project on one agent, none
+    // on the other, and the other half made in the plan's project. Refused
+    // whole, naming the agent that said nothing, so neither task is made.
+    await expect(
+      client.planTasks({
+        ...plan,
+        agents: [
+          { ...(plan.agents[0] as (typeof plan.agents)[number]), project: undefined },
+          plan.agents[1] as (typeof plan.agents)[number],
+        ],
+      }),
+    ).rejects.toThrow(
+      /this plan spans api and cli, so every agent has to say which project it works in: oauth-scopes does not, and would be put in api/,
+    )
+    expect(existsSync(taskDir(home, 'api/oauth-scopes'))).toBe(false)
+    expect(existsSync(taskDir(home, 'cli/oauth-scopes'))).toBe(false)
   })
 
   it('refuses the whole plan when one of its repositories is not a project here', async () => {

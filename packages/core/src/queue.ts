@@ -473,7 +473,9 @@ export interface PlannedAgent {
    * The repository this one works in; the plan's own project when unsaid, so
    * every plan written before a plan could span repositories means what it
    * meant. A change that touches three repos is three agents naming three
-   * projects, and each is an ordinary task in an ordinary repository.
+   * projects, and each is an ordinary task in an ordinary repository. In a
+   * plan that reaches into more than one, every agent has to say: `checkPlan`
+   * refuses the plan rather than let the default route work to the wrong repo.
    */
   project?: string
   /** The words of the request this agent covers, verbatim. */
@@ -574,6 +576,20 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
   if (plan.agents.length === 0) problems.push('a plan needs at least one agent')
   if (plan.effort !== undefined && !NAME.test(plan.effort)) {
     problems.push(`"${plan.effort}" is not a name for the change: lowercase letters, digits, - . _`)
+  }
+  // Inheriting the plan's project is right where there is one answer and
+  // silently wrong the moment one agent names another repository: twice that
+  // put work in the wrong repo, and a task in the wrong project looks exactly
+  // like one somebody meant to put there. So it is refused, naming who said
+  // nothing (`change-the-queue`).
+  const inherit = plan.agents.filter((agent) => !agent.project)
+  if (
+    inherit.length > 0 &&
+    plan.agents.some((agent) => agent.project && agent.project !== plan.project)
+  ) {
+    problems.push(
+      `this plan spans ${joined(projectsIn(plan))}, so every agent has to say which project it works in: ${joined(inherit.map((one) => one.name))} ${inherit.length === 1 ? 'does' : 'do'} not, and would be put in ${plan.project}`,
+    )
   }
   // An agent's id is its own project's, so two agents may share a name only
   // when they are in different repositories — which is the ordinary shape of

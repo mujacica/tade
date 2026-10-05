@@ -129,6 +129,18 @@ declare const gateway: { refund(charge: string, amt: number): Promise<void> }
 `
 
 /**
+ * The other repository, because a plan that spans two is a question a world
+ * with one project cannot be asked — and routing an agent to the wrong one of
+ * two is the mistake this file exists to catch early.
+ */
+const CHECKOUT = `// The checkout page, which calls the payments API.
+
+export async function refund(charge: string, amt: number): Promise<void> {
+  await fetch('/api/refund', { method: 'POST', body: JSON.stringify({ charge, amt }) })
+}
+`
+
+/**
  * One question, put to a real orchestrator over a world of its own.
  *
  * Takes the test's own context rather than reaching for the imported
@@ -145,13 +157,15 @@ async function ask(
 ): Promise<Said> {
   const repo = mkrepo()
   repo.commit('the payments code', { 'src/pay.ts': PAY })
+  const site = mkrepo()
+  site.commit('the checkout page', { 'src/checkout.ts': CHECKOUT })
   const home = tmp('tade-live-')
   mkdirSync(home, { recursive: true })
   writeFileSync(
     join(home, 'config.yaml'),
-    `projects:\n  app:\n    root: ${repo.root}\norchestrator:\n  model: ${
-      process.env.TADE_LIVE_MODEL ?? 'claude-opus-5'
-    }\n`,
+    `projects:\n  app:\n    root: ${repo.root}\n  site:\n    root: ${
+      site.root
+    }\norchestrator:\n  model: ${process.env.TADE_LIVE_MODEL ?? 'claude-opus-5'}\n`,
   )
   const tade = await Workbench.open({ home })
   const asked: Asked = { queue: [], config: [] }
@@ -337,6 +351,29 @@ const CHOICES: readonly Choice[] = [
       ' charge_id and amount_cents. all three, please.',
     reaches: 'tade_plan',
     also: ({ world }) => expect(world.asked.queue.some((one) => one.change === 'plan')).toBe(true),
+  },
+  {
+    // Which project each agent works in is a field, and the plan's own is only
+    // the default: an agent that names none goes wherever that points, which
+    // is how two connected halves of one change both landed in one repository,
+    // twice. Nothing in the sentence names a field, so this passes only if the
+    // prompt and the description say the default is a default.
+    what: 'gives every agent its own project when a plan spans two repositories',
+    say:
+      'two things that have to go together: in app, move handleRefund into src/refund.ts and' +
+      ' re-export it from src/pay.ts; and in site, change src/checkout.ts to call the new path' +
+      ' once app has landed. plan them both, please.',
+    reaches: 'tade_plan',
+    also: ({ world }) => {
+      const planned = world.asked.queue.find((one) => one.change === 'plan')
+      const { agents } = (planned?.plan ?? { agents: [] }) as { agents: { project?: string }[] }
+      expect(agents.length).toBeGreaterThan(1)
+      // Every one of them says where it works, the one in the plan's own
+      // project included: inheriting is the half that goes wrong in silence,
+      // and a plan that leans on it is refused before anything is made.
+      expect(agents.filter((one) => one.project === undefined || one.project === '')).toEqual([])
+      expect([...new Set(agents.map((one) => one.project))].sort()).toEqual(['app', 'site'])
+    },
   },
   {
     // The other side of the same pair. A plan for a single change is a queue

@@ -321,7 +321,9 @@ describe('a plan that spans repositories, as it reaches the window', () => {
     })
     expect(made[0]?.effort).toBe('oauth-scopes')
     // Unsaid is absent, not empty: the plan's own project is the default, and
-    // an empty string would be a project nobody has.
+    // an empty string would be a project nobody has. Reading is all this does
+    // — a plan that spans repositories and leans on that default is refused by
+    // `checkPlan`, which is downstream of here and not what this is about.
     expect(made[0]?.agents[0]).not.toHaveProperty('project')
     expect(made[0]?.agents[1]?.project).toBe('cli')
     expect(made[0]?.agents[1]?.after).toEqual([{ agent: 'api/oauth-scopes', why: 'scopes first' }])

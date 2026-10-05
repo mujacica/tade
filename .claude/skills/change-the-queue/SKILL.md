@@ -88,6 +88,14 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   which fails in the good case and in the bad one finds a ref of that name that is somebody else's
   work entirely. A cross-repo wait is a wait on *when*, and the other repository's commits are not
   this one's to build on.
+- **The plan's own project is a default, and a plan that spans repositories may not lean on it.**
+  Where one agent names another repository and another names none, `checkPlan` refuses the plan and
+  names the ones that said nothing — because inheriting is right in a one-repo plan and silently
+  wrong the moment it is not, and a task in the wrong project looks exactly like one somebody meant
+  to put there. Twice a plan of two connected halves was written with a project on one agent and
+  none on the other, and the other half landed in the first's repository. The refusal is the second
+  line of defence: the prompt (`RULES`) and the tool's own description say the field is a default
+  before a model writes one, because what is only sometimes right reads like the answer.
 - **What a plan guessed is checked against the tree before anything starts.** `touches` is one
   reading of the code, made when the plan was written; by the time work is about to start, agents
   have been changing files for an hour. So the window looks (`lookAtTrees`) at the moment of

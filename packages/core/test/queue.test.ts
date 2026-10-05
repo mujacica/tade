@@ -475,14 +475,14 @@ describe('a plan', () => {
             after: [{ agent: 'api/oauth-scopes', why: 'the scopes land first' }],
             touches: ['src/auth.ts'],
           }),
-          agent('oauth-scopes', { touches: ['src/auth.ts'] }),
+          agent('oauth-scopes', { project: 'api', touches: ['src/auth.ts'] }),
         ],
       },
       context,
     )
     if (!check.ok) throw new Error(check.problems.join('; '))
     // The one in the plan's own project first, because the other waits on it.
-    expect(check.order.map((one) => `${one.project ?? 'api'}/${one.name}`)).toEqual([
+    expect(check.order.map((one) => `${one.project}/${one.name}`)).toEqual([
       'api/oauth-scopes',
       'cli/oauth-scopes',
     ])
@@ -494,6 +494,31 @@ describe('a plan', () => {
     expect(check.warnings).toEqual([])
   })
 
+  it('refuses a plan that spans repositories with an agent that says none, naming it', () => {
+    // The bug this is here for: two connected halves, one in each repository,
+    // written as a plan-level project and a project on one of the two agents.
+    // The other half inherits, which is silently the wrong repository — and a
+    // task in the wrong project looks exactly like one somebody meant.
+    const check = checkPlan(
+      {
+        project: 'api',
+        said: 'move the endpoint and change the page that calls it',
+        agents: [
+          agent('call-the-new-endpoint', { project: 'web' }),
+          agent('move-the-endpoint', {
+            after: [{ agent: 'web/call-the-new-endpoint', why: 'the page goes first' }],
+          }),
+        ],
+      },
+      context,
+    )
+    expect(check.ok).toBe(false)
+    if (check.ok) return
+    expect(check.problems).toEqual([
+      'this plan spans api and web, so every agent has to say which project it works in: move-the-endpoint does not, and would be put in api',
+    ])
+  })
+
   it('asks which one a bare name means when it could mean two repositories', () => {
     const check = checkPlan(
       {
@@ -502,7 +527,7 @@ describe('a plan', () => {
         agents: [
           agent('bump', { project: 'cli' }),
           agent('bump', { project: 'docs' }),
-          agent('after', { after: [{ agent: 'bump', why: 'needs it' }] }),
+          agent('after', { project: 'api', after: [{ agent: 'bump', why: 'needs it' }] }),
         ],
       },
       context,
@@ -520,7 +545,7 @@ describe('a plan', () => {
         project: 'api',
         said: '',
         agents: [
-          agent('shared', { done: 'merged' }),
+          agent('shared', { project: 'api', done: 'merged' }),
           agent('apart', { project: 'cli', done: 'merged' }),
         ],
       },
