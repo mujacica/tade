@@ -1,6 +1,6 @@
 ---
 name: cut-a-release
-description: Publish Tade to npm as `tade-sh` — how thirty-eight packages become one, why the types come off at publish, what a user's install runs, and the changelog, version, tag and workflow that do the rest. Use when somebody asks for a release, a version bump or a publish, and read it before changing anything under `scripts/release/`, either install script, or how a package declares its `exports`.
+description: Publish Tade to npm as `tade-sh` — how thirty-eight packages become one, why the types come off at publish, what a user's install runs, and the changelog, version, tag and workflow that do the rest. Use when somebody asks for a release, a version bump or a publish, and read it before changing anything under `scripts/release/`, the curl installer, either of the tarball's two install scripts, or how a package declares its `exports`.
 ---
 
 # Cutting a release
@@ -26,10 +26,8 @@ release does not add one: the types come off at publish and the repository still
 | `.github/workflows/ci.yml` | the gate itself, offered as `workflow_call` so the release runs *this* one |
 | `test/release.test.ts` | what the staged package, the exports map, the rewrite, the changelog and the workflow must be |
 | `test/build-tools.test.ts` | `missingFor`, `onPath`, `trouble`, and that the script is silent where it can build |
-| `scripts/release/homebrew.ts` | the second way in: `FORMULA`, `tarballUrl`, `descFor`, `className`, `formulaFor`, `sha256Of`, `tryIt`; `SCRATCH` |
-| `scripts/release/homebrew/tade.rb` | the formula itself — generated, never hand-edited |
-| `.github/workflows/homebrew.yml` | published → formula → built on macOS → a pull request on the tap |
-| `test/homebrew.test.ts` | what Homebrew's audit wants, the one decision in the formula, and that the workflow still waits for a workflow that exists |
+| `scripts/install.sh` | the curl one-liner: `PACKAGE`, `COMMAND`, `NEEDS_NODE`, `approval_for`, `npm_allows_scripts` |
+| `test/install.test.ts` | what it says before it runs, what it may never touch, and that its Node floor is still `engines.node` |
 
 ## The four commands
 
@@ -221,91 +219,100 @@ the same tarball, uploaded as artifacts and **published nowhere**.
 input are somebody's text, and a `run:` block with `${{ }}` in it is that text becoming the script;
 through the environment it stays an argument. `test/release.test.ts` holds the whole workflow to it.
 
-## Homebrew is a second way in, not a second thing to build
+## The four ways in are all the same package
 
-The formula installs the npm package. Its `url` is the very tarball `npm i -g tade-sh`
-downloads, so one publish feeds both ways in and nothing in Homebrew can be a different version
-of Tade than npm has. A formula that built from this repository would be a second release with
-its own gate to keep green, and nobody needs two.
+`tade-sh` on npm is the whole of what Tade publishes, and every way in installs it. There is
+nothing else to build, nothing else to version, and nothing anywhere that can be a different Tade
+than npm has.
 
 ```sh
-pnpm homebrew                  # regenerate the formula for what the manifest says, hash and all
-pnpm homebrew --version 0.2.0  # ... or for a version somebody has published
-pnpm homebrew --try            # build it from source and run its test block, then take it off again
+npm install -g tade-sh
+pnpm add -g tade-sh   && pnpm approve-builds -g
+bun add -g tade-sh    && bun pm -g trust --all
+curl -fsSL https://tade.sh/install.sh | sh
 ```
 
-`--try` is the only thing that proves it, and it is what the workflow runs on macOS. It needs a
-working toolchain: Homebrew always passes `--build-from-source`, because a bottle may not carry
-somebody else's prebuilt binary, so node-pty and better-sqlite3 are compiled. **Homebrew 7 refuses
-a formula that is not in a tap** — `brew install ./tade.rb` is gone — so `--try` makes a scratch
-tap (`SCRATCH`), builds in it, and removes the tap, the install and the trust entry afterwards
-whether the build worked or not.
+**The second command on the pnpm and bun lines is not decoration**, and neither is the flag the
+script passes for npm. All three managers hold a dependency's install scripts by default now, and
+under that node-pty is never built on Linux and never gets its `spawn-helper` bit back on macOS:
+the install goes green and `tade` cannot open a terminal. That is the worst shape a failure has
+here, because nothing says a word until the first lane — which is why `nativeTrouble` answers it in
+three managers' words, why the pnpm note is in the README's install section, and why the script
+below passes the approval flag rather than leaving it to be discovered.
 
-**The one decision in the file is `ignore_scripts: false`.** Homebrew's default is to ignore
-install scripts, and under it node-pty is never built and never gets its `spawn-helper` bit back:
-the install is green and `tade` cannot open a terminal.
+bun is the one that mostly looks after itself: node-pty and better-sqlite3 are both on bun's own
+default trusted list (`bun pm default-trusted`), so the two that matter run. `tade-sh` is not on
+it, which is what `--trust` is for — its postinstall is the `spawn-helper` bit.
 
-**It is not the only thing that decides whether they run.** npm 11.19 blocks a dependency's install
-scripts by default — its `allowScripts` policy — and says so in a warning rather than failing.
-Measured with Homebrew's own argument list on 2026-10-04: with it, node-pty's install script ran and
-there was no warning; with `--build-from-source` taken out of it and nothing else changed, five
-packages' scripts were skipped. So Homebrew's own flag is what carries it today, which is a thing
-nobody chose and npm could change. That is why the formula's `test do` block **loads node-pty**: it
-is the first thing that fails when this stops being true, and the alternative is an install that is
-green and a `tade` that cannot open a terminal.
+### `scripts/install.sh` is the curl one-liner, and it installs from npm like everything else
 
-### The three ways in, and which one this is
+It downloads no binary and builds nothing. It works out which of npm, pnpm or bun the machine has,
+prints the one command it is about to run, and runs it. Four rules, held by `test/install.test.ts`:
 
-- **A personal tap** — `mujacica/homebrew-tade`, your repository, no review, and what the
-  automation below targets. Install is **one command**, `brew install mujacica/tade/tade`: in
-  Homebrew 7 nothing outside Homebrew's own taps is trusted, and typing the tap's full name is
-  what grants it (`brew install tade` on its own is refused with `brew trust`). What it costs is
-  that nothing else maintains it — no bottles, so every user compiles; and when Homebrew moves
-  `node` to a new major, nothing rebuilds the formula against it, where core does that for you.
-- **homebrew-core** — `brew install tade`, bottles built for every platform, and the `node`
-  rebuild cascade handled. What it asks for is **notability**: roughly 30 forks, 30 watchers and
-  75 stars, or a maintainer convinced the project is widely used. A new repository is declined on
-  that alone, so this is the path for later and not for 0.1.1. Once in, **the bumps stop being
-  ours**: the formula's `registry.npmjs.org` URL is one Homebrew's own `Npm` livecheck strategy
-  reads, so BrewTestBot's autobump sees a new version where core has the formula on that list,
-  and where it does not a bump is one `brew bump-formula-pr tade` from anybody. The submission
-  itself is a person's pull request — fork homebrew-core, drop this file in at
-  `Formula/t/tade.rb`, run `brew audit --new --strict --online tade`, open one PR — and a bot
-  opening pull requests there is how a project gets asked to stop.
-- **A cask** is for a binary or an `.app` somebody downloads. Tade is a package installed from a
-  registry, so it is a formula. There is nothing to decide here.
+1. **It prints the exact command before running it**, and installs nothing it did not print — `$*`
+   then `"$@"`, with nothing in between. A script piped into a shell is a script nobody read, so
+   the one thing it must never be is a program whose effect you have to take on trust.
+2. **It never prompts.** `curl … | sh` gives the shell its stdin, so there is no terminal left to
+   read an answer from and a question is a hang. Everything that would be a choice is a flag with
+   a default (`--npm`/`--pnpm`/`--bun`, `--version`, `--dry-run`), and `TADE_INSTALL_WITH` and
+   `TADE_INSTALL_VERSION` are the same two for somebody who cannot reach `sh -s --`.
+3. **It changes nothing of the machine's but what the package manager changes.** No sudo, no shell
+   profile, no PATH written behind somebody's back — where the command lands off PATH it says
+   which directory and what to add. The test holds it to this by pattern, because the failure is
+   silent: nobody reads an installer afterwards.
+4. **It stays readable.** The budget in the test is on the lines that *do* something, so
+   explaining itself costs nothing, and it may go down and never up.
 
-### The automation, and what it needs once
+**The Node floor is written out rather than read**, because the script runs where `package.json` is
+not — and `test/install.test.ts` holds `NEEDS_NODE` to `engines.node`, so the two cannot drift. A
+floor that drifts turns somebody away from an install that would have worked.
 
-`.github/workflows/homebrew.yml` runs when `release` finishes green **on a tag** — not on a
-rehearsal from the Actions tab, which publishes nothing — and takes the version from the commit
-that release was cut from. It generates the formula, builds it from source on macOS and runs its
-test block, and only then opens a pull request on the tap. Running it from the Actions tab
-rehearses: same formula, same build, pushed nowhere.
+**Nothing here is proof that an install works** — the test spawns `sh` and never the network. What
+proves that is the release's own dry run, which installs the tarball and runs the `tade` inside it.
+Check a change to this script by running it: `sh scripts/install.sh --dry-run` says what it would
+do, and `npm install -g --prefix "$(mktemp -d)" …` with the line it prints installs for real
+without touching the machine's own global.
 
-It is a **separate workflow** on purpose. `release.yml` is held to reading no secret at all
-(`test/release.test.ts`): npm takes a short-lived token from GitHub, and a token in that file
-would be a long-lived credential in a workflow that needs none. Opening a pull request on another
-repository does need one. And it has to be able to run again on its own, because a tap pull request
-that was never opened is a thing to fix afterwards, and re-tagging a release is not.
+**The site serves a committed copy, and this file is the original.** `https://tade.sh/install.sh`
+is a static file out of tade-web's `public/`, kept current the way that repository already keeps
+Tade's screens — a sync script reading a Tade checkout, output committed, so the build needs no
+checkout and a change to the installer arrives there as a reviewable diff. Change this file and the
+site is behind until somebody runs that sync; the one-liner in the README is what it is serving.
 
-A person's, once, and nothing here can do it:
+### Windows is not a way in, and there is no `install.ps1`
 
-- **The tap** — a public repository called `homebrew-tade` on the account, with this formula at
-  `Formula/tade.rb`. Push the first copy by hand (`pnpm homebrew`, then commit it there); after
-  that the workflow keeps it current.
-- **`HOMEBREW_TAP`** — a repository *variable*, `mujacica/homebrew-tade`. Unset is the ordinary
-  state of a project with no tap, so the job warns and leaves the formula on the run as an
-  artifact rather than failing a release.
-- **`HOMEBREW_TAP_TOKEN`** — a repository secret: a fine-grained token on that tap with Contents
-  and Pull requests read/write. `GITHUB_TOKEN` cannot be used, because it reaches only this
-  repository. It is the one secret that workflow reads, and the test holds it to one.
-- **Merging** is yours, one click per release, which is the same rule as every other review here —
-  and the merge is what `brew upgrade` sees. Turn on auto-merge on the tap if you would rather not.
+The native dependencies are not the reason. node-pty ships win32 prebuilds and better-sqlite3
+ships prebuilds everywhere, so the install would succeed — and then the product would not run.
+Four things, each of which has to change first:
 
-**Say it in the README in the commit that makes it true**, in the install section and not before:
-`brew install mujacica/tade/tade`. Advertising a tap that does not exist yet is the one thing
-about this that cannot be taken back quietly.
+- **A lane is `/bin/sh`.** `workbench.ts`, the Claude adapter and the Codex adapter all spawn it by
+  path, and the drivers' conformance suite is written in it.
+- **Setup can only offer brew, apt and dnf** (`programs.ts`): there is no winget, choco or scoop,
+  so every missing program on Windows is a `cannot`.
+- **The resources extension says in as many words** that reading processes is not supported there.
+- **CI is ubuntu and macOS** (`ci.yml`), so nothing would catch a regression in any of it.
+
+A PowerShell one-liner before those is an install that completes and a `tade` that does not start,
+which is worse than no Windows tab at all. Say that, rather than offering it.
+
+### Homebrew was prepared and taken out again
+
+A formula and a tap workflow were built and then removed (`scripts/release/homebrew.ts`,
+`scripts/release/homebrew/tade.rb`, `.github/workflows/homebrew.yml`, `test/homebrew.test.ts`, and
+the two sections of this recipe that are now this one). Nothing was published and no tap exists, so
+nothing out there points at it. It is written down because the formula was *good* — it installed the
+npm tarball rather than building from source, so one publish fed both ways in — and somebody will
+otherwise rebuild it from scratch to learn the same two things:
+
+- **`ignore_scripts: false`** is the one decision in such a formula; Homebrew's default skips
+  install scripts, and under it node-pty never gets built. The same problem as the three package
+  managers above, with a fourth answer.
+- **homebrew-core wants notability** — roughly 30 forks, 30 watchers, 75 stars — and declines a new
+  repository on that alone. A personal tap needs its full name typed (`brew install
+  mujacica/tade/tade`) under Homebrew 7, maintains itself for nobody, and bottles nothing.
+
+It came out because four ways in are enough and a fifth was a second thing to keep green. If it
+comes back, `git show f85e4f1` is the whole of it.
 
 ## What a user's install runs is node-pty, twice
 
@@ -446,8 +453,10 @@ was added. `test/release.test.ts` fails if a `secrets.` reference appears in tha
   for the reason above. `pnpm tade` still runs the `.ts` and always will.
 - **Do not put a `package.json` inside a package's shipped tree**, and do not answer a resolution
   problem by adding one. It becomes the closest package scope and self-reference stops working.
-- **Do not add a third install script**, and do not make either of the two do anything but what it
-  does. A user's install runs what a user's install needs: node-pty, twice.
+- **Do not add a third script to the tarball**, and do not make either of the two do anything but
+  what it does. A user's install runs what a user's install needs: node-pty, twice. (The curl
+  installer is not one of these. It is a *bootstrap* — it runs before there is a package, off the
+  website rather than out of the tarball, and `ON_INSTALL` does not name it.)
 - **Do not publish from a laptop.** `npm publish` by hand has no gate behind it, no provenance and
   no record. The tag is the way.
 - **Do not put a release commit in the changelog.** `pnpm release` writes `Release X.Y.Z` and
@@ -461,6 +470,8 @@ was added. `test/release.test.ts` fails if a `secrets.` reference appears in tha
   else. Add it there, and expect the `check()` pass to have an opinion.
 - **A new dependency** — declare it on the package that imports it, make sure no other package
   declares a different range, and run `pnpm notices`.
+- **The curl installer** — `test/install.test.ts`, and run it: `sh scripts/install.sh --dry-run`.
+  Anything the website quotes changes in tade-web's own commit, by its sync, and not by hand.
 - **The rewrite, the exports map, the refusals or either install script** — `test/release.test.ts`
   and `test/build-tools.test.ts` hold the parts that would otherwise break quietly: what
   `liveTrouble` refuses and what satisfies it, what the published manifest says (down to

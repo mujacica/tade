@@ -403,24 +403,40 @@ make Tade ask for more, never less, and what you hear is Tade's own sentence, ne
 
 ## Installing
 
+Four ways in, all the same npm package. Whichever you use, the command is `tade`.
+
 ```sh
 npm install -g tade-sh
+pnpm add -g tade-sh  && pnpm approve-builds -g
+bun add -g tade-sh   && bun pm -g trust --all
+curl -fsSL https://tade.sh/install.sh | sh     # picks whichever of the three you have
 tade
 ```
+
+The one-liner installs `tade-sh` from npm like the others — it downloads no binary and builds
+nothing. It prints the exact command before it runs it, never asks a question, and touches nothing
+but what your package manager touches; it is a short file you can read first, at
+[tade.sh/install.sh](https://tade.sh/install.sh) or in this repository at
+[`scripts/install.sh`](scripts/install.sh). **Windows is not supported yet**, which is why there is
+no PowerShell line: `tade` would install and then not run.
+
+**The second command on the pnpm and bun lines is the one people miss.** Both hold a dependency's
+install scripts until you say so, and so does npm from 11.19 — which is why the one-liner passes
+`--allow-scripts` for you. Two of the things Tade is built on are native (node-pty, which is every
+terminal it opens, and better-sqlite3), and an unbuilt node-pty is a Tade that cannot open a
+terminal. Setup recognises that and tells you how to fix it, rather than leaving it to be found at
+the first lane.
 
 Needs Node ≥ 22.19 and git. The first `tade` is a short setup: it looks at the machine, offers to
 install what is missing — the exact command on screen first, run in a terminal you are watching —
 and ends by opening a lane, running a command in it and closing it, so that "all set" means a
 terminal that actually opened. `tade setup --check` does the same whenever you want to be sure.
 
-What it is looking for, in case you would rather do it yourself. Two of the things Tade is built on
-are native — node-pty, which is every terminal it opens, and better-sqlite3 — and they arrive
+What it is looking for, in case you would rather do it yourself. The two native dependencies arrive
 prebuilt on macOS and are compiled on Linux, which needs python3 and a C++ toolchain
-(`build-essential`, or `gcc-c++ make python3`). Installing with pnpm, add `pnpm approve-builds -g`:
-pnpm 10 holds a dependency's install scripts until you say so, and an unbuilt node-pty is a Tade
-that cannot open a terminal — which setup recognises and tells you how to fix, rather than leaving
-it to be found at the first lane. Optional: tmux (agents that outlive the window), whisper.cpp and
-ffmpeg (speech), `gh` (pull request state); setup offers to install each where you want it.
+(`build-essential`, or `gcc-c++ make python3`). Optional: tmux (agents that outlive the window),
+whisper.cpp and ffmpeg (speech), `gh` (pull request state); setup offers to install each where you
+want it.
 
 ## Contributing
 

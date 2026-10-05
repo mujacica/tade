@@ -34,7 +34,6 @@
     "screens": "node packages/app/scripts/screens.ts",
     "notices": "node scripts/notices.ts",
     "changelog": "node scripts/release/changelog.ts",
-    "homebrew": "node scripts/release/homebrew.ts",
     "stage": "node scripts/release/stage.ts",
     "release": "node scripts/release/release.ts"
   },
