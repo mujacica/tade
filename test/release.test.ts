@@ -42,6 +42,9 @@ describe('the publish directory', () => {
     engines: Record<string, string>
     dependencies: Record<string, string>
     scripts: Record<string, string>
+    homepage: string
+    repository: { url: string }
+    bugs: { url: string }
   }
 
   it('is one package, under the name that was free on npm', () => {
@@ -55,6 +58,17 @@ describe('the publish directory', () => {
 
   it('says which Node it needs, because it is the Node that strips no types', () => {
     expect(manifest.engines.node).toBe('>=22.19')
+  })
+
+  // The three links npm draws are three different claims, and only one of them
+  // is about where somebody should be sent to read about Tade. `homepage` was
+  // the README's own anchor, so every Homepage click on the npm page landed on
+  // the forge; the site is the answer to that, and the forge keeps the two
+  // fields that really are about the forge.
+  it('sends its homepage to the site and keeps the forge links on the forge', () => {
+    expect(manifest.homepage).toBe('https://tade.sh')
+    expect(manifest.repository.url).toBe('git+https://github.com/mujacica/tade.git')
+    expect(manifest.bugs.url).toBe('https://github.com/mujacica/tade/issues')
   })
 
   it('runs nothing on install but the two things a user needs, and ships both', () => {
