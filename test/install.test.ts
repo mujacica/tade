@@ -177,8 +177,13 @@ describe('what it will not touch', () => {
 })
 
 describe('a dry run', () => {
-  // The three install lines in full, which is what the website's tabs and the
-  // README both quote. If one of these changes, those change with it.
+  // The three install lines in full: what the script passes on a person's
+  // behalf, and **not** what anybody quotes. The README and the site quote the
+  // short forms — `npm install -g tade-sh`, with `pnpm approve-builds -g` or
+  // `bun pm -g trust --all` beside the other two — and the flags below are the
+  // whole reason the one-liner is worth having. Putting these four lines on a
+  // page would be quoting the wrong thing; an agent syncing the site nearly
+  // did, off an earlier version of this comment.
   const expected: Record<string, string> = {
     npm: `npm install --global --allow-scripts=${PUBLISHED},node-pty,better-sqlite3 ${PUBLISHED}`,
     pnpm: `pnpm add --global --allow-build=${PUBLISHED} --allow-build=node-pty --allow-build=better-sqlite3 ${PUBLISHED}`,
