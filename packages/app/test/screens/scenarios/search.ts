@@ -11,6 +11,9 @@ const stripeTree = {
   task: 'checkout/stripe-v15',
 }
 
+/** Where `~` points in these pictures, as everywhere else in them. */
+const HOME = '/Users/me'
+
 /** What search shows for a query, from the same function the window uses. */
 function searched(query: string, meant?: readonly SearchEntry[]): SearchEntry[] {
   const agents: SearchEntry[] = [
@@ -78,6 +81,7 @@ function searched(query: string, meant?: readonly SearchEntry[]): SearchEntry[] 
             text: '- `pnpm test` runs everything, webhooks included',
           },
         ],
+    home: HOME,
     ...(meant ? { meant } : {}),
   })
 }
@@ -94,6 +98,9 @@ function mightMean(): SearchEntry[] {
 /** What somebody typed that no letter of matches anything Tade has. */
 const A_SENTENCE = 'stop whoever is doing the stripe upgrade'
 
+/** A path to a document no project indexes, as it would be pasted in. */
+const A_PATH = '~/.tade/projects/checkout/tasks/stripe-v15/research.md'
+
 export const SEARCH_SCREENS: Scenario[] = [
   {
     name: 'searching',
@@ -109,6 +116,24 @@ export const SEARCH_SCREENS: Scenario[] = [
     state: { ...base(), panel: { ...searchPanel(A_SENTENCE), index: 0 } },
     frame: frame({
       panel: { entries: searched(A_SENTENCE, mightMean()), searching: false },
+    }),
+  },
+  {
+    name: 'searching-a-path',
+    about:
+      'A path pasted in: a document an agent wrote under Tade\u2019s own home, in no project and in no worktree, offered as the one row they asked for \u2014 above everything the letters found, and opened in the same viewer every other file opens in.',
+    state: { ...base(), panel: searchPanel(A_PATH) },
+    frame: frame({
+      panel: {
+        entries: searchResults(A_PATH, {
+          entries: [],
+          files: [],
+          matches: [],
+          home: HOME,
+          look: { path: `${HOME}${A_PATH.slice(1)}`, is: 'file' },
+        }),
+        searching: false,
+      },
     }),
   },
   {

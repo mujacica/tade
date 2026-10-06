@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS ╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮▾     ×   
+          │ ⌕ ~/.tade/projects/checkout/tasks/stripe-v15/research.md▏                                        │──────────
+ ▌ ! strip│     @ agents     # in files     > actions                                file:42 goes to a line  │          
+ ▌   wants│                                                                                                  │          
+          │ THIS PATH  1                                                                                    ▕│          
+   ⠋ refun│▌ □ research.md  …/projects/checkout/tasks/stripe-v15                                            ▕│          
+     worki│                                                                                                 ▕│          
+          │                                                                                                 ▕│          
+ ▸ SMART Q│                                                                                                 ▕│          
+ ▸ SCHEDUL│                                                                                                 ▕│          
+ ▾ CHANGES│                                                                                                 ▕│          
+  M packag│                                                                                                 ▕│          
+  A …/webh│                                                                                                 ▕│          
+  M src/we│                                                                                                 ▕│          
+          │                                                                                                 ▕│          
+ ▾ FILES  │                                                                                                 ▕│          
+   ▾ src/ │                                                                                                 ▕│          
+       web│                                                                                                 ▕│          
+       web│                                                                                                 ▕│          
+   ▸ test/│                                                                                                 ▕│          
+     packa│                                                                                                 ▕│          
+━   orches│                                                                                                 ▕│     ▾   ━
+          │                                                                                                 ▕│          
+          │                                                                                                 ▕│         ▕
+          │                                                                                                 ▕│         ▕
+          │                                                                                                  │         ▕
+          │ ↑↓ move · tab completes · enter opens · esc closes                                               │         ▕
+ ❯ what yo╰──────────────────────────────────────────────────────────────────────────────────────────────────╯         ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

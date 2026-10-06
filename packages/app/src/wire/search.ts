@@ -1,20 +1,22 @@
+import { access, constants, stat } from 'node:fs/promises'
 import { expandHome, type SettingGroup, settingLabel } from '@tade/core'
 import { grep, listFiles, type Match, type SearchRoot } from '../finder.ts'
 import type { Frame } from '../frame.ts'
 import { happeningIn, happeningOn } from '../happening.ts'
 import type { Target } from '../hits.ts'
+import { askedAbout, shortlist, worthAsking } from '../meant.ts'
 import { focusTask, glyph, MARK_TONES, markOf, notice, projects } from '../model.ts'
 import { searchPanel } from '../panels/search/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
 import {
-  askedAbout,
+  looksLikePath,
+  type PathLook,
   parseOpenId,
   parseQuery,
+  pathTyped,
   type SearchEntry,
   searchResults,
-  shortlist,
   TEXT_MIN,
-  worthAsking,
 } from '../search.ts'
 import { doing } from '../view/rows.ts'
 import { type Actions, type Subject, type Submits, type Wiring, why } from './context.ts'
@@ -53,6 +55,18 @@ const GREP_AFTER_MS = 150
 
 /** How long after the last keystroke a sentence is put to anybody. */
 const ASK_AFTER_MS = 250
+
+/**
+ * How long a look at a path somebody typed may go unanswered before the row
+ * says so.
+ *
+ * A `stat` of a local file is microseconds; a `stat` of one on a mount that has
+ * gone away answers to nothing at all. Nothing is waiting on it — the row is
+ * drawn either way and nothing here blocks — so what the deadline buys is the
+ * row *saying* `cannot tell` rather than sitting silent, because a look that
+ * could not say is not a look that found nothing.
+ */
+const PROBE_MS = 500
 
 /** What this subject needs from the rest of the window. */
 export interface SearchDeps {
@@ -102,6 +116,14 @@ export class Search implements Subject {
   private files: { at: number; files: { root: SearchRoot; path: string }[] } | null = null
   /** What each terminal has printed, read when search opens. */
   private terminalTexts: { id: string; name: string; project: string; text: string }[] = []
+  /**
+   * What a look at a typed path found, and which path it was about. Kept by
+   * path rather than by query, so backspacing the `:42` off the end does not
+   * look again at a file that has not moved.
+   */
+  private looked: { path: string; is: PathLook } | null = null
+  /** The path a look has been started for: whose answers are still wanted. */
+  private looking: string | null = null
 
   constructor(wire: Wiring, deps: SearchDeps) {
     this.wire = wire
@@ -132,6 +154,7 @@ export class Search implements Subject {
    */
   opened(): void {
     this.lookInFiles()
+    this.lookAtPath()
     this.askWhatIsMeant()
   }
 
@@ -176,6 +199,7 @@ export class Search implements Subject {
     const matches = this.grepped.text === text ? this.grepped.matches : []
     const key = [
       panel.query,
+      this.looked ? `${this.looked.path}\u0001${this.looked.is}` : '',
       this.meant?.said === panel.query ? this.meant.entries.length : -1,
       this.files?.at ?? 0,
       this.grepped.text,
@@ -196,6 +220,10 @@ export class Search implements Subject {
           files: this.files?.files ?? [],
           matches,
           terminals: this.terminalTexts,
+          // Core's own reading of what `~` means, so the box and a project
+          // root in the config cannot disagree about where home is.
+          home: expandHome('~'),
+          look: this.looked,
           ...(this.meant?.said === panel.query ? { meant: this.meant.entries } : {}),
         }),
       }
@@ -220,6 +248,10 @@ export class Search implements Subject {
       query.line
     )
       return
+    // A path somebody named outright is not text to look for inside files:
+    // `git grep` across every worktree for an absolute path finds nothing, in
+    // every repository at once, on every keystroke.
+    if (looksLikePath(panel.query)) return
     if (text === this.grepped.text || text === this.grepping) return
     if (this.grepTimer) clearTimeout(this.grepTimer)
     this.grepTimer = setTimeout(() => {
@@ -234,6 +266,48 @@ export class Search implements Subject {
         this.wire.draw()
       })
     }, GREP_AFTER_MS)
+  }
+
+  /**
+   * Look at the path in the box: is it there, is it a file, can it be read.
+   *
+   * A `stat` and an `access`, and not a byte of the file. A path somebody
+   * pasted is as likely to be a key as a document, and what the row needs to
+   * say is what it *is* — reading one to find out would be Tade opening a
+   * credential file because somebody typed where it was. The read happens when
+   * the row is chosen, which is the whole of what makes this explicit
+   * navigation and not an index of your home directory.
+   *
+   * Nothing waits on it: the row is already drawn, and the answer fills its
+   * note in a frame or two.
+   */
+  lookAtPath(): void {
+    const panel = this.wire.state.panel
+    if (panel?.kind !== 'search') return
+    const found = pathTyped(panel.query, expandHome('~'))
+    if (!found) return
+    const path = found.path
+    if (this.looked?.path === path || this.looking === path) return
+    this.looking = path
+    // The deadline *says* something rather than ending the look: a path on a
+    // mount that is thinking about it reads `cannot tell` and then the truth,
+    // where giving up would have left it `cannot tell` for as long as the
+    // box held it — a wrong answer about a file that opens perfectly well.
+    const late = setTimeout(() => this.tell(path, 'unknown'), PROBE_MS)
+    late.unref?.()
+    void look(path).then((is) => {
+      clearTimeout(late)
+      this.tell(path, is)
+    })
+  }
+
+  /** What a look found, taken only while that path is still the one asked about. */
+  private tell(path: string, is: PathLook): void {
+    // They have typed since, and are asking about something else.
+    if (this.looking !== path) return
+    this.looked = { path, is }
+    this.results = null
+    this.wire.draw()
   }
 
   /**
@@ -532,4 +606,27 @@ export class Search implements Subject {
 /** What is happening about something, where there is anything to say. */
 function about(said: string | undefined): { about?: string } {
   return said ? { about: said } : {}
+}
+
+/**
+ * What a path is, as the disk answers.
+ *
+ * Never throws: every way a path can fail to be a readable file is one of
+ * these five answers, and `unknown` — a look that could not say — is a
+ * different thing from `missing` and is said as one.
+ */
+async function look(path: string): Promise<PathLook> {
+  try {
+    const found = await stat(path)
+    if (found.isDirectory()) return 'folder'
+    // Being there is not being readable, and `stat` answers about a file whose
+    // mode says no.
+    await access(path, constants.R_OK)
+    return 'file'
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return 'missing'
+    if (code === 'EACCES' || code === 'EPERM') return 'unreadable'
+    return 'unknown'
+  }
 }

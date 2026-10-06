@@ -7,6 +7,7 @@ import type { Match, SearchRoot } from './finder.ts'
 // and grepping them is `finder.ts`, and carrying a choice out is the app's.
 
 export type SearchKind =
+  | 'path'
   | 'approval'
   | 'meant'
   | 'agent'
@@ -54,6 +55,7 @@ export interface SearchEntry {
 
 /** The groups results are shown in, in this order, and what each is called. */
 export const GROUPS: readonly { kind: SearchKind; title: string }[] = [
+  { kind: 'path', title: 'THIS PATH' },
   { kind: 'approval', title: 'WAITING ON YOU' },
   { kind: 'meant', title: 'MIGHT MEAN' },
   { kind: 'agent', title: 'AGENTS' },
@@ -167,10 +169,218 @@ export interface SearchSources {
    * everything else here, so choosing one does what choosing it always did.
    */
   meant?: readonly SearchEntry[]
+  /**
+   * Your home directory, so `~/notes.md` in the box means the file you meant.
+   * Taken rather than read, because this file is a function of what it is
+   * handed; `expandHome('~')` is where the window gets it.
+   */
+  home?: string | null
+  /**
+   * What a look at the path in the box found, and which path it was about.
+   * Absent until the look has answered — and a look about a path that is no
+   * longer typed is not an answer about this one.
+   */
+  look?: { path: string; is: PathLook } | null
+}
+
+// ── A path somebody named outright ──────────────────────────────────────────
+//
+// Everything else here is a ranking of what Tade already has, which is every
+// project and every worktree and nothing else. A path pasted in is the other
+// thing: an agent wrote a document under Tade's own home and said where it
+// put it, and the answer to "open that" may not be "Tade does not index that
+// folder, so no".
+//
+// It is one row and nothing more. Naming a file is not asking for the folder
+// it is in to be listed, so nothing is indexed, nothing is read until the row
+// is chosen, and nothing about it is put to anybody who reads a sentence
+// (`isSentence`, `meant.ts`) — a path is not a sentence however many spaces
+// somebody's folders have in their names.
+
+/** What a look at a typed path found, or why it could not say. */
+export type PathLook = 'file' | 'folder' | 'missing' | 'unreadable' | 'unknown'
+
+/** A path somebody named outright, as they typed it and as it resolves. */
+export interface TypedPath {
+  /** As typed, with a shell's quotes and escapes taken off: what the row says. */
+  typed: string
+  /** Absolute, with `~` expanded: what is looked at and what is opened. */
+  path: string
+  line: number | null
+  column: number | null
+}
+
+/**
+ * A path as somebody pasted it: the quotes a shell would have put round one
+ * with a space in it taken off, and the backslash it would have escaped the
+ * space with.
+ *
+ * Only a space is unescaped. A backslash anywhere else in a path is part of
+ * the name, and a path with one in it comes through quoted.
+ */
+function unquoted(text: string): string {
+  const quoted = /^(['"])(.*)\1$/.exec(text)
+  if (quoted?.[2] !== undefined) return quoted[2]
+  return text.replace(/\\ /g, ' ')
+}
+
+/** Whether it starts the way only a path does: at the root, or at your home. */
+function rooted(text: string): boolean {
+  return text.startsWith('/') || text === '~' || text.startsWith('~/')
+}
+
+/**
+ * Whether what is in the box is somebody naming a file outright rather than
+ * describing one.
+ *
+ * Only in the unnarrowed box: `#/api/v1` is text to look for inside files and
+ * has been since before any of this, so the scope decides first.
+ */
+export function looksLikePath(raw: string): boolean {
+  const query = parseQuery(raw)
+  return query.scope === 'all' && rooted(unquoted(query.text))
+}
+
+/**
+ * The path in the box, if there is one — absolute, and at the line asked for.
+ *
+ * `~` needs the home to resolve, so a `~/…` path with none given is not a path
+ * anybody here can place and is left alone rather than resolved against
+ * nothing: `/x` and `~/x` are different files and only one of them is a guess.
+ */
+export function pathTyped(raw: string, home: string | null): TypedPath | null {
+  const query = parseQuery(raw)
+  if (query.scope !== 'all') return null
+  const typed = unquoted(query.text)
+  if (!rooted(typed)) return null
+  if (typed.startsWith('~')) {
+    if (!home) return null
+    // Stripped of its trailing slash so the join cannot double one — which
+    // leaves nothing at all where home *is* the root, and then `~` is `/`.
+    const root = home.replace(/\/+$/, '')
+    return {
+      typed,
+      path: typed === '~' ? root || '/' : `${root}/${typed.slice(2)}`,
+      ...place(query),
+    }
+  }
+  return { typed, path: typed, ...place(query) }
+}
+
+function place(query: Query): { line: number | null; column: number | null } {
+  return { line: query.line, column: query.column }
+}
+
+/** The last part of a path: what the row is called. */
+function nameOf(path: string): string {
+  const trimmed = path.replace(/\/+$/, '')
+  const at = trimmed.lastIndexOf('/')
+  const name = at < 0 ? trimmed : trimmed.slice(at + 1)
+  return name === '' ? path : name
+}
+
+/** Everything above it, as it was typed: where the row says it is. */
+function folderOf(path: string): string {
+  const trimmed = path.replace(/\/+$/, '')
+  const at = trimmed.lastIndexOf('/')
+  if (at < 0) return ''
+  return at === 0 ? '/' : trimmed.slice(0, at)
+}
+
+/**
+ * How much of that folder the row says.
+ *
+ * Bounded, and that is the whole of why: a row that does not fit drops its
+ * right-hand group *whole* (`Row.build`), and the right-hand group is where
+ * this row says whether the file is there at all. Drawn in full, a folder
+ * sixty characters deep — which is what every path under Tade's home is —
+ * left a row naming a file and saying nothing about it, on an eighty-column
+ * terminal, in exactly the case this feature exists for.
+ *
+ * The folder is also the one thing on this row nobody needs telling: they
+ * pasted it, and the end of it is still in the box above. So it is the half
+ * that gives way, from its left, by whole segments, saying that it did.
+ *
+ * One number rather than the room there is, because this is the entry and the
+ * entry is a value: a row that says less than a wide window could have shown
+ * is a cosmetic loss, and a row whose answer fell off the edge is the bug.
+ */
+const FOLDER_CELLS = 36
+
+function shortFolder(folder: string): string {
+  if (folder.length <= FOLDER_CELLS) return folder
+  const parts = folder.split('/').filter((part) => part !== '')
+  let shown = ''
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const next = shown === '' ? (parts[i] ?? '') : `${parts[i]}/${shown}`
+    if (next.length + 2 > FOLDER_CELLS) break
+    shown = next
+  }
+  // One segment longer than the whole budget: cut that from its left too,
+  // which is where a path's least telling half is.
+  return shown === '' ? `…${folder.slice(1 - FOLDER_CELLS)}` : `…/${shown}`
+}
+
+/**
+ * What the row says about what the look found.
+ *
+ * A file that is there and readable says nothing: the row being there is the
+ * whole of it, and a note under every ordinary path is a word read a hundred
+ * times. The other four are each their own answer — `unknown` included, which
+ * is a look that could not say and never a look that found nothing.
+ */
+const SAYS: Record<PathLook, string | null> = {
+  file: null,
+  folder: 'folder',
+  missing: 'not there',
+  unreadable: 'cannot read',
+  unknown: 'cannot tell',
+}
+
+const TONES: Record<PathLook, SearchEntry['tone']> = {
+  file: 'busy',
+  folder: 'hint',
+  missing: 'bad',
+  unreadable: 'bad',
+  unknown: 'hint',
+}
+
+/**
+ * The one row a typed path makes: its name, the folder it is in as they typed
+ * it, and what a look at it found.
+ *
+ * Drawn before the look has answered (`look` null), because search is what
+ * answers instantly and a row that waits for a stat is a row that flickers.
+ * What it opens is the same `open` the FILES rows carry, so choosing it is the
+ * same act as choosing a file in a project: the viewer, at the line, with its
+ * own words for a file that is a folder, gone, unreadable or binary.
+ *
+ * It carries no `about`, and that is not an omission: nothing about a path
+ * somebody pasted leaves this machine.
+ */
+export function pathEntry(found: TypedPath, look: PathLook | null): SearchEntry {
+  const said = look ? SAYS[look] : null
+  const where = shortFolder(folderOf(found.typed))
+  const note = [found.line ? `line ${found.line}` : null, said].filter(Boolean).join(' · ')
+  return {
+    id: openId(found.path, found.line, found.column),
+    kind: 'path',
+    label: nameOf(found.typed),
+    ...(where ? { detail: where } : {}),
+    ...(note ? { note } : {}),
+    mark: look === 'folder' ? '▸' : '□',
+    tone: look ? TONES[look] : 'busy',
+    // Tab tidies what was pasted into the path it resolves to.
+    complete: found.path,
+    hits: [],
+  }
 }
 
 /** How many of each kind to show when not narrowed to it. */
 const SHOWN: Record<SearchKind, number> = {
+  // One path was typed, so there is one row: a count here would be a cap on
+  // an answer that cannot have a second.
+  path: 1,
   approval: 5,
   meant: 4,
   agent: 6,
@@ -208,6 +418,16 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
   const out: SearchEntry[] = []
   for (const group of GROUPS) {
     if (!wanted(group.kind)) continue
+    if (group.kind === 'path') {
+      // Never fuzzy-matched either: they typed the path, so there is nothing
+      // to rank and nothing to light.
+      const found = pathTyped(raw, sources.home ?? null)
+      if (found) {
+        const look = sources.look?.path === found.path ? sources.look.is : null
+        out.push(pathEntry(found, look))
+      }
+      continue
+    }
     if (group.kind === 'meant') {
       // Never fuzzy-matched: the letters not matching is why anybody was asked.
       out.push(
@@ -369,199 +589,6 @@ function terminalResults(
     }
   }
   return out.slice(0, limit)
-}
-
-// ── Asking, rather than matching ────────────────────────────────────────────
-//
-// Everything above matches letters. A sentence is not letters to match — "stop
-// whoever is on the refunds thing" shares almost none of its characters with
-// "Stop refunds", and fuzzy is right to find nothing. So when somebody writes
-// a sentence, what is already in the list can be put to somebody who reads
-// sentences — *alongside* whatever the letters found, never instead of it.
-//
-// The division is deliberate: code does the recall — which handful of the
-// things Tade can do are worth putting to anybody — and whoever answers does
-// the precision. Nothing here invents an entry, and nothing here runs one.
-//
-// What is put forward is a name, where it is, and what is happening about it
-// (`about`), which is the half that makes this answer "what is going on" and
-// not only "which of these names". It is also the half that leaves the
-// machine, so how much of it does is bounded here and whether any of it does
-// at all is a person's (`surfaces.search.context`).
-
-/** Words a sentence carries that say nothing about what is wanted. */
-const NOISE = new Set([
-  'a',
-  'an',
-  'and',
-  'are',
-  'can',
-  'do',
-  'for',
-  'from',
-  'i',
-  'in',
-  'is',
-  'it',
-  'me',
-  'my',
-  'of',
-  'on',
-  'or',
-  'please',
-  'that',
-  'the',
-  'this',
-  'to',
-  'up',
-  'was',
-  'what',
-  'where',
-  'which',
-  'with',
-  'you',
-])
-
-/** Short of this, a sentence is a prefix somebody is still typing. */
-export const SENTENCE_MIN = 8
-
-/**
- * The words of a sentence that say anything about what is wanted.
- *
- * One reading, read twice: by what picks the shortlist out, and by what
- * decides whether the letters already answered. Two readings of "which words
- * does this sentence carry" is how the two halves come to disagree about the
- * same sentence.
- */
-export function wordsIn(raw: string): string[] {
-  return parseQuery(raw)
-    .text.toLowerCase()
-    .split(/[^a-z0-9]+/i)
-    .filter((word) => word.length >= 3 && !NOISE.has(word))
-}
-
-/** Whether what is in the box is a sentence rather than the start of a name. */
-export function isSentence(raw: string): boolean {
-  const { scope, text } = parseQuery(raw)
-  if (scope === 'text') return false
-  return text.length >= SENTENCE_MIN && text.trim().split(/\s+/).length >= 2
-}
-
-/**
- * Whether asking anybody is worth it: a sentence, and nothing came back that is
- * plainly the whole of it.
- *
- * It used to be "and the letters matched nothing at all", which is too tight in
- * exactly the way that matters. A sentence is long and a name is short, so what
- * a sentence matches is never the name and is always letters scattered down
- * some long label — the letters of `what the run` are all in
- * `Telemetry › What the brief counts`, in order, and mean nothing by it. One
- * such match was enough to silence the question for good: over three-word
- * sentences made of the words somebody would actually type, 418 of them came
- * back with one weak match apiece and were never asked about.
- *
- * So what counts as an answer is every word of the sentence that carries
- * meaning, said outright in one row's own name (`answered`). Anything short of
- * that, the question is still worth putting.
- *
- * Asking alongside is safe because what comes back only ever *adds* rows: the
- * letters keep everything they found and the order they found it in. Lines
- * inside files never counted and still do not — a sentence that appears in
- * somebody's code is not an answer to what they asked for.
- */
-export function worthAsking(raw: string, found: readonly SearchEntry[]): boolean {
-  if (!isSentence(raw)) return false
-  const words = wordsIn(raw)
-  return !found.some(
-    (entry) => entry.kind !== 'file' && entry.kind !== 'match' && answered(words, entry),
-  )
-}
-
-/**
- * Whether one row is plainly the whole of what was typed: every word of it
- * that carries any meaning, said outright in that row's own name.
- *
- * Two words at least, and that is the whole of the difference between this and
- * what it replaced. One word of a sentence found is a word found — "what is
- * the coverage" leaves `coverage`, and an agent called `coverage` answering it
- * is exactly the guess that made this feature necessary. Every word of it in
- * one name is somebody typing the name of a thing, which is already the first
- * row of the list.
- */
-function answered(words: readonly string[], entry: SearchEntry): boolean {
-  if (words.length < 2) return false
-  const name = `${entry.label} ${entry.detail ?? ''}`.toLowerCase()
-  return words.every((word) => name.includes(word))
-}
-
-/** How far above a name spelling a word, what is happening saying it outright counts. */
-const SAID = 1_000
-
-/**
- * How well one word of a sentence picks an entry out: what its name spells,
- * and a long way above that, what is happening about it saying that word in so
- * many letters.
- *
- * This is the recall half, and it is where the whole of "search knows what is
- * happening" lives: `coverage` is in the name of nothing and in what one agent
- * is doing, so without this the shortlist is a list of names and whoever reads
- * it is being asked to guess.
- */
-function picks(word: string, entry: SearchEntry): number | null {
-  const named = fuzzy(word, `${entry.label} ${entry.detail ?? ''}`)
-  if ((entry.about ?? '').toLowerCase().includes(word)) return (named?.score ?? 0) + SAID
-  return named?.score ?? null
-}
-
-/**
- * The few things worth putting to somebody, for a sentence the letters could
- * not place: whatever each word of it finds, and then the things Tade can do,
- * in the order it already keeps them — which is what needs you, then what you
- * can do here, then everything else.
- */
-export function shortlist(
-  raw: string,
-  entries: readonly SearchEntry[],
-  most: number,
-): SearchEntry[] {
-  const words = wordsIn(raw)
-  const picked = new Map<string, SearchEntry>()
-  for (const word of words) {
-    const ranked = entries
-      .map((entry) => ({ entry, score: picks(word, entry) }))
-      .filter((one) => one.score !== null)
-      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-      .slice(0, 3)
-    for (const { entry } of ranked) if (!picked.has(entry.id)) picked.set(entry.id, entry)
-  }
-  // Topped up in the order the window keeps them, so a sentence whose words
-  // match nothing at all is still answered with the things there are to do
-  // rather than with nothing.
-  for (const entry of entries) {
-    if (picked.size >= most) break
-    if (entry.kind === 'file' || entry.kind === 'match') continue
-    if (!picked.has(entry.id)) picked.set(entry.id, entry)
-  }
-  return [...picked.values()].slice(0, most)
-}
-
-/**
- * How much of what is happening goes with one choice.
- *
- * A bound, because a shortlist is two dozen choices and every one of them
- * carries a paragraph: what one ask costs is this times that, and a number
- * nobody wrote down is a number that grows. Enough for what a thing is and
- * what is being done to it; the rest is on screen, where somebody is already
- * looking.
- */
-export const ABOUT_ASKED = 300
-
-/** What is happening about something, as much of it as one ask carries. */
-export function askedAbout(about: string | undefined): string | undefined {
-  if (!about) return undefined
-  const said = about.replace(/\s+/g, ' ').trim()
-  if (said === '') return undefined
-  return said.length <= ABOUT_ASKED ? said : `${said.slice(0, ABOUT_ASKED)}…`
 }
 
 /** What opening a file at a place is called, for the app to take apart again. */

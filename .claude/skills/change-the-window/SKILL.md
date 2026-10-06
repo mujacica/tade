@@ -32,7 +32,8 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `plan-graph.ts` | A plan as boxes and lines: a column per step of the resolved tree (`drawPlan`, `treeStems`, `drawWhy`) | a terminal |
 | `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
 | `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
-| `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion, and the shortlist put to whoever reads a sentence | a disk or git |
+| `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion, and the one path somebody named outright | a disk or git |
+| `meant.ts` | What happens when the letters were not enough: whether what was typed is a sentence, whether it was already answered, and the shortlist put to whoever reads one | a disk or git |
 | `finder.ts` | What search looks through: `git ls-files` and `git grep`, and parsing both | — (a real repo) |
 | `happening.ts` | What is happening about each thing search can go to (`happeningOn`, `happeningIn`) | a terminal |
 | `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line | a terminal |
@@ -799,6 +800,27 @@ the window's.
   every name match, with the line that said it shown as the row's `preview` so it says why it is there;
   and the **shortlist** counts a word said outright in it far above a name that merely spells that word,
   which is where `coverage` finding the agent raising it actually happens.
+- **A path somebody names outright is one row, and never a folder Tade went and read.** Everything
+  else search ranks is what Tade already has — every project, every worktree — and a document an agent
+  wrote under Tade's own home is in neither, so "open the research you just wrote" had no answer at
+  all. An absolute or `~/` path in the box (`looksLikePath`, `pathTyped`) is therefore its own group,
+  **above every other**, and that position is the point: pressing enter on a pasted path must never
+  approve somebody's tool call. Nothing is indexed, nothing is grepped for it, and **nothing is read
+  until the row is chosen** — a `stat` says whether it is a file, a folder, gone or unreadable, which
+  is what the row needs and all of it, because a path pasted in is as likely to be a key as a
+  document. Chosen, it goes through the same `open` id the FILES rows carry, into the same viewer,
+  with that viewer's own words for a file that is binary, truncated, gone or a folder. It is not the
+  project's and is never given a diff or a base: `loadFileDiff` already refuses a file outside the
+  checkout, and `openFile` asks git nothing. And it is **never a sentence** (`isSentence` asks
+  `looksLikePath` first), which is the one guard that keeps a pasted path and everything under it away
+  from whoever reads one.
+- **A result row that does not fit drops its right-hand group whole** (`Row.build`), so what the row
+  says at its right edge is only said while the rest of it is short enough. The folder a path is in is
+  sixty characters under Tade's home, and drawn in full it took `not there` off the edge — a row
+  naming a file and saying nothing about it, in exactly the case the feature exists for. So the folder
+  is the half that gives way (`shortFolder`), from its left, by whole segments, saying that it did:
+  they pasted it and it is still in the box above, where the answer is the half nobody could have
+  known.
 - **`about` is the half that leaves the machine**, which is exactly the text telemetry may never send.
   That is a trade somebody has to be able to see and undo, so the switch is the *window's*, not the
   extension's (`surfaces.search.context`) — a rule that lives in the code that reads the text bounds one

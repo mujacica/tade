@@ -1,18 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { ABOUT_ASKED, askedAbout, isSentence, shortlist, worthAsking } from '../src/meant.ts'
 import {
-  ABOUT_ASKED,
-  askedAbout,
   completed,
   fuzzy,
   GROUPS,
-  isSentence,
+  looksLikePath,
   openId,
+  type PathLook,
   parseOpenId,
   parseQuery,
+  pathTyped,
   type SearchEntry,
   searchResults,
-  shortlist,
-  worthAsking,
 } from '../src/search.ts'
 
 // What search finds, from made-up sources: no disk, no git.
@@ -320,5 +319,125 @@ describe('what is happening, as something the letters can find', () => {
     const long = askedAbout('a'.repeat(ABOUT_ASKED + 50)) ?? ''
     expect(long).toHaveLength(ABOUT_ASKED + 1)
     expect(long.endsWith('…')).toBe(true)
+  })
+})
+
+describe('a path somebody named outright', () => {
+  // Not under any of the roots above: the point of this is a file search has
+  // never heard of, which is where everything an agent writes about its own
+  // work lives.
+  const HOME = '/Users/sam'
+  const RESEARCH = `${HOME}/.tade/projects/tade/tasks/remote-cloud-multiplayer-research/research.md`
+  const sources = { entries, files, matches: [], home: HOME }
+
+  /** The one row a path makes, with a look at it that has or has not answered. */
+  const rowFor = (raw: string, look?: { path: string; is: PathLook }) =>
+    searchResults(raw, { ...sources, ...(look ? { look } : {}) }).filter(
+      (entry) => entry.kind === 'path',
+    )
+
+  it('is read off an absolute path, and opened where it is', () => {
+    const [row] = rowFor(RESEARCH)
+    expect(row?.label).toBe('research.md')
+    expect(parseOpenId(row?.id ?? '')).toEqual({ path: RESEARCH, line: null, column: null })
+    // Above everything else, because it is the one thing they asked for
+    // outright: a path pasted in must never be a row below an approval.
+    expect(GROUPS[0]).toEqual({ kind: 'path', title: 'THIS PATH' })
+  })
+
+  it('expands ~ against the home it is handed, and says the folder as it was typed', () => {
+    const [row] = rowFor(
+      '~/.tade/projects/tade/tasks/remote-cloud-multiplayer-research/research.md',
+    )
+    expect(parseOpenId(row?.id ?? '')?.path).toBe(RESEARCH)
+    // And tab tidies it into the path it actually means.
+    expect(row?.complete).toBe(RESEARCH)
+  })
+
+  it('leaves a ~ path alone where nobody said where home is', () => {
+    expect(pathTyped('~/notes.md', null)).toBeNull()
+    expect(pathTyped('~/notes.md', '')).toBeNull()
+    // An absolute one needs nobody's help.
+    expect(pathTyped('/notes.md', null)?.path).toBe('/notes.md')
+    // A home with a trailing slash, and the one that is nothing but one.
+    expect(pathTyped('~/notes.md', `${HOME}/`)?.path).toBe(`${HOME}/notes.md`)
+    expect(pathTyped('~/notes.md', '/')?.path).toBe('/notes.md')
+    expect(pathTyped('~', '/')?.path).toBe('/')
+  })
+
+  it('takes a pasted path with spaces in it, quoted or escaped', () => {
+    const quoted = rowFor(`'${HOME}/My Documents/a note.md'`)[0]
+    expect(parseOpenId(quoted?.id ?? '')?.path).toBe(`${HOME}/My Documents/a note.md`)
+    const escaped = rowFor(`${HOME}/My\\ Documents/a note.md`)[0]
+    expect(parseOpenId(escaped?.id ?? '')?.path).toBe(`${HOME}/My Documents/a note.md`)
+    expect(escaped?.label).toBe('a note.md')
+  })
+
+  it('says the end of the folder, short enough to leave room for the answer', () => {
+    // Whole segments from the end, saying it was cut. Drawn in full, this
+    // folder is sixty characters and the row drops `not there` off its right
+    // edge — which is the one thing on it nobody could have known.
+    expect(rowFor(RESEARCH)[0]?.detail).toBe('…/remote-cloud-multiplayer-research')
+    expect(rowFor('~/.tade/x/research.md')[0]?.detail).toBe('~/.tade/x')
+    // What they typed, not what it resolved to: that is the half they recognise.
+    expect(rowFor(`${HOME}/notes.md`)[0]?.detail).toBe(HOME)
+    expect(rowFor('~/notes.md')[0]?.detail).toBe('~')
+    expect(rowFor('/notes.md')[0]?.detail).toBe('/')
+    const row = rowFor(RESEARCH, { path: RESEARCH, is: 'missing' })[0]
+    expect(`${row?.label}  ${row?.detail}  ${row?.note}`.length).toBeLessThan(66)
+  })
+
+  it('goes to a line at the end of it', () => {
+    const [row] = rowFor(`${RESEARCH}:120`)
+    expect(parseOpenId(row?.id ?? '')).toEqual({ path: RESEARCH, line: 120, column: null })
+    expect(row?.note).toBe('line 120')
+  })
+
+  it('says what a look at it found, and nothing until one has', () => {
+    const says = (is: PathLook) => rowFor(RESEARCH, { path: RESEARCH, is })[0]
+    expect(rowFor(RESEARCH)[0]?.note).toBeUndefined()
+    expect(says('file')?.note).toBeUndefined()
+    expect(says('folder')).toMatchObject({ note: 'folder', mark: '▸', tone: 'hint' })
+    expect(says('missing')).toMatchObject({ note: 'not there', tone: 'bad' })
+    expect(says('unreadable')).toMatchObject({ note: 'cannot read', tone: 'bad' })
+    // A look that could not say is its own answer, never "nothing is there".
+    expect(says('unknown')).toMatchObject({ note: 'cannot tell', tone: 'hint' })
+    expect(rowFor(`${RESEARCH}:120`, { path: RESEARCH, is: 'missing' })[0]?.note).toBe(
+      'line 120 · not there',
+    )
+  })
+
+  it('ignores a look that was about some other path', () => {
+    expect(rowFor(RESEARCH, { path: '/somewhere/else.md', is: 'missing' })[0]?.note).toBeUndefined()
+  })
+
+  it('is never a sentence, and never carries anything about itself', () => {
+    const said = `${HOME}/My Documents/the refunds double charge/notes.md`
+    expect(looksLikePath(said)).toBe(true)
+    // Three words and a space apiece: the one thing that keeps a pasted path
+    // out of everything that reads a sentence.
+    expect(isSentence(said)).toBe(false)
+    expect(worthAsking(said, [])).toBe(false)
+    expect(rowFor(said)[0]?.about).toBeUndefined()
+  })
+
+  it('leaves ordinary search alone', () => {
+    expect(looksLikePath('readme')).toBe(false)
+    expect(looksLikePath('src/webhooks.ts')).toBe(false)
+    // Narrowed to text, a leading slash is text to look for inside files.
+    expect(looksLikePath('#/api/v1')).toBe(false)
+    expect(rowFor('#/api/v1')).toEqual([])
+    expect(rowFor('webhooks')).toEqual([])
+    // And what search always found, it still finds.
+    expect(
+      searchResults('webhooks', sources)
+        .map((entry) => entry.label)
+        .slice(0, 1),
+    ).toEqual(['src/webhooks.ts'])
+    expect(searchResults('', sources).map((entry) => entry.kind)).toEqual([
+      'agent',
+      'action',
+      'setting',
+    ])
   })
 })

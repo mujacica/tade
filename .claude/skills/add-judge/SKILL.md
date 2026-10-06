@@ -29,7 +29,7 @@ Everything below is one rule read at different distances: **a judge answers, it 
 | `packages/extensions/jev/src/precision.ts` | whether a question earns its place: `ENOUGH`, `worthOf`, `precisionOf` |
 | `packages/extensions/jev/src/reviews.ts` | `reviews.jsonl` — readings, accounts and verdicts, the one thing that cannot be asked again |
 | `packages/core/src/policy.ts` | `withCaution`: the only thing a reading may do to a command |
-| `packages/app/src/search.ts` | `isSentence`, `worthAsking`, `shortlist`, `wordsIn`: the recall a judge adds precision to |
+| `packages/app/src/meant.ts` | `isSentence`, `worthAsking`, `shortlist`, `wordsIn`: the recall a judge adds precision to |
 
 ## Adding an implementation
 
