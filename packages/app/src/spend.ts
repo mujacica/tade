@@ -2,7 +2,9 @@ import {
   accountBucket,
   type Budget,
   type BudgetVerdict,
+  CHATS,
   checkBudget,
+  isChatTask,
   modelIn,
   modelsSaid,
   noSpend,
@@ -103,8 +105,12 @@ export const SPEND_BY: readonly { id: SpendBy; label: string }[] = [
 
 export interface SpendRow {
   label: string
-  /** The orchestrator, a task, a project, a model, a harness, a sign-in or a provider. */
-  kind: 'orchestrator' | 'task' | 'project' | 'model' | 'harness' | 'account' | 'provider'
+  /**
+   * The orchestrator, a chat, a task, a project, a model, a harness, a
+   * sign-in or a provider. A chat is its own kind because it is neither: no
+   * project is its, and no task either.
+   */
+  kind: 'orchestrator' | 'chat' | 'task' | 'project' | 'model' | 'harness' | 'account' | 'provider'
   /** What it mostly ran on, where that means anything. */
   model: string | null
   tokens: number
@@ -278,10 +284,15 @@ export function spendView(
 
   let rows: SpendRow[]
   if (opts.by === 'project') {
+    // Two of these buckets are not projects and must not be drawn as one.
+    // `elsewhere` is what a figure with no task at all files under, which is
+    // the orchestrator's own turns; `chats` is the reserved first segment
+    // every chat's task carries, so what the agents nobody opened a project
+    // for cost has its own row and no repository's name on it.
     rows = keysOf(report.byProject, ran.byProject).map((project) =>
       rowOf({
         label: project === 'elsewhere' ? 'orchestrator' : project,
-        kind: project === 'elsewhere' ? 'orchestrator' : 'project',
+        kind: project === 'elsewhere' ? 'orchestrator' : project === CHATS ? 'chat' : 'project',
         spend: report.byProject[project],
         runtime: ran.byProject[project] ?? null,
       }),
@@ -323,7 +334,9 @@ export function spendView(
       ...keysOf(report.byTask, ran.byTask).map((task) =>
         rowOf({
           label: task,
-          kind: 'task',
+          // Its id either way, because that is what steers and stops it —
+          // only what kind of thing the row is about differs.
+          kind: isChatTask(task) ? 'chat' : 'task',
           model: models.get(task) ?? null,
           spend: report.byTask[task],
           runtime: ran.byTask[task] ?? null,

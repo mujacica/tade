@@ -310,6 +310,12 @@ describe('the window, and the lanes in it', () => {
     const tabRow = rows.findIndex((line) => line.includes('orchestrator') && line.includes('━'))
     const row = rows[tabRow] ?? ''
     click(row.indexOf('+', row.indexOf('orchestrator')), tabRow)
+    // The `+` offers a shell or an agent with no task now, and a terminal is
+    // the first item, which is where a menu opens.
+    await until('the menu', () =>
+      screenOf(terminal.written).some((line) => line.includes('Terminal')),
+    )
+    terminal.press('\r')
     await until('a terminal', () => client.terminals('app').length === 1)
     await until('its tab', () => terminal.written.includes('terminal 1'))
     // The keyboard is in it now: typed keys are the shell's.

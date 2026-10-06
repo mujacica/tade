@@ -259,6 +259,34 @@ regions in a cycle now.
   holds, so the two can never disagree about where the selection reaches — and it is laid over what the
   viewer drew, in its cells (`onLine`, `laidOver`), never in a second reading of how the body slid.
 
+## The lower pane: the orchestrator, terminals, and chats
+
+Three kinds of thing share one row of tabs, and only the first has no lane: the orchestrator runs
+headlessly in another process, a terminal is a shell, and a **chat** is an agent with no task
+(`core/src/chat.ts`, `workbench/src/chats.ts`). Everything the pane already does — the lane the
+keyboard is on, the capture and its scrollback, the bar, a selection dragged over it, find, the split
+— works on whichever is in front, because all of it is keyed on the lane id in `state.bottom` and
+nothing else. **Add a kind here by making it a tab, not by making a second pane.**
+
+- **A chat's tab is in `state.terminals` like a terminal's, and what makes it a chat is its id.**
+  `isChatLane` reads that; `terminalsOf` keeps it under every project because its `project` is `''`,
+  which is a chat *having* no project rather than being filed under one. A second state field for a
+  second kind of tab would be a second answer to "what is in front".
+- **The `+` is a menu** (`bottom-new`, `bottomNewItems`), because one button cannot mean two things.
+  **ctrl+t still opens a terminal without asking**, and the menu says so on that item — a key that
+  used to do something must not become a key that asks. A menu is the only way to *choose* a
+  harness, so the `new-chat` action and its `run:new-chat` row in the search box are the typed path
+  to one in the default harness: a click here still has to be something you could have typed.
+- **A chat's own `≡` offers less, and what it leaves out is the point** (`chatMenuItems`): nothing
+  runs a command in it, nothing clears it, and nothing renames it, because its name is its harness
+  and its number and the number is what the orchestrator steers it by. Its Close says *the
+  conversation stays* — Tade never held the conversation, so closing is `stopAgent` and nothing else.
+- **A chat needs no working mark on its tab, and the orchestrator does.** The orchestrator has no
+  lane, so `onATurn` is the only way to see it is thinking; a chat's screen is right there under its
+  tab. A mark would be a second vocabulary for what the pane already shows.
+- **Nothing in the window decides where a chat stands or what it is told.** Both are `openChat`'s,
+  which is the one door, so the orchestrator's tool and the `+` make the same decisions.
+
 ## Lanes that draw their own screen
 
 A program on the alternate screen — Claude Code, an editor a shell was pointed at — keeps no

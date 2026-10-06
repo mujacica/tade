@@ -1,3 +1,4 @@
+import { CHATS, isChatTask } from './chat.ts'
 import type { TadeEvent } from './events.ts'
 
 // What is worth interrupting you for.
@@ -175,7 +176,10 @@ export function summarise(events: TadeEvent[]): string {
   }
   const clauses = [...byTask.entries()].map(([task, group]) => {
     const worst = [...group].sort((a, b) => LOUDNESS[baseChannel(b)] - LOUDNESS[baseChannel(a)])[0]!
-    const name = task === 'elsewhere' ? 'something' : task.split('/').at(-1)
+    // A task's own slug is the name somebody knows it by; a chat's last
+    // segment is a number, and "1 finished" names nothing anybody can place.
+    const last = task.split('/').at(-1)
+    const name = task === 'elsewhere' ? 'something' : isChatTask(task) ? `${CHATS} ${last}` : last
     return `${name} ${describeEvent(worst)}`
   })
   const count = events.length

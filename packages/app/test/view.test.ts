@@ -807,8 +807,10 @@ describe('the bottom panel and its handles', () => {
     expect(hits.some((hit) => hit.target.kind === 'divider' && hit.target.edge === 'sidebar')).toBe(
       true,
     )
+    // `+` is a menu rather than an act: the lower pane holds a shell or an
+    // agent with no task, and one button cannot mean both.
     expect(
-      hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'new-terminal'),
+      hits.some((hit) => hit.target.kind === 'menu' && hit.target.subject.kind === 'bottom-new'),
     ).toBe(true)
     // The terminal's screen is what shows, and clicking it is for typing into.
     expect(rows.join('\n')).toContain('$ pnpm test')

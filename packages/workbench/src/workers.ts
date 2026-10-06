@@ -39,7 +39,7 @@ export interface StartRunRequest {
   prompt: string
   run?: RunId
   model?: WorkerModel
-  /** Boundary for policy: writes inside routine, outside not. `cwd` — the task's — unless said. */
+  /** Policy boundary: writes inside routine, outside not. Empty is none (`chats.ts`); `cwd` unless said. */
   worktree?: string
   /** What extensions add to it: instructions, tools, harness-native pieces. */
   extras?: WorkerExtras
@@ -974,10 +974,10 @@ export class WorkerSupervisor {
     state: RunState | undefined,
     decided: Approval,
   ): Promise<{ approval: Approval; caution: Caution | null }> {
-    // Nothing to read about, or nothing to read it against: a run whose task
-    // and worktree we have lost is one nothing can be said about safely.
+    // Nothing to read about, or nothing to read it against: a run whose task or
+    // state we lost. An *empty* worktree is not that — it owns no files.
     if (!this.askCaution || decided.tier === 'hard') return { approval: decided, caution: null }
-    if (!task || !state?.worktree) return { approval: decided, caution: null }
+    if (!task || state?.worktree === undefined) return { approval: decided, caution: null }
     const input = (signal.input ?? {}) as Record<string, unknown>
     const command = ['command', 'script', 'cmd']
       .map((key) => input[key])

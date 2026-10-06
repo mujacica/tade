@@ -41,6 +41,7 @@ export const RESERVED: readonly string[] = [
   'agent',
   'approvals',
   'approve',
+  'chat',
   'deny',
   'done',
   'limits',

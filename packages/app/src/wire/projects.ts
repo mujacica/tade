@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { basename } from 'node:path'
 import {
+  CHATS,
   type Config,
   expandHome,
   LINES_LOOKED_BACK,
@@ -559,6 +560,11 @@ export class Projects implements Subject {
       throw new Error('A name is lowercase letters, digits and dashes.')
     if (this.wire.opts.config.projects[name])
       throw new Error(`There is already a project called ${name}. Choose another name.`)
+    // The one name that is Tade's own: every chat's task begins with it, which
+    // is how a chat's spend and its runtime find a bucket of their own. A
+    // project called the same thing would share it (`core/src/chat.ts`).
+    if (name === CHATS)
+      throw new Error(`${CHATS} is Tade's own name for its chats. Choose another name.`)
     const there = whatIsAt(full)
     if (there === 'something') throw new Error(`${tilde(full)} is not a folder.`)
     if (there === 'nothing') {

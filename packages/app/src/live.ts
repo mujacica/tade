@@ -39,7 +39,7 @@ import {
 } from '@tade/core'
 import type { LaneScreen, PointerReport, WheelTurn } from '@tade/drivers-core'
 import { collectStatus, git } from '@tade/status'
-import { terminalsFrom, type Workbench } from '@tade/workbench'
+import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
 import { checksAt } from '@tade/workbench/checks'
 import { livenessFrom } from '@tade/workbench/lane-liveness'
 import type { LaneRecord } from '@tade/workbench/registry'
@@ -157,7 +157,10 @@ export interface LiveOptions {
    * listener's business.
    */
   onWork?: (task: { id: string; project: string; worktree: string; title: string }) => void
-  /** The terminals open now, whoever opened them: the window, the orchestrator, or voice. */
+  /**
+   * Every tab the lower pane has beside the orchestrator's, whoever opened
+   * one: the terminals, and the chats, which carry no project.
+   */
   onTerminals?: (terminals: { id: string; project: string; name: string }[]) => void
 }
 
@@ -995,8 +998,15 @@ export class Live {
           }
         }
       }
+      // Chats first, then this project's terminals: the two conversations in
+      // the lower pane — the orchestrator's tab and the chats — sit together,
+      // and the terminals stay next to the `+` that makes another.
       this.opts.onTerminals?.(
-        terminalsFrom(lanes).map(({ id, project, name }) => ({ id, project, name })),
+        [...chatsFrom(lanes), ...terminalsFrom(lanes)].map(({ id, project, name }) => ({
+          id,
+          project,
+          name,
+        })),
       )
       this.met = []
       this.queue = []

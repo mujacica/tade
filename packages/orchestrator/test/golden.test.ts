@@ -58,6 +58,8 @@ describe('the tools the orchestrator has', () => {
       'tade_agent_thinking',
       'tade_approvals',
       'tade_approve',
+      'tade_chat_list',
+      'tade_chat_open',
       'tade_deny',
       'tade_done',
       'tade_limits',

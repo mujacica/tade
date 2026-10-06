@@ -19,6 +19,8 @@ export type MenuSubject =
   | { kind: 'branch' }
   /** A terminal's tab. */
   | { kind: 'terminal'; id: string }
+  /** The `+` at the end of the lower pane's tabs: what to open there. */
+  | { kind: 'bottom-new' }
   /** Pictures dropped or pasted on the window, waiting to be given to someone. */
   | { kind: 'images'; paths: string[] }
   /** Which harness an agent runs in. */
@@ -74,6 +76,53 @@ export interface MenuItem {
   danger?: boolean
   /** A rule above it. */
   divider?: boolean
+}
+
+/**
+ * What the `+` at the end of the lower pane's tabs offers: a shell, or an
+ * agent to talk to in one of the harnesses this machine has.
+ *
+ * A menu rather than a second button, because the two are the same act — open
+ * something in the lower pane — and because the harnesses are a list that
+ * grows. A harness that cannot run here keeps its row with the reason
+ * (`off`), the way the harness picker does: a choice that silently is not
+ * there teaches nobody why.
+ */
+export function bottomNewItems(
+  harnesses: readonly { id: string; title: string; about: string; ready: boolean }[],
+): MenuItem[] {
+  return [
+    { id: 'terminal', label: 'Terminal', note: 'ctrl+t' },
+    ...harnesses.map((harness, at) => ({
+      id: `chat:${harness.id}`,
+      label: harness.title,
+      ...(at === 0 ? { divider: true } : {}),
+      ...(harness.ready ? {} : { off: harness.about }),
+    })),
+  ]
+}
+
+/**
+ * What can be done with a chat, from its tab.
+ *
+ * Shorter than a terminal's by what a chat is not. Nothing runs a command in
+ * it — you type at it, and the orchestrator steers it. Nothing clears it: the
+ * screen is a conversation. Nothing renames it either, because its name is
+ * its harness and its id, and the id is what the orchestrator steers it by.
+ *
+ * Closing says what closing does. The agent ends; the conversation it was
+ * having is its harness's and stays exactly where it is, which is the one
+ * thing somebody hesitating over this item wants to know.
+ */
+export function chatMenuItems(split = false): MenuItem[] {
+  return [
+    { id: 'find', label: 'Find…' },
+    split
+      ? { id: 'unsplit', label: 'Unsplit', divider: true }
+      : { id: 'split-beside', label: 'Split: a new terminal beside', divider: true },
+    ...(split ? [] : [{ id: 'split-below', label: 'Split: a new terminal below' }]),
+    { id: 'close', label: 'Close', note: 'the conversation stays', danger: true, divider: true },
+  ]
 }
 
 /** What can be done with a terminal, from its tab. */

@@ -125,6 +125,39 @@
     }
   },
   {
+    "name": "tade_chat_list",
+    "description": "The chats open in the lower pane: agents with no task and no project. Each comes with the id that steers and stops it (tade_steer, tade_run_stop), what it is called on its tab, the harness it runs in and the folder it is standing in.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_chat_open",
+    "description": "Open a chat: an agent in the lower pane with no task, no project, no branch and nothing to commit — for asking about this machine, or researching something that is nobody's repository. Use it when somebody wants an agent to talk to rather than work done: \"give me an agent\", \"open me a claude\", \"I just want to ask something\". Not for work on a project — that is a task with an agent in it (tade_task_create, tade_run_start) — and not instead of a terminal, which runs commands rather than answering. It starts in their home folder unless you say otherwise, and it costs money like any other agent: say which harness you opened and that stopping it is tade_run_stop with the id it comes back with.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "harness": {
+          "type": "string",
+          "description": "which agent to talk to: pi, claude-code or codex. The default unless said"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "what to ask it first, in their words. Leave it out to just open one"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "a folder for it to look at, when they named one. Work on a project is a task with an agent in it, never a chat standing in its checkout"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_deny",
     "description": "Refuse a waiting command, telling the agent why.",
     "parameters": {

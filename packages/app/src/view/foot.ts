@@ -163,7 +163,14 @@ export function bottomTabs(
     row.space().tab(terminal.name, target, on, pointingIn(state.hover, [target, menu, close]))
     row.icon('×', close, 'danger').icon('≡', menu)
   }
-  row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
+  // A menu rather than the act it used to be: the lower pane holds two kinds
+  // of thing now — a shell, and an agent with no task to talk to — and one
+  // button cannot mean both. ctrl+t still opens a terminal without asking,
+  // which is why the menu says so beside it.
+  row
+    .space()
+    .button('+', { kind: 'menu', subject: { kind: 'bottom-new' } }, 'add')
+    .space()
 
   const controls = (r: Row) => {
     if (activeTerminal(state)) {

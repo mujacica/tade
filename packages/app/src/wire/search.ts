@@ -485,6 +485,7 @@ export class Search implements Subject {
     for (const [id, label] of [
       ['run:new-agent', 'New agent'],
       ['run:new-terminal', 'New terminal'],
+      ['run:new-chat', 'New chat'],
       ['run:open-project', 'Open project'],
       ['run:spend', 'Spend'],
       ['run:extensions', 'Extensions'],

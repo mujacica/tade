@@ -1,6 +1,6 @@
-import { type Config, expandHome } from '@tade/core'
+import { type Config, chatTaskOf, expandHome } from '@tade/core'
 import { slugify } from '@tade/voice-core'
-import type { Workbench } from '@tade/workbench'
+import { lostChats, reopenChat, type Workbench } from '@tade/workbench'
 import type { Frame } from '../frame.ts'
 import { doneTasks, focusTask, nextWaiting, notice, shownName, whichProject } from '../model.ts'
 import { type AgentOffers, menuItems, queueMenuItems } from '../panels/menu/state.ts'
@@ -530,9 +530,21 @@ export class Agents implements Subject {
    * you away from where you are.
    */
   reopenLost(): void {
-    const lost = this.wire.opts.client
-      .lanes()
-      .filter((lane) => lane.kind === 'agent' && !lane.alive && lane.lost === true)
+    const lanes = this.wire.opts.client.lanes()
+    // A chat was working too, and comes back for the same reason — but it has
+    // no task file, no pane and no worktree, so the walk below steps straight
+    // over it. Where it stood is on its own stored lane spec and nowhere else,
+    // which is what `reopenChat` reads it off.
+    for (const lane of lostChats(lanes)) {
+      const task = chatTaskOf(lane.id)
+      if (this.reopened.has(task) || this.opening.has(task)) continue
+      this.reopened.add(task)
+      void reopenChat(this.wire.opts.client, lane)
+        .then(() => this.wire.live?.refresh())
+        .then(() => this.wire.draw())
+        .catch((err: unknown) => this.wire.note(err))
+    }
+    const lost = lanes.filter((lane) => lane.kind === 'agent' && !lane.alive && lane.lost === true)
     for (const lane of lost) {
       const pane = this.wire.state.panes.find((one) => one.task === lane.task)
       if (!pane || pane.lane || this.reopened.has(lane.task) || this.opening.has(lane.task))

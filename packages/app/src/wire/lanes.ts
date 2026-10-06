@@ -1,16 +1,22 @@
-import type { LaneId } from '@tade/core'
+import { chatTaskOf, HARNESS_CHOICES, isChatLane, type LaneId } from '@tade/core'
+import { openChat } from '@tade/workbench'
 import type { Frame, LaneView } from '../frame.ts'
 import { halvesOf, resolveLayout } from '../layout.ts'
 import {
+  type AppState,
   activeTerminal,
   laneShown,
   noteTyping,
   notice,
-  ORCHESTRATOR_TAB,
   setHeld,
   showTerminal,
 } from '../model.ts'
-import { laneMenuItems, terminalMenuItems } from '../panels/menu/state.ts'
+import {
+  bottomNewItems,
+  chatMenuItems,
+  laneMenuItems,
+  terminalMenuItems,
+} from '../panels/menu/state.ts'
 import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
@@ -18,11 +24,12 @@ import { cutFrom, type HeldLines, keeping, settledAbove } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import {
+  splitActed,
   splitPane,
   splitShown,
-  swapSplit,
+  splitTerminal,
+  terminalSplitActed,
   terminalSplitShown,
-  turnSplit,
   typingLane,
   unsplitPane,
 } from '../split.ts'
@@ -65,10 +72,7 @@ import { Finding } from './finding.ts'
 const HELD_LINES = 200
 
 /** Which of the two screens an area is, and where each keeps how far back it is. */
-const SCROLL_OF = {
-  pane: 'paneScroll',
-  terminal: 'terminalScroll',
-} as const
+const SCROLL_OF = { pane: 'paneScroll', terminal: 'terminalScroll' } as const
 
 /** Two readings of a lane's screen that say the same thing, and so redraw nothing. */
 function same(a: LaneView | null, b: LaneView | null): boolean {
@@ -86,7 +90,6 @@ function same(a: LaneView | null, b: LaneView | null): boolean {
 export interface LanesDeps {
   /** How big the terminal is: every lane is sized from it. */
   size(): { columns: number; rows: number }
-  /** Where the panes and the strip are. */
   /** Whether a capture comes back coloured. */
   skin: Skin
   /** A lane printed something, or was typed into: look at it sooner than the next beat. */
@@ -180,9 +183,9 @@ export class Lanes implements Subject {
 
   actions(): Actions {
     return {
-      'new-terminal': async () => {
-        await this.openTerminal()
-      },
+      'new-terminal': () => void this.openTerminal(),
+      // Typed as well as clicked, in the default harness: the `+` is a menu now.
+      'new-chat': () => void this.openChat(),
       'find-terminal': async () => {
         const terminal = activeTerminal(this.wire.state)
         if (terminal) await this.openFind(terminal.id)
@@ -201,40 +204,11 @@ export class Lanes implements Subject {
       },
       // `split:<task>:swap|turn|close`, and the task is what is between.
       'split:': (rest) => {
-        const verb = rest.slice(rest.lastIndexOf(':') + 1)
-        const task = rest.slice(0, rest.lastIndexOf(':'))
-        this.wire.put(
-          verb === 'swap'
-            ? swapSplit(this.wire.state, task)
-            : verb === 'turn'
-              ? turnSplit(this.wire.state, task)
-              : unsplitPane(this.wire.state, task),
-        )
-        this.deps.soonTick()
-        this.wire.draw()
+        const at = rest.lastIndexOf(':')
+        this.acted(splitActed(this.wire.state, rest.slice(0, at), rest.slice(at + 1)))
       },
       'terminal-split:': (verb) => {
-        const split = this.wire.state.terminalSplit
-        if (split && verb === 'swap' && this.wire.state.bottom !== ORCHESTRATOR_TAB) {
-          this.wire.put({
-            ...this.wire.state,
-            bottom: split.lane,
-            terminalSplit: { ...split, lane: this.wire.state.bottom },
-            splitFocus: !this.wire.state.splitFocus,
-          })
-        } else if (split && verb === 'turn') {
-          this.wire.put({
-            ...this.wire.state,
-            terminalSplit: {
-              ...split,
-              direction: split.direction === 'beside' ? 'below' : 'beside',
-            },
-          })
-        } else {
-          this.wire.put({ ...this.wire.state, terminalSplit: null, splitFocus: false })
-        }
-        this.deps.soonTick()
-        this.wire.draw()
+        this.acted(terminalSplitActed(this.wire.state, verb))
       },
     }
   }
@@ -244,8 +218,19 @@ export class Lanes implements Subject {
       terminal: {
         title: (subject) =>
           this.wire.state.terminals.find((one) => one.id === subject.id)?.name ?? 'terminal',
-        items: () => terminalMenuItems(terminalSplitShown(this.wire.state) !== null),
+        items: (subject) => {
+          const split = terminalSplitShown(this.wire.state) !== null
+          return isChatLane(subject.id) ? chatMenuItems(split) : terminalMenuItems(split)
+        },
         choose: (subject, item) => this.fromTerminalMenu(subject.id, item),
+      },
+      'bottom-new': {
+        title: () => 'Open below',
+        items: () => bottomNewItems(HARNESS_CHOICES),
+        choose: async (_subject, item) => {
+          if (item === 'terminal') await this.openTerminal()
+          else if (item.startsWith('chat:')) await this.openChat(item.slice('chat:'.length))
+        },
       },
       lane: {
         title: (subject) => subject.name,
@@ -282,9 +267,17 @@ export class Lanes implements Subject {
     }
   }
 
-  /** Close a terminal, and say why not where it would not close. */
+  /**
+   * Close a terminal, and say why not where it would not close.
+   *
+   * A chat's tab closes by stopping its agent, which is what closing one is:
+   * the lane ends and the conversation stays where it was, in its harness's
+   * own store, because Tade never kept it in the first place.
+   */
   private async closeTerminal(id: string): Promise<void> {
-    await this.wire.opts.client.closeTerminal(id).catch((err) => this.wire.note(err))
+    const client = this.wire.opts.client
+    const closing = isChatLane(id) ? client.stopAgent(chatTaskOf(id)) : client.closeTerminal(id)
+    await closing.catch((err) => this.wire.note(err))
     await this.wire.live?.refresh()
     this.wire.draw()
   }
@@ -356,21 +349,13 @@ export class Lanes implements Subject {
         break
       case 'split-beside':
       case 'split-below': {
-        // A new terminal, beside or below this one, in the same project.
-        const front = id
+        // A new terminal, beside or below this one, in the same project. The
+        // one that was in front goes back in front, and `splitTerminal` is
+        // what refuses the case where nothing new opened.
         const opened = await this.openTerminal()
-        const created = this.wire.state.bottom
-        if (opened && created !== front) {
-          this.wire.put({
-            ...showTerminal(this.wire.state, front),
-            terminalSplit: {
-              lane: created,
-              direction: item === 'split-beside' ? 'beside' : 'below',
-              ratio: 0.5,
-            },
-            splitFocus: true,
-          })
-        }
+        const made = this.wire.state.bottom
+        const how = item === 'split-beside' ? 'beside' : 'below'
+        if (opened) this.wire.put(splitTerminal(showTerminal(this.wire.state, id), made, how))
         break
       }
       case 'unsplit':
@@ -702,6 +687,34 @@ export class Lanes implements Subject {
     return {
       cols: layout.sidebarWidth + layout.mainWidth + 1,
       rows: Math.max(4, layout.stripHeight - 2),
+    }
+  }
+
+  /** A pure answer applied: the state, a look sooner than the next beat, and a frame. */
+  private acted(next: AppState): void {
+    this.wire.put(next)
+    this.deps.soonTick()
+    this.wire.draw()
+  }
+
+  /**
+   * Open a chat — an agent with no task, in the lower pane — and put it in
+   * front, where you can type at it.
+   *
+   * No project is asked for and none is used, which is why this does not
+   * refuse the way `openTerminal` does when nothing is open. Where it stands
+   * and what it is told are `openChat`'s: the one door every way in goes
+   * through.
+   */
+  async openChat(harness?: string): Promise<string | null> {
+    try {
+      const opened = await openChat(this.wire.opts.client, harness ? { harness } : {})
+      await this.showTerminal(opened.id)
+      return opened.name
+    } catch (err) {
+      this.wire.put(notice(this.wire.state, why(err)))
+      this.wire.draw()
+      return null
     }
   }
 

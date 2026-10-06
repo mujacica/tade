@@ -699,6 +699,32 @@ export function orchestratorTools(
     },
   )
 
+  // Chats: an agent in the lower pane with no task and no project, for a
+  // question about this machine or something that is nobody's repository.
+  // There is no `tade_chat_steer` or `tade_chat_stop`: a chat is an agent, so
+  // it is steered and stopped by the tools that steer and stop agents, by the
+  // task id these two hand back.
+
+  tool(
+    'tade_chat_list',
+    'The chats open in the lower pane: agents with no task and no project. Each comes with the id that steers and stops it (tade_steer, tade_run_stop), what it is called on its tab, the harness it runs in and the folder it is standing in.',
+    object({}),
+    () => rpc('chat/list', {}),
+  )
+
+  tool(
+    'tade_chat_open',
+    'Open a chat: an agent in the lower pane with no task, no project, no branch and nothing to commit — for asking about this machine, or researching something that is nobody\'s repository. Use it when somebody wants an agent to talk to rather than work done: "give me an agent", "open me a claude", "I just want to ask something". Not for work on a project — that is a task with an agent in it (tade_task_create, tade_run_start) — and not instead of a terminal, which runs commands rather than answering. It starts in their home folder unless you say otherwise, and it costs money like any other agent: say which harness you opened and that stopping it is tade_run_stop with the id it comes back with.',
+    object({
+      harness: string('which agent to talk to: pi, claude-code or codex. The default unless said'),
+      prompt: string('what to ask it first, in their words. Leave it out to just open one'),
+      cwd: string(
+        'a folder for it to look at, when they named one. Work on a project is a task with an agent in it, never a chat standing in its checkout',
+      ),
+    }),
+    (p) => rpc('chat/open', p),
+  )
+
   // Terminals: shells along the bottom of the window that belong to a project.
   // The human sees everything typed into one, as it is typed.
   const terminal = string(

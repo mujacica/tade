@@ -1183,17 +1183,17 @@ export function withTerminals(state: AppState, terminals: readonly TerminalTab[]
   }
 }
 
-/** The terminals of the project you are in, in the order their tabs were opened. */
+/** This project's terminals and every chat (`project: ''`), in the order their tabs opened. */
 export function terminalsOf(state: AppState): TerminalTab[] {
   return state.terminals.filter(
-    (terminal) => terminal.project === (state.project ?? terminal.project),
+    (tab) => tab.project === '' || tab.project === (state.project ?? tab.project),
   )
 }
 
 /**
- * The terminal in front, and only ever one of the project you are in, whatever
- * `bottom` still names — the panel went on showing the one of the project you
- * came from, under a row of this project's tabs with none of them lit.
+ * The tab in front, and only ever one `terminalsOf` keeps, whatever `bottom`
+ * still names — the panel went on showing the terminal of the project you came
+ * from, under a row of this project's tabs with none of them lit.
  */
 export function activeTerminal(state: AppState): TerminalTab | null {
   return terminalsOf(state).find((terminal) => terminal.id === state.bottom) ?? null

@@ -37,6 +37,11 @@ in the middle, the orchestrator along the bottom. One terminal, no browser, no d
 
 ![The Tade window: agents, changes, files, an agent asking to run a command, and the orchestrator below](https://raw.githubusercontent.com/mujacica/tade/main/images/window.svg)
 
+The `+` on that bottom row opens a shell, or an agent to talk to — pi, Claude Code or Codex, with no
+task, no project and nothing to commit, for asking about this machine or about something that is
+nobody's repository. It costs money and takes time like any other agent, so it is on the Spend page
+with the rest; closing it ends the agent and leaves the conversation where it was.
+
 ## An orchestrator you talk to
 
 Say or type what you want. It starts, steers and stops agents, opens terminals, and shows every tool

@@ -3,7 +3,7 @@ import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import { DONE_RULES, type DoneRule, type LaneId, type Plan, planReport, When } from '@tade/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
-import { clipped, type Workbench } from '@tade/workbench'
+import { chatsFrom, clipped, openChat, type Workbench } from '@tade/workbench'
 
 // How the orchestrator's tools reach the workbench.
 //
@@ -344,6 +344,21 @@ export class ToolHost {
           p.summary ? String(p.summary) : null,
         ),
       'events/read': (p) => tade.events(p as never),
+      // Chats: agents in the lower pane with no task. Listed and opened here;
+      // steered and stopped through `worker/steer` and `worker/stop` by the
+      // task id this hands back, because that is what they are — agents — and
+      // a second pair of verbs for the same act is a second thing to keep in
+      // step.
+      'chat/list': () => chatsFrom(tade.lanes()),
+      'chat/open': async (p) => {
+        const opened = await openChat(tade, {
+          ...(p.harness ? { harness: String(p.harness) } : {}),
+          ...(p.cwd ? { cwd: String(p.cwd) } : {}),
+          ...(p.prompt ? { prompt: String(p.prompt) } : {}),
+        })
+        opts.onTerminal?.(opened.id)
+        return opened
+      },
       'terminal/list': (p) => tade.terminals(p.project ? String(p.project) : undefined),
       'terminal/open': async (p) => {
         const opened = await tade.openTerminal({

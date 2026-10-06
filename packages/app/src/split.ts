@@ -91,3 +91,41 @@ export function terminalSplitShown(state: AppState): Split | null {
   if (!split || state.bottom === ORCHESTRATOR_TAB || split.lane === state.bottom) return null
   return state.terminals.some((one) => one.id === split.lane) ? split : null
 }
+
+/**
+ * What one of a split's own buttons means: swap the halves, turn the divider,
+ * or close it.
+ *
+ * Here rather than in the subject that answers the click, for the reason every
+ * other state-in, state-out answer in this file is here: what the window does
+ * is the half worth testing without a terminal, and a branch written inside a
+ * wiring class can only be reached by driving one.
+ */
+export function splitActed(state: AppState, task: string, verb: string): AppState {
+  if (verb === 'swap') return swapSplit(state, task)
+  if (verb === 'turn') return turnSplit(state, task)
+  return unsplitPane(state, task)
+}
+
+/** The same for the bottom panel's split, whose halves are its tabs rather than a pane's lanes. */
+export function terminalSplitActed(state: AppState, verb: string): AppState {
+  const split = state.terminalSplit
+  // One answer for closing it and for a verb about a split there is not.
+  const one = { ...state, terminalSplit: null, splitFocus: false }
+  if (!split) return one
+  // Swapping puts the half behind in front, which for the bottom panel means
+  // changing which tab is lit: there is no "the pane's lane" to fall back on.
+  if (verb === 'swap' && state.bottom !== ORCHESTRATOR_TAB) {
+    return {
+      ...state,
+      bottom: split.lane,
+      terminalSplit: { ...split, lane: state.bottom },
+      splitFocus: !state.splitFocus,
+    }
+  }
+  if (verb === 'turn') {
+    const direction = split.direction === 'beside' ? 'below' : 'beside'
+    return { ...state, terminalSplit: { ...split, direction } }
+  }
+  return one
+}

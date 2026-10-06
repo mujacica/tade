@@ -1,5 +1,6 @@
 export * from './accounts.ts'
 export * from './authored.ts'
+export * from './chats.ts'
 export * from './checks.ts'
 export * from './event-index.ts'
 export * from './events.ts'
