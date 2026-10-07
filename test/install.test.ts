@@ -58,6 +58,25 @@ function fakeNode(says: string, exits: number): string {
   return bin
 }
 
+/**
+ * The same, plus an `npm` answering the version given — a Node new enough to
+ * pass the floor, so what the run exercises is the npm branch and nothing
+ * else.
+ *
+ * What the script passes npm depends on npm's own version (`--allow-scripts`
+ * landed in 11.19), so a dry run that reads whichever npm the machine happens
+ * to have is a test about the machine. That is not a hypothetical: the lines
+ * below were written on a laptop with npm 11.19.1 and went red on CI's 10.9.9,
+ * where the flag is correctly left off.
+ */
+function fakeNpm(version: string): string {
+  const bin = fakeNode(`v${process.versions.node}`, 0)
+  const shim = join(bin, 'npm')
+  writeFileSync(shim, `#!/bin/sh\ncase "$1" in --version) echo '${version}' ;; esac\n`)
+  chmodSync(shim, 0o755)
+  return bin
+}
+
 describe('the script itself', () => {
   it('is POSIX sh, and stops on an error rather than carrying on', () => {
     expect(lines[0]).toBe('#!/bin/sh')
@@ -184,6 +203,12 @@ describe('a dry run', () => {
   // whole reason the one-liner is worth having. Putting these four lines on a
   // page would be quoting the wrong thing; an agent syncing the site nearly
   // did, off an earlier version of this comment.
+  //
+  // Every one of them runs against a PATH of this file's own making rather
+  // than the machine's, so each line is a fact about the script — see
+  // `fakeNpm`, and the two tests under these for the npm the flag is held
+  // back from.
+  const NEW_NPM = '11.19.1'
   const expected: Record<string, string> = {
     npm: `npm install --global --allow-scripts=${PUBLISHED},node-pty,better-sqlite3 ${PUBLISHED}`,
     pnpm: `pnpm add --global --allow-build=${PUBLISHED} --allow-build=node-pty --allow-build=better-sqlite3 ${PUBLISHED}`,
@@ -192,12 +217,41 @@ describe('a dry run', () => {
 
   for (const [manager, line] of Object.entries(expected)) {
     it(`with --${manager} prints the whole command and installs nothing`, () => {
-      const said = run([`--${manager}`, '--dry-run'])
+      const said = run([`--${manager}`, '--dry-run'], { PATH: fakeNpm(NEW_NPM) })
       expect(said.status).toBe(0)
       expect(said.stdout).toContain(`\n  ${line}\n`)
       expect(said.stdout).toContain('from npm')
     })
   }
+
+  // The other half of the npm line, and the half nothing held: an older npm
+  // ran a dependency's install scripts anyway, so there is nothing to ask it
+  // for, and asking would be a warning about a config it does not know plus a
+  // flag that does nothing. The install is still the right install — which is
+  // why this asserts the whole line rather than only the absence.
+  it('leaves --allow-scripts off an npm that would not understand it', () => {
+    const said = run(['--npm', '--dry-run'], { PATH: fakeNpm('10.9.9') })
+    expect(said.status).toBe(0)
+    expect(said.stdout).toContain(`\n  npm install --global ${PUBLISHED}\n`)
+    expect(said.stdout).not.toContain('--allow-scripts')
+  })
+
+  // 11.18 and 11.19 differ by the minor, and shell has no version compare, so
+  // the script picks the number apart itself. A test per side of the one
+  // boundary, because "11 is new enough" is the shape that mistake takes.
+  it('reads the minor rather than the major, on either side of 11.19', () => {
+    const sides: Array<[string, boolean]> = [
+      ['10.9.9', false],
+      ['11.18.4', false],
+      ['11.19.0', true],
+      ['12.0.0', true],
+    ]
+    for (const [version, flagged] of sides) {
+      const said = run(['--npm', '--dry-run'], { PATH: fakeNpm(version) })
+      expect(said.status, version).toBe(0)
+      expect(said.stdout.includes('--allow-scripts='), version).toBe(flagged)
+    }
+  })
 
   it('asks for a version where one was given, and never otherwise', () => {
     expect(run(['--dry-run', '--version', '0.2.0']).stdout).toContain(`${PUBLISHED}@0.2.0`)
@@ -253,9 +307,11 @@ describe('what it refuses, and how', () => {
 
   it('names the manager that is missing where it was asked for by name', () => {
     // Not a dry run — a dry run prints the line whether or not the manager is
-    // there, which is what makes the three lines above testable anywhere. A
-    // PATH with nothing on it but a Node that answers is how this stays the
-    // same test on a machine that happens to have all three.
+    // there, which is half of what makes the three lines above testable
+    // anywhere. Only half: the npm line also depends on npm's *version*, so
+    // being present is not enough and `fakeNpm` pins that too. A PATH with
+    // nothing on it but a Node that answers is how this stays the same test on
+    // a machine that happens to have all three.
     const said = run(['--bun'], { PATH: fakeNode(`v${process.versions.node}`, 0) })
     expect(said.status).toBe(1)
     expect(said.stderr).toContain('bun')
