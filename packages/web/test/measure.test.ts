@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { stringify } from 'yaml'
 import { inputFrom } from '../scripts/home-input.ts'
 import { revise, tick } from '../src/delta.ts'
 import { measureDelta, measureOf, sayMeasurement } from '../src/measure.ts'
@@ -23,27 +24,54 @@ afterEach(() => {
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true })
 })
 
-/** A real home, with something private in every file a projection reads. */
+/**
+ * A real home, with something private in every file a projection reads.
+ *
+ * The task file is written with `yaml.stringify` of a real `TaskFile`, which
+ * is what `mkrepo.addTask` and Tade itself do — hand-written lines were kinder
+ * than reality in exactly one way that matters here: a real `intent_spoken`
+ * written by the orchestrator is a folded multi-line scalar, and a reader
+ * tested only against a one-line one is a reader nobody proved. So one of the
+ * two tasks below has a multi-line intent and a `start` block with a prompt,
+ * which is the shape most task files in a real home actually have.
+ */
 function realHome(): string {
   const home = mkdtempSync(join(tmpdir(), 'tade-web-measure-'))
   homes.push(home)
-  const tasks = join(home, 'projects', 'sentry', 'tasks', 'away-projection')
-  mkdirSync(tasks, { recursive: true })
-  writeFileSync(
-    join(tasks, 'task.yaml'),
-    [
-      'id: sentry/away-projection',
-      'project: sentry',
-      `intent_spoken: read ${PRIVATE.root}/src/a.ts and use ${PRIVATE.credential}`,
-      'created: 2026-10-08T13:52:31.585Z',
-      `title: fix the thing in ${PRIVATE.worktree}`,
-      'parked: false',
-      'by: orchestrator',
-      'done: said',
-      `account: ${PRIVATE.opaque}@example.invalid`,
+  taskFile(home, 'sentry', 'away-projection', {
+    id: 'sentry/away-projection',
+    project: 'sentry',
+    intent_spoken: `read ${PRIVATE.root}/src/a.ts and use ${PRIVATE.credential}`,
+    created: '2026-10-08T13:52:31.585Z',
+    base: 'c220aa182aaf1074515d6b72c39cbf467b48bb48',
+    parked: false,
+    lanes: ['sentry/away-projection/agent'],
+    title: `fix the thing in ${PRIVATE.worktree}`,
+    workspace: 'checkout',
+    effort: 'remote-software-factory',
+    by: 'orchestrator',
+    done: 'said',
+    account: `${PRIVATE.opaque}@example.invalid`,
+  })
+  taskFile(home, 'sentry', 'folded', {
+    id: 'sentry/folded',
+    project: 'sentry',
+    // What the orchestrator actually writes: several sentences, which `yaml`
+    // folds, and which a reader has to put back together.
+    intent_spoken: [
+      'at the end we should be able to web access tade',
       '',
+      `and the key is ${PRIVATE.opaque} — read ${PRIVATE.windows}\\notes.txt`,
     ].join('\n'),
-  )
+    created: '2026-10-08T13:55:00.000Z',
+    parked: true,
+    start: {
+      after: [{ task: 'sentry/away-projection', why: 'the contracts come first' }],
+      prompt: `build it, reading ${PRIVATE.root}/DESIGN.md first`,
+      touches: ['packages/web'],
+      model: { provider: 'anthropic', id: 'claude-opus-5' },
+    },
+  })
   writeFileSync(
     join(home, 'memory.jsonl'),
     `${JSON.stringify({
@@ -54,6 +82,18 @@ function realHome(): string {
     })}\n`,
   )
   return home
+}
+
+/** One task file, written the way Tade writes one. */
+function taskFile(
+  home: string,
+  project: string,
+  name: string,
+  file: Record<string, unknown>,
+): void {
+  const dir = join(home, 'projects', project, 'tasks', name)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'task.yaml'), stringify(file))
 }
 
 describe('the report', () => {
@@ -151,10 +191,37 @@ describe('measured from a real home', () => {
     const home = realHome()
     const one = inputFrom(home, { device: 'm', projects: { kind: 'every' }, granted: GRANTS }, NOW)
     expect(one.projects.map((project) => project.name)).toEqual(['sentry'])
-    expect(one.tasks.map((found) => found.id)).toEqual(['sentry/away-projection'])
+    expect(one.tasks.map((found) => found.id).sort()).toEqual([
+      'sentry/away-projection',
+      'sentry/folded',
+    ])
     expect(one.tasks[0]?.intent).toContain(PRIVATE.credential)
+    expect(one.tasks[0]?.lanes).toBe(1)
     expect(one.notes).toHaveLength(1)
     expect(one.machineUpSince === null || one.machineUpSince > 0).toBe(true)
+  })
+
+  it('puts a folded multi-line intent back together, which is the shape most have', () => {
+    // `yaml` writes a several-sentence `intent_spoken` as a folded `>-`
+    // scalar, wrapped across lines mid-sentence. A reader proved only against
+    // a one-line intent is a reader nobody proved.
+    const home = realHome()
+    const one = inputFrom(home, { device: 'm', projects: { kind: 'every' }, granted: GRANTS }, NOW)
+    const folded = one.tasks.find((found) => found.id === 'sentry/folded')
+    expect(folded?.intent).toContain('web access tade')
+    expect(folded?.intent).toContain(PRIVATE.opaque)
+    expect(folded?.intent).toContain(PRIVATE.windows)
+  })
+
+  it('reads the told facts a file can answer, and leaves the rest unknown', () => {
+    const home = realHome()
+    const one = inputFrom(home, { device: 'm', projects: { kind: 'every' }, granted: GRANTS }, NOW)
+    const folded = one.tasks.find((found) => found.id === 'sentry/folded')
+    expect(folded?.state).toBe('parked')
+    expect(folded?.reason).toEqual({ kind: 'clause', said: 'parked by you' })
+    expect(folded?.model).toBe('claude-opus-5')
+    expect(folded?.movedAt).toBeNull()
+    expect(one.queue.map((item) => item.task)).toEqual(['sentry/away-projection'])
   })
 
   it('says it looked at files alone rather than implying it looked at git', () => {
@@ -171,7 +238,10 @@ describe('measured from a real home', () => {
     mkdirSync(broken, { recursive: true })
     writeFileSync(join(broken, 'task.yaml'), 'this: [is not: a task file\n')
     const one = inputFrom(home, { device: 'm', projects: { kind: 'every' }, granted: [] }, NOW)
-    expect(one.tasks.map((found) => found.id)).toEqual(['sentry/away-projection'])
+    expect(one.tasks.map((found) => found.id).sort()).toEqual([
+      'sentry/away-projection',
+      'sentry/folded',
+    ])
   })
 
   it('measures it, and says nothing of what is in it', () => {
@@ -183,7 +253,7 @@ describe('measured from a real home', () => {
     ])
     for (const value of Object.values(PRIVATE))
       expect(said, `the report says ${value}`).not.toContain(String(value))
-    expect(said).toMatch(/tasks\s+1/)
+    expect(said).toMatch(/tasks\s+2/)
   })
 
   it('answers an empty home with an empty projection rather than a throw', () => {

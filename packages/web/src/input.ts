@@ -103,6 +103,14 @@ export interface ChecksIn {
  * leave out by accident. The projection writes the same clause from the tool's
  * name, which is not a second state machine — the state is still
  * `deriveState`'s, and the words are still its words.
+ *
+ * **What the caller owes, said out loud because the type cannot say it.** A
+ * task with a pending approval must arrive as `approval`, never as a `clause`
+ * holding `deriveState`'s string — handing that string straight through is the
+ * leak, with one more step in it. The two variants are what force the choice
+ * to be made somewhere a reviewer reads; the test that the window makes it
+ * correctly belongs to the slice that writes `packages/app/src/wire/web.ts`,
+ * and it has `PendingApproval.tool` to make it with.
  */
 export type ReasonIn =
   /** `deriveState`'s clause, in Tade's own vocabulary. Metadata, carried verbatim. */
