@@ -112,6 +112,39 @@ describe('queued work', () => {
     expect(started?.detail.reopened).toBeUndefined()
   }, 60_000)
 
+  // Parking a task that has a start condition is the shape anything "proposed,
+  // waiting for a person" would take, and until this it held nothing: the
+  // queue's rules read the journal and the tree and no task file, so a parked
+  // task sat in the queue reading `ready`. The rule is `queueStateOf`'s, and
+  // these are the two doors that do not go through it.
+  it('refuses to start work its person has parked, and says how to undo it', async () => {
+    const {
+      made: [proposed],
+    } = await client.planTasks({ project: 'app', said: '', agents: [agent('proposed')] })
+    if (!proposed) throw new Error('the plan made nothing')
+    await client.parkTask(proposed.id, true)
+
+    await expect(
+      client.startQueued({ task: proposed.id, worktree: proposed.worktree, why: 'there was room' }),
+    ).rejects.toThrow(/parked: pick it up again before it can start/)
+    // Nothing started, so nothing is written down as having started.
+    expect(await client.events({ types: ['queue_started'] })).toEqual([])
+
+    // And "start it anyway" is refused rather than written down and quietly
+    // doing nothing: it is the answer to a hold, and a park is not a hold it
+    // may answer.
+    await expect(
+      client.changeQueued({ task: proposed.id, change: 'start', by: 'you' }),
+    ).rejects.toThrow(/parked: pick it up again before it can start/)
+    expect(await client.events({ types: ['queue_changed'] })).toEqual([])
+
+    // Picked up again, both doors open, and the one act that opens them is the
+    // one a person already had.
+    await client.parkTask(proposed.id, false)
+    await client.changeQueued({ task: proposed.id, change: 'start', by: 'you' })
+    expect((await client.events({ types: ['queue_changed'] })).length).toBe(1)
+  }, 60_000)
+
   it('tells queued work what it is for once, and brings back what has already been told', async () => {
     // Its own sessions directory, so what pi remembers is this test's alone.
     const sessionsRoot = tmp('tade-sessions-')

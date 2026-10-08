@@ -1,7 +1,7 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema, type Queued } from '@tade/core'
+import { ConfigSchema, type Queued, queueStateOf, readyToStart } from '@tade/core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { gitEnv, mkrepo } from '../../../test/fixtures/mkrepo.ts'
@@ -28,6 +28,7 @@ const NOW = Date.parse('2026-09-24T12:00:00.000Z')
 const queued = (task: string, touches: string[]): Queued => ({
   task,
   project: task.split('/')[0] ?? task,
+  parked: false,
   start: { after: [], prompt: '', touches },
 })
 
@@ -124,5 +125,67 @@ describe('the look at a project’s tree before work starts', () => {
       workspace: 'checkout',
       committed: [{ task: 'shop/refunds', paths: ['src/charge.ts'] }],
     })
+  }, 30_000)
+})
+
+describe('what the window reads out of a task file, for the queue', () => {
+  // Parking is told, not derived, and until this nothing carried it as far as
+  // the rule: `live.queued` filtered on `start && !started` alone, so a parked
+  // task with a start condition sat in the queue reading `ready` and would
+  // have been started by the next pass. Real repository, real workbench, real
+  // task files, because the whole of it is one field getting from a file on
+  // the disk to a pure function — and a fixture that handed the field over
+  // directly could not get that wrong.
+  it('carries a park from the task file to the rule, and so starts nothing', async () => {
+    const shop = mkrepo()
+    const home = mkdtempSync(join(tmpdir(), 'tade-parked-'))
+    // The workbench reads its own config off the disk, and it is the one that
+    // makes the tasks here.
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `agents:\n  workspace: worktree\nprojects:\n  shop:\n    root: ${shop.root}\n`,
+    )
+    const client = await Workbench.open({ home })
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { shop: { root: shop.root } } }),
+      home,
+      tadeHome: home,
+      pollMs: 600_000,
+      now: () => NOW,
+    })
+    opened.push({ live, client })
+
+    const {
+      made: [one, other],
+    } = await client.planTasks({
+      project: 'shop',
+      said: '',
+      agents: [
+        { name: 'proposed', said: '', prompt: 'do it', after: [], touches: [] },
+        { name: 'ordinary', said: '', prompt: 'do it', after: [], touches: [] },
+      ],
+    })
+    if (!one || !other) throw new Error('the plan made nothing')
+    await client.parkTask(one.id, true)
+    await live.refresh()
+
+    // It is still queued work — a task with a start condition is, and hiding
+    // it would leave a person with nothing to pick back up.
+    const item = live.queued.find((q) => q.task === one.id)
+    expect(item?.parked).toBe(true)
+    expect(queueStateOf(item as Queued, live.queueFacts())).toMatchObject({
+      kind: 'paused',
+      parked: true,
+    })
+    // And the one beside it, which nobody parked, is ready.
+    expect(readyToStart(live.queued, live.queueFacts(), new Map())).toEqual([other.id])
+
+    // Picked up again, by the one act that undoes it.
+    await client.parkTask(one.id, false)
+    await live.refresh()
+    expect(readyToStart(live.queued, live.queueFacts(), new Map()).sort()).toEqual(
+      [one.id, other.id].sort(),
+    )
   }, 30_000)
 })

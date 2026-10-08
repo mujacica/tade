@@ -12,6 +12,7 @@ const facts = (events: TadeEvent[] = [], finished: string[] = []): QueueFacts =>
 const refunds: Queued = {
   task: 'shop/add-refunds',
   project: 'shop',
+  parked: false,
   start: {
     after: [{ task: 'shop/fix-charge', why: 'both change src/charge.ts' }],
     prompt: 'add partial refunds',

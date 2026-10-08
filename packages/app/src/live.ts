@@ -1022,7 +1022,14 @@ export class Live {
             done: task.done ?? 'said',
           })
           if (task.start && !this.started.has(task.id)) {
-            this.queue.push({ task: task.id, project: project.name, start: task.start })
+            // `parked` comes from the task file rather than from `state`,
+            // which a merge is ahead of: the queue's rule needs the told fact.
+            this.queue.push({
+              task: task.id,
+              project: project.name,
+              parked: task.parked === true,
+              start: task.start,
+            })
           }
           const rule = task.done
           if (!rule || this.finished.has(task.id)) continue

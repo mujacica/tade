@@ -278,6 +278,15 @@ export const Task = z.object({
   worktree: z.string(),
   /** Who asked for it, as its task file says. */
   by: z.string().optional(),
+  /**
+   * Set aside by a person, as its task file says — present only when it is.
+   *
+   * `state` already answers this for anything being drawn, but a merge is
+   * ahead of a park in `deriveState` and so can mask one. The queue's rule
+   * reads the told fact instead, which is why it travels here rather than
+   * being inferred back out of the state.
+   */
+  parked: z.boolean().optional(),
   /** How it counts as finished, as its task file says. */
   done: z.enum(DONE_RULES).optional(),
   /** The document it produces rather than a change to the code, as its task file says. */

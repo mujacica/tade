@@ -38,6 +38,20 @@ export interface Compaction {
    * the warning. Null when it fits, which is the ordinary outcome.
    */
   stillOver: string | null
+  /**
+   * The highest `seq` the file held **before** anything was dropped.
+   *
+   * Compaction keeps the newest samples first, so the file ordinarily still
+   * ends where it did and the tail recovers the same number. Where the record
+   * alone is over the ceiling there is room for no sample at all and every
+   * one goes, the last line included — and then the tail reaches lower than
+   * the file once did, and the next window hands numbers that have been used
+   * to different events. So the mark is measured here, where every line is
+   * read anyway, and the caller carries the numbering on from it instead of
+   * from whatever happened to survive. Nothing is kept to hold a number and
+   * no line is rewritten: the number is a reading of what was there.
+   */
+  seqHigh: number
 }
 
 /**
@@ -74,6 +88,7 @@ export async function compactJournal(
       bytesBefore: before.size,
       bytesAfter: before.size,
       stillOver: tooBig(before.size, policy, survey.records),
+      seqHigh: survey.seqHigh,
     }
   }
 
@@ -92,6 +107,7 @@ export async function compactJournal(
     bytesBefore: before.size,
     bytesAfter: after,
     stillOver: after > policy.maxBytes ? tooBig(after, policy, survey.records) : null,
+    seqHigh: survey.seqHigh,
   }
 }
 
@@ -115,13 +131,24 @@ interface Survey {
   recordBytes: number
   /** The byte length of each sampled line, oldest first. */
   sampled: number[]
+  /**
+   * The highest `seq` in the file, whether its line survives or not, and
+   * whatever order the numbers are in — a journal is appended in order, but a
+   * `max` costs the same as reading the last one and is right either way.
+   * A line that will not parse has no number, like everywhere else.
+   */
+  seqHigh: number
 }
 
 async function weigh(path: string): Promise<Survey> {
-  const survey: Survey = { records: 0, recordBytes: 0, sampled: [] }
+  const survey: Survey = { records: 0, recordBytes: 0, sampled: [], seqHigh: 0 }
   for await (const line of lines(path)) {
     const bytes = Buffer.byteLength(line) + 1
-    if (sampling(line)) survey.sampled.push(bytes)
+    const event = parsed(line)
+    if (event && typeof event.seq === 'number' && event.seq > survey.seqHigh) {
+      survey.seqHigh = event.seq
+    }
+    if (event && isSample(event)) survey.sampled.push(bytes)
     else {
       survey.records++
       survey.recordBytes += bytes
@@ -174,18 +201,24 @@ async function rewrite(path: string, tmp: string, drop: number): Promise<number>
 }
 
 /**
- * Whether one raw line is a sample, and so droppable.
+ * One raw line as an event, or null where it will not parse.
  *
- * A line that will not parse is not one, like everywhere else that reads this
- * file: a torn write after a crash is something to step over, never a reason
- * to throw somebody's journal away.
+ * A line that will not parse is not a sample and has no sequence number, like
+ * everywhere else that reads this file: a torn write after a crash is
+ * something to step over, never a reason to throw somebody's journal away.
  */
-function sampling(line: string): boolean {
+function parsed(line: string): TadeEvent | null {
   try {
-    return isSample(JSON.parse(line) as TadeEvent)
+    return JSON.parse(line) as TadeEvent
   } catch {
-    return false
+    return null
   }
+}
+
+/** Whether one raw line is a sample, and so droppable. */
+function sampling(line: string): boolean {
+  const event = parsed(line)
+  return event !== null && isSample(event)
 }
 
 /** Every non-blank line of the file, as it was written. */

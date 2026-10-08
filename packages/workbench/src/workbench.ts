@@ -82,6 +82,7 @@ import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from '.
 import { IGNORE_PATH, removeOwnIgnore } from './ignore.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
+import { notStartable, refuseParked } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
@@ -1089,7 +1090,7 @@ export class Workbench {
     why: string
   }): Promise<LaneRecord> {
     const file = await readTaskFile(this.home, req.task)
-    if (!file?.start) throw new Error(`${req.task} is not queued work`)
+    if (!file?.start || file.parked) throw notStartable(req.task, file)
     if (file.workspace !== 'checkout' && req.from && req.from.length > 0) {
       await beginFrom(this.home, req.worktree, req.task, req.from)
     }
@@ -1326,6 +1327,7 @@ export class Workbench {
     if (!req.task && (req.change === 'start' || req.change === 'wait')) {
       throw new Error(`${req.change} is for one piece of work: say which`)
     }
+    if (req.change === 'start' && req.task) await refuseParked(this.home, req.task)
     const order = (req.order ?? []).map((task) => task.trim()).filter((task) => task !== '')
     if (req.change === 'order' && order.length === 0) {
       throw new Error('an order is a list of queued work, first to last: say which comes first')

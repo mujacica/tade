@@ -97,6 +97,31 @@ describe('what compaction drops', () => {
     expect(done?.stillOver).toContain('nothing left in it may be dropped')
   })
 
+  // The sequence number is assigned on append and recovered at open by
+  // reading the file's tail. Compaction keeps the newest samples first, so in
+  // the ordinary case the file still ends where it did and the numbering
+  // carries on. When the record alone is over the ceiling there is room for no
+  // sample at all, every one of them goes, and if the last line of the file
+  // was one the tail no longer reaches as high as the file once did — so
+  // without a guard the next window hands the same numbers to different
+  // events. Nothing in Tade reads events back by `seq` across a restart
+  // today, which is why this was a hazard and not a fire; the guard is here
+  // because the first reader to do it would have no way of telling.
+  it('does not lower the sequence it reached, even when every sample has to go', async () => {
+    // A ceiling the record alone cannot fit under, and a sample as the last
+    // line: the one shape where `sampledThatFit` keeps nothing.
+    const path = journal([...record(60), ...sampled(4)])
+    const was = seq
+    const done = await compactJournal(path, { maxBytes: 1_024 })
+    expect(done?.dropped).toBe(4)
+    // Every sample has gone, which is correct: they are the only lines that
+    // may go, and there was room for none of them.
+    expect(typesIn(path).every((type) => type === 'usage')).toBe(true)
+    // And the high-water mark is reported, so what carries the numbering on is
+    // a measurement of what the file held and not a guess from what survived.
+    expect(done?.seqHigh).toBe(was)
+  })
+
   it('steps over a line it cannot read rather than throwing it away', async () => {
     // A torn last line after a crash is expected everywhere else that reads
     // this file. It must not be the one thing compaction is willing to delete.
@@ -190,6 +215,52 @@ describe('the journal Tade opens', () => {
       // The sequence is the file's and the file still ends where it did, so
       // the numbering carries on rather than starting over on top of itself.
       expect((await log.append({ type: 'said' })).seq).toBe(lastSeq + 2)
+    } finally {
+      await log.close()
+    }
+  })
+
+  it('carries the numbering on when compaction dropped the line it ended with', async () => {
+    // The same shape as the compaction test above, through the door that
+    // actually assigns sequence numbers. Without the guard `scanTail` reads
+    // the highest surviving record and the next append reuses a number a
+    // dropped sample already had.
+    const path = journal([...record(60), ...sampled(4)])
+    const was = seq
+    const log = await EventLog.open({ path, indexPath: null, journal: { maxBytes: 1_024 } })
+    try {
+      // `journal_compacted` is a record, so it is written at the number after
+      // the highest the file ever reached — never on top of a dropped one.
+      // (A journal still over its ceiling says so in a `warning` after it,
+      // which is this file: the record alone does not fit.)
+      const said = (await log.read()).find((e) => e.type === 'journal_compacted')
+      expect(said?.seq).toBe(was + 1)
+      expect(Number(said?.detail.seq_high)).toBe(was)
+      expect((await log.append({ type: 'said' })).seq).toBeGreaterThan(was + 1)
+    } finally {
+      await log.close()
+    }
+  })
+
+  it('reads the high-water mark back out of the journal after a crash', async () => {
+    // The one window the guard above cannot close on its own: a crash between
+    // the rename and the line that says what happened. The compacted file is
+    // on the disk and nothing has been appended to it, so the tail is all
+    // there is — and the tail is what compaction just lowered. The mark is in
+    // the line compaction writes, so the next open reads it rather than
+    // starting again on top of numbers that have been used.
+    const path = journal([
+      line({ type: 'usage', urgency: 'routine', seq: 11 }),
+      line({
+        type: 'journal_compacted',
+        urgency: 'routine',
+        seq: 12,
+        detail: { dropped: 4, kept: 1, seq_high: 600 },
+      }),
+    ])
+    const log = await EventLog.open({ path, indexPath: null, journal: NEVER_FULL })
+    try {
+      expect((await log.append({ type: 'said' })).seq).toBe(601)
     } finally {
       await log.close()
     }

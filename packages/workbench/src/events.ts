@@ -109,12 +109,14 @@ export class EventLog {
         })
       : null
     // After a compaction the index holds rows for lines that are no longer in
-    // the file, and its `maxSeq` still matches — the newest line is always
-    // kept — so nothing below would notice. It is derived, so it is thrown
-    // away: deleting the file is what reclaims the disk (110 MB against a 54
-    // MB journal on the machine this was measured on), and `-wal` and `-shm`
-    // go with it, because a database file without them is not a smaller
-    // database, it is a database missing its last writes.
+    // the file. Whether its `maxSeq` still agrees depends on whether the line
+    // the file ended with survived, which is exactly the thing that is not
+    // always true — so it is never the test. It is derived, so it is thrown
+    // away whenever anything was dropped: deleting the file is what reclaims
+    // the disk (110 MB against a 54 MB journal on the machine this was
+    // measured on), and `-wal` and `-shm` go with it, because a database file
+    // without them is not a smaller database, it is a database missing its
+    // last writes.
     const compactedAway = (compacted?.dropped ?? 0) > 0
     if (compactedAway && indexPath) {
       await Promise.all(
@@ -125,6 +127,14 @@ export class EventLog {
     }
     const fh = await open(opts.path, 'a')
     const { lastSeq, corrupt } = await scanTail(opts.path)
+    // A number already handed out is never handed out again. Compaction may
+    // have dropped the line the file ended with — the one case where the tail
+    // reaches lower than the file once did — so the counter starts at the
+    // higher of what survived and what was measured before anything went.
+    // Nothing was kept to hold the number and no line was rewritten to invent
+    // one: the gap this leaves in the numbering is the honest record that
+    // something droppable was dropped.
+    const from = Math.max(lastSeq, compacted?.seqHigh ?? 0)
 
     let index = indexPath === null ? null : EventIndex.open(indexPath)
     // `compactedAway` and not only the sequence numbers: a delete that did not
@@ -143,7 +153,7 @@ export class EventLog {
         index = indexPath === null ? null : EventIndex.open(indexPath)
       }
     }
-    const log = new EventLog(opts.path, fh, lastSeq, index, opts.subscriberQueue ?? 1_000)
+    const log = new EventLog(opts.path, fh, from, index, opts.subscriberQueue ?? 1_000)
     if (corrupt > 0) {
       await log.append({
         type: 'warning',
@@ -172,6 +182,10 @@ export class EventLog {
           kept: done.read - done.dropped,
           was_mb: Number((done.bytesBefore / 1_048_576).toFixed(1)),
           now_mb: Number((done.bytesAfter / 1_048_576).toFixed(1)),
+          // The highest number the file held before any of it went, so the
+          // record of the compaction is also what the next open reads the
+          // numbering on from if this window never gets to append again.
+          seq_high: done.seqHigh,
           what: 'the oldest sampled lane output, to fit the ceiling; nothing else is ever dropped',
         },
       }).catch(() => {})
@@ -311,13 +325,29 @@ function drain(sub: Subscriber): void {
   })
 }
 
-/** Read the tail to find the last sequence number without loading the file. */
+/**
+ * Read the tail to find the last sequence number without loading the file.
+ *
+ * `journal_compacted` carries the high-water mark the compaction that wrote
+ * it had measured, and it is read here as well as the numbers themselves —
+ * because a compaction that had room for no sample at all dropped the line
+ * the file ended with, and a crash between that rename and the line below
+ * would otherwise leave the tail as the only answer and the tail too low.
+ * `compactJournal`'s own return closes the ordinary case; this closes that
+ * window, and costs a field read on one line per window open.
+ */
 async function scanTail(path: string): Promise<{ lastSeq: number; corrupt: number }> {
   let lastSeq = 0
   let corrupt = 0
   for await (const e of iterate(path)) {
-    if (e === null) corrupt++
-    else if (e.seq > lastSeq) lastSeq = e.seq
+    if (e === null) {
+      corrupt++
+      continue
+    }
+    if (e.seq > lastSeq) lastSeq = e.seq
+    if (e.type !== 'journal_compacted') continue
+    const high = e.detail.seq_high
+    if (typeof high === 'number' && Number.isFinite(high) && high > lastSeq) lastSeq = high
   }
   return { lastSeq, corrupt }
 }
