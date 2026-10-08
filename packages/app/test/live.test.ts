@@ -337,4 +337,35 @@ describe('the last look at a task, read without starting one', () => {
     expect(live.seenActions('app/refunds')).toEqual(live.actions('app/refunds'))
     expect(live.seenActions('app/refunds')?.task).toBe('app/refunds')
   }, 30_000)
+
+  it('keeps the whole of the last look, and says unknown before there has been one', async () => {
+    // The away view needs the shapes themselves — every project, every task,
+    // every warning, and an approval's id, which the drawing drops — and it
+    // may not go and ask: `collectStatus` again per page refresh would double
+    // the `git` and `ps` work the beat already did and give two answers to one
+    // question. Null before the first look is `unknown`, and is **not** an
+    // empty workspace, which everything above would read as "nothing is
+    // running".
+    const repo = mkrepo()
+    repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge' })
+    const home = tmp('tade-live-world-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+    })
+    opened.push({ live, client })
+    await live.refresh()
+    const world = live.world
+    expect(world).not.toBeNull()
+    expect(world?.projects.map((one) => one.name)).toEqual(['app'])
+    expect(world?.projects[0]?.tasks.map((one) => one.id)).toEqual(['app/refunds'])
+    // Nothing is waiting on anybody, which is a list and not a null: `pending`
+    // is what the supervisor found, and finding none is an answer.
+    expect(live.pending).toEqual([])
+  }, 30_000)
 })

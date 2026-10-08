@@ -98,7 +98,9 @@ function heldState(over: { tasks?: number } = {}) {
   return { live: live as unknown as Live, reads }
 }
 
-async function wiring(over: { web?: Record<string, unknown>; live?: Live; now?: number } = {}) {
+async function wiring(
+  over: { web?: Record<string, unknown>; live?: Live; now?: number; log?: string } = {},
+) {
   const home = await mkdtemp(join(tmpdir(), 'tade-away-'))
   let state: AppState = initialState()
   let draws = 0
@@ -114,6 +116,7 @@ async function wiring(over: { web?: Record<string, unknown>; live?: Live; now?: 
       client: {
         log: {
           append: async (line: { type: string; detail: Record<string, unknown> }) => {
+            if (over.log !== undefined) throw new Error(over.log)
             logged.push(line)
           },
         },
@@ -175,6 +178,17 @@ describe('its lifetime', () => {
     expect(logged.filter((one) => one.type === 'web_enabled')).toHaveLength(2)
     expect(logged.at(-1)?.detail.enabled).toBe(false)
     await expect(away.stop()).resolves.toBeUndefined()
+  })
+
+  it('says so in the strip when a line would not go in the journal', async () => {
+    // Not swallowed: `web_paired` is the audit, and "every act one takes is in
+    // the journal under its id" is half of what stands against a device
+    // somebody else let in. A line that silently did not land would make that
+    // sentence quietly untrue.
+    const { away, news } = await wiring({ web: { enabled: true }, log: 'the disk is full' })
+    await away.open()
+    expect(news.join(' ')).toContain('could not write web_enabled down')
+    expect(news.join(' ')).toContain('the disk is full')
   })
 
   it('is safe to stop before it was ever opened', async () => {

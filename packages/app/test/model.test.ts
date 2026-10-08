@@ -1,6 +1,5 @@
 import { IDLE_REASON, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { parseCommand } from '../src/commands.ts'
 import {
   type AgentPane,
   type AppState,
@@ -498,15 +497,7 @@ describe('which project you are in', () => {
   })
 })
 
-describe('a typed command', () => {
-  it('is the first word, and everything after it is what the command is for', () => {
-    expect(parseCommand('/new fix the double charge')).toEqual({
-      name: '/new',
-      rest: 'fix the double charge',
-    })
-    expect(parseCommand('  /quit  ')).toEqual({ name: '/quit', rest: '' })
-  })
-
+describe('which project a typed command is for', () => {
   it('starts work in the project you are looking at', () => {
     expect(whichProject('fix the refund', ['checkout', 'search'], 'checkout')).toEqual({
       project: 'checkout',

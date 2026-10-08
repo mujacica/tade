@@ -51,7 +51,9 @@ const BUDGET: Record<string, number> = {
   // Both lost their SMART QUEUE corner to `packages/app/test/queue-view.test.ts`:
   // what the queue shows and how the side draws it are one subject, and they
   // were being tested as two halves that could disagree.
-  'packages/app/test/model.test.ts': 1_000,
+  // Was 1,000. The typed-command tests went with their subject to
+  // `test/commands.test.ts` when `commands.ts` came out of `model.ts`.
+  'packages/app/test/model.test.ts': 995,
   'packages/app/test/panels.test.ts': 1_400,
   'packages/app/test/view.test.ts': 1_150,
   // `settingsOf` is one long table. Split by category into

@@ -577,12 +577,24 @@ export class Away implements Subject {
     return this.wire.opts.config
   }
 
+  /**
+   * One line in the journal, and **said in the strip if it would not go in**.
+   *
+   * A journal that will not take a line is not a reason a request fails — a
+   * phone must not get a `500` because a disk is full — but it may not be
+   * swallowed either: `web_paired` and `web_did` are the audit, and "every act
+   * one takes is in the journal under its id" is half of what stands against a
+   * device somebody else let in. A line that silently did not land would make
+   * that sentence quietly untrue, so the failure goes where a person reading
+   * the window will see it.
+   */
   private async log(told: Told): Promise<void> {
     try {
       await this.wire.opts.client.log.append({ type: told.type, detail: told.detail })
-    } catch {
-      // A journal that would not take a line is not a reason a request fails,
-      // and it is already a `warning` of its own elsewhere.
+    } catch (err) {
+      this.deps.news(
+        `the away view could not write ${told.type} down: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
 }
