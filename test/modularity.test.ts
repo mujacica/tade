@@ -271,6 +271,41 @@ describe('app.ts is wiring', () => {
 })
 
 /**
+ * What `@tade/web` may not reach, and why the arrow points this way.
+ *
+ * The away view is handed what it projects — the window implements its reading
+ * interface — so the package can be tested without a window, and so there is
+ * no cycle between the thing that holds the state and the thing that decides
+ * what may leave the machine. It is the same one-way rule as `app.ts` → `wire/*`
+ * above, installed with the first file in the package rather than after it.
+ */
+const WEB = 'packages/web/'
+const NOT_FOR_WEB = ['@tade/app', '@tade/workbench']
+
+describe('the away view reads what it is handed', () => {
+  it('imports neither the window nor the workbench', () => {
+    const problems: string[] = []
+    for (const path of tracked()) {
+      if (!path.startsWith(WEB)) continue
+      const text = textOf(path)
+      if (text === null) continue
+      const found = importsOf(path, text).filter((spec) =>
+        NOT_FOR_WEB.some((name) => spec === name || spec.startsWith(`${name}/`)),
+      )
+      if (found.length > 0)
+        problems.push(
+          `${path} imports ${found.join(', ')}.\n` +
+            '`@tade/web` defines what it needs to be handed, over `@tade/core` types, and the\n' +
+            'window implements it (`packages/web/src/reading.ts`). Reaching the other way makes\n' +
+            'the projection untestable without a window and puts a cycle between the thing that\n' +
+            'holds the state and the thing that decides what may leave the machine.',
+        )
+    }
+    report(problems)
+  })
+})
+
+/**
  * The files that are a pure function of what they are handed.
  *
  * All of them pass today; this pins a property the repo already has and nothing
@@ -278,6 +313,18 @@ describe('app.ts is wiring', () => {
  * arrives with a new region or a new panel rather than after it.
  */
 const PURE = [
+  // The away view's data boundary: a schema, a projection and a diff, each a
+  // function of what it is handed and the moment. `reading.ts` is not here
+  // because it holds the last projection and the revision, and `index.ts` is
+  // the package's door.
+  'packages/web/src/delta.ts',
+  'packages/web/src/fields.ts',
+  'packages/web/src/input.ts',
+  'packages/web/src/measure.ts',
+  'packages/web/src/page.ts',
+  'packages/web/src/protocol.ts',
+  'packages/web/src/reach.ts',
+  'packages/web/src/snapshot.ts',
   'packages/app/src/frame.ts',
   'packages/app/src/reality.ts',
   'packages/app/src/happening.ts',
@@ -388,6 +435,7 @@ const IN_THE_WINDOW = [
   'packages/mcp/',
   'packages/orchestrator/src/',
   'packages/status/src/',
+  'packages/web/src/',
   'packages/workbench/src/',
 ]
 

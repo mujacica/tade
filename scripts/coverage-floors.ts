@@ -95,6 +95,10 @@ export const FLOOR: Record<string, number> = {
   'packages/checks/scripted': 97,
   'packages/drivers/core': 97,
   'packages/mcp/core': 97,
+  // Pure functions of what they are handed and a schema: the away view's
+  // projection, with no server in it yet. What the instrument cannot see is
+  // `scripts/`, which is not under `src/` and does not ship.
+  'packages/web': 97,
   'packages/telemetry': 98,
   'packages/checks/local': 99,
   'packages/judges/scripted': 99,
