@@ -673,11 +673,16 @@ describe('the Updates page', () => {
   })
 
   it('counts what could move forward beside the category, and nothing before it is asked', () => {
-    const asked = plainRows(drawPanel(panelFor('agents'), context({ updates: LOOK })).panel).join(
-      '\n',
-    )
+    // Tall enough to hold the whole category list. Updates is the last of
+    // them, and the list grows every time a feature earns a page of its own —
+    // so at 34 rows it is below the fold, correctly (the list scrolls), and
+    // this test would then be asserting about a row nobody drew.
+    const room = { height: 44 }
+    const asked = plainRows(
+      drawPanel(panelFor('agents'), context({ ...room, updates: LOOK })).panel,
+    ).join('\n')
     expect(asked).toContain('● 2')
-    const unasked = plainRows(drawPanel(panelFor('agents'), context()).panel).join('\n')
+    const unasked = plainRows(drawPanel(panelFor('agents'), context(room)).panel).join('\n')
     expect(unasked).not.toContain('● 2')
   })
 })

@@ -9,6 +9,7 @@ import {
 } from './config.ts'
 import { PUSH_MODES } from './project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
+import { awayGroup } from './settings-away.ts'
 import { projectGroups } from './settings-projects.ts'
 import { KEEP_AWAKE_MEANS } from './sleep.ts'
 
@@ -560,6 +561,7 @@ export function settingsOf(
         },
       ],
     },
+    awayGroup(config),
     ...projectGroups(config),
     {
       id: 'journal',

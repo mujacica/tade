@@ -3,29 +3,29 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Telemetry                                                                      │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass ▕│▌Send to                     $TADE_TELEMETRY_DSN, or nothing i…   ↻ on restart █│    
-    │                            ▕│▌                           a Sentry DSN of yours, from that project’s Client  █│    
-   ⠋│  Models                    ▕│▌                           Keys; it is an ingest endpoint, not a key          █│    
-    │                            ▕│▌                                                                              █│    
-    │  Orchestrator              ▕│ Reporter                     ◉ sentry     ○ none                 ↻ on restart █│    
- ▸ S│                            ▕│                                                                               █│    
- ▸ S│  Checks                    ▕│ Crashes and warnings       ────████ on                           ↻ on restart █│    
- ▾ C│                            ▕│                                                                               █│    
-  M │  Voice                     ▕│ What happened around them  ────████ on                           ↻ on restart █│    
-  A │                            ▕│                                                                               █│    
-  M │  Window                    ▕│ Numbers                    ────████ on                           ↻ on restart █│    
-    │                            ▕│                                                                               █│    
- ▾ F│  Projects              ● 1 ▕│ What agents do             ────████ on                           ↻ on restart █│    
-   ▾│                            ▕│                                                                               █│    
-    │  Journal                   ▕│ How much of Tade is timed    ‹   0.1   ›                         ↻ on restart █│    
-    │                            ▕│                                                                               ▕│    
-   ▸│▌ Telemetry                 ▕│ Which Tade this is          laptop                               ↻ on restart ▕│    
-    │▌                           ▕│                                                                               ▕│    
-━   │  Shortcuts                 ▕│ Read Sentry back           ────████ on                           ↻ on restart ▕│   ━
-    │                            ▕│                                                                               ▕│    
-    │  Accounts              ● 3 ▕│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default              ▕│   ▕
-    │                            ▕│                                                                               ▕│   ▕
-    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+ ▌  │  Agents             bypass █│▌Send to                     $TADE_TELEMETRY_DSN, or nothing i…   ↻ on restart █│    
+    │                            █│▌                           a Sentry DSN of yours, from that project’s Client  █│    
+   ⠋│  Models                    █│▌                           Keys; it is an ingest endpoint, not a key          █│    
+    │                            █│▌                                                                              █│    
+    │  Orchestrator              █│ Reporter                     ◉ sentry     ○ none                 ↻ on restart █│    
+ ▸ S│                            █│                                                                               █│    
+ ▸ S│  Checks                    █│ Crashes and warnings       ────████ on                           ↻ on restart █│    
+ ▾ C│                            █│                                                                               █│    
+  M │  Voice                     █│ What happened around them  ────████ on                           ↻ on restart █│    
+  A │                            █│                                                                               █│    
+  M │  Window                    █│ Numbers                    ────████ on                           ↻ on restart █│    
+    │                            █│                                                                               █│    
+ ▾ F│  Away view                 █│ What agents do             ────████ on                           ↻ on restart █│    
+   ▾│                            █│                                                                               █│    
+    │  Projects              ● 1 █│ How much of Tade is timed    ‹   0.1   ›                         ↻ on restart █│    
+    │                            █│                                                                               ▕│    
+   ▸│  Journal                   █│ Which Tade this is          laptop                               ↻ on restart ▕│    
+    │                            █│                                                                               ▕│    
+━   │▌ Telemetry                 █│ Read Sentry back           ────████ on                           ↻ on restart ▕│   ━
+    │▌                           █│                                                                               ▕│    
+    │  Shortcuts                 █│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default              ▕│   ▕
+    │                            █│                                                                               ▕│   ▕
+    │  Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

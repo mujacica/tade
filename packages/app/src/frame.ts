@@ -410,6 +410,7 @@ export interface Frame {
       | 'setup'
       | 'extensionView'
       | 'summary'
+      | 'away'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */

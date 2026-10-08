@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { COMPANIONS, CSP } from '../src/headers.ts'
+import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
 import type { Told } from '../src/server.ts'
-import { BODY_MAX, CSRF_HEADER, pathOf, queryOf, webServer } from '../src/server.ts'
+import { webServer } from '../src/server.ts'
 import { Tickets } from '../src/tickets.ts'
 import { ask, BASE, closeAll, homeFor, pair, reading, said, start } from './harness.ts'
 

@@ -21,7 +21,8 @@
     "yaml": "^2.9.1",
     "@tade/extensions-core": "workspace:*",
     "@tade/telemetry": "workspace:*",
-    "@tade/harnesses-core": "workspace:*"
+    "@tade/harnesses-core": "workspace:*",
+    "@tade/web": "workspace:*"
   },
   "devDependencies": {
     "@tade/drivers-core": "workspace:*",

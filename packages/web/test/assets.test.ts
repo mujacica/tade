@@ -110,6 +110,26 @@ describe('what the client may never do', () => {
     }
   })
 
+  it('every import between the modules resolves to a file that is here', () => {
+    // The HTML's `src` is checked above, but a module the page pulls in
+    // through another module is not in the HTML at all — and a relative
+    // import that does not resolve is a page with no script, in a browser,
+    // with the policy refusing to tell anybody why.
+    for (const name of TEXT.filter((one) => one.endsWith('.js'))) {
+      const text = readFileSync(join(DIR, name), 'utf8')
+      const specs = [...text.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]/g)].map(
+        (found) => found[1] ?? '',
+      )
+      for (const spec of specs) {
+        // A bare specifier has no importmap behind it and would be a network
+        // request the policy refuses: relative, always.
+        expect(spec, `${name} imports ${spec}`).toMatch(/^\.\.?\//)
+        expect(spec, `${name} imports ${spec}`).toMatch(/\.js$/)
+        expect(ALL, `${name} imports ${spec}`).toContain(spec.replace(/^\.\//, ''))
+      }
+    }
+  })
+
   it('names the credential nowhere, because the page never reads it', () => {
     // An `HttpOnly` cookie is not readable by script, so a client that names
     // it is a client that thinks it can read one.

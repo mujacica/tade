@@ -49,14 +49,37 @@ export interface NetworkAddress {
 export function anyRoute(
   interfaces: Readonly<Record<string, readonly NetworkAddress[] | undefined>>,
 ): boolean {
-  return Object.values(interfaces).some((addresses) =>
-    (addresses ?? []).some(
-      (one) =>
-        !one.internal &&
-        !one.address.startsWith('169.254.') &&
-        !one.address.toLowerCase().startsWith('fe80:'),
-    ),
-  )
+  return routesOf(interfaces).length > 0
+}
+
+/**
+ * The addresses that are a way off this machine, which is also the set worth
+ * printing.
+ *
+ * `anyRoute`'s rule, as the list rather than the boolean, because the away
+ * view's pairing panel has to print an address a phone can actually reach: a
+ * code for `127.0.0.1` or for `fe80::1%en0` is a code that scans perfectly and
+ * goes nowhere, which is worse than a panel that says there is no network.
+ * One rule, so the panel can never print an address `anyRoute` would have
+ * called no route at all.
+ *
+ * In the order the machine lists them, which is near enough to "the one that
+ * came up last is the one you are on" to be useful and is never claimed to be
+ * more than that.
+ */
+export function routesOf(
+  interfaces: Readonly<Record<string, readonly NetworkAddress[] | undefined>>,
+): string[] {
+  const out: string[] = []
+  for (const addresses of Object.values(interfaces)) {
+    for (const one of addresses ?? []) {
+      if (one.internal) continue
+      if (one.address.startsWith('169.254.')) continue
+      if (one.address.toLowerCase().startsWith('fe80:')) continue
+      out.push(one.address)
+    }
+  }
+  return out
 }
 
 /**

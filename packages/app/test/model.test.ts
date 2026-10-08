@@ -1,5 +1,6 @@
 import { IDLE_REASON, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { parseCommand } from '../src/commands.ts'
 import {
   type AgentPane,
   type AppState,
@@ -27,7 +28,6 @@ import {
   onEvent,
   openLine,
   openSchedule,
-  parseCommand,
   projectNumber,
   projects,
   removeAttachment,

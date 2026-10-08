@@ -42,6 +42,15 @@ export interface WebReading {
    */
   snapshot(): Snapshot
   /**
+   * The revision the held projection is, **without building one**.
+   *
+   * Its own accessor because the stream needs it before it knows whether a
+   * snapshot is what it is going to send: a reconnection that the delta ring
+   * can answer costs no projection at all, and reading the revision off
+   * `snapshot().fresh.rev` would build one every time to find that out.
+   */
+  readonly rev: number
+  /**
    * The notes in one scope, newest first.
    *
    * Its own call rather than a field on the snapshot, because notes are the
@@ -61,8 +70,6 @@ export interface WebReading {
  * already has a beat.
  */
 export interface Projector extends WebReading {
-  /** The revision the held projection is. */
-  readonly rev: number
   /**
    * One beat. Returns what to send, or `null` on a beat where nothing about
    * the projection changed — which is most of them.

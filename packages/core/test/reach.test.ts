@@ -243,15 +243,21 @@ describe('the shape of the rule', () => {
       'extensions.sentry.token_env',
       'extensions.sentry.url',
       'projects.app.root',
+      // The away view's four, and **every one of them `never`**: each either
+      // widens who can reach the control room (`enabled`, `bind`), decides
+      // what the pairing code says (`port`), or names a host whose `https`
+      // origin is trusted (`trusted_hosts`). A page the orchestrator read
+      // does not get to let anybody in. They arrived in Settings with the
+      // slice that wired the listener into the window, which is the rule
+      // about a setting with no reader; the tier was already decided by
+      // subtree, which the test above asserts directly, because a tier is a
+      // property of the path and not of whether a page lists it.
+      'surfaces.web.bind',
+      'surfaces.web.enabled',
+      'surfaces.web.port',
+      'surfaces.web.trusted_hosts',
       'telemetry.dsn',
     ])
-    // **`surfaces.web.*` is not in that list, and its absence is the point.**
-    // Settings offers no field for the away view yet, because the listener it
-    // would turn on arrives with the slice that wires it into the window — and
-    // a control marked "takes effect on restart" that does nothing after a
-    // restart is exactly the setting Tade accepts and ignores. The keys are
-    // `never` all the same, by subtree, which the test above asserts directly:
-    // a tier is a property of the path and not of whether a page lists it.
     // The rest — and it is most of them — needs the person's own words.
     expect(byTier.asked?.length).toBeGreaterThan(30)
   })

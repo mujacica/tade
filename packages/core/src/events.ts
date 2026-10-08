@@ -166,6 +166,18 @@ export const EventType = z.enum([
   'config_changed',
   // the away view
   /**
+   * The away view came up, or went: `enabled`, `bind` and `port`, as the
+   * window read them when it started listening — and the addresses it
+   * actually bound, which is the half a config cannot say.
+   *
+   * Notable for the reason `config_changed` is: somebody changed how
+   * reachable the control room is, and the person who did *not* make the
+   * change is the one who most needs to see it. Written when the listener
+   * comes up and when it goes, so a journal read a month later can say over
+   * which stretches of time anything was listening at all.
+   */
+  'web_enabled',
+  /**
    * A device was paired: it may now read what it was granted, from off this
    * machine, until it is signed out or expires. The line carries the device's
    * id, the label the device suggested, the address it came from and what it
@@ -278,6 +290,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // A device gaining or losing the right to read Tade from off this machine is
   // the same shape as a setting changing, and for the same reason: the person
   // who did not do it is the one who most needs to see that it happened.
+  web_enabled: 'notable',
   web_paired: 'notable',
   web_denied: 'notable',
   web_revoked: 'notable',

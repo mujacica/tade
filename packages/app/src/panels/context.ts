@@ -9,6 +9,8 @@ import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
+import type { AwayView } from './away/view.ts'
+import { away } from './away/view.ts'
 import type { SetupFieldView } from './extensions/setup.ts'
 import type { ExtensionView, McpServerOffer, WrittenToolView } from './extensions/state.ts'
 import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
@@ -201,6 +203,12 @@ export interface PanelContext {
   modelTarget: string
   /** The model it is on now. */
   currentModel: string | null
+  /**
+   * What the away view is: what is listening, the code, who is asking, and
+   * every paired device. Null where the window was built without one, which
+   * is what `--safe` and a test with no away wiring look like.
+   */
+  away: AwayView | null
 }
 
 /** A panel, and anything that opens out of it and may reach past its edge. */
@@ -212,6 +220,8 @@ export interface PanelDrawing {
 
 export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
   switch (panel.kind) {
+    case 'away':
+      return { panel: away(panel, ctx), popups: [] }
     case 'spend':
       return { panel: spend(panel, ctx), popups: [] }
     case 'menu':

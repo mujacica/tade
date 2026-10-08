@@ -65,6 +65,8 @@ export type Kind =
   | 'asset'
   /** Anything under `/api`: never stored, without exception. */
   | 'api'
+  /** The live stream: never stored, and never buffered on the way out. */
+  | 'stream'
   /** A refusal. Cached like an API answer, whatever it was refusing. */
   | 'refusal'
 
@@ -85,19 +87,40 @@ export function headersFor(kind: Kind, type: string, etag?: string): Record<stri
   } else {
     out['cache-control'] = 'no-store'
   }
+  if (kind === 'stream') {
+    // Two hints for a proxy somebody deliberately put in front of this — the
+    // only kind there is, since `trusted_hosts` is how a host gets to be one
+    // (`NEVER_TRUSTED` is the other half of that rule). A proxy that buffers a
+    // response until it has a few hundred bytes turns a live stream into a
+    // page that says nothing for a minute, which is indistinguishable from a
+    // machine that went to sleep — and §5.10's whole job is telling those
+    // apart. Sent as hints and relied on by nothing: `STREAM_OPENING` pads
+    // past the usual buffer, so the stream works through a proxy that ignores
+    // both.
+    out['x-accel-buffering'] = 'no'
+    out.connection = 'keep-alive'
+  }
   return out
 }
 
 /**
  * The headers that say what *not* to trust, as a list a test can read.
  *
- * Nothing here reads any of them, and that is the point: a reverse proxy's own
- * headers are the client's to write when there is no reverse proxy, and there
- * is none — Tade listens for itself. `X-Forwarded-For` would make the rate
- * limit and the journalled address whatever the attacker typed;
- * `X-Forwarded-Host` and `X-Forwarded-Proto` would walk straight through the
- * `Host` allow-list and the trusted-origin rule, which are the two things
- * holding a rebinding attack and a plaintext session out.
+ * Nothing here reads any of them, and that is the point. **A proxy may be in
+ * front of this** — `tailscale serve` is the recommended way to give a phone
+ * HTTPS — and it is *still* not read, because a forwarded header is only worth
+ * anything if everything that can reach the port is the proxy, and nothing
+ * here can know that. What a deliberate proxy gets instead is a deliberate
+ * configuration: its name in `surfaces.web.trusted_hosts`, which is what makes
+ * its host pass the allow-list and its `https` origin a trusted one
+ * (`schemesFor`, `trusted`) — a person's act in the `never` subtree, not a
+ * header anybody on the network can write.
+ *
+ * Read one and four defences become whatever the attacker typed:
+ * `X-Forwarded-For` is the rate limit and the journalled address;
+ * `X-Forwarded-Host` walks through the `Host` allow-list, which is the
+ * rebinding defence; `X-Forwarded-Proto` makes a plaintext session look
+ * trusted enough to act.
  *
  * So the rule is "the socket and the `Host` header, and nothing else", and
  * `test/guard.test.ts` asserts no source file in this package so much as names

@@ -2,8 +2,9 @@ import { mkdtemp } from 'node:fs/promises'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { Streams } from '../src/peers.ts'
 import type { Reach } from '../src/reach.ts'
-import type { WebReading } from '../src/reading.ts'
+import { type Projector, projector, type WebReading } from '../src/reading.ts'
 import {
   type Confirmed,
   type PairingAsk,
@@ -11,7 +12,6 @@ import {
   type WebServer,
   webServer,
 } from '../src/server.ts'
-import { snapshotOf } from '../src/snapshot.ts'
 import type { Surface } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import { input, NOW } from './fixtures.ts'
@@ -41,6 +41,8 @@ export interface Running {
   home: string
   origin: string
   host: string
+  /** The server's own epoch, which its projections are stamped with. */
+  epoch: string
   tickets: Tickets
   told: Told[]
   asked: PairingAsk[]
@@ -61,12 +63,39 @@ export interface Answer {
  * The real one, and not a stub that answers `{}`: what these files are for is
  * the server, and a server tested against an empty answer would not notice
  * that what it served was the wrong device's projection.
+ *
+ * A **real projector** per reach, kept here, so a test can move the projection
+ * on (`beat`) and watch what the stream does about it. One per reach and not
+ * one altogether, because that is the rule the server is built on: a read
+ * scope is per device, so two devices are two projections.
  */
+const projectors = new Map<string, Projector>()
+
+/**
+ * The epoch the projections are stamped with, which is the running server's.
+ *
+ * Set by `start`, because an epoch is the *server's* lifetime: the window
+ * reads it off the server for `lifetime.epoch` so that a snapshot's freshness
+ * and a delta's `id` are the same string. A fixture that kept its own would
+ * make every reconnection look like a restart, and no assertion would notice,
+ * because resnapshotting is correct.
+ */
+let epoch = ''
+
+export function projectorFor(reach: Reach): Projector {
+  const held = projectors.get(reach.device)
+  if (held !== undefined) return held
+  const first = input({ reach })
+  const made = projector(
+    { ...first, lifetime: { ...first.lifetime, ...(epoch === '' ? {} : { epoch }) } },
+    NOW,
+  )
+  projectors.set(reach.device, made)
+  return made
+}
+
 export function reading(reach: Reach): WebReading {
-  return {
-    snapshot: () => snapshotOf(input({ reach }), NOW),
-    notes: () => ({ rows: [], total: 0, omitted: 0, next: null, restarted: false }),
-  }
+  return projectorFor(reach)
 }
 
 /** A home of its own, so no two tests share a device list. */
@@ -86,11 +115,18 @@ const running: Running[] = []
 export async function closeAll(): Promise<void> {
   for (const one of running) await one.server.close()
   running.length = 0
+  forgetProjectors()
+}
+
+/** Forget every projector, so no two tests share a revision. */
+export function forgetProjectors(): void {
+  projectors.clear()
+  epoch = ''
 }
 
 export async function start(
   over: Partial<Surface> = {},
-  opts: { confirmMs?: number } = {},
+  opts: { confirmMs?: number; streams?: Streams } = {},
 ): Promise<Running> {
   const home = await homeFor('run')
   const tickets = new Tickets()
@@ -103,6 +139,7 @@ export async function start(
     asked,
     origin: '',
     host: '',
+    epoch: '',
     server: undefined as unknown as WebServer,
     answer: async () => ({ let: true, projects: null, granted: [] }),
   }
@@ -116,8 +153,11 @@ export async function start(
       asked.push(ask)
       return one.answer(ask)
     },
+    ...(opts.streams === undefined ? {} : { streams: opts.streams }),
     ...(opts.confirmMs === undefined ? {} : { confirmMs: opts.confirmMs }),
   })
+  epoch = one.server.epoch
+  one.epoch = epoch
   const bound = await one.server.listen()
   const at = bound.find((address) => address.startsWith('127.0.0.1'))
   if (at === undefined) throw new Error(`nothing bound on loopback: ${bound.join(', ')}`)

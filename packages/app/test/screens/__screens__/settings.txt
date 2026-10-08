@@ -3,29 +3,29 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Voice                                                                          │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass ▕│▌Push to talk       ctrl   +   space       Change…                             ▕│    
-    │                            ▕│▌                ✓ hold works here                                             ▕│    
-   ⠋│  Models                    ▕│▌                                                                              ▕│    
-    │                            ▕│ Mode              ◉ Hold to talk     ○ Press to start, press to stop          ▕│    
-    │  Orchestrator              ▕│                                                                               ▕│    
- ▸ S│                            ▕│ Speech to text   whisper · base.en · on this machine  ▾          ↻ on restart ▕│    
- ▸ S│  Checks                    ▕│                                                                               ▕│    
- ▾ C│                            ▕│ Microphone       MacBook Pro Microphone                          ↻ on restart ▕│    
-  M │▌ Voice                     ▕│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
-  A │▌                           ▕│                                                                               ▕│    
-  M │  Window                    ▕│ Muted           ████──── off                                                  ▕│    
-    │                            ▕│                                                                               ▕│    
- ▾ F│  Projects              ● 1 ▕│ Spoken replies  ────████ on                                                   ▕│    
-   ▾│                            ▕│                                                                               ▕│    
-    │  Journal                   ▕│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
-    │                            ▕│                                                                               ▕│    
-   ▸│  Telemetry                 ▕│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
-    │                            ▕│                                                                               ▕│    
-━   │  Shortcuts                 ▕│                                                                               ▕│   ━
-    │                            ▕│                                                                               ▕│    
-    │  Accounts              ● 3 ▕│                                                                               ▕│   ▕
-    │                            ▕│                                                                               ▕│   ▕
-    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+ ▌  │  Agents             bypass █│▌Push to talk       ctrl   +   space       Change…                             ▕│    
+    │                            █│▌                ✓ hold works here                                             ▕│    
+   ⠋│  Models                    █│▌                                                                              ▕│    
+    │                            █│ Mode              ◉ Hold to talk     ○ Press to start, press to stop          ▕│    
+    │  Orchestrator              █│                                                                               ▕│    
+ ▸ S│                            █│ Speech to text   whisper · base.en · on this machine  ▾          ↻ on restart ▕│    
+ ▸ S│  Checks                    █│                                                                               ▕│    
+ ▾ C│                            █│ Microphone       MacBook Pro Microphone                          ↻ on restart ▕│    
+  M │▌ Voice                     █│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
+  A │▌                           █│                                                                               ▕│    
+  M │  Window                    █│ Muted           ████──── off                                                  ▕│    
+    │                            █│                                                                               ▕│    
+ ▾ F│  Away view                 █│ Spoken replies  ────████ on                                                   ▕│    
+   ▾│                            █│                                                                               ▕│    
+    │  Projects              ● 1 █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+    │                            █│                                                                               ▕│    
+   ▸│  Journal                   █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+    │                            █│                                                                               ▕│    
+━   │  Telemetry                 █│                                                                               ▕│   ━
+    │                            █│                                                                               ▕│    
+    │  Shortcuts                 █│                                                                               ▕│   ▕
+    │                            █│                                                                               ▕│   ▕
+    │  Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

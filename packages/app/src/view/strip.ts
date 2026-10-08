@@ -1,6 +1,7 @@
+import { isAction, matchActions } from '../commands.ts'
 import type { Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, shift } from '../hits.ts'
-import { type AppState, activeTerminal, isAction, matchActions } from '../model.ts'
+import { type AppState, activeTerminal } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'

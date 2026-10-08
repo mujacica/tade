@@ -1,4 +1,5 @@
 import { AGENT_SCREENS } from './scenarios/agents.ts'
+import { AWAY_SCREENS } from './scenarios/away.ts'
 import { EXTENSION_SCREENS } from './scenarios/extensions.ts'
 import { FILE_SCREENS } from './scenarios/files.ts'
 import type { Scenario } from './scenarios/fixtures.ts'
@@ -38,4 +39,5 @@ export const SCENARIOS: Scenario[] = [
   ...FILE_SCREENS,
   ...SEARCH_SCREENS,
   ...PANEL_SCREENS,
+  ...AWAY_SCREENS,
 ]

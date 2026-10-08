@@ -15,10 +15,13 @@ import {
   Window,
 } from './guard.ts'
 import { headersFor } from './headers.ts'
+import { type Sink, Streams } from './peers.ts'
 import { type Grant, type Reach, readsOf } from './reach.ts'
 import type { WebReading } from './reading.ts'
+import { askingOf, codeOf, header, inTime, labelOf, pathOf, queryOf, readBody } from './request.ts'
 import { type Route, routeFor } from './routes.ts'
 import { clearCookie, mint, renewal, SESSION_MS, sessionOf, setCookie } from './sessions.ts'
+import { cursorOf } from './stream.ts'
 import { listenOn, reachOf, type Surface, scopesOn } from './surface.ts'
 import { couldBeTicket, type Tickets } from './tickets.ts'
 
@@ -52,12 +55,6 @@ import { couldBeTicket, type Tickets } from './tickets.ts'
 /** How long a pairing request waits for somebody at the machine. */
 export const CONFIRM_MS = 60_000
 
-/** The largest body any route will read. A steer message, later; nothing now. */
-export const BODY_MAX = 64 * 1024
-
-/** The header the token travels in, which an HTML form cannot set. */
-export const CSRF_HEADER = 'x-tade-csrf'
-
 /** What the window is asked when a device wants in. */
 export interface PairingAsk {
   /** The label the device suggested. Attacker-controlled: never in a path. */
@@ -81,9 +78,16 @@ export type Confirmed =
   | { let: true; projects: readonly string[] | null; granted: readonly Grant[] }
   | { let: false; why: 'refused' | 'nobody answered' }
 
-/** One line for the journal. The server never writes the file itself. */
+/**
+ * One line for the journal. The server never writes the file itself.
+ *
+ * `web_enabled` is in the list although nothing in this package writes one:
+ * the window does, when the listener comes up and when it goes, and it goes
+ * through the same `tell` so there is one path from this subsystem to the
+ * journal rather than two.
+ */
 export interface Told {
-  type: 'web_paired' | 'web_denied' | 'web_revoked' | 'web_refused' | 'warning'
+  type: 'web_enabled' | 'web_paired' | 'web_denied' | 'web_revoked' | 'web_refused' | 'warning'
   detail: Record<string, string | number | boolean>
 }
 
@@ -107,6 +111,16 @@ export interface ServerOptions {
   confirm: (ask: PairingAsk) => Promise<Confirmed>
   /** The tickets the pairing panel minted. */
   tickets: Tickets
+  /**
+   * The live streams, if the window keeps its own.
+   *
+   * Handed in rather than only made here, because the window is what pushes a
+   * delta onto them: it has the beat and it has the projectors. One is made if
+   * nothing hands one over, so a test — or anything that only wants the
+   * routes — gets a working stream with no ceremony, and `server.streams` is
+   * how whoever did not make it reaches it.
+   */
+  streams?: Streams
   /** Where a line goes. Never throws, and never blocks an answer. */
   tell?: (told: Told) => void
   now?: () => number
@@ -124,6 +138,19 @@ export interface WebServer {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>
   /** What is bound, as `host:port`. Empty before `listen`. */
   readonly bound: readonly string[]
+  /** The live streams, for the window's beat and for closing them. */
+  readonly streams: Streams
+  /**
+   * The server lifetime every frame of every stream belongs to.
+   *
+   * Minted here because an epoch is *per server start*, and this is the thing
+   * that starts. The window reads it for `lifetime.epoch`, so a snapshot's
+   * freshness and a delta's `id` carry the same string — two sources for one
+   * value would make every reconnection look like a restart, which is a whole
+   * projection down a phone's connection every two seconds and no test would
+   * notice, because resnapshotting is *correct*.
+   */
+  readonly epoch: string
 }
 
 export function webServer(opts: ServerOptions): WebServer {
@@ -138,6 +165,9 @@ export function webServer(opts: ServerOptions): WebServer {
     }
   }
 
+  const epoch = randomUUID()
+  const streams = opts.streams ?? new Streams()
+  streams.use(epoch)
   let assets: Map<string, Asset> | null = null
   const servers: Server[] = []
   const bound: string[] = []
@@ -210,6 +240,17 @@ export function webServer(opts: ServerOptions): WebServer {
     const verdict = allowed(asking, found.route, guarding)
     if (!verdict.ok) {
       said(asking, found.route, verdict.why)
+      // **The one place a refusal is not a refusal body.** A non-200 answer
+      // kills an `EventSource` permanently, and `204 No Content` is the one
+      // status that tells a browser to *stop reconnecting* — so a page whose
+      // session went while the tab was closed gets one `204` and shows the
+      // pairing screen, instead of reopening a `401` every two seconds for as
+      // long as the phone is awake. Every other route answers `401` normally.
+      if (found.route.name === 'stream' && verdict.refusal.error === 'no_session') {
+        res.writeHead(204, headersFor('api', 'application/json; charset=utf-8'))
+        res.end()
+        return
+      }
       return answer(res, verdict.refusal)
     }
 
@@ -236,11 +277,19 @@ export function webServer(opts: ServerOptions): WebServer {
         at: new Date(now()).toISOString(),
         until: new Date(until).toISOString(),
       })
+      // A stream opened days ago holds the expiry it was opened with, and the
+      // beat ends it when that passes. A phone that is being used every
+      // morning renews on an ordinary request, so its open streams are told
+      // here — otherwise the one device that never signs out is the one whose
+      // stream gets closed as expired.
+      streams.renewed(device.id, until)
     }
 
     switch (found.route.name) {
       case 'snapshot':
         return json(res, opts.readingFor(reachOf(device)).snapshot())
+      case 'stream':
+        return stream(req, res, device)
       case 'notes': {
         const scope = queryOf(req.url ?? '/').get('scope')
         return json(res, opts.readingFor(reachOf(device)).notes(scope))
@@ -295,8 +344,8 @@ export function webServer(opts: ServerOptions): WebServer {
     }
     pairing.add(asking.from, now())
 
-    const got = await read(req, res)
-    if (!got.read) return
+    const got = await readBody(req)
+    if (!got.read) return answer(res, got.refusal)
     if (typeof got.body !== 'object' || got.body === null || Array.isArray(got.body)) {
       return answer(res, refuse('malformed'))
     }
@@ -382,6 +431,76 @@ export function webServer(opts: ServerOptions): WebServer {
     )
   }
 
+  /**
+   * The live stream: one answer that stays open.
+   *
+   * What happens here and nowhere else:
+   *
+   * - **The total cap is a `503` before anything is written**, because a
+   *   stream that was opened and then told it cannot be is a stream the
+   *   browser will reconnect to for ever. The per-device cap is the other way
+   *   round — opened far enough to say `too_many` and then ended — because
+   *   four tabs of one phone is a person doing something ordinary and they
+   *   deserve the sentence.
+   * - **`Last-Event-ID` is the cursor and nothing else is.** No query
+   *   parameter, no cookie, no byte offset: `(epoch, rev)`.
+   * - **The session's expiry travels with the peer**, so the beat can end a
+   *   stream whose credential ran out while it was open — which is the one
+   *   way a long-lived answer could otherwise outlive the thing that
+   *   authorised it.
+   * - **Nothing is awaited.** The handler returns while the response stays
+   *   open; what keeps it alive is the socket, and what closes it is the
+   *   beat, a revocation or the client going away.
+   */
+  function stream(req: IncomingMessage, res: ServerResponse, device: Device): void {
+    if (streams.full) {
+      answer(res, refuse('busy', { after: 5 }))
+      return
+    }
+    const reading = opts.readingFor(reachOf(device))
+    res.writeHead(200, headersFor('stream', 'text/event-stream; charset=utf-8'))
+    // A seventeen-byte keep-alive that waits for a full packet is a keep-alive
+    // that arrives when the next one does, so the liveness line on the phone
+    // would lag by whatever Nagle decided.
+    req.socket.setNoDelay(true)
+    // **Drain the request, which is how `requestTimeout` is satisfied.** It is
+    // the deadline for receiving a *whole* request, and this is the one route
+    // whose answer outlives it by hours: a `GET` carries no body, so nothing
+    // is lost by reading it to its end, and a request nobody read is one the
+    // timer is still counting.
+    req.resume()
+    const sink: Sink = {
+      write: (text) => res.write(text),
+      end: () => res.end(),
+    }
+    const opened = streams.open({
+      device: device.id,
+      until: device.until,
+      cursor: cursorOf(header(req, 'last-event-id')),
+      sink,
+      snapshot: () => reading.snapshot(),
+      rev: reading.rev,
+      now: now(),
+    })
+    if (opened.kind === 'too_many') return
+    const peer = opened.peer
+    res.on('drain', () => streams.drained(peer, now()))
+    // **`res` and never `req`.** A request that has been drained — which the
+    // line above does, deliberately — emits `close` the moment it is read to
+    // its end, which for a bodyless `GET` is immediately: listening for it
+    // would forget every peer a few microseconds after opening it, and the
+    // stream would carry its opening bytes and then nothing for ever. The
+    // response's `close` is the honest signal, because it is the one that
+    // means nothing more can be written.
+    //
+    // An error is the same departure by another name, and not a `warning`
+    // somebody needs: a line per dropped phone is a journal of somebody's
+    // wifi. `gone` is idempotent, so both arriving is harmless.
+    const gone = (): void => streams.gone(peer)
+    res.on('close', gone)
+    res.on('error', gone)
+  }
+
   /** Signing out: this device's own credential, and only its own. */
   async function signOut(
     res: ServerResponse,
@@ -399,6 +518,7 @@ export function webServer(opts: ServerOptions): WebServer {
       at: new Date(now()).toISOString(),
       why: 'signed out',
     })
+    streams.revoke(device.id, 'signed out')
     tell({ type: 'web_revoked', detail: { device: device.id, why: 'signed out' } })
     // The origin's scheme and not the socket's: behind `tailscale serve` the
     // socket is plaintext and the page is `https`, so a cookie set with
@@ -434,47 +554,6 @@ export function webServer(opts: ServerOptions): WebServer {
           pairedAt: new Date(one.pairedAt).toISOString(),
           you: one.id === me.id,
         })),
-    }
-  }
-
-  /**
-   * The body, or `answered` having already said why not.
-   *
-   * **A discriminated answer and not `unknown | null`**, because `null` is a
-   * perfectly good JSON body: a four-byte `null` would otherwise be
-   * indistinguishable from "this has already been refused", and the caller
-   * would return without answering at all — a request held open for ever, for
-   * four bytes, by anybody who can reach the pairing route.
-   */
-  async function read(
-    req: IncomingMessage,
-    res: ServerResponse,
-  ): Promise<{ read: true; body: unknown } | { read: false }> {
-    const declared = header(req, 'content-length')
-    if (declared !== null && Number(declared) > BODY_MAX) {
-      answer(res, refuse('too_big'))
-      return { read: false }
-    }
-    const chunks: Buffer[] = []
-    let size = 0
-    for await (const chunk of req) {
-      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))
-      size += bytes.length
-      // Counted as it arrives and not from the declared length, because the
-      // declared length is the client's claim: a chunked body declares none.
-      if (size > BODY_MAX) {
-        answer(res, refuse('too_big'))
-        req.destroy()
-        return { read: false }
-      }
-      chunks.push(bytes)
-    }
-    if (size === 0) return { read: true, body: {} }
-    try {
-      return { read: true, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) }
-    } catch {
-      answer(res, refuse('malformed'))
-      return { read: false }
     }
   }
 
@@ -574,9 +653,19 @@ export function webServer(opts: ServerOptions): WebServer {
       }
       return bound
     },
+    get streams() {
+      return streams
+    },
+    epoch,
     async close(): Promise<void> {
       stopping = true
       opts.tickets.clear()
+      // Every open stream is told why before the listener goes, which is the
+      // difference between a page that says *Tade is closing* and one that
+      // says nothing and reconnects for the rest of the afternoon. Nothing is
+      // awaited: there is no acknowledgement worth waiting for from a phone in
+      // a drawer, and `App.stop()` may not hang on one.
+      streams.closeAll('closing')
       await Promise.all(
         servers.map(
           (server) =>
@@ -593,100 +682,5 @@ export function webServer(opts: ServerOptions): WebServer {
   }
 }
 
-/**
- * A request, as the guard needs to see it.
- *
- * **The address is the socket's and the host is `Host`.** No forwarded header
- * is read here or anywhere in this package (`NEVER_TRUSTED`, `headers.ts`):
- * reading one would make the rate limit, the journalled address, the
- * `Host` allow-list and the trusted-origin rule all be whatever the attacker
- * typed, which is four defences for the price of one header.
- */
-export function askingOf(req: IncomingMessage): Asking {
-  const socket = req.socket as typeof req.socket & { encrypted?: boolean }
-  return {
-    method: req.method ?? 'GET',
-    path: pathOf(req.url ?? '/') ?? '/',
-    host: header(req, 'host'),
-    origin: header(req, 'origin'),
-    site: header(req, 'sec-fetch-site'),
-    contentType: header(req, 'content-type'),
-    token: header(req, CSRF_HEADER),
-    cookie: header(req, 'cookie'),
-    tls: socket.encrypted === true,
-    from: req.socket.remoteAddress ?? 'unknown',
-  }
-}
-
-/** One header's value, or null. An array — a repeated header — is null. */
-function header(req: IncomingMessage, name: string): string | null {
-  const value = req.headers[name]
-  if (typeof value === 'string') return value
-  // A repeated header is two claims about one thing. Picking either is how a
-  // guard gets walked past, so neither is picked.
-  return null
-}
-
-/** The path out of a URL, or null for one that is not a path. */
-export function pathOf(url: string): string | null {
-  const at = url.search(/[?#]/)
-  const path = at === -1 ? url : url.slice(0, at)
-  if (!path.startsWith('/')) return null
-  let decoded: string
-  try {
-    decoded = decodeURIComponent(path)
-  } catch {
-    return null
-  }
-  // A NUL, a newline or a backslash in a path is not a path anything here
-  // serves, and refusing them is cheaper than reasoning about what they mean.
-  if (/[\0\r\n\\]/.test(decoded)) return null
-  return decoded
-}
-
-/** The query, read by exactly one route and never for a credential. */
-export function queryOf(url: string): URLSearchParams {
-  const at = url.indexOf('?')
-  if (at === -1) return new URLSearchParams()
-  const end = url.indexOf('#', at)
-  return new URLSearchParams(url.slice(at + 1, end === -1 ? undefined : end))
-}
-
-/** A device label, bounded and on one line. Its words are the person's. */
-export function labelOf(said: string): string {
-  return said
-    .replace(/[\r\n\t]+/g, ' ')
-    .trim()
-    .slice(0, 40)
-}
-
 /** No device list at all, for a route that needs none. */
 const NO_DEVICES: { devices: readonly Device[]; skipped: number } = { devices: [], skipped: 0 }
-
-/**
- * A promise with a deadline, and the deadline is an answer rather than a hang.
- *
- * The same shape as the window's own `inTime`: every wait here has a deadline,
- * because a request held open for ever is a connection nobody closes and a
- * person watching a spinner. The promise it lost the race to is not cancelled —
- * nothing in this program can cancel a keypress — so whatever the window does
- * afterwards is the window's, and this side has already answered.
- */
-async function inTime<T>(promise: Promise<T>, ms: number, instead: T): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((done) => {
-        timer = setTimeout(() => done(instead), ms)
-      }),
-    ])
-  } finally {
-    if (timer !== undefined) clearTimeout(timer)
-  }
-}
-
-function codeOf(error: unknown): string {
-  const code = (error as { code?: unknown } | null)?.code
-  return typeof code === 'string' ? code : 'it could not be bound'
-}

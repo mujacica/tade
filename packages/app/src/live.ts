@@ -1,6 +1,5 @@
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { readOutcome, settled } from '@tade/checks-core'
 import {
   type Config,
@@ -10,7 +9,6 @@ import {
   type Finished,
   finishedFrom,
   historyFrom,
-  type KnownTask,
   type Note,
   pricesFrom,
   type Queued,
@@ -42,10 +40,9 @@ import { collectStatus, git } from '@tade/status'
 import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
 import { checksAt } from '@tade/workbench/checks'
 import { livenessFrom } from '@tade/workbench/lane-liveness'
-import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
-import type { ActionsView, Change, CheckView, CommitView, NoteShown } from './frame.ts'
+import type { ActionsView, Change, CheckView, NoteShown } from './frame.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
 import {
@@ -170,6 +167,20 @@ export class Live {
   private snapshots: TaskSnapshot[] = []
   /** Tade's own tool servers, as the last poll that could look found them. */
   servers: Workspace['toolServers'] = { looked: false, alive: 0 }
+  /**
+   * What the last look said, kept whole rather than only taken apart.
+   *
+   * Everything else here is a *piece* of one of these, pulled out for the
+   * drawing that needed it; the away view needs the shapes themselves, and may
+   * not go and ask — reading `collectStatus` or the supervisor again per page
+   * refresh would double the `git` and `ps` work this beat already did and
+   * give two answers to one question. Keeping the references costs nothing:
+   * both were alive for the length of the refresh anyway. `null` before the
+   * first look is `unknown`, and is not an empty workspace — which everything
+   * above would read as "nothing is running".
+   */
+  private seen: Workspace | null = null
+  private approvals: PendingApproval[] = []
   /** Where each task lives on disk, which is what parking one needs. */
   private readonly worktrees = new Map<string, string>()
   /** The last listing of each folder, so the sidebar is not a disk read. */
@@ -281,6 +292,16 @@ export class Live {
   useConfig(config: Config): void {
     this.opts.config = config
     void this.refresh()
+  }
+
+  /** What the last look said, whole, or null before there has been one. */
+  get world(): Workspace | null {
+    return this.seen
+  }
+
+  /** The approvals waiting, as it found them. Their ids, which the drawing drops. */
+  get pending(): readonly PendingApproval[] {
+    return this.approvals
   }
 
   get tasks(): TaskSnapshot[] {
@@ -974,6 +995,8 @@ export class Live {
         this.opts.client.lanes(),
       ])
       this.servers = workspace.toolServers
+      this.seen = workspace
+      this.approvals = pending
       for (const warning of workspace.warnings) this.opts.onWarning?.(warning)
       for (const project of workspace.projects) {
         for (const task of project.tasks) {

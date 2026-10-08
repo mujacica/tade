@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2           ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮5 ▾     high ▾     ×   
+                       │                                                                        │───────────────────────
+ ▌ ! stripe-v15   880k │ ● On, listening on the network                                         │                       
+ ▌   wants you to appro│ 0.0.0.0:7654  [::]:7654                                                │                       
+                       │ On your network this is plain HTTP: anybody on the same wifi can read  │                       
+   ⠋ refunds         $0│ every page it serves and the session cookie with it. `tailscale serve  │                       
+     working           │ localhost:7654` gives a phone HTTPS while Tade keeps listening on      │                       
+                       │ this machine alone, which is a smaller surface than this one.          │                       
+ ▸ SMART QUEUE         │                                                                        │                       
+ ▸ SCHEDULES           │                                                                        │                       
+ ▾ CHANGES  3        vs│                                                                        │                       
+  M package.json       │      █▀▀▀▀▀█ ▀█▀▄▀██▀ ▀ ▄▀  ▀▀ █▀▀▀▀▀█                                 │                       
+  A …/webhooks.test.ts │      █ ███ █ ▄ █▄█ ▀▄█▀▄▀▀▀▄ █ █ ███ █                                 │                       
+  M src/webhooks.ts   +│      █ ▀▀▀ █ █▀▀▀█▀▄▄▀▄ █▄██   █ ▀▀▀ █                                 │                       
+                       │      ▀▀▀▀▀▀▀ █▄█ █ █ ▀▄▀ █▄█ ▀ ▀▀▀▀▀▀▀                                 │                       
+ ▾ FILES               │      █▄  █ ▀█▀█▄▀▀  ███▀▀▄▀▀█▀▀▀█▀█▄ ▀                                 │                       
+   ▾ src/              │      █ ▄▄  ▀▀▀   ██▀█▄▄ ▄ ▄██▀▄   ▀ █                                  │                       
+       webhooks.test.ts│       ▀▀▀▄█▀▄▀██▄ █▄▀▀▀▀  █▀█▀▄▀▀▀▀▄▀▀                                 │                       
+       webhooks.ts     │      ▀ █▄▀▀▀   ▄▀█▄ █▄██ ▄█▄▀█▄▄▀ █ ▀                                  │                       
+   ▸ test/             │       ▀▀█▀▄▀▀▀▄▀▄ ▀▀▄▄█▀▀▄█▀▄▀ ▀ ▀█▄▀▄                                 │                       
+     package.json      │      █▄▄██▄▀▀ ▄▄█▄▀▀█▄█  ▄█ █▄ ▄  ▀ █                                  │                       
+━   orchestrator     + │      ▄ ▄█▄▄▀██▄▄▀█▀▄ ▄ █ ▄▄█▄▄ █▄▀▀▄▄                                  │━━━━━━━━━   ⤢     ▾   ━
+                       │        █  █▀▄█▀▀▀ █  ▀█▀▄ ▄ ▀█▀ ▀  ▀█▄                                 │                       
+                       │                                                                        │                      ▕
+                       │ An agent on this machine could pair itself, which is why this list     │                      ▕
+                       │ shows every device there is.                                           │                      ▕
+                       │                                                Disconnect everything   │                      ▕
+ ❯ what you say   ◆ the╰────────────────────────────────────────────────────────────────────────╯                      ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

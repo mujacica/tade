@@ -97,6 +97,12 @@ export const ROUTES: readonly Route[] = [
 
   // Everything that carries data. Each one a session, every time.
   { method: 'GET', path: '/api/snapshot', name: 'snapshot', needs: 'read', mutates: false },
+  // The live stream. A `GET` like every other read, and the one route whose
+  // answer stays open — which is why `server.ts` answers a *reopened* dead
+  // session here with `204` rather than `401`: a non-200 kills an
+  // `EventSource` permanently, and `204` is how a browser is told to stop
+  // retrying rather than hammering a port it will never get into.
+  { method: 'GET', path: '/api/stream', name: 'stream', needs: 'read', mutates: false },
   { method: 'GET', path: '/api/notes', name: 'notes', needs: 'read', mutates: false },
   { method: 'GET', path: '/api/devices', name: 'devices', needs: 'read', mutates: false },
 

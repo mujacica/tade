@@ -3,30 +3,30 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Accounts                                                                       │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass ▕│ pi                                                                            ▕│    
-    │                            ▕│ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                     ▕│    
-   ⠋│  Models                    ▕│     Sign in again…                                                            ▕│    
-    │                            ▕│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and ▕│    
-    │  Orchestrator              ▕│   you sign in to them inside pi.                                              ▕│    
- ▸ S│                            ▕│                                                                               ▕│    
- ▸ S│  Checks                    ▕│ Claude Code                                                                   ▕│    
- ▾ C│                            ▕│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        ▕│    
-  M │  Voice                     ▕│     Sign in again…     Sign out                                               ▕│    
-  A │                            ▕│   work                  ○ not signed in yet                                   ▕│    
-  M │  Window                    ▕│     Sign in…     Use for new agents     Remove                                ▕│    
-    │                            ▕│                                                                               ▕│    
- ▾ F│  Projects              ● 1 ▕│     Add an account…     Add an API-key account…                               ▕│    
-   ▾│                            ▕│                                                                               ▕│    
-    │  Journal                   ▕│ Codex                                                                         ▕│    
-    │                            ▕│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                     ▕│    
-   ▸│  Telemetry                 ▕│     Sign in again…     Sign out                                               ▕│    
-    │                            ▕│                                                                               ▕│    
-━   │  Shortcuts                 ▕│     Add an account…     Add an API-key account…                               ▕│   ━
-    │                            ▕│                                                                               ▕│    
-    │▌ Accounts              ● 3 ▕│                                                                               ▕│   ▕
-    │▌                           ▕│                                                                               ▕│   ▕
-    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
-    │                            ▕│                                                   Open config.yaml     Done    │   ▕
+ ▌  │  Agents             bypass █│ pi                                                                            ▕│    
+    │                            █│ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                     ▕│    
+   ⠋│  Models                    █│     Sign in again…                                                            ▕│    
+    │                            █│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and ▕│    
+    │  Orchestrator              █│   you sign in to them inside pi.                                              ▕│    
+ ▸ S│                            █│                                                                               ▕│    
+ ▸ S│  Checks                    █│ Claude Code                                                                   ▕│    
+ ▾ C│                            █│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        ▕│    
+  M │  Voice                     █│     Sign in again…     Sign out                                               ▕│    
+  A │                            █│   work                  ○ not signed in yet                                   ▕│    
+  M │  Window                    █│     Sign in…     Use for new agents     Remove                                ▕│    
+    │                            █│                                                                               ▕│    
+ ▾ F│  Away view                 █│     Add an account…     Add an API-key account…                               ▕│    
+   ▾│                            █│                                                                               ▕│    
+    │  Projects              ● 1 █│ Codex                                                                         ▕│    
+    │                            █│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                     ▕│    
+   ▸│  Journal                   █│     Sign in again…     Sign out                                               ▕│    
+    │                            █│                                                                               ▕│    
+━   │  Telemetry                 █│     Add an account…     Add an API-key account…                               ▕│   ━
+    │                            █│                                                                               ▕│    
+    │  Shortcuts                 █│                                                                               ▕│   ▕
+    │                            █│                                                                               ▕│   ▕
+    │▌ Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
+    │▌                           ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

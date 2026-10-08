@@ -47,6 +47,7 @@ import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
 import { Orchestrator } from './wire/orchestrator.ts'
+import { kittyActive, repaintScreen } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Routes } from './wire/routes.ts'
@@ -55,6 +56,7 @@ import { Search } from './wire/search.ts'
 import { Settings, type SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
+import { Away } from './wire/web.ts'
 import { Window } from './wire/window.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -103,6 +105,8 @@ export class App {
   private readonly checks: Checks
   /** Push-to-talk, what is said back, and the mute that is now. */
   private readonly voice: Voice
+  /** The away view: who may read Tade from off this machine, while this window is open. */
+  private readonly away: Away
   /** The anti-sleep hold, while Tade is open and no longer. */
   private readonly awake: Awake
   /** Pictures, and the clipboard they usually arrive on. */
@@ -247,6 +251,10 @@ export class App {
       soonTick: () => this.soonTick(),
       answering: () => this.orchestrator.attached(),
     })
+    this.away = new Away(this.wire, {
+      decided: (allow) => this.agents.decide(allow),
+      news: (said) => this.orchestrator.note(said),
+    })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
@@ -278,7 +286,10 @@ export class App {
       askWhereImagesGo: (paths) => this.images.askWhere(paths),
       talkStart: () => void this.voice.talkStart(),
       talkStop: () => void this.voice.talkStop(),
-      decide: (allow) => void this.agents.decide(allow),
+      // The away view first, because letting a device in is the same act in
+      // the same vocabulary and its question has a sixty-second deadline on
+      // it; with nothing asking it hands the keys straight to the agents.
+      decide: (allow) => void this.away.decide(allow),
       openSearch: () => this.search.open(),
       run: (action) => void this.router.run(action),
       interrupt: () => void this.orchestrator.interrupt(),
@@ -412,6 +423,7 @@ export class App {
       this.voice,
       this.awake,
       this.images,
+      this.away,
     ]
     this.router = new Router(this.wire, {
       subjects: () => this.subjects,
@@ -523,6 +535,7 @@ export class App {
     // stranded in your scrollback.
     this.terminal.clearScreen()
     await this.voice.stop()
+    await this.away.stop()
     await this.live?.stop()
     this.settle()
   }
@@ -570,6 +583,7 @@ export class App {
         void this.queue.recordRulesMet()
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
+        this.away.beat()
         this.draw()
       },
       onEvent: (event) => {
@@ -600,6 +614,9 @@ export class App {
     this.agents.reopenLost()
     // Whatever the config says about sleep, made true of the machine.
     this.awake.apply()
+    // Only where a person turned it on: with `surfaces.web.enabled` false this
+    // constructs nothing and no socket exists.
+    await this.away.open()
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice.use(
@@ -712,7 +729,7 @@ export class App {
     this.images.look()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
       this.repaintedAt = this.now()
-      this.repaint()
+      if (!this.stopped && !this.orchestrator.borrowed()) repaintScreen(this.tui, this.terminal)
     }
     const at = await this.lanes.fitPane()
     this.window.titleHere()
@@ -764,26 +781,6 @@ export class App {
     if (!this.stopped && !this.orchestrator.borrowed()) this.tui.requestRender()
   }
 
-  /**
-   * Write the whole screen again, over itself.
-   *
-   * The terminal can wipe it without telling us: ⌘K is "clear" in Terminal.app,
-   * iTerm2 and VS Code, and never reaches Tade at all. Rendering only sends
-   * what changed, so a wiped screen stayed dark until something moved. Every
-   * row is written in place — no clear first, so on a screen that was not
-   * wiped nothing visibly happens.
-   */
-  private repaint(): void {
-    if (this.stopped || this.orchestrator.borrowed()) return
-    const shown = (this.tui as unknown as { previousScreen?: unknown }).previousScreen
-    if (!Array.isArray(shown) || shown.length === 0) return
-    let buffer = '\x1b[?2026h\x1b7'
-    shown.forEach((line, row) => {
-      if (typeof line === 'string') buffer += `\x1b[${row + 1};1H${line}`
-    })
-    this.terminal.write(`${buffer}\x1b8\x1b[?2026l`)
-  }
-
   /** How big the terminal is, which is how big everything drawn in it may be. */
   private room(): { columns: number; rows: number } {
     return { columns: this.terminal.columns, rows: this.terminal.rows }
@@ -792,9 +789,4 @@ export class App {
   private now(): number {
     return this.opts.now?.() ?? Date.now()
   }
-}
-
-/** Only some terminals report key releases, which is what holding a key needs. */
-function kittyActive(terminal: Terminal): boolean {
-  return (terminal as { kittyProtocolActive?: boolean }).kittyProtocolActive === true
 }

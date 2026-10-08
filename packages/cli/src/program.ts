@@ -22,6 +22,7 @@ import { registerSummary } from './commands/summary.ts'
 import { registerTasks } from './commands/tasks.ts'
 import { registerUpdate } from './commands/update.ts'
 import { registerVoice } from './commands/voice.ts'
+import { registerWeb } from './commands/web.ts'
 import { formatStatus } from './format.ts'
 import { defaultIo, Exit, type Io } from './io.ts'
 import { reportCrash } from './telemetry.ts'
@@ -89,6 +90,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerSchedules(program, io)
   registerSummary(program, io, setExit)
   registerVoice(program, io, setExit)
+  registerWeb(program, io, setExit)
   registerUpdate(program, io, setExit)
   registerExtensions(program, io, setExit)
   registerMcp(program, io, setExit)

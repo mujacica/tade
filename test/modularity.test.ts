@@ -41,7 +41,12 @@ const BUDGET: Record<string, number> = {
   // needed. The pacing constants stayed, because how often something is read
   // belongs with the reading of it.
   'packages/app/src/live.ts': 1_150,
-  'packages/app/src/model.ts': 2_000,
+  // Was 2,000. What came out is `commands.ts`: the small grammar of what you
+  // can *ask* the window for — the list, whether each can be done now, how a
+  // typed line splits into a verb and what it is for — which is a different
+  // subject from what the window should *show*, and the one the next command
+  // added to.
+  'packages/app/src/model.ts': 1_950,
   'packages/app/src/wire/extensions.ts': 900,
   // Both lost their SMART QUEUE corner to `packages/app/test/queue-view.test.ts`:
   // what the queue shows and how the side draws it are one subject, and they
@@ -322,10 +327,18 @@ const PURE = [
   // exists for get asked once each, for the one route somebody remembered.
   // Pure, the whole cross-product is a table.
   //
+  // `stream.ts` and `peers.ts` are the same decision made again for the live
+  // stream: what a cursor means and who is listening are both functions of
+  // numbers and a moment, so the caps, the fan-out, the backpressure, the
+  // stall and the revocation are a table over a fake sink. **A peer holds no
+  // timer**, which is what makes "no unbounded timers" mechanical: everything
+  // time-based about a stream happens on the window's own beat, and
+  // `test/stream.test.ts` asserts neither file names a timer at all.
+  //
   // Not here: `reading.ts` (holds the last projection and the revision),
-  // `server.ts` (the listener), `sessions.ts`/`tickets.ts`/`devices.ts` (they
-  // mint secrets and read files), `assets.ts`/`qr.ts`, and `index.ts`, which
-  // is the package's door.
+  // `server.ts` (the listener), `request.ts` (reads an `IncomingMessage`),
+  // `sessions.ts`/`tickets.ts`/`devices.ts` (they mint secrets and read
+  // files), `assets.ts`/`qr.ts`, and `index.ts`, which is the package's door.
   'packages/web/src/delta.ts',
   'packages/web/src/errors.ts',
   'packages/web/src/fields.ts',
@@ -334,11 +347,14 @@ const PURE = [
   'packages/web/src/input.ts',
   'packages/web/src/measure.ts',
   'packages/web/src/page.ts',
+  'packages/web/src/peers.ts',
   'packages/web/src/protocol.ts',
   'packages/web/src/reach.ts',
   'packages/web/src/routes.ts',
   'packages/web/src/snapshot.ts',
+  'packages/web/src/stream.ts',
   'packages/web/src/surface.ts',
+  'packages/app/src/commands.ts',
   'packages/app/src/frame.ts',
   'packages/app/src/reality.ts',
   'packages/app/src/happening.ts',
@@ -346,6 +362,9 @@ const PURE = [
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
   'packages/app/src/model.ts',
+  // The away view's own two: what the window hands the projection, and the
+  // panel's state. Both a function of what they are handed.
+  'packages/app/src/away.ts',
   'packages/app/src/panels.ts',
   'packages/app/src/plan-graph.ts',
   'packages/app/src/scroll.ts',

@@ -1,17 +1,21 @@
 ---
 name: add-away-surface
-description: Add or change what the away view serves — a route, a read scope, a device grant, the pairing flow, the session credential, or what the guard asks of a request. Use when a phone should be able to read or do something it cannot, when a security claim about the away view needs changing, or when something about pairing, sessions or devices does the wrong thing.
+description: Add or change what the away view serves — a route, the live stream, a read scope, a device grant, the pairing flow, the session credential, the window's pairing panel, `tade web`, or what the guard asks of a request. Use when a phone should be able to read or do something it cannot, when a security claim about the away view needs changing, or when something about pairing, sessions, devices, reconnection or the listener's lifetime does the wrong thing.
 ---
 
 # Changing what the away view serves
 
-The away view is `packages/web`: a contract, a pure projection, and a `node:http` server behind
-pairing, a session and a guard. **It is off by default and listens on this machine alone**, and
-turning either of those round is a person's act with its own setting in `reach.ts`'s `never` subtree.
+The away view is `packages/web` plus the window's own end of it: a contract, a pure projection, a
+`node:http` server behind pairing, a session and a guard, and a listener the window owns and dies
+with. **It is off by default and listens on this machine alone**, and turning either of those round
+is a person's act with its own setting in `reach.ts`'s `never` subtree.
 
 | Changing | File |
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
+| the live stream's protocol | `src/stream.ts` — pure: the cursor, the ring, the resume rule, the frames, the budgets |
+| who is listening, and what they are sent | `src/peers.ts` — pure, over a `Sink`; the caps, the fan-out, the backpressure, the stall |
+| what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
 | the pairing exchange | `src/tickets.ts` (the burn), `server.ts`'s `pair` |
@@ -20,7 +24,12 @@ turning either of those round is a person's act with its own setting in `reach.t
 | the headers and the content policy | `src/headers.ts` |
 | what a refusal says | `src/errors.ts` |
 | the config | `surfaces.web` in `packages/core/src/config.ts`, read only by `surfaceOf` |
+| the sentences that may never get comfortable | `packages/core/src/away.ts`, re-exported by `src/surface.ts` |
 | the browser's files | `src/assets/` — `.html`/`.css`/`.js` only, **never `.ts`** |
+| the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` |
+| what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
+| what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with four goldens in `test/screens/scenarios/away.ts` |
+| the terminal's end of it | `packages/cli/src/commands/web.ts` |
 
 ## The rules that break things quietly
 
@@ -34,8 +43,11 @@ turning either of those round is a person's act with its own setting in `reach.t
 - **The guard is pure and has one call site.** A guard that read `req` could only be tested by making
   a request, and then the attacks it exists for get asked once each, for the one route somebody
   remembered. Add a layer in `allowed`, not in a handler.
-- **No forwarded header is ever read** (`NEVER_TRUSTED`). There is no reverse proxy in front of this,
-  so `X-Forwarded-Host` walks past the `Host` allow-list (the rebinding defence), `X-Forwarded-Proto`
+- **No forwarded header is ever read** (`NEVER_TRUSTED`), *and a proxy may be in front of this* —
+  `tailscale serve` is the recommended way to give a phone HTTPS. A deliberate proxy is trusted by
+  being **named in `surfaces.web.trusted_hosts`** (`schemesFor`, `trusted`), which is a person's act
+  in the `never` subtree; a header is anybody-on-the-network's. Read one and
+  `X-Forwarded-Host` walks past the `Host` allow-list (the rebinding defence), `X-Forwarded-Proto`
   makes a plaintext session look trusted enough to act, and `X-Forwarded-For` makes the rate limit and
   the journalled address whatever the attacker typed. The address is the socket's and the host is
   `Host`.
@@ -45,8 +57,28 @@ turning either of those round is a person's act with its own setting in `reach.t
 - **The pairing ticket is burned on the *claim*, before anybody at the machine is asked.** That one
   ordering is what makes a replay, a concurrent attempt, a refusal, a deadline and a throw all find
   nothing. The tempting shape — check, ask, then delete on success — is wrong in all five ways.
-- **A body of `null` is a body.** `read` returns a discriminated answer, because `unknown | null`
+- **A body of `null` is a body.** `readBody` returns a discriminated answer, because `unknown | null`
   made a four-byte `null` indistinguishable from "already refused" and held the request open for ever.
+- **`(epoch, rev)` is the cursor, and nothing reads `seq` or a byte offset.** The epoch is minted by
+  `webServer` — *the thing that starts* — and the window reads `server.epoch` for `lifetime.epoch`,
+  so a snapshot's freshness and a delta's `id` are the same string. Two sources for one value makes
+  every reconnection resnapshot, which is **correct**, so no test goes red while a phone downloads
+  the whole tree every two seconds.
+- **The stream has no timer, and neither does the window's end of it.** Heartbeats, slow clients and
+  expired sessions are all decided in `Streams.beat(now)`, called on `Live`'s existing refresh.
+  `test/stream.test.ts` asserts neither pure file so much as names `setTimeout`.
+- **A reopened dead session is `204`, not `401`.** A non-200 kills an `EventSource` permanently and
+  `204` is the one status that tells a browser to *stop reconnecting*; a `401` every two seconds for
+  as long as the phone is awake is what the alternative looks like. The guard still runs first, so a
+  bad `Host` is still a `403` — it is not a session problem.
+- **Over the budget, deltas stop and one `resync` is owed.** The layer underneath buffers whatever it
+  is handed, so the only bound that holds is to stop handing it anything; a snapshot replaces
+  anything, which is why dropping a run of deltas is correct rather than lossy.
+- **Nothing is built for nobody.** `Away.beat` marks the collections stale and does two empty loops;
+  the collections are built on demand (`collections()`) and memoised until the next beat, because a
+  request is not idle. Building them means four folds over the whole journal, and an enabled away
+  view nobody paired a phone to must not pay for one every two seconds
+  (`packages/app/test/wire/away.test.ts`).
 - **No handler does any work.** No `git`, no `ps`, no spawn, no file read but the device list: every
   read answers from what the window already holds, through `WebReading`. The window draws on this
   thread.
@@ -78,19 +110,22 @@ In `src/surface.ts`, said once so no control, README line or commit message can 
   breath — the list shows every device, every act is journalled under its id, and "Disconnect
   everything" needs no network.
 
-## The config, and why Settings has no field for it yet
+## The config, and the four controls over it
 
 `surfaces.web` is read in exactly one place — `surfaceOf` — and its four keys are `never` in
-`reach.ts`. **Settings deliberately offers no control for them**, and that is not an oversight: the
-listener they turn on is wired into the window by `away-stream-and-window`, and a control marked
-*takes effect on restart* that does nothing after a restart is precisely "a setting Tade accepts and
-ignores". The field lands in the slice that makes it true. A tier is a property of the path, so the
-keys are refused to the orchestrator either way (`packages/core/test/reach.test.ts` says so
-directly, rather than through what Settings happens to list).
+`reach.ts`: each either widens who can reach the control room (`enabled`, `bind`), decides what the
+pairing code says (`port`), or names a host whose `https` origin is trusted (`trusted_hosts`). A
+tier is a property of the path, so `packages/core/test/reach.test.ts` asserts it by subtree rather
+than through what Settings happens to list.
 
-**Adding the field is a visible change**, so it redraws the README's pictures in the same commit
-(`redraw-the-pictures`) — a new Settings category pushes the list past the rows the panel has, which
-is correct (it scrolls) and moves every settings golden.
+**All four are `live: false`, honestly.** The listener comes up when the window starts and the epoch
+a connected phone holds is per server start, so turning one on mid-session would have to tear down
+and rebuild something somebody is looking at. Saying *takes effect on restart* is the honest answer;
+doing nothing and saying nothing is the setting Tade accepts and ignores.
+
+**A new key here is a visible change**, so it redraws the README's pictures in the same commit
+(`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is
+correct (it scrolls) and moved every settings golden.
 
 ## What is not built, and must not arrive because a route was convenient
 
@@ -101,9 +136,32 @@ socket in `@tade/orchestrator` for the window's own children, and is **not this*
 phase wants one, it gets its own setting in the `never` subtree, its own threat model and its own
 go/no-go, not a route somebody added.
 
+## `tade web`, and what it cannot do
+
+`status`, `devices` and `revoke` read `config.yaml` and `web-devices.jsonl` **directly and never open
+the workbench** — questions never need the window, and disconnecting a phone you have lost must not
+depend on Tade being open. The file is append-only and keyed by device, so a line the terminal writes
+and a line the window writes fold to the same answer whichever order they land in; nothing rewrites
+it, which is what makes that true rather than lucky.
+
+`off` is **two acts under one word**: the setting, and every credential. An "off" that leaves
+credentials behind lets every phone that was ever paired straight back in when somebody turns it on
+again next week.
+
+`pair` **cannot mint a code**. A ticket lives in the memory of the process whose server has to claim
+it, and there is no channel from a shell into the window — the `ToolHost` is a Unix socket for the
+window's own child agents and must never become this. So it says which window is open and points at
+the panel that mints one.
+
 ## What a test here cannot prove
 
 A real phone's camera reading the QR at the module size a terminal draws; iOS Safari's local-network
-prompt; whether `.local` resolves on the owner's devices. Each is **named as outstanding** rather than
-ticked. `test/qr.test.ts` proves the *encoding* by decoding it with `jsqr`, which is a different
-codebase — that is the most a machine here can say.
+prompt; whether `.local` resolves on the owner's devices; whether a real reverse proxy passes a
+stream through unbuffered. Each is **named as outstanding** rather than ticked. `test/qr.test.ts`
+proves the *encoding* by decoding it with `jsqr`, which is a different codebase — that is the most a
+machine here can say.
+
+**A typed URL cannot pair.** The ticket is in the QR's fragment, so a person who types the address
+reaches the pairing page with nothing to present and is told to scan the code in the window.
+DESIGN §5.7 wanted a six-digit code as the typeable path; that is a second kind of credential with
+its own threat model, and it is **not built** — outstanding, not decided against.

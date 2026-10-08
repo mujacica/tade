@@ -3,29 +3,29 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  push                       │ Matching “push”                                                                │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass ▕│ What agents push                                                              █│    
-    │                            ▕│     ◉ never                                                                   █│    
-   ⠋│  Models                    ▕│     ○ branch                                                                  █│    
-    │                            ▕│     ○ branch-and-review                                                       █│    
-    │  Orchestrator              ▕│                                                                               █│    
- ▸ S│                            ▕│▌Needed before                     push                                 ▾      █│    
- ▸ S│  Checks                    ▕│▌                                 when a push or commit needs a green run      █│    
- ▾ C│                            ▕│▌                                 behind it — held only under approvals.mode … █│    
-  M │  Voice                     ▕│▌                                                                              █│    
-  A │                            ▕│ Push to talk                        ctrl   +   space       Change…            █│    
-  M │  Window                    ▕│                                                                               █│    
-    │                            ▕│ checkout — What is pushed         never                                ▾      █│    
- ▾ F│  Projects              ● 1 ▕│                                                                               █│    
-   ▾│                            ▕│ checkout — Checks needed before   push                                 ▾      █│    
-    │  Journal                   ▕│                                                                               █│    
-    │                            ▕│ search — What is pushed           never                                ▾      █│    
-   ▸│  Telemetry                 ▕│                                                                               █│    
-    │                            ▕│ search — Checks needed before     push                                 ▾      █│    
-━   │  Shortcuts                 ▕│                                                                               █│   ━
-    │                            ▕│ infra — What is pushed            never                                ▾      █│    
-    │  Accounts              ● 3 ▕│                                                                               █│   ▕
-    │                            ▕│ infra — Checks needed before      push                                 ▾      ▕│   ▕
-    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+ ▌  │  Agents             bypass █│ What agents push                                                              █│    
+    │                            █│     ◉ never                                                                   █│    
+   ⠋│  Models                    █│     ○ branch                                                                  █│    
+    │                            █│     ○ branch-and-review                                                       █│    
+    │  Orchestrator              █│                                                                               █│    
+ ▸ S│                            █│▌Needed before                     push                                 ▾      █│    
+ ▸ S│  Checks                    █│▌                                 when a push or commit needs a green run      █│    
+ ▾ C│                            █│▌                                 behind it — held only under approvals.mode … █│    
+  M │  Voice                     █│▌                                                                              █│    
+  A │                            █│ Push to talk                        ctrl   +   space       Change…            █│    
+  M │  Window                    █│                                                                               █│    
+    │                            █│ checkout — What is pushed         never                                ▾      █│    
+ ▾ F│  Away view                 █│                                                                               █│    
+   ▾│                            █│ checkout — Checks needed before   push                                 ▾      █│    
+    │  Projects              ● 1 █│                                                                               █│    
+    │                            █│ search — What is pushed           never                                ▾      █│    
+   ▸│  Journal                   █│                                                                               █│    
+    │                            █│ search — Checks needed before     push                                 ▾      █│    
+━   │  Telemetry                 █│                                                                               █│   ━
+    │                            █│ infra — What is pushed            never                                ▾      █│    
+    │  Shortcuts                 █│                                                                               █│   ▕
+    │                            █│ infra — Checks needed before      push                                 ▾      ▕│   ▕
+    │  Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

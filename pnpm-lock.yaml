@@ -59,6 +59,9 @@ importers:
       '@tade/voice-tts':
         specifier: workspace:*
         version: link:../voice/tts
+      '@tade/web':
+        specifier: workspace:*
+        version: link:../web
       '@tade/workbench':
         specifier: workspace:*
         version: link:../workbench
@@ -168,6 +171,9 @@ importers:
       '@tade/voice-tts':
         specifier: workspace:*
         version: link:../voice/tts
+      '@tade/web':
+        specifier: workspace:*
+        version: link:../web
       '@tade/workbench':
         specifier: workspace:*
         version: link:../workbench

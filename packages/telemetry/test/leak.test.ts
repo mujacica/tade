@@ -38,8 +38,18 @@ const WORDS = 'ZZ-the-words-somebody-wrote-ZZ'
  */
 const NOBODY_ELSE_S = [
   'args',
+  // The away view's network identifiers and the name somebody gave their own
+  // phone. `device` — a 16-hex id Tade minted — is kept and is enough to join
+  // two lines together; where that device is, what it is called, and what
+  // address or hostname it reached is a fact about somebody's network and
+  // somebody's words, and none of it leaves the machine.
+  'bind',
   'body',
   'branch',
+  'from',
+  'host',
+  'label',
+  'port',
   'command',
   'context',
   'cwd',

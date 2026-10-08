@@ -62,7 +62,7 @@ export const FLOOR: Record<string, number> = {
   // `src/wire/` is the hole and everything else here is over 89%: the pure
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
   // reaches lanes, files and the machine.
-  'packages/app': 82,
+  'packages/app': 85,
   'packages/harnesses/codex': 83,
   'packages/extensions/sentry': 84,
   // Went up when `checks_propose` went: what a project checks is read from its
@@ -182,6 +182,7 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/summary.ts': 'a command of the binary',
   'packages/cli/src/commands/tasks.ts': 'a command of the binary',
   'packages/cli/src/commands/update.ts': 'a command of the binary',
+  'packages/cli/src/commands/web.ts': 'a command of the binary',
 
   // Programs somebody else starts. Each is a path handed to a spawn —
   // `REAPER_PATH`, `HOOK_PATH`, `MCP_PATH`, `TOOLS_MCP`, `secretCommand` — and

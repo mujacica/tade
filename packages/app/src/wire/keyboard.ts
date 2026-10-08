@@ -8,6 +8,7 @@ import {
   type TuiInputListenerResult,
 } from '@earendil-works/pi-tui'
 import type { LaneId } from '@tade/core'
+import { matchActions } from '../commands.ts'
 import type { Frame } from '../frame.ts'
 import { filePaths, imagePaths, pasted } from '../images.ts'
 import {
@@ -33,7 +34,6 @@ import {
   focusNumber,
   keyAction,
   leaveLine,
-  matchActions,
   notice,
   ORCHESTRATOR_TAB,
   openLine,

@@ -4,6 +4,7 @@ import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 
 export type { UpdatesShown }
 
+import { type AwayPanel, awayClick, awayKey } from './panels/away/state.ts'
 import {
   type ExtensionSetupPanel,
   type ExtensionViewPanel,
@@ -82,6 +83,7 @@ import type { SearchEntry } from './search.ts'
 // decided here; carrying it out is the app's job.
 
 export type Panel =
+  | AwayPanel
   | SpendPanel
   | MenuPanel
   | ConfirmRemovePanel
@@ -153,6 +155,18 @@ export interface PanelInputs {
   written?: readonly WrittenToolView[]
   /** The fields of the extension being set up. */
   setupFields?: readonly SetupFieldView[]
+  /** How many paired devices the away panel is reading down. */
+  devices?: number
+  /**
+   * The window's own keys, as set.
+   *
+   * A panel needs them when the act it is asking about is one the window
+   * already has keys for: letting a device in is the same act in the same
+   * vocabulary as approving a tool call, so it is the same pair of keys — and
+   * a panel has the keyboard while it is open, so it has to recognise them
+   * itself rather than hope they reach the subject.
+   */
+  bindings?: Readonly<Record<string, string>>
   /** The tabs the extension's own page offers, and whether it is windowed. */
   viewTabs?: readonly { id: string; title: string }[]
   viewWindowed?: boolean
@@ -185,6 +199,7 @@ export function panelKey(
   }
   if (panel.kind === 'extensions') return extensionsKey(panel, key, data, inputs)
   if (panel.kind === 'row-summary') return rowSummaryKey(panel, key)
+  if (panel.kind === 'away') return awayKey(panel, key, inputs)
   if (panel.kind === 'quit') return quitKey(panel, key)
   if (panel.kind === 'reload') return reloadKey(panel, key)
   if (panel.kind === 'spend') return spendKey(panel, key)
@@ -233,6 +248,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'extension-setup') return setupClick(panel, control, inputs.setupFields ?? [])
   if (panel.kind === 'extensions') return extensionsClick(panel, control, inputs)
   if (panel.kind === 'row-summary') return rowSummaryClick(panel, control)
+  if (panel.kind === 'away') return awayClick(panel, control)
   if (panel.kind === 'quit') return quitClick(panel, control)
   if (panel.kind === 'reload') return reloadClick(panel, control)
   if (panel.kind === 'spend') return spendClick(panel, control)

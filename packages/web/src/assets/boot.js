@@ -14,6 +14,8 @@
 //    the back stack either. What is left is the device's own history store for
 //    ninety seconds, which is what the expiry is for.
 
+import { backoffAt, connectionOf, saidOf } from './live.js'
+
 const $ = (id) => document.getElementById(id)
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
@@ -70,6 +72,7 @@ async function start() {
       mine.body.you.reads.length === 0 ? 'names and counts' : mine.body.you.reads.join(', ')
     show('signed-in')
     wireOut(mine.body.you.csrf, mine.body.you.device)
+    watch()
     return
   }
   $('said').textContent = held === null ? 'This device is not paired.' : ''
@@ -112,6 +115,109 @@ function wireOut(csrf, device) {
     button.disabled = false
     said.textContent = sentence(answer)
   })
+}
+
+/**
+ * The live stream, and the one line this page says about it.
+ *
+ * The eight screens are `away-readonly-ui`'s; what this proves is the half
+ * that has to be right before any of them: that the stream opens, that the
+ * page can tell being out of date from being unable to reach anything and both
+ * from Tade having closed, and that **none of those ever redraws the page as
+ * empty**. There is nothing to empty here yet, which is exactly why the rule
+ * is worth having in place before there is.
+ *
+ * `EventSource` and not a `fetch` loop: the browser's own reconnection, with
+ * `Last-Event-ID` sent back for us, and one event for "it went away".
+ */
+function watch() {
+  const line = $('live')
+  if (line === null) return
+  let seen = { open: false, lastAt: Date.now(), ended: null }
+  let at = '—'
+  let tries = 0
+  let source = null
+
+  const draw = () => {
+    line.textContent = saidOf(connectionOf(seen, Date.now()), at, Date.now())
+  }
+
+  const open = () => {
+    source = new EventSource('/api/stream')
+    source.addEventListener('open', () => {
+      seen = { ...seen, open: true, lastAt: Date.now() }
+      tries = 0
+      draw()
+    })
+    for (const name of ['snapshot', 'delta', 'resync']) {
+      source.addEventListener(name, (event) => {
+        seen = { ...seen, open: true, lastAt: Date.now() }
+        // The **server's** own time, which is what the line shows: this page's
+        // clock is read only for the parenthesis.
+        try {
+          const said = JSON.parse(event.data)
+          const stamp = said.fresh?.at ?? said.at
+          if (typeof stamp === 'string') at = stamp
+        } catch {
+          // A frame this page cannot read is not a reason to say the machine
+          // has gone: the connection is plainly alive.
+        }
+        draw()
+      })
+    }
+    // The two the server says on its way out, and `204` on a reopen, are the
+    // whole of how a page knows it was *told* rather than left guessing.
+    source.addEventListener('notice', (event) => {
+      seen = { ...seen, ended: sentenceIn(event.data, 'Tade is closing') }
+      source?.close()
+      draw()
+    })
+    source.addEventListener('revoked', (event) => {
+      seen = { ...seen, ended: sentenceIn(event.data, 'this device was signed out') }
+      source?.close()
+      // Signed out is the pairing screen again, which is where the device now
+      // is: anything else would be a page pretending it still has a session.
+      location.replace('/pair')
+    })
+    source.addEventListener('too_many', () => {
+      seen = { ...seen, ended: 'this device has too many pages open' }
+      source?.close()
+      draw()
+    })
+    source.addEventListener('error', () => {
+      // Open and failing is the browser retrying on its own; closed is ours to
+      // retry, with a ceiling, because a phone in a pocket must not ask every
+      // second for an hour.
+      seen = { ...seen, open: false }
+      draw()
+      if (source?.readyState !== 2) return
+      source.close()
+      setTimeout(open, backoffAt(tries++))
+    })
+  }
+
+  // The line is redrawn on a slow beat so the parenthesis moves and a stream
+  // that went quiet becomes visibly stale without anything having arrived.
+  setInterval(draw, 5000)
+  // Coming back to the tab is the one moment worth an immediate try.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || source?.readyState !== 2) return
+    tries = 0
+    source.close()
+    open()
+  })
+  draw()
+  open()
+}
+
+/** Tade's own sentence out of a frame, or the one this page has for it. */
+function sentenceIn(data, instead) {
+  try {
+    const said = JSON.parse(data)
+    return typeof said.said === 'string' ? said.said : instead
+  } catch {
+    return instead
+  }
 }
 
 start().catch(() => {

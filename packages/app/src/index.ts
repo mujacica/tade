@@ -1,4 +1,5 @@
 export { App, type AppOptions } from './app.ts'
+export { type Action, actions, isAction, matchActions, parseCommand } from './commands.ts'
 export type { Frame } from './frame.ts'
 export { type Hit, hitAt, pressable, rowHit, sameTarget, type Target } from './hits.ts'
 export { appKey, type KeyContext, TALK } from './keys.ts'
@@ -21,7 +22,6 @@ export {
   onEvent,
   openLine,
   paneTitle,
-  parseCommand,
   projects,
   type SidebarGroup,
   selectProject,

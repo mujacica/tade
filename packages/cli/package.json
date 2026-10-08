@@ -27,6 +27,7 @@
     "@tade/voice-core": "workspace:*",
     "@tade/voice-stt": "workspace:*",
     "@tade/voice-tts": "workspace:*",
+    "@tade/web": "workspace:*",
     "@tade/workbench": "workspace:*",
     "commander": "^15.0.0",
     "yaml": "^2.9.1"

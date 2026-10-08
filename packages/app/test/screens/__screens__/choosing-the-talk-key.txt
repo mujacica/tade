@@ -15,17 +15,17 @@
   A │▌                       │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                       ▕│    
   M │  Window                │ Not a key that types a character.                          │                       ▕│    
     │                        │                                                            │                       ▕│    
- ▾ F│  Projects              │                        Try another     Use ctrl+r anyway   │                       ▕│    
+ ▾ F│  Away view             │                        Try another     Use ctrl+r anyway   │                       ▕│    
    ▾│                        ╰────────────────────────────────────────────────────────────╯                       ▕│    
-    │  Journal                   ▕│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
-    │                            ▕│                                                                               ▕│    
-   ▸│  Telemetry                 ▕│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
-    │                            ▕│                                                                               ▕│    
-━   │  Shortcuts                 ▕│                                                                               ▕│   ━
-    │                            ▕│                                                                               ▕│    
-    │  Accounts              ● 3 ▕│                                                                               ▕│   ▕
-    │                            ▕│                                                                               ▕│   ▕
-    │  Updates                   ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Projects              ● 1 █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+    │                            █│                                                                               ▕│    
+   ▸│  Journal                   █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+    │                            █│                                                                               ▕│    
+━   │  Telemetry                 █│                                                                               ▕│   ━
+    │                            █│                                                                               ▕│    
+    │  Shortcuts                 █│                                                                               ▕│   ▕
+    │                            █│                                                                               ▕│   ▕
+    │  Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

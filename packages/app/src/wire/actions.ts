@@ -1,4 +1,5 @@
-import { focusTask, matchActions, notice, parseCommand } from '../model.ts'
+import { matchActions, parseCommand } from '../commands.ts'
+import { focusTask, notice } from '../model.ts'
 import type { ExtensionViewPanel } from '../panels/extensions/setup.ts'
 import { type MenuSubject, menuPanel } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'

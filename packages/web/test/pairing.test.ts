@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { readDevices, writeDevices } from '../src/devices.ts'
 import type { Reach } from '../src/reach.ts'
-import { type Confirmed, CSRF_HEADER, labelOf, webServer } from '../src/server.ts'
+import { CSRF_HEADER, labelOf } from '../src/request.ts'
+import { type Confirmed, webServer } from '../src/server.ts'
 import { SESSION_MS } from '../src/sessions.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
@@ -396,6 +397,7 @@ describe('read scopes, enforced', () => {
       tickets,
       told: [],
       asked: [],
+      epoch: server.epoch,
       host: at,
       origin: `http://${at}`,
       answer: async () => ({ let: true, projects: null, granted: [] }),
