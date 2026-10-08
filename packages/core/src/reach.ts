@@ -149,6 +149,10 @@ const NEVER: readonly (readonly [string, string])[] = [
     'projects',
     'moving a project’s root moves where every agent in it works — closing it and opening it again is two acts, each said',
   ],
+  [
+    'surfaces.web',
+    'the away view is who can reach Tade from off this machine, and a page I read does not get to let anybody in',
+  ],
 ]
 
 /**

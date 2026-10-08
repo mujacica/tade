@@ -313,18 +313,32 @@ describe('the away view reads what it is handed', () => {
  * arrives with a new region or a new panel rather than after it.
  */
 const PURE = [
-  // The away view's data boundary: a schema, a projection and a diff, each a
-  // function of what it is handed and the moment. `reading.ts` is not here
-  // because it holds the last projection and the revision, and `index.ts` is
-  // the package's door.
+  // The away view's data boundary and its door policy: a schema, a projection,
+  // a diff, and every question asked of a request before a route runs — each a
+  // function of what it is handed and the moment.
+  //
+  // `guard.ts` is the one worth saying out loud: a guard that read `req`
+  // directly could only be tested by making a request, and then the attacks it
+  // exists for get asked once each, for the one route somebody remembered.
+  // Pure, the whole cross-product is a table.
+  //
+  // Not here: `reading.ts` (holds the last projection and the revision),
+  // `server.ts` (the listener), `sessions.ts`/`tickets.ts`/`devices.ts` (they
+  // mint secrets and read files), `assets.ts`/`qr.ts`, and `index.ts`, which
+  // is the package's door.
   'packages/web/src/delta.ts',
+  'packages/web/src/errors.ts',
   'packages/web/src/fields.ts',
+  'packages/web/src/guard.ts',
+  'packages/web/src/headers.ts',
   'packages/web/src/input.ts',
   'packages/web/src/measure.ts',
   'packages/web/src/page.ts',
   'packages/web/src/protocol.ts',
   'packages/web/src/reach.ts',
+  'packages/web/src/routes.ts',
   'packages/web/src/snapshot.ts',
+  'packages/web/src/surface.ts',
   'packages/app/src/frame.ts',
   'packages/app/src/reality.ts',
   'packages/app/src/happening.ts',

@@ -67,7 +67,12 @@ describe('what no words reach', () => {
   })
 
   it('says why, in a clause somebody can be told', () => {
-    for (const path of ['approvals.mode', 'mcp.servers.linear.enabled', 'telemetry.dsn']) {
+    for (const path of [
+      'approvals.mode',
+      'mcp.servers.linear.enabled',
+      'telemetry.dsn',
+      'surfaces.web.enabled',
+    ]) {
       expect(settingReach(path).because.length, path).toBeGreaterThan(20)
     }
     // Nothing to explain where nothing is refused.
@@ -84,6 +89,12 @@ describe('what an ordinary request reaches', () => {
     ]) {
       expect(settingReach(path).reach, path).toBe('open')
     }
+    // And the away view's keys are under `surfaces` too, which is the one
+    // place a subtree could have been read as covering them. It does not: the
+    // dot is required, so `surfaces.window.*` and `surfaces.web.*` are two
+    // subtrees and only one of them is refused.
+    expect(settingReach('surfaces.web.enabled').reach).toBe('never')
+    expect(settingReach('surfaces.window.sidebar_width').reach).toBe('open')
   })
 
   it('does not include anything that changes how the work is done', () => {
@@ -234,6 +245,13 @@ describe('the shape of the rule', () => {
       'projects.app.root',
       'telemetry.dsn',
     ])
+    // **`surfaces.web.*` is not in that list, and its absence is the point.**
+    // Settings offers no field for the away view yet, because the listener it
+    // would turn on arrives with the slice that wires it into the window — and
+    // a control marked "takes effect on restart" that does nothing after a
+    // restart is exactly the setting Tade accepts and ignores. The keys are
+    // `never` all the same, by subtree, which the test above asserts directly:
+    // a tier is a property of the path and not of whether a page lists it.
     // The rest — and it is most of them — needs the person's own words.
     expect(byTier.asked?.length).toBeGreaterThan(30)
   })

@@ -100,6 +100,9 @@ const KEPT = new Set([
   'change',
   'check',
   'code',
+  // Which paired device an away-view line was about: a 16-hex id Tade minted,
+  // never the label, which is a person's own words about their own phone.
+  'device',
   'done',
   'driver',
   'exit',

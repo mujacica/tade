@@ -164,6 +164,31 @@ export const EventType = z.enum([
    * so are they.
    */
   'config_changed',
+  // the away view
+  /**
+   * A device was paired: it may now read what it was granted, from off this
+   * machine, until it is signed out or expires. The line carries the device's
+   * id, the label the device suggested, the address it came from and what it
+   * was granted — never the ticket it used and never the credential it was
+   * given, neither of which anything may read back.
+   */
+  'web_paired',
+  /**
+   * A pairing was not allowed: refused at the machine, or nobody answered
+   * before the deadline. Two reasons, one line each, because a person saying
+   * no and a person not being there are different things to read back.
+   */
+  'web_denied',
+  /** A device was signed out: by itself, or at the machine. */
+  'web_revoked',
+  /**
+   * Requests were refused at the door and kept coming: a `Host` that is not
+   * this machine, a cross-site `Origin`, a session that is not one. Written
+   * once a peer is past the threshold rather than per request, because a
+   * refusal is cheap and a line per refusal is how a journal becomes a
+   * request log nobody reads.
+   */
+  'web_refused',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -250,6 +275,16 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // being recorded, and this is somebody changing how Tade behaves. A person
   // who did not make the change is the one who most needs to see it.
   config_changed: 'notable',
+  // A device gaining or losing the right to read Tade from off this machine is
+  // the same shape as a setting changing, and for the same reason: the person
+  // who did not do it is the one who most needs to see that it happened.
+  web_paired: 'notable',
+  web_denied: 'notable',
+  web_revoked: 'notable',
+  // Not `notable`: a refusal at the door is the guard working, and an earcon
+  // per scanner on the wifi is a sound nobody can act on. It is kept for the
+  // record, where a sustained attempt reads as one.
+  web_refused: 'routine',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

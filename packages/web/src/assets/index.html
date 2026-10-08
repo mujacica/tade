@@ -1,0 +1,46 @@
+<!--
+  The shell. It is the whole of what an unauthenticated request can get, and it
+  carries no data at all: no task, no project, no name, no count. Everything on
+  the page arrives from a route that needs a session, which is what makes
+  serving this to anybody who asks a safe thing to do.
+
+  No inline script and no inline style, because the content policy has neither
+  `unsafe-inline` nor `eval`. Every value reaches the DOM through `textContent`;
+  nothing here or in `boot.js` touches `innerHTML`.
+
+  This is the bootstrap, not the away view: it pairs a device and signs one out.
+  The eight screens are `away-readonly-ui`'s, in this folder, under these rules.
+-->
+<title>Tade</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark light" />
+<link rel="stylesheet" href="/assets/boot.css" />
+<main id="main">
+  <h1>Tade</h1>
+  <p id="said">Loading…</p>
+
+  <section id="pairing" hidden>
+    <h2>Pair this device</h2>
+    <p>
+      Tade will ask at the machine before this device is let in. Give it a name
+      you will recognise in the device list.
+    </p>
+    <label for="label">This device</label>
+    <input id="label" type="text" maxlength="40" autocomplete="off" autocapitalize="words" />
+    <button id="pair" type="button">Pair</button>
+    <p id="pair-said" role="status"></p>
+  </section>
+
+  <section id="signed-in" hidden>
+    <h2>Signed in</h2>
+    <dl>
+      <dt>This device</dt>
+      <dd id="me"></dd>
+      <dt>What it may read</dt>
+      <dd id="reads"></dd>
+    </dl>
+    <button id="out" type="button">Sign this device out</button>
+    <p id="out-said" role="status"></p>
+  </section>
+</main>
+<script type="module" src="/assets/boot.js"></script>

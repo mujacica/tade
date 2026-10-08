@@ -1,0 +1,201 @@
+import { mkdtemp } from 'node:fs/promises'
+import { request } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { Reach } from '../src/reach.ts'
+import type { WebReading } from '../src/reading.ts'
+import {
+  type Confirmed,
+  type PairingAsk,
+  type Told,
+  type WebServer,
+  webServer,
+} from '../src/server.ts'
+import { snapshotOf } from '../src/snapshot.ts'
+import type { Surface } from '../src/surface.ts'
+import { Tickets } from '../src/tickets.ts'
+import { input, NOW } from './fixtures.ts'
+
+// A real listener on this machine, and a client that can say what a browser
+// says. Shared by `server.test.ts` (the door: what is served, what is refused)
+// and `pairing.test.ts` (the credential: minting it, using it, losing it).
+//
+// **Loopback and `port: 0` throughout.** A test that bound the LAN would be a
+// listener on whoever's network ran it, which is the one thing this slice is
+// not allowed to leave behind.
+//
+// **The client is `node:http` and not `fetch`.** `fetch` cannot set `Host` —
+// it is a forbidden header name, so it strips it silently — and a
+// DNS-rebinding test written with `fetch` therefore sends the real host, gets
+// a `200`, and is a test that passes while asserting nothing.
+
+export const BASE: Surface = {
+  enabled: true,
+  bind: 'loopback',
+  port: 0,
+  trustedHosts: ['studio.yak-bebop.ts.net'],
+}
+
+export interface Running {
+  server: WebServer
+  home: string
+  origin: string
+  host: string
+  tickets: Tickets
+  told: Told[]
+  asked: PairingAsk[]
+  /** What the next pairing is answered with, and by whom. */
+  answer: (ask: PairingAsk) => Promise<Confirmed>
+}
+
+/** What came back: the status, the headers and the bytes. */
+export interface Answer {
+  status: number
+  headers: Record<string, string>
+  text: string
+}
+
+/**
+ * A reading over the projection's own fixtures.
+ *
+ * The real one, and not a stub that answers `{}`: what these files are for is
+ * the server, and a server tested against an empty answer would not notice
+ * that what it served was the wrong device's projection.
+ */
+export function reading(reach: Reach): WebReading {
+  return {
+    snapshot: () => snapshotOf(input({ reach }), NOW),
+    notes: () => ({ rows: [], total: 0, omitted: 0, next: null, restarted: false }),
+  }
+}
+
+/** A home of its own, so no two tests share a device list. */
+export async function homeFor(what: string): Promise<string> {
+  return mkdtemp(join(tmpdir(), `tade-web-${what}-`))
+}
+
+/**
+ * Every server a test started, so each file can close them all afterwards.
+ *
+ * Shared by the files that import this, and emptied by `closeAll` — which each
+ * of them calls in its own `afterEach`, because a listener left open outlives
+ * the test that wanted it.
+ */
+const running: Running[] = []
+
+export async function closeAll(): Promise<void> {
+  for (const one of running) await one.server.close()
+  running.length = 0
+}
+
+export async function start(
+  over: Partial<Surface> = {},
+  opts: { confirmMs?: number } = {},
+): Promise<Running> {
+  const home = await homeFor('run')
+  const tickets = new Tickets()
+  const told: Told[] = []
+  const asked: PairingAsk[] = []
+  const one: Running = {
+    home,
+    tickets,
+    told,
+    asked,
+    origin: '',
+    host: '',
+    server: undefined as unknown as WebServer,
+    answer: async () => ({ let: true, projects: null, granted: [] }),
+  }
+  one.server = webServer({
+    home,
+    surface: { ...BASE, ...over },
+    readingFor: reading,
+    tickets,
+    tell: (line) => told.push(line),
+    confirm: (ask) => {
+      asked.push(ask)
+      return one.answer(ask)
+    },
+    ...(opts.confirmMs === undefined ? {} : { confirmMs: opts.confirmMs }),
+  })
+  const bound = await one.server.listen()
+  const at = bound.find((address) => address.startsWith('127.0.0.1'))
+  if (at === undefined) throw new Error(`nothing bound on loopback: ${bound.join(', ')}`)
+  one.host = at
+  one.origin = `http://${at}`
+  running.push(one)
+  return one
+}
+
+/** The JSON an answer carried, as the loose shape a test reads fields off. */
+export function said(answer: Answer): Record<string, unknown> {
+  return JSON.parse(answer.text) as Record<string, unknown>
+}
+
+/**
+ * One request, over `node:http` rather than `fetch`.
+ *
+ * **`fetch` cannot set `Host`** — it is a forbidden header name, so `fetch`
+ * strips it silently. A rebinding test written with `fetch` therefore sends the
+ * real host, gets a `200`, and is a test that passes while asserting nothing.
+ * `node:http` sends what it is given, which is what a test of a `Host`
+ * allow-list has to be able to do.
+ */
+export function ask(
+  one: Running,
+  path: string,
+  over: { method?: string; headers?: Record<string, string>; body?: string } = {},
+): Promise<Answer> {
+  const headers: Record<string, string> = {
+    host: one.host,
+    'sec-fetch-site': 'same-origin',
+    ...over.headers,
+  }
+  if (over.body !== undefined) headers['content-length'] = String(Buffer.byteLength(over.body))
+  const [address, port] = one.host.split(':')
+  return new Promise<Answer>((done, failed) => {
+    const req = request(
+      { host: address, port: Number(port), path, method: over.method ?? 'GET', headers },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () =>
+          done({
+            status: res.statusCode ?? 0,
+            headers: Object.fromEntries(
+              Object.entries(res.headers).map(([name, value]) => [
+                name,
+                Array.isArray(value) ? value.join(', ') : String(value ?? ''),
+              ]),
+            ),
+            text: Buffer.concat(chunks).toString('utf8'),
+          }),
+        )
+      },
+    )
+    req.on('error', failed)
+    if (over.body !== undefined) req.write(over.body)
+    req.end()
+  })
+}
+
+/** A paired device, and the cookie header that is its credential. */
+export async function pair(
+  one: Running,
+  over: { label?: string; headers?: Record<string, string> } = {},
+): Promise<{ answer: Answer; cookie: string; csrf: string; device: string }> {
+  const ticket = one.tickets.mint(`${one.origin}/pair`, Date.now())
+  const answer = await ask(one, '/api/pair', {
+    method: 'POST',
+    headers: {
+      origin: one.origin,
+      'content-type': 'application/json',
+      ...over.headers,
+    },
+    body: JSON.stringify({ ticket: ticket.value, label: over.label ?? 'iPhone' }),
+  })
+  const set = answer.headers['set-cookie'] ?? ''
+  const cookie = set.split(';')[0] ?? ''
+  const body = answer.status === 201 ? (said(answer) as Record<string, string>) : {}
+  return { answer, cookie, csrf: body.csrf ?? '', device: body.device ?? '' }
+}
