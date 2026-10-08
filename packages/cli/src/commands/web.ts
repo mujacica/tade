@@ -199,6 +199,15 @@ export interface Looked {
   trustedHosts: readonly string[]
   /** Whether a window is open on this home, which is what makes it answer. */
   windowOpen: boolean
+  /**
+   * Whether `config.yaml` could be read at all.
+   *
+   * `false` means every setting below is this command's **default** and not
+   * what is set — which has to be said, because "off" read off a file nothing
+   * could parse is a guess, and a person whose config is broken would
+   * otherwise be told the away view is off while a window serves it.
+   */
+  read: boolean
   /** Where a phone would go. Empty where nothing could reach it. */
   urls: readonly string[]
   devices: ReturnType<typeof asJson>[]
@@ -209,9 +218,10 @@ export interface Looked {
 async function look(): Promise<Looked> {
   const home = tadeHome()
   const loaded = await loadConfig(defaultConfigPath())
-  // A config that will not load is not a reason to refuse to answer: the
-  // away view's default is off, which is also the honest answer to "what is
-  // listening" when nothing can be read.
+  // A config that will not load is not a reason to refuse to answer — the
+  // device list is still readable and `revoke` still works — but it **is** a
+  // reason to say so rather than print the defaults as though they were what
+  // is set. `read: false` is carried all the way to the lines and to `--json`.
   const surface = loaded.ok
     ? surfaceOf(loaded.config.surfaces.web)
     : { enabled: false, bind: 'loopback' as const, port: 7654, trustedHosts: [] }
@@ -223,6 +233,7 @@ async function look(): Promise<Looked> {
     port: surface.port,
     trustedHosts: surface.trustedHosts,
     windowOpen: (await heldBy(home)) !== null,
+    read: loaded.ok,
     urls: surface.enabled
       ? [...trusted, ...(surface.bind === 'loopback' ? [`http://localhost:${surface.port}/`] : [])]
       : [],
@@ -233,6 +244,12 @@ async function look(): Promise<Looked> {
 
 function lines(said: Looked): string[] {
   const out: string[] = []
+  if (!said.read) {
+    // First, and before anything that looks like an answer: everything under
+    // this is a default rather than a reading.
+    out.push(`${defaultConfigPath()} could not be read, so this cannot say what is set`)
+    out.push('`tade config --check` says what is wrong with it')
+  }
   if (!said.enabled) {
     out.push('off — nothing is listening')
     out.push('`tade web on` serves it on this machine alone')

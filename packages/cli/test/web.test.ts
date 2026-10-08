@@ -173,13 +173,26 @@ describe('tade web', () => {
     expect(said.stderr).toContain('no window is open')
   })
 
-  it('answers at all with a config that will not load', async () => {
-    // A broken file is not a reason to refuse to say what is listening, and
-    // `off` is the honest answer when nothing can be read.
+  it('says it could not read the config rather than printing the defaults as answers', async () => {
+    // A broken file is not a reason to refuse to answer — the device list is
+    // still readable and `revoke` still works — but "off" read off a file
+    // nothing could parse is a guess, and somebody whose config is broken
+    // would otherwise be told the away view is off while a window serves it.
     writeFileSync(join(home, 'config.yaml'), 'surfaces:\n  web:\n    port: "not a port"\n')
     const said = await tade('web', 'status')
     expect(said.code).toBe(0)
-    expect(said.stdout).toContain('off')
+    expect(said.stdout).toContain('could not be read')
+    expect(said.stdout).toContain('cannot say what is set')
+    expect(said.stdout).toContain('tade config --check')
+    const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as { read: boolean }
+    expect(json.read).toBe(false)
+  })
+
+  it('says it read the config when it could', async () => {
+    await tade('web', 'on')
+    const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as { read: boolean }
+    expect(json.read).toBe(true)
+    expect((await tade('web', 'status')).stdout).not.toContain('could not be read')
   })
 
   it('skips a damaged line of the device list rather than throwing it over', async () => {

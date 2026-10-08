@@ -1,5 +1,6 @@
 import { request } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
+import { readDevices, writeDevices } from '../src/devices.ts'
 import { Streams } from '../src/peers.ts'
 import type { Delta } from '../src/protocol.ts'
 import type { Reach } from '../src/reach.ts'
@@ -297,6 +298,56 @@ describe('reconnecting', () => {
     await back.until('snapshot')
     expect(back.events()).toEqual(['snapshot'])
     back.close()
+  })
+})
+
+describe('a session that renews under an open stream', () => {
+  it('pushes the stream’s own expiry forward rather than ending it', async () => {
+    // Where the two halves meet, and the one place the wiring can be wrong
+    // without either half being: a stream holds the expiry it was opened
+    // with, and the beat ends one whose session has run out. A phone used
+    // every morning renews on an ordinary request — so the request path has
+    // to tell the streams, or the one device that never signs out is the one
+    // whose page gets closed as expired.
+    const streams = new Streams()
+    const { one, cookie, device } = await paired({ streams })
+    const read = await readDevices(one.home)
+    const held = read.devices.find((each) => each.id === device)
+    if (held === undefined) throw new Error('nothing paired')
+    // Its expiry two days behind where a fresh one would be, which is what a
+    // day of use looks like to `renewal`.
+    const until = held.until - 2 * 86_400_000
+    await writeDevices(one.home, [
+      {
+        kind: 'paired',
+        device: held.id,
+        at: new Date(held.pairedAt).toISOString(),
+        label: held.label,
+        digest: held.digest,
+        host: held.host,
+        csrf: held.csrf,
+        until: new Date(until).toISOString(),
+        scopes: ['read'],
+        projects: null,
+        granted: [],
+        from: held.from,
+      },
+    ])
+
+    const live = await listen(one, '/api/stream', { cookie })
+    await live.until('snapshot')
+    // Still inside the old expiry, so nothing has happened yet.
+    streams.beat(until - 1_000)
+    expect(live.events()).toEqual(['snapshot'])
+
+    // An ordinary request renews it, and says so to the streams — so a beat
+    // past the expiry the stream was *opened* with leaves it open. Without
+    // that one line in the request path this is a `revoked`, which is what
+    // `peers.test.ts` asserts happens to a session that really did run out.
+    expect((await ask(one, '/api/snapshot', { headers: { cookie } })).status).toBe(200)
+    streams.beat(until + 1_000)
+    expect(live.events()).toEqual(['snapshot'])
+    live.close()
   })
 })
 
