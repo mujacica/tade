@@ -442,6 +442,17 @@ describe('what the Linear door does when Linear will not answer', () => {
     await expect(look(linear({ status: 502 }))).rejects.toThrow(/502/)
   })
 
+  it('reads a strange answer as a strange answer, not as a broken connector', async () => {
+    // `nodes: [Issue!]!` says this cannot happen, so if it does it is Linear
+    // breaking its own contract — and the cost of trusting the cast was a
+    // `TypeError` from deep inside the selector, which reads as Tade being
+    // broken. The look carries on with what it can actually read.
+    const script = linear({ issues: [null as never, issue(), 'nonsense' as never] })
+    const found = await look(script)
+    expect(found.found).toHaveLength(1)
+    expect(intakeOf(found.found[0] as { intake?: IntakeCandidate }).externalId).toBe('ENG-500')
+  })
+
   it('says what it needs when there is no key, and takes nothing else down with it', async () => {
     const empty = await host(linear(), { key: undefined })
     await expect(empty.look('intake.linear', looking())).rejects.toThrow(/LINEAR_API_KEY/)

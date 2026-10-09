@@ -158,8 +158,17 @@ export function linearScript(options: LinearOptions): LinearScript {
    * name, the state types that are over, `updatedAt` at or after a moment, and
    * one issue by number. Anything else in a filter is ignored and the test that
    * needed it would see its issue come back, which is the loud way round.
+   *
+   * **It never throws, whatever a test puts in the list.** A server answers; it
+   * does not raise an exception inside its client. A fixture that threw here
+   * would come back out of `LinearApi.call`'s catch as `Unreachable` — the
+   * fixture's own bug reported as Linear being down — and a test about a
+   * strange answer would be a test about an outage. So an entry that is not an
+   * issue is **passed through** rather than crashed on, and what happens to it
+   * is the connector's business, which is the thing under test.
    */
   const matches = (issue: Record<string, unknown>, filter: Record<string, unknown>): boolean => {
+    if (!issue || typeof issue !== 'object') return true
     const team = pick(filter, ['team', 'key', 'eq'])
     if (typeof team === 'string' && (issue.team as { key?: string } | null)?.key !== team) {
       return false
@@ -193,10 +202,12 @@ export function linearScript(options: LinearOptions): LinearScript {
     // connector that trusted the server's order.
     const within = script.issues
       .filter((one) => matches(one, filter))
-      .sort((a, b) => Date.parse(String(b.updatedAt)) - Date.parse(String(a.updatedAt)))
+      .sort((a, b) => whenOf(b) - whenOf(a))
     const at = atOfCursor(variables.after)
     const size = Math.max(1, options.pageSize ?? Number(variables.first) ?? 25)
-    const page = within.slice(at, at + size).map((one) => bounded(one, label, history))
+    const page = within
+      .slice(at, at + size)
+      .map((one) => (one && typeof one === 'object' ? bounded(one, label, history) : one))
     const more = at + size < within.length
     return {
       issues: {
@@ -311,6 +322,12 @@ function bounded(
     // holds them, which is deliberately neither oldest nor newest first.
     history: { nodes: changes.slice(0, history) },
   }
+}
+
+/** When an entry says it moved, or 0 for one that is not an issue at all. */
+function whenOf(issue: Record<string, unknown>): number {
+  const at = Date.parse(String(issue?.updatedAt))
+  return Number.isFinite(at) ? at : 0
 }
 
 function labelsOf(issue: Record<string, unknown>): string[] {

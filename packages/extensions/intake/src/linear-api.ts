@@ -286,7 +286,16 @@ export class LinearApi {
     const page = body.issues
     const read =
       page && typeof page === 'object' ? (page as { nodes?: unknown; pageInfo?: unknown }) : null
-    const issues = Array.isArray(read?.nodes) ? (read.nodes as LinearIssue[]) : []
+    // Only the objects, which is what makes the cast below honest. Linear's
+    // schema says `nodes: [Issue!]!`, so a null in there is a contract
+    // violation and should not happen — but the cost of it happening is a
+    // `TypeError` from somewhere deep in the selector, which reads as a broken
+    // connector rather than as a strange answer. Everything else about this
+    // door treats the shape as untrusted (every field on `LinearIssue` is
+    // optional) and this is the one place that was only true by assertion.
+    const issues = Array.isArray(read?.nodes)
+      ? read.nodes.filter((one): one is LinearIssue => Boolean(one) && typeof one === 'object')
+      : []
     const info =
       read?.pageInfo && typeof read.pageInfo === 'object'
         ? (read.pageInfo as { hasNextPage?: unknown; endCursor?: unknown })
