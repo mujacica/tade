@@ -208,6 +208,24 @@ describe('a repeat', () => {
     expect(made.calls).toHaveLength(1)
   })
 
+  it('tells a repeat that arrived while the first was failing, rather than running it', async () => {
+    // The `running` path's own catch: the first act is still going and is
+    // about to fail, so the second must not be handed a second attempt. It
+    // gets the same answer a later repeat would — `unsure`, because nothing
+    // recorded what came of the first.
+    const made = window_({
+      park: () =>
+        new Promise<Outcome>((_, failed) =>
+          setTimeout(() => failed(new Error('the window went')), 10),
+        ),
+    })
+    const ctx = await context(made.acting, {}, 'acted-load-fail')
+    const [one, two] = await Promise.all([carryOut(ROUTE, BODY, ctx), carryOut(ROUTE, BODY, ctx)])
+    expect(made.calls).toHaveLength(1)
+    const answers = [one, two].map((answered) => answered.refusal?.error).sort()
+    expect(answers).toEqual(['broke', 'unsure'])
+  })
+
   it('is unsure, and runs nothing, when the window died in the middle of the first', async () => {
     // **The restart case, through the whole path.** The first act's `asked`
     // line is on disk; nothing recorded what came of it. A new lifetime reads

@@ -280,6 +280,51 @@ describe('what is kept in memory', () => {
   })
 })
 
+describe('an act that fails', () => {
+  it('answers a concurrent repeat rather than holding it open for ever', async () => {
+    // **The reason `while` takes a thunk and not a promise.** Handed a promise,
+    // it is never reached when the verb throws *synchronously* — and then the
+    // thing a concurrent repeat is awaiting is settled by nothing, which is a
+    // request held open until the phone gives up.
+    const home = await homeFor('receipts-sync-throw')
+    const kept = await store(home)
+    await kept.claim(asking())
+    const second = await kept.claim(asking())
+    expect(second.kind).toBe('running')
+    const going = kept.while('abcdefgh12345678', () => {
+      throw new Error('the window went')
+    })
+    await expect(going).rejects.toThrow('the window went')
+    if (second.kind === 'running') await expect(second.outcome).rejects.toThrow('the window went')
+  })
+
+  it('is unsure afterwards, because nothing recorded what came of it', async () => {
+    const home = await homeFor('receipts-failed-then')
+    const kept = await store(home)
+    await kept.claim(asking())
+    await kept.while('abcdefgh12345678', () => Promise.reject(new Error('no'))).catch(() => {})
+    expect((await kept.claim(asking())).kind).toBe('unsure')
+  })
+})
+
+describe('what the kept window may never drop', () => {
+  it('never forgets a key that is still going, however many arrive after it', async () => {
+    // **The one eviction that would be a double act.** Dropping an in-flight
+    // key would make a concurrent repeat of it look fresh, so the window is
+    // `KEPT` plus whatever is in flight — which the socket caps already bound.
+    const home = await homeFor('receipts-inflight-kept')
+    const kept = await store(home)
+    await kept.claim(asking({ key: 'inflight00000000' }))
+    for (let at = 0; at < KEPT + 5; at++) {
+      const key = `k${String(at).padStart(15, '0')}`
+      await kept.claim(asking({ key }))
+      await kept.while(key, () => Promise.resolve(DONE))
+      await kept.came(key, BOUND, DONE, at)
+    }
+    expect((await kept.claim(asking({ key: 'inflight00000000' }))).kind).toBe('running')
+  })
+})
+
 describe('when the line cannot be written', () => {
   it('drops the in-flight mark, so a repeat is answered rather than held open', async () => {
     // **The hang this closes.** The mark that makes a concurrent repeat wait
@@ -298,5 +343,32 @@ describe('when the line cannot be written', () => {
     await kept.open()
     await expect(kept.claim(asking())).rejects.toThrow()
     expect((await kept.claim(asking())).kind).toBe('unsure')
+  })
+})
+
+describe('the lifetime on a line', () => {
+  it('is audit and never a decision, so a new one cannot make a key run again', () => {
+    // The file says which window asked, which is how a person tells *it
+    // failed* from *the window died under it*. What refuses a repeat is the
+    // record existing at all — so a record written under any epoch, read back
+    // under any other, is the same answer. Asserted over the fold rather than
+    // through a store, because the claim never looks at an epoch to compare.
+    const line = (epoch: string) =>
+      JSON.stringify({
+        kind: 'asked',
+        key: 'abcdefgh12345678',
+        bound: boundDigest(BOUND),
+        epoch,
+        device: '00112233445566aa',
+        verb: 'park',
+        task: 'tade/x',
+        at: 'now',
+      })
+    for (const epoch of ['one', 'two', '']) {
+      const read = receiptsIn(line(epoch))
+      expect(read.receipts, epoch).toHaveLength(1)
+      // Nothing of the lifetime reaches the record a claim is decided from.
+      expect(Object.keys(read.receipts[0] ?? {}).sort()).toEqual(['bound', 'key', 'outcome'])
+    }
   })
 })

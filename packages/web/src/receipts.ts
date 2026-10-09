@@ -67,7 +67,16 @@ const AskedLine = z.strictObject({
   key: z.string().max(64),
   /** The digest of `boundTo`: the device, the verb, the target, the payload. */
   bound: z.string().regex(/^[0-9a-f]{64}$/),
-  /** The server lifetime it was asked in. A key from another one never runs. */
+  /**
+   * The server lifetime it was asked in.
+   *
+   * **Audit, and deliberately not a decision.** It is how a person reading the
+   * file tells an act this window started from one the last one did, which is
+   * the difference between *it failed* and *the window died under it*. What
+   * refuses a repeat is the record existing at all, whatever lifetime wrote
+   * it — so there is no comparison of epochs anywhere, and a key cannot be
+   * made to run again by arriving in a new one.
+   */
   epoch: z.string().max(64),
   device: z.string().regex(/^[0-9a-f]{16}$/),
   verb: z.string().max(40),
@@ -88,11 +97,17 @@ const CameLine = z.strictObject({
 const Line = z.discriminatedUnion('kind', [AskedLine, CameLine])
 export type ReceiptLine = z.infer<typeof Line>
 
-/** One key's record, folded out of its lines. */
+/**
+ * One key's record, folded out of its lines.
+ *
+ * No `epoch` on it, because nothing would read one: a record from *any*
+ * lifetime is enough to refuse a repeat, so carrying the lifetime here would
+ * be a field that looks load-bearing and decides nothing. It stays on the
+ * line, where it is audit (`AskedLine`).
+ */
 export interface Receipt {
   key: string
   bound: string
-  epoch: string
   /** What came of it, or null where only the `asked` line is there. */
   outcome: Outcome | null
 }
@@ -150,12 +165,7 @@ export function receiptsIn(text: string): { receipts: Receipt[]; skipped: number
       continue
     }
     if (parsed.kind === 'asked') {
-      held.set(parsed.key, {
-        key: parsed.key,
-        bound: parsed.bound,
-        epoch: parsed.epoch,
-        outcome: null,
-      })
+      held.set(parsed.key, { key: parsed.key, bound: parsed.bound, outcome: null })
       continue
     }
     const was = held.get(parsed.key)
@@ -273,7 +283,7 @@ export class Receipts {
     // same tick finds both. The record going in before the line lands is the
     // safe direction too: a write that failed leaves a key that reads as
     // `unsure` rather than one that reads as never asked.
-    this.keep({ key: ask.key, bound, epoch: this.epoch, outcome: null })
+    this.keep({ key: ask.key, bound, outcome: null })
     this.running.set(ask.key, this.awaited(ask.key))
     return this.write({
       kind: 'asked',
