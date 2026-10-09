@@ -142,6 +142,23 @@ describe('what the orchestrator may do with a template', () => {
     expect(planned).toEqual([])
   })
 
+  // The bound again, from the other side: with a draft at a newer version
+  // beside a published one, the orchestrator still gets the published one.
+  it('never reaches a newer draft, even where a person’s own dry run would', async () => {
+    await publish()
+    mkdirSync(join(home, 'templates', 'drafts'), { recursive: true })
+    writeFileSync(
+      join(home, 'templates', 'drafts', 'mine.yaml'),
+      DRAFT.replace('version: 1', 'version: 2').replace('Fix it.', 'Fix it the new way.'),
+    )
+    const { result } = await call(path, 'template/dry-run', {
+      template: 'mine',
+      inputs: { project: 'app', ticket: '318', summary: 'it breaks' },
+    })
+    expect(String(result)).toContain('mine@1')
+    expect(String(result)).not.toContain('unpublished draft')
+  })
+
   it('has no way to write, change or publish one — enforced by there being no method', async () => {
     for (const method of [
       'template/publish',

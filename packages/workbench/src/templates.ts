@@ -59,12 +59,27 @@ export interface TemplateDeps {
   events(filter: EventFilter): Promise<readonly TadeEvent[]>
 }
 
+/**
+ * What could not be read, said rather than swallowed.
+ *
+ * Every read below goes through this, and each one names what the answer is
+ * missing as a result — because the alternative is a dry run that reports an
+ * unreadable journal as an empty one, which reads as "nothing is running and
+ * nothing has been spent". A figure nobody could read is never nought.
+ */
+export type Unread = (said: string) => void
+
 /** Every task Tade has, in every project, folded out of the journal. */
-export async function tasksFrom(deps: TemplateDeps): Promise<Set<string>> {
+export async function tasksFrom(deps: TemplateDeps, unread?: Unread): Promise<Set<string>> {
   // The same fold `makePlan` does, for the same reason: a dry run that
   // disagreed with the thing that would actually refuse would be worse than no
   // dry run at all.
-  const created = await deps.events({ types: ['task_created', 'task_removed'] }).catch(() => [])
+  const created = await deps.events({ types: ['task_created', 'task_removed'] }).catch((err) => {
+    unread?.(
+      `Could not read the journal (${String(err?.message ?? err)}), so a wait on a task Tade already has would be refused as unknown rather than kept.`,
+    )
+    return []
+  })
   const tasks = new Set<string>()
   for (const event of created) {
     if (!event.task) continue
@@ -87,9 +102,16 @@ export async function tasksFrom(deps: TemplateDeps): Promise<Set<string>> {
 export async function busyFrom(
   deps: TemplateDeps,
   projects: readonly string[],
+  unread?: Unread,
 ): Promise<PlanBusy[]> {
   const done = new Set<string>()
-  for (const event of await deps.events({ types: ['task_done'] }).catch(() => [])) {
+  const finished = await deps.events({ types: ['task_done'] }).catch((err) => {
+    unread?.(
+      `Could not read the journal (${String(err?.message ?? err)}), so work that has already finished may be listed as being in the way.`,
+    )
+    return []
+  })
+  for (const event of finished) {
     if (event.task) done.add(event.task)
   }
   const busy: PlanBusy[] = []
@@ -120,8 +142,21 @@ export async function busyFrom(
 async function budgetFrom(
   deps: TemplateDeps,
   projects: readonly string[],
+  unread: Unread,
 ): Promise<{ project: string; said: string }[]> {
-  const usage = await deps.events({ types: ['usage'] }).catch(() => [])
+  // Not caught to an empty list: with no usage read, `checkBudget` answers
+  // `ok` and the dry run would say "inside its budget for today" about a
+  // journal nobody could open. The projects with a budget are dropped from the
+  // list instead, and the reason is said above them.
+  let usage: readonly TadeEvent[]
+  try {
+    usage = await deps.events({ types: ['usage'] })
+  } catch (err) {
+    unread(
+      `Could not read the journal (${String((err as Error)?.message ?? err)}), so what has been spent today is unknown — not nought, and nothing here says a budget is clear.`,
+    )
+    return []
+  }
   const prices = pricesFrom(deps.config.prices)
   const spend = spendFrom(usage, { since: startOfToday(Date.now()), prices })
   const out: { project: string; said: string }[] = []
@@ -174,12 +209,20 @@ export async function dryRunTemplate(
    */
   plans: readonly string[] | null = null,
 ): Promise<DryRun | { problem: string }> {
-  const found = await readPublished(deps.home, req.template, req.version)
+  // The draft first where drafts are allowed, and that way round on purpose:
+  // the person asking is the one about to publish, and they were told to
+  // dry-run it *before* publishing. Preferring the published one meant
+  // `check` read their new draft and `dry-run` read last week's version
+  // without saying so — the one answer that makes the advice harmful. With no
+  // draft there, the published one is what they meant. A named version is
+  // always a published one: a draft has no version anybody can ask for.
+  const asked =
+    req.drafts && req.version === undefined ? await readDraft(deps.home, req.template) : null
   const published =
-    'problem' in found && req.drafts && req.version === undefined
-      ? await readDraft(deps.home, req.template)
-      : found
-  if ('problem' in published) return 'problem' in found ? found : published
+    asked && !('problem' in asked)
+      ? asked
+      : await readPublished(deps.home, req.template, req.version)
+  if ('problem' in published) return published
   const { personas } = await readPersonas(deps.home)
   const projects = Object.keys(deps.config.projects)
   const provenance = provenanceOf(published)
@@ -192,11 +235,17 @@ export async function dryRunTemplate(
     personas,
   })
   const reaches = fill.ok ? projectsIn(fill.plan) : []
+  // Said once however many reads hit the same trouble: three sentences about
+  // one unreadable journal is noise that hides the one that matters.
+  const missed: string[] = []
+  const unread: Unread = (said) => {
+    if (!missed.includes(said)) missed.push(said)
+  }
   const check = fill.ok
     ? checkPlan(fill.plan, {
         workspace: (project) => workspaceFor(deps.config, project),
-        tasks: await tasksFrom(deps),
-        busy: await busyFrom(deps, reaches),
+        tasks: await tasksFrom(deps, unread),
+        busy: await busyFrom(deps, reaches, unread),
       })
     : null
   return dryRunOf({
@@ -206,7 +255,7 @@ export async function dryRunTemplate(
     check,
     config: deps.config,
     personas,
-    limits: { budget: await budgetFrom(deps, reaches), plans },
+    limits: { budget: await budgetFrom(deps, reaches, unread), plans, unread: missed },
   })
 }
 

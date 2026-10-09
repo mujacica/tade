@@ -73,6 +73,16 @@ export interface LimitFacts {
   /** What a project has spent today against what it may, per project. */
   budget: readonly { project: string; said: string }[]
   /**
+   * What could not be read, and what each one means for this answer.
+   *
+   * Here rather than swallowed, because the thing it would otherwise say is
+   * "inside its budget for today" — which is a journal nobody could read drawn
+   * as money nobody has spent, and that is the one thing a figure here may
+   * never do. A dry run that quietly checked less than it says it checked is
+   * worse than one that refuses.
+   */
+  unread: readonly string[]
+  /**
    * Where each sign-in stands against its plan — **null** where nothing could
    * read it, which is a different answer from "there is room" and is said as
    * one. Only the process supervising the agents can read a plan window.
@@ -171,6 +181,8 @@ function permissionsOf(plan: Plan | null, config: Config): string[] {
 /** What bounds the work, and what could not be read — never as nought. */
 function limitsOf(plan: Plan | null, config: Config, limits: LimitFacts): string[] {
   const said: string[] = []
+  // First, because everything under it is less true than it looks.
+  for (const one of limits.unread) said.push(one)
   for (const project of plan ? projectsIn(plan) : []) {
     const most = config.projects[project]?.max_parallel
     const spend = limits.budget.find((one) => one.project === project)

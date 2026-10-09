@@ -179,6 +179,53 @@ agents:
     )
   })
 
+  // The bug this is here to stop: `check` read the new draft and `dry-run`
+  // read last week's published version without saying so — in exactly the
+  // order `check` tells somebody to work in.
+  it('dry-runs the draft, not the published version, when somebody is about to publish', async () => {
+    draft()
+    await tade('templates', 'publish', 'mine')
+    draft(DRAFT.replace('version: 1', 'version: 2').replace('Fix it.', 'Fix it the new way.'))
+    const { code, stdout } = await tade(
+      'templates',
+      'dry-run',
+      'mine',
+      '-i',
+      'project=app',
+      '-i',
+      'ticket=318',
+      '-i',
+      'summary=x',
+    )
+    expect(code).toBe(0)
+    expect(stdout).toContain('mine@2 (unpublished draft)')
+  })
+
+  it('dry-runs and shows a published version when one is named as mine@n', async () => {
+    draft()
+    await tade('templates', 'publish', 'mine')
+    draft(DRAFT.replace('version: 1', 'version: 2'))
+    const dry = await tade(
+      'templates',
+      'dry-run',
+      'mine@1',
+      '-i',
+      'project=app',
+      '-i',
+      'ticket=318',
+      '-i',
+      'summary=x',
+    )
+    expect(dry.code).toBe(0)
+    expect(dry.stdout).toMatch(/mine@1 \(sha256:[0-9a-f]{12}\)/)
+    const shown = await tade('templates', 'show', 'mine@1')
+    expect(shown.code).toBe(0)
+    expect(shown.stdout).toContain('there is also a draft at version 2, not published yet')
+    const missing = await tade('templates', 'dry-run', 'mine@99', '-i', 'project=app')
+    expect(missing.code).toBe(2)
+    expect(missing.stderr).toContain('mine@99 is not published')
+  })
+
   it('shows a published version with its hash, and says it never changes', async () => {
     draft()
     await tade('templates', 'publish', 'mine')

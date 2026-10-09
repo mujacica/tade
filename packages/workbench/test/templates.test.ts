@@ -278,6 +278,26 @@ agents:
     expect(tasks).toEqual(['app/tidy'])
   })
 
+  // A journal nobody could read must not come back as a budget that is clear:
+  // unknown is first-class here as everywhere, and it is said above the rest.
+  it('says what it could not read instead of reporting an unreadable journal as nought', async () => {
+    await publish()
+    const deps = {
+      home,
+      config: { ...client.config, projects: { ...client.config.projects } },
+      events: () => Promise.reject(new Error('EACCES: events.jsonl')),
+    }
+    deps.config.projects.app = { ...deps.config.projects.app, budget: { usd_per_day: 8 } } as never
+    const dry = await dryRunTemplate(deps as never, { template: 'mine', inputs })
+    expect('problem' in dry).toBe(false)
+    if ('problem' in dry) return
+    const said = dry.limits.join('\n')
+    expect(said).toContain('Could not read the journal')
+    expect(said).toContain('is unknown')
+    // The thing it must never say, with a budget set and nothing read.
+    expect(said).not.toContain('inside its budget')
+  })
+
   it('refuses a fill that would not hold, and makes none of it', async () => {
     await publish()
     await expect(

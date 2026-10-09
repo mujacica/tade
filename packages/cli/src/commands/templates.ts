@@ -54,6 +54,25 @@ const DEPS = async (configPath: string, io: Io): Promise<TemplateDeps | null> =>
   return { home, config: cfg.config, events: (filter) => readJournal(home, filter) }
 }
 
+/**
+ * `mine` or `mine@2`, which is how every surface already writes one.
+ *
+ * A flag rather than this was the obvious shape and was wrong: commander's
+ * root `--version` wins over a subcommand's own option of that name, so
+ * `templates dry-run mine --version 1` printed Tade's version and dry-ran
+ * something else. This is also the spelling `tade_templates` lists them in and
+ * the one provenance reads back, so there is one way to write it.
+ */
+function nameAndVersion(said: string): { name: string; version?: number } {
+  const at = said.lastIndexOf('@')
+  if (at <= 0) return { name: said }
+  const version = Number(said.slice(at + 1))
+  // Not a number after the @ is a name with an @ in it, which `templateNameProblem`
+  // refuses by itself — with a better message than anything guessed here.
+  if (!Number.isInteger(version) || version <= 0) return { name: said }
+  return { name: said.slice(0, at), version }
+}
+
 /** `--input summary=...` as pairs, refusing one with no `=` rather than guessing. */
 function inputsOf(said: readonly string[] | undefined): Record<string, string> | string {
   const out: Record<string, string> = {}
@@ -111,16 +130,15 @@ export function registerTemplates(program: Command, io: Io, setExit: (code: numb
 
   group
     .command('show <name>')
-    .description('One template: what it takes, what it would make, and what made each version')
-    .option('--version <n>', 'a published version; the newest when not said')
+    .description(
+      'One template: what it takes, what it would make, and what made each version.\n' +
+        'As `mine`, or `mine@2` for a published version',
+    )
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
-    .action(async (name: string, opts: { version?: string }) => {
+    .action(async (said: string) => {
       const home = tadeHome()
-      const read = await readPublished(
-        home,
-        name,
-        opts.version === undefined ? undefined : Number(opts.version),
-      )
+      const { name, version } = nameAndVersion(said)
+      const read = await readPublished(home, name, version)
       if ('problem' in read) {
         // A draft is not published, and saying only that would hide a draft
         // sitting right there: show it, marked as what it is.
@@ -135,6 +153,12 @@ export function registerTemplates(program: Command, io: Io, setExit: (code: numb
         return
       }
       io.out(saysProvenance(provenanceOf(read)))
+      // A draft sitting beside it at another version is the thing somebody is
+      // about to publish, and showing only the published one hides it.
+      const draft = await draftOf(home, name)
+      if (draft && draft.version !== read.template.version) {
+        io.out(`there is also a draft at version ${draft.version}, not published yet`)
+      }
       sayTemplate(io, read.template, read.hash)
     })
 
@@ -178,12 +202,12 @@ export function registerTemplates(program: Command, io: Io, setExit: (code: numb
   group
     .command('dry-run <name>')
     .description(
-      'What it would make, and it makes none of it. A published version, or your own draft',
+      'What it would make, and it makes none of it.\n' +
+        'Your own draft as `mine`, or a published version as `mine@2`',
     )
     .option('-i, --input <pair...>', 'name=value, once per input')
-    .option('--version <n>', 'a published version; the newest when not said')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
-    .action(async (name: string, opts: { input?: string[]; version?: string; config: string }) => {
+    .action(async (said: string, opts: { input?: string[]; config: string }) => {
       const deps = await DEPS(opts.config, io)
       if (!deps) {
         setExit(Exit.invalidInput)
@@ -195,12 +219,14 @@ export function registerTemplates(program: Command, io: Io, setExit: (code: numb
         setExit(Exit.invalidInput)
         return
       }
+      const { name, version } = nameAndVersion(said)
       const dry = await dryRunTemplate(deps, {
         template: name,
-        ...(opts.version === undefined ? {} : { version: Number(opts.version) }),
+        ...(version === undefined ? {} : { version }),
         inputs,
         // A person at this machine asking about their own draft, which is
-        // exactly what `check` tells them to do before publishing it.
+        // exactly what `check` tells them to do before publishing it. Naming a
+        // version asks for that published one instead.
         drafts: true,
       })
       if ('problem' in dry) {

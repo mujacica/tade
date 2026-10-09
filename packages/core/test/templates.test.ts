@@ -358,6 +358,39 @@ describe('a template', () => {
     ])
   })
 
+  // The one place a filled-in value becomes a real filesystem path
+  // (`producesPath`, for a document handed from one task to another). Every
+  // escape is refused by the slug's own rule, and the one spelling that gets
+  // through stays inside the task's own folder.
+  it.each(['../../../../etc', '..', '.', 'a/b', 'a\\b', '-x', 'A'])(
+    'refuses the slug %s, so nothing builds a path out of it',
+    (ticket) => {
+      const fill = fillTemplate(
+        template(),
+        args({ inputs: { project: 'shop', ticket, summary: 'x' } }),
+      )
+      expect(fill.ok).toBe(false)
+      if (fill.ok) return
+      expect(fill.problems.join('\n')).toMatch(/is not a short name/)
+    },
+  )
+
+  it('keeps a handed document inside the task’s own folder, whatever the slug is', () => {
+    const read = parseTemplate('research-then-plan', BUILT_IN_TEMPLATES['research-then-plan'] ?? '')
+    expect(read.ok).toBe(true)
+    if (!read.ok) return
+    const fill = fillTemplate(
+      read.template,
+      args({ inputs: { project: 'shop', subject: 'a..b', question: 'x' } }),
+    )
+    expect(fill.ok).toBe(true)
+    if (!fill.ok) return
+    const path = /`([^`]+research[^`]*)`/.exec(
+      fill.plan.agents.find((one) => one.name === 'plan-a..b')?.context ?? '',
+    )?.[1]
+    expect(path).toBe('/home/.tade/projects/shop/tasks/research-a..b/research.md')
+  })
+
   it('refuses a template that names an input of the wrong kind', () => {
     const problems = templateProblems(template({ said_input: 'ticket' }), {
       personas: personas(),
