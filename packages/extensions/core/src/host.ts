@@ -13,9 +13,7 @@ import type {
   ExtensionAction,
   ExtensionContext,
   ExtensionSetting,
-  ExtensionWatch,
   ExtensionWorkbench,
-  Finding,
   JsonSchema,
   Link,
   Linker,
@@ -28,12 +26,20 @@ import type {
   ToolAnswer,
   ViewAt,
   ViewTab,
-  WatchAgent,
-  WatchContext,
 } from './port.ts'
 import { inputProblem } from './schema.ts'
 import { unknownSettings, variablesFor, written } from './settings.ts'
-import { everyMs, shapeProblem } from './shape.ts'
+import { everyMs, intakeProblem, shapeProblem } from './shape.ts'
+import type { ExtensionWatch, Finding, Recheck, WatchAgent, WatchContext } from './watch.ts'
+import {
+  askLook,
+  askRecheck,
+  askReply,
+  inTime,
+  type Looked,
+  type Watching,
+  watchingWith,
+} from './watching.ts'
 
 // Holding the extensions a window runs with, and running them.
 //
@@ -180,6 +186,18 @@ export interface WatchOffer {
   network: boolean
   /** How many of one look's findings to act on, where the watch says two is wrong for it. */
   most: number | null
+  /**
+   * Which intake source this is, where it is one; null for an ordinary watch.
+   *
+   * Offered rather than discovered, so that whoever is about to turn one on —
+   * the window, the watch tool, `tade_schedule` — can read what it would start
+   * reading before it has read anything.
+   */
+  intake: string | null
+  /** Whether it can say, at the moment work would start, that a finding still stands. */
+  rechecks: boolean
+  /** Whether it has a path back to its source at all. Absent is no reply path, not a disabled one. */
+  replies: boolean
   /** Why it cannot look now — its extension needs setting up, is off, is broken — or null. */
   problem: string | null
 }
@@ -214,30 +232,6 @@ function stopAt(signal: AbortSignal | undefined): AbortController {
   if (signal?.aborted) controller.abort()
   else signal?.addEventListener('abort', () => controller.abort(), { once: true })
   return controller
-}
-
-/** A promise that settles in time, or is given up on — its work told to stop — with why. */
-async function inTime<T>(
-  work: Promise<T>,
-  limit: number,
-  late: string,
-  controller: AbortController,
-): Promise<T> {
-  let timer: NodeJS.Timeout | undefined
-  try {
-    return await Promise.race([
-      work,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          controller.abort()
-          reject(new Error(late))
-        }, limit)
-        timer.unref?.()
-      }),
-    ])
-  } finally {
-    if (timer) clearTimeout(timer)
-  }
 }
 
 /** A section an extension keeps in the sidebar, as the window draws it. */
@@ -843,6 +837,9 @@ export class ExtensionHost {
         standing: watch.standing === true,
         network: watch.network === true,
         most: watch.most ?? null,
+        intake: watch.intake ?? null,
+        rechecks: typeof watch.recheck === 'function',
+        replies: typeof watch.reply === 'function',
         problem: notReady(entry),
       })),
     )
@@ -856,7 +853,68 @@ export class ExtensionHost {
   watchProblem(id: string, input: Readonly<Record<string, unknown>>): string | null {
     const found = this.watchCalled(id)
     if ('problem' in found) return found.problem
+    // An intake source that cannot be asked whether a request still stands
+    // cannot be turned on at all. Refused here rather than held for ever at the
+    // start door: a watch that would make work nobody could ever start is a
+    // broken watch, and saying so when somebody turns it on is the only moment
+    // anybody can do anything about it.
+    const capability = intakeProblem(found.watch)
+    if (capability) return capability
     return found.watch.input ? inputProblem(found.watch.input, { ...input }) : null
+  }
+
+  /**
+   * Whether one finding still stands, asked at the moment work on it would
+   * start. Throws when the watch cannot be reached or has no answer to give —
+   * which is a hold, because an inaccessible source is never permission.
+   */
+  async recheck(
+    id: string,
+    request: {
+      project: string
+      input: Readonly<Record<string, unknown>>
+      key: string
+      timeoutMs?: number
+      tade?: ExtensionWorkbench | null
+    },
+  ): Promise<Recheck> {
+    return askRecheck(this.watchingWith(id, request), id, request.key)
+  }
+
+  /**
+   * Say one status back to a finding's source. The sentence is the caller's and
+   * Tade generated it; whether it may go out at all is the owner's grant, which
+   * is read before anything gets here.
+   */
+  async reply(
+    id: string,
+    request: {
+      project: string
+      input: Readonly<Record<string, unknown>>
+      key: string
+      say: string
+      timeoutMs?: number
+      tade?: ExtensionWorkbench | null
+    },
+  ): Promise<void> {
+    return askReply(this.watchingWith(id, request), id, { key: request.key, say: request.say })
+  }
+
+  /** One watch, ready to be asked something that is not a look, or why it cannot be. */
+  private watchingWith(
+    id: string,
+    request: {
+      project: string
+      input: Readonly<Record<string, unknown>>
+      timeoutMs?: number
+      tade?: ExtensionWorkbench | null
+    },
+  ): Watching {
+    const called = this.watchCalled(id)
+    if ('problem' in called) throw new Error(called.problem)
+    const problem = notReady(called.entry)
+    if (problem) throw new Error(problem)
+    return watchingWith(called.entry.ctx, called.watch, request, WATCH_TIMEOUT_MS)
   }
 
   /**
@@ -876,71 +934,12 @@ export class ExtensionHost {
       /** The window, for a watch that looks at what Tade is running. */
       tade?: ExtensionWorkbench | null
     },
-  ): Promise<{
-    found: Finding[]
-    since: string | null
-    /** Why it found nothing, where the watch had something to say about that. */
-    said: string | null
-    agent: (finding: Finding) => Promise<WatchAgent>
-  }> {
-    const called = this.watchCalled(id)
-    if ('problem' in called) throw new Error(called.problem)
-    const { entry, watch } = called
-    const problem = notReady(entry)
-    if (problem) throw new Error(problem)
-    const controller = new AbortController()
-    const ctx: WatchContext = {
-      ...entry.ctx,
-      watching: entry.ctx.project(request.project),
-      input: request.input,
-      since: request.since,
-      turnedOn: request.turnedOn,
-      tade: request.tade ?? null,
-      signal: controller.signal,
-    }
-    const limit = request.timeoutMs ?? WATCH_TIMEOUT_MS
-    const looked = await inTime(
-      Promise.resolve().then(() => watch.check(ctx)),
-      limit,
-      `${id} took longer than ${Math.round(limit / 1000)}s to look, and was given up on`,
-      controller,
+  ): Promise<Looked> {
+    const one = this.watchingWith(id, request)
+    return askLook(
+      { ...one, ctx: { ...one.ctx, since: request.since, turnedOn: request.turnedOn } },
+      id,
     )
-    const found: Finding[] = []
-    for (const finding of looked.found ?? []) {
-      if (typeof finding?.key !== 'string' || finding.key === '' || !finding.title) {
-        throw new Error(`${id} found something without a key and a title to know it by`)
-      }
-      // The same thing said twice in one look is one finding.
-      if (!found.some((one) => one.key === finding.key)) found.push(finding)
-    }
-    return {
-      found,
-      since: looked.since ?? request.since,
-      // Only ever about a look that found nothing: what was found says what it
-      // is itself, and a sentence beside a finding would be a second wording of
-      // the same thing for nobody to read.
-      said: found.length === 0 && looked.said ? looked.said : null,
-      agent: async (finding) => {
-        // A watch with nothing to start is not a broken one: it is told to
-        // somebody, which is what it said it was for.
-        const ask = watch.agent
-        if (!ask) {
-          throw new Error(
-            `${id} has nothing to start work on: what it finds is told to the orchestrator`,
-          )
-        }
-        const agent = await inTime(
-          Promise.resolve().then(() => ask(finding, ctx)),
-          limit,
-          `${id} took longer than ${Math.round(limit / 1000)}s to say what to tell an agent about ${finding.key}`,
-          controller,
-        )
-        if (!agent?.title || !agent.prompt) {
-          throw new Error(`${id} said nothing to tell an agent about ${finding.key}`)
-        }
-        return agent
-      },
-    }
   }
 
   /** A watch by its `<extension>.<id>`, or why there is none. */

@@ -9,6 +9,7 @@ import {
   type EventFilter,
   fillTemplate,
   noSpend,
+  type Plan,
   type PlanBusy,
   pricesFrom,
   projectDir,
@@ -281,27 +282,78 @@ export async function useTemplate(
   tade: Workbench,
   req: TemplateRequest & { by?: string },
 ): Promise<TemplateUsed> {
-  const deps: TemplateDeps = {
-    home: tade.home,
-    config: tade.config,
-    events: (filter) => tade.log.read(filter),
-  }
-  const published = await readPublished(deps.home, req.template, req.version)
+  return stampTemplate(tade, await fillFor(tade, req), req.by)
+}
+
+/** A published template, resolved and filled in: everything before anything is made. */
+export interface TemplateFilled {
+  template: string
+  version: number
+  hash: string
+  builtIn: boolean
+  plan: Plan
+  warnings: readonly string[]
+  /** What `stampTemplate` would make, by id, which is what an idempotent caller checks first. */
+  names: readonly string[]
+}
+
+/**
+ * Resolve a published template, fill it in, and say what it *would* make —
+ * without making any of it.
+ *
+ * Apart from `useTemplate`, which is this plus the next function, the one
+ * caller is intake: a delivery interrupted between making tasks and writing
+ * down that it made them has to be able to recognise its own work rather than
+ * make a second copy of it, and it cannot do that without the names first.
+ * Splitting it here rather than working the names out again from the template
+ * keeps one answer to "what does this template make".
+ */
+export async function fillFor(tade: Workbench, req: TemplateRequest): Promise<TemplateFilled> {
+  const home = tade.home
+  const published = await readPublished(home, req.template, req.version)
   if ('problem' in published) throw new Error(published.problem)
-  const { personas } = await readPersonas(deps.home)
+  const { personas } = await readPersonas(home)
   const provenance = provenanceOf(published)
   const fill = fillTemplate(published.template, {
     inputs: req.inputs,
-    projects: Object.keys(deps.config.projects),
-    workspace: (project) => workspaceFor(deps.config, project),
-    home: deps.home,
+    projects: Object.keys(tade.config.projects),
+    workspace: (project) => workspaceFor(tade.config, project),
+    home,
     provenance,
     personas,
   })
   if (!fill.ok) {
     throw new Error(`${req.template} was not used: ${fill.problems.join('; ')}`)
   }
-  const by = req.by ?? 'you'
+  return {
+    template: published.template.template,
+    version: published.template.version,
+    hash: published.hash,
+    builtIn: published.builtIn,
+    plan: fill.plan,
+    warnings: fill.warnings,
+    names: [...fill.from.keys()],
+  }
+}
+
+/** Make what a filled template says, through the plan path, with every task parked. */
+export async function stampTemplate(
+  tade: Workbench,
+  filled: TemplateFilled,
+  asked?: string,
+): Promise<TemplateUsed> {
+  const deps: TemplateDeps = {
+    home: tade.home,
+    config: tade.config,
+    events: (filter) => tade.log.read(filter),
+  }
+  const published = {
+    template: { template: filled.template, version: filled.version },
+    hash: filled.hash,
+    builtIn: filled.builtIn,
+  }
+  const fill = { plan: filled.plan, warnings: [...filled.warnings] }
+  const by = asked ?? 'you'
   const made = await tade.planTasks(fill.plan, by, await busyFrom(deps, projectsIn(fill.plan)))
   // Parked one at a time rather than in one act, because parking is told per
   // task and `parkTask` is the one door that writes it. A park that failed

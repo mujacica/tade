@@ -161,6 +161,11 @@ export function originSaid(origin) {
       return origin.name === '' ? 'an extension' : origin.name
     case 'schedule':
       return origin.name === '' ? 'a schedule' : `the ${origin.name} schedule`
+    case 'intake':
+      // Never "you". What arrived from outside is somebody else's request, and
+      // a page that said the owner asked for it would be the one sentence this
+      // whole surface must not say.
+      return origin.name === '' ? 'a request from outside' : `a ${origin.name} request`
     default:
       return 'you'
   }

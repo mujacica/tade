@@ -3,17 +3,17 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Updates                                                                        │────
  ▌ !│                             │                                                                                │    
- ▌  │  Models                    ▕│     Check for updates                                                         █│    
+ ▌  │  Orchestrator              ▕│     Check for updates                                                         █│    
     │                            ▕│   checked just now                                                            █│    
-   ⠋│  Orchestrator              █│                                                                               █│    
+   ⠋│  Checks                    ▕│                                                                               █│    
     │                            █│ Tade                                                                          █│    
-    │  Checks                    █│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                       █│    
+    │  Voice                     █│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                       █│    
  ▸ S│                            █│   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1                 █│    
- ▸ S│  Voice                     █│   git -C ~/src/tade pull --ff-only && pnpm install                            █│    
+ ▸ S│  Window                    █│   git -C ~/src/tade pull --ff-only && pnpm install                            █│    
  ▾ C│                            █│     Update Tade…     Reload Tade…                                             █│    
-  M │  Window                    █│                                                                               █│    
+  M │  Away view                 █│                                                                               █│    
   A │                            █│ Programs it runs                                                              █│    
-  M │  Away view                 █│   git             2.39.5      · cannot tell                                   █│    
+  M │  Intake                    █│   git             2.39.5      · cannot tell                                   █│    
     │                            █│                   the system’s own · /usr/bin/git                             █│    
  ▾ F│  Projects              ● 1 █│                   no command · the system updates it — macOS: `xcode-select   █│    
    ▾│                            █│                   --install`                                                  █│    

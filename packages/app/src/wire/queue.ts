@@ -2,17 +2,22 @@ import {
   describeQueueState,
   expandHome,
   holdSaid,
+  type IntakeItem,
+  intakeFrom,
+  intakeOf,
   inWrittenOrder,
   joined,
   orderFirst,
   type Plan,
   type PlanBusy,
+  planStandings,
   projectsIn,
   QUEUE_CHANGES,
   queueStateOf,
   readyToStart,
   startFrom,
 } from '@tade/core'
+import { intakeStands } from '@tade/workbench'
 import { notice, type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
 import { describeQueue, describeSchedule, heldMessage, planAnswer, whyStarting } from '../queue.ts'
 import { QUEUE_SCOPES } from '../queue-view.ts'
@@ -161,6 +166,10 @@ export class Queue implements Subject {
       room.set(project, settings.max_parallel - running)
     }
     const started: string[] = []
+    // What came from outside this machine is asked again here, for the reason
+    // the trees are: a grant is permission at the moment of acting, and a
+    // request can be closed, rewritten or un-granted while its task waits.
+    const intake = intakeFrom(facts.events)
     // In the order last written for it, which is a fact in the journal like
     // every other choice about the queue. The rule is unchanged: what starts
     // is what `readyToStart` says is ready, as far as there is room.
@@ -168,6 +177,17 @@ export class Queue implements Subject {
       const item = items.find((one) => one.task === task)
       const worktree = live.worktreeOf(task)
       if (!item || !worktree) continue
+      const hold = await this.intakeHold(intakeOf(intake, task), task)
+      if (hold) {
+        // Through the one hold path there is, so what the window draws, what
+        // the orchestrator is told and what `queueStateOf` reads are one fact.
+        if (!holdSaid(task, { because: hold }, facts.events)) {
+          await this.wire.opts.client.holdQueued(task, hold, { start: 'failed' }).catch(() => {})
+          this.said(`${task} is held: ${hold}`)
+          void this.deps.tell(heldMessage(task, hold)).catch(() => {})
+        }
+        continue
+      }
       this.starting.add(task)
       const because = whyStarting(item, facts)
       try {
@@ -191,6 +211,36 @@ export class Queue implements Subject {
     if (started.length > 0) await live.refresh()
     this.wire.draw()
     return started
+  }
+
+  /**
+   * Why an intake-originated start does not go ahead now, or null — for
+   * anything else, null without asking anybody anything.
+   *
+   * The rule is `intakeStands`'; what is here is the three things only the
+   * window has: the config as it stands, the plan standings it already folds for
+   * the strip, and the extension host that can ask a watch about its source.
+   * A source whose watch is gone — the extension turned off, the schedule
+   * removed — holds, because a request nobody can check is a request nobody has
+   * confirmed still stands.
+   */
+  private async intakeHold(one: IntakeItem | null, task: string): Promise<string | null> {
+    if (!one) return null
+    const host = this.wire.opts.extensions
+    const schedule = this.wire.opts.client.schedules().find((kept) => kept.id === one.schedule)
+    const input = schedule?.does.kind === 'watch' ? schedule.does.input : {}
+    const held = await intakeStands({
+      config: this.wire.opts.config,
+      item: one,
+      task,
+      plans: planStandings(this.wire.opts.client.planUsage(), this.wire.now()),
+      recheck: async (key) => {
+        if (!host) throw new Error('this window runs no extensions')
+        if (!one.watch) throw new Error('nothing says which watch found it')
+        return host.recheck(one.watch, { project: one.project, input, key })
+      },
+    })
+    return held?.because ?? null
   }
 
   /**

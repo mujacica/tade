@@ -75,6 +75,11 @@ export const FLOOR: Record<string, number> = {
   'packages/status': 89,
   'packages/forges/github': 90,
   'packages/mcp/http': 90,
+  // New, and the number is where its tests land rather than an aspiration: the
+  // spool, the look, the re-check and the reply are covered end to end against
+  // a real folder, which is what a source with no credential and no network
+  // buys. What is left is the half a hand-edited spool file reaches.
+  'packages/extensions/intake': 92,
   'packages/extensions/deps': 91,
   'packages/mcp/stdio': 91,
   'packages/drivers/tmux': 92,
@@ -171,6 +176,7 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/check.ts': 'a command of the binary',
   'packages/cli/src/commands/checks.ts': 'a command of the binary',
   'packages/cli/src/commands/config.ts': 'a command of the binary',
+  'packages/cli/src/commands/intake.ts': 'a command of the binary',
   'packages/cli/src/commands/lanes.ts': 'a command of the binary',
   'packages/cli/src/commands/mcp.ts': 'a command of the binary',
   'packages/cli/src/commands/notes.ts': 'a command of the binary',

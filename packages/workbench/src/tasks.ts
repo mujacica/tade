@@ -565,3 +565,37 @@ export async function setParked(home: string, id: string, parked: boolean): Prom
 function firstLine(text: string): string {
   return text.split('\n')[0] ?? ''
 }
+
+/**
+ * Refuse a name any task has had. A harness keeps a conversation by the task's
+ * name, so a new agent under a removed one's name would carry on its
+ * conversation — and two names that make the same conversation in any harness,
+ * `a.b` and `a-b` in pi, share one. The journal is what remembers a name after
+ * its task is gone.
+ *
+ * Here rather than on the workbench because it is a rule about names and a
+ * question put to the journal, and the file it was in is at the size a file is
+ * allowed to be.
+ */
+export async function guardName(
+  deps: {
+    /** Each harness's own answer for what conversation a task name makes. */
+    keyOf: readonly ((id: string) => string)[]
+    created: () => Promise<readonly { task: string | null }[]>
+  },
+  id: string,
+): Promise<void> {
+  const keys = deps.keyOf.map((key) => key(id))
+  const created = await deps.created().catch(() => [])
+  const clash = created.find(
+    (event) =>
+      event.task &&
+      (event.task === id || deps.keyOf.some((key, n) => key(event.task as string) === keys[n])),
+  )?.task
+  if (!clash) return
+  throw new Error(
+    clash === id
+      ? `${id} was used before, and a task's name is never used twice: pick another`
+      : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
+  )
+}

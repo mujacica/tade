@@ -68,6 +68,53 @@ export const EventType = z.enum([
   'watch_checked',
   /** Something a watch found for the first time, and the work started on it or who was told. */
   'watch_found',
+  // intake: work that came from outside this machine
+  /**
+   * An external request was handed to this machine — a ticket, a message, a
+   * line typed at the local door — and is Tade's business: its source, its own
+   * id, the revision it is at, and the correlation id every line about it
+   * carries. **Written before anything is made**, which is what makes a crash
+   * in the middle readable: a `received` with no `accepted` or `refused` after
+   * it is a delivery that was interrupted, and the next look picks it up by its
+   * external id rather than losing a request nobody will send twice.
+   *
+   * Only ever about something a rule could have allowed. A look that saw a
+   * thousand issues and nothing addressed to Tade writes its counts on
+   * `watch_checked` and nothing here: a line per non-event fills the journal
+   * with the world.
+   */
+  'intake_received',
+  /**
+   * A request the rule said no to: the grant is off, the project is not on the
+   * source's list, the requester is not on the owner's list, or the source
+   * itself says it was an app.
+   *
+   * Written down every time, for the reason a refused pairing is: a refusal
+   * nobody made is what makes an attack visible. **Never replied to** — a reply
+   * tells an unauthorised person the machine is there and listening.
+   */
+  'intake_refused',
+  /**
+   * A request allowed, by which grant, at which mode, and the work made for it
+   * — with the template and published version where one was stamped out.
+   *
+   * `propose` is the default and means the tasks are parked: a person approves
+   * one, and nothing an outside request said is what started an agent.
+   */
+  'intake_accepted',
+  /**
+   * Carrying one out failed, or something about it has to be answered before it
+   * can go on: a transient failure with tries left, a revision nobody can
+   * order, an edit that invalidated an approval already given — or that Tade
+   * has given up, which is the one of these that must never be silent.
+   */
+  'intake_held',
+  /**
+   * Something was said back to the source about one request: which, and which
+   * of the fixed sentences. Never what was said by an agent, because nothing an
+   * agent wrote is ever posted — the line records that a status went out.
+   */
+  'intake_replied',
   // agents
   'run_started',
   /**
@@ -246,6 +293,16 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // What it found is, and that is `watch_found`.
   watch_checked: 'routine',
   watch_found: 'notable',
+  // Notable, all four of them, and none is `routine`: an outside request is
+  // the one kind of news nobody at this machine asked for, so somebody coming
+  // back wants to see that it arrived, what was decided and what is waiting.
+  // Never `blocking` — nothing is running into a wall; `propose` means a task
+  // is parked and will wait as long as it has to.
+  intake_received: 'notable',
+  intake_refused: 'notable',
+  intake_accepted: 'notable',
+  intake_held: 'notable',
+  intake_replied: 'notable',
   run_started: 'notable',
   // Routine rather than trace, for the reason `usage` is: it is read back out
   // of the journal to be added up, and trace is the first thing dropped when a

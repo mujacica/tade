@@ -1,5 +1,6 @@
-import { whenProblem } from '@tade/core'
+import { INTAKE_SOURCES, whenProblem } from '@tade/core'
 import type { TadeExtension } from './port.ts'
+import type { ExtensionWatch } from './watch.ts'
 
 // Why an extension will not load: everything that can be decided by looking at
 // what it declares, before any of it runs.
@@ -62,6 +63,8 @@ export function shapeProblem(extension: TadeExtension): string | null {
     if (typeof watch.agent !== 'function' && watch.offers !== 'ask') {
       return `its watch ${watch.id} has no agent, so it must say offers: 'ask'`
     }
+    const intake = intakeShape(watch)
+    if (intake) return `its watch ${watch.id} ${intake}`
   }
   const lists = new Set<string>()
   for (const list of extension.lists ?? []) {
@@ -77,6 +80,36 @@ export function shapeProblem(extension: TadeExtension): string | null {
     }
   }
   return null
+}
+
+/**
+ * Why an intake source will not load, or null — either because it is not one,
+ * or because it is one and holds together.
+ *
+ * **The capability and what it obliges are decided in the same place**, which
+ * is the whole reason this is a rule and not a convention: a watch that
+ * declared itself an intake source and could not be asked whether a request
+ * still stands would make work that the start door would hold for ever, and the
+ * only moment anybody can do anything about that is when they turn it on.
+ */
+function intakeShape(watch: ExtensionWatch): string | null {
+  if (watch.intake === undefined) return null
+  if (!INTAKE_SOURCES.includes(watch.intake)) {
+    return `says it takes in ${String(watch.intake)}, which is not a source Tade implements (there is ${INTAKE_SOURCES.join(', ')})`
+  }
+  if (typeof watch.recheck !== 'function') {
+    return 'takes in work from outside, so it needs a recheck: a request that was closed or rewritten while its task waited must hold rather than start'
+  }
+  if (typeof watch.agent !== 'function') {
+    return 'takes in work from outside, so it needs an agent: a request nothing can be started on is a request nobody answers'
+  }
+  return null
+}
+
+/** Why one watch cannot be turned on as what it says it is, in the host's words. */
+export function intakeProblem(watch: ExtensionWatch): string | null {
+  const problem = intakeShape(watch)
+  return problem === null ? null : `${watch.id} ${problem}`
 }
 
 /** How often a sidebar section may be asked again: `30s`, `5m`, `1h`. */

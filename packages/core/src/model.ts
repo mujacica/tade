@@ -138,17 +138,30 @@ export type TaskFile = z.infer<typeof TaskFile>
 
 /**
  * Who asked for a task, as the task file and the journal say it: `you`,
- * `orchestrator`, `extension:<name>` or `schedule:<name>`. A string rather than
- * an object so it reads the same in the journal as it does in a file.
+ * `orchestrator`, `extension:<name>`, `schedule:<name>` or `intake:<source>`.
+ * A string rather than an object so it reads the same in the journal as it does
+ * in a file.
+ *
+ * **`intake` is its own kind and not a schedule**, which is the whole point of
+ * it: a ticket a colleague filed arriving as `schedule:intake.github` makes
+ * "who asked" wrong in the window, in the journal and in everything folded out
+ * of either. What it does *not* do is make the requester an authority — who the
+ * source said asked is a handle, and what allowed the work is the owner's own
+ * grant, recorded on `intake_accepted`.
  */
-export type TaskOrigin = { kind: 'you' | 'orchestrator' | 'extension' | 'schedule'; name: string }
+export type TaskOrigin = {
+  kind: 'you' | 'orchestrator' | 'extension' | 'schedule' | 'intake'
+  name: string
+}
 
 /** A task's `by`, read back. Anything unrecognised — or nothing — was you. */
 export function taskOrigin(by: string | null | undefined): TaskOrigin {
   if (by === 'orchestrator') return { kind: 'orchestrator', name: 'orchestrator' }
   const [kind, ...rest] = (by ?? '').split(':')
   const name = rest.join(':')
-  if ((kind === 'extension' || kind === 'schedule') && name) return { kind, name }
+  if ((kind === 'extension' || kind === 'schedule' || kind === 'intake') && name) {
+    return { kind, name }
+  }
   return { kind: 'you', name: 'you' }
 }
 

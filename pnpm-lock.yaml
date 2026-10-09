@@ -132,6 +132,9 @@ importers:
       '@tade/core':
         specifier: workspace:*
         version: link:../core
+      '@tade/extension-intake':
+        specifier: workspace:*
+        version: link:../extensions/intake
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core
@@ -283,6 +286,18 @@ importers:
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
+
+  packages/extensions/intake:
+    dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/extensions-core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
 
   packages/extensions/jev:
     dependencies:
@@ -523,6 +538,9 @@ importers:
       '@tade/extension-deps':
         specifier: workspace:*
         version: link:../extensions/deps
+      '@tade/extension-intake':
+        specifier: workspace:*
+        version: link:../extensions/intake
       '@tade/extension-jev':
         specifier: workspace:*
         version: link:../extensions/jev

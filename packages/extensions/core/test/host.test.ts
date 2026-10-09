@@ -443,6 +443,12 @@ describe('watching', () => {
         // ceiling on agents started is not the right one on questions asked, and
         // only a watch that knows the difference says so.
         most: null,
+        // An ordinary watch, so none of the three capabilities a source of
+        // outside work declares — and each is read off what it said about
+        // itself rather than discovered by calling it and seeing what happens.
+        intake: null,
+        rechecks: false,
+        replies: false,
         problem: null,
       },
     ])

@@ -23,6 +23,7 @@ import {
 } from '@tade/core'
 import { checksExtension } from '@tade/extension-checks'
 import { depsExtension } from '@tade/extension-deps'
+import { intakeExtension } from '@tade/extension-intake'
 import { jevExtension } from '@tade/extension-jev'
 import { resourcesExtension } from '@tade/extension-resources'
 import { reviewExtension } from '@tade/extension-review'
@@ -187,6 +188,7 @@ export function oneExtensionsFolder(root: string, configPath?: string): string[]
 export const BUILTIN_EXTENSIONS: readonly TadeExtension[] = [
   checksExtension,
   depsExtension,
+  intakeExtension,
   jevExtension,
   reviewExtension,
   sentryExtension,

@@ -176,8 +176,14 @@ export interface TaskIn {
    * Empty for the harness's own sign-in.
    */
   account: string
-  /** Metadata: who asked for the work, as `taskOrigin` reads the task file. */
-  origin: { kind: 'you' | 'orchestrator' | 'extension' | 'schedule'; name: string }
+  /**
+   * Metadata: who asked for the work, as `taskOrigin` reads the task file.
+   *
+   * `intake` is its own kind here as it is in the domain: what arrived from
+   * outside is somebody else's request, and the one answer this field must
+   * never give for one is `you`.
+   */
+  origin: { kind: 'you' | 'orchestrator' | 'extension' | 'schedule' | 'intake'; name: string }
   /** A COUNT of the agents attached. Never a pid, never a session id. */
   agents: number
   /** A COUNT of the lanes. Never a lane id, never an attach line. */

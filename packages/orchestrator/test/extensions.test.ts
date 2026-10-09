@@ -123,10 +123,11 @@ describe('an agent an extension starts', () => {
     expect(again.task).toBe('shop/fix-shop-1a-2')
   }, 60_000)
 
-  it('ships the checks, dependencies, Jev, reviews, Sentry and resources, and loads yours beside them', async () => {
+  it('ships the checks, dependencies, intake, Jev, reviews, Sentry and resources, and loads yours beside them', async () => {
     expect(BUILTIN_EXTENSIONS.map((one) => one.name)).toEqual([
       'checks',
       'deps',
+      'intake',
       'jev',
       'review',
       'sentry',
@@ -143,6 +144,10 @@ describe('an agent an extension starts', () => {
     expect(host.list().map((one) => [one.name, one.state])).toEqual([
       ['checks', 'ready'],
       ['deps', 'ready'],
+      // Ready with nothing set up: the local intake door needs no key, no
+      // endpoint and no account, and being ready is having a home to read.
+      // What it may do is the owner's grant, which is off.
+      ['intake', 'ready'],
       ['jev', 'needs setup'],
       // No `gh` and no token in this environment: it says what to do and
       // stops nothing else.

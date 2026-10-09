@@ -152,6 +152,36 @@ export function extensionConformance(
         // rule, and a rule has nothing of its own to say: it has to take
         // being asked for with nothing.
         if (watch.standing) expect(required).toEqual([])
+        // Declared, never sniffed, in both directions: what the host offers
+        // about a watch is what the watch said about itself, so nobody has to
+        // discover a capability by calling it and seeing what happens.
+        const offer = offered.find((one) => one.id === id)
+        expect(offer?.intake).toBe(watch.intake ?? null)
+        expect(offer?.rechecks).toBe(typeof watch.recheck === 'function')
+        expect(offer?.replies).toBe(typeof watch.reply === 'function')
+      }
+    })
+
+    it('can be asked whether what it found still stands, where it takes work in', async () => {
+      // An intake source makes work out of somebody else's words, and the
+      // queue asks it again at the moment of starting — so one that cannot
+      // answer would make work nothing could ever start. The rule is enforced
+      // at the door that turns a watch on, which is asserted here rather than
+      // described: a source that cannot be rechecked is refused by name.
+      const host = await load()
+      for (const watch of extension.watches ?? []) {
+        if (watch.intake === undefined) continue
+        const id = `${extension.name}.${watch.id}`
+        expect(host.watchProblem(id, {})).toBeNull()
+        expect(typeof watch.recheck).toBe('function')
+        // A source asked about something it has never heard of has verified
+        // nothing, and the one answer it must not give is that the request
+        // still stands. Throwing is right — an inaccessible or unknown source
+        // is a hold — and so is saying no with a reason; `true` is not.
+        const answer = await host
+          .recheck(id, { project: 'here', input: {}, key: 'nothing:no-such-thing:0' })
+          .catch(() => null)
+        if (answer) expect(answer.still).toBe(false)
       }
     })
 

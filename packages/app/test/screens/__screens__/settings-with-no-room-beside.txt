@@ -3,11 +3,11 @@
  ▾ ╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮l  
    │  search sett…   │ Telemetry                    │───
  ▌ │                 │                              │   
- ▌ │  Voice         ▕│ Send to                   ↻ █│   
+ ▌ │  Window        ▕│ Send to                   ↻ █│   
    │                ▕│    $TADE_TELEMETRY_DSN, o…  █│+12
-   │  Window        ▕│                             ▕│   
-   │                █│▌Reporter                  ↻ ▕│   
-   │  Away view     █│▌    ◉ sentry                ▕│   
+   │  Away view     ▕│                             ▕│   
+   │                ▕│▌Reporter                  ↻ ▕│   
+   │  Intake        █│▌    ◉ sentry                ▕│   
  ▸ │                █│▌    ○ none                  ▕│   
  ▸ │  Projects  ● 1 █│▌  sentry sends through      ▕│   
  ▾ │                █│▌  Sentry’s own SDK, import… ▕│   

@@ -159,7 +159,10 @@ export const TaskRowSchema = z.strictObject({
   model: z.string().nullable(),
   account: SaidSchema.nullable(),
   origin: z.strictObject({
-    kind: z.enum(['you', 'orchestrator', 'extension', 'schedule']),
+    // `intake` is here and is not folded into `schedule`, which is the one
+    // thing this row must not do: a ticket somebody else filed arriving as
+    // "you" would read on the page as the owner having asked for it.
+    kind: z.enum(['you', 'orchestrator', 'extension', 'schedule', 'intake']),
     name: z.string(),
   }),
   /** A COUNT. Never a pid, never a session id. */

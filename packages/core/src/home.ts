@@ -94,6 +94,26 @@ export function taskDir(home: string, id: string): string {
 }
 
 /**
+ * The spool the local intake door writes into, and the `intake.cli` watch
+ * reads: one file per request, named by the id the door gave it.
+ *
+ * Here rather than in the extension that reads it, because two programs share
+ * it — `tade intake` writes a request without the window being open, and the
+ * watch picks it up on its next look — and because it is one more thing Tade
+ * writes, which means it goes under the home like all of them. A request is
+ * somebody's words about a repository and not the repository's, so there is
+ * nothing about it that belongs in a checkout.
+ *
+ * **A spool file is written once and never edited.** It is the immutable raw
+ * material an envelope's `material.ref` points at: an edit is a new file at a
+ * new revision, which is what makes "the text has moved since you approved it"
+ * a fact rather than a guess.
+ */
+export function intakeSpool(home: string): string {
+  return join(home, 'intake')
+}
+
+/**
  * Where what Tade records *about a directory* goes — check runs, the run lock,
  * what is running now.
  *

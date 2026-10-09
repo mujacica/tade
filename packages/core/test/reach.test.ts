@@ -252,6 +252,13 @@ describe('the shape of the rule', () => {
       // about a setting with no reader; the tier was already decided by
       // subtree, which the test above asserts directly, because a tier is a
       // property of the path and not of whether a page lists it.
+      'surfaces.intake.enabled',
+      'surfaces.intake.sources.cli.accept',
+      'surfaces.intake.sources.cli.from',
+      'surfaces.intake.sources.cli.mode',
+      'surfaces.intake.sources.cli.projects',
+      'surfaces.intake.sources.cli.reply',
+      'surfaces.intake.sources.cli.template',
       'surfaces.web.bind',
       'surfaces.web.enabled',
       'surfaces.web.port',

@@ -153,6 +153,17 @@ const NEVER: readonly (readonly [string, string])[] = [
     'surfaces.web',
     'the away view is who can reach Tade from off this machine, and a page I read does not get to let anybody in',
   ],
+  // Matched as a dotted prefix, so every key under it — the ones there are and
+  // the ones a connector adds next month — is refused on the day it is written.
+  // All four clauses of `never` apply at once: a grant widens what an agent may
+  // do, it hands somebody else's words to one, it changes who is asked, and
+  // `reply` changes where Tade sends something. And the shape of the attack is
+  // the plainest there is: the text I read all day would like to be the text
+  // that is allowed to make work.
+  [
+    'surfaces.intake',
+    'intake is whose words can make work on this machine, and the words I read all day do not get to put themselves on that list',
+  ],
 ]
 
 /**

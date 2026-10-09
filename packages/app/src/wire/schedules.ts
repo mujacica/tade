@@ -17,7 +17,7 @@ import {
   watchedFrom,
   watchNamedBy,
 } from '@tade/core'
-import type { ExtensionHost } from '@tade/extensions-core'
+import type { ExtensionHost, Finding } from '@tade/extensions-core'
 import { readEverMade } from '@tade/workbench/schedules'
 import type { Frame } from '../frame.ts'
 import { notice, openSchedule, type ScheduleView, withTranscript } from '../model.ts'
@@ -36,6 +36,7 @@ import {
   whenShort,
   why,
 } from './context.ts'
+import { sayBackFor } from './intake-reply.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 
 /** What a schedule's row and its menu offer to do to it. */
@@ -577,6 +578,11 @@ export class Schedules implements Subject {
     }
     const started: string[] = []
     const failed: string[] = []
+    // What was found and deliberately not started on: a request the owner's own
+    // rule refused, one held for a person to answer, one waiting to be tried
+    // again. None of those is a failed start, and reading them as one is how a
+    // rule working exactly as written looks like something going wrong.
+    const decided: string[] = []
     for (const finding of acting) {
       try {
         const agent = await looked.agent(finding).catch(async (err: unknown) => {
@@ -584,10 +590,24 @@ export class Schedules implements Subject {
           await client.watchFound(one.id, finding, { problem: why(err) }).catch(() => {})
           throw err
         })
-        const { task } = await client.watchFound(one.id, finding, {
+        const { task, said, outcome } = await client.watchFound(one.id, finding, {
           agent: { ...agent, links: agent.links ?? finding.links ?? [] },
         })
         if (task) started.push(task)
+        else if (said) decided.push(said)
+        if (outcome === 'accepted' || outcome === 'adopted') {
+          const quiet = await sayBackFor({
+            client,
+            config: this.wire.opts.config,
+            host: this.wire.opts.extensions ?? null,
+            now: this.wire.now(),
+            schedule: one,
+            watch: does.watch,
+            finding,
+            task,
+          })
+          if (quiet) this.deps.news(`${one.name} could not say anything back: ${quiet}`)
+        }
       } catch (err) {
         failed.push(`${finding.title} (${why(err)})`)
       }
@@ -598,11 +618,14 @@ export class Schedules implements Subject {
     }
     const parts = [
       started.length > 0 ? `queued ${joined(started)}` : '',
+      decided.length > 0 ? decided.join('; ') : '',
       failed.length > 0 ? `could not start work on ${failed.join('; ')}` : '',
     ].filter(Boolean)
     return say(
       `${one.name} found ${fresh.length} new: ${parts.join('; ')}${waits}`,
-      started.length === 0,
+      // Trouble only where something actually went wrong. A rule that said no
+      // is Tade working, and drawing it red teaches people to ignore red.
+      started.length === 0 && decided.length === 0,
     )
   }
 

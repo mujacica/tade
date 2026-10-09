@@ -17,15 +17,15 @@
     │                            █│                                                                               █│    
  ▾ F│  Away view                 █│ What agents do             ────████ on                           ↻ on restart █│    
    ▾│                            █│                                                                               █│    
-    │  Projects              ● 1 █│ How much of Tade is timed    ‹   0.1   ›                         ↻ on restart █│    
+    │  Intake                    █│ How much of Tade is timed    ‹   0.1   ›                         ↻ on restart █│    
     │                            █│                                                                               ▕│    
-   ▸│  Journal                   █│ Which Tade this is          laptop                               ↻ on restart ▕│    
+   ▸│  Projects              ● 1 █│ Which Tade this is          laptop                               ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
-━   │▌ Telemetry                 █│ Read Sentry back           ────████ on                           ↻ on restart ▕│   ━
-    │▌                           █│                                                                               ▕│    
-    │  Shortcuts                 █│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default              ▕│   ▕
-    │                            █│                                                                               ▕│   ▕
-    │  Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
+━   │  Journal                   █│ Read Sentry back           ────████ on                           ↻ on restart ▕│   ━
+    │                            █│                                                                               ▕│    
+    │▌ Telemetry                 █│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default              ▕│   ▕
+    │▌                           ▕│                                                                               ▕│   ▕
+    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

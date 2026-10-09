@@ -17,15 +17,15 @@
     │                            █│                 │  OpenAI · whisper-1                        │                ▕│    
  ▾ F│  Away view                 █│ Spoken replies  │  Groq · whisper-large-v3                   │                ▕│    
    ▾│                            █│                 ╰────────────────────────────────────────────╯                ▕│    
-    │  Projects              ● 1 █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+    │  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
-   ▸│  Journal                   █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+   ▸│  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
-━   │  Telemetry                 █│                                                                               ▕│   ━
+━   │  Journal                   █│                                                                               ▕│   ━
     │                            █│                                                                               ▕│    
-    │  Shortcuts                 █│                                                                               ▕│   ▕
-    │                            █│                                                                               ▕│   ▕
-    │  Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Telemetry                 █│                                                                               ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
+    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

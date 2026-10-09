@@ -122,3 +122,34 @@ function tidy(lines: readonly string[]): string {
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
+
+/**
+ * Take back whatever an older Tade added to a project's ignore rules, and write
+ * down that it did. Idempotent, so every task after the first costs a read and
+ * nothing else, and it leaves the change uncommitted in the project's own
+ * checkout, where `git status` shows it.
+ *
+ * Here rather than on the workbench, with the rest of the reasoning about the
+ * one file Tade ever changes in somebody else's repository.
+ */
+export async function takeBackOwnIgnore(
+  log: {
+    append(event: { type: 'ignore_removed'; detail: Record<string, unknown> }): Promise<unknown>
+  },
+  project: string,
+  root: string,
+): Promise<void> {
+  const done = await removeOwnIgnore(root)
+  if (done.removed.length === 0) return
+  await log.append({
+    type: 'ignore_removed',
+    detail: {
+      project,
+      path: IGNORE_PATH,
+      removed: done.removed,
+      // Nothing commits it: this is the only file Tade changes in somebody
+      // else's repository, and it is theirs to keep or revert.
+      message: `${IGNORE_PATH} in ${project} no longer ignores .tade/: Tade writes nothing in there. It is not committed.`,
+    },
+  })
+}

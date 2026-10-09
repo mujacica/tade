@@ -278,6 +278,48 @@ export function planPressure(used: number): PlanPressure {
   return 'fine'
 }
 
+/**
+ * Why a subscription is too full for work nobody here asked for, or null.
+ *
+ * **Scoped to intake-originated starts, deliberately.** It would hold *any*
+ * queued work on a tight plan, which is probably right and is a wider decision
+ * than the one this answers — so what gates on it today is a start whose
+ * request came from outside, where the trade is plainest: spending what is left
+ * of a five-hour window on somebody else's ticket at three in the morning is a
+ * person's call, not a rule's.
+ *
+ * **`unknown` is not zero**, which is the whole of why this reads `PlanStanding`
+ * rather than a number. An account on a plan that cannot say how full it is, or
+ * has not said yet, or whose every window has started over since it last said,
+ * is *unknown* — and treating unknown as 0% used is how a backlog burns a
+ * window that was already full. It holds, and says which account and why.
+ *
+ * **An account that is not on a plan is not pressure.** `pays: 'per-token'` is
+ * money with a bill and no window to fill, and money is `checkBudget`'s. No
+ * plan accounts at all means nothing here holds anything.
+ *
+ * **It never suggests another account.** Which sign-in agents run as is a
+ * person's decision, and a rule that moved work to a less full plan would be
+ * that decision taken by a rule.
+ */
+export function planTooTight(standings: readonly PlanStanding[]): { because: string } | null {
+  const plans = standings.filter((standing) => standing.pays === 'plan')
+  if (plans.length === 0) return null
+  for (const standing of plans) {
+    if (standing.cannotTell === null) continue
+    return {
+      because: `${planLabel(standing)} ${standing.cannotTell}, and what is unknown about a plan is not nothing: a request from outside waits until somebody says to spend it`,
+    }
+  }
+  const worst = tightestPlan(plans)
+  if (worst && planPressure(worst.tightest.used) === 'tight') {
+    return {
+      because: `${planLabel(worst)} has used ${Math.round(worst.tightest.used)}% of its ${worst.tightest.label} window, and what is left of it is not a rule's to spend on a request from outside`,
+    }
+  }
+  return null
+}
+
 /** One of a plan's windows, as somebody who is being told about it reads it. */
 export interface PlanWindowSaid {
   /** What it covers: `5h`, `7d`. */

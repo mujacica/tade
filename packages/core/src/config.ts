@@ -4,6 +4,7 @@ import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
 import { z } from 'zod'
 import { dropGone } from './gone.ts'
 import { defaultConfigPath } from './home.ts'
+import { IntakeSurface } from './intake.ts'
 import { ModelPriceSchema } from './prices.ts'
 import { PUSH_MODES, pushProblems } from './project.ts'
 
@@ -496,6 +497,7 @@ export const ConfigSchema = z
             trusted_hosts: z.array(z.string().min(1)).default([]),
           })
           .prefault({}),
+        intake: IntakeSurface,
         /**
          * How the window is divided. Sizes are wishes: a sidebar wider than
          * the terminal leaves nothing to watch, so they are fitted rather than

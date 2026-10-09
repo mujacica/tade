@@ -15,6 +15,7 @@ import {
   expandHome,
   HARNESS_CHOICES,
   type HarnessId,
+  type IntakeCandidate,
   type LaneId,
   loadConfig,
   modelDetail,
@@ -79,7 +80,8 @@ import { recordAuthored } from './authored.ts'
 import { checksAt, checksGate, sharesCheckout } from './checks.ts'
 import { EventLog, readJournal } from './events.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
-import { IGNORE_PATH, removeOwnIgnore } from './ignore.ts'
+import { takeBackOwnIgnore } from './ignore.ts'
+import { type Taken, takeIntake } from './intake.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { notStartable, refuseParked } from './parked.ts'
@@ -91,6 +93,7 @@ import {
   beginFrom,
   branchSlug,
   createTask,
+  guardName,
   nameTask,
   producedDetail,
   type RemoveResult,
@@ -983,7 +986,7 @@ export class Workbench {
     }
     // Whatever an older Tade added to this project's ignore rules for a
     // folder that is not there any more.
-    await this.unignoreOwnFiles(req.project, root)
+    await takeBackOwnIgnore(this.log, req.project, root)
     const task = await createTask({
       home: this.home,
       project: req.project,
@@ -1021,28 +1024,6 @@ export class Workbench {
       },
     })
     return task
-  }
-
-  /**
-   * Take back whatever an older Tade added to this project's ignore rules, and
-   * write down that it did. Idempotent, so every task after the first costs a
-   * read and nothing else, and it leaves the change uncommitted in the
-   * project's own checkout, where `git status` shows it.
-   */
-  private async unignoreOwnFiles(project: string, root: string): Promise<void> {
-    const done = await removeOwnIgnore(root)
-    if (done.removed.length === 0) return
-    await this.log.append({
-      type: 'ignore_removed',
-      detail: {
-        project,
-        path: IGNORE_PATH,
-        removed: done.removed,
-        // Nothing commits it: this is the only file Tade changes in somebody
-        // else's repository, and it is theirs to keep or revert.
-        message: `${IGNORE_PATH} in ${project} no longer ignores .tade/: Tade writes nothing in there. It is not committed.`,
-      },
-    })
   }
 
   /**
@@ -1259,7 +1240,7 @@ export class Workbench {
    */
   async watchFound(
     id: string,
-    finding: { key: string; title: string },
+    finding: { key: string; title: string; intake?: IntakeCandidate },
     outcome:
       | {
           agent: {
@@ -1271,10 +1252,30 @@ export class Workbench {
         }
       | { told: string }
       | { problem: string },
-  ): Promise<{ task: string | null }> {
+  ): Promise<{ task: string | null; said?: string; outcome?: Taken['outcome'] }> {
     const schedule = this.kept.get(id)
     if (!schedule) throw new Error(`there is no schedule called ${id}`)
     const found = { schedule: id, key: finding.key, title: finding.title }
+    // Work from outside this machine goes through the rule that reads the
+    // owner's grant, and only what that rule settled is written down as found:
+    // a transient failure keeps the external id so the next look tries again.
+    if ('agent' in outcome && finding.intake) {
+      const taken = await takeIntake(this, {
+        schedule: id,
+        watch: schedule.does.kind === 'watch' ? schedule.does.watch : id,
+        candidate: finding.intake,
+        agent: outcome.agent,
+        now: Date.now(),
+      })
+      if (taken.settled) {
+        await this.log.append({
+          type: 'watch_found',
+          task: taken.task,
+          detail: { ...found, ...(taken.task ? {} : { problem: taken.said }) },
+        })
+      }
+      return { task: taken.task, said: taken.said, outcome: taken.outcome }
+    }
     if (!('agent' in outcome)) {
       await this.log.append({ type: 'watch_found', detail: { ...found, ...outcome } })
       return { task: null }
@@ -1397,28 +1398,16 @@ export class Workbench {
     })
   }
 
-  /**
-   * Refuse a name any task has had. A harness keeps a conversation by the
-   * task's name, so a new agent under a removed one's name would carry on its
-   * conversation — and two names that make the same conversation in any
-   * harness, `a.b` and `a-b` in pi, share one. The journal is what remembers a
-   * name after its task is gone.
-   */
-  private async guardName(id: string): Promise<void> {
-    const adapters = Object.values(this.adapters)
-    const keys = adapters.map((adapter) => adapter.conversationKey(id as TaskId))
-    const created = await this.log.read({ types: ['task_created'] }).catch(() => [])
-    const clash = created.find(
-      (event) =>
-        event.task &&
-        (event.task === id ||
-          adapters.some((adapter, n) => adapter.conversationKey(event.task as TaskId) === keys[n])),
-    )?.task
-    if (!clash) return
-    throw new Error(
-      clash === id
-        ? `${id} was used before, and a task's name is never used twice: pick another`
-        : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
+  /** Refuse a name any task has had: the rule, and the journal it is asked of, are `tasks.ts`'. */
+  private guardName(id: string): Promise<void> {
+    return guardName(
+      {
+        keyOf: Object.values(this.adapters).map(
+          (adapter) => (name: string) => adapter.conversationKey(name as TaskId),
+        ),
+        created: () => this.log.read({ types: ['task_created'] }),
+      },
+      id,
     )
   }
 

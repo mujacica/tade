@@ -17,15 +17,15 @@
     │                            █│ checkout — What is pushed         never                                ▾      █│    
  ▾ F│  Away view                 █│                                                                               █│    
    ▾│                            █│ checkout — Checks needed before   push                                 ▾      █│    
-    │  Projects              ● 1 █│                                                                               █│    
+    │  Intake                    █│                                                                               █│    
     │                            █│ search — What is pushed           never                                ▾      █│    
-   ▸│  Journal                   █│                                                                               █│    
+   ▸│  Projects              ● 1 █│                                                                               █│    
     │                            █│ search — Checks needed before     push                                 ▾      █│    
-━   │  Telemetry                 █│                                                                               █│   ━
+━   │  Journal                   █│                                                                               █│   ━
     │                            █│ infra — What is pushed            never                                ▾      █│    
-    │  Shortcuts                 █│                                                                               █│   ▕
-    │                            █│ infra — Checks needed before      push                                 ▾      ▕│   ▕
-    │  Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Telemetry                 █│                                                                               █│   ▕
+    │                            ▕│ infra — Checks needed before      push                                 ▾      ▕│   ▕
+    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
