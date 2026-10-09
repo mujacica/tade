@@ -297,6 +297,24 @@ describe('tade intake', () => {
     expect(stdout).toContain('runs as you, with your keys')
   })
 
+  it('says how to turn on a source whose grant nobody has finished writing', async () => {
+    // `cli` is written far enough to work, so nothing is said about it; nothing
+    // at all is written for `github`, so the steps are. A connector whose grant
+    // a person cannot work out how to write is a connector nobody turns on, and
+    // this is where somebody is deciding.
+    config(['        accept: true', '        projects: [app]', '        from: [kim]'])
+    const { code, stdout } = await tade('intake')
+    expect(code).toBe(0)
+    expect(stdout).toContain('to turn github on:')
+    expect(stdout).not.toContain('to turn cli on:')
+    expect(stdout).toContain('surfaces.intake.sources.github.from')
+    // The sample mapping, so a workflow is a key rather than a thing to invent.
+    expect(stdout).toContain('bug-repro-fix-review')
+    // And the row itself names the first thing missing, so the steps below are
+    // an answer to something the row already said.
+    expect(stdout).toContain('accept is off')
+  })
+
   it('lists the inbox with a state and a reason per row', async () => {
     delivered()
     const { stdout } = await tade('intake', 'inbox')

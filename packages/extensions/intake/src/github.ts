@@ -231,15 +231,24 @@ export const githubIssues: ExtensionWatch = {
     }
     const found: { key: string; title: string; intake: IntakeCandidate }[] = []
     const unnamed: string[] = []
+    const unread: string[] = []
     for (const listed of page.items.slice(0, MOST_READ)) {
       let whole: Awaited<ReturnType<typeof place.forge.ticket>>
       try {
         whole = await place.forge.ticket(listed.ref)
       } catch (err) {
         // One issue that could not be read is not a look that could not look:
-        // something that is gone between the list and the detail is the
-        // ordinary race, and the rest of the list is still an honest answer.
-        if (err instanceof ForgeError && err.trouble === 'missing') continue
+        // something gone between the list and the detail is the ordinary race,
+        // and the rest of the list is still an honest answer.
+        //
+        // **Named rather than passed over**, which is the difference between
+        // that race and a repository where every detail answers 404: skipped
+        // in silence, the second reads as "no issue carries this label", and
+        // somebody goes looking for the label rather than for the access.
+        if (err instanceof ForgeError && err.trouble === 'missing') {
+          unread.push(`#${listed.ref.number}`)
+          continue
+        }
         throw asLookFailed(err, place)
       }
       // Read again from the detail rather than trusted from the list: the list
@@ -271,7 +280,7 @@ export const githubIssues: ExtensionWatch = {
       // because a list that was itself cut short makes the count a floor, and
       // a floor said as a total is the sort of number somebody plans against.
       ...(found.length === 0
-        ? { said: whyNothing(place, label, { unnamed, more, cutShort: page.more }) }
+        ? { said: whyNothing(place, label, { unnamed, unread, more, cutShort: page.more }) }
         : {}),
     }
   },
@@ -305,6 +314,16 @@ export const githubIssues: ExtensionWatch = {
     const label = String(ctx.input.label ?? '').trim()
     const ref = refOf(finding.key)
     if (!ref) return { still: false, because: `${finding.key} is not an issue this watch found` }
+    if (!label) {
+      // Asked without the label it was selected on, this can verify less than
+      // the selector did — so it holds rather than checking the rest and
+      // answering yes. It may only ever hold, and "I was not told what to
+      // check" is the plainest case of that there is.
+      return {
+        still: false,
+        because: `${ref.externalId} cannot be checked without the label the watch selects on`,
+      }
+    }
     const place = await forgeFor(ctx)
     const at = ticketRef(ref.externalId, place.host)
     if (!at) return { still: false, because: `${ref.externalId} is not an owner/repo#number` }
@@ -337,10 +356,10 @@ export const githubIssues: ExtensionWatch = {
     if (whole.state !== 'open') {
       return { still: false, because: `${ref.externalId} was closed` }
     }
-    if (label && !whole.labels.includes(label)) {
+    if (!whole.labels.includes(label)) {
       return { still: false, because: `the ${label} label has been taken off ${ref.externalId}` }
     }
-    if (label && !newest(whole.labelled, label)) {
+    if (!newest(whole.labelled, label)) {
       return {
         still: false,
         because: `nobody can be named for the ${label} label on ${ref.externalId} any more`,
@@ -458,12 +477,22 @@ function standing(place: ForgePlace): string {
 function whyNothing(
   place: ForgePlace,
   label: string,
-  what: { unnamed: readonly string[]; more: number; cutShort: boolean },
+  what: {
+    unnamed: readonly string[]
+    unread: readonly string[]
+    more: number
+    cutShort: boolean
+  },
 ): string {
   const bits = [`no open issue in ${place.repo} carries ${label} and was labelled by a person`]
   if (what.unnamed.length > 0) {
     bits.push(
       `${what.unnamed.join(', ')} ${what.unnamed.length === 1 ? 'carries' : 'carry'} it and GitHub cannot name who applied it`,
+    )
+  }
+  if (what.unread.length > 0) {
+    bits.push(
+      `${what.unread.join(', ')} came back in the list and could not be read in full, which is what a repository this sign-in has lost access to also looks like`,
     )
   }
   if (what.more > 0 || what.cutShort) {

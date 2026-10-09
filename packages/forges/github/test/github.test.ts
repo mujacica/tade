@@ -560,6 +560,24 @@ describe('GitHub issues, as the port’s tickets', () => {
     expect(again.items.length).toBe(page.items.length)
   })
 
+  it('reads the rate-limit headers off the issues endpoints too, not only the old ones', async () => {
+    const { forge } = make()
+    expect(forge.limits()).toBeNull()
+    await forge.tickets({ repo: 'acme/api', labels: ['tade'] })
+    // GitHub documents these on every answer — `x-ratelimit-limit`,
+    // `-remaining`, `-reset` — and a budget read off only the endpoints that
+    // existed first is a budget that stops moving when the newest caller is
+    // the one spending it.
+    expect(forge.limits()).toEqual({
+      remaining: 4987,
+      of: 5000,
+      resetsAt: expect.any(Number),
+    })
+    const { forge: other } = make()
+    await other.ticket({ repo: 'acme/api', number: 501, host: 'github.com' })
+    expect(other.limits()?.of).toBe(5000)
+  })
+
   it('lists a label nobody has used as an empty page, and a rate limit as a rate limit', async () => {
     expect((await make().forge.tickets({ repo: 'acme/api', labels: ['nope'] })).items).toEqual([])
     await expect(make({ limited: true }).forge.tickets({ repo: 'acme/api' })).rejects.toMatchObject(

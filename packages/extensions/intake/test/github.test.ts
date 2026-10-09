@@ -7,11 +7,14 @@ import {
   INTAKE_SETUP,
   type IntakeCandidate,
   type IntakeGrantRead,
+  intakeAgain,
   intakeContext,
   intakeDecision,
+  intakeItem,
   intakeKey,
   intakeMapped,
   intakePrompt,
+  intakeSuffix,
   intakeSummary,
   intakeUnfinished,
   mustBeTold,
@@ -21,6 +24,7 @@ import {
 import { type ExtensionContext, ExtensionHost, intakeProblem } from '@tade/extensions-core'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { githubReplay, type ReplayOptions } from '../../../../test/fixtures/forge/github.ts'
+import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import { intakeExtension } from '../src/extension.ts'
 import { githubIssues, MOST_READ, refOf } from '../src/github.ts'
 
@@ -47,12 +51,21 @@ afterAll(() => {
 
 const run = promisify(execFile)
 
-/** A real checkout whose `origin` is a GitHub repository. Real git, every time. */
-async function checkout(remote = 'git@github.com:acme/api.git'): Promise<string> {
-  const root = mkdtempSync(join(tmpdir(), 'tade-gh-intake-'))
-  await run('git', ['-C', root, 'init', '-q', '-b', 'main'])
-  await run('git', ['-C', root, 'remote', 'add', 'origin', remote])
-  return root
+/**
+ * A real checkout whose `origin` is a GitHub repository.
+ *
+ * `mkrepo` rather than a bare `git init`, because it is the one fixture this
+ * repository trusts not to be kinder than reality: a commit, nothing of Tade's
+ * inside the checkout, and no ignore rule anybody had to add. The remote is
+ * set to a GitHub URL afterwards — `mkrepo`'s own `remote` is a bare
+ * repository on this disk, which is the right fixture for pushing and the
+ * wrong one for a forge, since no forge serves a path.
+ */
+function checkout(remote = 'git@github.com:acme/api.git'): string {
+  const repo = mkrepo()
+  repo.commit('a first commit, because a repository with none is not one')
+  repo.git('remote', 'add', 'origin', remote)
+  return repo.root
 }
 
 /**
@@ -113,8 +126,8 @@ const grant = (over: Partial<IntakeGrantRead> = {}): IntakeGrantRead => ({
 describe('what selects an issue', () => {
   let root: string
 
-  beforeEach(async () => {
-    root = await checkout()
+  beforeEach(() => {
+    root = checkout()
   })
 
   it('reads the repository out of the checkout, and takes no repository from anybody', async () => {
@@ -201,6 +214,27 @@ describe('what selects an issue', () => {
     expect(looked.said).toContain('#501')
   })
 
+  it('names an issue it could not read in full, rather than passing over it', async () => {
+    // Every detail 404s while the list still answers, which is what a sign-in
+    // that has lost access to the repository looks like from here. Skipped in
+    // silence it reads as "no issue carries this label", and somebody goes
+    // looking for the label rather than for the access.
+    const { loaded } = await host(root, { goneDetails: [501, 503, 506] })
+    const looked = await loaded.look('intake.github', looking())
+    expect(looked.found).toEqual([])
+    expect(looked.said).toContain('could not be read in full')
+    expect(looked.said).toContain('#501')
+    // And the one that is genuinely the race — one issue gone between the list
+    // and the detail — still lets the rest of the look be an honest answer.
+    const { loaded: racing } = await host(root, { goneDetails: [506] })
+    const some = await racing.look('intake.github', looking())
+    expect(some.found.map((one) => (one.intake as IntakeCandidate).externalId)).toContain(
+      'acme/api#501',
+    )
+    // Found something, so there is no sentence: what was found says what it is.
+    expect(some.said).toBeNull()
+  })
+
   it('reads the body as written and lists no attachment it did not download', async () => {
     const { loaded } = await host(root)
     const looked = await loaded.look('intake.github', looking())
@@ -273,8 +307,8 @@ describe('what selects an issue', () => {
 describe('what a poll costs', () => {
   let root: string
 
-  beforeEach(async () => {
-    root = await checkout()
+  beforeEach(() => {
+    root = checkout()
   })
 
   it('carries a validator across looks, and reads an unchanged list as unchanged', async () => {
@@ -315,8 +349,8 @@ describe('what a poll costs', () => {
 describe('what a look cannot do', () => {
   let root: string
 
-  beforeEach(async () => {
-    root = await checkout()
+  beforeEach(() => {
+    root = checkout()
   })
 
   it('refuses to look at all without the label, and offers no default for it', async () => {
@@ -344,9 +378,11 @@ describe('what a look cannot do', () => {
   })
 
   it('says a project with no GitHub repository has none, rather than reading somebody else’s', async () => {
-    const bare = mkdtempSync(join(tmpdir(), 'tade-gh-bare-'))
-    await run('git', ['-C', bare, 'init', '-q', '-b', 'main'])
-    const { loaded } = await host(bare)
+    // A real checkout with no remote at all, which is the ordinary case for a
+    // project Tade only reads git from.
+    const bare = mkrepo()
+    bare.commit('nothing to push anywhere')
+    const { loaded } = await host(bare.root)
     await expect(loaded.look('intake.github', looking())).rejects.toThrow(
       /no GitHub repository to read issues from/,
     )
@@ -386,8 +422,8 @@ describe('what a look cannot do', () => {
 describe('whether an issue still stands, at the moment work would start', () => {
   let root: string
 
-  beforeEach(async () => {
-    root = await checkout()
+  beforeEach(() => {
+    root = checkout()
   })
 
   const key = (revision = '2026-09-19T08:00:00Z') =>
@@ -401,6 +437,20 @@ describe('whether an issue still stands, at the moment work would start', () => 
       revision: '2026-09-19T08:00:00Z',
     })
     expect(refOf('nonsense')).toBeNull()
+  })
+
+  it('holds when it is asked without the label it selects on', async () => {
+    const { loaded } = await host(root)
+    // It may only ever hold, and this is the plainest case of that: asked with
+    // no label, it can verify less than the selector did, so it says so rather
+    // than checking the rest and answering yes.
+    const answer = await loaded.recheck('intake.github', {
+      ...looking(),
+      input: {},
+      key: key(),
+    })
+    expect(answer.still).toBe(false)
+    expect(answer.still === false && answer.because).toContain('without the label')
   })
 
   it('says it still stands when nothing about it has moved', async () => {
@@ -504,7 +554,7 @@ describe('whether an issue still stands, at the moment work would start', () => 
 
 describe('what it may never do', () => {
   it('has no way of saying anything back to GitHub at all', async () => {
-    const root = await checkout()
+    const root = checkout()
     const { loaded } = await host(root)
     // Enforced by absence rather than by a flag, which is the stronger of the
     // two: with no way to write a word into GitHub, nothing Tade reads there
@@ -523,6 +573,58 @@ describe('what it may never do', () => {
     // One a look. The schedule's two is a ceiling on agents started, and this
     // one starts work on somebody else's words.
     expect(githubIssues.most).toBe(1)
+  })
+
+  it('never makes a second workflow for a second revision of one issue', async () => {
+    const root = checkout()
+    const { loaded } = await host(root)
+    const first = await loaded.look('intake.github', looking())
+    const one = first.found.find(
+      (each) => (each.intake as IntakeCandidate).externalId === 'acme/api#501',
+    )?.intake as IntakeCandidate
+    // Edited, so GitHub says a new revision — a new `Finding.key`, and the
+    // *same* item and the same task name. That is the whole of "one active
+    // intake per external id": the revision's key is what the seen set burns,
+    // and the item is what the next look finds the request again by.
+    const edited = { ...one, revision: '2026-09-19T20:00:00Z' }
+    expect(intakeKey(edited)).not.toBe(intakeKey(one))
+    expect(intakeItem(edited)).toBe(intakeItem(one))
+    expect(intakeSuffix(edited)).toBe(intakeSuffix(one))
+    expect(intakeItem(one)).toBe('github:acme/api#501')
+    // And what a newer revision does to work already in hand is the shared
+    // path's answer, which is to invalidate the approval rather than to start
+    // a second anything.
+    const again = intakeAgain(
+      {
+        item: intakeItem(one),
+        source: 'github',
+        externalId: one.externalId,
+        revision: one.revision,
+        taken: one.revision,
+        project: 'app',
+        requester: one.requester.id,
+        grant: 'surfaces.intake.sources.github',
+        template: null,
+        ref: one.material.ref,
+        url: one.url,
+        watch: 'intake.github',
+        schedule: 'issues-labelled-for-tade',
+        mode: 'propose',
+        task: 'app/github-acme-api-501',
+        tasks: ['app/github-acme-api-501'],
+        state: 'accepted',
+        why: null,
+        hash: one.material.hash,
+        attempts: 0,
+        failedAt: 0,
+        problem: null,
+        gaveUp: false,
+        replies: [],
+        at: 0,
+      },
+      edited,
+    )
+    expect(again.again).toBe('invalidate')
   })
 
   it('takes no path, no command and no repository from anybody', () => {

@@ -131,6 +131,16 @@ export interface ReplayOptions {
   /** The events of each issue, by number, oldest first. Undefined is `issue-events.json`. */
   issueEvents?: Record<string, Record<string, unknown>[]>
   /**
+   * Issue numbers the list still answers with and the detail answers `404`
+   * for: an issue deleted, transferred or hidden between the two calls.
+   *
+   * Its own option because it is a real race and not a contrivance — a list is
+   * a snapshot of a moment that has already passed — and because it is the
+   * only way to tell it apart from a repository where every detail 404s, which
+   * is what losing access looks like and must not read as "nothing is there".
+   */
+  goneDetails?: readonly number[]
+  /**
    * Conditional requests are answered: a repeat ask carrying the `etag` this
    * handed over gets `304` and no body.
    *
@@ -286,7 +296,11 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     }
     const one = /\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(url)
     if (one) {
-      const found = issues.find((issue) => issue.number === Number(one[2]))
+      const number = Number(one[2])
+      if (options.goneDetails?.includes(number)) {
+        return answer({ message: 'Not Found' }, 404)
+      }
+      const found = issues.find((issue) => issue.number === number)
       return found ? answer(found) : answer({ message: 'Not Found' }, 404)
     }
     const listed = /\/repos\/([^/]+\/[^/]+)\/issues\?(.*)$/.exec(url)

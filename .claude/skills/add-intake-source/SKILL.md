@@ -94,6 +94,12 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
   for a watch — its `since` — and an unchanged list is `unchanged` rather than an empty repository,
   which is the answer that would otherwise make every look after the first forget what it found.
 
+- **A `recheck` that was not told what to check holds.** It may only ever hold, so the plainest
+  case of that is the one to get right: asked without the label it selects on, it can verify less
+  than the selector did and says so rather than checking the rest and answering yes. The same rule
+  names an issue the list answered about and the detail could not — which is what a repository this
+  sign-in has lost access to looks like, and must never read as "nothing is there".
+
 **The loop is bounded by there being no way back.** The GitHub watch implements no `reply`, so Tade
 cannot write a word into GitHub and nothing it reads there can be something it wrote. The bot filter
 by actor is the second line, not the first, and what is left is why `propose` is the default forever:
