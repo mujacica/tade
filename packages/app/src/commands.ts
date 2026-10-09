@@ -49,6 +49,11 @@ export function actions(state: AppState): Action[] {
     { name: '/project', about: 'add a git repository Tade can work in', ready: true },
     { name: '/settings', about: 'see and change what Tade has been told', ready: true },
     { name: '/away', about: 'pair a phone, and see which devices are let in', ready: true },
+    {
+      name: '/workflows',
+      about: 'write a stored workflow: its steps, what each waits on, and publish it',
+      ready: true,
+    },
     { name: '/help', about: 'what the keys do', ready: true },
     { name: '/quit', about: 'close the window; agents carry on if they can', ready: true },
   ]

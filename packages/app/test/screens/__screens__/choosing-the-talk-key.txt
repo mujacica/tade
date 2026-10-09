@@ -10,17 +10,17 @@
     │  Orchestrator          │                        ctrl   +   r                        │                       ▕│    
  ▸ S│                        │                                                            │          ↻ on restart ▕│    
  ▸ S│  Checks                │ ▲ Pi and most shells search history with ctrl+r.           │                       ▕│    
- ▾ C│                        │   While Tade holds it, your agents never see it.           │          ↻ on restart ▕│    
-  M │▌ Voice                 │                                                            │                       ▕│    
-  A │▌                       │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                       ▕│    
-  M │  Window                │ Not a key that types a character.                          │                       ▕│    
-    │                        │                                                            │                       ▕│    
- ▾ F│  Away view             │                        Try another     Use ctrl+r anyway   │                       ▕│    
-   ▾│                        ╰────────────────────────────────────────────────────────────╯                       ▕│    
-    │  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+ ▸ I│                        │   While Tade holds it, your agents never see it.           │          ↻ on restart ▕│    
+ ▾ C│▌ Voice                 │                                                            │                       ▕│    
+  M │▌                       │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                       ▕│    
+  A │  Window                │ Not a key that types a character.                          │                       ▕│    
+  M │                        │                                                            │                       ▕│    
+    │  Away view             │                        Try another     Use ctrl+r anyway   │                       ▕│    
+ ▾ F│                        ╰────────────────────────────────────────────────────────────╯                       ▕│    
+   ▾│  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
-   ▸│  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
-    │                            █│                                                                               ▕│    
+    │  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+   ▸│                            █│                                                                               ▕│    
 ━   │  Journal                   █│                                                                               ▕│   ━
     │                            █│                                                                               ▕│    
     │  Telemetry                 █│                                                                               ▕│   ▕

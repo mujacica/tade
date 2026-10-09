@@ -30,7 +30,11 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/workbench/src/intake.ts` | the doors: `takeIntake`, `intakeStands`, `sayBackAbout`, `intakeGrant` |
 | `packages/workbench/src/workbench.ts` | `watchFound` branches on `finding.intake` and writes down only what settled |
 | `packages/app/src/wire/queue.ts` | `intakeHold`: the grant, the plan and the source, asked again at the moment of starting |
-| `packages/cli/src/commands/intake.ts` | `tade intake add`, `list`, `grant` |
+| `packages/core/src/intake-inbox.ts` | the inbox: `INBOX_STATES`, `inboxOf`, `inboxStateOf`, `whyNotAct`, `inboxProvenance`, `MATERIAL_LABEL` |
+| `packages/workbench/src/intake-acts.ts` | the local acts: `inboxFrom`, `openIntakeRow`, `approveIntake`, `refuseIntake`, `retryIntake`, `intakeWouldRun` |
+| `packages/app/src/intake-view.ts` · `view/intake.ts` · `panels/intake/` · `wire/intake.ts` | what INTAKE shows, the section, the page one row opens, and the subject that carries an act out |
+| `packages/orchestrator/src/tools-templates.ts` | `intakeTools`: two tools, both read-only |
+| `packages/cli/src/commands/intake.ts` | `tade intake add`, `list`, `grant`, `status`, `inbox`, `show`, `approve`, `refuse`, `retry` |
 
 ## The steps
 
@@ -126,6 +130,36 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 - **Attachments are references.** A name, a claimed media type, a claimed size, a url. Tade writing
   a stranger's file into a task folder is a path-containment and a media-parsing problem nobody
   needs; fetching one is a tool a person allowed, which is a decision that already exists.
+
+## The inbox, and what a surface may do with one
+
+- **Seven states, not the journal's three.** `IntakeItem.state` is what the *rule* decided; what
+  somebody needs to know is who is being waited on, which is the task's answer. `inboxStateOf`
+  folds the two: `noticed` is Tade, `proposed` is you, `accepted` is the queue, `started` is an
+  agent, and `held`/`refused`/`failure` are the three ways it stops. Collapsing them is what made
+  the first drawing unreadable — one word stood for a parked proposal, a queued task, a running
+  agent and a delivery that had failed twice.
+- **One rule says what may be done to a row, and three readers read it.** `whyNotAct` is the
+  sentence the window greys a button with, the sentence the CLI prints, and the sentence the door
+  throws. A button that offers what the door refuses is how a surface comes to lie.
+- **The request is not in any inbox type.** `InboxRow` has the source's reference and the hash and
+  no field a body could go in; reading one is `openIntakeRow`, a separate ask whose answer carries
+  `OUTSIDE_IS_MATERIAL` with it. That is the same enforcement-by-absence as `IntakeSaid`, and it is
+  why the orchestrator's two tools cannot leak a stranger's words: they are built from a row.
+- **Provenance and material are two answers, never one.** A drawing that merged them would be one
+  layout change from presenting a stranger's sentences as Tade's. The region gets `MATERIAL_LABEL`;
+  the whole wording is *inside* what it draws, in the same bytes the agent reads.
+- **A person's retry is not bounded by the machine's three tries**, and it goes through the one
+  delivery door with `again` on it (`takeIntake`) — which skips the retry arithmetic and nothing
+  else. Only an open window can ask a source again, so the CLI says so rather than pretending.
+- **Approving reads the grant again at the press**, from the *caller's* config where it has a
+  fresher one than the workbench does: a setting changed while a window has been open is changed
+  now. It is not a second authorisation — `intakeStands` asks the source and the grant at the
+  moment of starting — it is so a press says which key rather than holding a second later.
+- **The orchestrator may read and may not act.** Two tools, both read-only; no method on the
+  `ToolHost` that approves, refuses, retries or changes a grant; `surfaces.intake` whole at `never`
+  in `reach.ts`. Held by `packages/orchestrator/test/intake.test.ts`, which names the absent tools
+  so that adding one is a test to delete rather than a line nobody notices.
 
 ## What not to build
 

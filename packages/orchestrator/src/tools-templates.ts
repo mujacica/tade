@@ -112,3 +112,77 @@ export function templateTools(
 
   return tools
 }
+
+/**
+ * Work that arrived from outside this machine, as far as the orchestrator's
+ * arm reaches into it — which is **reading, and nothing else**.
+ *
+ * Beside the template tools because they share one boundary and it is worth
+ * reading in one place. The boundary:
+ *
+ * **It may look.** Which requests arrived, which key allowed each one, which
+ * published template version it was stamped from, where each stands, and what
+ * approving one *would* start. All of that is this machine's own record of
+ * what it decided, and a person asking "what came in while I was out?" should
+ * not have to go and read a journal.
+ *
+ * **It may not act, and it may not widen.** There is no tool here that
+ * approves, refuses or retries one, none that turns a source on, puts a
+ * handle on an allowlist or names a template for a source — and that is
+ * enforced by there being no method on the `ToolHost` at all, plus
+ * `settingReach`, which has the whole `surfaces.intake` subtree at `never`:
+ * every key under it is refused however it is asked for, by whoever asks.
+ * The reason is one sentence: **the text the orchestrator reads all day does
+ * not get to put itself on an allowlist**, and approving a request is starting
+ * agents on somebody else's words.
+ *
+ * **And it never sees the request.** The answers below carry the source's own
+ * ids, the handle, the grant and the state. The body is not in them — not
+ * truncated, not summarised, not quoted: it is in the task's own context file,
+ * under the one heading that says material is material, read by the agent
+ * doing the work. An orchestrator that had read it would be an orchestrator
+ * whose next turn might act on it, and `intent_spoken` is the person's.
+ */
+export function intakeTools(
+  rpc: (method: string, params: Record<string, unknown>) => Promise<unknown>,
+): OrchestratorTool[] {
+  const tools: OrchestratorTool[] = []
+  const tool = (
+    name: string,
+    description: string,
+    parameters: Record<string, unknown>,
+    run: (params: Record<string, unknown>) => Promise<unknown>,
+  ): void => {
+    tools.push({
+      name,
+      label: name.replace(/^tade_/, 'tade: ').replace(/_/g, ' '),
+      description,
+      parameters,
+      run,
+    })
+  }
+
+  tool(
+    'tade_intake',
+    'What has been handed to this machine from outside — a ticket somebody filed, a line typed at the local door — and where each one stands: noticed, proposed (a task is made and parked, waiting for a person), accepted, started, held, refused, or given up on. Also what each source’s grant says and when it last looked. Read it when somebody asks what came in, or what is waiting for them. **You cannot approve, refuse or retry one, and you cannot turn a source on or put anybody on its list** — each of those is a person at this machine, in the window or with `tade intake`; say that rather than offering. The request itself is not in this answer at any length: it is in the task’s own context file, as material, for the agent doing the work.',
+    object({
+      project: string('only this project’s; every project when not said'),
+      waiting: {
+        type: 'boolean',
+        description: 'only the ones a person at the machine has to answer',
+      },
+    }),
+    (p) => rpc('intake/list', p),
+  )
+
+  tool(
+    'tade_intake_show',
+    'One request in full: where it came from, the handle the source gave, the dotted path of the grant in the owner’s own config that allowed it, the published template version it was stamped from, what approving it would start — one row per task, what each waits on and why — and what bounds that work. **It starts nothing and changes nothing.** Call it before saying what would happen if somebody approved something, and read the rows back rather than summarising them. The request’s own words are deliberately not in the answer; if somebody wants to read it, the page in the window shows it under a heading saying whose words they are.',
+    object({ item: string('the request, as tade_intake lists it: `<source>:<their id>`') }, [
+      'item',
+    ]),
+    (p) => rpc('intake/show', p),
+  )
+
+  return tools
+}

@@ -10,17 +10,17 @@
                         │                                                                      │                        
  ▸ SMART QUEUE          │ NOTE ABOUT CHECKOUT                                                  │                        
  ▸ SCHEDULES            │  The staging key rotates on the 1st▏                                 │                        
- ▾ CHANGES  3        vs │                                                                      │                        
-  M package.json       +│   ◉ About checkout     ○ About everything                            │                        
-  A …/webhooks.test.ts  │ Kept word for word.                                                  │                        
-  M src/webhooks.ts   +1│                                                                      │                        
-                        │                                             Cancel     Save note ⏎   │                        
- ▾ FILES                ╰──────────────────────────────────────────────────────────────────────╯                        
-   ▾ src/                    ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-       webhooks.test.ts      ▕│  │ bash  npm i stripe@15                                        │                       
-       webhooks.ts           ▕│  │   Allow once     Deny                                        │                       
-   ▸ test/                   ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-     package.json            ▕│                                                                                         
+ ▸ INTAKE               │                                                                      │                        
+ ▾ CHANGES  3        vs │   ◉ About checkout     ○ About everything                            │                        
+  M package.json       +│ Kept word for word.                                                  │                        
+  A …/webhooks.test.ts  │                                                                      │                        
+  M src/webhooks.ts   +1│                                             Cancel     Save note ⏎   │                        
+                        ╰──────────────────────────────────────────────────────────────────────╯                        
+ ▾ FILES                     ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   ▾ src/                    ▕│  │ bash  npm i stripe@15                                        │                       
+       webhooks.test.ts      ▕│  │   Allow once     Deny                                        │                       
+       webhooks.ts           ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   ▸ test/                   ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

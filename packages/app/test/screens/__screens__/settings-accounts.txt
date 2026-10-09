@@ -10,17 +10,17 @@
     │  Checks                    █│   you sign in to them inside pi.                                              ▕│    
  ▸ S│                            █│                                                                               ▕│    
  ▸ S│  Voice                     █│ Claude Code                                                                   ▕│    
- ▾ C│                            █│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        ▕│    
-  M │  Window                    █│     Sign in again…     Sign out                                               ▕│    
-  A │                            █│   work                  ○ not signed in yet                                   ▕│    
-  M │  Away view                 █│     Sign in…     Use for new agents     Remove                                ▕│    
-    │                            █│                                                                               ▕│    
- ▾ F│  Intake                    █│     Add an account…     Add an API-key account…                               ▕│    
-   ▾│                            █│                                                                               ▕│    
-    │  Projects              ● 1 █│ Codex                                                                         ▕│    
+ ▸ I│                            █│ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents        ▕│    
+ ▾ C│  Window                    █│     Sign in again…     Sign out                                               ▕│    
+  M │                            █│   work                  ○ not signed in yet                                   ▕│    
+  A │  Away view                 █│     Sign in…     Use for new agents     Remove                                ▕│    
+  M │                            █│                                                                               ▕│    
+    │  Intake                    █│     Add an account…     Add an API-key account…                               ▕│    
+ ▾ F│                            █│                                                                               ▕│    
+   ▾│  Projects              ● 1 █│ Codex                                                                         ▕│    
     │                            █│ ▸ its own sign-in       ● you@example.com · pro · 1 agent                     ▕│    
-   ▸│  Journal                   █│     Sign in again…     Sign out                                               ▕│    
-    │                            █│                                                                               ▕│    
+    │  Journal                   █│     Sign in again…     Sign out                                               ▕│    
+   ▸│                            █│                                                                               ▕│    
 ━   │  Telemetry                 █│     Add an account…     Add an API-key account…                               ▕│   ━
     │                            █│                                                                               ▕│    
     │  Shortcuts                 █│                                                                               ▕│   ▕

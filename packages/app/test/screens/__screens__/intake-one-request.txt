@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2╭─ req-7 ──────────────────────────────────────────────────────────────────────────────── esc ─╮h ▾     ×   
+            │                                                                                             █│────────────
+ ▌ ! stripe-│ ! proposed  checkout/cli-req-7 is parked, waiting for a person to approve it                █│            
+ ▌   wants y│                                                                                             █│            
+            │ WHERE IT CAME FROM ──────────────────────────────────────────────────────────────────────── █│            
+   ⠋ refunds│ source            cli                                                                       █│            
+     working│ their id          req-7                                                                     █│            
+            │ revision          1                                                                         █│            
+ ▸ SMART QUE│ asked by          @kim                                                                      █│            
+ ▸ SCHEDULES│ project           checkout                                                                  █│            
+ ▾ INTAKE  4│ allowed by        surfaces.intake.sources.cli                                               █│            
+            │ mode              propose                                                                   █│            
+ ▌ ! req-7  │ template          github-bug@3                                                              █│            
+ ▌   @kim · │ found by          intake.cli                                                                ▕│            
+            │ raw material      req-7.0001.json                                                           ▕│            
+   ⠋ req-8  │ its hash          sha256:9f2c                                                               ▕│            
+     @kim · │ work              checkout/cli-req-7                                                        ▕│            
+            │                                                                                             ▕│            
+   ○ req-9  │ WHAT APPROVING IT STARTS ────────────────────────────────────────────────────────────────── ▕│            
+     @lee · │  checkout/reproduce-req-7  worktree  done: said                                             ▕│            
+            │  checkout/fix-req-7        worktree  done: committed                                        ▕│            
+━   orchestr│                            after checkout/reproduce-req-7 — there is no fix until the fail… ▕│ ⤢     ▾   ━
+            │  warning checkout/fix-req-7 and checkout/stripe-v15, which is working, both change          ▕│            
+            │  src/export.ts: merging both may conflict                                                   ▕│           ▕
+            │  Allowed by surfaces.intake.sources.cli, at propose.                                        ▕│           ▕
+            │                                                                                              │           ▕
+            │   a Approve     s Approve and start     r Refuse                        ↑↓ reads    Close    │           ▕
+ ❯ what you ╰──────────────────────────────────────────────────────────────────────────────────────────────╯           ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

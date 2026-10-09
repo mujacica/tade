@@ -10,17 +10,17 @@
     │  Voice                     █│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                       █│    
  ▸ S│                            █│   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1                 █│    
  ▸ S│  Window                    █│   git -C ~/src/tade pull --ff-only && pnpm install                            █│    
- ▾ C│                            █│     Update Tade…     Reload Tade…                                             █│    
-  M │  Away view                 █│                                                                               █│    
-  A │                            █│ Programs it runs                                                              █│    
-  M │  Intake                    █│   git             2.39.5      · cannot tell                                   █│    
-    │                            █│                   the system’s own · /usr/bin/git                             █│    
- ▾ F│  Projects              ● 1 █│                   no command · the system updates it — macOS: `xcode-select   █│    
-   ▾│                            █│                   --install`                                                  █│    
-    │  Journal                   █│                                                                               █│    
+ ▸ I│                            █│     Update Tade…     Reload Tade…                                             █│    
+ ▾ C│  Away view                 █│                                                                               █│    
+  M │                            █│ Programs it runs                                                              █│    
+  A │  Intake                    █│   git             2.39.5      · cannot tell                                   █│    
+  M │                            █│                   the system’s own · /usr/bin/git                             █│    
+    │  Projects              ● 1 █│                   no command · the system updates it — macOS: `xcode-select   █│    
+ ▾ F│                            █│                   --install`                                                  █│    
+   ▾│  Journal                   █│                                                                               █│    
     │                            █│   tmux            —           ▲ not installed                                 █│    
-   ▸│  Telemetry                 █│                   nothing here needs it                                       █│    
-    │                            █│                   no command · nothing on your PATH answers to `tmux`         ▕│    
+    │  Telemetry                 █│                   nothing here needs it                                       █│    
+   ▸│                            █│                   no command · nothing on your PATH answers to `tmux`         ▕│    
 ━   │  Shortcuts                 █│                                                                               ▕│   ━
     │                            █│   pi              0.85.1      · cannot tell                                   ▕│    
     │  Accounts              ● 3 █│                   shipped with Tade · ~/src/tade/node_modules/@earendil-work… ▕│   ▕

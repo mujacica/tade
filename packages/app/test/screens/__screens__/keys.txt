@@ -10,17 +10,17 @@
               │ Next waiting agent           ctrl   +   q    the agent waiting on you                   █│              
  ▸ SMART QUEUE│ New agent                    ctrl   +   n    start one in the project you are in        █│              
  ▸ SCHEDULES  │ New terminal                 ctrl   +   t    a terminal in the bottom panel             █│              
- ▾ CHANGES  3 │ Open project                 ctrl   +   o    add or go to a repository                  █│              
-  M package.js│ Mute                         ctrl   +   m    quiet now, and back                        █│              
-  A …/webhooks│ Extensions                   ctrl   +   shift   +   e    turn them on and off           █│              
-  M src/webhoo│ Settings                     ctrl   +   ,    this panel                                 █│              
-              │ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window      █│              
- ▾ FILES      │ Shortcuts                    F1    the sheet of every shortcut                          █│              
-   ▾ src/     │ Reload                       ctrl   +   shift   +   r    restart with your changes      █│              
-       webhook│ Allow                        a    allow what an agent asks, while one waits             █│              
+ ▸ INTAKE     │ Open project                 ctrl   +   o    add or go to a repository                  █│              
+ ▾ CHANGES  3 │ Mute                         ctrl   +   m    quiet now, and back                        █│              
+  M package.js│ Extensions                   ctrl   +   shift   +   e    turn them on and off           █│              
+  A …/webhooks│ Settings                     ctrl   +   ,    this panel                                 █│              
+  M src/webhoo│ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window      █│              
+              │ Shortcuts                    F1    the sheet of every shortcut                          █│              
+ ▾ FILES      │ Reload                       ctrl   +   shift   +   r    restart with your changes      █│              
+   ▾ src/     │ Allow                        a    allow what an agent asks, while one waits             █│              
        webhook│ Deny                         d    deny what an agent asks, while one waits              █│              
-   ▸ test/    │                                                                                         █│              
-     package.j│ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│              
+       webhook│                                                                                         █│              
+   ▸ test/    │ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│              
 ━   orchestrat│ Stop the orchestrator        esc    stops the turn it is on · what you typed stays      █│   ⤢     ▾   ━
               │ Discard what you typed       ctrl   +   c    the line and the pictures with it          ▕│              
               │ Quit                         ctrl   +   c    once there is nothing left to discard      ▕│             ▕

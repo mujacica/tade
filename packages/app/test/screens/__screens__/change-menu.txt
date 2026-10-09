@@ -10,17 +10,17 @@
                              █│                                                                                         
  ▸ SMART QUEUE          none █│                                                                                         
  ▸ SCHEDULES            none █│                                                                                         
- ▾ CHANGES  3        vs main █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
-  M ╭─ webhooks.ts ───────────────╮so src/webhooks.ts needs the new constructEvent signature.                           
-  A │▌ Show changes        click ▕│                                                                                     
-  M │  Open file                 ▕│Read src/webhooks.ts                                                                 
-    │  Open in editor            ▕│Edit src/webhooks.ts  +12 −4                                                         
- ▾ F│  Read as a patch           ▕│bash npm i stripe@15                                                                 
-   ▾│  Ask the agent about it    ▕│ wants approval ─────────────────────────────────────────────╮                       
-    │────────────────────────────▕│bash  npm i stripe@15                                        │                       
+ ▸ INTAKE                off █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▾ C╭─ webhooks.ts ───────────────╮so src/webhooks.ts needs the new constructEvent signature.                           
+  M │▌ Show changes        click ▕│                                                                                     
+  A │  Open file                 ▕│Read src/webhooks.ts                                                                 
+  M │  Open in editor            ▕│Edit src/webhooks.ts  +12 −4                                                         
+    │  Read as a patch           ▕│bash npm i stripe@15                                                                 
+ ▾ F│  Ask the agent about it    ▕│ wants approval ─────────────────────────────────────────────╮                       
+   ▾│────────────────────────────▕│bash  npm i stripe@15                                        │                       
     │  Copy path                 ▕│  Allow once     Deny                                        │                       
-   ▸│────────────────────────────▕│─────────────────────────────────────────────────────────────╯                       
-    │  Discard changes…          ▕│                                                                                     
+    │────────────────────────────▕│─────────────────────────────────────────────────────────────╯                       
+   ▸│  Discard changes…          ▕│                                                                                     
 ━   ╰─────────────────────────────╯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

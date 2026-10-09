@@ -205,6 +205,42 @@
     }
   },
   {
+    "name": "tade_intake",
+    "description": "What has been handed to this machine from outside — a ticket somebody filed, a line typed at the local door — and where each one stands: noticed, proposed (a task is made and parked, waiting for a person), accepted, started, held, refused, or given up on. Also what each source’s grant says and when it last looked. Read it when somebody asks what came in, or what is waiting for them. **You cannot approve, refuse or retry one, and you cannot turn a source on or put anybody on its list** — each of those is a person at this machine, in the window or with `tade intake`; say that rather than offering. The request itself is not in this answer at any length: it is in the task’s own context file, as material, for the agent doing the work.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "only this project’s; every project when not said"
+        },
+        "waiting": {
+          "type": "boolean",
+          "description": "only the ones a person at the machine has to answer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_intake_show",
+    "description": "One request in full: where it came from, the handle the source gave, the dotted path of the grant in the owner’s own config that allowed it, the published template version it was stamped from, what approving it would start — one row per task, what each waits on and why — and what bounds that work. **It starts nothing and changes nothing.** Call it before saying what would happen if somebody approved something, and read the rows back rather than summarising them. The request’s own words are deliberately not in the answer; if somebody wants to read it, the page in the window shows it under a heading saying whose words they are.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "string",
+          "description": "the request, as tade_intake lists it: `<source>:<their id>`"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_limits",
     "description": "Where every sign-in stands against its plan: each account of each harness, how much of each rolling window it has used, what is left of it and when it starts over — with the ones at their limit named, and what else there is to run as. Use it when somebody asks whether they are about to run out, when an agent has stopped or slowed and a plan could be the reason, and before telling somebody they can keep working. Suggest, never switch: which sign-in agents run as is a sign-in decision, whose money and whose permissions the work runs with, and it is a person’s alone — so say what you would move to and let them do it, whether that is another account of the same harness, another harness, or an API key rather than a subscription. A sign-in that reports nothing has not reported nothing used: the harnesses that only hear about a plan while one of their agents is working say so in their own words, and that reads as cannot tell, never as zero. None of it is money — a subscription has no price per turn — so never add a plan to what anything cost.",
     "parameters": {

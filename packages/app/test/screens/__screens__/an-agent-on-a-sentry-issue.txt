@@ -10,17 +10,17 @@
                              █│                                                                                         
  ▸ SMART QUEUE          none █│                                                                                         
  ▸ SCHEDULES            none █│                                                                                         
+ ▸ INTAKE                off █│                                                                                         
  ▸ CHANGES  3        vs main █│                                                                                         
  ▸ FILES                     █│                                                                                         
  ▸ NOTES  4             +    █│                                                                                         
  ▾ GIT                       █│                                                                                         
-   repo     ~/src/checkout   █│                                                                                         
-   branch   …e/fix-shop-1a   █│Reading what Tade left about SHOP-1A before touching src/refunds.ts                      
-   from     main             █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   about    SHOP-1A ↗        █│  │ bash  npm i stripe@15                                        │                       
-   about    trace a1b2c3d4 ↗ ▕│  │   Allow once     Deny                                        │                       
-   worktree …out-fix-shop-1a ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-   path     /Users/me/.tade/ ▕│                                                                                         
+   repo     ~/src/checkout   █│Reading what Tade left about SHOP-1A before touching src/refunds.ts                      
+   branch   …e/fix-shop-1a   █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   from     main             ▕│  │ bash  npm i stripe@15                                        │                       
+   about    SHOP-1A ↗        ▕│  │   Allow once     Deny                                        │                       
+   about    trace a1b2c3d4 ↗ ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   worktree …out-fix-shop-1a ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

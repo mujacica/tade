@@ -1,4 +1,4 @@
-import type { SettingGroup } from '@tade/core'
+import type { SettingGroup, WorkflowField } from '@tade/core'
 // Type-only, so the pure panel model never loads the driver stack behind it.
 import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 
@@ -24,6 +24,7 @@ import {
 } from './panels/extensions/state.ts'
 import type { InlineRow } from './panels/file/inline.ts'
 import { type FilePanel, fileClick, fileDismiss, fileKey } from './panels/file/state.ts'
+import { type IntakePanel, intakeClick, intakeKey } from './panels/intake/state.ts'
 import { type MenuItem, type MenuPanel, menuClick, menuKey } from './panels/menu/state.ts'
 import { type ModelChoice, type ModelPanel, modelClick, modelKey } from './panels/models/state.ts'
 import { close, type PanelOutcome, stay } from './panels/outcome.ts'
@@ -69,6 +70,12 @@ import {
 } from './panels/small/state.ts'
 import { type SpendPanel, spendClick, spendKey } from './panels/spend/state.ts'
 import { type RowSummaryPanel, rowSummaryClick, rowSummaryKey } from './panels/summary/state.ts'
+import {
+  type WorkflowPanel,
+  type WorkflowRow,
+  workflowClick,
+  workflowKey,
+} from './panels/workflow/state.ts'
 import type { SearchEntry } from './search.ts'
 
 // Panels: the questions the window asks, floating over it.
@@ -105,6 +112,8 @@ export type Panel =
   | ExtensionViewPanel
   | ModelPanel
   | RowSummaryPanel
+  | IntakePanel
+  | WorkflowPanel
 
 /** What the panel needs to know that it does not hold: the settings themselves, and lists. */
 export interface PanelInputs {
@@ -167,6 +176,10 @@ export interface PanelInputs {
    * itself rather than hope they reach the subject.
    */
   bindings?: Readonly<Record<string, string>>
+  /** The fields of the workflow being written, in the order the keyboard walks them. */
+  workflowFields?: readonly WorkflowField[]
+  /** The rows of its list: the templates, and the chosen one's steps. */
+  workflowRows?: readonly WorkflowRow[]
   /** The tabs the extension's own page offers, and whether it is windowed. */
   viewTabs?: readonly { id: string; title: string }[]
   viewWindowed?: boolean
@@ -199,6 +212,13 @@ export function panelKey(
   }
   if (panel.kind === 'extensions') return extensionsKey(panel, key, data, inputs)
   if (panel.kind === 'row-summary') return rowSummaryKey(panel, key)
+  if (panel.kind === 'intake') return intakeKey(panel, key, data)
+  if (panel.kind === 'workflow') {
+    return workflowKey(panel, key, data, {
+      fields: inputs.workflowFields ?? [],
+      rows: inputs.workflowRows ?? [],
+    })
+  }
   if (panel.kind === 'away') return awayKey(panel, key, inputs)
   if (panel.kind === 'quit') return quitKey(panel, key)
   if (panel.kind === 'reload') return reloadKey(panel, key)
@@ -248,6 +268,13 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'extension-setup') return setupClick(panel, control, inputs.setupFields ?? [])
   if (panel.kind === 'extensions') return extensionsClick(panel, control, inputs)
   if (panel.kind === 'row-summary') return rowSummaryClick(panel, control)
+  if (panel.kind === 'intake') return intakeClick(panel, control)
+  if (panel.kind === 'workflow') {
+    return workflowClick(panel, control, {
+      fields: inputs.workflowFields ?? [],
+      rows: inputs.workflowRows ?? [],
+    })
+  }
   if (panel.kind === 'away') return awayClick(panel, control)
   if (panel.kind === 'quit') return quitClick(panel, control)
   if (panel.kind === 'reload') return reloadClick(panel, control)

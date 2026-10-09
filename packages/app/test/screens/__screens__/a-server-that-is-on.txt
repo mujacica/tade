@@ -10,17 +10,17 @@
     │ ● Jev                      ▕│   Settings…     Turn off                                                      ▕│    
  ▸ S│                            ▕│                                                                               ▕│    
  ▸ S│ ◐ Sentry                 ! ▕│ HOW IT IS USED                                                                ▕│    
- ▾ C│                            ▕│ · Ask about an issue or a pull request by number and get what it actually     ▕│    
-  M │ ✗ standup                ! ▕│   says.                                                                       ▕│    
-  A │                            ▕│                                                                               ▕│    
-  M │▌● GitHub                   ▕│ TOOLS                                                                         ▕│    
-    │▌                           ▕│ mcp_github_issue  Read an issue                                     get_issue ▕│    
- ▾ F│ ○ release-notes            ▕│ mcp_github_search Search code                                     search_code ▕│    
-   ▾│                            ▕│                                                                               ▕│    
-    │ · Written by Tade        1 ▕│ OPTIONS  Settings…                                                            ▕│    
+ ▸ I│                            ▕│ · Ask about an issue or a pull request by number and get what it actually     ▕│    
+ ▾ C│ ✗ standup                ! ▕│   says.                                                                       ▕│    
+  M │                            ▕│                                                                               ▕│    
+  A │▌● GitHub                   ▕│ TOOLS                                                                         ▕│    
+  M │▌                           ▕│ mcp_github_issue  Read an issue                                     get_issue ▕│    
+    │ ○ release-notes            ▕│ mcp_github_search Search code                                     search_code ▕│    
+ ▾ F│                            ▕│                                                                               ▕│    
+   ▾│ · Written by Tade        1 ▕│ OPTIONS  Settings…                                                            ▕│    
     │                            ▕│ API key             tsk_0123456789                                            ▕│    
-   ▸│ · MCP servers            4 ▕│                                                                               ▕│    
-    │                            ▕│ THE SERVER                                                                    ▕│    
+    │ · MCP servers            4 ▕│                                                                               ▕│    
+   ▸│                            ▕│ THE SERVER                                                                    ▕│    
 ━   │ · Harnesses' own         2 ▕│ https://api.githubcopilot.com/mcp/                                            ▕│   ━
     │                            ▕│ last asked Mon 21 Sep 08:12                                                   ▕│    
     │                            ▕│ Reviews, checks and merges are the Forge port’s, not this server’s.           ▕│   ▕

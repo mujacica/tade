@@ -10,17 +10,17 @@
                      │ ▸ identity/                                  no git                     › ▕│                     
  ▸ SMART QUEUE       │ ▸ invoices/                                  no git                     › ▕│                     
  ▸ SCHEDULES         │ ▸ ledger/                                    git · main                 › █│                     
- ▾ CHANGES  3        │ ▸ mailer/                                    no git                     › █│                     
-  M package.json     │▌▸ notifications/                             no git                     › █│                     
-  A …/webhooks.test.t│ ▸ onboarding/                                git · main                 › █│                     
-  M src/webhooks.ts  │ ▸ payments/                                  no git                     › █│                     
-                     │ ▸ payroll/                                   no git                     › █│                     
- ▾ FILES             │ ▸ pricing/                                   git · main                 › █│                     
-   ▾ src/            │ ▸ refunds/                                   no git                     › █│                     
-       webhooks.test.│ ▸ reporting/                                 no git                     › █│                     
-       webhooks.ts   │ ▸ search/                                    git · main                 › █│                     
-   ▸ test/           │ ▸ shipping/                                  no git                     › █│                     
-     package.json    │ ▸ subscriptions/                             no git                     › █│                     
+ ▸ INTAKE            │ ▸ mailer/                                    no git                     › █│                     
+ ▾ CHANGES  3        │▌▸ notifications/                             no git                     › █│                     
+  M package.json     │ ▸ onboarding/                                git · main                 › █│                     
+  A …/webhooks.test.t│ ▸ payments/                                  no git                     › █│                     
+  M src/webhooks.ts  │ ▸ payroll/                                   no git                     › █│                     
+                     │ ▸ pricing/                                   git · main                 › █│                     
+ ▾ FILES             │ ▸ refunds/                                   no git                     › █│                     
+   ▾ src/            │ ▸ reporting/                                 no git                     › █│                     
+       webhooks.test.│ ▸ search/                                    git · main                 › █│                     
+       webhooks.ts   │ ▸ shipping/                                  no git                     › █│                     
+   ▸ test/           │ ▸ subscriptions/                             no git                     › █│                     
 ━   orchestrator     │ ▸ webhooks/                                  git · main                 › █│━━━━━━━   ⤢     ▾   ━
                      │                                                                            │                     
                      │ ▲ notifications has no git.                                                │                    ▕

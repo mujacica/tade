@@ -44,6 +44,7 @@ export const RESERVED: readonly string[] = [
   'chat',
   'deny',
   'done',
+  'intake',
   'limits',
   'logs',
   'mcp',

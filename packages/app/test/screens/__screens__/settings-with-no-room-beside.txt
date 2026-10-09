@@ -10,7 +10,7 @@
    │  Intake        █│▌    ◉ sentry                ▕│   
  ▸ │                █│▌    ○ none                  ▕│   
  ▸ │  Projects  ● 1 █│▌  sentry sends through      ▕│   
- ▾ │                █│▌  Sentry’s own SDK, import… ▕│   
+ ▸ │                █│▌  Sentry’s own SDK, import… ▕│   
 ━  │  Journal       █│▌                            ▕│  ━
    │                ▕│ Crashes and warnings      ↻ ▕│   
    │▌ Telemetry     ▕│ ● Saved as you change it.    │  ▕

@@ -7,6 +7,7 @@
                              █│                                                                                         
  ▸ SMART QUEUE          none █│    Open its agent   where it stopped                                                    
  ▸ SCHEDULES            none █│                                                                                         
+ ▸ INTAKE                off █│                                                                                         
  ▾ CHANGES           vs main █│                                                                                         
    nothing changed           █│                                                                                         
                              █│                                                                                         
@@ -14,13 +15,12 @@
    ▾ src/                    █│                                                                                         
        webhooks.test.ts      █│                                                                                         
        webhooks.ts           █│                                                                                         
-   ▸ test/                   █│                                                                                         
+   ▸ test/                   ▕│                                                                                         
      package.json            ▕│                                                                                         
      README.md               ▕│                                                                                         
                              ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
  ▾ GIT                       ▕│                                                                                         
-   repo     ~/src/checkout   ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

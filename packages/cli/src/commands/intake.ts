@@ -1,18 +1,37 @@
 import { readFile } from 'node:fs/promises'
 import {
   defaultConfigPath,
+  describeLook,
   EMPTY_MEANS_NOBODY,
   INTAKE_IS_SOMEBODY_ELSE,
+  INTAKE_SOURCES,
+  inboxActs,
+  inboxWaiting,
   intakeDecision,
   intakeItem,
   intakeMapped,
   loadConfig,
+  MATERIAL_LABEL,
   tadeHome,
+  WAITING_STATES,
+  watchedFrom,
 } from '@tade/core'
 import { newestOf, readSpool, spool, spoolIdProblem } from '@tade/extension-intake'
-import { intakeGrant } from '@tade/workbench'
+import {
+  approveIntake,
+  inboxFrom,
+  intakeGrant,
+  intakeWouldRun,
+  openIntakeRow,
+  refuseIntake,
+  retryIntake,
+  wouldRunSays,
+} from '@tade/workbench'
+import { readJournal } from '@tade/workbench/events'
+import { readSchedules } from '@tade/workbench/schedules'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import { withWorkbench } from '../with-workbench.ts'
 
 // The local intake door, from the command line.
 //
@@ -201,5 +220,202 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
       io.out('')
       io.out(EMPTY_MEANS_NOBODY)
       io.out(INTAKE_IS_SOMEBODY_ELSE)
+    })
+
+  // --- the inbox: what has been handed to this machine, and what to do about one
+  //
+  // Reading is three commands and none of them opens the workbench: the
+  // journal and the task files are files, and the rule that questions never
+  // need the window is what makes `tade intake` answerable while one is open.
+  // Acting is three more, and every one of them goes through `withWorkbench`,
+  // which is where "ask it there, or close it first" is said.
+
+  intake
+    .command('status', { isDefault: true })
+    .description('Per source: what the grant says, when it last looked, and what is waiting')
+    .option('--json', 'machine-readable output')
+    .action(async (opts: { json?: boolean }) => {
+      const home = tadeHome()
+      const cfg = await loadConfig(defaultConfigPath())
+      if (!cfg.ok) {
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
+        setExit(Exit.error)
+        return
+      }
+      const events = await readJournal(home)
+      const rows = await inboxFrom({ home, events })
+      const waiting = inboxWaiting(rows)
+      const kept = readSchedules(home)
+      const sources = INTAKE_SOURCES.map((source) => {
+        const grant = intakeGrant(cfg.config, source)
+        const mine = rows.filter((row) => row.source === source)
+        // The watch's own schedule, found by what it watches rather than by a
+        // name somebody may have changed.
+        const schedule = kept.find(
+          (one) => one.does.kind === 'watch' && one.does.watch === `intake.${source}`,
+        )
+        const look = schedule ? (watchedFrom(events, schedule.id).looks[0] ?? null) : null
+        return {
+          source,
+          grant,
+          schedule: schedule?.id ?? null,
+          // A look that could not look is not a look that found nothing, and
+          // `describeLook` is the one place that difference is written down.
+          look: look ? describeLook(look) : null,
+          lookedAt: look?.at ?? null,
+          handed: mine.length,
+          waiting: mine.filter((row) => WAITING_STATES.includes(row.state)).length,
+        }
+      })
+      if (opts.json) {
+        io.out(JSON.stringify({ sources, waiting: waiting.length, handed: rows.length }, null, 2))
+        return
+      }
+      for (const one of sources) {
+        const bits = [
+          one.grant.on && one.grant.accept ? 'accept on' : 'accept off',
+          one.grant.reply ? 'reply on' : 'reply off',
+          one.grant.mode,
+          one.grant.template ? `${one.grant.template}` : 'no template',
+        ]
+        io.out(`${one.source}  ${bits.join('  ')}`)
+        io.out(
+          `  ${one.schedule ? `${one.schedule}: ${one.look ?? 'has not looked yet'}` : 'nothing is watching it'}`,
+        )
+        io.out(
+          `  ${one.handed} handed over, ${one.waiting} waiting for you${one.grant.projects.length === 0 ? ', and no project is on its list' : ''}`,
+        )
+      }
+      io.out('')
+      io.out(INTAKE_IS_SOMEBODY_ELSE)
+    })
+
+  intake
+    .command('inbox [project]')
+    .description('What has been handed to this machine, and where each one stands')
+    .option('--waiting', 'only the ones waiting for you')
+    .option('--json', 'machine-readable output')
+    .action(async (project: string | undefined, opts: { waiting?: boolean; json?: boolean }) => {
+      const home = tadeHome()
+      const all = await inboxFrom({
+        home,
+        events: await readJournal(home),
+        ...(project ? { project } : {}),
+      })
+      const rows = opts.waiting ? inboxWaiting(all) : all
+      if (opts.json) {
+        io.out(JSON.stringify({ requests: rows }, null, 2))
+        return
+      }
+      if (rows.length === 0) {
+        io.out(
+          project
+            ? `nothing has been handed to ${project}`
+            : 'nothing has been handed to this machine',
+        )
+        return
+      }
+      const width = Math.max(0, ...rows.map((row) => row.item.length))
+      for (const row of rows) {
+        const what = row.template ? `${row.template.name}@${row.template.version}` : '—'
+        io.out(
+          `${row.item.padEnd(width)}  ${row.state.padEnd(8)}  ${row.project}  @${row.requester || '—'}  ${what}`,
+        )
+        io.out(`${' '.repeat(width)}  ${row.because}`)
+      }
+    })
+
+  intake
+    .command('show <id>')
+    .description('One request: where it came from, what it says, and what approving it would start')
+    .option('--dry-run', 'what approving it would start, and start nothing')
+    .option('--json', 'machine-readable output')
+    .action(async (id: string, opts: { dryRun?: boolean; json?: boolean }) => {
+      const home = tadeHome()
+      const cfg = await loadConfig(defaultConfigPath())
+      const opened = await openIntakeRow({ home, events: await readJournal(home), item: id })
+      if (!opened) {
+        io.err(`nothing called ${id} has been handed to this machine`)
+        setExit(Exit.invalidInput)
+        return
+      }
+      const would =
+        opts.dryRun && cfg.ok
+          ? await intakeWouldRun(
+              { home, config: cfg.config, events: (filter) => readJournal(home, filter) },
+              opened.row,
+            )
+          : null
+      if (opts.json) {
+        io.out(JSON.stringify({ ...opened, ...(would ? { would } : {}) }, null, 2))
+        return
+      }
+      const width = Math.max(0, ...opened.facts.map((fact) => fact.label.length))
+      for (const fact of opened.facts) io.out(`${fact.label.padEnd(width)}  ${fact.value}`)
+      io.out('')
+      io.out(`state     ${opened.row.state}: ${opened.row.because}`)
+      for (const { act, off } of inboxActs(opened.row)) {
+        io.out(`  ${act.padEnd(8)}${off ? `not now: ${off}` : 'yes'}`)
+      }
+      if (would) {
+        io.out('')
+        for (const line of wouldRunSays(would)) io.out(line)
+      }
+      io.out('')
+      // The label over the region, then what Tade wrote down — which carries
+      // the whole wording of what material means inside it, in the same bytes
+      // the agent on this work reads.
+      io.out(MATERIAL_LABEL)
+      if (opened.material.body === null) {
+        io.out(`  ${opened.material.problem ?? 'there is nothing to read'}`)
+        return
+      }
+      io.out(`  (${opened.material.where})`)
+      io.out('')
+      io.out(opened.material.body.trimEnd())
+    })
+
+  intake
+    .command('approve <id>')
+    .description('Lift the park on what a request made, so the queue starts it')
+    .option('--start', 'and start what waits on nothing, now')
+    .action(async (id: string, opts: { start?: boolean }) => {
+      await withWorkbench(io, setExit, async (tade) => {
+        const acted = await approveIntake(tade, {
+          item: id,
+          ...(opts.start ? { start: true } : {}),
+          by: 'you',
+        })
+        io.out(acted.said)
+      })
+    })
+
+  intake
+    .command('refuse <id>')
+    .description('Say no to a request: written down, nothing posted, no agent stopped')
+    .option('--why <text>', 'why, for whoever reads the journal')
+    .action(async (id: string, opts: { why?: string }) => {
+      await withWorkbench(io, setExit, async (tade) => {
+        const acted = await refuseIntake(tade, {
+          item: id,
+          ...(opts.why ? { why: opts.why } : {}),
+          by: 'you',
+        })
+        io.out(acted.said)
+      })
+    })
+
+  intake
+    .command('retry <id>')
+    .description('Try a delivery that failed again, by asking its source for it again')
+    .action(async (id: string) => {
+      await withWorkbench(io, setExit, async (tade) => {
+        // No `again` here, deliberately: asking a source again means running
+        // that source's watch, and only an open window runs the extensions.
+        // `retryIntake` says that in its own words rather than this command
+        // guessing at a second way in.
+        const acted = await retryIntake(tade, { item: id, by: 'you' })
+        io.out(acted.said)
+      })
     })
 }

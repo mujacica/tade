@@ -10,17 +10,17 @@
                              █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
  ▸ SMART QUEUE          none █│  ● 3ab77c1 name the webhook ids the way the docs do             3 files +31 −9  3m ago █
  ▸ SCHEDULES            none █│  ◌ Nothing uncommitted.                                                                █
- ▾ CHANGES  3        vs main █│                                                                                        █
-  M package.json       +2 −1 █│  CHECKS ────────  ✓✓  green at a1b2c3d · on this machine, not CI’s matrix    Run all   █
-  A …/webhooks.test.ts   +48 █│  ✓ format       ▂   2.4s  6m ago                                  493 files checked  ▾ █
-  M src/webhooks.ts   +12 −4 ▕│  ✓ types        █    31s  1m ago                                                     ▾ █
-                             ▕│  ▾ NOT RUN HERE  5  ─────────────────────────────────────────────────────────────────  █
- ▾ FILES                     ▕│    – integration  its job needs service containers, which only CI has        run here  █
-   ▾ src/                    ▕│    – e2e          it uses something only the runner knows                    run here  █
-       webhooks.test.ts      ▕│    ⊘ coverage     you turned it off here                                     run here  █
-       webhooks.ts           ▕│    · release › publish is the action actions/setup-node@v4, which only the runner ca…  ▕
-   ▸ test/                   ▕│    · release › npm publish ships something rather than checking it                     ▕
-     package.json            ▕│                                                                                        ▕
+ ▸ INTAKE                off █│                                                                                        █
+ ▾ CHANGES  3        vs main █│  CHECKS ────────  ✓✓  green at a1b2c3d · on this machine, not CI’s matrix    Run all   █
+  M package.json       +2 −1 █│  ✓ format       ▂   2.4s  6m ago                                  493 files checked  ▾ █
+  A …/webhooks.test.ts   +48 ▕│  ✓ types        █    31s  1m ago                                                     ▾ █
+  M src/webhooks.ts   +12 −4 ▕│  ▾ NOT RUN HERE  5  ─────────────────────────────────────────────────────────────────  █
+                             ▕│    – integration  its job needs service containers, which only CI has        run here  █
+ ▾ FILES                     ▕│    – e2e          it uses something only the runner knows                    run here  █
+   ▾ src/                    ▕│    ⊘ coverage     you turned it off here                                     run here  █
+       webhooks.test.ts      ▕│    · release › publish is the action actions/setup-node@v4, which only the runner ca…  ▕
+       webhooks.ts           ▕│    · release › npm publish ships something rather than checking it                     ▕
+   ▸ test/                   ▕│                                                                                        ▕
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

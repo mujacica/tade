@@ -10,17 +10,17 @@
     │ ● Jev                      ▕│ ▲ no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read,     █│    
  ▸ S│                            ▕│   project:read, event:read, event:write), or log in with sentry-cli           █│    
  ▸ S│ ◐ Sentry                 ! ▕│                                                                               █│    
- ▾ C│                            ▕│ Not read: extensions.sentry.orgg                                              █│    
-  M │ ✗ standup                ! ▕│                                                                               █│    
-  A │                            ▕│   Set up…     Turn off                                                        █│    
-  M │ ● GitHub                   ▕│                                                                               █│    
-    │                            ▕│ HOW IT IS USED                                                                █│    
- ▾ F│ ○ release-notes            ▕│ · Says what is breaking in production (sentry_issues, sentry_issue,           █│    
-   ▾│                            ▕│   sentry_trace).                                                              ▕│    
-    │ · Written by Tade        1 ▕│ · Turns an error into work (sentry_fix): an agent with the stack already in   ▕│    
+ ▸ I│                            ▕│ Not read: extensions.sentry.orgg                                              █│    
+ ▾ C│ ✗ standup                ! ▕│                                                                               █│    
+  M │                            ▕│   Set up…     Turn off                                                        █│    
+  A │ ● GitHub                   ▕│                                                                               █│    
+  M │                            ▕│ HOW IT IS USED                                                                █│    
+    │ ○ release-notes            ▕│ · Says what is breaking in production (sentry_issues, sentry_issue,           █│    
+ ▾ F│                            ▕│   sentry_trace).                                                              ▕│    
+   ▾│ · Written by Tade        1 ▕│ · Turns an error into work (sentry_fix): an agent with the stack already in   ▕│    
     │                            ▕│   hand.                                                                       ▕│    
-   ▸│ · MCP servers            4 ▕│ · Lets new errors find you: the new-errors watch starts an agent on each.     ▕│    
-    │                            ▕│ · Says something back — resolve, ignore, assign — only when you asked for     ▕│    
+    │ · MCP servers            4 ▕│ · Lets new errors find you: the new-errors watch starts an agent on each.     ▕│    
+   ▸│                            ▕│ · Says something back — resolve, ignore, assign — only when you asked for     ▕│    
 ━   │ · Harnesses' own         2 ▕│   it.                                                                         ▕│   ━
     │                            ▕│ · The token is kept in `config.yaml`, which any agent you run can read.       ▕│    
     │                            ▕│                                                                               ▕│   ▕

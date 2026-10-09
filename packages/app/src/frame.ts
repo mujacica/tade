@@ -1,5 +1,16 @@
-import type { OnPlan, PlanStanding, Runtime } from '@tade/core'
+import type {
+  InboxAct,
+  InboxFact,
+  InboxMaterial,
+  InboxRow,
+  OnPlan,
+  PlanStanding,
+  Runtime,
+  WorkflowField,
+  WorkflowPlace,
+} from '@tade/core'
 import type { LanePointing, LaneScrolling } from '@tade/drivers-core'
+import type { IntakeWouldRun } from '@tade/workbench'
 import type { FileEntry } from './files.ts'
 import type { LayoutPrefs } from './layout.ts'
 import type { Linker } from './links.ts'
@@ -93,6 +104,53 @@ export interface ListRowView {
    * project rather than in none.
    */
   project?: string
+}
+
+/**
+ * One request from outside this machine, opened: its provenance, the request
+ * itself, what approving it would start, and what may be done to it.
+ *
+ * The four are separate fields on purpose. `facts` is this machine's own
+ * record and `material` is somebody else's words — a drawing that merged them
+ * would be one layout change away from presenting a stranger's sentences as
+ * Tade's. `acts` carries the refusal sentence for each act it cannot do, read
+ * from the same rule the door itself refuses by, so a button can never offer
+ * what pressing it would refuse.
+ */
+export interface IntakeOpenView {
+  row: InboxRow
+  facts: readonly InboxFact[]
+  material: InboxMaterial
+  /** What approving it would start, once that has been worked out. */
+  would: IntakeWouldRun | null
+  acts: readonly { act: InboxAct; off: string | null }[]
+}
+
+/**
+ * The workflow editor's page, as the window draws it.
+ *
+ * Every field of it is derived from the draft that was just read: the rows,
+ * the form, the preview and what refuses it. Nothing on it is remembered, so
+ * the page and the file on disk cannot be two different templates — which is
+ * the one failure a form over a file has that is worth designing against.
+ */
+export interface WorkflowView {
+  /** The templates, and the chosen one's steps under it. */
+  rows: readonly { id: string; template: string; step: number; label: string; note: string }[]
+  /** What the form is for: the template itself, or one of its steps. */
+  title: string
+  /** Said quietly beside the title: which version this draft is. */
+  says: string
+  fields: readonly WorkflowField[]
+  /** The resolved tree, for the preview. */
+  places: readonly WorkflowPlace[]
+  /** What `templateProblems` refuses it for, in its own words. */
+  problems: readonly string[]
+  warnings: readonly string[]
+  /** The versions already published, each one immutable. */
+  published: readonly number[]
+  /** Why there is nothing to edit. */
+  problem: string | null
 }
 
 /** A section an extension keeps in the sidebar. */
@@ -325,6 +383,21 @@ export interface Frame {
   actions?: ActionsView | null
   /** The sections extensions keep in the sidebar, as they last answered. */
   lists?: readonly ListSectionView[]
+  /**
+   * What has been handed to this machine from outside, every project's,
+   * narrowed to the one you are standing in by whoever draws it (`inboxHere`).
+   *
+   * Derived: the journal says what arrived and what was decided, the task
+   * files say what became of the work. Nothing is kept, so there is no inbox
+   * to get out of step with the journal.
+   */
+  intake?: readonly InboxRow[]
+  /**
+   * What an empty INTAKE section says, in the words of the reason it is empty
+   * — which is read from the grant, because much the commonest reason is that
+   * the surface is off, and that is the default rather than a fault.
+   */
+  intakeEmpty?: { short: string; long: string }
   /** The branch those changes are counted against. */
   base?: string | null
   /** Notes about this project and everything, oldest first: named by when they were said. */
@@ -410,6 +483,8 @@ export interface Frame {
       | 'setup'
       | 'extensionView'
       | 'summary'
+      | 'intake'
+      | 'workflow'
       | 'away'
     >
   >

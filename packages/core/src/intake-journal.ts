@@ -37,6 +37,28 @@ export interface IntakeItem {
   /** The grant that allowed it, where one did. */
   grant: string
   /**
+   * The published template and the version resolved at the moment of
+   * accepting, where one was stamped out.
+   *
+   * Folded rather than looked up again, and that is the point: a draft moves
+   * on and a newer version is published, so asking the store today would
+   * answer about this week's shape rather than about what this work was
+   * actually made from. The line that wrote it down is the only thing that
+   * knows.
+   */
+  template: { name: string; version: number } | null
+  /**
+   * The source's own stable reference to the raw material — a node id, a
+   * permalink, the spool file the local door wrote.
+   *
+   * Carried so a surface can say *where the request is* without Tade keeping a
+   * second copy of it. Never a path Tade took from a caller: it comes off the
+   * delivery's own line in the journal.
+   */
+  ref: string
+  /** The source's own page for it, where it has one a person could open. */
+  url: string
+  /**
    * The watch it came through, as `<extension>.<id>`, and the schedule that
    * watch runs as.
    *
@@ -113,6 +135,9 @@ export function intakeFrom(events: readonly TadeEvent[]): Map<string, IntakeItem
       project: '',
       requester: '',
       grant: '',
+      template: null,
+      ref: '',
+      url: '',
       watch: '',
       schedule: '',
       mode: null,
@@ -138,6 +163,8 @@ export function intakeFrom(events: readonly TadeEvent[]): Map<string, IntakeItem
     if (text(event.detail.project)) one.project = text(event.detail.project)
     if (text(event.detail.requester)) one.requester = text(event.detail.requester)
     if (text(event.detail.hash)) one.hash = text(event.detail.hash)
+    if (text(event.detail.ref)) one.ref = text(event.detail.ref)
+    if (text(event.detail.url)) one.url = text(event.detail.url)
     if (text(event.detail.watch)) one.watch = text(event.detail.watch)
     if (text(event.detail.schedule)) one.schedule = text(event.detail.schedule)
     if (type === 'intake_received') {
@@ -147,11 +174,20 @@ export function intakeFrom(events: readonly TadeEvent[]): Map<string, IntakeItem
       one.state = 'refused'
       const why = text(event.detail.why)
       one.why = REFUSALS.has(why) ? (why as IntakeRefusal) : null
+      // The sentence the refusal was made in, kept: the four the rule writes
+      // can be said again from the code that wrote them, and a person's own
+      // cannot — their words exist nowhere but on this line.
+      one.problem = text(event.detail.because) || text(event.detail.problem) || one.problem
     } else if (type === 'intake_accepted') {
       one.state = 'accepted'
       one.why = null
       one.taken = text(event.detail.revision) || one.taken
       one.grant = text(event.detail.grant) || one.grant
+      const template = text(event.detail.template)
+      const version = event.detail.version
+      if (template && typeof version === 'number' && Number.isInteger(version) && version > 0) {
+        one.template = { name: template, version }
+      }
       const mode = text(event.detail.mode)
       one.mode = MODES.has(mode) ? (mode as IntakeMode) : one.mode
       const tasks = Array.isArray(event.detail.tasks) ? event.detail.tasks.map(String) : []

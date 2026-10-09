@@ -1249,6 +1249,8 @@ export class Workbench {
             context?: string
             links?: readonly { title: string; url: string }[]
           }
+          /** A person asked for this delivery again: `takeIntake` says what that skips. */
+          again?: boolean
         }
       | { told: string }
       | { problem: string },
@@ -1265,6 +1267,7 @@ export class Workbench {
         watch: schedule.does.kind === 'watch' ? schedule.does.watch : id,
         candidate: finding.intake,
         agent: outcome.agent,
+        ...(outcome.again ? { again: true } : {}),
         now: Date.now(),
       })
       if (taken.settled) {

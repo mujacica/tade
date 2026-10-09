@@ -426,6 +426,38 @@ export async function readTemplates(home: string): Promise<{
  * and nothing else; when it was published is the journal's.
  */
 export function snapshotYaml(template: Template): string {
+  return [
+    '# Published by Tade. This file is immutable: a change is a new version.',
+    '# Its personas are folded in, so nothing outside it can change what it makes.',
+    stringifyYaml(bodyOf(template), { lineWidth: 0 }),
+  ].join('\n')
+}
+
+/**
+ * A draft's bytes, as the form writes one back.
+ *
+ * The same fields in the same order as a snapshot, deliberately: a draft that
+ * was published should differ from its snapshot in the header and nothing
+ * else, so the diff a person reads when they publish is the change they made
+ * rather than a reordering.
+ *
+ * **It says what it costs.** Writing a draft from the form rewrites the file,
+ * so anything in it that is not a field — a comment somebody left, their own
+ * key order, a blank line between two steps — is not kept. That is a real loss
+ * and the header is where somebody finds out about it, rather than by
+ * noticing their comments gone.
+ */
+export function draftYaml(template: Template): string {
+  return [
+    '# A draft. Tade rewrites this file when the form saves it, so a comment',
+    '# here is not kept — edit by hand or edit in the form, whichever you prefer.',
+    '# `tade templates check` is the same validator the form runs.',
+    stringifyYaml(bodyOf(template), { lineWidth: 0 }),
+  ].join('\n')
+}
+
+/** Every field of a template, written out in one fixed order. */
+function bodyOf(template: Template): Record<string, unknown> {
   const agent = (one: TemplateAgent) => ({
     name: one.name,
     ...(one.from_persona !== undefined ? { from_persona: one.from_persona } : {}),
@@ -460,11 +492,7 @@ export function snapshotYaml(template: Template): string {
     ),
     agents: template.agents.map(agent),
   }
-  return [
-    '# Published by Tade. This file is immutable: a change is a new version.',
-    '# Its personas are folded in, so nothing outside it can change what it makes.',
-    stringifyYaml(body, { lineWidth: 0 }),
-  ].join('\n')
+  return body
 }
 
 export type PublishResult =
@@ -537,6 +565,38 @@ export async function publishTemplate(req: {
   await mkdir(join(dirs.published, name), { recursive: true })
   await writeFile(path, snapshot, 'utf8')
   return { kind: 'published', version, hash, path, warnings: checked.warnings }
+}
+
+/**
+ * Write a draft back, as the form saves one.
+ *
+ * **Drafts only, and by absence rather than by a check**: the path is the
+ * drafts directory and nothing passed in can move it, so there is no shape in
+ * which this writes a published version. A published version is immutable and
+ * `publishTemplate` is the only thing that writes one.
+ *
+ * **It refuses a name Tade ships.** Those live in Tade's own source and a
+ * draft beside one would be a second answer to the same name, which is the
+ * thing `publishTemplate` already refuses — said here too, at the save, so
+ * nobody edits for ten minutes to be told at the end.
+ */
+export async function writeDraft(
+  home: string,
+  template: Template,
+): Promise<{ path: string } | { problem: string }> {
+  const name = template.template
+  const refused = templateNameProblem(name)
+  if (refused) return { problem: refused }
+  if (BUILT_IN_TEMPLATES[name]) {
+    return {
+      problem: `${name} is one Tade ships, and its bytes are in Tade's own source: give yours another name`,
+    }
+  }
+  const dirs = templateDirs(home)
+  await mkdir(dirs.drafts, { recursive: true })
+  const path = join(dirs.drafts, `${name}.yaml`)
+  await writeFile(path, draftYaml(template), 'utf8')
+  return { path }
 }
 
 /** Turn a draft down, keeping it so the same idea is not drafted twice. */

@@ -10,11 +10,11 @@
                          ▕│                                                                         
  ▸ SMART QUEUE      none ▕│                                                                         
  ▸ SCHEDULES        none ▕│  ● Upgrading stripe to v15. The webhook signature API changed,          
- ▾ CHANGES  3    vs main ▕│    so src/webhooks.ts needs the new constructEvent signature.           
-  M package.json   +2 −1 ▕│                                                                         
-  A …bhooks.test.ts  +48 ▕│  ▸ Read src/webhooks.ts                                                 
-  M …webhooks.ts  +12 −4 ▕│  ▸ Edit src/webhooks.ts  +12 −4                                         
-                         ▕│  ▸ bash npm i stripe@15                                                 
+ ▸ INTAKE            off ▕│    so src/webhooks.ts needs the new constructEvent signature.           
+ ▾ CHANGES  3    vs main ▕│                                                                         
+  M package.json   +2 −1 ▕│  ▸ Read src/webhooks.ts                                                 
+  A …bhooks.test.ts  +48 ▕│  ▸ Edit src/webhooks.ts  +12 −4                                         
+  M …webhooks.ts  +12 −4 ▕│  ▸ bash npm i stripe@15                                                 
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                     
                                                                                                    ▕

@@ -10,17 +10,17 @@
     │  Orchestrator              █│                                                                               █│    
  ▸ S│                            █│▌Needed before                     push                                 ▾      █│    
  ▸ S│  Checks                    █│▌                                 when a push or commit needs a green run      █│    
- ▾ C│                            █│▌                                 behind it — held only under approvals.mode … █│    
-  M │  Voice                     █│▌                                                                              █│    
-  A │                            █│ Push to talk                        ctrl   +   space       Change…            █│    
-  M │  Window                    █│                                                                               █│    
-    │                            █│ checkout — What is pushed         never                                ▾      █│    
- ▾ F│  Away view                 █│                                                                               █│    
-   ▾│                            █│ checkout — Checks needed before   push                                 ▾      █│    
-    │  Intake                    █│                                                                               █│    
+ ▸ I│                            █│▌                                 behind it — held only under approvals.mode … █│    
+ ▾ C│  Voice                     █│▌                                                                              █│    
+  M │                            █│ Push to talk                        ctrl   +   space       Change…            █│    
+  A │  Window                    █│                                                                               █│    
+  M │                            █│ checkout — What is pushed         never                                ▾      █│    
+    │  Away view                 █│                                                                               █│    
+ ▾ F│                            █│ checkout — Checks needed before   push                                 ▾      █│    
+   ▾│  Intake                    █│                                                                               █│    
     │                            █│ search — What is pushed           never                                ▾      █│    
-   ▸│  Projects              ● 1 █│                                                                               █│    
-    │                            █│ search — Checks needed before     push                                 ▾      █│    
+    │  Projects              ● 1 █│                                                                               █│    
+   ▸│                            █│ search — Checks needed before     push                                 ▾      █│    
 ━   │  Journal                   █│                                                                               █│   ━
     │                            █│ infra — What is pushed            never                                ▾      █│    
     │  Telemetry                 █│                                                                               █│   ▕

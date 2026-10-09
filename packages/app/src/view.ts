@@ -161,6 +161,8 @@ export function draw(state: AppState, frame: Frame): Drawn {
     setup: extra.setup ?? null,
     extensionView: extra.extensionView ?? null,
     summary: extra.summary ?? null,
+    intake: extra.intake ?? null,
+    workflow: extra.workflow ?? null,
     away: extra.away ?? null,
   })
   const panelWidth = Math.max(0, ...drawing.panel.rows.map((row) => visibleWidth(row)))

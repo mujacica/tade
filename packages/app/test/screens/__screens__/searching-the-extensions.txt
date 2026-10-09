@@ -10,8 +10,8 @@
    │                  ▕│                                                   ▕│╮  
  ▸ │                  ▕│   Settings…     Check dependencies                ▕││  
  ▸ │                  ▕│                                                   ▕││  
- ▾ │                  ▕│   Update dependencies (minor)                     ▕│╯  
-  M│                  ▕│                                                   ▕│   
+ ▸ │                  ▕│   Update dependencies (minor)                     ▕│╯  
+ ▾ │                  ▕│                                                   ▕│   
 ━  │                  ▕│   Update dependencies (major)     Turn off        ▕│  ━
    │                  ▕│                                                   ▕│   
    │                  ▕│ HOW IT IS USED                                    ▕│  ▕

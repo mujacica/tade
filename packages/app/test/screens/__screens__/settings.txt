@@ -10,17 +10,17 @@
     │  Orchestrator              █│                                                                               ▕│    
  ▸ S│                            █│ Speech to text   whisper · base.en · on this machine  ▾          ↻ on restart ▕│    
  ▸ S│  Checks                    █│                                                                               ▕│    
- ▾ C│                            █│ Microphone       MacBook Pro Microphone                          ↻ on restart ▕│    
-  M │▌ Voice                     █│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
-  A │▌                           █│                                                                               ▕│    
-  M │  Window                    █│ Muted           ████──── off                                                  ▕│    
+ ▸ I│                            █│ Microphone       MacBook Pro Microphone                          ↻ on restart ▕│    
+ ▾ C│▌ Voice                     █│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
+  M │▌                           █│                                                                               ▕│    
+  A │  Window                    █│ Muted           ████──── off                                                  ▕│    
+  M │                            █│                                                                               ▕│    
+    │  Away view                 █│ Spoken replies  ────████ on                                                   ▕│    
+ ▾ F│                            █│                                                                               ▕│    
+   ▾│  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
- ▾ F│  Away view                 █│ Spoken replies  ────████ on                                                   ▕│    
-   ▾│                            █│                                                                               ▕│    
-    │  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
-    │                            █│                                                                               ▕│    
-   ▸│  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
-    │                            █│                                                                               ▕│    
+    │  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+   ▸│                            █│                                                                               ▕│    
 ━   │  Journal                   █│                                                                               ▕│   ━
     │                            █│                                                                               ▕│    
     │  Telemetry                 █│                                                                               ▕│   ▕

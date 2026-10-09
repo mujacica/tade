@@ -3,6 +3,7 @@ import { AWAY_SCREENS } from './scenarios/away.ts'
 import { EXTENSION_SCREENS } from './scenarios/extensions.ts'
 import { FILE_SCREENS } from './scenarios/files.ts'
 import type { Scenario } from './scenarios/fixtures.ts'
+import { INTAKE_SCREENS } from './scenarios/intake.ts'
 import { PANEL_SCREENS } from './scenarios/panels.ts'
 import { QUEUE_SCREENS } from './scenarios/queue.ts'
 import { SCHEDULE_SCREENS } from './scenarios/schedules.ts'
@@ -38,6 +39,7 @@ export const SCENARIOS: Scenario[] = [
   ...SPEND_SCREENS,
   ...FILE_SCREENS,
   ...SEARCH_SCREENS,
+  ...INTAKE_SCREENS,
   ...PANEL_SCREENS,
   ...AWAY_SCREENS,
 ]

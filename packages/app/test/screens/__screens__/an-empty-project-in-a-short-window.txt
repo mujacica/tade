@@ -6,8 +6,8 @@
                          ▕│      ██     ██    ██  ██   ▄██  ██          
  ▸ SMART QUEUE      none ▕│      ██     ██    ██  ██████▀   ████████    
  ▸ SCHEDULES        none ▕│                                             
- ▾ CHANGES               ▕│  + New agent      Open project     in checko
-   nothing changed       ▕│                                             
+ ▸ INTAKE            off ▕│  + New agent      Open project     in checko
+ ▾ CHANGES               ▕│                                             
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                         
                                                                        ▕

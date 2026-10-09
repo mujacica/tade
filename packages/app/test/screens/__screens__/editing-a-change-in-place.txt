@@ -10,13 +10,13 @@
    │    5 │ export async function handle(body: string, sig: string): Promise<void> {                               ▕│   
  ▸ │    6 │   const key = process.env.STRIPE_WEBHOOK_SECRET                                                        ▕│   
  ▸ │+   7 │   if (!key) throw new Error('no webhook secret') // always                                             ▕│   
- ▾ │−     │   const event = stripe.webhooks.constructEvent(body, sig, key)                                         ▕│   
-  M│+   8 │   const cryptoProvider = Stripe.createSubtleCryptoProvider()                                           ▕│   
-  A│+   9 │   const event = await stripe.webhooks.constructEventAsync(                                             ▕│   
-  M│+  10 │     body, sig, key, undefined, cryptoProvider,                                                         ▕│   
-   │+  11 │   )                                                                                                    ▕│   
- ▾ │   12 │   if (event.type === 'charge.refunded') {                                                              ▕│   
-   │   13 │     await refund(event)                                                                                ▕│   
+ ▸ │−     │   const event = stripe.webhooks.constructEvent(body, sig, key)                                         ▕│   
+ ▾ │+   8 │   const cryptoProvider = Stripe.createSubtleCryptoProvider()                                           ▕│   
+  M│+   9 │   const event = await stripe.webhooks.constructEventAsync(                                             ▕│   
+  A│+  10 │     body, sig, key, undefined, cryptoProvider,                                                         ▕│   
+  M│+  11 │   )                                                                                                    ▕│   
+   │   12 │   if (event.type === 'charge.refunded') {                                                              ▕│   
+ ▾ │   13 │     await refund(event)                                                                                ▕│   
    │   14 │   }                                                                                                    ▕│   
    │   15 │ }                                                                                                      ▕│   
    │                                                                                                               ▕│   

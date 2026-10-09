@@ -1,33 +1,33 @@
    T A D E      checkout ⠋ ◌5   ×  ≡     +          ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  1            +    ▕│ checkout › plan  6 tasks · 1 working · 5 waiting to start                               
-                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
-   ⠋ ledger-schema           ▕│                                                                                         
-     working                 ▕│  FIRST               THEN                THEN                THEN                THEN   
-                             ▕│  ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────
- ▾ SMART QUEUE  5      plan  ▕│  │ ⠋ ledger-sc… │───▶│ ◌ ledger-api │───▶│ ◌ refund-fl… │─┬─▶│ ◌ admin-view │ ╭─▶│ ◌ rel
-   all   next                ▕│  │   working    │    │   ◆ after l… │    │   ◆ after l… │ │  │   ◆ after r… │ │  │   ◆ a
-                             ▕│  ╰──────────────╯    ╰──────────────╯    ╰──────────────╯ │  ╰──────────────╯ │  ╰──────
-   ◌ ledger-api    1 ahead   ▕│                                                           │                   │         
-   │ ◆ after ledger-schema   ▕│                                                           │  ╭──────────────╮ │         
-   │                         ▕│                                                           ╰─▶│ ◌ refund-em… │─╯         
-   ╰─◌ refund-flow           ▕│                                                              │   ◆ after r… │           
-     │ ◆ after ledger-api    ▕│                                                              ╰──────────────╯           
-     │                       ▕│                                                                                         
-     ├─◌ admin-view          ▕│  ███████████████████████████████████████████████████████████████████████████▕▕▕▕▕▕▕▕▕▕  
-     │   ◆ after refund-fl…  ▕│                                                                                         
-     │                       ▕│  WHY THIS ORDER                                                                         
-     ╰─◌ refund-emails       ▕│  ⠋ ledger-schema                                                                        
-       │ ◆ after refund-fl…  ▕│  ╰─◌ ledger-api  after ledger-schema                                                    
-       │                     ▕│    │ the endpoints follow the tables                                                    
-       ╰─◌ release-guide     ▕│    ╰─◌ refund-flow  after ledger-api                                                    
-           ◆ after refund-…  ▕│      │ a refund is a ledger entry, and it posts it through the endpoint the api adds    
-                             ▕│      ├─◌ admin-view  after refund-flow                                                  
- ▸ SCHEDULES            none ▕│      │   it lists what the flow wrote                                                   
- ▸ CHANGES  3        vs main ▕│      ╰─◌ refund-emails  after refund-flow                                               
- ▸ FILES                     ▕│        │ it emails what refund() returns                                                
- ▸ NOTES  4             +    ▕│        ╰─◌ release-guide  after refund-emails                                           
- ▸ GIT                       ▕│            the guide screenshots the email it sends                                     
+ ▾ AGENTS  1            +    █│ checkout › plan  6 tasks · 1 working · 5 waiting to start                               
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+   ⠋ ledger-schema           █│                                                                                         
+     working                 █│  FIRST               THEN                THEN                THEN                THEN   
+                             █│  ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────
+ ▾ SMART QUEUE  5      plan  █│  │ ⠋ ledger-sc… │───▶│ ◌ ledger-api │───▶│ ◌ refund-fl… │─┬─▶│ ◌ admin-view │ ╭─▶│ ◌ rel
+   all   next                █│  │   working    │    │   ◆ after l… │    │   ◆ after l… │ │  │   ◆ after r… │ │  │   ◆ a
+                             █│  ╰──────────────╯    ╰──────────────╯    ╰──────────────╯ │  ╰──────────────╯ │  ╰──────
+   ◌ ledger-api    1 ahead   █│                                                           │                   │         
+   │ ◆ after ledger-schema   █│                                                           │  ╭──────────────╮ │         
+   │                         █│                                                           ╰─▶│ ◌ refund-em… │─╯         
+   ╰─◌ refund-flow           █│                                                              │   ◆ after r… │           
+     │ ◆ after ledger-api    █│                                                              ╰──────────────╯           
+     │                       █│                                                                                         
+     ├─◌ admin-view          █│  ███████████████████████████████████████████████████████████████████████████▕▕▕▕▕▕▕▕▕▕  
+     │   ◆ after refund-fl…  █│                                                                                         
+     │                       █│  WHY THIS ORDER                                                                         
+     ╰─◌ refund-emails       █│  ⠋ ledger-schema                                                                        
+       │ ◆ after refund-fl…  █│  ╰─◌ ledger-api  after ledger-schema                                                    
+       │                     █│    │ the endpoints follow the tables                                                    
+       ╰─◌ release-guide     █│    ╰─◌ refund-flow  after ledger-api                                                    
+           ◆ after refund-…  █│      │ a refund is a ledger entry, and it posts it through the endpoint the api adds    
+                             █│      ├─◌ admin-view  after refund-flow                                                  
+ ▸ SCHEDULES            none █│      │   it lists what the flow wrote                                                   
+ ▸ INTAKE                off █│      ╰─◌ refund-emails  after refund-flow                                               
+ ▸ CHANGES  3        vs main █│        │ it emails what refund() returns                                                
+ ▸ FILES                     ▕│        ╰─◌ release-guide  after refund-emails                                           
+ ▸ NOTES  4             +    ▕│            the guide screenshots the email it sends                                     
 ███████████████████████████▕▕ │                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         

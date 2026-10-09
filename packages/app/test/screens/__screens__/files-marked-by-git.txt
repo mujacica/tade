@@ -3,24 +3,24 @@
  ▸ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
  ▸ SMART QUEUE          none █│─────────────────────────────────────────────────────────────────────────────────────────
  ▸ SCHEDULES            none █│                                                                                         
+ ▸ INTAKE                off █│                                                                                         
  ▸ CHANGES  3        vs main █│                                                                                         
  ▾ FILES                     █│                                                                                         
    ▾ src/                  • █│                                                                                         
        webhooks.test.ts    U █│                                                                                         
        webhooks.ts         M █│                                                                                         
    ▸ test/                 • █│                                                                                         
-     package.json            █│                                                                                         
-     README.md               █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
-                             █│    so src/webhooks.ts needs the new constructEvent signature.                           
- ▸ NOTES  4             +    █│                                                                                         
- ▾ GIT                       █│  ▸ Read src/webhooks.ts                                                                 
-   repo     ~/src/checkout   █│  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   branch   …de/stripe-v15   █│  ▸ bash npm i stripe@15                                                                 
-   from     main             █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   worktree …kout-stripe-v15 █│  │ bash  npm i stripe@15                                        │                       
-   path     /Users/me/.tade/ █│  │   Allow once     Deny                                        │                       
-            worktrees/       ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-            checkout-stripe- ▕│                                                                                         
+     package.json            █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+     README.md               █│    so src/webhooks.ts needs the new constructEvent signature.                           
+                             █│                                                                                         
+ ▸ NOTES  4             +    █│  ▸ Read src/webhooks.ts                                                                 
+ ▾ GIT                       █│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   repo     ~/src/checkout   █│  ▸ bash npm i stripe@15                                                                 
+   branch   …de/stripe-v15   █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   from     main             █│  │ bash  npm i stripe@15                                        │                       
+   worktree …kout-stripe-v15 ▕│  │   Allow once     Deny                                        │                       
+   path     /Users/me/.tade/ ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+            worktrees/       ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

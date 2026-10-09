@@ -454,7 +454,24 @@ export type IntakeDecision =
   /** Allowed, by that grant, at that mode. */
   | { outcome: 'accepted'; granted: Omit<IntakeGranted, 'template'> & { template: string } }
 
-export const INTAKE_REFUSALS = ['not_allowed', 'no_grant', 'no_project', 'is_bot'] as const
+/**
+ * Why something was refused. Four of them are the rule's, read off the
+ * owner's grant; `by_hand` is the fifth and is a person at this machine
+ * reading the request and saying no.
+ *
+ * A person's refusal is the same *record* as the rule's — written down,
+ * nothing posted back — and deliberately not a sixth event type: what an
+ * attacker makes visible is a refusal existing, and one list of them is one
+ * place to look. It is never a reason a *rule* can reach, because nothing but
+ * a local act writes it.
+ */
+export const INTAKE_REFUSALS = [
+  'not_allowed',
+  'no_grant',
+  'no_project',
+  'is_bot',
+  'by_hand',
+] as const
 export type IntakeRefusal = (typeof INTAKE_REFUSALS)[number]
 
 /**

@@ -10,17 +10,17 @@
      │   Tade itself                   ██░░░░░░░░   15%  █████░░░░░  414 MB                                      █│     
  ▸ SM│                                                                                                           █│     
  ▸ SC│ By kind                                                                                                   █│     
- ▾ CH│                                                                                                           █│     
-  M p│                                 CPU              memory                                                   █│     
-  A …│   agents                        ████████░░   76%  █████░░░░░  361 MB                                      █│     
-  M s│   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                      █│     
-     │   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                      █│     
- ▾ FI│   terminals                     ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                      █│     
-   ▾ │   helpers (git, ps, …)          ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                      ▕│     
-     │                                                                                                           ▕│     
+ ▸ IN│                                                                                                           █│     
+ ▾ CH│                                 CPU              memory                                                   █│     
+  M p│   agents                        ████████░░   76%  █████░░░░░  361 MB                                      █│     
+  A …│   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                      █│     
+  M s│   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                      █│     
+     │   terminals                     ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                      █│     
+ ▾ FI│   helpers (git, ps, …)          ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                      ▕│     
+   ▾ │                                                                                                           ▕│     
      │ By agent and terminal                                                                                     ▕│     
-   ▸ │                                                                                                           ▕│     
-     │                                 CPU              memory                                                   ▕│     
+     │                                                                                                           ▕│     
+   ▸ │                                 CPU              memory                                                   ▕│     
 ━   o│   refunds                       ████████░░   76%  █████░░░░░  361 MB                                      ▕│▾   ━
      │   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                      ▕│     
      │   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                      ▕│    ▕

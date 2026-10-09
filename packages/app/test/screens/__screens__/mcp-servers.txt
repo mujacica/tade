@@ -10,17 +10,17 @@
     │ ● Jev                      ▕│ ○ Postgres  postgres                                   Install…     Turn on   █│    
  ▸ S│                            ▕│   Read a database's schema and query it.                                      █│    
  ▸ S│ ◐ Sentry                 ! ▕│   mcp-server-postgres ${project}                                              █│    
- ▾ C│                            ▕│   postgres needs a credential: paste one                                      █│    
-  M │ ✗ standup                ! ▕│   install: npm install --global @modelcontextprotocol/server-postgres         █│    
-  A │                            ▕│   Its credential is a connection string, kept where credentials are kept.     █│    
-  M │ ● GitHub                   ▕│                                                                               █│    
-    │                            ▕│ ○ GitHub  github                                                    Turn on   █│    
- ▾ F│ ○ release-notes            ▕│   Issues, pull requests and code search on GitHub.                            █│    
-   ▾│                            ▕│   https://api.githubcopilot.com/mcp/                                          █│    
-    │ · Written by Tade        1 ▕│   github needs a credential: paste one                                        █│    
+ ▸ I│                            ▕│   postgres needs a credential: paste one                                      █│    
+ ▾ C│ ✗ standup                ! ▕│   install: npm install --global @modelcontextprotocol/server-postgres         █│    
+  M │                            ▕│   Its credential is a connection string, kept where credentials are kept.     █│    
+  A │ ● GitHub                   ▕│                                                                               █│    
+  M │                            ▕│ ○ GitHub  github                                                    Turn on   █│    
+    │ ○ release-notes            ▕│   Issues, pull requests and code search on GitHub.                            █│    
+ ▾ F│                            ▕│   https://api.githubcopilot.com/mcp/                                          █│    
+   ▾│ · Written by Tade        1 ▕│   github needs a credential: paste one                                        █│    
     │                            ▕│   Reviews, checks and merges are the Forge port’s, not this server’s.         █│    
-   ▸│▌· MCP servers            4 ▕│                                                                               █│    
-    │▌                           ▕│ ○ Sentry (MCP)  sentry                                              Turn on   █│    
+    │▌· MCP servers            4 ▕│                                                                               █│    
+   ▸│▌                           ▕│ ○ Sentry (MCP)  sentry                                              Turn on   █│    
 ━   │ · Harnesses' own         2 ▕│   Errors, traces and releases in Sentry, as its own server answers them.      ▕│   ━
     │                            ▕│   https://mcp.sentry.dev/mcp                                                  ▕│    
     │                            ▕│   sentry needs a credential: paste one                                        ▕│   ▕

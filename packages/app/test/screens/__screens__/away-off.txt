@@ -10,17 +10,17 @@
                        │                                                                        │                       
  ▸ SMART QUEUE         │ Nothing is listening, so there is nothing to pair with.                │                       
  ▸ SCHEDULES           │ Turn it on in Settings → Away view, then open Tade again.              │                       
- ▾ CHANGES  3        vs│                                                                        │                       
-  M package.json       │ DEVICES                                                                │                       
-  A …/webhooks.test.ts │ No device has been paired.                                             │                       
-  M src/webhooks.ts   +│                                                                        │                       
-                       │ An agent on this machine could pair itself, which is why this list     │                       
- ▾ FILES               │ shows every device there is.                                           │                       
-   ▾ src/              │                                                Disconnect everything   │                       
-       webhooks.test.ts╰────────────────────────────────────────────────────────────────────────╯                       
-       webhooks.ts           ▕│  │   Allow once     Deny                                        │                       
-   ▸ test/                   ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-     package.json            ▕│                                                                                         
+ ▸ INTAKE              │                                                                        │                       
+ ▾ CHANGES  3        vs│ DEVICES                                                                │                       
+  M package.json       │ No device has been paired.                                             │                       
+  A …/webhooks.test.ts │                                                                        │                       
+  M src/webhooks.ts   +│ An agent on this machine could pair itself, which is why this list     │                       
+                       │ shows every device there is.                                           │                       
+ ▾ FILES               │                                                Disconnect everything   │                       
+   ▾ src/              ╰────────────────────────────────────────────────────────────────────────╯                       
+       webhooks.test.ts      ▕│  │   Allow once     Deny                                        │                       
+       webhooks.ts           ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   ▸ test/                   ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

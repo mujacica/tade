@@ -21,11 +21,11 @@
      ❯ waits for its time    ▕│  WHY IT WAITS                                                                           
                              ▕│  ✕ fix-charge                                                                           
  ▸ SCHEDULES            none ▕│  ╰─! add-refunds  after fix-charge                                                      
- ▸ CHANGES  3        vs main ▕│    │ both change src/charge.ts                                                          
- ▸ FILES                     ▕│    ╰─◌ refund-emails  after add-refunds                                                 
- ▸ NOTES  4             +    ▕│        it emails what refund() returns                                                  
- ▸ GIT                       ▕│        also after bump-mailer                                                           
-                             ▕│        the mailer’s send() changes in v4                                                
+ ▸ INTAKE                off ▕│    │ both change src/charge.ts                                                          
+ ▸ CHANGES  3        vs main ▕│    ╰─◌ refund-emails  after add-refunds                                                 
+ ▸ FILES                     ▕│        it emails what refund() returns                                                  
+ ▸ NOTES  4             +    ▕│        also after bump-mailer                                                           
+ ▸ GIT                       ▕│        the mailer’s send() changes in v4                                                
                              ▕│                                                                                         
                              ▕│  WILL BE TOLD                                                                           
                              ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  

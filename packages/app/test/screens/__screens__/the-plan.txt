@@ -1,36 +1,36 @@
    T A D E      checkout ! ✕ ⠋ ◌3 ‖   ×  ≡     +       ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    ▕│ checkout › plan  4 tasks · 1 working · 2 waiting to start                               
-                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
-   ✕ fix-charge              ▕│                                                                                         
-     tests failed twice      ▕│  FIRST                         THEN                          THEN                       
-                             ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ╭──────────────────────╮   
-   ⠋ bump-mailer             ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶│ ◌ refund-emails      │   
-     working                 ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    │   ◆ after add-refun… │   
-                             ▕│  ╰──────────────────────╯      ╰──────────────────────╯ │    ╰──────────────────────╯   
- ▾ SMART QUEUE  5      plan  ▕│                                                         │                               
-   all   next                ▕│  ╭──────────────────────╮                               │                               
-                             ▕│  │ ⠋ bump-mailer        │───────────────────────────────╯                               
-   ! add-refunds      held   ▕│  │   working            │                                                               
-   │ ◆ fix-charge failed:…   ▕│  ╰──────────────────────╯                                                               
-   │                         ▕│                                                                                         
-   ╰─◌ refund-emails         ▕│                                                                                         
-       ◆ after add-refund…   ▕│  WHY THIS ORDER                                                                         
-                             ▕│  ✕ fix-charge                                                                           
-   ◌ docs-typos       next   ▕│  ╰─! add-refunds  after fix-charge                                                      
-     ◆ waiting for room      ▕│    │ both change src/charge.ts                                                          
-                             ▕│    ╰─◌ refund-emails  after add-refunds                                                 
-   ◷ release-notes   18:00   ▕│        it emails what refund() returns                                                  
-     ❯ waits for its time    ▕│        also after bump-mailer                                                           
-                             ▕│        the mailer’s send() changes in v4                                                
-   ‖ perf-check     paused   ▕│                                                                                         
-     ❯ paused                ▕│                                                                                         
-                             ▕│                                                                                         
- ▸ SCHEDULES            none ▕│                                                                                         
- ▸ CHANGES  3        vs main ▕│                                                                                         
+ ▾ AGENTS  2            +    █│ checkout › plan  4 tasks · 1 working · 2 waiting to start                               
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+   ✕ fix-charge              █│                                                                                         
+     tests failed twice      █│  FIRST                         THEN                          THEN                       
+                             █│  ╭──────────────────────╮      ╭──────────────────────╮      ╭──────────────────────╮   
+   ⠋ bump-mailer             █│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶│ ◌ refund-emails      │   
+     working                 █│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    │   ◆ after add-refun… │   
+                             █│  ╰──────────────────────╯      ╰──────────────────────╯ │    ╰──────────────────────╯   
+ ▾ SMART QUEUE  5      plan  █│                                                         │                               
+   all   next                █│  ╭──────────────────────╮                               │                               
+                             █│  │ ⠋ bump-mailer        │───────────────────────────────╯                               
+   ! add-refunds      held   █│  │   working            │                                                               
+   │ ◆ fix-charge failed:…   █│  ╰──────────────────────╯                                                               
+   │                         █│                                                                                         
+   ╰─◌ refund-emails         █│                                                                                         
+       ◆ after add-refund…   █│  WHY THIS ORDER                                                                         
+                             █│  ✕ fix-charge                                                                           
+   ◌ docs-typos       next   █│  ╰─! add-refunds  after fix-charge                                                      
+     ◆ waiting for room      █│    │ both change src/charge.ts                                                          
+                             █│    ╰─◌ refund-emails  after add-refunds                                                 
+   ◷ release-notes   18:00   █│        it emails what refund() returns                                                  
+     ❯ waits for its time    █│        also after bump-mailer                                                           
+                             █│        the mailer’s send() changes in v4                                                
+   ‖ perf-check     paused   █│                                                                                         
+     ❯ paused                █│                                                                                         
+                             █│                                                                                         
+ ▸ SCHEDULES            none █│                                                                                         
+ ▸ INTAKE                off █│                                                                                         
+ ▸ CHANGES  3        vs main █│                                                                                         
  ▸ FILES                     ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
- ▸ GIT                       ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

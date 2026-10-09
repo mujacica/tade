@@ -10,17 +10,17 @@
     │ ● Jev                      ▕│   Reads out what each agent did yesterday, because you ask every morning.     ▕│    
  ▸ S│                            ▕│                                                                               ▕│    
  ▸ S│ ◐ Sentry                 ! ▕│                                                                               ▕│    
- ▾ C│                            ▕│                                                                               ▕│    
-  M │ ✗ standup                ! ▕│                                                                               ▕│    
-  A │                            ▕│                                                                               ▕│    
-  M │ ● GitHub                   ▕│                                                                               ▕│    
-    │                            ▕│                                                                               ▕│    
- ▾ F│ ○ release-notes            ▕│                                                                               ▕│    
-   ▾│                            ▕│                                                                               ▕│    
-    │▌· Written by Tade        1 ▕│                                                                               ▕│    
+ ▸ I│                            ▕│                                                                               ▕│    
+ ▾ C│ ✗ standup                ! ▕│                                                                               ▕│    
+  M │                            ▕│                                                                               ▕│    
+  A │ ● GitHub                   ▕│                                                                               ▕│    
+  M │                            ▕│                                                                               ▕│    
+    │ ○ release-notes            ▕│                                                                               ▕│    
+ ▾ F│                            ▕│                                                                               ▕│    
+   ▾│▌· Written by Tade        1 ▕│                                                                               ▕│    
     │▌                           ▕│                                                                               ▕│    
-   ▸│ · MCP servers            4 ▕│                                                                               ▕│    
-    │                            ▕│                                                                               ▕│    
+    │ · MCP servers            4 ▕│                                                                               ▕│    
+   ▸│                            ▕│                                                                               ▕│    
 ━   │ · Harnesses' own         2 ▕│                                                                               ▕│   ━
     │                            ▕│                                                                               ▕│    
     │                            ▕│                                                                               ▕│   ▕

@@ -10,17 +10,17 @@
     │ ● Jev                      ▕│ jev_ask          Judge anything against questions you write                   ▕│    
  ▸ S│                            ▕│ jev_grep         Grep that reads                                              ▕│    
  ▸ S│ ◐ Sentry                 ! ▕│ jev_review       Read a change against the review pack and say what it flags  ▕│    
- ▾ C│                            ▕│ jev_findings     What the review watch has looked at, what it flagged, what c…▕│    
-  M │ ✗ standup                ! ▕│ jev_account      Say what you found when you read something Jev flagged about…▕│    
-  A │                            ▕│ jev_verdict      Write down what a finding turned out to b… orchestrator only ▕│    
-  M │ ● GitHub                   ▕│ jev_read_request A second, independent reading of what som… orchestrator only █│    
-    │                            ▕│ jev_plan_check   Read a plan before you keep it, and say w… orchestrator only █│    
- ▾ F│ ○ release-notes            ▕│ jev_queue_order  Suggest what should come first out of wha… orchestrator only █│    
-   ▾│                            ▕│                                                                               █│    
-    │ · Written by Tade        1 ▕│ WATCHES  none on until you turn one on                                        █│    
+ ▸ I│                            ▕│ jev_findings     What the review watch has looked at, what it flagged, what c…▕│    
+ ▾ C│ ✗ standup                ! ▕│ jev_account      Say what you found when you read something Jev flagged about…▕│    
+  M │                            ▕│ jev_verdict      Write down what a finding turned out to b… orchestrator only ▕│    
+  A │ ● GitHub                   ▕│ jev_read_request A second, independent reading of what som… orchestrator only █│    
+  M │                            ▕│ jev_plan_check   Read a plan before you keep it, and say w… orchestrator only █│    
+    │ ○ release-notes            ▕│ jev_queue_order  Suggest what should come first out of wha… orchestrator only █│    
+ ▾ F│                            ▕│                                                                               █│    
+   ▾│ · Written by Tade        1 ▕│ WATCHES  none on until you turn one on                                        █│    
     │                            ▕│ ◎ Review what agents change  every 10m                              Turn on   █│    
-   ▸│ · MCP servers            4 ▕│   reads each agent’s own change once it has stopped moving, and reports what  █│    
-    │                            ▕│   it flags                                                                    █│    
+    │ · MCP servers            4 ▕│   reads each agent’s own change once it has stopped moving, and reports what  █│    
+   ▸│                            ▕│   it flags                                                                    █│    
 ━   │ · Harnesses' own         2 ▕│ ◎ Agents going in circles  every 10m                                Turn on   █│   ━
     │                            ▕│   reads the agents that keep making the same failing call, and says which     ▕│    
     │                            ▕│ ◎ Findings nobody has answered  every 1h                            Turn on   ▕│   ▕

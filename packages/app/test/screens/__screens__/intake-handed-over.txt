@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ! stripe-v15   880k tok   █│                                                                                         
+ ▌   wants you to approve…   █│                                                                                         
+                             █│                                                                                         
+   ⠋ refunds         $0.62   █│                                                                                         
+     working                 █│                                                                                         
+                             █│                                                                                         
+ ▸ SMART QUEUE          none █│                                                                                         
+ ▸ SCHEDULES            none ▕│                                                                                         
+ ▾ INTAKE  4       2 waiting ▕│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+                             ▕│    so src/webhooks.ts needs the new constructEvent signature.                           
+   ! req-7        proposed   ▕│                                                                                         
+     @kim · cli · github-…   ▕│  ▸ Read src/webhooks.ts                                                                 
+                             ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   ⠋ req-8         started   ▕│  ▸ bash npm i stripe@15                                                                 
+     @kim · cli · github-…   ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+                             ▕│  │ bash  npm i stripe@15                                        │                       
+   ○ req-9         refused   ▕│  │   Allow once     Deny                                        │                       
+     @lee · cli · one task   ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+                             ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

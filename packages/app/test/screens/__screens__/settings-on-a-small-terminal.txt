@@ -10,8 +10,8 @@
    │  Away view       █│▌    ○ none                                        ▕│╮  
  ▸ │                  █│▌  sentry sends through Sentry’s own SDK, imported ▕││  
  ▸ │  Intake          █│▌  only when there is a DSN; none sends nothing    ▕││  
- ▾ │                  █│▌                                                  ▕│╯  
-  M│  Projects    ● 1 █│ Crashes and warnings    ────████ on             ↻ ▕│   
+ ▸ │                  █│▌                                                  ▕│╯  
+ ▾ │  Projects    ● 1 █│ Crashes and warnings    ────████ on             ↻ ▕│   
 ━  │                  █│                                                   ▕│  ━
    │  Journal         █│ What happened around …  ────████ on             ↻ ▕│   
    │                  ▕│                                                   ▕│  ▕

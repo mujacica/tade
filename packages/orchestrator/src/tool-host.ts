@@ -5,6 +5,8 @@ import {
   DONE_RULES,
   type DoneRule,
   dryRunSays,
+  inboxProvenance,
+  inboxWaiting,
   type LaneId,
   type Plan,
   planReport,
@@ -16,10 +18,14 @@ import {
   chatsFrom,
   clipped,
   dryRunTemplate,
+  inboxFrom,
+  inboxItem,
+  intakeWouldRun,
   openChat,
   usedSays,
   useTemplate,
   type Workbench,
+  wouldRunSays,
 } from '@tade/workbench'
 
 // How the orchestrator's tools reach the workbench.
@@ -195,6 +201,43 @@ export class ToolHost {
             by: 'orchestrator',
           }),
         ),
+      // Work that arrived from outside, read and never acted on. Two methods
+      // and deliberately not a third: there is no way from here to approve,
+      // refuse or retry one, and no way to change a grant — `settingReach`
+      // has the whole `surfaces.intake` subtree at `never`, and the text the
+      // orchestrator reads all day does not get to put itself on an allowlist.
+      //
+      // Neither answer carries the request's own words. `inboxFrom` and
+      // `inboxProvenance` have nowhere to put a body, which is the
+      // enforcement: `openIntakeRow` is the door that reads one and it is not
+      // called here, and could not be — an orchestrator that had read a
+      // stranger's instructions is one whose next turn might act on them.
+      'intake/list': async (p) => {
+        const rows = await inboxFrom({
+          home: tade.home,
+          events: await tade.log.read({}),
+          ...(p.project ? { project: String(p.project) } : {}),
+        })
+        return JSON.stringify(p.waiting === true ? inboxWaiting(rows) : rows, null, 2)
+      },
+      'intake/show': async (p) => {
+        const item = String(p.item ?? '')
+        const row = await inboxItem({ home: tade.home, events: await tade.log.read({}), item })
+        if (!row) throw new Error(`nothing called ${item} has been handed to this machine`)
+        const would = await intakeWouldRun(
+          { home: tade.home, config: tade.config, events: (filter) => tade.log.read(filter) },
+          row,
+          planReport(tade.planUsage(), Date.now()).signIns.map((one) =>
+            one.cannotTell ? `${one.label}: cannot tell — ${one.cannotTell}` : one.label,
+          ),
+        )
+        return [
+          ...inboxProvenance(row).map((fact) => `${fact.label}: ${fact.value}`),
+          `state: ${row.state} — ${row.because}`,
+          '',
+          ...wouldRunSays(would),
+        ].join('\n')
+      },
       'queue/change': async (p) =>
         queueOf(opts).change({
           ...(p.task ? { task: String(p.task) } : {}),

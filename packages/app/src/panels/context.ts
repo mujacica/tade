@@ -1,6 +1,6 @@
 import type { SettingGroup } from '@tade/core'
 import type { ParsedDiff } from '../diff.ts'
-import type { Change, RowSummaryView } from '../frame.ts'
+import type { Change, IntakeOpenView, RowSummaryView, WorkflowView } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
 import type { Panel } from '../panels.ts'
@@ -16,6 +16,7 @@ import type { ExtensionView, McpServerOffer, WrittenToolView } from './extension
 import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
 import type { InlineRow } from './file/inline.ts'
 import { fileView } from './file/view.ts'
+import { intake } from './intake/view.ts'
 import type { MenuItem } from './menu/state.ts'
 import { menu } from './menu/view.ts'
 import type { ModelChoice } from './models/state.ts'
@@ -41,6 +42,7 @@ import {
 } from './small/view.ts'
 import { spend } from './spend/view.ts'
 import { rowSummary } from './summary/view.ts'
+import { workflow } from './workflow/view.ts'
 
 // What a panel is handed, and which drawing answers which panel.
 //
@@ -181,6 +183,19 @@ export interface PanelContext {
    * facts goes the moment the facts are asked for again.
    */
   summary: RowSummaryView | null
+  /**
+   * The request being read in front of you, once the journal, the task files
+   * and the context file have been read. Null while it is being read, and when
+   * the read failed — the panel's own `problem` is the reason, because a reason
+   * that lives in the facts goes the moment the facts are asked for again.
+   */
+  intake: IntakeOpenView | null
+  /**
+   * The stored workflow being written, once its draft has been read. Null
+   * while it is being read, and when there is no draft — the page's own
+   * `problem` is the reason.
+   */
+  workflow: WorkflowView | null
   /** The extension being set up: its state, its guide and its fields. */
   setup: {
     title: string
@@ -262,6 +277,10 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: extensionView(panel, ctx), popups: [] }
     case 'row-summary':
       return { panel: rowSummary(panel, ctx), popups: [] }
+    case 'intake':
+      return { panel: intake(panel, ctx), popups: [] }
+    case 'workflow':
+      return { panel: workflow(panel, ctx), popups: [] }
     case 'model':
       return { panel: models(panel, ctx), popups: [] }
   }

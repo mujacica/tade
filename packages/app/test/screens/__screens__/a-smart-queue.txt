@@ -37,11 +37,11 @@
    ‖ perf nightly   paused   ▕│                                                                                         
      every day at … agents   ▕│                                                                                         
                              ▕│                                                                                         
+ ▸ INTAKE                off ▕│                                                                                         
  ▸ CHANGES  3        vs main ▕│                                                                                         
  ▸ FILES                     ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
  ▸ GIT                       ▕│                                                                                         
-                             ▕│                                                                                         
                              ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         

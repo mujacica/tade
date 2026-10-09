@@ -10,17 +10,17 @@
                         │ Refunds via the ledger                                               │                        
  ▸ SMART QUEUE          │ About checkout/refunds                                               │                        
  ▸ SCHEDULES            │ Said by the orchestrator · Thu 3 Sep 09:00                           │                        
- ▸ CHANGES  3        vs │                                                                      │                        
- ▸ FILES                │ NOTE                                                                 │                        
- ▾ NOTES  4             │  refunds go through the ledger service, never the gateway▏           │                        
-                        │                                                                      │                        
-   the staging key      │   Forget     Copy     Headline…             Cancel     Save note ⏎   │                        
-   rotates on the 1st   ╰──────────────────────────────────────────────────────────────────────╯                        
-                             ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   Pin dependencies          ▕│  │ bash  npm i stripe@15                                        │                       
-   we pin major versions     ▕│  │   Allow once     Deny                                        │                       
-                             ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-   Refunds via the ledger    ▕│                                                                                         
+ ▸ INTAKE               │                                                                      │                        
+ ▸ CHANGES  3        vs │ NOTE                                                                 │                        
+ ▸ FILES                │  refunds go through the ledger service, never the gateway▏           │                        
+ ▾ NOTES  4             │                                                                      │                        
+                        │   Forget     Copy     Headline…             Cancel     Save note ⏎   │                        
+   the staging key      ╰──────────────────────────────────────────────────────────────────────╯                        
+   rotates on the 1st        ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+                             ▕│  │ bash  npm i stripe@15                                        │                       
+   Pin dependencies          ▕│  │   Allow once     Deny                                        │                       
+   we pin major versions     ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+                             ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

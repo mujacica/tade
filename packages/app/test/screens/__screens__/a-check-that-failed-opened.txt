@@ -10,17 +10,17 @@
                              █│      $ pnpm vitest run                                                    after types  █
  ▸ SMART QUEUE          none █│      packages/app/test/screens.test.ts:37:5  what-an-agent-has-done                    █
  ▸ SCHEDULES            none █│      src/webhooks.test.ts:18:3  keeps the old shape                                    █
- ▾ CHANGES  3        vs main █│      and 2 more                                                                        █
-  M package.json       +2 −1 █│      │  ❯ packages/app/test/screens.test.ts:37:5                                       █
-  A …/webhooks.test.ts   +48 █│      │       35|   it(‘looks the way it did’, async () => {                            █
-  M src/webhooks.ts   +12 −4 ▕│      │       36|     const plain = drawn.rows.map((row) => stripTerminalSequences(…    █
-                             ▕│      │       37|     await expect(plain.join()).toMatchFileSnapshot(nameOf(scenari…    █
- ▾ FILES                     ▕│      │         |     ^                                                                 █
-   ▾ src/                    ▕│      │   Snapshots  4 failed                                                           █
-       webhooks.test.ts      ▕│      │  Test Files  1 failed | 131 passed | 1 skipped (133)                            █
-       webhooks.ts           ▕│      │       Tests  4 failed | 2072 passed | 3 skipped (2079)                          █
-   ▸ test/                   ▕│       the whole log  in the conversation   don’t run here                              ▕
-     package.json            ▕│                                                                                        ▕
+ ▸ INTAKE                off █│      and 2 more                                                                        █
+ ▾ CHANGES  3        vs main █│      │  ❯ packages/app/test/screens.test.ts:37:5                                       █
+  M package.json       +2 −1 █│      │       35|   it(‘looks the way it did’, async () => {                            █
+  A …/webhooks.test.ts   +48 ▕│      │       36|     const plain = drawn.rows.map((row) => stripTerminalSequences(…    █
+  M src/webhooks.ts   +12 −4 ▕│      │       37|     await expect(plain.join()).toMatchFileSnapshot(nameOf(scenari…    █
+                             ▕│      │         |     ^                                                                 █
+ ▾ FILES                     ▕│      │   Snapshots  4 failed                                                           █
+   ▾ src/                    ▕│      │  Test Files  1 failed | 131 passed | 1 skipped (133)                            █
+       webhooks.test.ts      ▕│      │       Tests  4 failed | 2072 passed | 3 skipped (2079)                          █
+       webhooks.ts           ▕│       the whole log  in the conversation   don’t run here                              ▕
+   ▸ test/                   ▕│                                                                                        ▕
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

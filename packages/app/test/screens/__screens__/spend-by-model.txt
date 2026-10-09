@@ -10,17 +10,17 @@
               │ · gpt-5.3-codex                                620k  ██░░░░░░░░       —      —   ≈$0.48▕│               
  ▸ SMART QUEUE│ · claude-sonnet-5                              148k  █░░░░░░░░░     18m    30m    $0.20▕│               
  ▸ SCHEDULES  │                                                                                        ▕│               
- ▾ CHANGES  3 │ PLAN                                                                                   ▕│               
-  M package.js│ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list ▕│               
-  A …/webhooks│                   7d  ███░░░░░░░  31%  resets in 3d                                    ▕│               
-  M src/webhoo│ codex             5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago                   ▕│               
-              │ pi                cannot tell                                                          ▕│               
- ▾ FILES      │                                                                                        ▕│               
-   ▾ src/     │ BUDGETS                                                                                ▕│               
-       webhook│ checkout        $0.62 of $5.00 a day        █░░░░░░░░░░░ 12%                           ▕│               
+ ▸ INTAKE     │ PLAN                                                                                   ▕│               
+ ▾ CHANGES  3 │ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list ▕│               
+  M package.js│                   7d  ███░░░░░░░  31%  resets in 3d                                    ▕│               
+  A …/webhooks│ codex             5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago                   ▕│               
+  M src/webhoo│ pi                cannot tell                                                          ▕│               
+              │                                                                                        ▕│               
+ ▾ FILES      │ BUDGETS                                                                                ▕│               
+   ▾ src/     │ checkout        $0.62 of $5.00 a day        █░░░░░░░░░░░ 12%                           ▕│               
        webhook│ search          $0.68                       no budget — set one                        ▕│               
+       webhook│                                                                                        ▕│               
    ▸ test/    │                                                                                        ▕│               
-     package.j│                                                                                        ▕│               
 ━   orchestrat│                                                                                        ▕│━   ⤢     ▾   ━
               │                                                                                        ▕│               
               │                                                                                        ▕│              ▕

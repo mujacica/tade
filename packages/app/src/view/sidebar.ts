@@ -1,7 +1,9 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
+import { inboxWaiting } from '@tade/core'
 import { type FileEntry, folderMark } from '../files.ts'
 import type { Change, Frame, ListSectionView, NoteShown } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, type Target } from '../hits.ts'
+import { inboxHere } from '../intake-view.ts'
 import {
   type AppState,
   agentsHere,
@@ -15,6 +17,7 @@ import {
 import { BAR, barAcross } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, type Drawn, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
+import { intakeSection } from './intake.ts'
 import { listItem, rowsHere } from './list.ts'
 import { type QueueTree, queueSection, queueSpread, queueStems, taskRow } from './queue.ts'
 import {
@@ -71,6 +74,10 @@ export function renderSidebar(
   const tree: QueueTree = { ...spread, across }
   // The bar lies along the bottom row, and the list gets what is left.
   const body = sideways > 0 ? Math.max(1, height - 1) : height
+  // Narrowed to the project you are standing in before the section decides
+  // anything about itself: a project with none of them has no heading either,
+  // and the badge counts what is in it here.
+  const handed = inboxHere(frame.intake ?? [], state.project)
   const groups = groupedTasks(state)
   const tasks = groups.flatMap((group) => group.tasks)
   const changes = frame.changes ?? []
@@ -167,6 +174,22 @@ export function renderSidebar(
       pointer,
       clocks,
       sectionOpen(state, 'schedules', clocks.length === 0),
+    ),
+    // What has been handed to this machine from outside. Always, like the
+    // queue and the clockwork above it: a request that arrived while you were
+    // out has to be somewhere you can find without having set anything up,
+    // and with nothing in it the heading says which of the three reasons that
+    // is.
+    intakeSection(
+      state,
+      width,
+      skin,
+      pointer,
+      handed,
+      inboxWaiting(handed).length,
+      frame.intakeEmpty ?? { short: 'off', long: 'Work from outside this machine is off.' },
+      frame.now ?? 0,
+      sectionOpen(state, 'intake', handed.length === 0),
     ),
     // What an extension keeps here — reviews, most of all — between the work
     // that is waiting and the work in front of you, and only what is open on

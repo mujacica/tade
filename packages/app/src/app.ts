@@ -41,6 +41,7 @@ import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
 import { Images } from './wire/images.ts'
+import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Lanes } from './wire/lanes.ts'
 import { Machine } from './wire/machine.ts'
@@ -154,6 +155,7 @@ export class App {
    * question the frame or the router asks, it only turns what happened on the
    * screen into one of them.
    */
+  private readonly intake: Intake
   private readonly subjects: readonly Subject[]
 
   private constructor(opts: AppOptions) {
@@ -200,6 +202,7 @@ export class App {
       tell: (text) => this.orchestrator.tell(text),
       advanceQueue: () => void this.advanceQueue(),
     })
+    this.intake = new Intake(this.wire, { advanceQueue: () => void this.advanceQueue() })
     this.search = new Search(this.wire, {
       settings: () => this.settings.rows(),
       openFile: (path, line) => this.files.openFile(path, line),
@@ -414,6 +417,7 @@ export class App {
       this.notes,
       this.schedules,
       this.queue,
+      this.intake,
       this.orchestrator,
       this.extensions,
       this.search,
@@ -727,6 +731,7 @@ export class App {
     this.agents.reopenStopped()
     this.extensions.askExtensions()
     this.images.look()
+    this.intake.look()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
       this.repaintedAt = this.now()
       if (!this.stopped && !this.orchestrator.borrowed()) repaintScreen(this.tui, this.terminal)

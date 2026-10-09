@@ -10,13 +10,13 @@
    │ Running it                                                                                                    ▕│   
  ▸ │                                                                                                               ▕│   
  ▸ │ - pnpm dev starts it against the Stripe test keys                                                             ▕│   
- ▾ │ - pnpm test runs everything, webhooks included                                                                ▕│   
-  M│                                                                                                               ▕│   
-  A│   const event = await stripe.webhooks.constructEventAsync(body, sig, key)                                     ▕│   
-  M│                                                                                                               ▕│   
-   │ │ Never force-push to main.                                                                                   ▕│   
+ ▸ │ - pnpm test runs everything, webhooks included                                                                ▕│   
  ▾ │                                                                                                               ▕│   
+  M│   const event = await stripe.webhooks.constructEventAsync(body, sig, key)                                     ▕│   
+  A│                                                                                                               ▕│   
+  M│ │ Never force-push to main.                                                                                   ▕│   
    │                                                                                                               ▕│   
+ ▾ │                                                                                                               ▕│   
    │                                                                                                               ▕│   
    │                                                                                                               ▕│   
    │                                                                                                               ▕│   

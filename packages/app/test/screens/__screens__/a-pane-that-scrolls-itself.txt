@@ -10,17 +10,17 @@
                              █│                                                                                        ┆
  ▸ SMART QUEUE          none █│● I read src/refunds.ts and src/ledger.ts. The gateway call is                          ┆
  ▸ SCHEDULES            none █│  fire-and-forget, so a refund that fails there is still marked                         ┆
- ▾ CHANGES  3        vs main █│  refunded in our own table.                                                            ┆
-  M package.json       +2 −1 █│  ⎿ Read src/refunds.ts (212 lines)                                                     ┆
-  A …/webhooks.test.ts   +48 █│  ⎿ Read src/ledger.ts (96 lines)                                                       ┆
-  M src/webhooks.ts   +12 −4 ▕│                                                                                        ┆
-                             ▕│● Moving the write behind the ledger’s acknowledgement.                                 ┆
- ▾ FILES                     ▕│  ⎿ Edit src/refunds.ts  +18 −6                                                         ┆
-   ▾ src/                    ▕│                                                                                        ┆
-       webhooks.test.ts      ▕│╭──────────────────────────────────────────────────────────────╮                        ┆
-       webhooks.ts           ▕││ >                                                            │                        ┆
-   ▸ test/                   ▕│╰──────────────────────────────────────────────────────────────╯                        ┆
-     package.json            ▕│  ? for shortcuts                                                                       ┆
+ ▸ INTAKE                off █│  refunded in our own table.                                                            ┆
+ ▾ CHANGES  3        vs main █│  ⎿ Read src/refunds.ts (212 lines)                                                     ┆
+  M package.json       +2 −1 █│  ⎿ Read src/ledger.ts (96 lines)                                                       ┆
+  A …/webhooks.test.ts   +48 ▕│                                                                                        ┆
+  M src/webhooks.ts   +12 −4 ▕│● Moving the write behind the ledger’s acknowledgement.                                 ┆
+                             ▕│  ⎿ Edit src/refunds.ts  +18 −6                                                         ┆
+ ▾ FILES                     ▕│                                                                                        ┆
+   ▾ src/                    ▕│╭──────────────────────────────────────────────────────────────╮                        ┆
+       webhooks.test.ts      ▕││ >                                                            │                        ┆
+       webhooks.ts           ▕│╰──────────────────────────────────────────────────────────────╯                        ┆
+   ▸ test/                   ▕│  ? for shortcuts                                                                       ┆
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

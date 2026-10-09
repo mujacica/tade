@@ -10,17 +10,17 @@
     │  Orchestrator              █│ Reporter                     ◉ sentry     ○ none                 ↻ on restart █│    
  ▸ S│                            █│                                                                               █│    
  ▸ S│  Checks                    █│ Crashes and warnings       ────████ on                           ↻ on restart █│    
- ▾ C│                            █│                                                                               █│    
-  M │  Voice                     █│ What happened around them  ────████ on                           ↻ on restart █│    
-  A │                            █│                                                                               █│    
-  M │  Window                    █│ Numbers                    ────████ on                           ↻ on restart █│    
-    │                            █│                                                                               █│    
- ▾ F│  Away view                 █│ What agents do             ────████ on                           ↻ on restart █│    
-   ▾│                            █│                                                                               █│    
-    │  Intake                    █│ How much of Tade is timed    ‹   0.1   ›                         ↻ on restart █│    
+ ▸ I│                            █│                                                                               █│    
+ ▾ C│  Voice                     █│ What happened around them  ────████ on                           ↻ on restart █│    
+  M │                            █│                                                                               █│    
+  A │  Window                    █│ Numbers                    ────████ on                           ↻ on restart █│    
+  M │                            █│                                                                               █│    
+    │  Away view                 █│ What agents do             ────████ on                           ↻ on restart █│    
+ ▾ F│                            █│                                                                               █│    
+   ▾│  Intake                    █│ How much of Tade is timed    ‹   0.1   ›                         ↻ on restart █│    
     │                            █│                                                                               ▕│    
-   ▸│  Projects              ● 1 █│ Which Tade this is          laptop                               ↻ on restart ▕│    
-    │                            █│                                                                               ▕│    
+    │  Projects              ● 1 █│ Which Tade this is          laptop                               ↻ on restart ▕│    
+   ▸│                            █│                                                                               ▕│    
 ━   │  Journal                   █│ Read Sentry back           ────████ on                           ↻ on restart ▕│   ━
     │                            █│                                                                               ▕│    
     │▌ Telemetry                 █│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default              ▕│   ▕

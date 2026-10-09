@@ -125,6 +125,21 @@ export async function takeIntake(
       context?: string
       links?: readonly { title: string; url: string }[]
     }
+    /**
+     * A person at this machine asked for this one again.
+     *
+     * It skips the retry arithmetic and nothing else: the grant is still read,
+     * the revision is still compared, the names are still the source's own, and
+     * a second attempt still recognises the work the first one made rather than
+     * making another copy. What it does not do is refuse because a counter is
+     * at three — Tade stops on its own so a failing source is not hammered
+     * every look, and a person who has read why it failed is answering that
+     * rather than being bound by it.
+     *
+     * No automatic path sets it: the watch's own look does not take it, and
+     * `retryIntake` is the only caller that does.
+     */
+    again?: boolean
     now: number
   },
 ): Promise<Taken> {
@@ -144,6 +159,11 @@ export async function takeIntake(
     requester: candidate.requester.id,
     hash: candidate.material.hash,
     ref: candidate.material.ref,
+    // Where the request is at its source, where it is anywhere a person could
+    // open. Written on the line rather than looked up later for the reason the
+    // template version is: by the time somebody reads the row, only the line
+    // knows what the source said.
+    ...(candidate.url ? { url: candidate.url } : {}),
   }
 
   // Not Tade's business: no mapping, or the surface is off. Nothing is written
@@ -229,7 +249,9 @@ export async function takeIntake(
   // a minute at least between identical tries so a failing source is not
   // hammered every look, and a limit past which Tade stops and says so rather
   // than retrying for ever or losing the request in silence.
-  const next = intakeNext(already, now)
+  const next = req.again
+    ? ({ next: 'retry', attempt: (already?.attempts ?? 0) + 1 } as const)
+    : intakeNext(already, now)
   if (next.next === 'wait') {
     return {
       task: null,
@@ -250,7 +272,7 @@ export async function takeIntake(
 
   await tade.log.append({
     type: 'intake_received',
-    detail: { ...where, project, attempt: next.attempt },
+    detail: { ...where, project, attempt: next.attempt, ...(req.again ? { again: true } : {}) },
   })
 
   try {

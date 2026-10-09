@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -211,5 +211,183 @@ describe('tade intake', () => {
     const { stdout, stderr } = await tade('intake', 'list')
     expect(stdout).toContain('cli:req-1')
     expect(stderr).toContain('hand-edited.json could not be read')
+  })
+
+  // --- the inbox: what has been handed over, and what to do about one
+  //
+  // Every one of these reads the journal and the task files and opens no
+  // workbench, which is the rule that questions never need the window. The
+  // journal is written by hand here on purpose: the delivery path has its own
+  // tests, and what is being tested here is what the command *says* about what
+  // the journal holds.
+
+  /** One delivery, written straight into the journal, with the work it made. */
+  const delivered = (over: Record<string, unknown> = {}) => {
+    const where = {
+      item: 'cli:req-1',
+      source: 'cli',
+      external_id: 'req-1',
+      revision: '1',
+      project: 'app',
+      requester: 'kim',
+      hash: 'sha256:aaa',
+      ref: 'req-1.0001.json',
+      watch: 'intake.cli',
+      schedule: 'intake-cli',
+    }
+    // `urgency` and a sequence number each, because a real journal line has
+    // both: a fixture kinder than reality is worse than no fixture, and a line
+    // without an urgency is one the index refuses — which empties it, and then
+    // the workbench reads almost nothing while the file is full.
+    let seq = 0
+    const line = (type: string, detail: Record<string, unknown>, task: string | null = null) =>
+      JSON.stringify({
+        seq: ++seq,
+        ts: '2026-10-09T09:00:00.000Z',
+        type,
+        urgency: 'notable',
+        task,
+        lane: null,
+        run: null,
+        detail: { ...where, ...detail },
+      })
+    writeFileSync(
+      join(home, 'events.jsonl'),
+      `${[
+        line('intake_received', {}),
+        line(
+          'intake_accepted',
+          { grant: 'surfaces.intake.sources.cli', mode: 'propose', ...over },
+          'app/cli-req-1',
+        ),
+      ].join('\n')}\n`,
+    )
+    mkdirSync(join(home, 'projects', 'app', 'tasks', 'cli-req-1'), { recursive: true })
+    writeFileSync(
+      join(home, 'projects', 'app', 'tasks', 'cli-req-1', 'task.yaml'),
+      [
+        'id: app/cli-req-1',
+        'project: app',
+        'intent_spoken: cli req-1, from app, asked by @kim for app.',
+        'created: 2026-10-09T09:00:00.000Z',
+        'parked: true',
+        'by: intake:cli',
+        'start:',
+        '  after: []',
+        '  prompt: A request came in from cli (req-1).',
+        '  touches: []',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(home, 'projects', 'app', 'tasks', 'cli-req-1', 'context.md'),
+      '# cli req-1\n\nmaterial, not instruction\n\n```\nthe export button 500s\n```\n',
+    )
+  }
+
+  it('says what each source’s grant is, when it last looked, and what is waiting', async () => {
+    config(['        accept: true', '        projects: [app]', '        from: [kim]'])
+    delivered()
+    const { code, stdout } = await tade('intake')
+    expect(code).toBe(0)
+    expect(stdout).toContain('cli  accept on  reply off  propose')
+    // A look that could not look is not a look that found nothing, and a watch
+    // nobody has turned on is neither.
+    expect(stdout).toContain('nothing is watching it')
+    expect(stdout).toContain('1 handed over, 1 waiting for you')
+    expect(stdout).toContain('runs as you, with your keys')
+  })
+
+  it('lists the inbox with a state and a reason per row', async () => {
+    delivered()
+    const { stdout } = await tade('intake', 'inbox')
+    expect(stdout).toContain('cli:req-1')
+    expect(stdout).toContain('proposed')
+    expect(stdout).toContain('waiting for a person to approve')
+    expect((await tade('intake', 'inbox', '--waiting')).stdout).toContain('cli:req-1')
+    expect((await tade('intake', 'inbox', 'other')).stdout).toBe('nothing has been handed to other')
+  })
+
+  it('shows one request: its provenance, then the request under its own label', async () => {
+    delivered({ template: 'bug', version: 3 })
+    const { stdout } = await tade('intake', 'show', 'req-1')
+    expect(stdout).toMatch(/allowed by +surfaces\.intake\.sources\.cli/)
+    expect(stdout).toMatch(/template +bug@3/)
+    // The label over the request, and the whole wording inside what it shows.
+    expect(stdout).toContain('THE REQUEST ITSELF')
+    expect(stdout).toContain('material, not instruction')
+    expect(stdout).toContain('the export button 500s')
+    // And what may be done about it, with the reason for each that may not.
+    expect(stdout).toMatch(/approve +yes/)
+    expect(stdout).toContain('nothing about req-1 has failed')
+  })
+
+  it('dry-runs it: what approving would start, and starts nothing', async () => {
+    delivered()
+    const { stdout } = await tade('intake', 'show', 'req-1', '--dry-run')
+    expect(stdout).toContain('app/cli-req-1')
+    expect(stdout).toContain('It grants nothing')
+    expect(stdout).toContain('Nothing was started.')
+    const file = readFileSync(
+      join(home, 'projects', 'app', 'tasks', 'cli-req-1', 'task.yaml'),
+      'utf8',
+    )
+    expect(file).toContain('parked: true')
+  })
+
+  it('says which request it has never heard of', async () => {
+    const { code, stderr } = await tade('intake', 'show', 'nope')
+    expect(code).toBe(2)
+    expect(stderr).toContain('nothing called nope has been handed to this machine')
+  })
+
+  it('approves one, which lifts the park and nothing else', async () => {
+    config(['        accept: true', '        projects: [app]', '        from: [kim]'])
+    delivered()
+    const { code, stdout } = await tade('intake', 'approve', 'req-1')
+    expect(code).toBe(0)
+    expect(stdout).toContain('req-1 is approved')
+    const file = readFileSync(
+      join(home, 'projects', 'app', 'tasks', 'cli-req-1', 'task.yaml'),
+      'utf8',
+    )
+    expect(file).toContain('parked: false')
+  })
+
+  it('refuses one, writes it down, and posts nothing', async () => {
+    config(['        accept: true', '        projects: [app]', '        from: [kim]'])
+    delivered()
+    const { stdout } = await tade('intake', 'refuse', 'req-1', '--why', 'not this week')
+    expect(stdout).toContain('nothing was posted anywhere')
+    const journal = readFileSync(join(home, 'events.jsonl'), 'utf8')
+    expect(journal).toContain('"why":"by_hand"')
+    expect(journal).not.toContain('intake_replied')
+  })
+
+  it('says a retry is the window’s, because only it can ask the source again', async () => {
+    config(['        accept: true', '        projects: [app]', '        from: [kim]'])
+    writeFileSync(
+      join(home, 'events.jsonl'),
+      `${JSON.stringify({
+        seq: 1,
+        ts: '2026-10-09T09:00:00.000Z',
+        type: 'intake_held',
+        urgency: 'notable',
+        task: null,
+        lane: null,
+        run: null,
+        detail: {
+          item: 'cli:req-1',
+          source: 'cli',
+          external_id: 'req-1',
+          revision: '1',
+          project: 'app',
+          problem: 'the source would not answer',
+          gave_up: true,
+        },
+      })}\n`,
+    )
+    const { code, stderr } = await tade('intake', 'retry', 'req-1')
+    expect(code).toBe(1)
+    expect(stderr).toContain('only an open window runs the watch')
   })
 })

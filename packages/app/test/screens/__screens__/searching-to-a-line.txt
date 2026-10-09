@@ -10,8 +10,9 @@
           │  □ src/webhooks.test.ts  checkout                                                       line 42 ▕│          
  ▸ SMART Q│  □ src/webhooks.test.ts  checkout › stripe-v15                                          line 42 ▕│          
  ▸ SCHEDUL│ IN FILES  2                                                                                     ▕│          
- ▾ CHANGES│  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventA▕│          
-  M packag│  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                      ▕│          
+ ▸ INTAKE │  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventA▕│          
+ ▾ CHANGES│  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                      ▕│          
+  M packag│                                                                                                 ▕│          
   A …/webh│                                                                                                 ▕│          
   M src/we│                                                                                                 ▕│          
           │                                                                                                 ▕│          
@@ -20,7 +21,6 @@
        web│                                                                                                 ▕│          
        web│                                                                                                 ▕│          
    ▸ test/│                                                                                                 ▕│          
-     packa│                                                                                                 ▕│          
 ━   orches│                                                                                                 ▕│     ▾   ━
           │                                                                                                 ▕│          
           │                                                                                                 ▕│         ▕

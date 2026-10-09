@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ A╭─ github-bug ─────────────────────────────────────────────────────────────────────────────────────────── esc ─╮×   
+    │ github-bug                   │                                                                              █│────
+ ▌ !│                              │ github-bug › fix ─────────────────────────────────────────────────  v4 draft █│    
+ ▌  │   A reported bug, reproduce… │ Name             fix                                                         █│    
+    │   reproduce                  │ Persona          implementer                                                 █│    
+   ⠋│                              │ Told             Make the failing test pass.                                 █│    
+    │   fix                        │ Finished when     committed ▾                                                █│    
+    │▌                             │ Produces                                                                     █│    
+ ▸ S│   read                       │                 a document it writes in the task’s own folder, never in      █│    
+ ▸ S│                              │                 the repository                                               █│    
+ ▾ I│ release-notes                │ Touches          src/export.ts                                               █│    
+    │                              │ Reads                                                                        █│    
+   !│                              │ Leaves checks     green ▾                                                    █│    
+    │                              │ After reproduce ■ yes                                                        █│    
+    │                              │   why it waits   there is no fix until the failure is reproduced             █│    
+   ⠋│                              │ After read      □ no                                                         █│    
+    │                              │                                                                              █│    
+    │                              │ WHAT IT WOULD MAKE ───────────────────────────────────────────────────────── █│    
+   ○│                              │  reproduce                                                                   █│    
+    │                              │  ╰─fix                                                                       █│    
+    │                              │    │after reproduce — there is no fix until the failure is reproduced        █│    
+━   │                              │    ╰─read                                                                    █│   ━
+    │                              │  after fix — no reason given, and a wait with no reason is one nobody can…   ▕│    
+    │                              │  warning read: nothing says what it produces, so nothing is handed to        ▕│   ▕
+    │                              │  whoever reads it                                                            ▕│   ▕
+    │                                                                                                              │   ▕
+    │   + Step     × Step     Publish                                           ← → steps · tab fields    Close    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

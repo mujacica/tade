@@ -23,7 +23,7 @@
  ▾ SCHEDULES  4              █│                                                                                         
                              █│                                                                                         
    ↻ morning brief   08:45   █│                                                                                         
-     every weekday … tells   █│                                                                                         
+     every weekday … tells   ▕│                                                                                         
                              ▕│                                                                                         
    ↻ deps weekly     09:00   ▕│                                                                                         
      every Monday … agents   ▕│                                                                                         

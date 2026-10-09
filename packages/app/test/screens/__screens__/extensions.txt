@@ -10,17 +10,17 @@
     │▌● Jev                      ▕│   Settings…     What Jev flagged     Review the latest commits     Turn off   █│    
  ▸ S│▌                           ▕│                                                                               █│    
  ▸ S│ ◐ Sentry                 ! ▕│ HOW IT IS USED                                                                █│    
- ▾ C│                            ▕│ · Reads branches that go quiet against the review pack, once its watch is     █│    
-  M │ ✗ standup                ! ▕│   on.                                                                         █│    
-  A │                            ▕│ · Hands what it flagged to the agent that wrote it, which answers with        █│    
-  M │ ● GitHub                   ▕│   jev_account.                                                                ▕│    
-    │                            ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict   ▕│    
- ▾ F│ ○ release-notes            ▕│   (jev_verdict).                                                              ▕│    
-   ▾│                            ▕│ · Says which questions earn their place, and why each open finding is still   ▕│    
-    │ · Written by Tade        1 ▕│   open.                                                                       ▕│    
+ ▸ I│                            ▕│ · Reads branches that go quiet against the review pack, once its watch is     █│    
+ ▾ C│ ✗ standup                ! ▕│   on.                                                                         █│    
+  M │                            ▕│ · Hands what it flagged to the agent that wrote it, which answers with        █│    
+  A │ ● GitHub                   ▕│   jev_account.                                                                ▕│    
+  M │                            ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict   ▕│    
+    │ ○ release-notes            ▕│   (jev_verdict).                                                              ▕│    
+ ▾ F│                            ▕│ · Says which questions earn their place, and why each open finding is still   ▕│    
+   ▾│ · Written by Tade        1 ▕│   open.                                                                       ▕│    
     │                            ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something         ▕│    
-   ▸│ · MCP servers            4 ▕│   pasted.                                                                     ▕│    
-    │                            ▕│ · Reads things back before somebody guesses: a request, a plan, a queue       ▕│    
+    │ · MCP servers            4 ▕│   pasted.                                                                     ▕│    
+   ▸│                            ▕│ · Reads things back before somebody guesses: a request, a plan, a queue       ▕│    
 ━   │ · Harnesses' own         2 ▕│   order.                                                                      ▕│   ━
     │                            ▕│ · Answers a sentence typed into search that matched no letters.               ▕│    
     │                            ▕│ · Reads a command the approval rules do not name — only ever asking for       ▕│   ▕

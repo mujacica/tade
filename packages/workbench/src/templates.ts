@@ -139,8 +139,8 @@ export async function busyFrom(
   return busy
 }
 
-/** What each project has spent today against what it said it may. */
-async function budgetFrom(
+/** What each project has spent today against what it may, for whoever is about to start work. */
+export async function budgetFrom(
   deps: TemplateDeps,
   projects: readonly string[],
   unread: Unread,

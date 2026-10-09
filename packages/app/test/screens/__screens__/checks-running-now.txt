@@ -10,17 +10,17 @@
                              █│  ● 9f0e1d2 keep the old webhook shape working for a release      2 files +24 −4  1h ago 
  ▸ SMART QUEUE          none █│  ● 3ab77c1 name the webhook ids the way the docs do              3 files +31 −9  3m ago 
  ▸ SCHEDULES            none █│  ◌ Nothing uncommitted.                                                                 
- ▾ CHANGES  3        vs main █│                                                                                         
-  M package.json       +2 −1 █│  CHECKS ──────────  ✓⠋⋯  1 of 3 1m 24s · on this machine, not CI’s matrix    Running…   
-  A …/webhooks.test.ts   +48 █│  ✓ format        2.2s  1m ago                                      493 files checked  ▾ 
-  M src/webhooks.ts   +12 −4 ▕│  ⠋ tests       1m 02s  going now                                                      ▾ 
-                             ▕│  ⋯ types               waiting its turn                                               ▾ 
- ▾ FILES                     ▕│                                                                                         
-   ▾ src/                    ▕│  ALSO ON THIS BRANCH ─────────────────────────────────────────────  2, not this agent’s 
-       webhooks.test.ts      ▕│  · 77c4ab0 a test for the refund path              checkout/refunds  1 file +31  2h ago 
-       webhooks.ts           ▕│  · 5510ee7 bump the sdk                                           2 files +8 −8  5h ago 
+ ▸ INTAKE                off █│                                                                                         
+ ▾ CHANGES  3        vs main █│  CHECKS ──────────  ✓⠋⋯  1 of 3 1m 24s · on this machine, not CI’s matrix    Running…   
+  M package.json       +2 −1 █│  ✓ format        2.2s  1m ago                                      493 files checked  ▾ 
+  A …/webhooks.test.ts   +48 ▕│  ⠋ tests       1m 02s  going now                                                      ▾ 
+  M src/webhooks.ts   +12 −4 ▕│  ⋯ types               waiting its turn                                               ▾ 
+                             ▕│                                                                                         
+ ▾ FILES                     ▕│  ALSO ON THIS BRANCH ─────────────────────────────────────────────  2, not this agent’s 
+   ▾ src/                    ▕│  · 77c4ab0 a test for the refund path              checkout/refunds  1 file +31  2h ago 
+       webhooks.test.ts      ▕│  · 5510ee7 bump the sdk                                           2 files +8 −8  5h ago 
+       webhooks.ts           ▕│                                                                                         
    ▸ test/                   ▕│                                                                                         
-     package.json            ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

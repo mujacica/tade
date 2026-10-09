@@ -6,17 +6,17 @@
                          █│                                     
  ▸ SMART QUEUE      none █│                                     
  ▸ SCHEDULES        none █│               T A D E               
- ▾ CHANGES               █│                                     
-   nothing changed       █│           said, and done.           
-                         █│                                     
- ▾ FILES                 █│  + New agent      Open project     i
+ ▸ INTAKE            off █│                                     
+ ▾ CHANGES               █│           said, and done.           
+   nothing changed       █│                                     
+                         █│  + New agent      Open project     i
+ ▾ FILES                 █│                                     
    ▸ src/                █│                                     
    ▸ test/               █│                                     
-     package.json        █│                                     
+     package.json        ▕│                                     
      README.md           ▕│                                     
                          ▕│                                     
  ▸ NOTES            +    ▕│                                     
- ▾ GIT                   ▕│                                     
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                 
                                                                ▕

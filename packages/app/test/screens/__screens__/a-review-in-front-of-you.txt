@@ -10,17 +10,17 @@
                   │  ⋯ integration                                                                  ▕│                  
  ▸ SMART QUEUE    │                                                                                 ▕│                  
  ▸ SCHEDULES      │ VERDICTS ────────────────────────────────────────  1 approval · 1 wants changes ▕│                  
- ▾ CHANGES  3     │  ✓ jo                                   ✗ sam                                   ▕│                  
-  M package.json  │  · coderabbitai (a bot)                                                         ▕│                  
-  A …/webhooks.tes│                                                                                 ▕│                  
-  M src/webhooks.t│ Branch       stripe-v15 → main                                                  ▕│                  
-                  │ Repository   acme/checkout                                                      ▕│                  
- ▾ FILES          │ Author       mujacica — yours                                                   ▕│                  
-   ▾ src/         │ Unresolved   2 conversations                                                    ▕│                  
-       webhooks.te│ Files        7, +148 −162                                                       ▕│                  
-       webhooks.ts│ Task         checkout/stripe-v15                                                ▕│                  
-   ▸ test/        │                                                                                 ▕│                  
-     package.json │ https://github.com/acme/checkout/pull/418                                       ▕│                  
+ ▸ INTAKE         │  ✓ jo                                   ✗ sam                                   ▕│                  
+ ▾ CHANGES  3     │  · coderabbitai (a bot)                                                         ▕│                  
+  M package.json  │                                                                                 ▕│                  
+  A …/webhooks.tes│ Branch       stripe-v15 → main                                                  ▕│                  
+  M src/webhooks.t│ Repository   acme/checkout                                                      ▕│                  
+                  │ Author       mujacica — yours                                                   ▕│                  
+ ▾ FILES          │ Unresolved   2 conversations                                                    ▕│                  
+   ▾ src/         │ Files        7, +148 −162                                                       ▕│                  
+       webhooks.te│ Task         checkout/stripe-v15                                                ▕│                  
+       webhooks.ts│                                                                                 ▕│                  
+   ▸ test/        │ https://github.com/acme/checkout/pull/418                                       ▕│                  
 ━   orchestrator  │                                                                                 ▕│━━━━   ⤢     ▾   ━
                   │                                                                                 ▕│                  
                   │                                                                                 ▕│                 ▕

@@ -100,7 +100,7 @@ export type QueueState =
 export const QUEUE_CHANGES = ['pause', 'resume', 'start', 'wait', 'order'] as const
 export type QueueChange = (typeof QUEUE_CHANGES)[number]
 
-interface Choices {
+export interface Choices {
   paused: boolean
   /** Started anyway, whatever it waits on. */
   anyway: boolean
@@ -108,7 +108,8 @@ interface Choices {
   answeredAt: number
 }
 
-function choicesFor(task: string, events: readonly TadeEvent[]): Choices {
+/** Every choice a person has made about one piece of queued work. */
+export function choicesFor(task: string, events: readonly TadeEvent[]): Choices {
   const choices: Choices = { paused: false, anyway: false, answeredAt: 0 }
   for (const event of events) {
     if (event.type !== 'queue_changed' || event.task !== task) continue
@@ -235,8 +236,18 @@ function troubleWith(dep: string, facts: QueueFacts, since: number): string | nu
   return null
 }
 
-/** Why a task's own start failed, since anyone last answered it. */
-function ownTrouble(task: string, events: readonly TadeEvent[], since: number): string | null {
+/**
+ * Why a task's own start failed, since anyone last answered it.
+ *
+ * Exported because the inbox asks the same question of an intake-originated
+ * task and the answer must be the same sentence: a second reading of the same
+ * events is a second answer, and the one place this is read from is here.
+ */
+export function troubleStarting(
+  task: string,
+  events: readonly TadeEvent[],
+  since: number,
+): string | null {
   let because: string | null = null
   for (const event of events) {
     if (event.task !== task || event.seq <= since) continue
@@ -306,7 +317,7 @@ function stateOf(item: Queued, facts: QueueFacts, tree: boolean): QueueState {
   if (queuePaused(facts.events, item.project)) return { kind: 'paused', all: true }
   const choices = choicesFor(item.task, facts.events)
   if (choices.paused) return { kind: 'paused', all: false }
-  const own = ownTrouble(item.task, facts.events, choices.answeredAt)
+  const own = troubleStarting(item.task, facts.events, choices.answeredAt)
   if (own) return { kind: 'held', on: null, because: own }
   // Started anyway: somebody has already answered for this one, and an answer
   // is not asked twice — not for what it waits on, and not for the tree.

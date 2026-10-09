@@ -19,6 +19,8 @@ is still the executor.
 | `packages/core/src/templates-builtin.ts` | the ones Tade ships, as source |
 | `packages/workbench/src/templates.ts` | reading the real world, and stamping one out |
 | `packages/cli/src/commands/templates.ts` | `tade templates` and `tade personas` |
+| `packages/core/src/templates-edit.ts` | the form: `workflowFields`, `editWorkflow`, `addWorkflowStep`, `removeWorkflowStep`, `workflowPlaces` |
+| `packages/app/src/panels/workflow/` · `wire/workflows.ts` | writing one in the window: `/workflows`, the list, the form, the preview, Publish |
 | `packages/orchestrator/src/tool-host.ts` | `template/list`, `template/dry-run`, `template/use` |
 
 ```
@@ -115,6 +117,35 @@ refused too — nothing would make them green again.
 
 Declared and not sniffed, like every other capability here: a rule that read intent out of a prompt
 would be a rule that is wrong twice a year and silent about it.
+
+## Writing one in a form, which is a list and never a canvas
+
+`/workflows` opens the editor: the templates and their steps down the left, a form for whichever
+one you are on down the right, and under it the resolved tree. The comparison that decided this is
+in research.md §9.4 — a node canvas expresses a DAG natively and costs a layout engine, drag, hit
+testing, zoom and an undo of *geometry*, and positions are noise in every diff; an intake template
+has three to five steps with one shape, and a canvas is for a graph you do not already know.
+
+- **Every edit is a `Template` in and a `Template` out** (`templates-edit.ts`, pure), so the form
+  and `tade templates check` run the same validator and a form can never accept what publishing
+  refuses. The form may hold an invalid intermediate shape on purpose — refusing every one would be
+  a form you could not get from one valid template to another in — and `templateProblems` is what
+  refuses the publish.
+- **A dependency is a tick beside the step it waits on, with the reason beside the tick**, because a
+  wait with no reason given is the one thing `checkPlan` can tell you nothing useful about. The
+  preview marks one.
+- **Renaming a step rewires every wait on it.** A rename that left them behind makes a plan that
+  waits on a step that does not exist — refused, after the file was already written.
+- **A prompt of more than a line is not edited here.** A governing instruction is prose and a
+  one-line field is where prose goes to die: the field says so and the edit is refused, because a
+  field that quietly dropped every line after the first would be a form that edits an agent's
+  instructions by deleting them.
+- **Saving rewrites the draft file**, so a comment in it is not kept — said in the file's own header
+  (`draftYaml`) rather than discovered. `writeDraft` writes drafts by absence: the path is the
+  drafts directory and nothing passed in can move it.
+- **Publishing is a person's, and it asks.** The page calls `publishTemplate`, the same door the
+  command calls, so immutability, the validation and the personas folded in are one implementation.
+  Nothing the orchestrator can reach writes, publishes or rejects a template.
 
 ## Changing something
 
