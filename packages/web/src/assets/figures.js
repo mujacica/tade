@@ -218,6 +218,28 @@ export function shortClockOf(at) {
   return clockOf(at).slice(0, 5)
 }
 
+/**
+ * What period every money figure on a screen covers, or null where nothing
+ * can say.
+ *
+ * **A figure without its period is not a figure.** The window folds spend from
+ * its own midnight, so a task that cost forty dollars yesterday and nothing
+ * since arrives with no cost at all — which `money` draws as a dash and the
+ * dash's own word calls *not recorded*. That is the three-dashes lie one
+ * period out: the work was recorded, in a day this figure does not cover.
+ *
+ * The instant comes off the snapshot (`fresh.spendSince`) and is rendered in
+ * the reader's own clock, like every other moment on the page, because the
+ * phone is somewhere else and *today* is not the same day there. The page
+ * never says *why* the instant is the one it is — that is the window's rule
+ * and would be a second copy of it here.
+ */
+export function sinceSaid(at) {
+  if (at === null || at === undefined || at === '') return null
+  if (Number.isNaN(Date.parse(at))) return null
+  return `— these figures are what has been spent since ${shortClockOf(at)}, and nothing before it`
+}
+
 /** How long until a moment, or null where there is no moment to count to. */
 export function untilSaid(at, now) {
   if (at === null || at === undefined || at === '') return null

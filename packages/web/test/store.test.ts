@@ -17,6 +17,7 @@ import {
   rowsOf,
   SPEAKS,
   spendFold,
+  spendSince,
   taskAt,
   tasksIn,
   wantingIds,
@@ -414,6 +415,15 @@ describe('the clock an age is counted against', () => {
 
   it('is the device’s own when there is no snapshot to freeze against', () => {
     expect(asOf(emptyStore(), 'unreachable', NOW)).toEqual({ at: NOW, frozen: false })
+  })
+
+  it('reads the period the money covers off the snapshot, never off the device', () => {
+    // The window folds from its own midnight and the phone is somewhere else,
+    // so the page may not work this out: it reads the instant the server sent
+    // and says that. With no snapshot there is nothing to say.
+    const { store } = held()
+    expect(spendSince(store)).toBe(store.fresh.spendSince)
+    expect(spendSince(emptyStore())).toBeNull()
   })
 })
 

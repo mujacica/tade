@@ -24,6 +24,7 @@ import {
   pricedOf,
   SEGMENTS,
   shortClockOf,
+  sinceSaid,
   tokens,
   tokensSaid,
   untilSaid,
@@ -250,5 +251,28 @@ describe('a clock', () => {
     expect(untilSaid(new Date(NOW + 134 * 60_000).toISOString(), NOW)).toBe('2h 14m')
     expect(untilSaid(new Date(NOW - 1).toISOString(), NOW)).toBe('now')
     expect(untilSaid(null, NOW)).toBeNull()
+  })
+})
+
+describe('the period every money figure covers', () => {
+  it('names the instant the fold starts at, in the reader’s own clock', () => {
+    // The window folds from **its** midnight, so a task that cost forty
+    // dollars yesterday and nothing since arrives with no cost at all and is
+    // drawn as a dash whose word is *not recorded*. Said, the dash reads as
+    // what it is. The instant is rendered where the reader is, like every
+    // other moment on the page: a phone in another zone is looking at the
+    // same instant and should see its own clock for it.
+    const at = '2026-10-08T07:00:00.000Z'
+    expect(sinceSaid(at)).toBe(
+      `— these figures are what has been spent since ${shortClockOf(at)}, and nothing before it`,
+    )
+  })
+
+  it('says nothing at all where nothing has been folded yet', () => {
+    // `unknown` is first-class: a window that has had no beat has no period,
+    // and naming one would be a claim about a fold that has not happened.
+    expect(sinceSaid(null)).toBeNull()
+    expect(sinceSaid('')).toBeNull()
+    expect(sinceSaid('not a date')).toBeNull()
   })
 })

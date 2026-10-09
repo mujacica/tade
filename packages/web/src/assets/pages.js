@@ -22,7 +22,16 @@
 // with a `<caption>` and `<th scope>`.
 
 import { classOn, el, empty, into, keyed, textIn } from './dom.js'
-import { ageSaid, count, money, onPlan, planBar, tokensSaid, untilSaid } from './figures.js'
+import {
+  ageSaid,
+  count,
+  money,
+  onPlan,
+  planBar,
+  sinceSaid,
+  tokensSaid,
+  untilSaid,
+} from './figures.js'
 import { checkMark } from './glyphs.js'
 import { MORE } from './routes.js'
 import {
@@ -51,6 +60,7 @@ import {
   reviewsOf,
   rowsOf,
   spendFold,
+  spendSince,
   tasksIn,
 } from './store.js'
 
@@ -298,10 +308,11 @@ export function spendScreen() {
     class: 'unknown',
     text: '— some of these tokens ran on a model no rate here knows',
   })
-  const covers = el('p', {
-    class: 'unknown',
-    text: 'this is what the tasks on this page have cost, not a figure for a day or a week',
-  })
+  // **The period, said rather than denied.** The sentence that used to be here
+  // said this was not a figure for a day — and it is one: the window folds
+  // spend from its own midnight, so without this a phone reads a dash on a
+  // task that cost forty dollars yesterday as *not recorded*.
+  const covers = el('p', { class: 'unknown' })
   const caveats = { scope, floor, noMoney, unrated, covers }
   into(made.body, big, under, kinds, outside, scope, floor, noMoney, unrated, covers)
 
@@ -349,7 +360,7 @@ export function spendScreen() {
         ['unpriced', tokens === null || tokens.unpriced === '' ? null : tokens.unpriced],
       ])
       planEquivalentIn({ outside, planWhy, planSaid, planNot }, fold)
-      caveatsIn(caveats, fold, view.may.spend)
+      caveatsIn(caveats, fold, view.may.spend, spendSince(view.store))
       const rows = plansOf(view.store)
       textIn(plans.figure, count(rows.length))
       noPlans.hidden = rows.length > 0
@@ -401,12 +412,15 @@ function planEquivalentIn(made, fold) {
  * Shown and hidden rather than built and thrown away, so a figure somebody is
  * reading does not move down the page because a caveat appeared under it.
  */
-function caveatsIn(made, fold, granted) {
+function caveatsIn(made, fold, granted, since) {
   // The sentence the two-word column cannot carry, said once where there is
   // room: a dash here is about this device's reach and not about the work.
   made.scope.hidden = granted
   for (const one of ['floor', 'noMoney', 'unrated', 'covers']) made[one].hidden = !granted
   if (!granted) return
+  // Null where nothing has been folded yet, which is `unknown` and is said by
+  // saying nothing rather than by naming a date in 1970.
+  sayIn(made.covers, sinceSaid(since))
   made.floor.hidden = !fold.partial
   sayIn(
     made.noMoney,

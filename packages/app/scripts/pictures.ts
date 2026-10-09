@@ -292,6 +292,16 @@ export const PICTURES: readonly Picture[] = [
       'among the extensions, and its tools reach every agent and the orchestrator.',
   },
   {
+    file: 'away.svg',
+    scenario: 'away-pairing',
+    crop: 'panel',
+    about:
+      'The away view, on and on this machine alone: a code to scan, the address under it, how ' +
+      'long the code has left, and every device already paired with what each may read — ' +
+      'because seeing the whole list is the real answer to one having been added by something ' +
+      'running here.',
+  },
+  {
     file: 'sentry.svg',
     scenario: 'an-agent-on-a-sentry-issue',
     crop: { top: 2, height: 21 },

@@ -23,7 +23,7 @@ import {
   toneOn,
   unknown,
 } from './dom.js'
-import { count, money, onPlan, tokensSaid } from './figures.js'
+import { count, money, onPlan, sinceSaid, tokensSaid } from './figures.js'
 import { checkMark, taskMark } from './glyphs.js'
 import { pathOf } from './routes.js'
 import {
@@ -39,7 +39,16 @@ import {
   sayIn,
   section,
 } from './rows.js'
-import { omitted, projectAt, queueIn, spendFold, taskAt, tasksIn, wantsYou } from './store.js'
+import {
+  omitted,
+  projectAt,
+  queueIn,
+  spendFold,
+  spendSince,
+  taskAt,
+  tasksIn,
+  wantsYou,
+} from './store.js'
 
 /* ── the overview ──────────────────────────────────────────────────────────── */
 
@@ -225,7 +234,14 @@ export function projectScreen(where) {
       noQueue.hidden = queued.length > 0
 
       checksIn(checks, folds, tasks)
-      spendIn(spend, folds, tasks, omitted(view.store, 'tasks') > 0, view.may.spend)
+      spendIn(
+        spend,
+        folds,
+        tasks,
+        omitted(view.store, 'tasks') > 0,
+        view.may.spend,
+        spendSince(view.store),
+      )
     },
   }
 }
@@ -253,10 +269,14 @@ function foldsOf(checks, spend) {
       text: '— some tasks are not on this page, so this is a floor',
     }),
     scope: el('p', { class: 'unknown', text: '— not granted to this device' }),
+    // What period the figures above cover. Said here as well as on the Spend
+    // screen, because a dash on either reads as *nothing was spent* without
+    // it (`sinceSaid`).
+    covers: el('p', { class: 'unknown' }),
   }
   into(made.outside, made.planWhy, made.planSaid, made.planNot)
   into(checks.body, made.checks, made.quiet)
-  into(spend.body, made.scope, made.spend, made.outside, made.noMoney, made.floor)
+  into(spend.body, made.scope, made.spend, made.outside, made.noMoney, made.floor, made.covers)
   return made
 }
 
@@ -289,7 +309,7 @@ function checksIn(section_, made, tasks) {
  * down. And a plan's equivalent **below a rule and in no total**, because a
  * subscription already paid for those turns and nobody was charged them.
  */
-function spendIn(section_, made, tasks, partial, may) {
+function spendIn(section_, made, tasks, partial, may, since = null) {
   const fold = spendFold(tasks, partial)
   const paid = money(fold, may)
   textIn(section_.figure, paid.said === '—' ? '—' : `${fold.partial ? '≥' : ''}${paid.said}`)
@@ -298,8 +318,9 @@ function spendIn(section_, made, tasks, partial, may) {
   // rather than about this device's reach — which is the same lie the dash
   // itself exists to avoid.
   made.scope.hidden = may
-  for (const one of ['spend', 'outside', 'noMoney', 'floor']) made[one].hidden = !may
+  for (const one of ['spend', 'outside', 'noMoney', 'floor', 'covers']) made[one].hidden = !may
   if (!may) return
+  sayIn(made.covers, sinceSaid(since))
   const tokens = tokensSaid(fold)
   dlIn(made.spend, [
     ['exact', fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null],

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Reach } from '../src/reach.ts'
+import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
 import { Tickets } from '../src/tickets.ts'
@@ -11,6 +11,7 @@ import {
   type Finding,
   LOOKS,
   NOT_FOR_A_DEVICE_GRANTED_NOTHING,
+  NOT_FOR_A_GRANTED_DEVICE,
   sayReport,
   WIDTHS,
   worstOf,
@@ -54,6 +55,17 @@ import { input, NOW } from '../test/fixtures.ts'
 const shots = shotsDir(process.argv)
 const findings: Finding[] = []
 
+/**
+ * What the next pairing is granted.
+ *
+ * Mutable because the harness pairs **twice**: a device granted nothing, which
+ * is what the honesty checks are about, and one granted everything — because
+ * every figure on every screen draws differently with the grant, and a page
+ * nobody has rendered with a number in it is a page axe, the tap targets and
+ * the 360px overflow have never actually been asked about.
+ */
+let granting: Grant[] = []
+
 /** The real listener, the real pairing, and a ticket to walk in with. */
 async function serve() {
   const home = await mkdtemp(join(tmpdir(), 'tade-away-browser-'))
@@ -73,7 +85,7 @@ async function serve() {
     tell: () => {},
     // The keypress at the machine, answered yes — which is the whole of what
     // authorises a pairing, and the one thing a browser cannot press.
-    confirm: async () => ({ let: true, projects: null, granted: [] }),
+    confirm: async () => ({ let: true, projects: null, granted: [...granting] }),
   })
   const bound = await server.listen()
   const at = bound.find((one) => one.startsWith('127.0.0.1'))
@@ -205,10 +217,55 @@ async function run() {
       await deltaUnder(page, origin, server, held, width.name)
       await context.close()
     }
+    await asGranted(made, origin, tickets, axe.source)
   } finally {
     await made.close()
     await server.close()
   }
+}
+
+/**
+ * Every screen again, for a device granted everything.
+ *
+ * **The half the three widths above cannot see.** The harness's first device
+ * is granted nothing on purpose, so every money figure, every note and every
+ * sign-in on every screen is a dash — which means the laid-out page with
+ * actual content in it, the one the owner will look at, has never been
+ * rendered in a browser at all. Here it is, once, at the width with the most
+ * on screen, with the same questions asked of it.
+ *
+ * One width rather than three: what differs with a grant is the content, not
+ * the breakpoints, and a second full sweep would double a harness people
+ * already have to install a browser for.
+ */
+async function asGranted(made: Engine, origin: string, tickets: Tickets, axe: string | null) {
+  const width = [...WIDTHS].sort((a, b) => b.width - a.width)[0]
+  if (width === undefined) return
+  granting = [...GRANTS]
+  const context = await made.newContext({
+    viewport: { width: width.width, height: width.height },
+  })
+  const page = await context.newPage()
+  const noise: string[] = []
+  page.on('pageerror', (problem: unknown) => noise.push(`threw: ${said(problem)}`))
+  page.on('console', (line: { type: () => string; text: () => string }) => {
+    if (line.type() === 'error') noise.push(`logged: ${line.text().split('\n')[0] ?? ''}`)
+  })
+  const at = `${width.name} granted`
+  await pairIn(page, origin, tickets.mint(`${origin}/pair`, Date.now()).value, at)
+  for (const look of LOOKS) {
+    if (look.path === '/pair') continue
+    const before = noise.length
+    await lookAt(page, origin, look, { name: at }, axe, true)
+    const fresh = noise.slice(before)
+    if (fresh.length > 0) {
+      found('quiet', `${look.name} @ ${at}`, 'fail', fresh.slice(0, 2).join('; '))
+    } else {
+      found('quiet', `${look.name} @ ${at}`, 'pass', 'nothing thrown, nothing logged')
+    }
+  }
+  await context.close()
+  granting = []
 }
 
 /**
@@ -295,6 +352,7 @@ async function lookAt(
   look: { path: string; name: string },
   width: { name: string; narrow?: true },
   axe: string | null,
+  granted = false,
 ) {
   const where = `${look.name} @ ${width.name}`
   try {
@@ -335,14 +393,27 @@ async function lookAt(
   if (title === '' || title === 'Tade') found('titles', where, 'fail', `the title is "${title}"`)
   else found('titles', where, 'pass', title)
 
-  // The device this harness pairs was granted nothing, so every withheld field
-  // is a null — and a page that drew one as *not recorded* would be telling
-  // somebody their work cost nothing when their phone was never allowed to ask.
-  const lies = NOT_FOR_A_DEVICE_GRANTED_NOTHING.filter((one) => shape.words.includes(one))
-  if (lies.length > 0) {
-    found('honesty', where, 'fail', `says ${lies.join('; ')} to a device granted nothing`)
+  if (granted) {
+    // The other way round, and it is the same bug seen from the other side: a
+    // device that **was** granted the content must never be told the content
+    // was withheld from it.
+    const withheld = NOT_FOR_A_GRANTED_DEVICE.filter((one) => shape.words.includes(one))
+    if (withheld.length > 0) {
+      found('granted', where, 'fail', `says ${withheld.join('; ')} to a device granted everything`)
+    } else {
+      found('granted', where, 'pass', 'nothing is withheld from a device that was granted it')
+    }
   } else {
-    found('honesty', where, 'pass', 'every withheld field says it was withheld')
+    // The device this harness pairs was granted nothing, so every withheld
+    // field is a null — and a page that drew one as *not recorded* would be
+    // telling somebody their work cost nothing when their phone was never
+    // allowed to ask.
+    const lies = NOT_FOR_A_DEVICE_GRANTED_NOTHING.filter((one) => shape.words.includes(one))
+    if (lies.length > 0) {
+      found('honesty', where, 'fail', `says ${lies.join('; ')} to a device granted nothing`)
+    } else {
+      found('honesty', where, 'pass', 'every withheld field says it was withheld')
+    }
   }
 
   if (axe !== null) await axeOn(page, where, axe)

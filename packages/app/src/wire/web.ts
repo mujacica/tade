@@ -8,6 +8,7 @@ import {
   planStandings,
   producedIn,
   routesOf,
+  startOfToday,
   titlesOf,
   type Workspace,
   writtenOrder,
@@ -248,6 +249,11 @@ export class Away implements Subject {
         titles: titlesOf(this.config()),
         plans: planStandings(this.wire.opts.client.planUsage(), this.wire.now()),
         machineUpSince: this.upSince,
+        // The period `spendToday` covers, handed over beside the fold so the
+        // page says what the figures are of rather than guessing. Through
+        // `startOfToday`, which is the same rule `Live` folds by — one rule,
+        // so the label and the number cannot be of two different days.
+        spendSince: startOfToday(this.wire.now()),
       },
       world,
     )
@@ -625,6 +631,9 @@ function empty(): Omit<SnapshotInput, 'reach' | 'lifetime'> {
     plans: [],
     warnings: [],
     machineUpSince: null,
+    // Nothing folded yet, so there is no period to name: `unknown`, which the
+    // page says by saying nothing rather than by naming a date in 1970.
+    spendSince: null,
   }
 }
 
@@ -690,6 +699,7 @@ export function beatParts(live: Beatable, world: Workspace): AwayBeat {
     notes: live.notes(null),
     plans: live.plans,
     machineUpSince: live.machineUpSince,
+    spendSince: live.spendSince,
   }
 }
 
@@ -726,4 +736,6 @@ export interface Beatable {
   /** The task snapshots the window already drew, for `waiting`. */
   tasks: readonly { task: string; waiting?: boolean }[]
   machineUpSince: number | null
+  /** When `spendToday`'s fold starts, which is the period every figure covers. */
+  spendSince: number | null
 }

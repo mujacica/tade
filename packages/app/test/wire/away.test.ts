@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, startOfToday } from '@tade/core'
 import { readDevices, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
@@ -246,6 +246,26 @@ describe('what it costs when nobody is looking', () => {
     const snapshot = readingOf(away).snapshot()
     expect(snapshot.tasks).toEqual([])
     expect(snapshot.fresh.epoch).not.toBe('')
+    // Nothing has been folded, so there is no period any money figure covers:
+    // `unknown`, and never a date in 1970 that a page would draw as a time.
+    expect(snapshot.fresh.spendSince).toBeNull()
+  })
+
+  it('says the period its money figures cover, as the fold it actually made', async () => {
+    // **The label and the number have to be of the same day.** The window
+    // hands over `spendToday`'s fold, which starts at its own midnight — so a
+    // task that cost forty dollars yesterday and nothing since arrives with
+    // no cost at all, and a page with no period on it draws that as *not
+    // recorded*. Asserted against `startOfToday` of the window's own clock,
+    // because a second rule for the same moment is how the two come to
+    // disagree.
+    const now = Date.parse('2026-10-08T14:30:00.000Z')
+    const { live } = heldState()
+    const { away } = await wiring({ web: { enabled: true }, live, now })
+    await away.open()
+    await paired(away)
+    const snapshot = readingOf(away).snapshot()
+    expect(snapshot.fresh.spendSince).toBe(new Date(startOfToday(now)).toISOString())
   })
 })
 
@@ -475,7 +495,7 @@ function readingOf(away: Away) {
   const made = (
     away as unknown as {
       readingFor: (reach: unknown) => {
-        snapshot: () => { tasks: unknown[]; fresh: { epoch: string } }
+        snapshot: () => { tasks: unknown[]; fresh: { epoch: string; spendSince: string | null } }
       }
     }
   ).readingFor

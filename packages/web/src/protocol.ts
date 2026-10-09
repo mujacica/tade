@@ -54,7 +54,17 @@ export const FreshnessSchema = z.strictObject({
   rev: z.int().nonnegative(),
   openedAt: z.string(),
   machineUpSince: z.string().nullable(),
-  /** Status's own warnings, verbatim. Tade's words, so metadata. */
+  /**
+   * The moment every money figure in this projection is counted from.
+   *
+   * On the wire because **the page cannot know it and must not guess it**: the
+   * window folds spend from its own midnight (`spendToday`), and a phone in
+   * another timezone reading the word *today* would read its own. `null` where
+   * nothing has been folded yet, which is `unknown` and is why the page says
+   * nothing about a period rather than naming the epoch.
+   */
+  spendSince: z.string().nullable(),
+  /** Status's own warnings, with anything path-shaped taken out. Metadata. */
   warnings: z.array(z.string()),
 })
 export type Freshness = z.infer<typeof FreshnessSchema>

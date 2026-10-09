@@ -1,3 +1,5 @@
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { COMPANIONS, CSP } from '../src/headers.ts'
 import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
@@ -326,5 +328,122 @@ describe('the path a request is for', () => {
     // and nothing joins a parameter onto a path, so there is nothing here that
     // has to refuse `..` — only something that cannot represent it.
     expect(pathOf('/assets/%2e%2e%2f%2e%2e%2fconfig.yaml')).toBe('/assets/../../config.yaml')
+  })
+})
+
+describe('nothing a crafted request can do moves a task', () => {
+  /**
+   * Every file under the home, by path and by its bytes.
+   *
+   * The whole of Tade's state about this machine lives under one folder, so
+   * "nothing was mutated" is answerable as a fact rather than as a list of
+   * routes somebody remembered to check. `web-devices.jsonl` is the one file
+   * a request is allowed to append to, and it is named rather than excluded
+   * by a pattern, so a *second* file appearing is a failure.
+   */
+  async function filesUnder(home: string): Promise<Record<string, string>> {
+    const out: Record<string, string> = {}
+    for (const entry of await readdir(home, { withFileTypes: true, recursive: true })) {
+      if (!entry.isFile()) continue
+      const at = join(entry.parentPath, entry.name)
+      out[relative(home, at)] = await readFile(at, 'utf8')
+    }
+    return out
+  }
+
+  it('leaves every file Tade owns exactly as it was, session and all', async () => {
+    const one = await start()
+    const { cookie, csrf, device } = await pair(one)
+    // A real task, written the way Tade writes one, so this is a test about a
+    // file that exists rather than about an absence.
+    const tasks = join(one.home, 'projects', 'shop', 'tasks', 'refunds')
+    await mkdir(tasks, { recursive: true })
+    await writeFile(join(tasks, 'task.yaml'), 'id: shop/refunds\nparked: false\ndone: said\n')
+    const before = await filesUnder(one.home)
+
+    // Everything somebody who holds a good session would try. Each is a shape
+    // that has been a mutation route in some other control room: a verb on a
+    // task path, a verb tunnelled through a header or a query, a form post, a
+    // traversal out of the one route that owns a prefix, and the two routes
+    // that really do write — aimed at somebody else's device.
+    const crafted: {
+      path: string
+      method?: string
+      headers?: Record<string, string>
+      /** What it should answer, where that is not "there is nothing here". */
+      answers?: number
+    }[] = [
+      { path: '/api/tasks/shop%2Frefunds', method: 'POST' },
+      { path: '/api/tasks/shop%2Frefunds', method: 'PUT' },
+      { path: '/api/tasks/shop%2Frefunds', method: 'PATCH' },
+      { path: '/api/tasks/shop%2Frefunds', method: 'DELETE' },
+      { path: '/api/task/shop/refunds/park', method: 'POST' },
+      { path: '/api/queue/shop%2Frefunds/start', method: 'POST' },
+      { path: '/api/approvals/a1/approve', method: 'POST' },
+      { path: '/api/settings/surfaces.web.bind', method: 'POST' },
+      { path: '/api/notes', method: 'POST' },
+      // A verb smuggled past a router that reads one of these. Nothing here
+      // reads either, so both are answered as the `GET` they are — which is a
+      // `200`, and the file comparison at the end is what says the smuggled
+      // verb did not also happen.
+      {
+        path: '/api/snapshot',
+        method: 'GET',
+        headers: { 'x-http-method-override': 'DELETE' },
+        answers: 200,
+      },
+      { path: '/api/snapshot?_method=DELETE', method: 'GET', answers: 200 },
+      // Out of the one route that owns everything under its prefix.
+      { path: '/assets/../../projects/shop/tasks/refunds/task.yaml', method: 'GET' },
+      { path: '/assets/%2e%2e%2f%2e%2e%2fweb-devices.jsonl', method: 'GET' },
+      // Another device's credential, through the one route that destroys one.
+      { path: '/api/devices/0011223344556677', method: 'DELETE' },
+      { path: `/api/devices/${device}/../0011223344556677`, method: 'DELETE' },
+    ]
+    for (const one_ of crafted) {
+      const answer = await ask(one, one_.path, {
+        method: one_.method ?? 'GET',
+        headers: {
+          cookie,
+          origin: one.origin,
+          'content-type': 'application/json',
+          [CSRF_HEADER]: csrf,
+          ...one_.headers,
+        },
+        ...(one_.method === 'GET' || one_.method === undefined ? {} : { body: '{}' }),
+      })
+      // Not a `405` and not a `403` with a hint anywhere: an off capability is
+      // not a thing to probe, so a path nothing was built at and a path that
+      // exists under another method answer the same way.
+      expect(
+        one_.answers === undefined ? [403, 404] : [one_.answers],
+        `${one_.method ?? 'GET'} ${one_.path} → ${answer.status}`,
+      ).toContain(answer.status)
+    }
+
+    // The one query any route reads, with a traversal in it: a real `200`
+    // with nothing in it, because a scope is a **name matched against a
+    // note's own scope** and never a path anything is built from. Asserted
+    // rather than left out of the barrage, because "it answered 404" and "it
+    // answered the truth, which is that you have no notes there" are
+    // different facts and only the second one is this design's.
+    const notes = await ask(one, '/api/notes?scope=../../../etc/passwd', { headers: { cookie } })
+    expect(notes.status).toBe(200)
+    expect(said(notes).rows).toEqual([])
+
+    expect(await filesUnder(one.home)).toEqual(before)
+  })
+
+  it('writes nothing at all for a barrage with no session', async () => {
+    const one = await start()
+    const before = await filesUnder(one.home)
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'])
+      for (const path of ['/', '/api/snapshot', '/api/devices/0011223344556677', '/api/pair'])
+        await ask(one, path, {
+          method,
+          headers: { origin: one.origin, 'content-type': 'application/json' },
+          body: '{}',
+        })
+    expect(await filesUnder(one.home)).toEqual(before)
   })
 })

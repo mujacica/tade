@@ -26,7 +26,7 @@
 // exactly one writer, `Keyboard.remember`, and `namedBy` reads those lines to
 // authorise every `asked`-tier setting change on the machine. A page that could
 // put words in somebody's mouth would inherit authority over all of them.
-// `test/lifetime.test.ts` asserts the string does not appear here.
+// `test/separation.test.ts` asserts no source file here reaches either.
 //
 // Three things to know before adding a field, and a fourth before adding a
 // route (`routes.ts` has it: **no route mutates a project or a task**):

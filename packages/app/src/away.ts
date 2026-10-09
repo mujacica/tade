@@ -277,6 +277,8 @@ export interface AwayParts {
   notes: readonly NoteShown[]
   plans: readonly PlanStanding[]
   machineUpSince: number | null
+  /** The moment `TaskExtra.spend` is folded from. The window's own midnight. */
+  spendSince: number | null
 }
 
 /** Every collection one projection is built from, as one value. */
@@ -300,6 +302,7 @@ export interface AwayCollections {
   plans: readonly PlanStanding[]
   warnings: readonly string[]
   machineUpSince: number | null
+  spendSince: number | null
 }
 
 /**
@@ -333,10 +336,18 @@ export function awayCollections(parts: AwayParts): AwayCollections {
     findings: [],
     notes: noteIn(parts.notes),
     plans: parts.plans,
-    // Status's own words, verbatim, and treated as metadata because every one
-    // of them is a sentence Tade wrote.
+    // Status's own words, handed over as it wrote them — and **they are not
+    // all path-free**: `collectStatus` writes a project's own checkout into a
+    // warning when git will not answer there. They are the one metadata field
+    // this side does not compose, so the projection keeps the claim at its own
+    // boundary (`withoutPaths`, `@tade/web`'s `fields.ts`) rather than here,
+    // where it would have to be done again for every future producer.
     warnings: parts.world.warnings,
     machineUpSince: parts.machineUpSince,
+    // The period every money figure here covers, handed over rather than
+    // described: the window folds from its own midnight, and the phone is
+    // somewhere else.
+    spendSince: parts.spendSince,
   }
 }
 

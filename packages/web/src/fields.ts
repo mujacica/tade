@@ -142,3 +142,60 @@ export const NEVER_A_FIELD: Readonly<Record<string, string>> = {
 export function forbidden(keys: Iterable<string>): string[] {
   return [...keys].filter((key) => key in NEVER_A_FIELD)
 }
+
+/** What stands in for something taken out of one of Tade's own sentences. */
+export const ELIDED = '…'
+
+/**
+ * One of Tade's own sentences, with anything shaped like an absolute path
+ * taken out of it.
+ *
+ * **Which sentences, and why one of them needed this.** The projection's claim
+ * is *the away view adds no path and no credential of its own*
+ * (DECISIONS.md §4.11), and every metadata field honours it by construction —
+ * `away.ts` writes each one out and `root`, `worktree` and `cwd` are names a
+ * projection may never have. `Freshness.warnings` is the exception, and it is
+ * the exception because it is the one metadata field whose text is **composed
+ * elsewhere**: `collectStatus` writes `<project>: <its root>: <what git said>`
+ * when a project's checkout will not answer, and the away view carries what it
+ * is handed. A leakage test over a fixture whose warning happens to have no
+ * path in it passes while the claim is false — which is the failure
+ * DECISIONS.md §4.11 names by name, and is the one that happened.
+ *
+ * So the claim is kept **here**, at the boundary that makes it, rather than by
+ * asking every present and future warning to be written carefully. What a page
+ * needs of a warning is that something could not be read and roughly what; the
+ * path is for the person at the machine, and `tade status` still prints it.
+ *
+ * A **word at a time**, because a path in a sentence is a whitespace-delimited
+ * token with punctuation around it, and a regex over the whole string either
+ * eats `and/or` or stops at the first space. Repository-relative names
+ * (`tasks/x/task.yaml`, `src/a.ts`) are kept: they name nothing of the machine
+ * and they are most of what a warning is for.
+ */
+export function withoutPaths(said: string): string {
+  return said.replace(/\S+/g, (word) => elide(word) ?? word)
+}
+
+/** One word as it goes out, or null where it was not a path at all. */
+function elide(word: string): string | null {
+  const head = /^[([<"'`«]*/.exec(word)?.[0] ?? ''
+  const tail = /[)\]>"'`»,;:.]*$/.exec(word)?.[0] ?? ''
+  const bare = word.slice(head.length, word.length - tail.length)
+  if (bare === '' || !absolute(bare)) return null
+  return `${head}${ELIDED}${tail}`
+}
+
+/**
+ * Whether a word names somewhere on a machine rather than somewhere in a
+ * repository.
+ *
+ * `~/x` and `C:\x` say so in their first character. A word starting with `/`
+ * needs a second separator, so that `/` on its own — and the `/` somebody
+ * wrote between two words — is left where it is.
+ */
+function absolute(word: string): boolean {
+  if (/^~[/\\]/.test(word) || /^[A-Za-z]:[/\\]/.test(word)) return true
+  if (!/^[/\\]/.test(word)) return false
+  return (word.match(/[/\\]/g) ?? []).length >= 2
+}

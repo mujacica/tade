@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { type Asset, assetFor, matchesEtag, readAssets } from './assets.ts'
+import { type Asset, assetFor, assetsDir, matchesEtag, readAssets } from './assets.ts'
 import { appendDevice, type Device, readDevices } from './devices.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
 import {
@@ -613,6 +613,21 @@ export function webServer(opts: ServerOptions): WebServer {
     async listen(): Promise<readonly string[]> {
       if (!opts.surface.enabled) return []
       assets ??= await readAssets()
+      // **A folder with no files in it is said, not served.** `readAssets`
+      // answers a folder it could not read the same way it answers an empty
+      // one, which is right for it and is a listener that `404`s every page
+      // with nothing anywhere saying why — the one failure here that only
+      // happens on somebody else's machine. A warning costs a line and is the
+      // difference between a broken install and a mystery.
+      if (assets.size === 0) {
+        tell({
+          type: 'warning',
+          detail: {
+            warning: `the away view found none of its own files, so every page will be a 404 — ${assetsDir()}`,
+            where: assetsDir(),
+          },
+        })
+      }
       for (const host of listenOn(opts.surface)) {
         const server = createServer((req, res) => {
           void handle(req, res)

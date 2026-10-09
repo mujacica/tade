@@ -406,6 +406,23 @@ worktree. With Jev on, what no pattern names is read a second time before you ar
 a `terraform destroy` is the command read back rather than one word said to it. It can only ever
 make Tade ask for more, never less, and what you hear is Tade's own sentence, never a probability.
 
+## A page for your phone, while the window is open
+
+Off by default. Turn it on and the window will mint a code to scan; letting a device in is a
+keypress at the machine, and nothing else grants one — a typed address reaches the pairing page
+with nothing to present. What the phone then gets is **read-only**: what is working, what wants
+you, the queue, the checks, the reviews, what it has cost and your notes. There is no approve, no
+steer and no setting on it, because none of those routes exists.
+
+![The away view in the window: a code to scan, the address under it, how long it has left, and every device already paired](https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg)
+
+It lives in the window and dies with it, which is the other half of closing Tade being harmless —
+a bookmark tapped with Tade closed is a connection error, not an empty control room. On your own
+network it is plain HTTP: anybody on the same wifi can read every page it serves and the session
+cookie with it, so `tailscale serve localhost:7654` is the way to give a phone HTTPS while Tade
+keeps listening on this machine alone. `tade web` says what is on, `tade web devices` who is
+paired, and `tade web revoke --all` disconnects every one of them without needing a network.
+
 ## Installing
 
 Four ways in, all the same npm package. Whichever you use, the command is `tade`.

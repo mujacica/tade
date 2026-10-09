@@ -222,6 +222,7 @@ describe('what a person wrote', () => {
         findings: 9,
         notes: 9,
         plans: 9,
+        warnings: 9,
         text: 4,
       },
     )

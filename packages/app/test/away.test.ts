@@ -110,6 +110,7 @@ function collections(over: Partial<Parameters<typeof awayCollections>[0]> = {}) 
     notes: [],
     plans: [],
     machineUpSince: Date.parse('2026-10-07T08:00:00.000Z'),
+    spendSince: Date.parse('2026-10-08T00:00:00.000Z'),
     ...over,
   })
 }

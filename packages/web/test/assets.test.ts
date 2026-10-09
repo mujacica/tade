@@ -1,7 +1,17 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { cpSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { assetFor, assetsDir, etagOf, matchesEtag, readAssets, typeOf } from '../src/assets.ts'
+import {
+  assetFor,
+  assetsDir,
+  etagOf,
+  folderIn,
+  matchesEtag,
+  readAssets,
+  typeOf,
+} from '../src/assets.ts'
 import { CSP } from '../src/headers.ts'
 
 // The rules about what may be in `src/assets/`, each one a bug that would
@@ -176,6 +186,35 @@ describe('reading them into a map', () => {
 
   it('is no files at all for a folder that is not there', async () => {
     expect((await readAssets('/nowhere-at-all')).size).toBe(0)
+  })
+
+  it('finds them under a path with a space in it, which a URL would encode', async () => {
+    // The bug this is for: `new URL(...).pathname` percent-encodes, so
+    // installed anywhere with a space in the path — `~/Library/Application
+    // Support/…`, a Windows `Program Files`, a person whose account is two
+    // words — the folder handed to `readdir` was `…Application%20Support…`,
+    // which is not there. `walk` answers a folder it cannot read with no
+    // files, so the map came back empty, every page and every asset was a
+    // `404`, and nothing anywhere said why. Real directories on both sides,
+    // because the whole failure was between a URL and the filesystem.
+    const lib = mkdtempSync(join(tmpdir(), 'tade assets '))
+    cpSync(DIR, join(lib, 'assets'), { recursive: true })
+    // Through the URL, the way the module reaches its own folder: a path
+    // handed straight to `readAssets` never crosses the seam that was broken.
+    const assets = await readAssets(folderIn(pathToFileURL(join(lib, 'assets.js')).href))
+    expect(assets.size).toBe(ALL.length)
+    expect(assets.get('index.html')?.bytes.length).toBeGreaterThan(0)
+  })
+
+  it('turns a module URL into a path and never into a URL’s pathname', () => {
+    // The conversion on its own, against a URL this machine does not have, so
+    // the rule holds on a laptop whose own checkout has no space in it — which
+    // is every machine this has ever been run on, and is why it shipped.
+    expect(folderIn('file:///Users/two%20words/lib/x/assets.js')).toBe(
+      '/Users/two words/lib/x/assets/',
+    )
+    expect(folderIn('file:///plain/lib/assets.js')).toBe('/plain/lib/assets/')
+    expect(assetsDir()).not.toContain('%')
   })
 
   it('serves the shell for both of the document paths', async () => {

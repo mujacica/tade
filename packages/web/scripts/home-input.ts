@@ -155,6 +155,9 @@ export function inputFrom(home: string, reach: Reach, now: number): SnapshotInpu
     plans: [],
     warnings: ['measured from files alone: git, spend, checks and reviews were not looked at'],
     machineUpSince: upSince(home),
+    // Nothing is folded here: this reads task files and never the journal, so
+    // there is no period any money figure covers and no figure to cover.
+    spendSince: null,
   }
 }
 

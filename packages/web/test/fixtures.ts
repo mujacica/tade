@@ -187,8 +187,20 @@ export function input(over: Partial<SnapshotInput> = {}): SnapshotInput {
     findings: [finding()],
     notes: [note(), note({ at: '2026-10-08T12:00:00.000Z', text: 'two in one millisecond' })],
     plans: [plan()],
-    warnings: ['tmux is not installed, so no lane could be looked at'],
+    warnings: [
+      'tmux is not installed, so no lane could be looked at',
+      // **The shapes `collectStatus` actually writes**, not a tidy one. A
+      // warning is the only metadata field whose words are composed outside
+      // this package, and a fixture whose warnings happen to have no path in
+      // them is the leakage test passing while the claim is false — which is
+      // the failure DECISIONS.md §4.11 names, and is the one that happened.
+      `sentry: ${PRIVATE.root}: fatal: not a git repository (or any of the parent directories): .git`,
+      `${PRIVATE.worktree}: could not compare with main`,
+      `sentry/gone: no worktree of its own any more; its files are in ${PRIVATE.home}/projects/sentry/tasks/gone`,
+      `${PRIVATE.windows}\\notes: could not be read`,
+    ],
     machineUpSince: Date.parse('2026-10-07T08:00:00.000Z'),
+    spendSince: Date.parse('2026-10-08T00:00:00.000Z'),
     ...over,
   }
 }

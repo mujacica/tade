@@ -114,7 +114,7 @@ describe('the report', () => {
     expect(found.strings.authored).toBeGreaterThan(0)
     expect(found.strings.metadata).toBeGreaterThan(found.strings.authored)
     expect(found.reads).toEqual([...GRANTS])
-    expect(found.warnings).toBe(1)
+    expect(found.warnings).toBe(5)
   })
 
   it('counts a collection the device may not read as all of it omitted', () => {

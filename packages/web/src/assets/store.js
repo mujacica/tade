@@ -319,6 +319,16 @@ export function omitted(store, collection) {
  * last word**, so they stop — an age counting up against a snapshot nothing can
  * refresh is the lie §5.10 exists to prevent.
  */
+/**
+ * The moment every money figure in this projection is counted from, or null.
+ *
+ * Off the freshness rather than worked out here: the page cannot know the
+ * window's folding rule and must not guess at it (`sinceSaid`).
+ */
+export function spendSince(store) {
+  return store.fresh?.spendSince ?? null
+}
+
 export function asOf(store, kind, now) {
   const said = store.fresh === null ? null : Date.parse(store.fresh.at)
   if (kind === 'live' || said === null || Number.isNaN(said)) return { at: now, frozen: false }

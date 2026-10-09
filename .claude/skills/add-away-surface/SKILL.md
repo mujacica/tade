@@ -96,6 +96,24 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 - **`bind: lan` is a read-only transport** (`scopesOn`). A credential that crossed a network in the
   clear never buys an act, whatever is turned on later — and it is **re-asked at the act**, because
   the network a device is on changes.
+- **The assets folder is reached with `fileURLToPath`, never `new URL(...).pathname`.** A URL
+  percent-encodes, so under any install path with a space in it — `~/Library/Application Support/…`,
+  a `Program Files`, an account that is two words — `readdir` was handed `…Application%20Sup…`,
+  found nothing, and every page and every file became a `404` with nothing anywhere saying why.
+  `listen()` now says it when the map comes back empty, because a folder that could not be read is
+  not a folder with no files in it.
+- **`fresh.warnings` is the one metadata field whose words this package did not write**, so the
+  *no path of its own* claim is kept at the boundary (`withoutPaths`) and not inherited:
+  `collectStatus` writes `<project>: <its root>: <what git said>`. Its fixture carries the shapes
+  status really produces, because a fixture whose warnings happen to be tidy is the leakage test
+  passing while the claim is false. Bounded by `budget.warnings` too — the freshness rides on
+  every frame, so it is the one collection whose budget is about what a connected phone pays for
+  ever rather than about what fits on a screen.
+- **A money figure is drawn with the period it covers** (`fresh.spendSince`, `sinceSaid`). The
+  window folds from **its** midnight, so a task that cost forty dollars yesterday arrives with no
+  cost at all and the dash's own word is *not recorded* — the three-dashes lie one period out. The
+  instant is on the wire rather than a word on the page, because the phone is somewhere else and
+  *today* is not the same day there.
 - **A `.ts` file in `src/assets/` is renamed to `.js` at publish**, so it is served under one name here
   and another on somebody else's machine. `git add` every asset, too: staging copies only
   `git ls-files` output, so an un-added `.css` is a page with no styles everywhere but here
@@ -200,7 +218,10 @@ TADE_BROWSER='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
 ```
 
 It pairs a device through the real page, visits every route at 360/834/1440, runs axe, and checks the
-landmarks, the targets and that nothing scrolls sideways. **Neither is in the lockfile**, because
+landmarks, the targets and that nothing scrolls sideways. **It pairs twice**: a device granted
+nothing, which is what the honesty checks are for, and then one granted everything at the widest
+width — because every figure draws differently with the grant, and the page with actual money,
+notes and sign-ins on it is the one the owner will look at. **Neither is in the lockfile**, because
 Playwright's install pulls hundreds of megabytes of browser onto every machine, and this repository
 holds the line that `pnpm install` runs two scripts and installs nothing else. **With no browser it
 reports `unrun` with the reason and exits 2** — never a pass. That property is what

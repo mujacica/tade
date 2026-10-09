@@ -80,6 +80,7 @@ export const CHECKS = [
   'targets',
   'titles',
   'honesty',
+  'granted',
   'quiet',
   'delta',
 ] as const
@@ -93,6 +94,18 @@ export const CHECKS = [
  * two are different facts, and the second blames the work for the reader's own
  * read scope. The harness pairs a device granted nothing, so **any of these on
  * any screen is that bug**.
+ */
+export const NOT_FOR_A_GRANTED_DEVICE = ['not granted']
+
+/**
+ * Sentences a page may not say to a device that **was** granted the content.
+ *
+ * The same bug from the other side, and the reason the harness pairs twice: a
+ * device granted nothing renders every figure as a dash, so the page with
+ * actual money, notes and sign-ins on it — the one the owner will look at —
+ * would otherwise never have been laid out in a browser at all, and neither
+ * axe nor the tap targets nor the 360px overflow would have been asked about
+ * it.
  */
 export const NOT_FOR_A_DEVICE_GRANTED_NOTHING = [
   'not recorded',

@@ -56,6 +56,7 @@ describe('a beat on which only the clock moved', () => {
         notes: 200,
         plans: 20,
         text: 600,
+        warnings: 10,
       },
     )
     const beat = tick(whole, at(2_000))
@@ -65,9 +66,18 @@ describe('a beat on which only the clock moved', () => {
     expect(beat.fresh?.at).toBe(new Date(at(2_000)).toISOString())
     const ticked = measureDelta(beat)
     expect(ticked.timeOnly).toBe(true)
-    // The whole point: a tick does not grow with the tree.
-    expect(ticked.bytes).toBeLessThan(500)
+    // **The whole point, as an equality rather than a threshold**: the same
+    // tick over two hundred tasks and over four is the same number of bytes.
+    // A threshold says the same thing only for as long as nobody changes the
+    // fixture, and the one that was here was calibrated against a fixture
+    // with a single warning in it.
+    const few = tick(snapshotOf(input({ reach: reach(EVERY) }), NOW), at(2_000))
+    expect(ticked.bytes).toBe(measureDelta(few).bytes)
     expect(measureOf(whole).bytes).toBeGreaterThan(50 * ticked.bytes)
+    // And bounded, because the freshness is on every frame: the only part of
+    // it that is not a fixed-size field is status's warnings, which is what
+    // `BUDGET.warnings` is a budget for.
+    expect(ticked.bytes).toBeLessThan(1_000)
     expect(applyDelta(whole, beat)).toEqual({ ...whole, fresh: beat.fresh })
   })
 })

@@ -28,6 +28,16 @@ export interface Budget {
    * mean something different for every language.
    */
   text: number
+  /**
+   * How many of status's warnings cross, past which they are counted.
+   *
+   * Bounded for a reason the other collections do not have: the freshness
+   * rides on **every** frame, including a `tick`, whose whole job is to move a
+   * client's clock without growing with the tree (`delta.ts`). A machine with
+   * forty unreadable projects would otherwise put forty sentences on the wire
+   * every two seconds, for ever, to say what one line says.
+   */
+  warnings: number
 }
 
 /**
@@ -48,6 +58,7 @@ export const BUDGET: Budget = {
   notes: 200,
   plans: 20,
   text: 600,
+  warnings: 10,
 }
 
 /** One collection's share of a projection: what is here, and what is not. */

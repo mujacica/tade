@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { routeFor } from './routes.ts'
 
 // The browser's files: read into a map once, served from it for ever after.
@@ -48,7 +49,26 @@ export interface Asset {
 
 /** Where the files are, relative to this file. */
 export function assetsDir(): string {
-  return new URL('assets/', import.meta.url).pathname
+  return folderIn(import.meta.url)
+}
+
+/**
+ * The `assets/` folder beside a module, as a **path** and not as a URL's
+ * pathname.
+ *
+ * Its own function so the conversion can be tested with a URL this machine
+ * does not have, and `fileURLToPath` rather than `.pathname` because a URL
+ * percent-encodes: installed under `~/Library/Application Support/…` or any
+ * other folder with a space in it, `.pathname` hands back `…Application%20Sup…`
+ * and every `readdir` of it misses. What made that worth a named function is
+ * how it failed — `walk` answers a folder it cannot read with no files, so the
+ * map came back empty, every page and every file was a `404`, and nothing
+ * anywhere said why. It is the one bug in this package that appears only on
+ * somebody else's machine, which is the same reason `.ts` is banned in
+ * `assets/`.
+ */
+export function folderIn(url: string): string {
+  return fileURLToPath(new URL('assets/', url))
 }
 
 const TYPES: Readonly<Record<string, string>> = {

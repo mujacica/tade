@@ -1,4 +1,5 @@
 import type { PlanStanding, Spend } from '@tade/core'
+import { withoutPaths } from './fields.ts'
 import type {
   FindingIn,
   NoteIn,
@@ -248,15 +249,39 @@ function planRow(plan: PlanStanding, reach: Reach, budget: Budget): PlanRow {
   }
 }
 
-function freshnessOf(input: SnapshotInput, now: number): Freshness {
+function freshnessOf(input: SnapshotInput, now: number, budget: Budget): Freshness {
   return {
     at: ISO(now),
     epoch: input.lifetime.epoch,
     rev: input.lifetime.rev,
     openedAt: ISO(input.lifetime.openedAt),
     machineUpSince: ISO_OR(input.machineUpSince),
-    warnings: [...input.warnings],
+    spendSince: ISO_OR(input.spendSince),
+    // **The one metadata field whose words are composed elsewhere**, and so
+    // the one that needs the claim kept rather than inherited: `collectStatus`
+    // writes a project's own checkout into a warning when git will not answer
+    // in it. `withoutPaths` is why *the away view adds no path of its own*
+    // stays true of a sentence this package did not write.
+    warnings: warningsIn(input.warnings, budget),
   }
+}
+
+/**
+ * Status's warnings, as much of them as the budget allows.
+ *
+ * Capped, and **what was left out is said in the last line** rather than in a
+ * count beside it: the freshness is on every frame a client is sent, a `tick`
+ * included, so a field here is a field paid for twice a second for as long as
+ * a phone is awake. A count would need its own place on `Freshness`, and this
+ * is a list of sentences for a person to read — one more sentence is the shape
+ * it already has.
+ */
+export function warningsIn(warnings: readonly string[], budget: Budget = BUDGET): string[] {
+  const most = Math.max(1, budget.warnings)
+  if (warnings.length <= most) return warnings.map(withoutPaths)
+  const kept = warnings.slice(0, most - 1).map(withoutPaths)
+  kept.push(`and ${warnings.length - (most - 1)} more things could not be read`)
+  return kept
 }
 
 /**
@@ -360,7 +385,7 @@ export function snapshotOf(
 
   return {
     v: PROTOCOL_VERSION,
-    fresh: freshnessOf(input, now),
+    fresh: freshnessOf(input, now, budget),
     you: { device: reach.device, reads: readsOf(reach) },
     pages: {
       projects: info(projectPage),

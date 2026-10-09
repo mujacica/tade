@@ -302,11 +302,32 @@ export interface SnapshotInput {
   /**
    * What could not be read, in status's own words.
    *
-   * Carried verbatim and treated as metadata, because every one of them is a
-   * sentence Tade wrote. A warning that quoted a path would make that false,
-   * and `test/leak.test.ts` is where it would be caught.
+   * **The one metadata field whose words are composed outside this package**,
+   * and the one place the projection's claim has to be *kept* rather than
+   * inherited. `collectStatus` writes `<project>: <its root>: <what git said>`
+   * when a checkout will not answer, and `<task>: ... its files are in <the
+   * folder>` for a worktree somebody took away — so these do arrive with a
+   * machine path in them, and they may quote a tool's own error text. What
+   * crosses is run through `withoutPaths` (`fields.ts`), bounded by
+   * `budget.warnings`, and `test/leak.test.ts` holds it against a fixture
+   * carrying the shapes status actually writes — because a fixture whose
+   * warnings happen to have no path in them is that test passing while the
+   * claim is false, which is the failure DECISIONS.md §4.11 names.
    */
   warnings: readonly string[]
   /** When the machine came up, or null where it could not be read: `unknown`, not nought. */
   machineUpSince: number | null
+  /**
+   * The moment every `TaskIn.spend` is folded from, or null for nothing folded.
+   *
+   * **Carried because a figure without its period is not a figure.** The
+   * window hands over its own `spendToday` fold, which starts at midnight
+   * where Tade is running — so a task that cost forty dollars yesterday and
+   * nothing since arrives with `hasCost: false`, which the page would
+   * otherwise draw as *not recorded*: the exact lie the three-dashes rule
+   * exists to prevent, one period out. The page says the window instead, and
+   * says it from this rather than from a word of its own, because the phone is
+   * somewhere else and *today* is not the same day there.
+   */
+  spendSince: number | null
 }

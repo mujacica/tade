@@ -11,9 +11,30 @@ describe('the projection', () => {
     expect(snapshot.fresh.at).toBe('2026-10-08T14:30:00.000Z')
     expect(snapshot.fresh.epoch).toBe('7f3a9c21-0000-4000-8000-000000000000')
     expect(snapshot.fresh.rev).toBe(12)
+    // **Status's own sentences, with anything shaped like a path taken out
+    // of them.** A warning is the one metadata field this package does not
+    // write — `collectStatus` composes `<project>: <its root>: <what git
+    // said>` — so the projection's claim that it adds no path of its own is
+    // kept here rather than inherited (`withoutPaths`, `fields.ts`). A
+    // repository-relative name is not a path and stays.
     expect(snapshot.fresh.warnings).toEqual([
       'tmux is not installed, so no lane could be looked at',
+      'sentry: …: fatal: not a git repository (or any of the parent directories): .git',
+      '…: could not compare with main',
+      'sentry/gone: no worktree of its own any more; its files are in …',
+      '…: could not be read',
     ])
+  })
+
+  it('says how many more could not be read rather than carrying all of them', () => {
+    // The freshness rides on every frame, so this is the one collection whose
+    // budget is about what a connected phone pays for ever rather than about
+    // what fits on a screen.
+    const many = Array.from({ length: 25 }, (_, n) => `project-${n}: could not be read`)
+    const snapshot = snapshotOf(input({ reach: reach(EVERY), warnings: many }), NOW)
+    expect(snapshot.fresh.warnings).toHaveLength(10)
+    expect(snapshot.fresh.warnings[8]).toBe('project-8: could not be read')
+    expect(snapshot.fresh.warnings.at(-1)).toBe('and 16 more things could not be read')
   })
 
   it('says which device it is for and what that device may read', () => {

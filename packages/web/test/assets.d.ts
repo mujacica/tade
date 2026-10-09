@@ -66,6 +66,7 @@ declare module '*/assets/figures.js' {
   export function clockOf(at: string): string
   export function shortClockOf(at: string): string
   export function untilSaid(at: string | null, now: number): string | null
+  export function sinceSaid(at: string | null): string | null
 }
 
 interface Mark {
@@ -132,6 +133,7 @@ declare module '*/assets/store.js' {
   export function mayRead(store: Store, grant: string): boolean
   export function omitted(store: Store, collection: string): number
   export function asOf(store: Store, kind: string, now: number): { at: number; frozen: boolean }
+  export function spendSince(store: Store): string | null
 }
 
 declare module '*/assets/dom.js' {
