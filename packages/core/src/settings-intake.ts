@@ -8,6 +8,7 @@ import {
   PROPOSE_IS_THE_TYPING,
 } from './intake.ts'
 import { INTAKE_REPLY_CAP, INTAKE_SAYINGS, NEVER_REPLIED_TO } from './intake-outbox.ts'
+import { INTAKE_NO_REALTIME } from './intake-setup.ts'
 import type { Setting, SettingGroup } from './settings.ts'
 
 // Intake's controls, as a person changes them.
@@ -134,7 +135,7 @@ export function intakeGroup(config: Config): SettingGroup {
   return {
     id: 'intake',
     title: 'Intake',
-    about: `Work that arrives from outside this machine — a ticket somebody filed, a line typed at the local door — read on a clock like every other watch, with no listener and no inbound port. Off by default, and every source is a separate act. ${INTAKE_IS_SOMEBODY_ELSE}`,
+    about: `Work that arrives from outside this machine — a ticket somebody filed, a line typed at the local door — read on a clock like every other watch, with no listener and no inbound port. Off by default, and every source is a separate act. ${INTAKE_NO_REALTIME} ${INTAKE_IS_SOMEBODY_ELSE}`,
     keywords: [
       'intake',
       'inbox',
@@ -144,6 +145,9 @@ export function intakeGroup(config: Config): SettingGroup {
       'github',
       'linear',
       'slack',
+      // Here so that somebody who types the name of a tracker Tade does not
+      // support finds the group whose heading says so, rather than nothing.
+      'jira',
       'outside',
       'grant',
       'allowlist',

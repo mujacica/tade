@@ -5,9 +5,8 @@ import {
   type IntakeMode,
   type IntakeRefusal,
   type IntakeSource,
-  newerRevision,
-  revisionUncomparable,
 } from './intake.ts'
+import { newerRevision, revisionUncomparable } from './intake-revisions.ts'
 
 // What the journal says about what has been handed to this machine, and the
 // arithmetic of what to do about one that did not work.

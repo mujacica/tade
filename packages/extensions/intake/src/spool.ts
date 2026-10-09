@@ -1,7 +1,6 @@
-import { createHash } from 'node:crypto'
 import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { type IntakeCandidate, intakeSpool, newerRevision } from '@tade/core'
+import { type IntakeCandidate, intakeHash, intakeSpool, newerRevision } from '@tade/core'
 import { z } from 'zod'
 
 // The local intake door's spool: one file per request, written by `tade intake`
@@ -83,11 +82,6 @@ export function spoolIdProblem(id: string): string | null {
 
 function fileFor(id: string, revision: number): string {
   return `${id}.${String(revision).padStart(4, '0')}.json`
-}
-
-/** sha256 of the body as it was written: what a later look compares against. */
-export function bodyHash(body: string): string {
-  return `sha256:${createHash('sha256').update(body, 'utf8').digest('hex')}`
 }
 
 /**
@@ -261,7 +255,7 @@ export function candidateOf(entry: SpoolEntry & { file: string }, seenAt: string
     // decides whether that may become work, which is `intakeMapped`'s.
     from: entry.project,
     verbatim: entry.body,
-    material: { ref: entry.file, hash: bodyHash(entry.body) },
+    material: { ref: entry.file, hash: intakeHash(entry.body) },
     attachments: entry.attachments,
     sourceAt: entry.at,
     seenAt,

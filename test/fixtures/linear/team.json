@@ -1,0 +1,100 @@
+{
+  "about": "One team's issues in Linear's own documented shapes, written down once here so the tests exercise what Linear actually returns rather than what a parser happens to want. `at` and each history entry's `at` are offsets in seconds from the moment the watch was turned on, and `linear.ts` turns them into ISO instants: a fixture with a fixed date in it is a test that passes until some day and then fails for a reason nobody can read. History is written down in a DELIBERATELY AWKWARD ORDER — neither oldest nor newest first — because Linear's schema offers `orderBy: createdAt | updatedAt` on a history connection and documents no direction for either, so a connector that trusted the order it got would be a connector built on a guess.",
+  "issues": [
+    {
+      "about": "Somebody on the team labelling an issue somebody else filed. The ordinary case, and the one where the labeller and the creator are different people.",
+      "identifier": "ENG-412",
+      "at": 300,
+      "title": "Export fails on an empty selection",
+      "description": "Pressing Export with nothing selected 500s. Expected an empty CSV or a message.",
+      "state": "started",
+      "creator": { "id": "u-sam", "displayName": "sam" },
+      "labels": ["tade"],
+      "history": [
+        { "at": 120, "actor": { "id": "u-sam", "displayName": "sam" }, "addedLabels": ["bug"] },
+        { "at": 300, "actor": { "id": "u-kim", "displayName": "kim" }, "addedLabels": ["tade"] },
+        {
+          "at": 200,
+          "actor": { "id": "u-sam", "displayName": "sam" },
+          "addedLabels": ["needs-triage"]
+        }
+      ]
+    },
+    {
+      "about": "The same label applied, taken off and applied again by somebody else. The newest application is the one that asked, and reading the oldest would authorise whoever happened to be first.",
+      "identifier": "ENG-418",
+      "at": 600,
+      "title": "Login is slow for everybody this morning",
+      "description": "Since about 08:00. Not just me.",
+      "state": "unstarted",
+      "creator": { "id": "u-kim", "displayName": "kim" },
+      "labels": ["tade"],
+      "history": [
+        { "at": 600, "actor": { "id": "u-rob", "displayName": "rob" }, "addedLabels": ["tade"] },
+        { "at": 400, "actor": { "id": "u-kim", "displayName": "kim" }, "addedLabels": ["tade"] },
+        { "at": 500, "actor": { "id": "u-kim", "displayName": "kim" }, "removedLabels": ["tade"] }
+      ]
+    },
+    {
+      "about": "Labelled by an integration. Linear leaves `actor` empty and names a `botActor` instead, which is exactly what its schema says happens — named and refused as a bot, never passed over in silence.",
+      "identifier": "ENG-420",
+      "at": 700,
+      "title": "Nightly sync reported a mismatch",
+      "description": "Opened automatically.",
+      "state": "triage",
+      "creator": { "id": "u-kim", "displayName": "kim" },
+      "labels": ["tade"],
+      "history": [
+        {
+          "at": 700,
+          "botActor": { "id": "b-sync", "name": "Nightly Sync", "type": "workflow" },
+          "addedLabels": ["tade"]
+        }
+      ]
+    },
+    {
+      "about": "Labelled by an app user — a Linear agent. `User.app` is Linear's own word about it, and the bot filter reads that rather than looking for Tade's words in the text.",
+      "identifier": "ENG-421",
+      "at": 720,
+      "title": "Flaky test in the importer",
+      "description": "Fails about one run in five.",
+      "state": "backlog",
+      "creator": { "id": "u-kim", "displayName": "kim" },
+      "labels": ["tade"],
+      "history": [
+        {
+          "at": 720,
+          "actor": { "id": "u-robot", "displayName": "helper", "app": true },
+          "addedLabels": ["tade"]
+        }
+      ]
+    },
+    {
+      "about": "The label is on it and nothing in the history this read says who put it there. A label nobody can be named for selects nothing, and the look names it rather than passing over it.",
+      "identifier": "ENG-430",
+      "at": 800,
+      "title": "Search returns deleted rows",
+      "description": "Only for the admin view.",
+      "state": "unstarted",
+      "creator": { "id": "u-sam", "displayName": "sam" },
+      "labels": ["tade"],
+      "history": [
+        { "at": 800, "actor": { "id": "u-sam", "displayName": "sam" }, "addedLabels": ["bug"] }
+      ]
+    },
+    {
+      "about": "In another team. Linear's own filter would not return it, and it is here so the read-back refuses it if a filter ever did — the team is a clause of the selector, not a hint to the server.",
+      "identifier": "OPS-7",
+      "at": 850,
+      "team": "OPS",
+      "title": "Rotate the staging certificate",
+      "description": "Expires next week.",
+      "state": "unstarted",
+      "creator": { "id": "u-kim", "displayName": "kim" },
+      "labels": ["tade"],
+      "history": [
+        { "at": 850, "actor": { "id": "u-kim", "displayName": "kim" }, "addedLabels": ["tade"] }
+      ]
+    }
+  ]
+}

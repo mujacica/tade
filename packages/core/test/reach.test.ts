@@ -279,6 +279,21 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.github.projects',
       'surfaces.intake.sources.github.reply',
       'surfaces.intake.sources.github.template',
+      // And Linear's eight, which arrived the same way: nobody added a line to
+      // `reach.ts` for them, and `settingReach` had them at `never` before the
+      // connector was written. `from` here is a list of Linear **user ids**,
+      // and the one thing worth saying about that is that an id is the only
+      // spelling a stranger cannot take over — so the key the orchestrator
+      // must never reach is also the key whose value a person has to go and
+      // look up. Both of those make it `never` rather than `asked`.
+      'surfaces.intake.sources.linear.accept',
+      'surfaces.intake.sources.linear.document',
+      'surfaces.intake.sources.linear.from',
+      'surfaces.intake.sources.linear.mode',
+      'surfaces.intake.sources.linear.names',
+      'surfaces.intake.sources.linear.projects',
+      'surfaces.intake.sources.linear.reply',
+      'surfaces.intake.sources.linear.template',
       // And the Slack source's eight, again by the prefix and not by anybody
       // having listed them. Two of these are why the subtree is the rule rather
       // than a list: `reply` is Tade writing into a channel other people read,

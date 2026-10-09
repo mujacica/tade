@@ -16,8 +16,8 @@ import {
   intakePrompt,
   intakeSuffix,
   intakeSummary,
-  newerRevision,
 } from '../src/intake.ts'
+import { intakeHash } from '../src/intake-hash.ts'
 import {
   INTAKE_ATTEMPTS,
   intakeAgain,
@@ -26,6 +26,7 @@ import {
   intakeOf,
 } from '../src/intake-journal.ts'
 import { INTAKE_REPLY_CAP, intakeRepliesLeft } from '../src/intake-outbox.ts'
+import { advanceCursor, newerRevision } from '../src/intake-revisions.ts'
 import { namedBy, settingReach } from '../src/reach.ts'
 import { settingsOf } from '../src/settings.ts'
 import type { Template } from '../src/templates.ts'
@@ -219,6 +220,14 @@ describe('revisions', () => {
   it('answer "cannot be ordered" rather than guessing, for anything that is not one', () => {
     expect(newerRevision('cli', 'abc', '1')).toBeNull()
     expect(newerRevision('cli', '1', '')).toBeNull()
+  })
+
+  it('have an entry for every source there is, so tsc names the one somebody forgot', () => {
+    // A source whose revisions nothing can compare would hold every request it
+    // ever handed over, for ever, with a sentence nobody could act on.
+    for (const source of INTAKE_SOURCES) {
+      expect(newerRevision(source, 'a', 'a')).not.toBe(undefined)
+    }
   })
 
   it('make an edit update what exists rather than spawn a second workflow', () => {
@@ -580,5 +589,75 @@ describe('the shape of the settings', () => {
       })
       expect(one.success).toBe(true)
     }
+  })
+})
+
+describe('a cursor over a polled source', () => {
+  // One rule for every source that carries a time or sequence cursor, because
+  // its failure mode — moving past a request the look deferred — is a request
+  // that vanished with nothing written down, and two copies of it drifting is
+  // the bug nobody would ever see.
+
+  it('does not move at all until a sweep reached the bottom of its own window', () => {
+    // Re-reading what it already has costs one request and no agent: Tade
+    // knows which keys it has seen.
+    expect(advanceCursor('slack', ['3.000100', '4.000100'], [], '1.000100', false)).toBe('1.000100')
+    expect(
+      advanceCursor('linear', ['2026-01-02T00:00:00Z'], [], '2026-01-01T00:00:00Z', false),
+    ).toBe('2026-01-01T00:00:00Z')
+  })
+
+  it('moves to the newest it dealt with, by that source’s own ordering', () => {
+    // `.9` is nine hundred thousand microseconds and sorts after `.10` as a
+    // number and before it as text, which is why the rule asks the comparator.
+    expect(advanceCursor('slack', ['5.10', '5.9'], [], '1.000100', true)).toBe('5.9')
+    expect(
+      advanceCursor(
+        'linear',
+        ['2026-01-02T09:00:00+02:00', '2026-01-02T08:00:00Z'],
+        [],
+        '2026-01-01T00:00:00Z',
+        true,
+      ),
+      // `09:00+02:00` is `07:00Z`, which is EARLIER than `08:00Z` and later as
+      // text.
+    ).toBe('2026-01-02T08:00:00Z')
+  })
+
+  it('stops below the oldest it deferred, whichever source it is', () => {
+    expect(
+      advanceCursor('slack', ['2.000100', '3.000100', '4.000100'], ['3.000100'], '1.000100', true),
+    ).toBe('2.000100')
+    expect(
+      advanceCursor(
+        'linear',
+        ['2026-01-02T00:00:00Z', '2026-01-03T00:00:00Z'],
+        ['2026-01-02T00:00:00Z'],
+        '2026-01-01T00:00:00Z',
+        true,
+      ),
+      // Everything read was at or after the deferred one, so the cursor stays
+      // where it was rather than moving past what has to be found again.
+    ).toBe('2026-01-01T00:00:00Z')
+  })
+
+  it('skips a mark the source cannot compare with itself, rather than sorting it as nothing', () => {
+    expect(advanceCursor('slack', ['3.000100', 'whenever'], [], '1.000100', true)).toBe('3.000100')
+    expect(advanceCursor('slack', ['whenever'], [], '1.000100', true)).toBe('1.000100')
+  })
+})
+
+describe('the hash of a request', () => {
+  it('is one function, because what compares it does not know which source wrote it', () => {
+    // `intakeAgain` reads an unequal hash as "the text has changed", which
+    // holds work — so two sources spelling this differently would re-park
+    // every approval the moment the other one looked.
+    expect(intakeHash('a request')).toBe(intakeHash('a request'))
+    expect(intakeHash('a request')).not.toBe(intakeHash('a request '))
+    expect(intakeHash('')).toMatch(/^sha256:[0-9a-f]{64}$/)
+  })
+
+  it('says which algorithm it is, so a later one is different rather than incomparable', () => {
+    expect(intakeHash('x').startsWith('sha256:')).toBe(true)
   })
 })

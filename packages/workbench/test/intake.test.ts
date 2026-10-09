@@ -12,7 +12,7 @@ import {
 } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { intakeGrant, intakeStands } from '../src/intake.ts'
+import { intakeStands } from '../src/intake.ts'
 import { readTaskFile } from '../src/tasks.ts'
 import { Workbench } from '../src/workbench.ts'
 

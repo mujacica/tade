@@ -1,10 +1,10 @@
-import { createHash } from 'node:crypto'
 import {
+  advanceCursor,
   INTAKE_SAYINGS,
   type IntakeCandidate,
   type IntakeRequester,
   type IntakeSaying,
-  newerRevision,
+  intakeHash,
   slackTs,
 } from '@tade/core'
 import type { SlackMessage } from './slack-api.ts'
@@ -213,19 +213,17 @@ export function advanceTo(
   oldest: string,
   drained: boolean,
 ): string {
-  if (!drained) return oldest
-  let stop = ''
-  for (const ts of held) {
-    if (!stop || (newerRevision('slack', ts, stop) ?? 0) < 0) stop = ts
-  }
-  let since = oldest
-  for (const one of read) {
-    const ts = String(one.ts)
-    if (!slackTs(ts)) continue
-    if (stop && (newerRevision('slack', ts, stop) ?? 0) >= 0) continue
-    if ((newerRevision('slack', ts, since) ?? 0) > 0) since = ts
-  }
-  return since
+  // The rule is `advanceCursor`'s, in `@tade/core` beside `newerRevision`,
+  // because the source that came after this one carries a time cursor too and
+  // one of two copies of this quietly losing a request is the failure nobody
+  // would ever see. What is left here is what a Slack mark *is*.
+  return advanceCursor(
+    'slack',
+    read.map((one) => String(one.ts)),
+    held,
+    oldest,
+    drained,
+  )
 }
 
 /** An ISO time for a Slack `ts`, for the two "when" facts the envelope carries. */
@@ -343,7 +341,7 @@ export function candidateOf(
     // the two the thread needs. It goes in the context file under the material
     // heading and nowhere else.
     verbatim,
-    material: { ref: url || externalId, hash: slackHashOf(verbatim) },
+    material: { ref: url || externalId, hash: intakeHash(verbatim) },
     attachments: attachmentsOf(request),
     sourceAt: atOf(revision),
     seenAt: where.seenAt,
@@ -351,15 +349,4 @@ export function candidateOf(
     // received, the accepted, the retry — carries the same one.
     correlation: `${externalId}@${revision}`,
   }
-}
-
-/**
- * sha256 of what was read, so a later look can see the words have moved.
- *
- * Of the same text that goes in `verbatim`, and written the same way as the
- * local door's and the GitHub door's: what a hash of a request means must not
- * depend on which source handed it over, because `intakeAgain` compares the two.
- */
-export function slackHashOf(verbatim: string): string {
-  return `sha256:${createHash('sha256').update(verbatim, 'utf8').digest('hex')}`
 }

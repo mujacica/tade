@@ -1,12 +1,12 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { intakeSpool, newFindings } from '@tade/core'
+import { intakeHash, intakeSpool, newFindings } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { intakeExtension } from '../src/extension.ts'
-import { bodyHash, newestOf, readReplies, readSpool, spool, spoolIdProblem } from '../src/spool.ts'
+import { newestOf, readReplies, readSpool, spool, spoolIdProblem } from '../src/spool.ts'
 
 // The local intake door, against a real folder.
 //
@@ -66,7 +66,9 @@ describe('the spool', () => {
     // Both are still there: the first revision is the immutable record of what
     // the text was when a task may have been made from it.
     expect(read.entries.map((one) => one.revision)).toEqual([1, 2])
-    expect(bodyHash(read.entries[0]?.body ?? '')).not.toBe(bodyHash(read.entries[1]?.body ?? ''))
+    expect(intakeHash(read.entries[0]?.body ?? '')).not.toBe(
+      intakeHash(read.entries[1]?.body ?? ''),
+    )
   })
 
   it('names a file it could not read rather than passing over it', async () => {

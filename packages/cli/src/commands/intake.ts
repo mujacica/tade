@@ -4,6 +4,7 @@ import {
   describeLook,
   EMPTY_MEANS_NOBODY,
   INTAKE_IS_SOMEBODY_ELSE,
+  INTAKE_NOT_SUPPORTED,
   INTAKE_SETUP,
   INTAKE_SOURCES,
   inboxActs,
@@ -314,6 +315,12 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         io.out(`to turn ${one.source} on:`)
         for (const step of INTAKE_SETUP[one.source]) io.out(`  ${step}`)
       }
+      // And what is *not* a source, every time, whether or not anything is
+      // half-written: somebody reading this list to find out what Tade can take
+      // in is the person who would otherwise go looking for a Jira switch.
+      io.out('')
+      io.out('not sources, and nothing here to switch on:')
+      for (const line of INTAKE_NOT_SUPPORTED) io.out(`  ${line}`)
       io.out('')
       io.out(INTAKE_IS_SOMEBODY_ELSE)
     })

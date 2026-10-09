@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { OUTSIDE_IS_MATERIAL } from './compose.ts'
-import type { TadeEvent } from './events.ts'
 import type { Template } from './templates.ts'
 
 // Work that arrives from outside this machine: a ticket somebody filed, a
@@ -47,9 +46,17 @@ import type { Template } from './templates.ts'
  * already has. `slack` is **`@tade` in one channel, polled** — not a slash
  * command and not a chat: there is no listener and no socket, so Tade notices a
  * mention on its own clock rather than answering one, and nothing anywhere may
- * describe it as the other thing.
+ * describe it as the other thing. `linear` is **one team's labelled issues,
+ * polled over GraphQL** — not Linear's Agent Interaction, which needs a public
+ * HTTPS endpoint answering inside five seconds and is therefore a thing a
+ * laptop cannot promise (`INTAKE_NOT_SUPPORTED`).
+ *
+ * **Jira is not in this list and is not a source that exists.** That is the
+ * list's whole job: a name here with nothing implementing it would be a grant
+ * nobody could honour and a config key that read as a connector somebody had
+ * only to switch on.
  */
-export const INTAKE_SOURCES = ['cli', 'github', 'slack'] as const
+export const INTAKE_SOURCES = ['cli', 'github', 'slack', 'linear'] as const
 export const IntakeSource = z.enum(INTAKE_SOURCES)
 export type IntakeSource = (typeof INTAKE_SOURCES)[number]
 
@@ -221,94 +228,6 @@ export function intakeSuffix(one: { source: string; externalId: string }): strin
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
   return `${one.source}-${slug || 'request'}`
-}
-
-/**
- * How each source's revisions compare. **Per source, in code, with a test
- * each**, because the three values the trackers use are an ISO timestamp, an
- * epoch with decimals and an opaque id, and none of them is safely compared as
- * a string: `"10"` sorts before `"9"`, and `"2026-1-2"` before `"2026-01-03"`.
- *
- * `null` means *these two cannot be compared*, which is a third answer and the
- * one that keeps this honest. A source that reorders, renumbers or hands back
- * something unparseable gets a hold and a sentence, never a guess.
- */
-const REVISIONS: Readonly<Record<IntakeSource, (a: string, b: string) => number | null>> = {
-  // A decimal counter the local door assigns, compared as a number. Anything
-  // that is not one — a hand-edited spool file — is not comparable.
-  cli: (a, b) => {
-    const left = /^\d+$/.test(a) ? Number(a) : Number.NaN
-    const right = /^\d+$/.test(b) ? Number(b) : Number.NaN
-    if (!Number.isFinite(left) || !Number.isFinite(right)) return null
-    return left === right ? 0 : left > right ? 1 : -1
-  },
-  // An issue's `updated_at`, which GitHub documents as an ISO 8601 timestamp
-  // (`YYYY-MM-DDTHH:MM:SSZ`), parsed to a time. Compared as text it is right
-  // until one carries an offset — `09:00+02:00` is `07:00Z`, which is earlier
-  // than `08:00Z` and sorts later as a string — or until the same moment
-  // arrives written two ways. Anything that will not parse is not comparable,
-  // which holds rather than guessing an order.
-  //
-  // **GitHub moves `updated_at` for a comment as well as for an edit**, so a
-  // comment on something already taken reads as a new revision and re-parks a
-  // proposal a person had approved. That is the direction this is allowed to be
-  // wrong in — the hash written down beside it says whether the words actually
-  // moved — and it is why the whole of a request is read again rather than
-  // trusted.
-  github: (a, b) => {
-    const left = Date.parse(a)
-    const right = Date.parse(b)
-    if (!Number.isFinite(left) || !Number.isFinite(right)) return null
-    return left === right ? 0 : left > right ? 1 : -1
-  },
-  // A Slack `ts` — `1727442000.123456`, seconds and microseconds — compared as
-  // **two integers and never as one number**, which is the whole reason this
-  // has a line of its own rather than reusing the decimal counter above.
-  // `Number('1727442000.123456')` is sixteen significant digits put through a
-  // double whose spacing at that magnitude is about a quarter of a microsecond,
-  // so two messages a microsecond apart are a rounding error away from
-  // comparing equal — and will be exactly equal once the seconds gain a digit.
-  // As text it is worse: `.9` sorts after `.10`.
-  //
-  // Anything that is not a Slack ts is not comparable, which holds rather than
-  // guessing an order.
-  slack: (a, b) => {
-    const left = slackTs(a)
-    const right = slackTs(b)
-    if (!left || !right) return null
-    if (left.seconds !== right.seconds) return left.seconds > right.seconds ? 1 : -1
-    return left.micros === right.micros ? 0 : left.micros > right.micros ? 1 : -1
-  },
-}
-
-/**
- * A Slack `ts` pulled apart into whole seconds and whole microseconds, or null
- * where it is not one.
- *
- * Exported because a connector has the same two things to do with one — order
- * two of them, and say when the thing happened — and a second parser of a
- * source's own id format is a second answer about which message is newer.
- */
-export function slackTs(ts: string): { seconds: number; micros: number } | null {
-  const found = /^(\d{1,12})\.(\d{1,6})$/.exec(ts)
-  if (!found?.[1] || !found[2]) return null
-  // Padded, so `.9` is nine hundred thousand microseconds and not nine: Slack
-  // writes six digits, and a hand-written or truncated one must not sort as if
-  // the missing digits were leading zeroes.
-  return { seconds: Number(found[1]), micros: Number(found[2].padEnd(6, '0')) }
-}
-
-/**
- * Whether `a` is a later revision than `b`, by that source's own semantics:
- * `1` later, `0` the same, `-1` earlier, `null` not comparable.
- */
-export function newerRevision(source: IntakeSource, a: string, b: string): number | null {
-  return REVISIONS[source](a, b)
-}
-
-/** The sentence said about a pair nobody can order, which is a hold and not a start. */
-export function revisionUncomparable(source: IntakeSource, a: string, b: string): string {
-  return `${source} said this is revision ${a} and the one already taken is ${b}, and ${source} revisions cannot be ordered from those: somebody has to say which is newer`
 }
 
 /**
@@ -514,6 +433,26 @@ export const IntakeSurface = z
          * request's own `edited.ts` — never the thread's.
          */
         slack: IntakeGrant,
+        /**
+         * One Linear team's labelled issues, polled. The team and the
+         * label are the watch's own inputs — both required, said once,
+         * locally — and `from` is the Linear **user ids** whose
+         * *labelling* counts, because applying the label is the act
+         * that asks Tade for the work.
+         *
+         * Ids and not display names, and the reason is sharper here
+         * than on Slack: a Linear display name is documented as unique
+         * in a workspace, so one its owner gives up can be **taken** by
+         * somebody else — and a grant written against a name would
+         * follow it. A user id cannot be taken over, and the look names
+         * the ids it saw so they can be copied in.
+         *
+         * `reply` here turns nothing on: the Linear watch implements no
+         * reply, so there is no way for Tade to write a word into a
+         * Linear workspace, and nothing it reads there can be something
+         * it wrote.
+         */
+        linear: IntakeGrant,
       })
       .prefault({}),
   })

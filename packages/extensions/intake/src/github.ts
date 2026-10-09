@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto'
 import {
   type IntakeCandidate,
+  intakeHash,
   intakeKey,
   intakePrompt,
   intakeTitle,
@@ -419,6 +419,7 @@ function candidateOf(
   where: { project: string; seenAt: string },
 ): IntakeCandidate {
   const externalId = `${whole.ref.repo}#${whole.ref.number}`
+  const verbatim = `${whole.title}\n\n${whole.body}`.trimEnd()
   return {
     source: 'github',
     externalId,
@@ -442,11 +443,13 @@ function candidateOf(
     // THE REQUEST, VERBATIM: GitHub's two text fields and not a word of
     // Tade's. It goes in the context file under the material heading and
     // nowhere else.
-    verbatim: `${whole.title}\n\n${whole.body}`.trimEnd(),
+    verbatim,
     // Where the exact bytes are, as a person can open them, and a hash of what
     // was read — which is how "the text has moved since you approved it" is a
-    // comparison rather than a guess.
-    material: { ref: whole.url || externalId, hash: bodyHash(whole) },
+    // comparison rather than a guess. Of **exactly** `verbatim`, by the one
+    // function every source hashes with (`intakeHash`), because `intakeAgain`
+    // compares a hash this computed against one another look recorded.
+    material: { ref: whole.url || externalId, hash: intakeHash(verbatim) },
     attachments: [],
     sourceAt: whole.updatedAt,
     seenAt: where.seenAt,
@@ -454,18 +457,6 @@ function candidateOf(
     // received, the accepted, the retry — carries the same one.
     correlation: `${externalId}@${whole.updatedAt}`,
   }
-}
-
-/**
- * sha256 of what was read, so a later look can see the words have moved.
- *
- * Of the same text that goes in `verbatim`, and written the same way as the
- * local door's (`spool.ts`): what a hash of a request means must not depend on
- * which source handed it over, because `intakeAgain` compares the two.
- */
-function bodyHash(whole: { title: string; body: string }): string {
-  const text = `${whole.title}\n\n${whole.body}`.trimEnd()
-  return `sha256:${createHash('sha256').update(text, 'utf8').digest('hex')}`
 }
 
 /** What is true while nothing moves, worded as a standing fact rather than as a count. */

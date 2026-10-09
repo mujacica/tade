@@ -7,28 +7,39 @@ import {
 } from '@tade/core'
 import type { TadeExtension } from '@tade/extensions-core'
 import { githubIssues } from './github.ts'
+import { LINEAR_KEY, linearIssues } from './linear.ts'
 import { SLACK_TOKEN, slackMessages } from './slack.ts'
 import { candidateOf, keepReply, newestOf, readSpool, type SpoolEntry } from './spool.ts'
 
 // Intake: work that arrives from outside this machine, and the local door that
 // exercises every rule above it without a credential.
 //
-// **Three watches, and all of them are ordinary watches.** `cli` looks at a
+// **Four watches, and all of them are ordinary watches.** `cli` looks at a
 // folder on a clock; `github` polls one repository's issues through the forge
 // the project already has (`github.ts`); `slack` polls one channel somebody
-// named (`slack.ts`). What happens to what any of them finds is the grant, the
+// named (`slack.ts`); `linear` polls one team's labelled issues over GraphQL
+// (`linear.ts`). What happens to what any of them finds is the grant, the
 // rule, the queue and the approval that every source goes through. There is no
 // second scheduler here and no second way into the queue — which is the whole
 // claim intake makes, and the local door is the cheapest possible way to hold it
 // to that claim: if it needed anything the pipeline does not have, the pipeline
 // is wrong.
 //
-// **The three are deliberately unalike**, which is what keeps the pipeline
+// **The four are deliberately unalike**, which is what keeps the pipeline
 // honest: the local door has no credential, no network and revisions that are
-// counters; GitHub has all three and revisions that are ISO timestamps; Slack
-// has a credential of its own, revisions that are an epoch with microseconds,
-// and the only way back to a source that Tade ships. Anything that only worked
-// for one of them is something the shared path got wrong.
+// counters; GitHub has all three, revisions that are ISO timestamps and a
+// cursor that is a validator rather than a mark; Slack has a credential of its
+// own, revisions that are an epoch with microseconds, and the only way back to
+// a source that Tade ships; Linear has a key, one GraphQL query, a budget
+// counted in complexity rather than requests, and a rate limit that answers
+// 400 rather than 429. Anything that only worked for one of them is something
+// the shared path got wrong.
+//
+// **And there is still no intake port.** Four sources sharing an envelope, a
+// grant, a key, a queue and a conformance suite is the port working; what they
+// do not share is a client, and a fifth one with its own HTTP would be the
+// moment to look again rather than now. `linear.ts` carries that argument and
+// what it did extract instead.
 //
 // **What it is for.** Three things, honestly:
 //
@@ -47,8 +58,8 @@ import { candidateOf, keepReply, newestOf, readSpool, type SpoolEntry } from './
 // would be a door with no rule behind it.
 //
 // The local door reaches nothing, so it does not declare `network` and keeps
-// looking with the wifi off; the GitHub watch declares it and is not started at
-// all while there is none.
+// looking with the wifi off; the three that reach off this machine declare it
+// and are not started at all while there is none.
 
 /** The newest revision of each request this project has in the spool. */
 async function requests(
@@ -67,16 +78,18 @@ export const intakeExtension: TadeExtension = {
   name: 'intake',
   title: 'Intake',
   description:
-    'Work that arrives from outside this machine: a request written here, an issue somebody on your own list labelled, or an @-mention in one Slack channel. All of them go through the same grant, rule, queue and approval, and all of them are polled — Tade notices a request rather than answering one.',
+    'Work that arrives from outside this machine: a request written here, an issue somebody on your own list labelled on GitHub or in one Linear team, or an @-mention in one Slack channel. All of them go through the same grant, rule, queue and approval, and all of them are polled — Tade notices a request rather than answering one.',
   workflow: [
     'A person writes a request with `tade intake`, naming the project and who asked.',
     'Or somebody on your list puts the label you named on an issue in the project’s own repository.',
     'Or somebody on your list @-mentions the app in the one Slack channel you named, and the thread it was asked in comes with it as material.',
+    'Or somebody on your list puts the label you named on an issue in the one Linear team you named.',
     'Slack is polled, not chat: Tade notices a mention within a couple of minutes rather than answering one, and a mention inside a thread is only visible if it was also sent to the channel.',
     'The watch finds it on its next look, and the owner’s own grant decides whether it may become work (surfaces.intake).',
     'With `mode: propose`, which is the default, a task is made and parked: a person approves it and the queue starts it.',
     'At the moment of starting it is checked again — closed, relabelled, deleted or rewritten holds the work.',
-    'Nothing is posted anywhere unless `reply` is on. GitHub has no way back at all; Slack gets a reaction and one of Tade’s own seven sentences in the request’s own thread — never a word an agent wrote.',
+    'Nothing is posted anywhere unless `reply` is on. GitHub and Linear have no way back at all; Slack gets a reaction and one of Tade’s own seven sentences in the request’s own thread — never a word an agent wrote.',
+    'Linear in realtime — Tade as a Linear agent you @-mention — and Jira are not supported and are not switches somebody has to find: `tade intake status` says what each would need.',
   ],
   settings: [
     {
@@ -86,6 +99,13 @@ export const intakeExtension: TadeExtension = {
       means:
         'a Slack bot token (xoxb-…) for the channel watch: channels:history for a public channel or groups:history for a private one, plus chat:write and reactions:write only if Tade may say a status back',
     },
+    {
+      key: LINEAR_KEY,
+      kind: 'secret',
+      env: ['LINEAR_API_KEY'],
+      means:
+        'a Linear personal API key for the team watch, which only ever reads: there is no reply path to Linear at all, so nothing Tade does needs a scope to write',
+    },
   ],
   // Nothing to set up for the local door: no key, no endpoint, no account.
   // Being ready is having a home to read, which every window has — so there is
@@ -94,9 +114,10 @@ export const intakeExtension: TadeExtension = {
   //
   // **Not a credential check**, deliberately. Readiness is the extension's and
   // the local door always works, so reporting this extension as not ready
-  // because there is no GitHub token — or no Slack one — would take away the one
-  // source that never needed either. What each watch needs, it says when it
-  // looks, and one missing credential never takes the others down with it.
+  // because there is no GitHub token — or no Slack or Linear one — would take
+  // away the one source that never needed any. What each watch needs, it says
+  // when it looks, and one missing credential never takes the others down with
+  // it.
   ready: () => null,
   watches: [
     {
@@ -202,5 +223,6 @@ export const intakeExtension: TadeExtension = {
     },
     githubIssues,
     slackMessages,
+    linearIssues,
   ],
 }
