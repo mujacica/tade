@@ -90,7 +90,12 @@ const BUDGET: Record<string, number> = {
   'packages/harnesses/claude/src/adapter.ts': 1_600,
   'packages/harnesses/codex/src/adapter.ts': 1_700,
   'packages/harnesses/pi/src/adapter.ts': 1_100,
-  'packages/orchestrator/src/tools-extension.ts': 1_000,
+  // 1,000 -> 975 when the template tools moved out to `tools-templates.ts`,
+  // which is `tools-config.ts`'s split for the same two reasons: this file was
+  // at its budget, and three tools that share one boundary — what the
+  // orchestrator may do with a stored workflow — read better in one place than
+  // inferred from three descriptions among forty.
+  'packages/orchestrator/src/tools-extension.ts': 975,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade

@@ -984,6 +984,66 @@
     }
   },
   {
+    "name": "tade_template_dry_run",
+    "description": "What a published template would make, before anything is made: one row per task, what each is told to be, where it works, how it counts as finished, what it waits on and why, and which of them would run into work already going. It also says what the template grants, which is nothing, and what bounds the work — what each project may spend today, how many agents it allows at once, and where each sign-in stands against its plan. **It writes nothing and starts nothing.** Call it before tade_template_use, every time, and read it back to the person rather than summarising it: the point of it is that they see what would happen. One that will not dry-run cleanly is not one to use.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "template": {
+          "type": "string",
+          "description": "the template, as tade_templates lists it"
+        },
+        "version": {
+          "type": "number",
+          "description": "a published version; the newest when not said"
+        },
+        "inputs": {
+          "type": "object",
+          "description": "what it is filled in with, name to value, as the dry run lists what it takes. A value is never put into what an agent is told — it goes in the task’s own context file — so what came from outside goes in whichever input the template says is for material, never in the one-line request"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_template_use",
+    "description": "Stamp a published template out: it makes the tasks through the same plan path tade_plan uses, with the same refusals, and **every one of them parked**. Nothing starts. A person picks them up — tade_queue_change with start, or in the window — and the queue takes it from there, so say that back rather than implying work is under way. Dry-run it first and show them what it would make: three agents is a real amount of somebody’s money and a real amount of their repository. Use it only for work whose shape genuinely repeats, and only when they asked for that template or for the thing it is plainly for; for anything else write the plan yourself with tade_plan. It makes nothing if the plan cannot be kept, and says why.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "template": {
+          "type": "string",
+          "description": "the template, as tade_templates lists it"
+        },
+        "version": {
+          "type": "number",
+          "description": "a published version; the newest when not said"
+        },
+        "inputs": {
+          "type": "object",
+          "description": "what it is filled in with, name to value: the same as the dry run took"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_templates",
+    "description": "Stored workflows somebody here wrote down and published: a plan with holes in it, for work whose shape arrives the same way again and again. This lists the published ones with the newest version of each. You cannot write one, change one or publish one — that is a person at this machine, with `tade templates publish` — and one that is only a draft is not listed here. Reach for tade_plan for everything else: it can read the repository first and a template cannot.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_terminal_close",
     "description": "Close a terminal, ending whatever is running in it. Only when the human asked for that.",
     "parameters": {

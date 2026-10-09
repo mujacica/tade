@@ -73,6 +73,7 @@ attached to the decision it governs. Load the matching one rather than working f
 | a driver · a harness · a status probe · a task's state | `add-workspace-driver` · `add-worker-adapter` · `add-status-probe` · `change-task-state` |
 | a judge · the checks · the reviews and CI watches | `add-judge` · `change-the-checks` · `change-the-reviews` |
 | the queue, schedules and watches · spend and plan limits | `change-the-queue` · `change-the-spend` |
+| a workflow template or a persona | `add-template-or-persona` |
 | the window · the README's pictures | `change-the-window` · `redraw-the-pictures` |
 | voice · transcription · a provider transcript | `add-voice-intent` · `add-transcriber` · `add-transcript-parser` |
 | the release · what the machine must have | `cut-a-release` · `set-up-the-machine` |
@@ -128,6 +129,9 @@ attached to the decision it governs. Load the matching one rather than working f
   (`readyToStart`), never a model deciding again, and writes why. **Evidence may only ever hold**: the
   start-time look at the trees reaches that rule through `queueStateOf`, and a written `order` is only
   a preference among the ready.
+- **A persona says what an agent is told, never what it is allowed**, and a template is a stored
+  `Plan` `checkPlan` keeps: a published version is an immutable snapshot, and using one makes
+  **parked** work (`add-template-or-persona`).
 - **A task name is never used twice** (a new agent given an old one's name carries on its
   conversation), and **a task's id is in its task file, not its branch** — Tade never renames a branch
   it did not make.
@@ -374,12 +378,9 @@ Recipes: `set-up-the-machine` and `cut-a-release`.
   by hand** (`pnpm screens --assets`, held to their bytes by `packages/app/test/pictures.test.ts`), so
   **changing how anything looks means redrawing them in the same commit** (`redraw-the-pictures`).
   Never advertise what is not built — that goes under Planned, at its port.
-- **There is no `docs/` folder, and adding one is going backwards** (`test/guide.test.ts` fails if it
-  comes back, and carries the argument). A plan lives in the work — the task, its context file,
-  the agent's conversation — then in the commit and the review that carry it across sittings, then in
-  whatever fails when it stops being true: an invariant here, a recipe, a why beside the code, a test
-  with a number in it. **A plan that seems to need a file of its own is a plan whose reasoning has
-  nowhere to be true yet** — build the smallest piece that makes it true, and put it there.
+- **There is no `docs/` folder, and adding one is going backwards**: a plan lives in the work, then
+  in the commit and the review, then in whatever fails when it stops being true.
+  `test/guide.test.ts` fails if one comes back, and prints where the reasoning goes instead.
 - **`.claude/skills/` holds the recipes** (the table above). Add or update one when you create a new
   extension point, or when a change teaches you something a recipe should have said — that, and a
   comment beside the code, is where reasoning goes now. Not `<TADE_HOME>/skills`, which is what Tade

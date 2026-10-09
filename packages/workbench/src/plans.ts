@@ -111,6 +111,11 @@ export async function makePlan(
         ...(plan.effort ? { effort: plan.effort } : {}),
         ...(agent.done ? { done: agent.done } : {}),
         ...(agent.produces ? { produces: agent.produces } : {}),
+        // Written beside the task file for its agent to read first, exactly as
+        // a task made one at a time gets it. A plan that carries one is a plan
+        // stamped out of something stored, and this is where everything it
+        // filled in goes — never into the prompt above.
+        ...(agent.context ? { context: agent.context } : {}),
         start: {
           after: check.waitsOn.get(agentId(plan, agent)) ?? [],
           prompt: agent.prompt,

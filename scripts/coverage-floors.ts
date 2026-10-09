@@ -181,6 +181,7 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/spend.ts': 'a command of the binary',
   'packages/cli/src/commands/summary.ts': 'a command of the binary',
   'packages/cli/src/commands/tasks.ts': 'a command of the binary',
+  'packages/cli/src/commands/templates.ts': 'a command of the binary',
   'packages/cli/src/commands/update.ts': 'a command of the binary',
   'packages/cli/src/commands/web.ts': 'a command of the binary',
 

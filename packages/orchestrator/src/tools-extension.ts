@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
 import { join } from 'node:path'
 import { configTools } from './tools-config.ts'
+import { templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
 function extensionsRoot(): string {
@@ -837,6 +838,7 @@ export function orchestratorTools(
   // file of its own because what those may and may not touch is a boundary,
   // and a boundary is worth reading in one place.
   for (const spec of configTools(rpc)) tools.push(spec)
+  for (const spec of templateTools(rpc)) tools.push(spec)
 
   tool(
     'tade_deny',

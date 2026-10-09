@@ -40,6 +40,19 @@ export interface PlannedAgent {
    * task's folder: how an agent sent to plan, audit or research says so.
    */
   produces?: string
+  /**
+   * What it needs to know before it starts, written beside its task file and
+   * read first — the same field `tade_task_create` takes.
+   *
+   * Separate from `prompt` on purpose and it is the whole of what keeps a
+   * prompt governing: everything derived, quoted or filled in goes here, where
+   * it is material an agent reads, and a prompt stays the words somebody wrote.
+   * A template is the one caller so far (`fillTemplate`), and it is why this
+   * exists: a plan stamped out of a stored shape has a ticket body, a handed
+   * document and a filled-in value to pass on, and none of the three may be
+   * joined into the instruction.
+   */
+  context?: string
   /** Other agents in the plan, or tasks already there, it waits on — with why. */
   after: { agent: string; why: string }[]
   touches: string[]

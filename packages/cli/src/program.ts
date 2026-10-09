@@ -20,6 +20,7 @@ import { registerSetup } from './commands/setup.ts'
 import { registerSpend } from './commands/spend.ts'
 import { registerSummary } from './commands/summary.ts'
 import { registerTasks } from './commands/tasks.ts'
+import { registerPersonas, registerTemplates } from './commands/templates.ts'
 import { registerUpdate } from './commands/update.ts'
 import { registerVoice } from './commands/voice.ts'
 import { registerWeb } from './commands/web.ts'
@@ -95,6 +96,8 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerExtensions(program, io, setExit)
   registerMcp(program, io, setExit)
   registerSkills(program, io, setExit)
+  registerTemplates(program, io, setExit)
+  registerPersonas(program, io, setExit)
   return program
 }
 

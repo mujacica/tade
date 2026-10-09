@@ -37,6 +37,16 @@ export const EventType = z.enum([
    * the sentence once those files are gone.
    */
   'effort_named',
+  /**
+   * A stored workflow was stamped out: which template, which version, and the
+   * content hash of the published snapshot it was made from.
+   *
+   * Here because the snapshot is the only thing that remembers *what* the
+   * shape was, and this is the only thing that remembers *which* snapshot a
+   * run came from — a template's draft moves on, and without this line a task
+   * made in March reads as having come from whatever the file says today.
+   */
+  'template_used',
   'state_change',
   /**
    * A task finished: its agent said so, a person marked it, or Tade saw its
@@ -222,6 +232,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_named: 'notable',
   task_removed: 'notable',
   effort_named: 'notable',
+  template_used: 'notable',
   state_change: 'notable',
   task_done: 'notable',
   queue_started: 'notable',

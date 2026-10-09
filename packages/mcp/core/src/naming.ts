@@ -64,6 +64,8 @@ export const RESERVED: readonly string[] = [
   'steer',
   'tade',
   'task',
+  'template',
+  'templates',
   'terminal',
   'updates',
   'watch',
