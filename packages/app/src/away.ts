@@ -129,6 +129,11 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
         ? { kind: 'clause', said: task.reason }
         : { kind: 'approval', tool: extra.approval.tool, also: Math.max(0, pending - 1) },
     stalled: task.stalled,
+    // The **told** fact out of the task file, never `state === 'parked'`: a
+    // merge is ahead of a park in `deriveState`, so a parked task whose branch
+    // landed reads `merged` and the park would be invisible. The queue reads it
+    // the same way and for the same reason (`live.ts`).
+    parked: task.parked === true,
     createdAt: moment(task.created) ?? 0,
     movedAt: movedAt(task),
     title: task.title ?? '',

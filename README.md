@@ -411,8 +411,14 @@ make Tade ask for more, never less, and what you hear is Tade's own sentence, ne
 Off by default. Turn it on and the window will mint a code to scan; letting a device in is a
 keypress at the machine, and nothing else grants one — a typed address reaches the pairing page
 with nothing to present. What the phone then gets is **read-only**: what is working, what wants
-you, the queue, the checks, the reviews, what it has cost and your notes. There is no approve, no
-steer and no setting on it, because none of those routes exists.
+you, the queue, the checks, the reviews, what it has cost and your notes.
+
+Letting one change anything is a **third** decision, and off until you make it: one setting at the
+machine, then a keypress per device. Even then it is one verb — set a task aside, or pick it back
+up — and it needs this machine or an `https` name you trusted, so a credential that crossed a
+network in the clear never buys one. A setting, a credential, a command, a new agent, a push, a
+merge and a check overrule stay unreachable from a phone, because **no route for any of them
+exists**; and every act a device takes is in the journal under its own id, never as your words.
 
 ![The away view in the window: the addresses it is bound to, a QR code to scan a phone in with, and the sentence that an agent on this machine could pair itself](https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg)
 

@@ -57,6 +57,7 @@ import {
   asOf,
   emptyStore,
   GRANTS,
+  mayAct,
   mayRead,
   omitted,
   rowsOf,
@@ -120,6 +121,15 @@ const ctx = {
   ticket: () => held.ticket,
   session: () => held.session,
   devices: () => held.devices,
+  /**
+   * The projection revision the screen being looked at is of.
+   *
+   * Sent with every act, so the machine can refuse one made from a tab left
+   * open overnight before the entity check has to explain itself. Read at the
+   * moment of the press and never remembered: a value held from a draw would
+   * be the staleness it exists to catch.
+   */
+  revOf: () => held.store.fresh?.rev ?? 0,
   go: (path, opts = {}) => go(path, opts),
   /**
    * Ask the machine for the device list again.
@@ -152,7 +162,7 @@ let broke = []
 const SCREENS = {
   now: () => nowScreen(),
   project: (at) => projectScreen(at),
-  task: (at) => taskScreen(at),
+  task: (at) => taskScreen(at, ctx),
   queue: () => queueScreen(),
   checks: () => checksScreen(),
   reviews: () => reviewsScreen(),
@@ -248,7 +258,16 @@ function paint() {
     now,
     where,
     // What this device was granted, read once a paint rather than per row.
-    may: Object.fromEntries(GRANTS.map((grant) => [grant, mayRead(held.store, grant)])),
+    may: {
+      ...Object.fromEntries(GRANTS.map((grant) => [grant, mayRead(held.store, grant)])),
+      // **A drawing hint and never an authority.** It is the scopes on this
+      // device's own session, so a control it was not granted is *absent*
+      // rather than drawn and refused — and the machine re-asks every part of
+      // it at the act anyway: the setting, the origin, the project and the
+      // state the screen said. A page that lied here would get a `403`, which
+      // is the right way round.
+      act: mayAct(held.session),
+    },
   })
 }
 

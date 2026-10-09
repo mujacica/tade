@@ -84,7 +84,7 @@ import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
-import { notStartable, refuseParked } from './parked.ts'
+import { notStartable, type ParkedBy, park, refuseParked } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
@@ -95,11 +95,11 @@ import {
   createTask,
   guardName,
   nameTask,
+  type ParkResult,
   producedDetail,
   type RemoveResult,
   readTaskFile,
   removeTask,
-  setParked,
   setTaskAccount,
   setTaskHarness,
   setTitle,
@@ -1446,15 +1446,9 @@ export class Workbench {
     return result
   }
 
-  /** Set a task aside, or pick it back up. */
-  async parkTask(task: string, parked: boolean): Promise<{ task: string; parked: boolean }> {
-    const result = await setParked(this.home, task, parked)
-    await this.log.append({
-      type: 'state_change',
-      task: result.task || null,
-      detail: { state: parked ? 'parked' : 'resumed', by: 'you' },
-    })
-    return result
+  /** Set a task aside, or pick it back up. Who asked, and what they saw: `parked.ts`. */
+  parkTask(task: string, parked: boolean, how: ParkedBy = {}): Promise<ParkResult> {
+    return park({ home: this.home, log: this.log }, task, parked, how)
   }
 
   // --- notes

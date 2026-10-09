@@ -351,7 +351,7 @@ function spendIn(section_, made, tasks, partial, may, since = null) {
  * because a control that is missing is already the answer and a disabled one
  * invites a tap and then says nothing.
  */
-export function taskScreen(where) {
+export function taskScreen(where, ctx) {
   const node = el('div')
   const back = el('a', {
     class: 'back',
@@ -384,6 +384,7 @@ export function taskScreen(where) {
   )
   const parts = [state, asked, agent, work, checks, rest]
   const made = partsOf(state, agent, work, checks, rest)
+  const park = parkIn(state, ctx, where)
 
   return {
     node,
@@ -400,8 +401,80 @@ export function taskScreen(where) {
       workIn(made, task)
       taskChecksIn(made, task)
       restIn(made, task, view)
+      park.update(task, view)
     },
   }
+}
+
+/**
+ * The one control on this page that changes anything: park, or pick back up.
+ *
+ * **Absent rather than refused**, three times over. It is not built at all
+ * where this device was not granted `steer` — the `scopes` on its own session,
+ * out of `/api/devices`, which is also what the machine re-checks. And where
+ * it is built, what it sends is the task's own `rev`: what the screen said,
+ * echoed back, so a park somebody made at the keyboard since is a `409` that
+ * redraws the truth rather than a toggle that undoes their decision.
+ *
+ * The key is minted here, once per press, and **kept across a retry**: a press
+ * whose answer never arrived is a press whose repeat must not be a second act,
+ * and the key is what makes the machine able to tell the two apart.
+ */
+function parkIn(section_, ctx, where) {
+  const press = el('button', { class: 'press quietly' })
+  const said = el('p', { attrs: { role: 'status' } })
+  let may = false
+  let rev = null
+  let parked = false
+  let going = false
+  if (ctx !== undefined && ctx !== null) into(section_.body, press, said)
+
+  press.addEventListener('click', async () => {
+    if (going || rev === null) return
+    going = true
+    press.disabled = true
+    const answer = await ctx.ask('POST', '/api/act/park', {
+      task: `${where.project}/${where.task}`,
+      parked: !parked,
+      was: rev,
+      key: keyOf(),
+      rev: ctx.revOf(),
+    })
+    going = false
+    press.disabled = false
+    // Tade's own sentence either way. A `409` is not an error to apologise
+    // for: the next frame carries what is actually true, and this says which
+    // of the two happened.
+    textIn(said, answer.status === 200 ? (answer.body?.said ?? 'done') : ctx.sentence(answer))
+  })
+
+  return {
+    update(task, view) {
+      may = view.may.act === true
+      rev = task.rev
+      parked = task.parked
+      press.hidden = !may
+      said.hidden = !may
+      if (!may) return
+      textIn(press, parked ? 'Pick this back up' : 'Set this aside')
+    },
+  }
+}
+
+/**
+ * A fresh idempotency key: this browser's own randomness, and nothing of the
+ * machine's.
+ *
+ * `crypto.randomUUID` where the browser has it — every target this page claims
+ * does, over a secure context — and a value out of `getRandomValues` where it
+ * does not. Never a counter and never a timestamp: two tabs of one phone would
+ * mint the same one, and a key bound to another act is refused rather than
+ * obeyed, so a collision would read as a broken button.
+ */
+export function keyOf() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID().replaceAll('-', '')
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return [...bytes].map((one) => one.toString(16).padStart(2, '0')).join('')
 }
 
 /**

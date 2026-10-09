@@ -9,7 +9,10 @@
 // where a person at the machine can read it, and never on the wire.
 //
 // So there is no `detail`, no `stack`, no `path` and no `host` field here, and
-// that is deliberate rather than an omission waiting to be filled in.
+// that is deliberate rather than an omission waiting to be filled in. The two
+// fields that are not a sentence — `after` and `rev` — are both Tade's own
+// short values about Tade's own state, and both exist because the page's next
+// move depends on one: how long to wait, and what the thing actually is now.
 
 /** Every way a request can be refused, as the page's one branch. */
 export const ERRORS = [
@@ -18,6 +21,10 @@ export const ERRORS = [
   'bad_origin',
   'out_of_scope',
   'locked',
+  'stale',
+  'gone',
+  'reused',
+  'unsure',
   'no_such',
   'not_offered',
   'too_big',
@@ -47,6 +54,15 @@ export interface Refusal {
    * to join what they saw on the phone to what was written down here.
    */
   request?: string
+  /**
+   * The entity's own revision, where a refusal is about one.
+   *
+   * Only on the refusals an *act* gets. It is what the page redraws from, so
+   * that `something changed while you were looking` is followed by the truth
+   * rather than by a reload: opaque, short, and Tade's own — never a count of
+   * anything a reader could learn something from.
+   */
+  rev?: string
 }
 
 const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
@@ -57,6 +73,27 @@ const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
   bad_origin: { status: 403, said: 'that request did not come from this address' },
   out_of_scope: { status: 403, said: 'this device was not granted that' },
   locked: { status: 403, said: 'that needs turning on at the machine' },
+  // The four an *act* can be refused with, and all four are `409`: each is
+  // "the world is not what your screen said", which is a thing to redraw and
+  // never a thing to retry. A client that retried any of them would be a
+  // client trying to win a race against the person at the keyboard.
+  stale: { status: 409, said: 'this screen is too old to act from — it has been refreshed' },
+  // The sentence names no state, because what actually happened is on the next
+  // frame: the act answers with the entity's own revision, and the page draws
+  // the truth rather than a toast about it.
+  gone: { status: 409, said: 'something changed while you were looking' },
+  // A key is not a licence. Said plainly rather than as a conflict, because
+  // the only two ways to get here are a client bug and somebody editing a
+  // request they captured, and both want the same answer.
+  reused: { status: 409, said: 'that request was already used for something else' },
+  // The one refusal that admits Tade does not know. It is the honest answer
+  // when the window died between starting an act and recording what came of
+  // it, and the alternative — doing it again — is the duplicate mutation the
+  // whole receipt exists to prevent.
+  unsure: {
+    status: 409,
+    said: 'Tade cannot tell whether that happened — check before asking again',
+  },
   no_such: { status: 404, said: 'there is nothing here by that name' },
   // `404` and not `403`, and this is the entry somebody will want to change: a
   // `403` saying "turn diffs on" tells whoever holds a stolen session that
@@ -73,7 +110,7 @@ const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
 /** The refusal for a kind, with its status and its sentence already decided. */
 export function refuse(
   error: ErrorKind,
-  extra: { after?: number; request?: string } = {},
+  extra: { after?: number; request?: string; rev?: string } = {},
 ): Refusal {
   const { status, said } = SAID[error]
   return {
@@ -82,6 +119,7 @@ export function refuse(
     said,
     ...(extra.after === undefined ? {} : { after: extra.after }),
     ...(extra.request === undefined ? {} : { request: extra.request }),
+    ...(extra.rev === undefined ? {} : { rev: extra.rev }),
   }
 }
 
@@ -92,5 +130,6 @@ export function bodyOf(refusal: Refusal): Record<string, string | number> {
     said: refusal.said,
     ...(refusal.after === undefined ? {} : { after: refusal.after }),
     ...(refusal.request === undefined ? {} : { request: refusal.request }),
+    ...(refusal.rev === undefined ? {} : { rev: refusal.rev }),
   }
 }

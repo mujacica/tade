@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { carryOut } from './acted.ts'
+import type { WebActing } from './acting.ts'
+import type { Standing } from './acts.ts'
 import { type Asset, assetFor, assetsDir, matchesEtag, readAssets } from './assets.ts'
-import { appendDevice, type Device, readDevices } from './devices.ts'
+import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
 import {
   type Asking,
@@ -16,14 +19,23 @@ import {
 } from './guard.ts'
 import { headersFor } from './headers.ts'
 import { type Sink, Streams } from './peers.ts'
-import { type Grant, type Reach, readsOf } from './reach.ts'
+import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
+import { Receipts } from './receipts.ts'
 import { askingOf, codeOf, header, inTime, labelOf, pathOf, queryOf, readBody } from './request.ts'
-import { type Route, routeFor } from './routes.ts'
+import { type Route, routeFor, routesFor } from './routes.ts'
+import {
+  CONFIRM_MS,
+  type Confirmed,
+  type PairingAsk,
+  type ServerOptions,
+  type Told,
+  type WebServer,
+} from './serving.ts'
 import { clearCookie, mint, renewal, SESSION_MS, sessionOf, setCookie } from './sessions.ts'
 import { cursorOf } from './stream.ts'
 import { listenOn, reachOf, type Surface, scopesOn } from './surface.ts'
-import { couldBeTicket, type Tickets } from './tickets.ts'
+import { couldBeTicket } from './tickets.ts'
 
 // The away view's own HTTP server: `node:http`, one handler, the table in
 // `routes.ts`, and nothing else listening.
@@ -51,106 +63,21 @@ import { couldBeTicket, type Tickets } from './tickets.ts'
 // **No request handler does any work.** No `git`, no `ps`, no process spawn, no
 // file read beyond the device list: every read answers from what the window
 // already holds, through `WebReading`. The window draws on this thread.
+//
+// **What the window hands it, and what it hands back, is `serving.ts`.** The
+// contract is its own file because it is the thing a reader checks this
+// subsystem against — nine fields and two of them optional — and because a
+// listener and the shape of what it is given are different subjects.
 
-/** How long a pairing request waits for somebody at the machine. */
-export const CONFIRM_MS = 60_000
-
-/** What the window is asked when a device wants in. */
-export interface PairingAsk {
-  /** The label the device suggested. Attacker-controlled: never in a path. */
-  label: string
-  /** The address it came from, as the socket gives it. */
-  from: string
-  /** The host it reached Tade on. */
-  host: string
-}
-
-/**
- * What the person at the machine answered.
- *
- * `granted` is what this device may read beyond names and counts, and
- * `projects` is which of them it may read at all — `null` for every one. Both
- * are decided at the machine, per device, and neither is a config key: a read
- * scope is a grant somebody made about one phone, and a setting would make it
- * one answer for all of them.
- */
-export type Confirmed =
-  | { let: true; projects: readonly string[] | null; granted: readonly Grant[] }
-  | { let: false; why: 'refused' | 'nobody answered' }
-
-/**
- * One line for the journal. The server never writes the file itself.
- *
- * `web_enabled` is in the list although nothing in this package writes one:
- * the window does, when the listener comes up and when it goes, and it goes
- * through the same `tell` so there is one path from this subsystem to the
- * journal rather than two.
- */
-export interface Told {
-  type: 'web_enabled' | 'web_paired' | 'web_denied' | 'web_revoked' | 'web_refused' | 'warning'
-  detail: Record<string, string | number | boolean>
-}
-
-export interface ServerOptions {
-  /** Where `web-devices.jsonl` lives. Tade's home, never a project. */
-  home: string
-  surface: Surface
-  /**
-   * The projection for one device's reach.
-   *
-   * A factory and not one reading, because **a read scope is per device**: two
-   * phones granted different projects are two projections, and filtering one
-   * after the fact is how a field that should have been withheld rides along.
-   * The window implements this and keeps a projector per reach.
-   */
-  readingFor: (reach: Reach) => WebReading
-  /**
-   * Ask the person at the machine. The one authorisation nothing remote can
-   * obtain, and the reason a stolen ticket is worth nothing.
-   */
-  confirm: (ask: PairingAsk) => Promise<Confirmed>
-  /** The tickets the pairing panel minted. */
-  tickets: Tickets
-  /**
-   * The live streams, if the window keeps its own.
-   *
-   * Handed in rather than only made here, because the window is what pushes a
-   * delta onto them: it has the beat and it has the projectors. One is made if
-   * nothing hands one over, so a test — or anything that only wants the
-   * routes — gets a working stream with no ceremony, and `server.streams` is
-   * how whoever did not make it reaches it.
-   */
-  streams?: Streams
-  /** Where a line goes. Never throws, and never blocks an answer. */
-  tell?: (told: Told) => void
-  now?: () => number
-  /** How long to wait for a keypress. Shorter in tests, and only there. */
-  confirmMs?: number
-}
-
-/** The away view, as the window holds it. */
-export interface WebServer {
-  /** Start listening. The addresses actually bound come back. */
-  listen(): Promise<readonly string[]>
-  /** Stop listening. Safe twice, and safe before `listen`. */
-  close(): Promise<void>
-  /** The handler itself, for a test that would rather not bind anything. */
-  handle(req: IncomingMessage, res: ServerResponse): Promise<void>
-  /** What is bound, as `host:port`. Empty before `listen`. */
-  readonly bound: readonly string[]
-  /** The live streams, for the window's beat and for closing them. */
-  readonly streams: Streams
-  /**
-   * The server lifetime every frame of every stream belongs to.
-   *
-   * Minted here because an epoch is *per server start*, and this is the thing
-   * that starts. The window reads it for `lifetime.epoch`, so a snapshot's
-   * freshness and a delta's `id` carry the same string — two sources for one
-   * value would make every reconnection look like a restart, which is a whole
-   * projection down a phone's connection every two seconds and no test would
-   * notice, because resnapshotting is *correct*.
-   */
-  readonly epoch: string
+// Re-exported, so everything that already said `from './server.ts'` still
+// does: a file split for size may not be a rename of everybody's imports.
+export {
+  CONFIRM_MS,
+  type Confirmed,
+  type PairingAsk,
+  type ServerOptions,
+  type Told,
+  type WebServer,
 }
 
 export function webServer(opts: ServerOptions): WebServer {
@@ -168,6 +95,30 @@ export function webServer(opts: ServerOptions): WebServer {
   const epoch = randomUUID()
   const streams = opts.streams ?? new Streams()
   streams.use(epoch)
+  // **The table is a fact about the config, read once.** Turning `acting` on
+  // is a restart (there is no route until there is), and turning it off is
+  // read at every act (`acting.unlocked()`). Asymmetric in the direction that
+  // takes authority away.
+  const table = routesFor(opts.surface)
+  // Receipts exist whether or not anything can act, so that a window whose
+  // setting was turned off still *reads* what the last one did — a repeat of a
+  // key from before is then an answer out of the record rather than a `404`
+  // that tells a phone nothing about what became of its request.
+  const receipts = new Receipts({
+    home: opts.home,
+    epoch,
+    tell: (said) => tell({ type: 'warning', detail: { warning: said } }),
+  })
+  // Read once, and **before the first act rather than on the first act**: a
+  // repeat that arrived while the file was still being read would find an
+  // empty store and be treated as fresh, which is the duplicate the store
+  // exists to stop. `listen` awaits it too, so a window that is up has already
+  // read what the last one did.
+  let read: Promise<void> | null = null
+  const readReceipts = (): Promise<void> => {
+    read ??= receipts.open()
+    return read
+  }
   let assets: Map<string, Asset> | null = null
   const servers: Server[] = []
   const bound: string[] = []
@@ -209,7 +160,7 @@ export function webServer(opts: ServerOptions): WebServer {
     const path = pathOf(req.url ?? '/')
     if (path === null) return answer(res, refuse('malformed'))
 
-    const found = routeFor(req.method ?? 'GET', path)
+    const found = routeFor(req.method ?? 'GET', path, table)
     if (found === null) {
       // **One answer for four different things**, deliberately: a path nothing
       // was ever built at, a path that exists under another method, a
@@ -240,6 +191,24 @@ export function webServer(opts: ServerOptions): WebServer {
     const verdict = allowed(asking, found.route, guarding)
     if (!verdict.ok) {
       said(asking, found.route, verdict.why)
+      // **A verb refused at the door is written down too.** Everything else
+      // refused here is a port scanner or a stale tab, and a line per refusal
+      // would make the journal a request log; a *verb* is different — a device
+      // that asked to change something and was not allowed to is exactly what
+      // a person reading back needs to see, and it is the case the audit
+      // matters most in. The device id where there was a session, and nothing
+      // invented where there was not.
+      if (found.route.verb !== undefined) {
+        tell({
+          type: 'web_did',
+          detail: {
+            device: guarding.session?.device ?? '',
+            tool: found.route.verb,
+            state: 'refused',
+            why: verdict.refusal.error,
+          },
+        })
+      }
       // **The one place a refusal is not a refusal body.** A non-200 answer
       // kills an `EventSource` permanently, and `204 No Content` is the one
       // status that tells a browser to *stop reconnecting* — so a page whose
@@ -299,6 +268,9 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
       default:
+        if (found.route.verb !== undefined) {
+          return act(req, res, found.route, device, verdict.origin, request)
+        }
         return answer(res, refuse('no_such'))
     }
   }
@@ -501,6 +473,71 @@ export function webServer(opts: ServerOptions): WebServer {
     res.on('error', gone)
   }
 
+  /**
+   * One act: the body, then `carryOut`, then the bytes.
+   *
+   * Every decision is in `acted.ts` and every re-check is in `acts.ts`, so
+   * what is here is the two things only a listener can do — read a bounded
+   * body, and write an answer. The audit line goes out **whatever** came of
+   * it, which is the half somebody will want to leave out: a device asking
+   * for something it may not have is exactly what a person reading back needs
+   * to see.
+   */
+  async function act(
+    req: IncomingMessage,
+    res: ServerResponse,
+    route: Route,
+    device: Device,
+    origin: { scheme: string; host: string },
+    request: string,
+  ): Promise<void> {
+    const acting = opts.acting
+    // No `WebActing` at all is a window that was not given the acting half,
+    // which is "this listener does not do that": a `404`, like every other
+    // capability that is not here.
+    if (acting === undefined) return answer(res, refuse('no_such'))
+    const got = await readBody(req)
+    if (!got.read) return answer(res, got.refusal)
+    await readReceipts()
+
+    const answered = await carryOut(route, got.body, {
+      acting,
+      receipts,
+      surface: opts.surface,
+      unlocked: unlocked(acting),
+      rev: opts.readingFor(reachOf(device)).rev,
+      reach: reachOf(device),
+      scopes: device.scopes as Standing['scopes'],
+      origin,
+      device: device.id,
+      now: now(),
+      request,
+    })
+    if (answered.warning !== null) {
+      tell({ type: 'warning', detail: { warning: answered.warning, request } })
+    }
+    const { task, ...detail } = answered.did
+    tell({ type: 'web_did', ...(task === '' ? {} : { task }), detail })
+    if (answered.refusal !== null) return answer(res, answered.refusal)
+    return json(res, answered.body ?? {})
+  }
+
+  /**
+   * Whether acting is unlocked, asked of the window and never allowed to throw
+   * a request over.
+   *
+   * A `false` here is a refusal with a sentence; an exception out of the
+   * window's own reader would be a `500` on a question whose safe answer is
+   * *no*.
+   */
+  function unlocked(acting: WebActing): boolean {
+    try {
+      return acting.unlocked()
+    } catch {
+      return false
+    }
+  }
+
   /** Signing out: this device's own credential, and only its own. */
   async function signOut(
     res: ServerResponse,
@@ -525,36 +562,6 @@ export function webServer(opts: ServerOptions): WebServer {
     // `Secure` is cleared by one set with `Secure` or not cleared at all.
     res.setHeader('set-cookie', clearCookie(origin.scheme === 'https'))
     return json(res, { signedOut: device.id })
-  }
-
-  /**
-   * The device list: this one, and the others by label and when they were last
-   * paired.
-   *
-   * No digest, no token but this device's own, no host and no address: what
-   * another device is, from here, is a name and a date. The whole list is here
-   * because seeing every device there is, is the real mitigation against one
-   * having been minted by something on this machine (`DEVICES_AND_AGENTS`).
-   */
-  function listing(me: Device, devices: readonly Device[]): Record<string, unknown> {
-    return {
-      you: {
-        device: me.id,
-        label: me.label,
-        reads: readsOf(reachOf(me)),
-        scopes: me.scopes,
-        csrf: me.csrf,
-        until: new Date(me.until).toISOString(),
-      },
-      devices: devices
-        .filter((one) => one.revoked === null)
-        .map((one) => ({
-          device: one.id,
-          label: one.label,
-          pairedAt: new Date(one.pairedAt).toISOString(),
-          you: one.id === me.id,
-        })),
-    }
   }
 
   /**
@@ -613,6 +620,7 @@ export function webServer(opts: ServerOptions): WebServer {
     async listen(): Promise<readonly string[]> {
       if (!opts.surface.enabled) return []
       assets ??= await readAssets()
+      if (opts.surface.acting) await readReceipts()
       // **A folder with no files in it is said, not served.** `readAssets`
       // answers a folder it could not read the same way it answers an empty
       // one, which is right for it and is a listener that `404`s every page

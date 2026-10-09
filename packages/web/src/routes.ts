@@ -1,4 +1,5 @@
-import type { Scope } from './surface.ts'
+import type { Scope, Surface } from './surface.ts'
+import { VERBS } from './verbs.ts'
 
 // Every path the away view answers, as a table.
 //
@@ -9,7 +10,7 @@ import type { Scope } from './surface.ts'
 // invariant is the one the `GET`-only claim was reaching for, and it is
 // stronger for being sayable:
 //
-//   **No route mutates a project or a task.**
+//   **No route in `ROUTES` mutates a project or a task.**
 //
 // The two non-`GET` entries are *session lifecycle* — this browser's own
 // credential, created and destroyed — and `test/routes.test.ts` asserts the set
@@ -17,11 +18,20 @@ import type { Scope } from './surface.ts'
 // somebody puts it in the set deliberately, which is the conversation the
 // claim was for.
 //
-// What is **not** here matters as much as what is: no route reads a setting, no
-// route writes one, no route grants anything, no route publishes anything, no
-// route starts an agent and no route reaches the `ToolHost`. By §10.8 a path
-// that is not in this table is a `404` and not a `403` — an off capability is
-// not a thing to probe — so the absences cost nothing to keep.
+// **And the acting routes are not in it.** They are `ACTS`, a second table
+// built from `VERBS`, and `routesFor` adds them only where
+// `surfaces.web.acting` says so — so with that setting off there is no path to
+// mutate a task at all, and `ROUTES` is still the forty lines somebody checks
+// read-only against. That is Phase 1's guarantee kept rather than replaced: it
+// was never "this program cannot act", it was "nothing here can", and absence
+// is still how it is enforced.
+//
+// What is **not** here, in either table, matters as much as what is: no route
+// reads a setting, no route writes one, no route grants anything, no route
+// publishes anything, no route starts an agent, no route takes a path or a
+// command, and no route reaches the `ToolHost`. By §10.8 a path that is not in
+// the table is a `404` and not a `403` — an off capability is not a thing to
+// probe — so the absences cost nothing to keep.
 
 /** One route: how it is reached, what it needs, and what it is allowed to do. */
 export interface Route {
@@ -41,8 +51,18 @@ export interface Route {
   under?: true
   /** What this route is called, in the journal and in a test's words. */
   name: string
-  /** The scope a device needs. Nothing in Phase 1 needs more than `read`. */
+  /** The scope a device needs. Nothing in `ROUTES` needs more than `read`. */
   needs: Scope
+  /**
+   * The verb this route is, where it is one of `ACTS`.
+   *
+   * The name is in the path and could be read back out of it; it is carried
+   * instead, because a handler that parsed a verb out of a URL is a handler
+   * one route change away from accepting a verb nobody declared. Here it is
+   * the table that holds the name, and `VERBS` is the closed list it came
+   * from.
+   */
+  verb?: string
   /**
    * Whether it changes anything at all. Mutations carry the cross-site layers:
    * an exact `Origin`, JSON only, and the session's own token.
@@ -154,7 +174,7 @@ export const ROUTES: readonly Route[] = [
 ]
 
 /**
- * The routes that are not `GET`, by name.
+ * The routes that are not `GET` in `ROUTES`, by name.
  *
  * Written out here rather than computed in the test, so that adding one is a
  * line in this file next to the argument for it. Both are session lifecycle;
@@ -162,12 +182,49 @@ export const ROUTES: readonly Route[] = [
  */
 export const LIFECYCLE = ['pair', 'sign out'] as const
 
+/**
+ * The acting routes: **one path per verb**, and the table is `VERBS`.
+ *
+ * A path each rather than one `/api/act/:verb`, and the reason is the scope
+ * check. A single route would need one `needs` for every verb, which is either
+ * the weakest of them — so a device granted `answer` could park something —
+ * or the strongest, so the gentler verbs need more than they should. With a
+ * route each, the guard's existing per-route scope check is exact and nothing
+ * new had to learn about verbs.
+ *
+ * It also means there is no handler anywhere that takes a name and dispatches
+ * on it: a name that is not in `VERBS` has no path, and a path that has no
+ * route is a `404`.
+ */
+export const ACTS: readonly Route[] = VERBS.map((verb) => ({
+  method: 'POST' as const,
+  path: `/api/act/${verb.name}`,
+  name: `act ${verb.name}`,
+  needs: verb.needs,
+  mutates: true,
+  verb: verb.name,
+}))
+
+/**
+ * The table this listener answers from, which is a fact about the config.
+ *
+ * Built once, when the server is made, which is why turning `acting` **on**
+ * waits for a restart and turning it **off** does not: the table is the
+ * strongest half of the gate and the live re-read (`WebActing.unlocked`) is
+ * the half that can only ever take authority away. Asymmetric in the safe
+ * direction, and the setting's own words say so.
+ */
+export function routesFor(surface: Surface): readonly Route[] {
+  return surface.acting ? [...ROUTES, ...ACTS] : ROUTES
+}
+
 /** The route for a method and a path, and the segment it matched. */
 export function routeFor(
   method: string,
   path: string,
+  routes: readonly Route[] = ROUTES,
 ): { route: Route; params: Record<string, string> } | null {
-  for (const route of ROUTES) {
+  for (const route of routes) {
     if (route.method !== method) continue
     const params = match(route.path, path, route.under === true)
     if (params !== null) return { route, params }

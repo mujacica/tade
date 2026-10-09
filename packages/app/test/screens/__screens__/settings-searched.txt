@@ -8,23 +8,23 @@
    ⠋│  Models                    █│     ○ branch                                                                  █│    
     │                            █│     ○ branch-and-review                                                       █│    
     │  Orchestrator              █│                                                                               █│    
- ▸ S│                            █│▌Needed before                     push                                 ▾      █│    
- ▸ S│  Checks                    █│▌                                 when a push or commit needs a green run      █│    
- ▸ I│                            █│▌                                 behind it — held only under approvals.mode … █│    
+ ▸ S│                            █│▌Needed before                    push                                 ▾       █│    
+ ▸ S│  Checks                    █│▌                                when a push or commit needs a green run       █│    
+ ▸ I│                            █│▌                                behind it — held only under approvals.mode p… █│    
  ▾ C│  Voice                     █│▌                                                                              █│    
-  M │                            █│ Push to talk                        ctrl   +   space       Change…            █│    
+  M │                            █│ Push to talk                       ctrl   +   space       Change…             █│    
   A │  Window                    █│                                                                               █│    
-  M │                            █│ checkout — What is pushed         never                                ▾      █│    
+  M │                            █│ Let a paired device act         ████──── off                     ↻ on restart █│    
     │  Away view                 █│                                                                               █│    
- ▾ F│                            █│ checkout — Checks needed before   push                                 ▾      █│    
+ ▾ F│                            █│ checkout — What is pushed        never                                ▾       █│    
    ▾│  Intake                    █│                                                                               █│    
-    │                            █│ search — What is pushed           never                                ▾      █│    
+    │                            █│ checkout — Checks needed befo…   push                                 ▾       █│    
     │  Projects              ● 1 █│                                                                               █│    
-   ▸│                            █│ search — Checks needed before     push                                 ▾      █│    
+   ▸│                            █│ search — What is pushed          never                                ▾       █│    
 ━   │  Journal                   █│                                                                               █│   ━
-    │                            █│ infra — What is pushed            never                                ▾      █│    
-    │  Telemetry                 █│                                                                               █│   ▕
-    │                            ▕│ infra — Checks needed before      push                                 ▾      ▕│   ▕
+    │                            █│ search — Checks needed before    push                                 ▾       ▕│    
+    │  Telemetry                 █│                                                                               ▕│   ▕
+    │                            ▕│ infra — What is pushed           never                                ▾       ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

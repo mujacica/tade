@@ -1,4 +1,5 @@
 import type { PlanStanding, Spend } from '@tade/core'
+import { taskRev } from './acting.ts'
 import { withoutPaths } from './fields.ts'
 import type {
   FindingIn,
@@ -128,6 +129,8 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     state: task.state,
     reason: reasonOf(task.reason),
     stalled: task.stalled,
+    parked: task.parked,
+    rev: taskRev({ parked: task.parked }),
     wantsYou: wantsYou(task.state),
     question: task.question,
     approval:

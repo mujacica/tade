@@ -73,7 +73,7 @@ async function serve() {
   const held = new Map<string, ReturnType<typeof projector>>()
   const server = webServer({
     home,
-    surface: { enabled: true, bind: 'loopback', port: 0, trustedHosts: [] },
+    surface: { enabled: true, bind: 'loopback', port: 0, trustedHosts: [], acting: false },
     readingFor: (reach: Reach) => {
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine

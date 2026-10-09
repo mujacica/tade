@@ -6,11 +6,14 @@
 // window already holds into that; the server is `node:http` behind pairing, a
 // session and a guard.
 //
-// **Nothing here starts anything.** `webServer(...).listen()` is called by
-// whoever holds the home lock, and only where `surfaces.web.enabled` says so —
-// so until a person turns it on there is no socket, and this package is a
-// library. The live stream, the window's pairing panel and the eight screens
-// are later slices' (`away-stream-and-window`, `away-readonly-ui`).
+// **Nothing here starts anything, and nothing here changes anything unless a
+// person turned that on too.** `webServer(...).listen()` is called by whoever
+// holds the home lock, and only where `surfaces.web.enabled` says so. Acting
+// is a second setting and a second table: with `surfaces.web.acting` off there
+// is no route and no `WebActing`, so a crafted call is the `404` of a path
+// nobody built — `acting.ts` is the whole of what one may ever do, and it is a
+// method per verb with no shape a path, a command or a setting could arrive
+// in.
 //
 // **This is not the `ToolHost`.** That is a Unix socket in `@tade/orchestrator`
 // for the window's own child agents, undiscoverable and dead with the window.
@@ -29,7 +32,8 @@
 // `test/separation.test.ts` asserts no source file here reaches either.
 //
 // Three things to know before adding a field, and a fourth before adding a
-// route (`routes.ts` has it: **no route mutates a project or a task**):
+// route (`routes.ts` has it: **no route in `ROUTES` mutates a project or a
+// task, and the acting routes are a second table a setting turns on**):
 //
 // 1. **The projection is an allow-list and nothing is inherited.** `input.ts`
 //    has the argument and is the file a new field is written into.
@@ -41,6 +45,9 @@
 // The name is `web` because that is what it serves. It has nothing to do with
 // the owner's `tade-web` site project, and neither one is the other's.
 
+export * from './acted.ts'
+export * from './acting.ts'
+export * from './acts.ts'
 export * from './assets.ts'
 export * from './delta.ts'
 export * from './devices.ts'
@@ -56,11 +63,14 @@ export * from './protocol.ts'
 export * from './qr.ts'
 export * from './reach.ts'
 export * from './reading.ts'
+export * from './receipts.ts'
 export * from './request.ts'
 export * from './routes.ts'
 export * from './server.ts'
+export * from './serving.ts'
 export * from './sessions.ts'
 export * from './snapshot.ts'
 export * from './stream.ts'
 export * from './surface.ts'
 export * from './tickets.ts'
+export * from './verbs.ts'

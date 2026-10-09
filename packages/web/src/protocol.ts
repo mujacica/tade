@@ -135,6 +135,21 @@ export const TaskRowSchema = z.strictObject({
    */
   reason: z.string(),
   stalled: z.boolean(),
+  /** Whether somebody set it aside: the told fact, never read off `state`. */
+  parked: z.boolean(),
+  /**
+   * What an act about this task must still find true of it. Opaque.
+   *
+   * **The entity's own revision, and the reason `fresh.rev` is not enough.**
+   * A projection revision moves when anything anywhere moves, so a check
+   * against it alone either refuses acts that are perfectly current or passes
+   * ones that are not. This changes only when something an act depends on
+   * changes, and a device sends it back on every verb (`was`) so the window
+   * can compare what the screen said against the file at the moment of the
+   * write. Short and meaningless on purpose: it is a value to echo, not a
+   * value to read.
+   */
+  rev: z.string(),
   /** `blocked | failed | review`. The one flag derived here rather than read. */
   wantsYou: z.boolean(),
   question: z.boolean(),

@@ -1,8 +1,8 @@
 import { appendFile, chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
-import { GRANTS } from './reach.ts'
-import { SCOPES } from './surface.ts'
+import { GRANTS, readsOf } from './reach.ts'
+import { reachOf, SCOPES } from './surface.ts'
 
 // The paired devices, in `<home>/web-devices.jsonl`: append-only, `0600`, a bad
 // line skipped rather than thrown over.
@@ -88,7 +88,34 @@ const RenewedLine = z.strictObject({
   until: z.string(),
 })
 
-const Line = z.discriminatedUnion('kind', [PairedLine, RevokedLine, RenewedLine])
+/**
+ * What a person at the machine granted this device beyond reading.
+ *
+ * **A line of its own, and the only way a scope widens.** Pairing mints
+ * `read`, because a keypress with one question on it cannot honestly grant
+ * more than that; letting a device *act* is a second decision, made at the
+ * machine, about one device, and this is the record of it. A request can never
+ * write one: nothing in `routes.ts` grants anything, which is DESIGN.md
+ * §9.1's *pairing and scopes are never remote* — the thing that grants
+ * authority is never reachable from inside the authority it granted.
+ *
+ * It is **not** a config key either, for the reason the read grants are not:
+ * a setting would be one answer for every phone, and this is a sentence about
+ * one. `surfaces.web.acting` is the different question of whether any of them
+ * may, and both have to be true.
+ *
+ * Narrower is written the same way, so taking it back is a line rather than a
+ * rewrite — the file stays append-only and stays the record of what happened.
+ */
+const AllowedLine = z.strictObject({
+  kind: z.literal('allowed'),
+  device: z.string().regex(/^[0-9a-f]{16}$/),
+  at: z.string(),
+  /** What it may do now, in full. Never a delta: a list read back is the grant. */
+  scopes: z.array(z.enum(SCOPES)),
+})
+
+const Line = z.discriminatedUnion('kind', [PairedLine, RevokedLine, RenewedLine, AllowedLine])
 export type DeviceLine = z.infer<typeof Line>
 export type Paired = z.infer<typeof PairedLine>
 
@@ -160,7 +187,14 @@ export function devicesIn(text: string): { devices: Device[]; skipped: number } 
       continue
     }
     if (parsed.kind === 'revoked') devices.set(parsed.device, { ...held, revoked: parsed.why })
-    else devices.set(parsed.device, { ...held, until: Date.parse(parsed.until) })
+    else if (parsed.kind === 'allowed') {
+      // **`read` is kept whatever the line says**, so a grant written without
+      // it cannot take reading away by accident — widening what one device may
+      // do and signing it out are different acts, and only one of them has a
+      // control. Taking a grant back is an `allowed` line with less in it.
+      const scopes = parsed.scopes.includes('read') ? parsed.scopes : ['read', ...parsed.scopes]
+      devices.set(parsed.device, { ...held, scopes })
+    } else devices.set(parsed.device, { ...held, until: Date.parse(parsed.until) })
   }
   return { devices: [...devices.values()], skipped }
 }
@@ -190,6 +224,29 @@ export async function appendDevice(home: string, line: DeviceLine): Promise<void
   // gap between the two is a window in which the digests are world-readable.
   await appendFile(path, `${JSON.stringify(Line.parse(line))}\n`, { mode: 0o600 })
   await chmod(path, 0o600).catch(() => {})
+}
+
+/**
+ * Let one device act, or take it back. **A person at the machine, only.**
+ *
+ * Here beside the file rather than in the window, so that the one rule about a
+ * grant — that `read` survives it — is in the same place as the fold that
+ * reads one. The scopes are written in full: a list read back out of the file
+ * is the whole of what that device may do, so there is no pair of lines whose
+ * order decides the answer.
+ */
+export async function allowDevice(
+  home: string,
+  device: string,
+  scopes: readonly string[],
+  at: Date,
+): Promise<void> {
+  await appendDevice(home, {
+    kind: 'allowed',
+    device,
+    at: at.toISOString(),
+    scopes: z.array(z.enum(SCOPES)).parse(scopes),
+  })
 }
 
 /**
@@ -226,4 +283,41 @@ export async function writeDevices(home: string, lines: readonly DeviceLine[]): 
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, lines.map((line) => `${JSON.stringify(line)}\n`).join(''), { mode: 0o600 })
   await chmod(path, 0o600)
+}
+
+/**
+ * The device list as a device is told it: this one, and the others by label
+ * and when they were last paired.
+ *
+ * No digest, no token but this device's own, no host and no address: what
+ * another device is, from here, is a name and a date. **The whole list is
+ * here** because seeing every device there is, is the real mitigation against
+ * one having been minted by something on this machine (`DEVICES_AND_AGENTS`).
+ *
+ * `scopes` is on `you` and on nothing else, and it is what the page reads to
+ * know whether to draw a control at all: a device that was granted `read` and
+ * nothing else is one whose buttons are absent rather than refused. What it
+ * may *actually* do is still decided at the act — the setting, the origin and
+ * the state are all re-asked there — so this is a drawing hint and never an
+ * authority.
+ */
+export function listing(me: Device, devices: readonly Device[]): Record<string, unknown> {
+  return {
+    you: {
+      device: me.id,
+      label: me.label,
+      reads: readsOf(reachOf(me)),
+      scopes: me.scopes,
+      csrf: me.csrf,
+      until: new Date(me.until).toISOString(),
+    },
+    devices: devices
+      .filter((one) => one.revoked === null)
+      .map((one) => ({
+        device: one.id,
+        label: one.label,
+        pairedAt: new Date(one.pairedAt).toISOString(),
+        you: one.id === me.id,
+      })),
+  }
 }

@@ -23,7 +23,7 @@ describe('nothing listens unless it is turned on', () => {
     const home = await homeFor('off')
     const server = webServer({
       home,
-      surface: { enabled: false, bind: 'loopback', port: 0, trustedHosts: [] },
+      surface: { enabled: false, bind: 'loopback', port: 0, trustedHosts: [], acting: false },
       readingFor: reading,
       tickets: new Tickets(),
       confirm: async () => ({ let: false, why: 'refused' }),

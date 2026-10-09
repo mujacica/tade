@@ -1,5 +1,5 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
-import { DEVICES_SEEN_BY_AGENTS, LAN_IS_PLAINTEXT } from '@tade/core'
+import { ACTING_IS_NOT_YOU, DEVICES_SEEN_BY_AGENTS, LAN_IS_PLAINTEXT } from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { AWAY_CONTROLS, awayClick, awayKey, awayPanel } from '../src/panels/away/state.ts'
@@ -35,10 +35,13 @@ function view(over: Partial<AwayView> = {}): AwayView {
         label: 'iPhone',
         pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
         reads: ['titles'],
+        mayAct: false,
         live: true,
       },
     ],
     streams: 1,
+    acting: false,
+    acts: ACTING_IS_NOT_YOU,
     lan: LAN_IS_PLAINTEXT,
     agents: `${DEVICES_SEEN_BY_AGENTS}, which is why this list shows every device there is.`,
     problem: null,
@@ -202,6 +205,7 @@ describe('what the panel never carries', () => {
             label: 'iPhone',
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: [],
+            mayAct: false,
             live: false,
           },
         ],
@@ -216,5 +220,83 @@ describe('what the panel never carries', () => {
     expect(text).toContain('iPhone')
     expect(text).toContain('names and counts')
     expect(text).not.toContain('192.168')
+  })
+})
+
+describe('letting one device act', () => {
+  it('draws no control for it at all while the setting is off', () => {
+    // **Absent, not greyed out.** With `surfaces.web.acting` off there is no
+    // route a grant could reach, so a button here would be one that cannot do
+    // what it says — and the row is byte-identical to what it was before any
+    // of this existed.
+    const text = said({}, { height: 56 })
+    expect(text).not.toContain('[act]')
+    expect(text).not.toContain('may act')
+  })
+
+  it('offers it per device once a person has turned acting on', () => {
+    // Tall enough that the whole scrolling region is drawn: the code comes
+    // first, so on an ordinary terminal the device list is a scroll away and
+    // is correct to be.
+    const text = said({ acting: true }, { height: 56 })
+    expect(text).toContain('[act]')
+  })
+
+  it('says which devices may, and offers to take it back from those', () => {
+    const text = said(
+      {
+        acting: true,
+        devices: [
+          {
+            id: '00112233445566aa',
+            label: 'iPhone',
+            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
+            reads: ['titles'],
+            mayAct: true,
+            live: true,
+          },
+        ],
+      },
+      { height: 56 },
+    )
+    // **On the row, in words.** The list is what somebody reads to answer
+    // *can any of these change my work*, and a capability visible only as the
+    // colour of a button is one nobody audits — and one a screenshot cannot
+    // carry. The chip is the same word either way; what changes is its
+    // colour, which is the window's own `danger`/`go` pair.
+    expect(text).toContain('may act')
+    expect(text).toContain('[act]')
+  })
+
+  it('says what a device acting is, whole, above the list', () => {
+    // The same placement and the same argument as the LAN warning above the
+    // code: the moment to read what a device will be able to do is before
+    // granting it.
+    const text = said({ acting: true }, { height: 56 })
+    for (const word of ACTING_IS_NOT_YOU.split(/\s+/)) expect(text, word).toContain(word)
+  })
+
+  it('says nothing about acting where it is off, even with a device granted it', () => {
+    // A grant that was made and then the setting turned off: the honest
+    // drawing is the one that matches what the server will do, which is
+    // nothing.
+    const text = said(
+      {
+        acting: false,
+        devices: [
+          {
+            id: '00112233445566aa',
+            label: 'iPhone',
+            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
+            reads: [],
+            mayAct: true,
+            live: false,
+          },
+        ],
+      },
+      { height: 56 },
+    )
+    expect(text).not.toContain('may act')
+    for (const word of ['never your own words', 'overrule']) expect(text).not.toContain(word)
   })
 })

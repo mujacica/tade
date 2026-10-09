@@ -1,5 +1,6 @@
 import { networkInterfaces, uptime } from 'node:os'
 import {
+  ACTING_IS_NOT_YOU,
   type Config,
   DEVICES_SEEN_BY_AGENTS,
   LAN_IS_PLAINTEXT,
@@ -42,6 +43,7 @@ import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
+import { letOneAct, webActing } from './web-acting.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -131,6 +133,19 @@ export class Away implements Subject {
       surface,
       readingFor: (reach) => this.readingFor(reach),
       confirm: (ask) => this.confirm(ask),
+      // **Handed over only where the setting says so**, so with acting off
+      // there is no `WebActing` and no acting route — a crafted call meets the
+      // same `404` as a path nobody built. `unlocked()` is read again at every
+      // act, which is what makes turning the setting off take effect now
+      // rather than at the next restart.
+      ...(surface.acting
+        ? {
+            acting: webActing({
+              tade: this.wire.opts.client,
+              acting: () => surfaceOf(this.config().surfaces.web).acting,
+            }),
+          }
+        : {}),
       tickets: this.tickets,
       streams: this.streams,
       tell: (told) => void this.log(told),
@@ -363,6 +378,8 @@ export class Away implements Subject {
       else if (control === AWAY_CONTROLS.all) await this.revokeEverything()
       else if (control.startsWith(AWAY_CONTROLS.revoke)) {
         await this.revoke(control.slice(AWAY_CONTROLS.revoke.length))
+      } else if (control.startsWith(AWAY_CONTROLS.act)) {
+        await this.letItAct(control.slice(AWAY_CONTROLS.act.length))
       }
     } catch (err) {
       // Said on the panel where the button was pressed, and never swallowed:
@@ -383,6 +400,36 @@ export class Away implements Subject {
     })
     this.forget(id)
     await this.log({ type: 'web_revoked', detail: { device: id, why: 'revoked at the machine' } })
+    await this.reread()
+  }
+
+  /**
+   * Let one device act, or take it back. **A keypress at this machine.**
+   *
+   * The only door a scope widens through, and there is deliberately no other:
+   * no route, no orchestrator tool and no config key, because the thing that
+   * grants authority is never reachable from inside the authority it granted
+   * (DESIGN.md §9.1). What it decides is in `web-acting.ts`; what is here is
+   * the window's half — the file, the line, and the sentence in the strip.
+   */
+  private async letItAct(id: string): Promise<void> {
+    const granted = await letOneAct(
+      {
+        home: this.wire.opts.home,
+        acting: () => surfaceOf(this.config().surfaces.web).acting,
+        now: () => this.wire.now(),
+      },
+      this.devices,
+      id,
+    )
+    await this.log({
+      // The same kind of line as a device being let in or disconnected, and
+      // for the same reason: somebody who did not press the key is the one who
+      // most needs to see that it happened.
+      type: 'web_paired',
+      detail: { device: id, scopes: granted.scopes.join(' '), granted: 'at the machine' },
+    })
+    this.deps.news(granted.said)
     await this.reread()
   }
 
@@ -484,6 +531,8 @@ export class Away implements Subject {
             },
       devices: this.deviceViews(),
       streams: this.streams.count,
+      acting: surface.acting,
+      acts: ACTING_IS_NOT_YOU,
       lan: LAN_IS_PLAINTEXT,
       agents: `${DEVICES_SEEN_BY_AGENTS[0]?.toUpperCase() ?? ''}${DEVICES_SEEN_BY_AGENTS.slice(1)}, which is why this list shows every device there is.`,
       problem: this.problem,
@@ -499,6 +548,10 @@ export class Away implements Subject {
         label: one.label,
         pairedAt: one.pairedAt,
         reads: readsOf(reachOf(one)),
+        // Anything beyond `read`, folded to one answer: the row has width for
+        // a word and not a list, and what somebody scanning the list is asking
+        // is *can any of these change my work*.
+        mayAct: one.scopes.some((scope) => scope !== 'read'),
         live: live.has(one.id),
       }))
   }
@@ -596,7 +649,11 @@ export class Away implements Subject {
    */
   private async log(told: Told): Promise<void> {
     try {
-      await this.wire.opts.client.log.append({ type: told.type, detail: told.detail })
+      await this.wire.opts.client.log.append({
+        type: told.type,
+        ...(told.task === undefined ? {} : { task: told.task }),
+        detail: told.detail,
+      })
     } catch (err) {
       this.deps.news(
         `the away view could not write ${told.type} down: ${err instanceof Error ? err.message : String(err)}`,

@@ -47,6 +47,19 @@ export interface AwayView {
   devices: readonly AwayDevice[]
   /** How many streams are open now. A count, and the liveness of the page. */
   streams: number
+  /**
+   * Whether `surfaces.web.acting` is on.
+   *
+   * **What it decides is whether the per-device control exists at all.** A
+   * button that cannot do what it says is worse than no button, and with
+   * acting off there is no route for one to reach — so the row is drawn
+   * exactly as it was before this existed. Said above the list when it *is*
+   * on, because the moment to read what a device will be able to do is before
+   * granting it.
+   */
+  acting: boolean
+  /** Said when acting is on. `ACTING_IS_NOT_YOU`, verbatim. */
+  acts: string
   /** Said when a LAN bind is on. `LAN_IS_PLAINTEXT`, verbatim. */
   lan: string
   /** Said always. `DEVICES_SEEN_BY_AGENTS`, as the one clause a control gets. */
@@ -62,6 +75,16 @@ export interface AwayDevice {
   pairedAt: number
   /** What it was granted beyond names and counts, already in grant order. */
   reads: readonly string[]
+  /**
+   * Whether a person at the machine has let this device act.
+   *
+   * The device's own scopes beyond `read`, folded to one answer, because the
+   * row has width for a word and not a list — and because the question
+   * somebody scanning the list is asking is *can any of these change my
+   * work*. What it was granted exactly is in `web-devices.jsonl`, which is
+   * the record either way.
+   */
+  mayAct: boolean
   /** Whether it has a live stream open now. */
   live: boolean
 }
@@ -258,13 +281,22 @@ function middleOf(
       .text(view.streams === 0 ? '' : `${view.streams} open`, skin.hint)
       .build(),
   )
+  if (view.acting) {
+    // Above the list, because the moment to read what a device will be able to
+    // do is before granting it — the same placement and the same argument as
+    // the LAN warning above the code. Whole, never cut: the half of this
+    // sentence that says what acting can never reach is the half people act on.
+    for (const said of wrap(view.acts, inner - 3)) {
+      lines.push(row().space().text(said, skin.waiting).build())
+    }
+  }
   const first = lines.length
   if (view.devices.length === 0) {
     lines.push(row().space().text('No device has been paired.', skin.hint).build())
     return { lines, chosen: null }
   }
   for (const [at, device] of view.devices.entries()) {
-    lines.push(deviceLine(device, at === panel.chosen, ctx, inner))
+    lines.push(deviceLine(device, at === panel.chosen, view.acting, ctx, inner))
   }
   // Where the chosen row is in the whole region, so scrolling follows it: an
   // offset anchored in the rows it was drawn on would move when the code did.
@@ -301,9 +333,20 @@ function footOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
   return lines
 }
 
-function deviceLine(device: AwayDevice, chosen: boolean, ctx: PanelContext, inner: number): Line {
+function deviceLine(
+  device: AwayDevice,
+  chosen: boolean,
+  acting: boolean,
+  ctx: PanelContext,
+  inner: number,
+): Line {
   const { skin } = ctx
   const reads = device.reads.length === 0 ? 'names and counts' : device.reads.join(', ')
+  // `may act` is on the row rather than only on the control, because the list
+  // is what somebody reads to answer *can any of these change my work* — and a
+  // capability you can only see by looking at the state of a button is one
+  // nobody audits. Absent with acting off, where it cannot be true.
+  const said = acting && device.mayAct ? `${reads} · may act` : reads
   return new Row(inner, skin, ctx.pointer)
     .space()
     .text(chosen ? '›' : ' ', skin.signal)
@@ -312,10 +355,28 @@ function deviceLine(device: AwayDevice, chosen: boolean, ctx: PanelContext, inne
     .space()
     .text(device.live ? '● now' : '○', device.live ? skin.done : skin.hint)
     .space()
-    .text(`${ctx.date(device.pairedAt)} · ${reads}`, skin.hint)
-    .right((r) =>
-      r.chip('×', { kind: 'control', id: `${AWAY_CONTROLS.revoke}${device.id}` }, 'danger').space(),
-    )
+    .text(`${ctx.date(device.pairedAt)} · ${said}`, skin.hint)
+    .right((r) => {
+      // **Only where the setting is on.** With it off there is no route a
+      // grant could reach, so the control is not drawn rather than drawn and
+      // refused — and the row is byte-identical to what it was before any of
+      // this existed.
+      if (acting) {
+        // **One chip, one word, and the colour says which way it goes** —
+        // `danger`/`go` is the window's own pair for exactly this. The *state*
+        // is never colour alone: it is `· may act` in the row's own words
+        // above, which is also the half that has to be readable in a
+        // screenshot and in a `tade web devices` listing.
+        r.chip(
+          'act',
+          { kind: 'control', id: `${AWAY_CONTROLS.act}${device.id}` },
+          device.mayAct ? 'danger' : 'go',
+        ).space()
+      }
+      return r
+        .chip('×', { kind: 'control', id: `${AWAY_CONTROLS.revoke}${device.id}` }, 'danger')
+        .space()
+    })
     .build()
 }
 

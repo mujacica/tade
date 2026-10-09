@@ -129,6 +129,21 @@ export interface TaskIn {
   reason: ReasonIn
   /** Metadata. */
   stalled: boolean
+  /**
+   * Whether somebody set this task aside. Metadata.
+   *
+   * **The told fact out of the task file, never `state === 'parked'`.** A
+   * merge is ahead of a park in `deriveState`, so a parked task whose branch
+   * landed reads as `merged` and the park is invisible in the state — which is
+   * the hole the queue had before `factory-web-foundations` fixed it, and the
+   * same hole here would make a phone's park control toggle the wrong way.
+   *
+   * On the wire because the page needs it twice: to say which way the control
+   * goes, and to send back what it saw. `park`'s own entity revision is built
+   * from this (`revOf`), so what a device echoes is a value Tade generated and
+   * not a boolean it chose.
+   */
+  parked: boolean
   /** When the task was made, as a moment. Metadata. */
   createdAt: number
   /**

@@ -243,15 +243,17 @@ describe('the shape of the rule', () => {
       'extensions.sentry.token_env',
       'extensions.sentry.url',
       'projects.app.root',
-      // The away view's four, and **every one of them `never`**: each either
+      // The away view's five, and **every one of them `never`**: each either
       // widens who can reach the control room (`enabled`, `bind`), decides
-      // what the pairing code says (`port`), or names a host whose `https`
-      // origin is trusted (`trusted_hosts`). A page the orchestrator read
-      // does not get to let anybody in. They arrived in Settings with the
-      // slice that wired the listener into the window, which is the rule
-      // about a setting with no reader; the tier was already decided by
-      // subtree, which the test above asserts directly, because a tier is a
-      // property of the path and not of whether a page lists it.
+      // what the pairing code says (`port`), names a host whose `https`
+      // origin is trusted (`trusted_hosts`), or decides whether a paired
+      // device may change anything at all (`acting`). A page the orchestrator
+      // read does not get to let anybody in, and it does not get to let a
+      // phone park work either. They arrived in Settings with the slices that
+      // read them, which is the rule about a setting with no reader; the tier
+      // was already decided by subtree, which the test above asserts
+      // directly, because a tier is a property of the path and not of whether
+      // a page lists it.
       'surfaces.intake.enabled',
       'surfaces.intake.sources.cli.accept',
       'surfaces.intake.sources.cli.document',
@@ -309,6 +311,7 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.slack.projects',
       'surfaces.intake.sources.slack.reply',
       'surfaces.intake.sources.slack.template',
+      'surfaces.web.acting',
       'surfaces.web.bind',
       'surfaces.web.enabled',
       'surfaces.web.port',

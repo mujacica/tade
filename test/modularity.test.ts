@@ -69,7 +69,7 @@ const BUDGET: Record<string, number> = {
   // `ownerOnly` are the other ~90, need nothing of the schema but its name,
   // and would be `config-file.ts` — after which a new key costs the schema
   // alone and this number goes back under the default.
-  'packages/core/src/config.ts': 850,
+  'packages/core/src/config.ts': 840,
   // What tmux says about a pane — `readPane`, `scrollingOf`, `pointingOf`,
   // `drawn` — is now `pane.ts`: the part of driving tmux that asks nothing of
   // the world, and the part every question about a pane goes through.
@@ -104,7 +104,7 @@ const BUDGET: Record<string, number> = {
   // reconciliation in each (~300 lines), to `workbench/src/reconcile.ts`, where
   // they can be tested as folds over a journal instead of through an open
   // workbench.
-  'packages/workbench/src/workbench.ts': 2_500,
+  'packages/workbench/src/workbench.ts': 2_495,
   'packages/workbench/src/workers.ts': 1_100,
   // Its harness — a fake adapter, a supervisor and a log — is now
   // `workers-harness.ts`, which is the half of the file that was not about any
@@ -357,8 +357,21 @@ const PURE = [
   'packages/web/src/peers.ts',
   'packages/web/src/protocol.ts',
   'packages/web/src/reach.ts',
+  // The acting half's three pure files: what a verb *is* (`acting.ts`), the
+  // closed table of them and how a body becomes one (`verbs.ts`), and
+  // everything that has to be true of an act (`acts.ts`). The last is
+  // `guard.ts`'s decision made again one layer in: a gate that read `req`
+  // could only be tested by making a request, and then the crafted calls it
+  // exists for get asked once each, for whichever one somebody remembered.
+  // Not here: `acted.ts` (it awaits the window and the receipt store),
+  // `receipts.ts` (it is a file) and `serving.ts` (it names `node:http`'s own
+  // request and response, because the one thing the window hands over that is
+  // not a value is the handler itself).
+  'packages/web/src/acting.ts',
+  'packages/web/src/acts.ts',
   'packages/web/src/routes.ts',
   'packages/web/src/snapshot.ts',
+  'packages/web/src/verbs.ts',
   'packages/web/src/stream.ts',
   'packages/web/src/surface.ts',
   'packages/app/src/commands.ts',

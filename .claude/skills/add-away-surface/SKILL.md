@@ -1,6 +1,6 @@
 ---
 name: add-away-surface
-description: Add or change what the away view serves — a route, the live stream, a read scope, a device grant, the pairing flow, the session credential, the window's pairing panel, `tade web`, or what the guard asks of a request. Use when a phone should be able to read or do something it cannot, when a security claim about the away view needs changing, or when something about pairing, sessions, devices, reconnection or the listener's lifetime does the wrong thing.
+description: Add or change what the away view serves — a route, a verb a device may ask for, the live stream, a read scope, a device grant, the pairing flow, the session credential, the window's pairing panel, `tade web`, or what the guard asks of a request. Use when a phone should be able to read or do something it cannot, when a security claim about the away view needs changing, or when something about pairing, sessions, devices, acting, idempotency, reconnection or the listener's lifetime does the wrong thing.
 ---
 
 # Changing what the away view serves
@@ -13,6 +13,11 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | Changing | File |
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
+| a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, and the window's own half in `packages/app/src/wire/web-acting.ts` |
+| what has to be true of an **act** | `src/acts.ts` — pure, and `test/acts.test.ts` runs the cross-product |
+| the act's own sequence, claim to receipt | `src/acted.ts` — no sockets, so a replay, a restart and an altered payload are each one line of setup |
+| idempotency, and what a repeat is answered with | `src/receipts.ts` — `<home>/web-acts.jsonl` |
+| what the window hands the listener | `src/serving.ts` — the contract; `src/server.ts` is only the listener |
 | the live stream's protocol | `src/stream.ts` — pure: the cursor, the ring, the resume rule, the frames, the budgets |
 | who is listening, and what they are sent | `src/peers.ts` — pure, over a `Sink`; the caps, the fan-out, the backpressure, the stall |
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
@@ -42,10 +47,49 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 
 ## The rules that break things quietly
 
-- **No route mutates a project or a task.** The two non-`GET` routes are session lifecycle — this
-  browser's own credential, created and destroyed — and `test/routes.test.ts` asserts that set is
-  exactly those two **by name**. A third fails the test until somebody puts it in `LIFECYCLE`
-  deliberately, which is the conversation the rule is for.
+- **No route in `ROUTES` mutates a project or a task.** The two non-`GET` routes there are session
+  lifecycle — this browser's own credential, created and destroyed — and `test/routes.test.ts`
+  asserts that set is exactly those two **by name**. A third fails the test until somebody puts it
+  in `LIFECYCLE` deliberately, which is the conversation the rule is for.
+- **Acting is a second table a setting turns on, and absence is the enforcement.** `routesFor`
+  adds `ACTS` only where `surfaces.web.acting` is true, and the window hands over a `WebActing`
+  only there — so with it off a crafted call is the `404` of a path nobody built, not a `403`
+  naming a setting. Turning it **on** needs a restart (the table is built with the listener);
+  turning it **off** is read at every act (`WebActing.unlocked`). Asymmetric in the direction that
+  takes authority away, and the setting's own `means` says so.
+- **A verb is a method, never a name and a payload.** There is no `run(verb, args)` anywhere:
+  `verbs.ts` parses a body into an `Asked` that already knows how to do itself, so nothing
+  downstream switches on a name and there is no shape a path, a command, a credential or a new
+  agent could arrive in. Each verb gets its **own route**, so the guard's per-route scope check
+  stays exact.
+- **Every verb is a target plus the state it expects**, and `test/verbs.test.ts` asserts it of
+  every entry. The idempotency key is a *fast path*; the guarantee is that the window re-checks the
+  state at the moment of the write and a replay meets a target that has moved on (DECISIONS §4.6).
+  A verb that cannot be expressed that way does not ship.
+- **The claim is synchronous and the file append is what the answer waits on.** `Receipts.claim`
+  decides and marks before its first `await`: the tempting shape — look, append, then answer
+  `fresh` — has an append's worth of event loop in the middle, and two requests in one tick are
+  both told they are first.
+- **An `asked` line with nothing after it is `unsure`, for ever.** That is a window that died
+  mid-act, and the answer is that Tade does not know, will not do it again, and says so. **Nothing
+  promises exactly-once side effects**: a key past `KEPT`, or a receipts file somebody deleted, is
+  a *new* act — which is safe only because of the state re-check.
+- **A read-modify-write of a task file is one act only because of `aloneOn`** (`tasks.ts`). Two
+  parks asked for at once both read the old world and both write without it, and the one working
+  from a world that no longer exists wins silently instead of being refused.
+- **Provenance is an argument, not a prompt line.** `From` is carried into the verb and `byOf`
+  turns it into the `by` on the journal line — `you` at the keyboard, `device <id>` from away. A
+  remote act recorded as `you` would make `historyFrom` count it as the person's own doing, and
+  DECISIONS §4.5 is why a sentence to a model is not a mitigation.
+- **A device's scope widens at the machine and nowhere else.** `allowDevice` appends an `allowed`
+  line; there is no route, no orchestrator tool and no config key for it, because the thing that
+  grants authority is never reachable from inside the authority it granted. `read` survives every
+  grant: widening what a device may do and signing it out are different acts.
+- **The per-project boundary for acting is the read scope.** A narrower acting list would be a
+  second list to keep in step, and the day they disagree is the day somebody acts on a project they
+  cannot see.
+- **A `web_did` line goes in whatever happened**, a refusal at the door included: a device that
+  asked to change something and was not allowed to is the case the audit matters most in.
 - **A path that is not in the table is a `404`, never a `405` and never a `403` with a hint.** An off
   capability is not a thing to probe: a `403` saying "turn `diffs` on" tells whoever holds a stolen
   session that there is a diff route and what the setting is called.
@@ -181,6 +225,12 @@ socket in `@tade/orchestrator` for the window's own children, and is **not this*
 (`test/separation.test.ts`). Each of those is a `never remote` line with an argument behind it; if a
 phase wants one, it gets its own setting in the `never` subtree, its own threat model and its own
 go/no-go, not a route somebody added.
+
+**The one verb that exists is park and unpark**, and the rest of DESIGN §9.1's matrix — answering an
+approval, answering a question, steering an agent, a note, the context file — arrives in the slices
+that own those, each as a line in `VERBS` and a method on `WebActing`. Park went first because it is
+the smallest act that proves the whole path: told rather than derived, one bit of state to expect,
+already a hold with the queue's own rules behind it, and undone by the same verb.
 
 ## `tade web`, and what it cannot do
 

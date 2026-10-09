@@ -334,3 +334,23 @@ export function asOf(store, kind, now) {
   if (kind === 'live' || said === null || Number.isNaN(said)) return { at: now, frozen: false }
   return { at: said, frozen: true }
 }
+
+/**
+ * Whether this device may draw the one control that changes anything.
+ *
+ * **The page's copy of a server rule, and the only honest way to write one.**
+ * What decides an act is `admit` (`acts.ts`) — the setting, the scope, the
+ * project, the origin and the state — and none of that is knowable here. What
+ * *is* knowable is the scope on this device's own session, out of
+ * `/api/devices`, and that is enough to answer the question the page has:
+ * whether to draw a button at all. A device that was granted nothing has the
+ * control **absent** rather than present and refused.
+ *
+ * The scope is the one the verbs need (`PARK.needs`), and
+ * `test/client.test.ts` holds this against the verb table so the two cannot
+ * drift — the same treatment `inScope` and `appliesTo` already have.
+ */
+export function mayAct(session) {
+  const scopes = session === null || session === undefined ? [] : (session.scopes ?? [])
+  return Array.isArray(scopes) && scopes.includes('steer')
+}

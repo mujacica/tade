@@ -258,6 +258,23 @@ export const EventType = z.enum([
    * request log nobody reads.
    */
   'web_refused',
+  /**
+   * A paired device changed something: the device, the verb, what it was
+   * about, and what came of it.
+   *
+   * **The audit half of acting, and it is the half that makes the rest
+   * answerable.** A remote act is never a `said` line — `namedBy` reads those
+   * to authorise a setting change and a request from a phone is not somebody's
+   * own words — so this is the only record that one happened, and it carries
+   * the device id so that "every act one takes is in the journal under its id"
+   * (`DEVICES_AND_AGENTS`) is a fact rather than a promise. Written whatever
+   * the outcome: a refusal and a repeat that did nothing are both things
+   * somebody reading back needs to be able to see.
+   *
+   * Notable for the reason `config_changed` is: somebody who was not holding
+   * the phone is the one who most needs to know.
+   */
+  'web_did',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -366,6 +383,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // per scanner on the wifi is a sound nobody can act on. It is kept for the
   // record, where a sustained attempt reads as one.
   web_refused: 'routine',
+  // Notable, unlike a refusal at the door: this is work changing because
+  // somebody asked from off the machine, which is the one thing about the away
+  // view a person at the keyboard cannot see happening.
+  web_did: 'notable',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

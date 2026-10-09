@@ -1,4 +1,6 @@
 import {
+  ACTING_IS_NOT_YOU,
+  ACTING_IS_NOT_YOU_SHORT,
   AWAY_IS_WHILE_OPEN,
   COOKIES_IGNORE_PORTS,
   DEVICES_AND_AGENTS,
@@ -8,18 +10,22 @@ import {
 } from '@tade/core'
 import { GRANTS, type Grant, type Reach } from './reach.ts'
 
-// The five sentences are **declared in `@tade/core`'s `away.ts`** and
+// The sentences about the away view are **declared in `@tade/core`'s `away.ts`**
+// and
 // re-exported here, so this package still has exactly one spelling of each and
 // everything that said `from './surface.ts'` still does.
 //
-// They moved because three of them belong on a *control* — the one that turns
-// a LAN bind on, and the one that lists the devices that have been let in —
+// They moved because four of them belong on a *control* — the one that turns a
+// LAN bind on, the one that lets a paired device act, and the one that lists
+// the devices that have been let in —
 // and a control's words are a `Setting`'s `means`, which lives in the domain.
 // `@tade/core` cannot import this package: the arrow goes the other way and
 // `test/modularity.test.ts` holds it. So the choice was a second spelling of
 // each sentence beside each control, or one spelling in the domain. A second
 // spelling is the exact failure these sentences exist to prevent.
 export {
+  ACTING_IS_NOT_YOU,
+  ACTING_IS_NOT_YOU_SHORT,
   AWAY_IS_WHILE_OPEN,
   COOKIES_IGNORE_PORTS,
   DEVICES_AND_AGENTS,
@@ -28,8 +34,8 @@ export {
   LAN_IS_PLAINTEXT,
 }
 
-// What the away view is turned on as, and the four sentences about it that are
-// true however it is turned on.
+// What the away view is turned on as, and the sentences about it that are true
+// however it is turned on.
 //
 // `surfaces.web` is read here and nowhere else, so the server, the pairing
 // panel and whatever draws a control all get the same answer about what is on.
@@ -53,6 +59,19 @@ export interface Surface {
   port: number
   /** Hosts beyond this machine's own that may reach it, from the config. */
   trustedHosts: readonly string[]
+  /**
+   * Whether a paired device may change anything at all.
+   *
+   * **Read twice, and the two readings are different questions.** At start-up
+   * it decides whether the acting routes are in the table at all
+   * (`routesFor`), so with it off a crafted call is the same `404` as a path
+   * nobody built — read-only by absence rather than by a flag. At every act it
+   * is read again, so turning it off takes authority away now rather than at
+   * the next restart. On its own it grants nothing: a device still needs the
+   * scope a person granted it at the machine, and the request still needs a
+   * trusted origin.
+   */
+  acting: boolean
 }
 
 /** The `surfaces.web` block, as the one reader of it sees it. */
@@ -61,17 +80,27 @@ export interface WebConfig {
   bind: Bind
   port: number
   trusted_hosts: readonly string[]
+  acting: boolean
 }
 
-/** Off, on this machine, on the port nothing else wanted. */
-export const OFF: Surface = { enabled: false, bind: 'loopback', port: 7654, trustedHosts: [] }
+/** Off, on this machine, on the port nothing else wanted, changing nothing. */
+export const OFF: Surface = {
+  enabled: false,
+  bind: 'loopback',
+  port: 7654,
+  trustedHosts: [],
+  acting: false,
+}
 
 /**
  * The surface a config says, and it only ever *narrows* what is turned on.
  *
  * A `lan` bind with `enabled: false` is off, not "on the network and waiting":
  * two decisions, and the one that decides whether anything listens is read
- * first. Nothing here can turn anything on that the file did not.
+ * first. `acting` is narrowed the same way and for the same reason — a config
+ * that says a device may act and that nothing is listening says, together,
+ * that nothing may act. Nothing here can turn anything on that the file did
+ * not.
  */
 export function surfaceOf(web: WebConfig): Surface {
   return {
@@ -79,6 +108,7 @@ export function surfaceOf(web: WebConfig): Surface {
     bind: web.enabled ? web.bind : 'loopback',
     port: web.port,
     trustedHosts: web.enabled ? [...web.trusted_hosts] : [],
+    acting: web.enabled && web.acting,
   }
 }
 
@@ -120,9 +150,10 @@ export function trusted(origin: { scheme: string; host: string }, surface: Surfa
  * The most a session minted on this origin may ever have.
  *
  * Off a trusted origin it is `read` and there is no later act — not a flag
- * that could be raised, not a scope a grant could widen. `away-action-gate`
- * adds the verbs; this is the ceiling they land under, and it is written now
- * so that the verb arrives beneath a rule rather than beside one.
+ * that could be raised, not a scope a grant could widen. The verbs land under
+ * this ceiling: `allowed` re-asks `trusted` at every act, so a device granted
+ * `steer` at the machine and then carried onto somebody's wifi reads and does
+ * nothing else until it is back.
  */
 export function scopesOn(
   origin: { scheme: string; host: string },

@@ -2,6 +2,7 @@ import { chmodSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
 import { z } from 'zod'
+import { WebSurface } from './away.ts'
 import { dropGone } from './gone.ts'
 import { defaultConfigPath } from './home.ts'
 import { IntakeSurface } from './intake.ts'
@@ -460,43 +461,11 @@ export const ConfigSchema = z
         /**
          * The away view: Tade's own pages, served from this machine to a device
          * you paired, so "is anything waiting for me" has an answer from a
-         * phone. Read in one place, `surfaceOf` (`@tade/web`'s `surface.ts`),
-         * which is also where every honest sentence about it is written once.
-         *
-         * **Off, and the default is the decision.** `enabled` is a listener on
-         * this machine; `bind` is whether that listener is on your network.
-         * Two decisions, never one, because conflating them is how a laptop in
-         * a cafe serves its control room to the cafe. Both are `never` in
-         * `reach.ts`: each changes who can reach Tade.
+         * phone. Its keys are in `away.ts`, beside the sentences that have to
+         * be said about each of them, and `surfaceOf` (`@tade/web`'s
+         * `surface.ts`) is the one reader.
          */
-        web: z
-          .strictObject({
-            /** Serve it at all. Nothing listens while this is false. */
-            enabled: z.boolean().default(false),
-            /**
-             * `loopback` is this machine alone, and is a secure context, so
-             * every browser capability works. `lan` is every interface, in the
-             * clear, and is a **read-only transport**: a session minted over
-             * plain HTTP off this machine can never act, whatever is turned on
-             * later (`scopesOn`).
-             */
-            bind: z.enum(['loopback', 'lan']).default('loopback'),
-            /**
-             * Unassigned in IANA's registry, which is the whole of why it is
-             * this number. Already in use is a **named warning** and nothing
-             * listens — never a quiet bind elsewhere, which is a URL in
-             * somebody's hand that goes nowhere.
-             */
-            port: z.int().min(1).max(65535).default(7654),
-            /**
-             * Names beyond this machine's own addresses that may reach it: a
-             * tailnet, a tunnel. An `https` one of these is also the only
-             * origin off this machine a device may ever *act* from, which is
-             * what makes a trusted path a prerequisite rather than a nicety.
-             */
-            trusted_hosts: z.array(z.string().min(1)).default([]),
-          })
-          .prefault({}),
+        web: WebSurface,
         intake: IntakeSurface,
         /**
          * How the window is divided. Sizes are wishes: a sidebar wider than

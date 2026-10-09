@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  ACTING_IS_NOT_YOU,
+  ACTING_IS_NOT_YOU_SHORT,
   COOKIES_IGNORE_PORTS,
   DEVICES_AND_AGENTS,
   HTTPONLY_IS_NOT_XSS,
@@ -15,8 +17,8 @@ import {
   trusted,
 } from '../src/surface.ts'
 
-// Two things this package must never become, and the four sentences it must
-// never stop saying.
+// Two things this package must never become, and the sentences it must never
+// stop saying.
 
 const SRC = new URL('../src/', import.meta.url).pathname
 
@@ -115,7 +117,13 @@ describe('what the surface is turned on as', () => {
   })
 
   it('reads a config that says nothing as off', () => {
-    const surface = surfaceOf({ enabled: false, bind: 'lan', port: 7654, trusted_hosts: ['x'] })
+    const surface = surfaceOf({
+      enabled: false,
+      bind: 'lan',
+      port: 7654,
+      trusted_hosts: ['x'],
+      acting: false,
+    })
     // `lan` with `enabled: false` is **off**, not "on the network and
     // waiting": two decisions, and the one deciding whether anything listens
     // is read first. Nothing here can turn on what the file did not.
@@ -130,11 +138,15 @@ describe('what the surface is turned on as', () => {
     // systems and not all, so one listener would make which addresses are
     // served a property of the machine rather than of the setting.
     expect(
-      listenOn(surfaceOf({ enabled: true, bind: 'loopback', port: 1, trusted_hosts: [] })),
+      listenOn(
+        surfaceOf({ enabled: true, bind: 'loopback', port: 1, trusted_hosts: [], acting: false }),
+      ),
     ).toEqual(['127.0.0.1', '::1'])
-    expect(listenOn(surfaceOf({ enabled: true, bind: 'lan', port: 1, trusted_hosts: [] }))).toEqual(
-      ['0.0.0.0', '::'],
-    )
+    expect(
+      listenOn(
+        surfaceOf({ enabled: true, bind: 'lan', port: 1, trusted_hosts: [], acting: false }),
+      ),
+    ).toEqual(['0.0.0.0', '::'])
   })
 
   it('knows this machine in each of its spellings, and nothing else', () => {
@@ -171,6 +183,7 @@ describe('what a session minted on an origin may ever do', () => {
     bind: 'lan',
     port: 7654,
     trusted_hosts: ['studio.yak-bebop.ts.net'],
+    acting: true,
   })
 
   it('is everything it was granted, from this machine', () => {
@@ -214,7 +227,7 @@ describe('what a session minted on an origin may ever do', () => {
   })
 })
 
-describe('the four sentences', () => {
+describe('the sentences', () => {
   it('say what a LAN is, and the way out in the same breath', () => {
     expect(LAN_IS_PLAINTEXT).toContain('plain HTTP')
     expect(LAN_IS_PLAINTEXT).toContain('same wifi')
@@ -222,7 +235,12 @@ describe('the four sentences', () => {
   })
 
   it('never promise a LAN is private', () => {
-    for (const sentence of [LAN_IS_PLAINTEXT, COOKIES_IGNORE_PORTS, DEVICES_AND_AGENTS])
+    for (const sentence of [
+      LAN_IS_PLAINTEXT,
+      COOKIES_IGNORE_PORTS,
+      DEVICES_AND_AGENTS,
+      ACTING_IS_NOT_YOU,
+    ])
       for (const word of ['secure', 'encrypted', 'private', 'safe'])
         expect(sentence.toLowerCase(), `${word} in ${sentence.slice(0, 30)}`).not.toContain(word)
   })
@@ -240,5 +258,42 @@ describe('the four sentences', () => {
     expect(HTTPONLY_IS_NOT_XSS).toContain('does not keep one from using it')
     expect(HTTPONLY_IS_NOT_XSS).toContain('builds no markup')
     expect(HTTPONLY_IS_NOT_XSS.toLowerCase()).not.toContain('survives')
+  })
+
+  it('say what a device acting is, and name what it can never reach', () => {
+    // **The list is the load-bearing half**, and it is asserted item by item:
+    // every one of these is a `never remote` line with an argument behind it
+    // (DESIGN §9.1), and a control that quietly stopped naming one would be
+    // the comfortable version of this sentence.
+    expect(ACTING_IS_NOT_YOU).toContain('never your own words')
+    for (const never of [
+      'change a setting',
+      'read a credential',
+      'run a command',
+      'start an agent',
+      'push',
+      'merge',
+      'overrule a check',
+    ]) {
+      expect(ACTING_IS_NOT_YOU, never).toContain(never)
+    }
+    // And what acting needs, with the way out in the same breath.
+    expect(ACTING_IS_NOT_YOU).toContain('https origin you named')
+    expect(ACTING_IS_NOT_YOU).toContain('in the clear')
+    expect(ACTING_IS_NOT_YOU).toContain('journal under the device')
+  })
+
+  it('have a short clause for the one line a control gets', () => {
+    // Short enough to sit on a row beside a control, and still carrying the
+    // half that matters: that a request from a device is a request.
+    expect(ACTING_IS_NOT_YOU_SHORT).toContain('never as your own words')
+    expect(ACTING_IS_NOT_YOU_SHORT.length).toBeLessThan(80)
+    // And neither of them says a device acts *for* the person, which is the
+    // comfortable phrasing that would make `namedBy` sound like it applied.
+    for (const sentence of [ACTING_IS_NOT_YOU, ACTING_IS_NOT_YOU_SHORT]) {
+      for (const comfortable of ['on your behalf', 'as if you', 'as though you']) {
+        expect(sentence.toLowerCase(), comfortable).not.toContain(comfortable)
+      }
+    }
   })
 })

@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 // The sentences about the away view that have to be said where somebody is
 // deciding, and that may never get more comfortable.
 //
@@ -89,3 +91,89 @@ export const DEVICES_SEEN_BY_AGENTS = 'an agent on this machine could pair itsel
 export const AWAY_IS_WHILE_OPEN =
   'The away view answers only while this window is open: close Tade and nothing is listening, ' +
   'which is also why closing Tade is harmless.'
+
+/**
+ * What a paired device may and may not do, said where acting is turned on.
+ *
+ * The same shape as the sentences above: the fact, then what stands against
+ * it, in one breath. Three facts, and the middle one is the one a person
+ * deciding has to be able to picture — a request from a phone runs in the same
+ * conversation as the things they said at the keyboard, and the only thing
+ * keeping last week's *turn the checks off* from authorising it is that the
+ * refusal is in code rather than in a prompt.
+ */
+export const ACTING_IS_NOT_YOU =
+  'A request from a paired device is never your own words: it can only answer, steer and park ' +
+  'work you already set up, and it can never change a setting, read a credential, run a command, ' +
+  'start an agent, push, merge or overrule a check. Acting needs this machine itself or an https ' +
+  'origin you named in Trusted hostnames, so a credential that crossed a network in the clear ' +
+  'never buys one — and every act is in the journal under the device that took it.'
+
+/** The short clause, for the one line a control gets. */
+export const ACTING_IS_NOT_YOU_SHORT = 'a device acts as a request, never as your own words'
+
+/**
+ * The away view's own config block: `surfaces.web`.
+ *
+ * Here rather than in `config.ts` for the reason the sentences above are here:
+ * every one of these keys is a decision about who can reach the control room
+ * and what they may do with it, and the words that have to be said about each
+ * are three lines away instead of in another file. `config.ts` composes it the
+ * way it composes `IntakeSurface`, and `surfaceOf` (`@tade/web`'s
+ * `surface.ts`) is still the one reader.
+ *
+ * **Off, and the default is the decision.** `enabled` is a listener on this
+ * machine; `bind` is whether that listener is on your network; `acting` is
+ * whether a paired device may change anything at all. Three decisions, never
+ * one, because conflating the first two is how a laptop in a cafe serves its
+ * control room to the cafe, and conflating the last with either is how reading
+ * from the sofa turns into acting from anywhere. All of them are `never` in
+ * `reach.ts` by subtree: each changes who can reach Tade, or what they can do.
+ */
+export const WebSurface = z
+  .strictObject({
+    /** Serve it at all. Nothing listens while this is false. */
+    enabled: z.boolean().default(false),
+    /**
+     * `loopback` is this machine alone, and is a secure context, so
+     * every browser capability works. `lan` is every interface, in the
+     * clear, and is a **read-only transport**: a session minted over
+     * plain HTTP off this machine can never act, whatever is turned on
+     * later (`scopesOn`).
+     */
+    bind: z.enum(['loopback', 'lan']).default('loopback'),
+    /**
+     * Unassigned in IANA's registry, which is the whole of why it is
+     * this number. Already in use is a **named warning** and nothing
+     * listens — never a quiet bind elsewhere, which is a URL in
+     * somebody's hand that goes nowhere.
+     */
+    port: z.int().min(1).max(65535).default(7654),
+    /**
+     * Names beyond this machine's own addresses that may reach it: a
+     * tailnet, a tunnel. An `https` one of these is also the only
+     * origin off this machine a device may ever *act* from, which is
+     * what makes a trusted path a prerequisite rather than a nicety.
+     */
+    trusted_hosts: z.array(z.string().min(1)).default([]),
+    /**
+     * Whether a paired device may change anything at all.
+     *
+     * **A third decision, and `false` is the whole of Phase 1's guarantee.**
+     * With this off there is no acting route in the table at all
+     * (`routesFor`), so a crafted call is the same `404` as a path nobody
+     * built — read-only is enforced by absence rather than by a flag a bug
+     * could get past. It is not enough on its own either: a device still
+     * needs the scope a person granted it at the machine, and the request
+     * still needs a trusted origin. `ACTING_IS_NOT_YOU` is the sentence that
+     * goes with it, and what acting can never reach is in it rather than left
+     * to be inferred.
+     *
+     * Turning it **on** takes effect the next time Tade starts, because the
+     * route table is built with the listener. Turning it **off** is read at
+     * every act, which is the asymmetry worth having: the direction that
+     * takes away authority is immediate.
+     */
+    acting: z.boolean().default(false),
+  })
+  .prefault({})

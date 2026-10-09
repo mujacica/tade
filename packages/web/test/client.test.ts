@@ -11,6 +11,8 @@ import {
   STALE_AFTER_MS,
   standingOf,
 } from '../src/assets/live.js'
+import { keyOf } from '../src/assets/screens.js'
+import { mayAct } from '../src/assets/store.js'
 import {
   BACKOFF_MS as BACKOFF,
   backoffAt as backoffHere,
@@ -18,6 +20,7 @@ import {
   connectionOf as connectionHere,
   STALE_AFTER_MS as STALE,
 } from '../src/stream.ts'
+import { KEY, PARK } from '../src/verbs.ts'
 
 // The one rule that is written twice, held to agreeing.
 //
@@ -150,5 +153,35 @@ describe('what it says, and what it never says', () => {
     for (const kind of ['live', 'stale', 'closed']) {
       expect(standingOf({ kind, sinceAt: NOW, why: 'x' }, 99)).toBe(kind)
     }
+  })
+})
+
+describe('the one control the page has that changes anything', () => {
+  it('is drawn only for a device granted the scope the verbs need', () => {
+    // The page's copy of a server rule, held against the verb table rather
+    // than against a literal: a verb filed at another tier would make the two
+    // disagree, and the page would draw a button that is refused.
+    expect(PARK.needs).toBe('steer')
+    expect(mayAct({ scopes: ['read', PARK.needs] })).toBe(true)
+    expect(mayAct({ scopes: ['read'] })).toBe(false)
+  })
+
+  it('answers no for every shape of nothing, rather than throwing', () => {
+    // A page drawn before `/api/devices` has answered, a session with no
+    // scopes on it, and a body that is not the shape it should be: all of them
+    // are *no control*, because the safe answer to "may this device act" is no.
+    for (const session of [null, undefined, {}, { scopes: null }, { scopes: 'steer' }]) {
+      expect(mayAct(session as never), JSON.stringify(session ?? null)).toBe(false)
+    }
+  })
+
+  it('mints a key the server will accept, and a fresh one every press', () => {
+    // A key is how the machine tells one press from a retry of the same one,
+    // so two presses must never mint the same value — a counter or a
+    // timestamp would, across two tabs of one phone — and the server refuses
+    // a shape it does not recognise before anything is read.
+    const keys = new Set(Array.from({ length: 200 }, () => keyOf()))
+    expect(keys.size).toBe(200)
+    for (const key of keys) expect(KEY.test(key), key).toBe(true)
   })
 })

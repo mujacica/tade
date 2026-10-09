@@ -508,13 +508,55 @@ export async function beginFrom(
 /** Tade's own commits, never the person's: they only put starting points together. */
 const AS_TADE = ['-c', 'user.name=Tade', '-c', 'user.email=tade@localhost']
 
+/**
+ * What is being written to each task file, so two writes are not one.
+ *
+ * **A read-modify-write of a whole YAML file is not one operation**, and two
+ * of them in flight at once is the second one writing a document built from
+ * the world before the first — which loses a field with no conflict, no error
+ * and nothing in the journal saying so. The window is single-threaded and
+ * holds the home lock, so serialising here is enough to make the read and the
+ * write of one file one act.
+ *
+ * **What it is not**: a lock against another process. Nothing stops a second
+ * program from writing a task file, and nothing here pretends to — what makes
+ * that safe in practice is that the window is the lock holder, and what makes
+ * it *visible* is that a park says what state it expected and is refused when
+ * the file disagrees (`setParked`).
+ *
+ * Keyed by path and dropped as soon as nothing is queued on it, so the map is
+ * bounded by what is in flight rather than by how many tasks have ever been
+ * written.
+ */
+const writing = new Map<string, Promise<unknown>>()
+
+/** One thing at a time, per file. */
+export function aloneOn<T>(path: string, work: () => Promise<T>): Promise<T> {
+  const before = writing.get(path) ?? Promise.resolve()
+  // `then(work, work)` so that one caller's failure is not every later
+  // caller's: a queue that stopped at the first rejection would turn one bad
+  // write into a task file nothing could change again.
+  const mine = before.then(work, work)
+  const held = mine.then(
+    () => undefined,
+    () => undefined,
+  )
+  writing.set(path, held)
+  void held.then(() => {
+    if (writing.get(path) === held) writing.delete(path)
+  })
+  return mine
+}
+
 async function updateTaskFile(
   path: string,
   change: (file: Record<string, unknown>) => void,
 ): Promise<void> {
-  const file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
-  change(file)
-  await writeFile(path, stringify(file))
+  await aloneOn(path, async () => {
+    const file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
+    change(file)
+    await writeFile(path, stringify(file))
+  })
 }
 
 /** Say which harness a task's agent runs in; empty goes back to the route's. */
@@ -537,9 +579,40 @@ export async function setTaskAccount(
   })
 }
 
+/**
+ * That the park moved under whoever asked.
+ *
+ * **A class and not a sentence, because the caller needs the value.** A screen
+ * from two minutes ago asking for something the file no longer says is not a
+ * failure and not a thing to retry — it is *somebody else got there first* —
+ * and what the caller does about it is draw the truth. Matching on the words
+ * of a message to find out what the truth was is the version of this that
+ * breaks the day somebody rewords it, so what is true now is a field.
+ */
+export class ParkMovedOn extends Error {
+  /** What the file actually says, so the answer carries it. */
+  readonly parked: boolean
+
+  constructor(id: string, parked: boolean) {
+    super(`${id} is ${parked ? 'parked' : 'not parked'} now, which is not what you saw`)
+    this.name = 'ParkMovedOn'
+    this.parked = parked
+  }
+}
+
+/** That there is no task file to read, or none that parses. Also a class. */
+export class NoTaskFile extends Error {
+  constructor(id: string, why: 'missing' | 'unreadable') {
+    super(why === 'missing' ? `no task file for ${id}` : `unreadable task file for ${id}`)
+    this.name = 'NoTaskFile'
+  }
+}
+
 export interface ParkResult {
   task: string
   parked: boolean
+  /** What the file said before this write. What a caller's `was` is checked against. */
+  was: boolean
 }
 
 /**
@@ -547,19 +620,42 @@ export interface ParkResult {
  * in task.yaml rather than being derived: nothing else can tell "parked" from
  * "idle". Every other field is round-tripped untouched, `intent_spoken` above
  * all.
+ *
+ * **`was` is a compare-and-set, and it is what a request from off the machine
+ * is expressed against.** A phone showing a screen from two minutes ago must
+ * not be able to undo a park somebody made at the keyboard since: with `was`
+ * given, the file is read, the flag is compared, and a mismatch throws
+ * `movedOn` rather than writing. The read and the write are one `await` apart
+ * in a process that is single-threaded and holds the home lock, which is as
+ * atomic as a file in a folder gets — and the honest limit is said in
+ * `parked.ts` rather than implied away.
  */
-export async function setParked(home: string, id: string, parked: boolean): Promise<ParkResult> {
+export async function setParked(
+  home: string,
+  id: string,
+  parked: boolean,
+  was?: boolean,
+): Promise<ParkResult> {
   const path = taskFilePath(home, id)
-  let file: Record<string, unknown>
-  try {
-    file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
-  } catch {
-    throw new Error(`no task file for ${id}`)
-  }
-  if (typeof file !== 'object') throw new Error(`unreadable task file for ${id}`)
-  file.parked = parked
-  await writeFile(path, stringify(file))
-  return { task: String(file.id ?? ''), parked }
+  // **One at a time, per file** (`aloneOn`). Without it the compare and the
+  // write have an event loop between them, so two parks asked for at once both
+  // read the old world and both write — and the one that was working from a
+  // world that no longer exists wins silently instead of being refused. That
+  // is the local race, and it is the whole reason `was` exists.
+  return aloneOn(path, async () => {
+    let file: Record<string, unknown>
+    try {
+      file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
+    } catch {
+      throw new NoTaskFile(id, 'missing')
+    }
+    if (typeof file !== 'object') throw new NoTaskFile(id, 'unreadable')
+    const before = file.parked === true
+    if (was !== undefined && was !== before) throw new ParkMovedOn(id, before)
+    file.parked = parked
+    await writeFile(path, stringify(file))
+    return { task: String(file.id ?? ''), parked, was: before }
+  })
 }
 
 function firstLine(text: string): string {

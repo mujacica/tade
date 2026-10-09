@@ -131,9 +131,20 @@ declare module '*/assets/store.js' {
   export function checksWord(fold: Record<string, any>): string
   export function reviewsOf(store: Store): { offered: readonly any[]; unoffered: readonly any[] }
   export function mayRead(store: Store, grant: string): boolean
+  export function mayAct(session: unknown): boolean
   export function omitted(store: Store, collection: string): number
   export function asOf(store: Store, kind: string, now: number): { at: number; frozen: boolean }
   export function spendSince(store: Store): string | null
+}
+
+declare module '*/assets/screens.js' {
+  /**
+   * Only `keyOf` is declared, because only `keyOf` is a rule rather than a
+   * renderer: the key a press mints has to be one the server's own `KEY`
+   * accepts, and two presses must never mint the same one. What the screens
+   * *draw* is checked in a browser and over their own text.
+   */
+  export function keyOf(): string
 }
 
 declare module '*/assets/dom.js' {

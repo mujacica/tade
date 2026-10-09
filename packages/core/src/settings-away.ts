@@ -1,17 +1,22 @@
-import { AWAY_IS_WHILE_OPEN, DEVICES_SEEN_BY_AGENTS, LAN_IS_PLAINTEXT } from './away.ts'
+import {
+  ACTING_IS_NOT_YOU,
+  AWAY_IS_WHILE_OPEN,
+  DEVICES_SEEN_BY_AGENTS,
+  LAN_IS_PLAINTEXT,
+} from './away.ts'
 import type { Config } from './config.ts'
 import type { SettingGroup } from './settings.ts'
 
-// The away view's four controls, as a person changes them.
+// The away view's five controls, as a person changes them.
 //
 // Its own half of `settingsOf`, split off for the reason the projects half
 // was: that file reached the size a file is allowed to be. It is a seam rather
-// than a cut — these four are exactly the keys `reach.ts` refuses to the
+// than a cut — these five are exactly the keys `reach.ts` refuses to the
 // orchestrator by subtree, and exactly the ones whose `means` carries a
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //
-// **All four are `live: false`, honestly.** The listener comes up when the
+// **All five are `live: false`, honestly.** The listener comes up when the
 // window starts, and the epoch a connected phone holds is per server start —
 // so turning one on mid-session would have to tear down and rebuild something
 // somebody is looking at. Saying *takes effect on restart* is the honest
@@ -23,7 +28,7 @@ export function awayGroup(config: Config): SettingGroup {
   return {
     id: 'away',
     title: 'Away view',
-    about: `One page, served from this machine, to a phone you paired by scanning a code in the window. It shows what is working, what is queued, what is stopped and what it cost — and it can change nothing. ${AWAY_IS_WHILE_OPEN} Off by default, and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
+    about: `One page, served from this machine, to a phone you paired by scanning a code in the window. It shows what is working, what is queued, what is stopped and what it cost, and until you turn Acting on it can change nothing. ${AWAY_IS_WHILE_OPEN} Off by default, and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
     keywords: [
       'away',
       'web',
@@ -44,6 +49,8 @@ export function awayGroup(config: Config): SettingGroup {
       'tailscale',
       'proxy',
       'https',
+      'act',
+      'acting',
     ],
     settings: [
       {
@@ -83,6 +90,29 @@ export function awayGroup(config: Config): SettingGroup {
         fallback: '7654',
         type: { kind: 'number' },
         live: false,
+      },
+      {
+        path: 'surfaces.web.acting',
+        // A **third** decision, and a row of its own for the same reason
+        // `bind` is one: reading from the sofa and changing work from anywhere
+        // are different things to want, and a control that granted both at
+        // once would be a yes to a question nobody was asked. Still not
+        // enough on its own — a device needs the scope you grant it in the
+        // away panel, and the request needs this machine or an https host you
+        // named — which is why the sentence says what acting can never reach
+        // rather than leaving it to be inferred.
+        title: 'Let a paired device act',
+        means: `on: a device you have granted it can answer an approval, steer an agent and park or pick up work; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
+        value: String(web.acting),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        // `false` like the rest, and honestly asymmetric: turning it **on**
+        // needs a restart because the route table is built with the listener,
+        // and turning it **off** is read at every act, so the direction that
+        // takes authority away is immediate. Said that way round rather than
+        // claimed to be live.
+        live: false,
+        keywords: ['act', 'acting', 'approve', 'steer', 'park', 'change', 'answer', 'verb'],
       },
       {
         path: 'surfaces.web.trusted_hosts',

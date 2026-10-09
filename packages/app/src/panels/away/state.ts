@@ -55,6 +55,18 @@ export const AWAY_CONTROLS = {
   all: 'away-revoke-all',
   /** One device, by its id: `away-revoke:<id>`. */
   revoke: 'away-revoke:',
+  /**
+   * Let one device act, or take it back: `away-act:<id>`.
+   *
+   * **The only door a scope widens through, and it is a keypress here.**
+   * DESIGN.md §9.1's *pairing and scopes are never remote*: the thing that
+   * grants authority is never reachable from inside the authority it granted,
+   * so there is no route, no tool and no config key for this — it is a control
+   * on this panel, at this machine, about one device. Drawn only where
+   * `surfaces.web.acting` is on, because a control for a capability nobody
+   * turned on is a button that cannot do what it says.
+   */
+  act: 'away-act:',
 } as const
 
 /**

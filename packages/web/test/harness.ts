@@ -2,6 +2,7 @@ import { mkdtemp } from 'node:fs/promises'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { WebActing } from '../src/acting.ts'
 import type { Streams } from '../src/peers.ts'
 import type { Reach } from '../src/reach.ts'
 import { type Projector, projector, type WebReading } from '../src/reading.ts'
@@ -34,6 +35,11 @@ export const BASE: Surface = {
   bind: 'loopback',
   port: 0,
   trustedHosts: ['studio.yak-bebop.ts.net'],
+  // Off, like the config's default: the read-only tests are about a listener
+  // that has no route to change anything, and `acting.test.ts` turns it on
+  // deliberately. A fixture that was kinder than the default would be the one
+  // thing these tests exist to catch.
+  acting: false,
 }
 
 export interface Running {
@@ -126,9 +132,12 @@ export function forgetProjectors(): void {
 
 export async function start(
   over: Partial<Surface> = {},
-  opts: { confirmMs?: number; streams?: Streams } = {},
+  opts: { confirmMs?: number; streams?: Streams; acting?: WebActing; home?: string } = {},
 ): Promise<Running> {
-  const home = await homeFor('run')
+  // A home of its own unless a test wants the one a previous listener used,
+  // which is how a restart is written: the devices and the receipts outlive
+  // the window, and the epoch does not.
+  const home = opts.home ?? (await homeFor('run'))
   const tickets = new Tickets()
   const told: Told[] = []
   const asked: PairingAsk[] = []
@@ -154,6 +163,10 @@ export async function start(
       return one.answer(ask)
     },
     ...(opts.streams === undefined ? {} : { streams: opts.streams }),
+    // Handed over only when a test says so, which is how the window does it:
+    // with no `acting` there is no verb to reach, whatever the route table
+    // says.
+    ...(opts.acting === undefined ? {} : { acting: opts.acting }),
     ...(opts.confirmMs === undefined ? {} : { confirmMs: opts.confirmMs }),
   })
   epoch = one.server.epoch

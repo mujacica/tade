@@ -67,6 +67,7 @@ function taskIn(project: string, folder: string, file: TaskFile): TaskIn {
     state: file.parked ? 'parked' : 'queued',
     reason: { kind: 'clause', said: file.parked ? 'parked by you' : 'no agent has started' },
     stalled: false,
+    parked: false,
     createdAt: file.created.getTime(),
     movedAt: null,
     title: file.title ?? '',

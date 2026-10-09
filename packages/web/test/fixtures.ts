@@ -62,6 +62,7 @@ export function task(over: Partial<TaskIn> = {}): TaskIn {
     state: 'working',
     reason: { kind: 'clause', said: '4 files touched' },
     stalled: false,
+    parked: false,
     createdAt: Date.parse('2026-10-08T13:52:31.585Z'),
     movedAt: Date.parse('2026-10-08T14:10:00.000Z'),
     title: 'Build the pure data boundary for the away view',
