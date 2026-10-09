@@ -30,7 +30,7 @@ import type {
 import { inputProblem } from './schema.ts'
 import { unknownSettings, variablesFor, written } from './settings.ts'
 import { everyMs, intakeProblem, shapeProblem } from './shape.ts'
-import type { ExtensionWatch, Finding, Recheck, WatchAgent, WatchContext } from './watch.ts'
+import type { ExtensionWatch, Recheck, ReplyReceipt } from './watch.ts'
 import {
   askLook,
   askRecheck,
@@ -912,11 +912,13 @@ export class ExtensionHost {
       input: Readonly<Record<string, unknown>>
       key: string
       say: string
+      mark: string
       timeoutMs?: number
       tade?: ExtensionWorkbench | null
     },
-  ): Promise<void> {
-    return askReply(this.watchingWith(id, request), id, { key: request.key, say: request.say })
+  ): Promise<ReplyReceipt> {
+    const { key, say, mark } = request
+    return askReply(this.watchingWith(id, request), id, { key, say, mark })
   }
 
   /** One watch, ready to be asked something that is not a look, or why it cannot be. */

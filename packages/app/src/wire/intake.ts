@@ -3,6 +3,7 @@ import {
   type IntakeCandidate,
   type IntakeSource,
   inboxActs,
+  intakeFrom,
   intakeKey,
   type PlanSource,
   planReport,
@@ -13,6 +14,7 @@ import {
   type InboxOpen,
   inboxFrom,
   intakeGrant,
+  intakeMachine,
   intakeSourceOf,
   intakeWouldRun,
   openIntakeRow,
@@ -26,6 +28,7 @@ import { type IntakePanel, intakePanel } from '../panels/intake/state.ts'
 import type { PanelInputs } from '../panels.ts'
 import { problem, tadeDid } from '../transcript.ts'
 import { type Actions, type Subject, type Submits, type Wiring, why } from './context.ts'
+import { sayDue } from './intake-reply.ts'
 import { Workflows } from './workflows.ts'
 
 // What has been handed to this machine from outside, in the window.
@@ -215,6 +218,45 @@ export class Intake implements Subject {
     })
     this.rows = rows
     this.wire.draw()
+    await this.sayDue(rows, events)
+  }
+
+  /**
+   * Tell each source where its request got to, if the owner granted that.
+   *
+   * **Here, in the fold, because this is the moment a status becomes true.**
+   * The rows were just refolded out of the lines that moved — accepted,
+   * started, finished, parked again — so what is due is exactly what has
+   * changed, and there is no clock of its own and nothing kept between refolds.
+   * `outboxFor` reads what has already gone out of the same journal, which is
+   * why a window reopening says nothing twice.
+   *
+   * It cannot loop: posting writes `intake_replied`, which refolds, and the
+   * second fold finds that saying already said. One status per saying, ever.
+   */
+  private async sayDue(
+    rows: readonly InboxRow[],
+    events: readonly { type: string }[],
+  ): Promise<void> {
+    const quiet = await sayDue({
+      client: this.wire.opts.client,
+      config: this.wire.opts.config,
+      host: this.wire.opts.extensions ?? null,
+      now: this.wire.now(),
+      rows,
+      items: intakeFrom(events as never),
+      schedules: this.wire.opts.client.schedules(),
+      machine: intakeMachine(),
+    }).catch((err: unknown) => [`nothing could be said back to a source: ${why(err)}`])
+    // Only what nobody at a source ever saw. Everything else about a reply —
+    // a grant that is off, a cap, a status already said — is the rule working
+    // and is said nowhere, because a line per refold is a line nobody reads.
+    for (const said of quiet) {
+      this.wire.put(
+        withTranscript(this.wire.state, problem(this.wire.state.transcript, said, this.wire.now())),
+      )
+    }
+    if (quiet.length > 0) this.wire.draw()
   }
 
   /**

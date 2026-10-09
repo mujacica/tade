@@ -20,13 +20,12 @@ import {
 } from '../src/intake.ts'
 import {
   INTAKE_ATTEMPTS,
-  INTAKE_REPLY_CAP,
   intakeAgain,
   intakeFrom,
   intakeNext,
   intakeOf,
-  intakeRepliesLeft,
 } from '../src/intake-journal.ts'
+import { INTAKE_REPLY_CAP, intakeRepliesLeft } from '../src/intake-outbox.ts'
 import { namedBy, settingReach } from '../src/reach.ts'
 import { settingsOf } from '../src/settings.ts'
 import type { Template } from '../src/templates.ts'
@@ -39,6 +38,7 @@ const grant = (over: Partial<IntakeGrantRead> = {}): IntakeGrantRead => ({
   on: true,
   accept: true,
   reply: false,
+  names: false,
   projects: ['app'],
   from: ['kim'],
   mode: 'propose',

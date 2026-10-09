@@ -129,6 +129,19 @@ export interface InboxRow {
   tries: number
   /** How many statuses have gone back to the source about it. */
   replies: number
+  /** Which of the fixed sentences have gone back, in the order they went. */
+  said: readonly string[]
+  /**
+   * The statuses that did not go, and why.
+   *
+   * **A reply that failed is a person at the other end who was never told**,
+   * and the one thing that must not happen to it is going quiet: the work
+   * carries on — a status is never a hold — so nothing else about the row
+   * changes, and this is the only place the silence is visible. Drawn by every
+   * surface through `inboxProvenance`, so the window, the CLI and anything
+   * later say it the same way.
+   */
+  unsent: readonly { saying: string; attempts: number; problem: string | null }[]
   at: number
 }
 
@@ -259,6 +272,17 @@ export function inboxRowOf(one: IntakeItem, work: readonly InboxWork[]): InboxRo
     attempts: one.attempts,
     tries: INTAKE_ATTEMPTS,
     replies: one.replies.length,
+    said: one.said.filter((reply) => reply.sent).map((reply) => reply.saying),
+    // Tried and not there: a status whose last word was a failure. One that
+    // went after failing twice is not here at all, which is the point —
+    // `sent` is the answer, and the attempts behind it are history.
+    unsent: one.said
+      .filter((reply) => !reply.sent && reply.attempts > 0)
+      .map((reply) => ({
+        saying: reply.saying,
+        attempts: reply.attempts,
+        problem: reply.problem,
+      })),
     at: one.at,
   }
 }
@@ -377,10 +401,14 @@ export function inboxProvenance(row: InboxRow): InboxFact[] {
     { label: 'its hash', value: row.hash || '—' },
   ]
   if (row.tasks.length > 0) facts.push({ label: 'work', value: row.tasks.join(', ') })
-  if (row.replies > 0) {
+  if (row.said.length > 0) facts.push({ label: 'said back', value: row.said.join(', ') })
+  // A status nobody at the source ever saw, named with what went wrong. Said
+  // whether or not anything else went: a request whose only reply failed would
+  // otherwise have no line here at all, which is exactly the quiet failure.
+  for (const one of row.unsent) {
     facts.push({
-      label: 'said back',
-      value: `${row.replies} status${row.replies === 1 ? '' : 'es'}`,
+      label: 'could not say',
+      value: `${one.saying}, ${one.attempts} time${one.attempts === 1 ? '' : 's'}: ${one.problem ?? 'unsaid'}`,
     })
   }
   return facts

@@ -189,6 +189,69 @@ export function extensionConformance(
       }
     })
 
+    it('says one status at most once, and keeps looking when it cannot write', async () => {
+      // A reply is a capability honoured by absence, and the whole of what a
+      // transport owes is here: it posts the sentence it was handed, it
+      // recognises its own marker, and a write it cannot do is an ordinary
+      // error that stops nothing else.
+      const host = await load()
+      for (const watch of extension.watches ?? []) {
+        const id = `${extension.name}.${watch.id}`
+        const ask = (): Promise<unknown> =>
+          host.reply(id, {
+            project: 'here',
+            input: {},
+            key: 'nothing:no-such-thing:0',
+            say: 'Picked up.',
+            mark: 'tade:nothing:no-such-thing:noticed',
+          })
+        if (!options.project) {
+          // These options gave no project, so no watch door opens at all —
+          // and what must still be true is that nothing posts: a door that
+          // cannot be opened refuses rather than quietly succeeding. What the
+          // capability *is* was asserted where it is declared.
+          await expect(ask()).rejects.toThrow()
+          continue
+        }
+        if (typeof watch.reply !== 'function') {
+          // No reply at all is a stronger guarantee than one that is off, and
+          // the door says so rather than quietly doing nothing: a status that
+          // silently went nowhere is the failure this path must not have.
+          await expect(ask()).rejects.toThrow(/no way of saying anything back/)
+          continue
+        }
+        const first = await ask().catch((err: unknown) => err)
+        if (first instanceof Error) {
+          // **Unavailable writes, while reads still work.** No credential and
+          // no network is exactly what this suite has, so a transport that
+          // reaches one cannot post here — and that must be an ordinary error
+          // with a sentence on it, never something that takes the look down
+          // with it. The request still gets built; nobody is told.
+          expect(first.message).toBeTruthy()
+          const looked = await host
+            .look(id, {
+              project: 'here',
+              input: {},
+              since: null,
+              turnedOn: new Date(0).toISOString(),
+            })
+            .catch(() => null)
+          if (looked) expect(Array.isArray(looked.found)).toBe(true)
+          continue
+        }
+        // A receipt is an object even when there is nothing to put in it: a
+        // source whose revision moves when something is posted to it has to be
+        // able to say where it moved to, and `void` is a transport that can
+        // never answer that (`REPLIES_MOVE_REVISIONS`).
+        expect(typeof first).toBe('object')
+        // **Idempotent by the marker.** Asked again with the same one — which
+        // is what a window that died between posting and writing its line
+        // does — it creates nothing and says the source already has it.
+        const again = (await ask()) as { already?: boolean }
+        expect(again.already).toBe(true)
+      }
+    })
+
     it('keeps its sidebar sections cheap, cached and unable to throw', async () => {
       const host = await load()
       const tade = {

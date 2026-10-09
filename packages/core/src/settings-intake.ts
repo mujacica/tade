@@ -4,8 +4,10 @@ import {
   INTAKE_IS_SOMEBODY_ELSE,
   INTAKE_MODES,
   INTAKE_SOURCES,
+  METADATA_IS_DISCLOSURE,
   PROPOSE_IS_THE_TYPING,
 } from './intake.ts'
+import { INTAKE_REPLY_CAP, INTAKE_SAYINGS, NEVER_REPLIED_TO } from './intake-outbox.ts'
 import type { Setting, SettingGroup } from './settings.ts'
 
 // Intake's controls, as a person changes them.
@@ -110,13 +112,22 @@ export function intakeGroup(config: Config): SettingGroup {
       {
         path: `${at}.reply`,
         title: `Say a status back to ${source}`,
-        means:
-          'on: picked up, queued and working go back as sentences Tade wrote, capped at three a day per request; off: nothing is posted anywhere. Never a word an agent wrote, never a diff, never a file name',
+        means: `on: where a request got to goes back as one of ${INTAKE_SAYINGS.length} sentences Tade wrote — picked up, queued, being worked on, up for review, finished, stopped — one each, at most ${INTAKE_REPLY_CAP} a day per request; off: nothing is posted anywhere. Never a word an agent wrote, never a diff, never a file name, never a link. ${NEVER_REPLIED_TO}`,
         value: String(grant.reply),
         fallback: 'false',
         type: { kind: 'flag' },
         live: true,
-        keywords: ['comment', 'post', 'back', 'status'],
+        keywords: ['comment', 'post', 'back', 'status', 'outbox'],
+      },
+      {
+        path: `${at}.names`,
+        title: `Let a ${source} status name the work`,
+        means: `on: a status says which task and which machine; off: it says where the request got to and nothing else. ${METADATA_IS_DISCLOSURE}`,
+        value: String(grant.names),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        live: true,
+        keywords: ['disclosure', 'task', 'machine', 'hostname', 'metadata', 'public'],
       },
     )
   }

@@ -14,6 +14,8 @@ import {
   intakeUnfinished,
   loadConfig,
   MATERIAL_LABEL,
+  METADATA_IS_DISCLOSURE,
+  NEVER_REPLIED_TO,
   tadeHome,
   WAITING_STATES,
   watchedFrom,
@@ -219,9 +221,16 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
       io.out(`${grant.path}.mode: ${grant.mode}`)
       io.out(`${grant.path}.template: ${grant.template || 'none: one task'}`)
       io.out(`${grant.path}.reply: ${grant.reply}`)
+      io.out(`${grant.path}.names: ${grant.names}`)
       io.out('')
       io.out(EMPTY_MEANS_NOBODY)
       io.out(INTAKE_IS_SOMEBODY_ELSE)
+      // Said here, where somebody is reading what the rule allows: the two
+      // acts are separate, and the second one is about disclosure rather than
+      // about talking. Printed whether or not either is on — a person
+      // deciding whether to turn one on is exactly who needs it.
+      io.out(METADATA_IS_DISCLOSURE)
+      io.out(NEVER_REPLIED_TO)
     })
 
   // --- the inbox: what has been handed to this machine, and what to do about one
@@ -278,7 +287,13 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
       for (const one of sources) {
         const bits = [
           one.grant.on && one.grant.accept ? 'accept on' : 'accept off',
-          one.grant.reply ? 'reply on' : 'reply off',
+          // Three words rather than two, because "reply on" alone does not say
+          // whether a status names somebody's repository and laptop.
+          one.grant.reply
+            ? one.grant.names
+              ? 'reply on, named'
+              : 'reply on, unnamed'
+            : 'reply off',
           one.grant.mode,
           one.grant.template ? `${one.grant.template}` : 'no template',
         ]

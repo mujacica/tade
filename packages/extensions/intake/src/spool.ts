@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { type IntakeCandidate, intakeSpool, newerRevision } from '@tade/core'
 import { z } from 'zod'
@@ -177,6 +177,76 @@ export function newestOf(
     if (order !== null && order > 0) newest.set(entry.id, entry)
   }
   return newest
+}
+
+/**
+ * Where a status this door "posted" is written down: the local door's whole
+ * transport, and the record that makes posting one twice impossible.
+ *
+ * A file beside the spool rather than inside it, and named `.jsonl` rather
+ * than `.json`, so `readSpool` cannot read one back: **nothing Tade says can
+ * ever arrive as a request.** That is the loop closed by shape, not by a
+ * filter — the bot check on the requester is the second line, and a source
+ * that posts as the person who signed in has no bot flag to check.
+ */
+export const REPLIES = 'replies.jsonl'
+
+/** One status this door wrote down. */
+export const SpoolReply = z.strictObject({
+  at: z.string(),
+  key: z.string().min(1),
+  /** Tade's own stable marker for this status about this request. */
+  mark: z.string().default(''),
+  said: z.string(),
+})
+export type SpoolReply = z.infer<typeof SpoolReply>
+
+/**
+ * Every status this door has written down, oldest first.
+ *
+ * A line that is not one is passed over rather than thrown over: this file is
+ * read to answer "has this already gone", and a hand-edited line must not turn
+ * that question into an error that stops a status going out for ever.
+ */
+export async function readReplies(home: string): Promise<SpoolReply[]> {
+  const text = await readFile(join(intakeSpool(home), REPLIES), 'utf8').catch(() => '')
+  const replies: SpoolReply[] = []
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const one = SpoolReply.safeParse(JSON.parse(line))
+      if (one.success) replies.push(one.data)
+    } catch {
+      // Not a line this door wrote. Nothing to say about it: it is not a
+      // request and it is not a status, so it answers no question here.
+    }
+  }
+  return replies
+}
+
+/**
+ * Write one status down, unless this exact one is already there.
+ *
+ * **Idempotent by the marker, which is the whole point.** A window that died
+ * between posting and writing its journal line comes back, finds the status
+ * due again and hands over the same marker; this finds it and creates nothing,
+ * answering `already`. Every real transport owes the same answer, and this is
+ * the one that can be tested with no credential.
+ */
+export async function keepReply(
+  home: string,
+  one: { key: string; mark: string; said: string; at: string },
+): Promise<{ posted: string; already: boolean }> {
+  const dir = intakeSpool(home)
+  await mkdir(dir, { recursive: true })
+  if (one.mark) {
+    const was = (await readReplies(home)).find((kept) => kept.mark === one.mark)
+    if (was) return { posted: was.mark, already: true }
+  }
+  await appendFile(join(dir, REPLIES), `${JSON.stringify(SpoolReply.parse(one))}\n`, {
+    mode: 0o600,
+  })
+  return { posted: one.mark, already: false }
 }
 
 /** One spool entry as the envelope a watch hands over: no grant, no template, no project. */

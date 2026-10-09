@@ -36,7 +36,6 @@ import {
   whenShort,
   why,
 } from './context.ts'
-import { sayBackFor } from './intake-reply.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 
 /** What a schedule's row and its menu offer to do to it. */
@@ -590,24 +589,16 @@ export class Schedules implements Subject {
           await client.watchFound(one.id, finding, { problem: why(err) }).catch(() => {})
           throw err
         })
-        const { task, said, outcome } = await client.watchFound(one.id, finding, {
+        const { task, said } = await client.watchFound(one.id, finding, {
           agent: { ...agent, links: agent.links ?? finding.links ?? [] },
         })
         if (task) started.push(task)
         else if (said) decided.push(said)
-        if (outcome === 'accepted' || outcome === 'adopted') {
-          const quiet = await sayBackFor({
-            client,
-            config: this.wire.opts.config,
-            host: this.wire.opts.extensions ?? null,
-            now: this.wire.now(),
-            schedule: one,
-            watch: does.watch,
-            finding,
-            task,
-          })
-          if (quiet) this.deps.news(`${one.name} could not say anything back: ${quiet}`)
-        }
+        // Nothing is said back from here. A status is due when it becomes
+        // true, not when a look happened, so the one place that posts is the
+        // inbox's own fold (`wire/intake-reply.ts`) — which refolds on the
+        // `intake_accepted` line this just wrote. One path, and `outcome` is
+        // only what this look came to.
       } catch (err) {
         failed.push(`${finding.title} (${why(err)})`)
       }

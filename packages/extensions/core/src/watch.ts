@@ -1,4 +1,4 @@
-import type { IntakeCandidate, IntakeSource } from '@tade/core'
+import type { IntakeCandidate, IntakeReceipt, IntakeSource } from '@tade/core'
 import type { ExtensionContext, ExtensionWorkbench, JsonSchema, Link, ProjectRef } from './port.ts'
 
 // The watch half of the port: a cheap look on a clock, what it finds, and the
@@ -48,13 +48,57 @@ export type Recheck =
   /** It is not, in a sentence a person reads: closed, reassigned, relabelled, rewritten. */
   | { still: false; because: string }
 
-/** One of the statuses a source may be told, which are the only things a reply ever says. */
+/**
+ * One of the statuses a source may be told, which are the only things a reply
+ * ever says.
+ *
+ * **What is not in it is the capability.** There is no field for a label, an
+ * assignee, a state, a milestone, a channel, a recipient or a reaction, and no
+ * second method beside `reply` — so there is no route by which Tade closes,
+ * assigns, labels, merges or deletes anything at a source, and none by which
+ * it messages anywhere a finding did not come from. That is enforcement by
+ * absence rather than a list of forbidden verbs: a transport cannot be asked
+ * for what cannot be said.
+ */
 export interface ReplyRequest {
   /** The finding's key, so a watch can find the thing again at the source. */
   key: string
   /** The sentence to post, which Tade generated. Never a word an agent wrote. */
   say: string
+  /**
+   * Tade's own stable marker for this one status about this one request —
+   * `tade:cli:req-7:accepted` — the same marker every time it is tried.
+   *
+   * **This is what makes a post idempotent across a crash.** A window that
+   * died between posting and writing the line comes back with the status due
+   * again and hands over the same marker; a transport that recognises it
+   * answers `already` and creates nothing. It is for the transport's own
+   * bookkeeping and **need not be posted**: putting Tade's machinery into the
+   * visible text of somebody's issue is the disclosure the rest of this is
+   * careful about.
+   */
+  mark: string
 }
+
+/**
+ * What came of posting one status, as the transport that posted it says.
+ *
+ * The domain's own type (`IntakeReceipt`, `@tade/core`), named here in the
+ * port's words: the same answer is written down by the workbench, which knows
+ * nothing about extensions, so one definition serves both rather than two
+ * shapes that have to agree.
+ *
+ * `posted` is the source's own id for whatever was created. `already` is that
+ * this exact status was there and nothing was created — the answer to a crash
+ * after a post, asked again with the same `mark`; a transport that cannot tell
+ * says nothing rather than guessing. `revision` is where the source's own
+ * revision moved to, and **any source whose revision moves when something is
+ * posted to it owes that answer**: a GitHub issue's `updated_at` moves for a
+ * comment, a moved revision is how Tade notices an edit, so a status going out
+ * would otherwise read on the next look as somebody having rewritten the
+ * request and would put back an approval a person had just given.
+ */
+export type ReplyReceipt = IntakeReceipt
 
 /**
  * A look that could not reach the host it needs: nothing came back at all.
@@ -256,6 +300,21 @@ export interface ExtensionWatch {
    * It is also not enough on its own: a reply goes out only where the owner
    * granted `reply` for that source, which is a second act and never implied by
    * accepting work.
+   *
+   * **It must be idempotent for one `mark`.** Asked twice with the same marker
+   * it creates one status and the second answer says `already` — which is the
+   * whole of what reconciling a crash after a post amounts to, and is asserted
+   * by the conformance suite rather than asked for here.
+   *
+   * **A write being unavailable is an ordinary error and nothing else.** It
+   * throws, with why; the look and the re-check keep working, the work carries
+   * on, and the status is tried again a bounded number of times and then given
+   * up on visibly. Nothing a source does to a reply may stop work: a request
+   * that was granted gets built whether or not anybody could be told.
    */
-  reply?(request: ReplyRequest, ctx: WatchContext): Promise<void> | void
+  reply?(
+    request: ReplyRequest,
+    ctx: WatchContext,
+    // biome-ignore lint/suspicious/noConfusingVoidType: a transport that posted and has nothing to report is an async function with no return, which is `Promise<void>`. Narrowing it to `undefined` would refuse the plainest honest implementation there is.
+  ): Promise<ReplyReceipt | void> | ReplyReceipt | void
 }

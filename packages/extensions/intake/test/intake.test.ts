@@ -5,8 +5,8 @@ import { intakeSpool, newFindings } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { intakeExtension, REPLIES } from '../src/extension.ts'
-import { bodyHash, newestOf, readSpool, spool, spoolIdProblem } from '../src/spool.ts'
+import { intakeExtension } from '../src/extension.ts'
+import { bodyHash, newestOf, readReplies, readSpool, spool, spoolIdProblem } from '../src/spool.ts'
 
 // The local intake door, against a real folder.
 //
@@ -303,8 +303,15 @@ describe('asking again at the moment work would start', () => {
 })
 
 describe('saying something back', () => {
-  it('writes it beside the spool, and only ever the sentence it was handed', async () => {
-    const where = home()
+  const asked = (mark: string) => ({
+    project: 'app',
+    input: {},
+    key: 'cli:req-1:1',
+    say: 'Queued.',
+    mark,
+  })
+
+  const written = async (where: string): Promise<void> => {
     await spool(where, {
       id: 'req-1',
       project: 'app',
@@ -314,17 +321,77 @@ describe('saying something back', () => {
       attachments: [],
       closed: false,
     })
-    await (await host(where, where)).reply('intake.cli', {
+  }
+
+  it('writes it beside the spool, and only ever the sentence it was handed', async () => {
+    const where = home()
+    await written(where)
+    const receipt = await (await host(where, where)).reply(
+      'intake.cli',
+      asked('tade:cli:req-1:accepted'),
+    )
+    expect(receipt).toMatchObject({ posted: 'tade:cli:req-1:accepted' })
+    // Nothing it was not handed: no revision, because writing a line beside
+    // the spool moves no request's counter, and this door says so by not
+    // claiming one.
+    expect(receipt.revision).toBeUndefined()
+    expect(await readReplies(where)).toEqual([
+      expect.objectContaining({
+        key: 'cli:req-1:1',
+        mark: 'tade:cli:req-1:accepted',
+        said: 'Queued.',
+      }),
+    ])
+  })
+
+  it('posts one status once, however many times the same marker is handed over', async () => {
+    // **Crash after posting.** A window that died between the post and its
+    // journal line comes back with the status due again and hands over the
+    // same marker. One status at the source, and the second answer says the
+    // source already had it — which is what the journal then records, rather
+    // than a second comment somebody has to read.
+    const where = home()
+    await written(where)
+    const loaded = await host(where, where)
+    await loaded.reply('intake.cli', asked('tade:cli:req-1:accepted'))
+    const again = await loaded.reply('intake.cli', asked('tade:cli:req-1:accepted'))
+    expect(again.already).toBe(true)
+    expect(await readReplies(where)).toHaveLength(1)
+  })
+
+  it('tells two statuses about one request apart, because the marker carries which', async () => {
+    const where = home()
+    await written(where)
+    const loaded = await host(where, where)
+    await loaded.reply('intake.cli', asked('tade:cli:req-1:accepted'))
+    const next = await loaded.reply('intake.cli', {
+      ...asked('tade:cli:req-1:finished'),
+      say: 'Finished.',
+    })
+    expect(next.already).toBeUndefined()
+    expect((await readReplies(where)).map((one) => one.said)).toEqual(['Queued.', 'Finished.'])
+  })
+
+  it('cannot read back a word it said: a status is not a request', async () => {
+    // The loop closed by shape rather than by a filter. `replies.jsonl` is
+    // not a `.json` file, so the look that reads the spool cannot see it —
+    // and the bot check on a requester is the second line, not the first,
+    // because a source Tade posts to as the signed-in person has no bot flag
+    // to check.
+    const where = home()
+    await written(where)
+    const loaded = await host(where, where)
+    await loaded.reply('intake.cli', asked('tade:cli:req-1:accepted'))
+    const read = await readSpool(where)
+    expect(read.entries).toHaveLength(1)
+    expect(read.broken).toEqual([])
+    const looked = await loaded.look('intake.cli', {
       project: 'app',
       input: {},
-      key: 'cli:req-1:1',
-      say: 'Queued as app/cli-req-1 on studio.',
+      since: null,
+      turnedOn: new Date(0).toISOString(),
     })
-    const { readFileSync } = await import('node:fs')
-    const written = readFileSync(join(intakeSpool(where), REPLIES), 'utf8').trim()
-    expect(JSON.parse(written)).toMatchObject({
-      key: 'cli:req-1:1',
-      said: 'Queued as app/cli-req-1 on studio.',
-    })
+    expect(looked.found).toHaveLength(1)
+    expect(looked.found[0]?.intake?.verbatim).toBe('a request')
   })
 })

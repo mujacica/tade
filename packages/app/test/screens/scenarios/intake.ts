@@ -18,6 +18,8 @@ const row = (over: Partial<InboxRow> = {}): InboxRow => ({
   requester: 'kim',
   project: 'checkout',
   grant: 'surfaces.intake.sources.cli',
+  said: [],
+  unsent: [],
   template: { name: 'github-bug', version: 3 },
   revision: '1',
   taken: '1',

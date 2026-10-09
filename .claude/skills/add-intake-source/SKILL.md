@@ -18,12 +18,13 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | Path | What |
 |---|---|
 | `packages/core/src/intake.ts` | `INTAKE_SOURCES`, `Intake`, `IntakeCandidate`, `IntakeSurface`/`IntakeGrant`, `intakeDecision`, `intakeMapped`, `newerRevision`, `intakeSummary`, `intakePrompt`, `intakeContext`, `intakeInputs`, the sentences said where somebody decides |
-| `packages/core/src/intake-journal.ts` | `intakeFrom`, `intakeOf`, `intakeNext`, `intakeAgain`, `intakeRepliesLeft`, `INTAKE_ATTEMPTS` |
+| `packages/core/src/intake-journal.ts` | `intakeFrom`, `IntakeReply`, `intakeOf`, `intakeNext`, `intakeAgain`, `INTAKE_ATTEMPTS` |
+| `packages/core/src/intake-outbox.ts` | what may be said back and which status is due: `INTAKE_SAYINGS`, `intakeSays`/`IntakeSayFacts`, `intakeMark`, `IntakeReceipt`, `sayingFor`, `outboxFor`/`outboxOf`, the two bounds and the cap |
 | `packages/core/src/events.ts` | `intake_received`, `intake_refused`, `intake_accepted`, `intake_held`, `intake_replied` |
 | `packages/core/src/settings-intake.ts` | the controls, with the sentence a control is tempted to leave out |
 | `packages/core/src/reach.ts` | `surfaces.intake` in `NEVER`, matched as a prefix |
 | `packages/core/src/limits.ts` | `planTooTight`: the subscription hold, scoped to intake-originated starts |
-| `packages/extensions/core/src/watch.ts` | the watch half of the port: `Finding.intake`, `Recheck`, `ReplyRequest`, `ExtensionWatch.intake`/`recheck`/`reply` |
+| `packages/extensions/core/src/watch.ts` | the watch half of the port: `Finding.intake`, `Recheck`, `ReplyRequest`, `ReplyReceipt`, `ExtensionWatch.intake`/`recheck`/`reply` |
 | `packages/extensions/core/src/shape.ts` | `intakeProblem`: what a source must have to be turned on at all |
 | `packages/extensions/core/src/watching.ts` | `askLook`, `askRecheck`, `askReply`, and the deadline all three are held to |
 | `packages/extensions/intake/` | the local door (the spool, the `cli` watch) and the `github` watch beside it |
@@ -32,6 +33,7 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/workbench/src/intake.ts` | the doors: `takeIntake`, `intakeStands`, `sayBackAbout`, `intakeGrant` |
 | `packages/workbench/src/workbench.ts` | `watchFound` branches on `finding.intake` and writes down only what settled |
 | `packages/app/src/wire/queue.ts` | `intakeHold`: the grant, the plan and the source, asked again at the moment of starting |
+| `packages/app/src/wire/intake-reply.ts` | `sayDue`: the one thing that posts, drained from the inbox's own fold |
 | `packages/core/src/intake-inbox.ts` | the inbox: `INBOX_STATES`, `inboxOf`, `inboxStateOf`, `whyNotAct`, `inboxProvenance`, `MATERIAL_LABEL` |
 | `packages/workbench/src/intake-acts.ts` | the local acts: `inboxFrom`, `openIntakeRow`, `approveIntake`, `refuseIntake`, `retryIntake`, `intakeWouldRun` |
 | `packages/app/src/intake-view.ts` · `view/intake.ts` · `panels/intake/` · `wire/intake.ts` | what INTAKE shows, the section, the page one row opens, and the subject that carries an act out |
@@ -45,10 +47,11 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
    list of sources somebody might write. The zod enum, the config's `sources` strict object and
    the comparator table in `REVISIONS` all grow together, and tsc names every one you missed.
 2. **Give it a `sources.<name>` grant** in `IntakeSurface`, reusing `IntakeGrant`. Default `false`
-   for both switches, `[]` for both lists, `propose` for the mode. `accept` and `reply` are two
-   acts: accepting work reads somebody's words, replying posts into somebody else's system. Reuse
-   the grant whole rather than adding keys: `template` and `document` are what a source's work is
-   stamped from and which of that template's document inputs the body goes in, and both are the
+   for all three switches, `[]` for both lists, `propose` for the mode. `accept`, `reply` and
+   `names` are three acts: accepting work reads somebody's words, replying posts into somebody
+   else's system, and naming puts this machine's and this work's names in a stranger's tracker.
+   Reuse the grant whole rather than adding keys: `template` and `document` are what a source's work
+   is stamped from and which of that template's document inputs the body goes in, and both are the
    owner's to say because a caller-chosen template is the hole that makes one dangerous.
 3. **Write its revision comparator** in `REVISIONS`, with a test. ISO timestamps are parsed to a
    time; a Slack `ts` is compared numerically; an opaque id is **not comparable** and says so.
@@ -58,8 +61,10 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
    (`intakeTitle`, `intakePrompt`), never the body. `recheck` is **required** and answers by
    looking at the source. `reply` is optional and is only the transport.
 5. **Run the conformance suite** (`extensionConformance`) and make sure it passes offline. It
-   asserts the capability is declared both ways and that a `recheck` about something the source has
-   never heard of does not answer `still: true`.
+   asserts the capability is declared both ways, that a `recheck` about something the source has
+   never heard of does not answer `still: true`, and — where it replies — that one `mark` posts one
+   status and the second answer says `already`, and that a write it cannot do leaves the look
+   working.
 6. **Add its coverage floor** to `scripts/coverage-floors.ts` if it is a new package, and
    `git add` every new file before running the checks — staging copies only tracked files.
 7. **Write its steps into `INTAKE_SETUP`**, one entry per source, keyed so tsc names the one
@@ -152,9 +157,10 @@ an agent runs as you and could label an issue itself, and then somebody is looki
   nobody can read: unknown is not zero. It never moves the work to another sign-in — whose money
   and whose permissions agents run with is a person's decision, and an automatic switch is that
   decision taken by a rule.
-- **A reply is bounded status Tade generated**, from a fixed set of sentences, capped per request,
-  never a word an agent wrote, never a diff, a log line, a file name or anything out of a private
-  repository. Three gates, all in `sayBackAbout`: the grant, the cap, the sentence.
+- **A reply is bounded status Tade generated**, from a fixed set of sentences, never a word an agent
+  wrote, never a diff, a log line, a file name, a link or anything out of a private repository. Four
+  gates, all in `sayBackAbout`: the grant, what the grant lets a sentence *name*, the bounds, and the
+  sentence itself. The whole of it is below.
 - **Acknowledgement is not acceptance, and acceptance is not execution.** `noticed`, `accepted`,
   `started` — three facts, three words, and no copy may blur them. A sleeping laptop runs nothing
   and promises nothing, so "we'll run it when you're back" is not in `INTAKE_SAYINGS` and must not
@@ -177,6 +183,60 @@ an agent runs as you and could label an issue itself, and then somebody is looki
   source whose attachments are only *links in the body* — a GitHub issue — lists **none**: lifting
   them out would put a stranger's filename into a line Tade writes in its own voice, and they are
   already in the body where they read as theirs.
+
+## Saying a status back, which is the other direction and a separate act
+
+`reply` is optional, and the local door is the only transport Tade ships one for: GitHub
+deliberately has none, so nothing Tade reads there can be something it wrote.
+
+- **The outbox is a fold, not a queue.** `intake_replied` lines say which statuses have gone and
+  which try failed (`IntakeItem.said`); the task files say where the work stands; `outboxFor` is the
+  arithmetic between them. There is no table of pending posts to get out of step, and dedupe
+  survives a restart, a deleted index and a journal copied to another machine — which is the whole
+  reason it is derived rather than remembered.
+- **Three acts, not one.** `accept` reads somebody's words; `reply` posts into somebody else's
+  system; `names` lets a sentence carry the task and the machine. Each is off by default and none
+  implies another. The third one exists because **public issue metadata is itself disclosure**: a
+  task name is a repository plus a piece of somebody's work, a hostname is their laptop, neither is
+  a secret and a public issue is read by whoever finds it (`METADATA_IS_DISCLOSURE`). With `names`
+  off the task and the machine are **not in the argument** `intakeSays` takes — the same
+  enforcement-by-absence as `IntakeSaid`.
+- **One status per saying, ever, and never one said late.** `alreadySaid` reads *later-or-equal*, so
+  a request that was queued, started and finished while the window was shut gets `finished` and
+  nothing else. A window that caught up out loud would be a machine talking about itself.
+- **Three bounds, each for a different failure**: one per saying (the dedupe), `INTAKE_REPLY_ATTEMPTS`
+  per saying with a minute between tries (a source that is down is not hammered), and
+  `INTAKE_REPLY_CAP` posts per request per day — which is **as high as the number of sayings**, so it
+  can never be what stops an honest status. It was lower than that once, and the status it silently
+  dropped was `finished`: a status the cap refuses never gets an attempt, so it does not even show in
+  the inbox. A bound that binds before the rule does is a second rule nobody wrote down. Past the
+  attempts it stops, and the giving-up is **visible in the inbox** rather than silent.
+- **A status is never a hold.** A reply that fails is written down (`state: 'unsent'`), said once in
+  the window, and shows in the inbox as `could not say`; the work carries on being built. A request
+  that was granted gets made whether or not anybody could be told, and nothing a source does to a
+  reply may stop an agent.
+- **A line comes after the thing, so reconciling is the transport's.** There is no "about to post"
+  record — the journal's own rule — so a window that died between the post and the append leaves no
+  line, the status reads as due again, and `ReplyRequest.mark` is what keeps the next try from
+  posting twice: derived from the item and the saying, the same marker every time, and a transport
+  that recognises its own answers `already`. The conformance suite asserts exactly that, and
+  asserts that a write it cannot do is an ordinary error that leaves the look working.
+- **Tade's own words are never news to Tade.** Posting a comment moves `updated_at`, and a moved
+  revision is how an edit is noticed — so a status going out would otherwise read on the next look as
+  somebody having rewritten the request and would put back an approval a person had just given.
+  `ReplyReceipt.revision` is written down with the reply and `intakeAgain` knows its own, with the
+  **hash as the independent check**: the same revision with different text behind it is somebody's
+  edit and is still read as one. A source whose revisions move when something is posted to it owes
+  that answer (`REPLIES_MOVE_REVISIONS`).
+- **One place posts, and it is the window's.** `sayDue` runs in the inbox's own fold — the moment a
+  status becomes true is the moment the rows were refolded — so there is no second clock and no
+  second path. The local surfaces show the policy and what was said; **none of them activates it**,
+  and there is no act on a row for a reply.
+- **A reply can carry a status and nothing else.** `ReplyRequest` has `key`, `say` and `mark`, and
+  `reply` is the only method — no label, assignee, state, channel, recipient or reaction — so there
+  is no route by which Tade closes, assigns, labels, merges or deletes anything at a source, and
+  none by which it messages anywhere a finding did not come from. Held by a test over what a watch
+  is actually handed.
 
 ## The inbox, and what a surface may do with one
 
@@ -213,8 +273,11 @@ an agent runs as you and could label an issue itself, and then somebody is looki
 A second scheduler · an `IntakeSource` port before a second source needs one · a second HTTP client
 for a forge Tade already talks to · a listener, a webhook endpoint or a public hostname · a
 caller-chosen template, grant or repository · a confidence threshold that starts work · attachment
-downloading · a reply that carries an agent's prose · token export, credential sync or automatic
-account switching · a remote kill switch for running agents · a `docs/` folder for any of it.
+downloading · a reply that carries an agent's prose · a table of pending replies beside the journal ·
+a status that closes, assigns, labels or merges anything · a message to a channel a finding did not
+come from · a reply to a refusal · a backfill of statuses a shut window missed · token export,
+credential sync or automatic account switching · a remote kill switch for running agents · a `docs/`
+folder for any of it.
 
 ## Prompt injection is not solved, and nothing here may claim it is
 

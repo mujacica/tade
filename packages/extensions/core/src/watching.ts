@@ -3,6 +3,7 @@ import type {
   ExtensionWatch,
   Finding,
   Recheck,
+  ReplyReceipt,
   ReplyRequest,
   WatchAgent,
   WatchContext,
@@ -123,15 +124,29 @@ export async function askRecheck(one: Watching, id: string, key: string): Promis
  * caller's and Tade generated it; whether anything may be said at all is the
  * owner's grant, read before this is reached.
  */
-export async function askReply(one: Watching, id: string, request: ReplyRequest): Promise<void> {
+export async function askReply(
+  one: Watching,
+  id: string,
+  request: ReplyRequest,
+): Promise<ReplyReceipt> {
   const say = one.watch.reply
   if (!say) throw new Error(`${id} has no way of saying anything back to its source`)
-  await inTime(
+  const receipt = await inTime(
     Promise.resolve().then(() => say(request, one.ctx)),
     one.limit,
     `${id} took longer than ${Math.round(one.limit / 1000)}s to say something back about ${request.key}`,
     one.controller,
   )
+  // A transport that says nothing has posted something it cannot describe,
+  // which is allowed: an empty receipt is honest and reads as "it went, and I
+  // cannot tell you any more than that". What is not allowed is reading a
+  // missing answer as `already` — that would silently stop a status from ever
+  // going out — so every field is only ever taken when it is actually there.
+  return {
+    ...(receipt?.posted ? { posted: receipt.posted } : {}),
+    ...(receipt?.already === true ? { already: true } : {}),
+    ...(receipt?.revision ? { revision: receipt.revision } : {}),
+  }
 }
 
 /** What one look came to, and how to ask what an agent on a finding would be told. */

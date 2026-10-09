@@ -12,7 +12,7 @@ import {
 } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { intakeGrant, intakeStands, sayBackAbout } from '../src/intake.ts'
+import { intakeGrant, intakeStands } from '../src/intake.ts'
 import { readTaskFile } from '../src/tasks.ts'
 import { Workbench } from '../src/workbench.ts'
 
@@ -593,64 +593,5 @@ describe('whether an intake start still stands', () => {
         ],
       }),
     ).toBeNull()
-  })
-})
-
-describe('saying a status back', () => {
-  let repo: ReturnType<typeof mkrepo>
-  let home: string
-  let client: Workbench
-
-  const open = async (over: Record<string, string> = {}): Promise<void> => {
-    await client?.close().catch(() => {})
-    writeFileSync(join(home, 'config.yaml'), `${configFor(repo.root, over)}\n`)
-    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: tmp('tade-sessions-') })
-  }
-
-  beforeEach(async () => {
-    repo = mkrepo()
-    home = tmp('tade-intake-reply-')
-    writeFileSync(join(home, 'config.yaml'), `${configFor(repo.root)}\n`)
-    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: tmp('tade-sessions-') })
-  })
-
-  afterEach(async () => {
-    await client?.close().catch(() => {})
-  })
-
-  const say = (posted: string[]) =>
-    sayBackAbout(client, {
-      source: 'cli',
-      candidate: { externalId: 'req-1', revision: '1', correlation: 'req-1-1' },
-      saying: 'accepted',
-      task: 'app/cli-req-1',
-      now: Date.now(),
-      post: async (request) => {
-        posted.push(request.say)
-      },
-    })
-
-  it('posts nothing at all while reply is off, which is the default', async () => {
-    expect(intakeGrant(client.config, 'cli').reply).toBe(false)
-    const posted: string[] = []
-    const answer = await say(posted)
-    // Not "posted and ignored": the transport is never reached, which is the
-    // difference between a capability that is off and one that is disabled.
-    expect(posted).toEqual([])
-    expect(answer.because).toContain('reply is off')
-    expect(await client.log.read({ types: ['intake_replied'] })).toEqual([])
-  })
-
-  it('posts one of Tade’s own sentences, and stops at the cap', async () => {
-    await open({ reply: 'true' })
-    const posted: string[] = []
-    for (let n = 0; n < 4; n++) await say(posted)
-    expect(posted).toHaveLength(3)
-    for (const said of posted) {
-      expect(said).toContain('app/cli-req-1')
-      // Nothing an agent wrote, no diff, no file name, no repository content.
-      expect(said).not.toContain('export button')
-    }
-    expect((await client.log.read({ types: ['intake_replied'] })).length).toBe(3)
   })
 })

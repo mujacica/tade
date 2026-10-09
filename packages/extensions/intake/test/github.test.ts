@@ -115,6 +115,7 @@ const grant = (over: Partial<IntakeGrantRead> = {}): IntakeGrantRead => ({
   on: true,
   accept: true,
   reply: false,
+  names: false,
   projects: ['app'],
   from: ['kim'],
   mode: 'propose',
@@ -562,7 +563,12 @@ describe('what it may never do', () => {
     expect(githubIssues.reply).toBeUndefined()
     expect(loaded.watches().find((one) => one.id === 'intake.github')?.replies).toBe(false)
     await expect(
-      loaded.reply('intake.github', { ...looking(), key: 'github:acme/api#501:x', say: 'hi' }),
+      loaded.reply('intake.github', {
+        ...looking(),
+        key: 'github:acme/api#501:x',
+        say: 'hi',
+        mark: 'tade:github:acme/api#501:noticed',
+      }),
     ).rejects.toThrow(/no way of saying anything back/)
   })
 
@@ -603,6 +609,8 @@ describe('what it may never do', () => {
         taken: one.revision,
         project: 'app',
         requester: one.requester.id,
+        correlation: one.correlation,
+        said: [],
         grant: 'surfaces.intake.sources.github',
         template: null,
         ref: one.material.ref,

@@ -1,6 +1,7 @@
 import { hostname } from 'node:os'
 import {
   type Config,
+  INTAKE_REPLY_ATTEMPTS,
   INTAKE_SOURCES,
   INTAKE_ATTEMPTS as INTAKE_TRIES,
   type Intake,
@@ -8,6 +9,7 @@ import {
   type IntakeGrantRead,
   type IntakeItem,
   type IntakeMode,
+  type IntakeReceipt,
   type IntakeSaying,
   type IntakeSource,
   intakeAgain,
@@ -18,6 +20,7 @@ import {
   intakeItem,
   intakeKey,
   intakeMapped,
+  intakeMark,
   intakeNext,
   intakeRepliesLeft,
   intakeSays,
@@ -80,6 +83,7 @@ export function intakeGrant(config: Config, source: IntakeSource): IntakeGrantRe
     on: intake.enabled,
     accept: grant.accept,
     reply: grant.reply,
+    names: grant.names,
     projects: grant.projects,
     from: grant.from,
     mode: grant.mode,
@@ -93,8 +97,16 @@ export function intakeSourceOf(name: string): IntakeSource | null {
   return INTAKE_SOURCES.includes(name as IntakeSource) ? (name as IntakeSource) : null
 }
 
-/** What this machine is called, for a reply that says where work was queued. */
-function machine(): string {
+/**
+ * What this machine is called, for a status the owner allowed to name it.
+ *
+ * Exported because the rule and the door both put the sentence together and
+ * must put the same one together: `outboxFor` is pure and cannot read a
+ * hostname, so whoever asks it hands this in, and `sayBackAbout` reads it
+ * again at the moment of posting. One definition, two readers — rather than a
+ * preview that says one thing and a post that says another.
+ */
+export function intakeMachine(): string {
   try {
     return hostname().split('.')[0] ?? ''
   } catch {
@@ -554,10 +566,21 @@ async function invalidate(tade: Workbench, already: IntakeItem, because: string)
 /**
  * Say one status back to a source, where the owner granted that for it.
  *
- * Three gates, every one of them here rather than in a connector: the grant,
- * the cap, and the fixed sentence. A connector's `reply` is only the transport —
- * it never chooses what is said, and it is never reached at all while `reply` is
- * off, which is the default and is a separate act from accepting work.
+ * **Four gates, every one of them here rather than in a connector**: the
+ * grant, what the grant allows a sentence to name, the cap, and the fixed
+ * sentence itself. A connector's `reply` is only the transport — it never
+ * chooses what is said, it cannot be asked for anything but a sentence, and it
+ * is never reached at all while `reply` is off, which is the default and is a
+ * separate act from accepting work.
+ *
+ * **What is written down is what happened, after it happened.** A status that
+ * went gets a line saying so, with the source's own receipt on it; a try that
+ * failed gets a line saying that, so the silence is visible in the inbox
+ * rather than being a requester who was never told. There is no "about to
+ * post" line, because the journal's rule is that a line comes after the thing
+ * — so a window that died between the post and the append leaves no line at
+ * all, the status reads as due again, and the marker is what keeps the next
+ * try from posting a second time.
  */
 export async function sayBackAbout(
   tade: Workbench,
@@ -568,7 +591,7 @@ export async function sayBackAbout(
     task: string | null
     now: number
     /** The one thing that actually posts: the host's door to that watch's `reply`. */
-    post: (request: { key: string; say: string }) => Promise<void>
+    post: (request: { key: string; say: string; mark: string }) => Promise<IntakeReceipt>
   },
 ): Promise<{ said: string | null; because: string | null }> {
   const grant = intakeGrant(tade.config, req.source)
@@ -577,30 +600,98 @@ export async function sayBackAbout(
   }
   const item = intakeItem({ source: req.source, externalId: req.candidate.externalId })
   // Not caught, for the reason above: unread would read as "nothing said yet",
-  // which is the one answer that lets the cap be passed.
+  // which is the one answer that lets both bounds be passed.
   const items = intakeFrom(await tade.log.read({}))
-  const left = intakeRepliesLeft(items.get(item), req.now)
-  if (left <= 0) {
+  const one = items.get(item)
+  // In `outboxFor`'s order, and for its reason: the most specific answer
+  // first, so a caller is told *this status has gone* rather than *enough has
+  // been said today* about one that had. Two surfaces giving different reasons
+  // for the same refusal is how one of them comes to be believed.
+  //
+  // One status per saying, ever, read off the journal rather than remembered:
+  // a window reopened, an index deleted, a refold — none of them says anything
+  // twice. The caller has normally asked `outboxFor` already; this is the same
+  // question at the door, so a second surface cannot get past it.
+  const sent = one?.said.find((said) => said.saying === req.saying && said.sent)
+  if (sent) {
+    return {
+      said: null,
+      because: `${req.saying} has already gone back about ${req.candidate.externalId}`,
+    }
+  }
+  const tried = one?.said.find((said) => said.saying === req.saying)
+  if ((tried?.attempts ?? 0) >= INTAKE_REPLY_ATTEMPTS) {
+    return {
+      said: null,
+      because: `saying ${req.saying} about ${req.candidate.externalId} was given up on after ${tried?.attempts} tries: ${tried?.problem ?? 'unsaid'}`,
+    }
+  }
+  if (intakeRepliesLeft(one, req.now) <= 0) {
     return {
       said: null,
       because: `enough has already been said back about ${req.candidate.externalId} today`,
     }
   }
-  const say = intakeSays(req.saying, { task: req.task, machine: machine() })
-  await req.post({ key: intakeKey({ ...req.candidate, source: req.source }), say })
+  const say = intakeSays(
+    req.saying,
+    // What the grant allows a sentence to name, and nothing more. With `names`
+    // off neither field is in the argument at all, so there is no task name
+    // and no hostname a sentence could carry: `METADATA_IS_DISCLOSURE`.
+    grant.names ? { names: true, task: req.task, machine: intakeMachine() } : { names: false },
+  )
+  const mark = intakeMark(item, req.saying)
+  const key = intakeKey({ ...req.candidate, source: req.source })
+  const line = {
+    item,
+    source: req.source,
+    external_id: req.candidate.externalId,
+    correlation: req.candidate.correlation,
+    saying: req.saying,
+    mark,
+  }
+  let receipt: IntakeReceipt
+  try {
+    receipt = await req.post({ key, say, mark })
+  } catch (err) {
+    const problem = err instanceof Error ? err.message : String(err)
+    // Written down, and then handed back. A status that nobody at the source
+    // ever saw is the quiet failure this whole path exists to not have: the
+    // record is what the inbox draws, and the sentence is what the window
+    // says. The work is untouched — a status is never a hold.
+    //
+    // **Writing it down may not replace why it failed.** Awaited bare, a
+    // journal that could not be appended to would throw from here and the
+    // transport's own sentence — the only one that says what went wrong at
+    // the source — would never reach anybody. So the record is attempted and
+    // the original is what is raised: a journal that cannot be written is its
+    // own, louder trouble and is reported where every other append is.
+    await tade.log
+      .append({
+        type: 'intake_replied',
+        task: req.task,
+        detail: { ...line, state: 'unsent', problem },
+      })
+      .catch(() => {})
+    throw err
+  }
   await tade.log.append({
     type: 'intake_replied',
     task: req.task,
     detail: {
-      item,
-      source: req.source,
-      external_id: req.candidate.externalId,
-      correlation: req.candidate.correlation,
-      saying: req.saying,
+      ...line,
+      state: 'said',
       // The sentence itself, because it is Tade's own and the record of what
       // left this machine is the point. Never an agent's words — there is no
       // path by which one could get here.
       said: say,
+      ...(receipt.posted ? { posted: receipt.posted } : {}),
+      // The source already had it: a window that died after posting, asking
+      // again with the same marker. Recorded rather than hidden, because
+      // "nothing was created this time" is the thing somebody wants to see.
+      ...(receipt.already ? { already: true } : {}),
+      // Where the source's own revision moved to, so Tade's own status can
+      // never read as somebody's edit on the next look.
+      ...(receipt.revision ? { revision: receipt.revision } : {}),
     },
   })
   return { said: say, because: null }

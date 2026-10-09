@@ -533,6 +533,31 @@ describe('watching', () => {
     await expect(nameless.look('weather.rain', look)).rejects.toThrow('without a key')
   })
 
+  it('hands a transport the sentence and the marker, and nothing else at all', async () => {
+    // **The named absence.** A reply carries a status and nothing else — no
+    // label, assignee, state, channel, recipient or reaction — and `reply` is
+    // the only method, so there is no route by which Tade closes, assigns,
+    // labels, merges or deletes anything at a source, and none by which it
+    // messages anywhere a finding did not come from. That a caller cannot
+    // even *name* one of those is `test/dead-keys.test.ts`'s, over the whole
+    // repository; this is the other half — what a watch is actually handed,
+    // so the day somebody widens the pass-through, this fails.
+    const rain = weather().watches![0]!
+    const asked = { project: 'shop', input: {}, key: 'rain-shop', say: 'Picked up.', mark: 'm1' }
+    let handed: Record<string, unknown> | null = null
+    const reply = (request: { mark: string }) => {
+      handed = { ...request }
+      return { posted: request.mark }
+    }
+    const loaded = await host({ city: 'Vienna' }, { watches: [{ ...rain, reply }] })
+    expect(await loaded.reply('weather.rain', asked)).toEqual({ posted: 'm1' })
+    expect(Object.keys(handed ?? {}).sort()).toEqual(['key', 'mark', 'say'])
+    // A transport that says nothing at all is honest rather than read as "the
+    // source already had it", which would silently stop a status for ever.
+    const quiet = await host({ city: 'Vienna' }, { watches: [{ ...rain, reply: () => undefined }] })
+    expect(await quiet.reply('weather.rain', asked)).toEqual({})
+  })
+
   it('refuses a watch put together wrong', async () => {
     const rain = weather().watches![0]!
     for (const [watches, problem] of [

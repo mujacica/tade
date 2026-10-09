@@ -1,16 +1,13 @@
-import { appendFile, mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
 import {
   type IntakeCandidate,
   intakeKey,
   intakePrompt,
-  intakeSpool,
   intakeTitle,
   newerRevision,
 } from '@tade/core'
 import type { TadeExtension } from '@tade/extensions-core'
 import { githubIssues } from './github.ts'
-import { candidateOf, newestOf, readSpool, type SpoolEntry } from './spool.ts'
+import { candidateOf, keepReply, newestOf, readSpool, type SpoolEntry } from './spool.ts'
 
 // Intake: work that arrives from outside this machine, and the local door that
 // exercises every rule above it without a credential.
@@ -48,9 +45,6 @@ import { candidateOf, newestOf, readSpool, type SpoolEntry } from './spool.ts'
 // The local door reaches nothing, so it does not declare `network` and keeps
 // looking with the wifi off; the GitHub watch declares it and is not started at
 // all while there is none.
-
-/** Where a reply this door posted is written down: the one thing it can "send". */
-export const REPLIES = 'replies.jsonl'
 
 /** The newest revision of each request this project has in the spool. */
 async function requests(
@@ -171,13 +165,23 @@ export const intakeExtension: TadeExtension = {
         // The one thing this door can "send": a line in a file beside the
         // spool. It is the whole of what a connector's `reply` is for — the
         // transport — and it chooses nothing about what is said.
-        const dir = intakeSpool(ctx.home)
-        await mkdir(dir, { recursive: true })
-        await appendFile(
-          join(dir, REPLIES),
-          `${JSON.stringify({ at: new Date(ctx.now()).toISOString(), key: request.key, said: request.say })}\n`,
-          { mode: 0o600 },
-        )
+        //
+        // **Idempotent by the marker**, which is this door's half of
+        // reconciling a crash: asked again with the same one it writes nothing
+        // and answers `already`. Every real transport owes that answer, and
+        // this is the one that can be exercised with no credential.
+        //
+        // No revision is reported, honestly: writing a line beside the spool
+        // does not touch any request, so this door's counters do not move when
+        // Tade says something. A source where they would must report where
+        // they moved to (`REPLIES_MOVE_REVISIONS`).
+        const kept = await keepReply(ctx.home, {
+          at: new Date(ctx.now()).toISOString(),
+          key: request.key,
+          mark: request.mark,
+          said: request.say,
+        })
+        return { posted: kept.posted, ...(kept.already ? { already: true } : {}) }
       },
     },
     githubIssues,

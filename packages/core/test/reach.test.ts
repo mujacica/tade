@@ -257,10 +257,15 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.cli.document',
       'surfaces.intake.sources.cli.from',
       'surfaces.intake.sources.cli.mode',
+      // The newest of them, and it arrived `never` without anybody touching
+      // this list's rule: whether a status posted to somebody else's tracker
+      // may name this machine and this work is disclosure, and the text the
+      // orchestrator reads all day does not get to widen it.
+      'surfaces.intake.sources.cli.names',
       'surfaces.intake.sources.cli.projects',
       'surfaces.intake.sources.cli.reply',
       'surfaces.intake.sources.cli.template',
-      // And the GitHub source's seven, by the same one dotted prefix rather
+      // And the GitHub source's eight, by the same one dotted prefix rather
       // than by anybody having listed them: a key added with the connector is
       // `never` on the day it is added, which is the whole point of the
       // subtree. `from` is the loudest of them — it is the list of logins
@@ -270,6 +275,7 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.github.document',
       'surfaces.intake.sources.github.from',
       'surfaces.intake.sources.github.mode',
+      'surfaces.intake.sources.github.names',
       'surfaces.intake.sources.github.projects',
       'surfaces.intake.sources.github.reply',
       'surfaces.intake.sources.github.template',

@@ -373,6 +373,18 @@ export const IntakeGrant = z
      * and never a word an agent wrote.
      */
     reply: z.boolean().default(false),
+    /**
+     * Whether a status may **name** the task it made and the machine it is on.
+     *
+     * A **third** act, and off even where replies are on. An issue on a public
+     * tracker is readable by everybody, and `tade/export-button-500` names a
+     * repository and a piece of somebody's work while a hostname names their
+     * laptop. Neither is a secret and both are disclosure, so it is granted
+     * deliberately rather than arriving with the decision to say anything at
+     * all — and with it off the sentences still say the thing worth saying
+     * (`METADATA_IS_DISCLOSURE`).
+     */
+    names: z.boolean().default(false),
     /** Which Tade projects this source may make work in. Empty means nowhere. */
     projects: z.array(z.string().min(1)).default([]),
     /** Whose requests count, as the source names them. Empty means nobody. */
@@ -466,6 +478,8 @@ export interface IntakeGrantRead {
   on: boolean
   accept: boolean
   reply: boolean
+  /** Whether a status may name the task and the machine. Off even where `reply` is on. */
+  names: boolean
   /** Which Tade projects this source may make work in. Empty means nowhere. */
   projects: readonly string[]
   /** The requester allowlist. Empty means nobody, which is the only safe default. */
@@ -686,6 +700,19 @@ export const INTAKE_IS_SOMEBODY_ELSE =
 /** Why `propose` is the default and the only default, said where the mode is chosen. */
 export const PROPOSE_IS_THE_TYPING =
   'propose: a task is made and parked, and a person approves it — what intake automates is the typing; queue: each request starts an agent by itself'
+
+/**
+ * Why naming the work is its own act, said beside the control that grants it.
+ *
+ * The honest half is that there is nothing secret in a task name or a
+ * hostname, and that it is disclosure anyway: a public issue is read by
+ * everybody who finds it, and what Tade would be publishing is what somebody's
+ * repository is called, what their work is called and what their machine is
+ * called. None of it is needed for the requester to know where their request
+ * got to, which is why the sentences work without it.
+ */
+export const METADATA_IS_DISCLOSURE =
+  'a status can say where a request got to without naming anything: the work’s own name and this machine’s name are not secrets and are still disclosure, and a public issue is read by whoever finds it'
 
 /** Why an empty allowlist is the default, said beside the list. */
 export const EMPTY_MEANS_NOBODY =
