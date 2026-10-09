@@ -1,7 +1,11 @@
+import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
+import type { Frame } from '../src/frame.ts'
+import { drawPanel } from '../src/panels/context.ts'
 import { type IntakePanel, intakePanel } from '../src/panels/intake/state.ts'
 import { type WorkflowPanel, workflowPanel } from '../src/panels/workflow/state.ts'
 import { panelClick, panelKey } from '../src/panels.ts'
+import { PLAIN } from '../src/skin.ts'
 
 // The two pages the software factory adds, as presses: one request in front of
 // you, and writing a stored workflow.
@@ -172,5 +176,114 @@ describe('writing a stored workflow', () => {
   it('adds and removes a step as presses the subject carries out', () => {
     expect(clicked(editing(), 'add').choice).toBe('add')
     expect(clicked(editing({ row: 0 }), 'remove').choice).toBe('remove')
+  })
+})
+
+// A panel is read over the work behind it, so every row it draws has to be
+// exactly as wide as it says it is — at every width, including the ones
+// nobody designs for.
+
+/** What a panel is handed, with only the fields these two read filled in. */
+function context(width: number, height: number, over: Partial<Frame['panel']> = {}) {
+  return {
+    width,
+    height,
+    skin: PLAIN,
+    pointer: { hover: null, pressed: null },
+    scrolling: null,
+    home: '~/.tade',
+    date: () => 'Mon 7 Sep 09:00',
+    route: null,
+    spend: null,
+    panes: [],
+    project: null,
+    items: [],
+    changes: [],
+    ahead: null,
+    branch: null,
+    base: null,
+    diff: null,
+    choices: [],
+    settings: [],
+    accounts: [],
+    updates: null,
+    updatesBusy: false,
+    lanesSurvive: false,
+    configPath: '~/.tade/config.yaml',
+    releases: false,
+    budgetWarnings: 0,
+    levels: [],
+    openRows: [],
+    browsing: null,
+    homeDir: '/home/me',
+    entries: [],
+    searching: false,
+    viewing: null,
+    talkKey: 'ctrl+space',
+    talkMode: 'hold' as const,
+    bindings: {},
+    running: 0,
+    branches: [],
+    checkout: null,
+    found: 0,
+    terminalName: 'terminal',
+    extensions: [],
+    harnessExtensions: [],
+    servers: [],
+    written: [],
+    extensionsRoot: '~/.tade/extensions',
+    models: [],
+    modelsFrom: null,
+    modelTarget: 'the orchestrator',
+    currentModel: null,
+    setup: null,
+    extensionView: null,
+    summary: null,
+    intake: null,
+    workflow: null,
+    away: null,
+    ...over,
+  }
+}
+
+describe('both pages, in the room there is', () => {
+  it('draws rows exactly as wide as they say they are, at every width', () => {
+    for (const width of [24, 32, 48, 64, 80, 120, 200]) {
+      for (const height of [10, 24, 60]) {
+        for (const panel of [open(), editing()]) {
+          const drawn = drawPanel(panel, context(width, height))
+          const wide = Math.max(0, ...drawn.panel.rows.map((row) => visibleWidth(row)))
+          for (const row of drawn.panel.rows) {
+            // Every row the same width as the widest, which is the box: a row
+            // off by one corrupts the whole screen it is drawn over.
+            expect(visibleWidth(row), `${panel.kind} at ${width}x${height}`).toBe(wide)
+          }
+          // And never wider than the window, however little room there is.
+          expect(wide, `${panel.kind} at ${width}x${height}`).toBeLessThanOrEqual(
+            Math.max(24, width),
+          )
+          expect(drawn.panel.rows.length).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  it('says it is reading rather than looking empty, before it has anything', () => {
+    const drawn = drawPanel(open({ busy: true }), context(80, 24))
+    expect(drawn.panel.rows.join('\n')).toContain('Reading…')
+    // And the reason, where there is one, instead of a page with nothing on it.
+    const failed = drawPanel(open({ problem: 'the journal could not be read' }), context(80, 24))
+    expect(failed.panel.rows.join('\n')).toContain('could not be read')
+  })
+
+  it('offers no control a page with nothing on it could not carry out', () => {
+    // Nothing read yet, so no act is offered: a button that refuses when
+    // pressed is worse than a button that is not there.
+    const drawn = drawPanel(open({ busy: true }), context(80, 24))
+    const controls = drawn.panel.hits
+      .map((hit) => (hit.target.kind === 'control' ? hit.target.id : ''))
+      .filter(Boolean)
+    expect(controls).not.toContain('approve')
+    expect(controls).toContain('close')
   })
 })

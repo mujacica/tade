@@ -24,7 +24,7 @@ import { inboxEmptyMeans, inboxEmptySays } from '../intake-view.ts'
 import { notice, withTranscript } from '../model.ts'
 import { type IntakePanel, intakePanel } from '../panels/intake/state.ts'
 import type { PanelInputs } from '../panels.ts'
-import { tadeDid } from '../transcript.ts'
+import { problem, tadeDid } from '../transcript.ts'
 import { type Actions, type Subject, type Submits, type Wiring, why } from './context.ts'
 import { Workflows } from './workflows.ts'
 
@@ -201,7 +201,7 @@ export class Intake implements Subject {
     this.folded = events.length
     if (!fresh.some((event) => INBOX_LINES.has(event.type))) return
     this.folding = this.fold(events)
-      .catch(() => {})
+      .catch((err: unknown) => this.couldNotRead(err))
       .finally(() => {
         this.folding = null
       })
@@ -214,6 +214,25 @@ export class Intake implements Subject {
       states: new Map(this.wire.state.panes.map((pane) => [pane.task, pane.state])),
     })
     this.rows = rows
+    this.wire.draw()
+  }
+
+  /**
+   * The fold could not be done, said once.
+   *
+   * **Not swallowed**, which is what it was: the rows it was going to replace
+   * are still there, so a caught-and-dropped failure leaves the side drawing
+   * the last answer that worked for as long as the window is open, and a
+   * request that arrived afterwards is invisible rather than late. A look that
+   * could not look is not a look that found nothing, and this is the sentence
+   * that says which — once, because the fold runs again on the next line
+   * written and a reason repeated every second is a reason nobody reads.
+   */
+  private couldNotRead(err: unknown): void {
+    const said = `what has been handed to this machine could not be read: ${why(err)}`
+    this.wire.put(
+      withTranscript(this.wire.state, problem(this.wire.state.transcript, said, this.wire.now())),
+    )
     this.wire.draw()
   }
 

@@ -339,6 +339,16 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         setExit(Exit.invalidInput)
         return
       }
+      // A dry run with no config read is not a dry run: it would print nothing
+      // about what would start and look exactly like a request that would
+      // start nothing. Said, and refused, rather than quietly left out.
+      if (opts.dryRun && !cfg.ok) {
+        io.err(
+          `${cfg.path}: invalid config, so what approving it would start cannot be worked out (run \`tade config --check\`)`,
+        )
+        setExit(Exit.error)
+        return
+      }
       const would =
         opts.dryRun && cfg.ok
           ? await intakeWouldRun(

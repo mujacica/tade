@@ -334,6 +334,19 @@ describe('tade intake', () => {
     expect(file).toContain('parked: true')
   })
 
+  it('will not dry-run against a config it could not read, and says so', async () => {
+    delivered()
+    writeFileSync(join(home, 'config.yaml'), 'projects: [this is not a map]\n')
+    const { code, stderr } = await tade('intake', 'show', 'req-1', '--dry-run')
+    expect(code).toBe(1)
+    expect(stderr).toContain('cannot be worked out')
+    // And without the flag it still answers: provenance and the request come
+    // out of the journal and the task's own files, not out of the config.
+    const { code: ok, stdout } = await tade('intake', 'show', 'req-1')
+    expect(ok).toBe(0)
+    expect(stdout).toContain('THE REQUEST ITSELF')
+  })
+
   it('says which request it has never heard of', async () => {
     const { code, stderr } = await tade('intake', 'show', 'nope')
     expect(code).toBe(2)

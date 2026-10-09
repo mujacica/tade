@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { fillTemplate, foldPersonas } from '../src/templates.ts'
 import {
   contentHash,
+  draftYaml,
   parseTemplate,
   personaDirs,
   publishedVersions,
@@ -17,6 +18,7 @@ import {
   snapshotYaml,
   templateDirs,
   templateNameProblem,
+  writeDraft,
 } from '../src/templates-store.ts'
 
 // What "published" has to mean for a run made in March to be able to say what
@@ -295,5 +297,81 @@ describe('the template store', () => {
     expect(fill.ok).toBe(true)
     if (!fill.ok) return
     expect(fill.plan.agents[0]?.prompt).toContain('You are making one change')
+  })
+
+  // --- a draft written back, as the form in the window saves one
+
+  it('writes a draft into the drafts directory and nowhere else', async () => {
+    const read = parseTemplate('mine', DRAFT)
+    expect(read.ok).toBe(true)
+    if (!read.ok) return
+    const written = await writeDraft(home, read.template)
+    expect(written).toEqual({ path: join(templateDirs(home).drafts, 'mine.yaml') })
+    // Read back by the door a draft is read by, which is the only thing that
+    // makes the form and the file the same template.
+    const again = await readDraft(home, 'mine')
+    expect('problem' in again).toBe(false)
+    if ('problem' in again) return
+    expect(again.template.title).toBe('One change')
+    // A draft is not a snapshot and has no content hash, so nothing can read
+    // one as something a run was made from.
+    expect(again.hash).toBe('')
+  })
+
+  it('says in the file that saving rewrites it, because a comment is not kept', async () => {
+    const read = parseTemplate('mine', DRAFT)
+    if (!read.ok) return
+    await writeDraft(home, read.template)
+    const text = await readFile(join(templateDirs(home).drafts, 'mine.yaml'), 'utf8')
+    expect(text).toContain('Tade rewrites this file')
+    expect(text).toContain('templates check')
+    // The same fields in the same order as a snapshot, so the diff somebody
+    // reads when they publish is the change they made and not a reordering.
+    const folded = foldPersonas(read.template, new Map(), () => '')
+    expect(
+      text
+        .split('\n')
+        .filter((line) => !line.startsWith('#'))
+        .join('\n'),
+    ).toBe(
+      snapshotYaml(folded)
+        .split('\n')
+        .filter((line) => !line.startsWith('#'))
+        .join('\n'),
+    )
+  })
+
+  it('refuses a name that would reach outside the drafts directory', async () => {
+    const read = parseTemplate('mine', DRAFT)
+    if (!read.ok) return
+    for (const name of ['../../../../etc/passwd', 'a/b', '.', '..', 'Mine', '']) {
+      const refused = await writeDraft(home, { ...read.template, template: name })
+      expect('problem' in refused, name).toBe(true)
+      if ('problem' in refused) expect(refused.problem).toBe(templateNameProblem(name))
+    }
+    // Nothing was written anywhere: a refusal rather than a sanitising, so
+    // there is no sanitised path to have got wrong.
+    await expect(readFile(join(templateDirs(home).drafts, 'passwd'), 'utf8')).rejects.toThrow()
+  })
+
+  it('refuses a draft under a name Tade ships, at the save rather than at the publish', async () => {
+    const read = parseTemplate(
+      'bug-repro-fix-review',
+      DRAFT.replace('mine', 'bug-repro-fix-review'),
+    )
+    if (!read.ok) return
+    const refused = await writeDraft(home, read.template)
+    expect('problem' in refused).toBe(true)
+    if ('problem' in refused) expect(refused.problem).toContain("Tade's own source")
+  })
+
+  it('round-trips: what a draft is written as is what reading it back gives', async () => {
+    const read = parseTemplate('mine', DRAFT)
+    if (!read.ok) return
+    const once = draftYaml(read.template)
+    const again = parseTemplate('mine', once)
+    expect(again.ok).toBe(true)
+    if (!again.ok) return
+    expect(draftYaml(again.template)).toBe(once)
   })
 })
