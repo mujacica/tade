@@ -296,10 +296,9 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'away-pairing',
     crop: 'panel',
     about:
-      'The away view, on and on this machine alone: a code to scan, the address under it, how ' +
-      'long the code has left, and every device already paired with what each may read — ' +
-      'because seeing the whole list is the real answer to one having been added by something ' +
-      'running here.',
+      'The away view in the window, on and on this machine alone: the two addresses it is bound ' +
+      'to, a QR code to scan a phone in with, and — under it, where somebody is deciding — that ' +
+      'an agent on this machine could pair itself, with Disconnect everything beside it.',
   },
   {
     file: 'sentry.svg',

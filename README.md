@@ -414,7 +414,7 @@ with nothing to present. What the phone then gets is **read-only**: what is work
 you, the queue, the checks, the reviews, what it has cost and your notes. There is no approve, no
 steer and no setting on it, because none of those routes exists.
 
-![The away view in the window: a code to scan, the address under it, how long it has left, and every device already paired](https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg)
+![The away view in the window: the addresses it is bound to, a QR code to scan a phone in with, and the sentence that an agent on this machine could pair itself](https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg)
 
 It lives in the window and dies with it, which is the other half of closing Tade being harmless —
 a bookmark tapped with Tade closed is a connection error, not an empty control room. On your own
