@@ -13,6 +13,6 @@ export {
 export type * from './port.ts'
 export { boolean, inputProblem, list, number, object, oneOf, string } from './schema.ts'
 export { settingFrom } from './settings.ts'
-export { shapeProblem } from './shape.ts'
+export { intakeProblem, shapeProblem } from './shape.ts'
 export type * from './watch.ts'
 export { Unreachable } from './watch.ts'

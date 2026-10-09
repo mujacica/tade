@@ -26,7 +26,9 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/extensions/core/src/watch.ts` | the watch half of the port: `Finding.intake`, `Recheck`, `ReplyRequest`, `ExtensionWatch.intake`/`recheck`/`reply` |
 | `packages/extensions/core/src/shape.ts` | `intakeProblem`: what a source must have to be turned on at all |
 | `packages/extensions/core/src/watching.ts` | `askLook`, `askRecheck`, `askReply`, and the deadline all three are held to |
-| `packages/extensions/intake/` | the local door: the spool, and the `cli` watch that reads it |
+| `packages/extensions/intake/` | the local door (the spool, the `cli` watch) and the `github` watch beside it |
+| `packages/forges/core/src/tickets.ts` | the things people *file*: `Ticket`, `Labelling`, `TicketQuery`, `capabilities.tickets` |
+| `packages/status/src/forges.ts` | `forgeAt`/`remoteAt`: which forge serves a checkout and as whom, for anybody |
 | `packages/workbench/src/intake.ts` | the doors: `takeIntake`, `intakeStands`, `sayBackAbout`, `intakeGrant` |
 | `packages/workbench/src/workbench.ts` | `watchFound` branches on `finding.intake` and writes down only what settled |
 | `packages/app/src/wire/queue.ts` | `intakeHold`: the grant, the plan and the source, asked again at the moment of starting |
@@ -60,6 +62,42 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
    never heard of does not answer `still: true`.
 6. **Add its coverage floor** to `scripts/coverage-floors.ts` if it is a new package, and
    `git add` every new file before running the checks — staging copies only tracked files.
+7. **Write its steps into `INTAKE_SETUP`**, one entry per source, keyed so tsc names the one
+   somebody forgot. A connector whose grant a person cannot work out how to write is a connector
+   nobody turns on, and `tade intake status` prints the steps for a source whose grant is not
+   finished (`intakeUnfinished`).
+
+## A source that reaches off this machine
+
+`github` is the first, and five things about it are the pattern rather than its own:
+
+- **Ask through the forge the project already has.** `forgeAt` (`@tade/status`) answers which forge
+  serves a checkout and as whom, out of the remote and nothing else — no sign-in is tried in turn,
+  no active login is read and none is changed. A source needing a *new* kind of answer from a forge
+  adds a **declared optional capability** with a conformance section (`capabilities.tickets`), never
+  a second HTTP client and never a port of its own.
+- **There is no credential of intake's own.** The forge finds one (`gh auth token`, `$GITHUB_TOKEN`),
+  so there is no second place to paste a token and nothing here to leak. Readiness stays the
+  extension's: the local door always works, so a missing GitHub token must never report the whole
+  extension as not ready.
+- **What selects work is said, not defaulted.** The label is a **required input**, which is also what
+  makes "no live connector activation" a shape rather than a promise: a watch that has to be told
+  something cannot be turned on by a wizard or by a person pressing enter (`WatchOffered.needs`,
+  `watchesToOffer`, and `inputProblem` at the one door that writes a schedule). And there is **no
+  repository input** — the repository is the checkout's own, so there is nothing to point elsewhere.
+- **The act that asked is what identifies the requester.** On GitHub that is *applying the label*,
+  read from the issue's events, where `actor` is documented as "The person who generated the event" —
+  so `from` is the logins whose **labelling** counts. A current label is not authority and the author
+  is never a stand-in for the labeller: those are different people in the ordinary case, and reading
+  one as the other authorises the wrong one. A label nobody can be named for selects nothing.
+- **A poll costs one conditional request.** The validator (`etag`) rides in the one thing Tade keeps
+  for a watch — its `since` — and an unchanged list is `unchanged` rather than an empty repository,
+  which is the answer that would otherwise make every look after the first forget what it found.
+
+**The loop is bounded by there being no way back.** The GitHub watch implements no `reply`, so Tade
+cannot write a word into GitHub and nothing it reads there can be something it wrote. The bot filter
+by actor is the second line, not the first, and what is left is why `propose` is the default forever:
+an agent runs as you and could label an issue itself, and then somebody is looking at a proposal.
 
 ## What the rules are, and why each is the way it is
 
@@ -129,7 +167,10 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
   own rule rather than a second one.
 - **Attachments are references.** A name, a claimed media type, a claimed size, a url. Tade writing
   a stranger's file into a task folder is a path-containment and a media-parsing problem nobody
-  needs; fetching one is a tool a person allowed, which is a decision that already exists.
+  needs; fetching one is a tool a person allowed, which is a decision that already exists. And a
+  source whose attachments are only *links in the body* — a GitHub issue — lists **none**: lifting
+  them out would put a stranger's filename into a line Tade writes in its own voice, and they are
+  already in the body where they read as theirs.
 
 ## The inbox, and what a surface may do with one
 
@@ -163,11 +204,11 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 
 ## What not to build
 
-A second scheduler · an `IntakeSource` port before a second source needs one · a listener, a
-webhook endpoint or a public hostname · a caller-chosen template or grant · a confidence threshold
-that starts work · attachment downloading · a reply that carries an agent's prose · token export,
-credential sync or automatic account switching · a remote kill switch for running agents · a
-`docs/` folder for any of it.
+A second scheduler · an `IntakeSource` port before a second source needs one · a second HTTP client
+for a forge Tade already talks to · a listener, a webhook endpoint or a public hostname · a
+caller-chosen template, grant or repository · a confidence threshold that starts work · attachment
+downloading · a reply that carries an agent's prose · token export, credential sync or automatic
+account switching · a remote kill switch for running agents · a `docs/` folder for any of it.
 
 ## Prompt injection is not solved, and nothing here may claim it is
 

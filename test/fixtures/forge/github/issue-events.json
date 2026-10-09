@@ -1,0 +1,65 @@
+{
+  "501": [
+    {
+      "id": 9001,
+      "event": "labeled",
+      "actor": { "login": "stranger", "type": "User" },
+      "label": { "name": "tade", "color": "ededed" },
+      "created_at": "2026-09-18T08:05:00Z"
+    },
+    {
+      "id": 9002,
+      "event": "unlabeled",
+      "actor": { "login": "kim", "type": "User" },
+      "label": { "name": "tade", "color": "ededed" },
+      "created_at": "2026-09-18T08:06:00Z"
+    },
+    {
+      "id": 9003,
+      "event": "labeled",
+      "actor": { "login": "kim", "type": "User" },
+      "label": { "name": "tade", "color": "ededed" },
+      "created_at": "2026-09-18T08:07:00Z"
+    },
+    {
+      "id": 9004,
+      "event": "labeled",
+      "actor": { "login": "kim", "type": "User" },
+      "label": { "name": "bug", "color": "d73a4a" },
+      "created_at": "2026-09-18T08:08:00Z"
+    }
+  ],
+  "503": [
+    {
+      "id": 9010,
+      "event": "labeled",
+      "actor": { "login": "dependabot[bot]", "type": "Bot" },
+      "label": { "name": "tade", "color": "ededed" },
+      "created_at": "2026-09-18T10:01:00Z"
+    }
+  ],
+  "505": [
+    {
+      "id": 9020,
+      "event": "labeled",
+      "actor": { "login": "kim", "type": "User" },
+      "label": { "name": "tade", "color": "ededed" },
+      "created_at": "2026-09-17T08:01:00Z"
+    },
+    {
+      "id": 9021,
+      "event": "closed",
+      "actor": { "login": "kim", "type": "User" },
+      "created_at": "2026-09-19T12:00:00Z"
+    }
+  ],
+  "506": [
+    {
+      "id": 9030,
+      "event": "labeled",
+      "actor": { "login": "stranger", "type": "User" },
+      "label": { "name": "tade", "color": "ededed" },
+      "created_at": "2026-09-18T13:01:00Z"
+    }
+  ]
+}

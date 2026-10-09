@@ -13,6 +13,11 @@ import {
   type ReviewDetail,
   type ReviewQuery,
   type ReviewRef,
+  type Ticket,
+  type TicketDetail,
+  type TicketPage,
+  type TicketQuery,
+  type TicketRef,
 } from '@tade/forges-core'
 
 // A forge that answers from a table.
@@ -24,6 +29,14 @@ import {
 
 /** One review the table holds, as much of it as a test cares to say. */
 export type ScriptedReview = Partial<ReviewDetail> & { ref: ReviewRef }
+
+/**
+ * One ticket the table holds. `labelled` says who applied which label, which
+ * is the half nothing can be read off a label list — and left out, the table's
+ * answer is that nobody can be named for any of them, which is the case a
+ * caller deciding on a labeller has to handle.
+ */
+export type ScriptedTicket = Partial<TicketDetail> & { ref: TicketRef }
 
 /** Something the forge was asked to change, kept so a test can ask what Tade did. */
 export type Wrote =
@@ -41,6 +54,7 @@ export interface ScriptedForgeOptions {
   /** When a rate limit lifts, as a moment. */
   retryAt?: number
   reviews?: readonly ScriptedReview[]
+  tickets?: readonly ScriptedTicket[]
   /** What ran on a review's head, by `<repo>#<number>`. */
   checks?: Readonly<Record<string, readonly CheckRun[]>>
   /**
@@ -74,6 +88,7 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
   const hosts = options.hosts ?? ['scripted.test']
   const wrote: Wrote[] = []
   const table: ReviewDetail[] = (options.reviews ?? []).map((one) => full(one, me))
+  const filed: TicketDetail[] = (options.tickets ?? []).map((one) => wholeTicket(one, me))
   const capabilities: ForgeCapabilities = {
     assigned: true,
     checks: true,
@@ -90,6 +105,7 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
     // false is the answer the port wants: `placeOf` then never names an
     // account, and nothing above has to wonder.
     accounts: false,
+    tickets: true,
     costPerPoll: 1,
     ...options.capabilities,
   }
@@ -267,6 +283,56 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
       one.state = 'merged'
       wrote.push({ kind: 'merged', ref, how })
     },
+    async tickets(query: TicketQuery): Promise<TicketPage> {
+      complain()
+      if (!capabilities.tickets) {
+        throw new ForgeError('unsupported', 'the scripted forge was told it has no tickets')
+      }
+      const matching = filed
+        .filter((one) => {
+          if (one.ref.repo !== query.repo) return false
+          const state = query.state ?? 'open'
+          if (state !== 'any' && one.state !== state) return false
+          if (query.labels?.some((label) => !one.labels.includes(label))) return false
+          if (query.since && Date.parse(one.updatedAt) < Date.parse(query.since)) return false
+          return true
+        })
+        // Newest movement first, like every other implementation: a table that
+        // answered in the order a test happened to write its rows would let a
+        // caller depend on an order the port does not promise, and then the
+        // real forge would be the one that looked broken.
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+      const limit = Math.max(1, query.limit ?? 30)
+      const from = Number(query.cursor ?? '0')
+      const page = matching.slice(from, from + limit)
+      const end = from + page.length
+      return {
+        // Who applied a label is not in a list, the way it is not on GitHub: it
+        // costs a second ask there, and a table that handed it over free would
+        // let a caller forget to make one.
+        items: page.map((one) => asListed(one)),
+        cursor: end < matching.length ? String(end) : null,
+        more: end < matching.length,
+        // A table has no validator, and a forge with none must never say
+        // `unchanged` — the one answer that would make a caller forget
+        // everything the last look found.
+        unchanged: false,
+        validator: null,
+      }
+    },
+
+    async ticket(ref: TicketRef): Promise<TicketDetail> {
+      complain()
+      if (!capabilities.tickets) {
+        throw new ForgeError('unsupported', 'the scripted forge was told it has no tickets')
+      }
+      const one = filed.find(
+        (ticket) => ticket.ref.repo === ref.repo && ticket.ref.number === ref.number,
+      )
+      if (!one) throw new ForgeError('missing', `there is no ticket ${ref.repo}#${ref.number}`)
+      return one
+    },
+
     limits() {
       return options.trouble === 'rate'
         ? { remaining: 0, of: 5_000, resetsAt: options.retryAt ?? now() + 60_000 }
@@ -301,6 +367,32 @@ function plain(review: ReviewDetail): Review {
     ...rest
   } = review
   return rest
+}
+
+/** One ticket as a list hands it over: everything but who applied its labels. */
+function asListed(one: TicketDetail): Ticket {
+  const { labelled: _labelled, ...rest } = one
+  return rest
+}
+
+function wholeTicket(one: ScriptedTicket, me: string | null): TicketDetail {
+  const host = one.ref.host || 'scripted.test'
+  return {
+    ref: { ...one.ref, host },
+    title: one.title ?? `ticket ${one.ref.number}`,
+    body: one.body ?? '',
+    url: one.url ?? `https://${host}/${one.ref.repo}/issues/${one.ref.number}`,
+    state: one.state ?? 'open',
+    author: one.author ?? { login: me ?? 'somebody', bot: false },
+    labels: one.labels ?? [],
+    assignees: one.assignees ?? [],
+    createdAt: one.createdAt ?? '2026-09-18T05:00:00.000Z',
+    updatedAt: one.updatedAt ?? '2026-09-19T05:00:00.000Z',
+    // Nobody named for any of them unless the table says so: a label list
+    // carries no provenance, and inventing the author as its labeller is
+    // exactly the mistake the port's own comment is about.
+    labelled: one.labelled ?? [],
+  }
 }
 
 function taskIn(body: string): string | null {

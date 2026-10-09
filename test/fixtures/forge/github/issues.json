@@ -1,0 +1,78 @@
+[
+  {
+    "number": 501,
+    "title": "Refund retries drop the idempotency key",
+    "body": "Two refunds go out when the first attempt times out.\n\nSteps: POST /refunds, kill the worker mid-flight, watch the ledger.\n",
+    "html_url": "https://github.com/acme/api/issues/501",
+    "state": "open",
+    "user": { "login": "kim", "type": "User" },
+    "labels": [{ "name": "tade", "color": "ededed" }, { "name": "bug", "color": "d73a4a" }],
+    "assignees": [{ "login": "kim", "type": "User" }],
+    "created_at": "2026-09-18T08:00:00Z",
+    "updated_at": "2026-09-19T08:00:00Z"
+  },
+  {
+    "number": 502,
+    "title": "Typo in the README",
+    "body": "`recieve` should be `receive`.\n",
+    "html_url": "https://github.com/acme/api/issues/502",
+    "state": "open",
+    "user": { "login": "stranger", "type": "User" },
+    "labels": [],
+    "assignees": [],
+    "created_at": "2026-09-18T09:00:00Z",
+    "updated_at": "2026-09-19T09:00:00Z"
+  },
+  {
+    "number": 503,
+    "title": "Bump the lockfile",
+    "body": "Weekly sweep.\n",
+    "html_url": "https://github.com/acme/api/issues/503",
+    "state": "open",
+    "user": { "login": "dependabot[bot]", "type": "Bot" },
+    "labels": [{ "name": "tade", "color": "ededed" }],
+    "assignees": [],
+    "created_at": "2026-09-18T10:00:00Z",
+    "updated_at": "2026-09-19T10:00:00Z"
+  },
+  {
+    "number": 504,
+    "title": "Retry refunds on a dead worker",
+    "body": "A branch for #501.\n",
+    "html_url": "https://github.com/acme/api/pull/504",
+    "state": "open",
+    "user": { "login": "kim", "type": "User" },
+    "labels": [{ "name": "tade", "color": "ededed" }],
+    "assignees": [],
+    "created_at": "2026-09-18T11:00:00Z",
+    "updated_at": "2026-09-19T11:00:00Z",
+    "pull_request": {
+      "url": "https://api.github.com/repos/acme/api/pulls/504",
+      "html_url": "https://github.com/acme/api/pull/504"
+    }
+  },
+  {
+    "number": 505,
+    "title": "Ledger reconciliation is off by a penny",
+    "body": "Only on refunds that cross a month boundary.\n",
+    "html_url": "https://github.com/acme/api/issues/505",
+    "state": "closed",
+    "user": { "login": "kim", "type": "User" },
+    "labels": [{ "name": "tade", "color": "ededed" }],
+    "assignees": [],
+    "created_at": "2026-09-17T08:00:00Z",
+    "updated_at": "2026-09-19T12:00:00Z"
+  },
+  {
+    "number": 506,
+    "title": "Webhook replay storm after a deploy",
+    "body": "Every event since Monday arrives again.\n",
+    "html_url": "https://github.com/acme/api/issues/506",
+    "state": "open",
+    "user": { "login": "kim", "type": "User" },
+    "labels": [{ "name": "tade", "color": "ededed" }],
+    "assignees": [],
+    "created_at": "2026-09-18T13:00:00Z",
+    "updated_at": "2026-09-19T13:00:00Z"
+  }
+]

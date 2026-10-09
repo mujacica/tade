@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ExtensionHost } from './host.ts'
 import type { TadeExtension } from './port.ts'
-import { shapeProblem } from './shape.ts'
+import { intakeProblem, shapeProblem } from './shape.ts'
 
 // The suite every extension passes, built-in or yours. It asserts the
 // contract around an extension rather than what it finds: that it is put
@@ -172,7 +172,11 @@ export function extensionConformance(
       for (const watch of extension.watches ?? []) {
         if (watch.intake === undefined) continue
         const id = `${extension.name}.${watch.id}`
-        expect(host.watchProblem(id, {})).toBeNull()
+        // Nothing about *being an intake source* may refuse it. Asked of the
+        // capability rather than of `watchProblem`, because a source may also
+        // require an input — a repository's label, a board — and "you have not
+        // said which label" is a door working rather than a broken source.
+        expect(intakeProblem(watch)).toBeNull()
         expect(typeof watch.recheck).toBe('function')
         // A source asked about something it has never heard of has verified
         // nothing, and the one answer it must not give is that the request

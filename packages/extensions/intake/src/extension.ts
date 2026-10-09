@@ -9,18 +9,25 @@ import {
   newerRevision,
 } from '@tade/core'
 import type { TadeExtension } from '@tade/extensions-core'
+import { githubIssues } from './github.ts'
 import { candidateOf, newestOf, readSpool, type SpoolEntry } from './spool.ts'
 
-// The local intake door: work that somebody at this machine handed to Tade as
-// if it had come from a tracker.
+// Intake: work that arrives from outside this machine, and the local door that
+// exercises every rule above it without a credential.
 //
-// **One watch, and it is an ordinary watch.** It looks at a folder on a clock,
-// it finds requests, and what happens to each of them is the grant, the rule,
-// the queue and the approval that every other source will go through. There is
-// no second scheduler here and no second way into the queue — which is the
-// whole claim intake makes, and this is the cheapest possible way to hold it to
-// that claim: if the local door needed anything the pipeline does not have, the
-// pipeline is wrong.
+// **Two watches, and both are ordinary watches.** `cli` looks at a folder on a
+// clock; `github` polls one repository's issues through the forge the project
+// already has (`github.ts`). What happens to what either of them finds is the
+// grant, the rule, the queue and the approval that every source goes through.
+// There is no second scheduler here and no second way into the queue — which is
+// the whole claim intake makes, and the local door is the cheapest possible way
+// to hold it to that claim: if it needed anything the pipeline does not have,
+// the pipeline is wrong.
+//
+// **The two are deliberately unalike**, which is what keeps the pipeline
+// honest: one has no credential, no network and revisions that are counters;
+// the other has all three and revisions that are timestamps. Anything that only
+// worked for one of them is something the shared path got wrong.
 //
 // **What it is for.** Three things, honestly:
 //
@@ -38,8 +45,9 @@ import { candidateOf, newestOf, readSpool, type SpoolEntry } from './spool.ts'
 // grant still decides, because a door that trusted whoever could write a file
 // would be a door with no rule behind it.
 //
-// Nothing here reaches the network, so the watch does not declare `network` and
-// keeps looking with the wifi off.
+// The local door reaches nothing, so it does not declare `network` and keeps
+// looking with the wifi off; the GitHub watch declares it and is not started at
+// all while there is none.
 
 /** Where a reply this door posted is written down: the one thing it can "send". */
 export const REPLIES = 'replies.jsonl'
@@ -61,17 +69,24 @@ export const intakeExtension: TadeExtension = {
   name: 'intake',
   title: 'Intake',
   description:
-    'Work that arrives from outside this machine. The local door takes a request written here and puts it through the same grant, rule, queue and approval every connector will go through.',
+    'Work that arrives from outside this machine: a request written here, or an issue somebody on your own list labelled. Both go through the same grant, rule, queue and approval.',
   workflow: [
     'A person writes a request with `tade intake`, naming the project and who asked.',
-    'The `intake.cli` watch finds it on its next look, and the owner’s own grant decides whether it may become work (surfaces.intake).',
+    'Or somebody on your list puts the label you named on an issue in the project’s own repository.',
+    'The watch finds it on its next look, and the owner’s own grant decides whether it may become work (surfaces.intake).',
     'With `mode: propose`, which is the default, a task is made and parked: a person approves it and the queue starts it.',
-    'At the moment of starting, the request is checked again — withdrawn or rewritten holds the work rather than starting it.',
-    'Nothing is posted anywhere unless `reply` is on for that source, and then only sentences Tade generated.',
+    'At the moment of starting it is checked again — closed, relabelled or rewritten holds the work.',
+    'Nothing is posted anywhere unless `reply` is on, and GitHub has no way back at all.',
   ],
-  // Nothing to set up: no key, no endpoint, no account. Being ready is having a
-  // home to read, which every window has — so there is nothing it needs, which
-  // is what `null` says, and it asks nothing of the world to find that out.
+  // Nothing to set up for the local door: no key, no endpoint, no account.
+  // Being ready is having a home to read, which every window has — so there is
+  // nothing the extension needs, which is what `null` says, and it asks nothing
+  // of the world to find that out.
+  //
+  // **Not a credential check**, deliberately. Readiness is the extension's and
+  // the local door always works, so reporting this extension as not ready
+  // because there is no GitHub token would take away the one source that never
+  // needed one. What the GitHub watch needs, it says when it looks.
   ready: () => null,
   watches: [
     {
@@ -165,5 +180,6 @@ export const intakeExtension: TadeExtension = {
         )
       },
     },
+    githubIssues,
   ],
 }

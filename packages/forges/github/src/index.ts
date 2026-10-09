@@ -16,6 +16,7 @@ import {
 } from '@tade/forges-core'
 import { asCheckRun, asDetail, asReview } from './map.ts'
 import { DRAFT, NODE_ID, OF_BRANCH, ONE, READY, REPLY, SEARCH } from './queries.ts'
+import { githubTickets } from './tickets.ts'
 
 // GitHub, through one credential and one HTTP client.
 //
@@ -52,6 +53,7 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     stacks: false,
     write: true,
     since: true,
+    tickets: true,
     // An SSH host alias — `git@github.com-ammujacic:…` — is how somebody with
     // two GitHub accounts keeps them apart, and `gh` holds a sign-in for each.
     accounts: true,
@@ -112,7 +114,13 @@ export function makeGithubForge(options: ForgeOptions): Forge {
 
   async function request(
     url: string,
-    init: { method?: string; body?: unknown; accept?: string } = {},
+    init: {
+      method?: string
+      body?: unknown
+      accept?: string
+      /** Conditional-request headers: `if-none-match`, and nothing secret. */
+      headers?: Record<string, string>
+    } = {},
   ): Promise<{ status: number; body: unknown; text: string; headers: Headers }> {
     const auth = await credential()
     let answer: Response
@@ -124,6 +132,7 @@ export function makeGithubForge(options: ForgeOptions): Forge {
           accept: init.accept ?? 'application/vnd.github+json',
           'user-agent': 'tade',
           ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...init.headers,
         },
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       })
@@ -516,6 +525,12 @@ export function makeGithubForge(options: ForgeOptions): Forge {
         body: { merge_method: how },
       })
     },
+
+    // The issues half, in its own file: a ticket is not a review, and the two
+    // things it has to get right — telling a pull request apart from an issue,
+    // and who applied a label as against who wrote the words — are nothing to
+    // do with anything above.
+    ...githubTickets(request, rest, host),
 
     limits() {
       return limits

@@ -49,6 +49,9 @@ testForge('github', () => make().forge, {
   signedOut: () => make({ signedOut: true }).forge,
   limited: () => make({ limited: true }).forge,
   readOnly: () => make({ scopes: 'read:org, gist' }).forge,
+  // 504 in the fixture is a pull request that the issues endpoint answers
+  // about, which is the filtering the suite checks; 9999 is nothing at all.
+  tickets: { repo: 'acme/api', label: 'tade', unknown: 9999 },
 })
 
 describe('GitHub, in the port\u2019s words', () => {
@@ -362,5 +365,208 @@ describe('whose account a project is on', () => {
     expect((await make({ limited: true }).forge.access('acme/api')).kind).toBe('cannot tell')
     expect((await make({ serverError: true }).forge.access('acme/api')).kind).toBe('cannot tell')
     expect((await make({ unreachable: true }).forge.access('acme/api')).kind).toBe('cannot tell')
+  })
+})
+
+describe('GitHub issues, as the port’s tickets', () => {
+  it('leaves a pull request out of an issue list, by the key GitHub says to read', async () => {
+    const { forge, replay } = make()
+    const page = await forge.tickets({ repo: 'acme/api', labels: ['tade'] })
+    const numbers = page.items.map((one) => one.ref.number)
+    // 504 carries the label and is open and would pass every other filter —
+    // it is a pull request, and GitHub's issues endpoint answers about it.
+    expect(numbers).not.toContain(504)
+    expect(numbers).toContain(501)
+    // Asked with the label in the query rather than filtered afterwards: a
+    // repository with four thousand issues must not be read to find three.
+    const asked = replay.calls.find((one) => one.includes('/issues?'))
+    expect(asked).toContain('labels=tade')
+    expect(asked).toContain('state=open')
+    expect(asked).toContain('sort=updated')
+  })
+
+  it('refuses a number that turns out to be a pull request, rather than handing one back', async () => {
+    const { forge } = make()
+    await expect(
+      forge.ticket({ repo: 'acme/api', number: 504, host: 'github.com' }),
+    ).rejects.toMatchObject({ trouble: 'missing' })
+  })
+
+  it('says who applied a label, which is not who wrote the words', async () => {
+    const { forge } = make()
+    const one = await forge.ticket({ repo: 'acme/api', number: 501, host: 'github.com' })
+    expect(one.author.login).toBe('kim')
+    const tade = one.labelled.find((was) => was.label === 'tade')
+    // The fixture has `stranger` labelling it, `kim` taking that off and
+    // `kim` putting it back: the newest application is the provenance, and a
+    // fold that read the first event would name somebody who undid their own.
+    expect(tade?.by.login).toBe('kim')
+    expect(tade?.at).toBe('2026-09-18T08:07:00Z')
+  })
+
+  it('names nobody for a label nothing in the events accounts for', async () => {
+    const { forge } = make()
+    // 506's `tade` label was applied by `stranger`; its author is `kim`. A
+    // caller that read the author as the labeller would authorise the wrong
+    // person, which is the whole reason this is a separate answer.
+    const one = await forge.ticket({ repo: 'acme/api', number: 506, host: 'github.com' })
+    expect(one.author.login).toBe('kim')
+    expect(one.labelled.map((was) => was.by.login)).toEqual(['stranger'])
+    // And a ticket whose events say nothing about its labels gets an empty
+    // list rather than a guess.
+    const quiet = await forge.ticket({ repo: 'acme/api', number: 502, host: 'github.com' })
+    expect(quiet.labelled).toEqual([])
+  })
+
+  it('says GitHub’s own word about an app, by type and by the name it gives one', async () => {
+    const { forge } = make()
+    const one = await forge.ticket({ repo: 'acme/api', number: 503, host: 'github.com' })
+    expect(one.author).toEqual({ login: 'dependabot[bot]', bot: true })
+    expect(one.labelled[0]?.by.bot).toBe(true)
+  })
+
+  it('reads an unchanged list as unchanged, not as an empty repository', async () => {
+    const { forge, replay } = make()
+    const first = await forge.tickets({ repo: 'acme/api', labels: ['tade'] })
+    expect(first.unchanged).toBe(false)
+    expect(first.validator).toBeTruthy()
+    const again = await forge.tickets({
+      repo: 'acme/api',
+      labels: ['tade'],
+      validator: first.validator,
+    })
+    // The answer a poll must not read as "nothing to do": GitHub says a 304
+    // "does not count against your primary rate limit", and the items being
+    // empty is because nothing was read rather than because nothing is there.
+    expect(again.unchanged).toBe(true)
+    expect(again.items).toEqual([])
+    expect(again.validator).toBe(first.validator)
+    expect(replay.calls.filter((one) => one.includes('/issues?')).length).toBe(2)
+  })
+
+  it('never says unchanged to a caller that handed over nothing to compare', async () => {
+    const { forge } = make()
+    const page = await forge.tickets({ repo: 'acme/api', labels: ['tade'] })
+    expect(page.unchanged).toBe(false)
+    expect(page.items.length).toBeGreaterThan(0)
+  })
+
+  it('pages by the link header, and stops when there is no next', async () => {
+    const { forge } = make()
+    const first = await forge.tickets({ repo: 'acme/api', labels: ['tade'], limit: 1 })
+    expect(first.items.length).toBe(1)
+    expect(first.more).toBe(true)
+    expect(first.cursor).toBe('2')
+    const seen = new Set(first.items.map((one) => one.ref.number))
+    let cursor = first.cursor
+    let pages = 1
+    while (cursor && pages < 10) {
+      const next = await forge.tickets({
+        repo: 'acme/api',
+        labels: ['tade'],
+        limit: 1,
+        cursor,
+      })
+      for (const one of next.items) {
+        expect(seen.has(one.ref.number)).toBe(false)
+        seen.add(one.ref.number)
+      }
+      cursor = next.cursor
+      pages += 1
+    }
+    // The page a pull request was filtered out of is an empty page and not the
+    // end of the list: `more` is what the link header said, not what survived.
+    expect(seen.has(504)).toBe(false)
+    expect(seen.has(501)).toBe(true)
+  })
+
+  it('asks only for what moved since it was told, as an ISO timestamp', async () => {
+    const { forge, replay } = make()
+    await forge.tickets({ repo: 'acme/api', labels: ['tade'], since: '2026-09-19T12:30:00Z' })
+    const asked = replay.calls.find((one) => one.includes('/issues?')) ?? ''
+    expect(decodeURIComponent(asked)).toContain('since=2026-09-19T12:30:00Z')
+  })
+
+  it('reads the newest end of a long events list, so a relabelling is the one found', async () => {
+    const filler = Array.from({ length: 240 }, (_, at) => ({
+      id: at,
+      event: 'commented',
+      actor: { login: 'nobody', type: 'User' },
+      created_at: new Date(Date.parse('2026-09-18T08:10:00Z') + at * 60_000).toISOString(),
+    }))
+    const { forge, replay } = make({
+      issueEvents: {
+        '501': [
+          {
+            id: 1,
+            event: 'labeled',
+            actor: { login: 'stranger', type: 'User' },
+            label: { name: 'tade' },
+            created_at: '2026-09-18T08:00:00Z',
+          },
+          ...filler,
+          {
+            id: 9999,
+            event: 'labeled',
+            actor: { login: 'kim', type: 'User' },
+            label: { name: 'tade' },
+            created_at: '2026-09-19T07:00:00Z',
+          },
+        ],
+      },
+    })
+    const one = await forge.ticket({ repo: 'acme/api', number: 501, host: 'github.com' })
+    expect(one.labelled.find((was) => was.label === 'tade')?.by.login).toBe('kim')
+    // Bounded: the newest pages and the first, never every page of somebody's
+    // long argument.
+    expect(replay.calls.filter((call) => call.includes('/events?')).length).toBeLessThanOrEqual(4)
+  })
+
+  it('names nobody for a label applied further back than it reads', async () => {
+    const filler = Array.from({ length: 400 }, (_, at) => ({
+      id: at + 10,
+      event: 'commented',
+      actor: { login: 'nobody', type: 'User' },
+      created_at: new Date(Date.parse('2026-09-18T09:00:00Z') + at * 60_000).toISOString(),
+    }))
+    const { forge } = make({
+      issueEvents: {
+        '501': [
+          {
+            id: 1,
+            event: 'labeled',
+            actor: { login: 'kim', type: 'User' },
+            label: { name: 'tade' },
+            created_at: '2026-09-18T08:00:00Z',
+          },
+          ...filler,
+        ],
+      },
+    })
+    const one = await forge.ticket({ repo: 'acme/api', number: 501, host: 'github.com' })
+    // Still labelled, and nobody can be named for it: an empty answer rather
+    // than the author standing in, which the caller must refuse on.
+    expect(one.labels).toContain('tade')
+    expect(one.labelled).toEqual([])
+  })
+
+  it('keeps working against a host that offers no validator at all', async () => {
+    const { forge } = make({ etags: false })
+    const page = await forge.tickets({ repo: 'acme/api', labels: ['tade'] })
+    expect(page.validator).toBeNull()
+    expect(page.unchanged).toBe(false)
+    const again = await forge.tickets({ repo: 'acme/api', labels: ['tade'], validator: 'W/"x"' })
+    expect(again.unchanged).toBe(false)
+    expect(again.items.length).toBe(page.items.length)
+  })
+
+  it('lists a label nobody has used as an empty page, and a rate limit as a rate limit', async () => {
+    expect((await make().forge.tickets({ repo: 'acme/api', labels: ['nope'] })).items).toEqual([])
+    await expect(make({ limited: true }).forge.tickets({ repo: 'acme/api' })).rejects.toMatchObject(
+      { trouble: 'rate' },
+    )
+    await expect(
+      make({ unreachable: true }).forge.tickets({ repo: 'acme/api' }),
+    ).rejects.toMatchObject({ trouble: 'network' })
   })
 })

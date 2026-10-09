@@ -295,6 +295,12 @@ importers:
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../core
+      '@tade/forges-core':
+        specifier: workspace:*
+        version: link:../../forges/core
+      '@tade/status':
+        specifier: workspace:*
+        version: link:../../status
       zod:
         specifier: ^4.6.5
         version: 4.6.5

@@ -45,6 +45,27 @@ export const STARTS_AGENTS = 'starts an agent on each thing it finds'
 /** And for one that only ever tells somebody. */
 export const ONLY_TELLS = 'tells you what it finds, and starts nothing'
 
+/**
+ * What a watch that has to be told something needs first, said where it is
+ * offered rather than left as a blank tick.
+ *
+ * **Not a readiness problem and not its extension's**: the extension is fine
+ * and the watch works, it just has no answer until somebody says which
+ * repository, which label, which board. It matters here because this is the
+ * one place that offers watches in bulk and has nothing to give them — a
+ * schedule written with no input is a watch that fails at every look, under a
+ * name somebody then has to find and remove.
+ *
+ * It is also what keeps a connector from being turned on by a person pressing
+ * enter. A source that must be told its label cannot be switched on by a
+ * wizard at all, which is a stronger guarantee than a watch that is merely
+ * never ticked: `ticked` is about what a default agrees to, and this is about
+ * there being nothing to agree to yet.
+ */
+export function mustBeTold(needs: readonly string[]): string {
+  return `has to be told ${needs.join(' and ')} first — Settings › Extensions`
+}
+
 /** A watch as the first minute offers it. */
 export interface WatchChoice {
   /** `<extension>.<watch>`. */
@@ -88,10 +109,16 @@ export function watchesToOffer(
   watched: (id: string) => boolean = () => false,
 ): WatchChoice[] {
   return watches.map((watch) => {
+    // A watch that has to be told something is `cannot` here for the same
+    // reason one whose extension has no key is: there is nothing to answer yet.
+    // Offering it would write a schedule with no input, which fails at every
+    // look — and for a watch that reaches somebody else's service, it would be
+    // a connector switched on by a person pressing enter.
+    const told = watch.needs ?? []
     const state: WatchChoice['state'] =
-      watched(watch.id) || (watch.standing && watch.problem === null)
+      watched(watch.id) || (watch.standing && watch.problem === null && told.length === 0)
         ? 'on'
-        : watch.problem !== null
+        : watch.problem !== null || told.length > 0
           ? 'cannot'
           : 'offered'
     return {
@@ -103,7 +130,7 @@ export function watchesToOffer(
       ticked: state === 'offered' && watch.offers === 'ask',
       costs:
         state === 'cannot'
-          ? (watch.problem ?? '')
+          ? (watch.problem ?? (told.length > 0 ? mustBeTold(told) : ''))
           : watch.offers === 'agent'
             ? STARTS_AGENTS
             : ONLY_TELLS,

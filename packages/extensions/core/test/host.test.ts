@@ -443,6 +443,10 @@ describe('watching', () => {
         // ceiling on agents started is not the right one on questions asked, and
         // only a watch that knows the difference says so.
         most: null,
+        // Nothing it has to be told, so anything offering watches in bulk may
+        // offer this one: `needs` is read off the input schema's own `required`
+        // and is empty here, which is what lets the first minute tick it.
+        needs: [],
         // An ordinary watch, so none of the three capabilities a source of
         // outside work declares — and each is read off what it said about
         // itself rather than discovered by calling it and seeing what happens.

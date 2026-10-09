@@ -1,7 +1,7 @@
 import type { CheckRun, CheckState } from '@tade/checks-core'
 import { testForge } from '@tade/forges-core/conformance'
 import { describe, expect, it } from 'vitest'
-import { makeScriptedForge, type ScriptedReview } from '../src/index.ts'
+import { makeScriptedForge, type ScriptedReview, type ScriptedTicket } from '../src/index.ts'
 
 /** One run on a commit, as much of it as these tests care to say. */
 const ran = (commit: string, check: string, state: CheckState): CheckRun => ({
@@ -49,7 +49,28 @@ const reviews: ScriptedReview[] = [
   },
 ]
 
-testForge('scripted', () => makeScriptedForge({ reviews, commits, logs }), {
+// Two filed requests: one whose `tade` label somebody is named for, and one
+// whose label nobody can be — the second is the answer a forge that keeps no
+// history of labelling gives, and a caller deciding on a labeller has to
+// handle it rather than falling back to the author.
+const tickets: ScriptedTicket[] = [
+  {
+    ref: { repo: 'acme/api', number: 501, host: 'scripted.test' },
+    title: 'Refund retries drop the idempotency key',
+    body: 'Two refunds go out when the first attempt times out.',
+    labels: ['tade', 'bug'],
+    author: { login: 'kim', bot: false },
+    labelled: [{ label: 'tade', by: { login: 'kim', bot: false }, at: '2026-09-18T08:07:00.000Z' }],
+  },
+  {
+    ref: { repo: 'acme/api', number: 502, host: 'scripted.test' },
+    title: 'Typo in the README',
+    labels: ['tade'],
+    author: { login: 'stranger', bot: false },
+  },
+]
+
+testForge('scripted', () => makeScriptedForge({ reviews, commits, logs, tickets }), {
   ref: { repo: 'acme/api', number: 412, host: 'scripted.test' },
   unknown: { repo: 'acme/api', number: 9999, host: 'scripted.test' },
   remotes: { serves: 'git@scripted.test:acme/api.git', not: 'git@github.com:acme/api.git' },
@@ -58,7 +79,20 @@ testForge('scripted', () => makeScriptedForge({ reviews, commits, logs }), {
   signedOut: () => makeScriptedForge({ reviews, me: null, trouble: 'auth' }),
   limited: () => makeScriptedForge({ reviews, trouble: 'rate' }),
   readOnly: () => makeScriptedForge({ reviews, can: 'read' }),
+  tickets: { repo: 'acme/api', label: 'tade', unknown: 9999 },
 })
+
+testForge(
+  'scripted with no tickets',
+  () => makeScriptedForge({ reviews, commits, logs, capabilities: { tickets: false } }),
+  {
+    ref: { repo: 'acme/api', number: 412, host: 'scripted.test' },
+    unknown: { repo: 'acme/api', number: 9999, host: 'scripted.test' },
+    remotes: { serves: 'git@scripted.test:acme/api.git', not: 'git@github.com:acme/api.git' },
+    branches: { withReview: 'shop/refunds-retry', without: 'nothing-here' },
+    commits: { withChecks: 'a1b2c3d', nothingRan: '0000000' },
+  },
+)
 
 describe('a forge that answers from a table', () => {
   it('keeps what it was asked to change, without changing anything real', async () => {

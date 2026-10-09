@@ -260,6 +260,19 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.cli.projects',
       'surfaces.intake.sources.cli.reply',
       'surfaces.intake.sources.cli.template',
+      // And the GitHub source's seven, by the same one dotted prefix rather
+      // than by anybody having listed them: a key added with the connector is
+      // `never` on the day it is added, which is the whole point of the
+      // subtree. `from` is the loudest of them — it is the list of logins
+      // whose labelling starts work here, and the text the orchestrator reads
+      // all day does not get to put itself on it.
+      'surfaces.intake.sources.github.accept',
+      'surfaces.intake.sources.github.document',
+      'surfaces.intake.sources.github.from',
+      'surfaces.intake.sources.github.mode',
+      'surfaces.intake.sources.github.projects',
+      'surfaces.intake.sources.github.reply',
+      'surfaces.intake.sources.github.template',
       'surfaces.web.bind',
       'surfaces.web.enabled',
       'surfaces.web.port',

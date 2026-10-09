@@ -454,6 +454,8 @@ export interface WatchOffered {
   most?: number | null
   /** Why its extension cannot look now — no key, turned off, broken — or null. */
   problem: string | null
+  /** The input keys it cannot be turned on without; empty for most. `watchesToOffer` says why. */
+  needs?: readonly string[]
 }
 
 /**

@@ -4,12 +4,14 @@ import {
   describeLook,
   EMPTY_MEANS_NOBODY,
   INTAKE_IS_SOMEBODY_ELSE,
+  INTAKE_SETUP,
   INTAKE_SOURCES,
   inboxActs,
   inboxWaiting,
   intakeDecision,
   intakeItem,
   intakeMapped,
+  intakeUnfinished,
   loadConfig,
   MATERIAL_LABEL,
   tadeHome,
@@ -258,6 +260,8 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
         return {
           source,
           grant,
+          /** Why nothing could come in yet, for the steps below. Null when it could. */
+          unfinished: intakeUnfinished(grant),
           schedule: schedule?.id ?? null,
           // A look that could not look is not a look that found nothing, and
           // `describeLook` is the one place that difference is written down.
@@ -283,8 +287,17 @@ export function registerIntake(program: Command, io: Io, setExit: (code: number)
           `  ${one.schedule ? `${one.schedule}: ${one.look ?? 'has not looked yet'}` : 'nothing is watching it'}`,
         )
         io.out(
-          `  ${one.handed} handed over, ${one.waiting} waiting for you${one.grant.projects.length === 0 ? ', and no project is on its list' : ''}`,
+          `  ${one.handed} handed over, ${one.waiting} waiting for you${one.unfinished ? `, and ${one.unfinished}` : ''}`,
         )
+      }
+      // The steps, for a source nobody has finished writing a grant for. Here
+      // rather than in a page of its own because this is where somebody is
+      // deciding, and a connector whose grant a person cannot work out how to
+      // write is a connector nobody turns on.
+      for (const one of sources.filter((each) => each.unfinished)) {
+        io.out('')
+        io.out(`to turn ${one.source} on:`)
+        for (const step of INTAKE_SETUP[one.source]) io.out(`  ${step}`)
       }
       io.out('')
       io.out(INTAKE_IS_SOMEBODY_ELSE)

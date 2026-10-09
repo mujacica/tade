@@ -18,6 +18,29 @@ const here = dirname(fileURLToPath(import.meta.url))
 const read = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(join(here, 'github', name), 'utf8')) as Record<string, unknown>
 
+const readList = (name: string): unknown[] =>
+  JSON.parse(readFileSync(join(here, 'github', name), 'utf8')) as unknown[]
+
+/**
+ * An `etag` for a body: stable for the same bytes and different for different
+ * ones, which is the whole of what a caller may rely on. Not GitHub's own
+ * algorithm, which nobody documents and nothing may depend on.
+ */
+function etagOf(text: string): string {
+  let hash = 0
+  for (let at = 0; at < text.length; at += 1) hash = (hash * 31 + text.charCodeAt(at)) | 0
+  return `W/"${text.length.toString(16)}-${(hash >>> 0).toString(16)}"`
+}
+
+/** A `link` header the way GitHub writes one, for the pages that exist. */
+function linkHeader(url: string, page: number, pages: number): string {
+  const at = (n: number) => `<${url.replace(/([?&])page=\d+/, `$1page=${n}`)}>`
+  const parts: string[] = []
+  if (page < pages) parts.push(`${at(page + 1)}; rel="next"`, `${at(pages)}; rel="last"`)
+  if (page > 1) parts.push(`${at(page - 1)}; rel="prev"`, `${at(1)}; rel="first"`)
+  return parts.join(', ')
+}
+
 export interface GithubReplay {
   fetch: typeof fetch
   exec: (
@@ -99,11 +122,32 @@ export interface ReplayOptions {
    * about rather than read out of a message.
    */
   seenBy?: string
+  /**
+   * The issues this GitHub has, in its own shape — a pull request among them,
+   * because GitHub's issues endpoints answer with both and telling them apart
+   * is the caller's job. Undefined is `issues.json`.
+   */
+  issues?: Record<string, unknown>[]
+  /** The events of each issue, by number, oldest first. Undefined is `issue-events.json`. */
+  issueEvents?: Record<string, Record<string, unknown>[]>
+  /**
+   * Conditional requests are answered: a repeat ask carrying the `etag` this
+   * handed over gets `304` and no body.
+   *
+   * On by default, because that is what GitHub does and because a poll that
+   * relies on it is the whole reason the rate limit survives. Off is a forge
+   * that never gets a `304`, which is every other host and must keep working.
+   */
+  etags?: boolean
 }
 
 export function githubReplay(options: ReplayOptions = {}): GithubReplay {
   const nodes = [read('pull-412.json'), read('pull-418.json')]
   const checkRuns = read('check-runs.json')
+  const issues = options.issues ?? (readList('issues.json') as Record<string, unknown>[])
+  const issueEvents =
+    options.issueEvents ??
+    (read('issue-events.json') as unknown as Record<string, Record<string, unknown>[]>)
   const calls: string[] = []
   const bodies: unknown[] = []
   let lastHeadSha = ''
@@ -111,7 +155,10 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
   const readOnly = options.scopes !== undefined && !/repo/.test(options.scopes)
 
   const answer = (body: unknown, status = 200, headers: Record<string, string> = {}): Response =>
-    new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+    // 304 is a null-body status and `Response` refuses one with a body, which
+    // is the spec being right: a conditional answer is the headers and nothing
+    // else, and that is exactly what a caller must be able to handle.
+    new Response(status === 304 ? null : typeof body === 'string' ? body : JSON.stringify(body), {
       status,
       headers: {
         'content-type': 'application/json',
@@ -220,6 +267,68 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
       const name = String(names[Number(log[1]) - 900]?.name ?? '')
       return answer(options.logs?.[`${sha}:${name}`] ?? `nothing was kept for ${name}`, 200, {
         'content-type': 'text/plain',
+      })
+    }
+    // Issues, and the events of one. Before the pull-request routes because
+    // `/issues/504` is a pull request here too: GitHub answers about it from
+    // both, and a fixture that could not would hide the one filtering mistake
+    // this endpoint is famous for.
+    const events = /\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/events\?(.*)$/.exec(url)
+    if (events) {
+      const all = issueEvents[String(events[2])] ?? []
+      const query = new URLSearchParams(events[3] ?? '')
+      const per = Math.min(Math.max(1, Number(query.get('per_page') ?? 30)), 100)
+      const page = Math.max(1, Number(query.get('page') ?? 1))
+      const pages = Math.max(1, Math.ceil(all.length / per))
+      const body = all.slice((page - 1) * per, page * per)
+      const link = linkHeader(url, page, pages)
+      return answer(body, 200, link ? { link } : {})
+    }
+    const one = /\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(url)
+    if (one) {
+      const found = issues.find((issue) => issue.number === Number(one[2]))
+      return found ? answer(found) : answer({ message: 'Not Found' }, 404)
+    }
+    const listed = /\/repos\/([^/]+\/[^/]+)\/issues\?(.*)$/.exec(url)
+    if (listed) {
+      const query = new URLSearchParams(listed[2] ?? '')
+      const state = query.get('state') ?? 'open'
+      const labels = (query.get('labels') ?? '').split(',').filter(Boolean)
+      const since = query.get('since')
+      let found = issues.filter((issue) => {
+        if (state !== 'all' && issue.state !== state) return false
+        const on = ((issue.labels ?? []) as { name?: string }[]).map((label) => label.name ?? '')
+        if (labels.some((label) => !on.includes(label))) return false
+        if (since && Date.parse(String(issue.updated_at)) < Date.parse(since)) return false
+        return true
+      })
+      // `sort=updated&direction=asc` is what Tade asks for, and the fixture
+      // honours it rather than answering in file order: a caller that walks
+      // pages is relying on the order being the one it asked for.
+      if (query.get('sort') === 'updated') {
+        found = [...found].sort((a, b) => {
+          const order = Date.parse(String(a.updated_at)) - Date.parse(String(b.updated_at))
+          return query.get('direction') === 'desc' ? -order : order
+        })
+      }
+      const per = Math.min(Math.max(1, Number(query.get('per_page') ?? 30)), 100)
+      const page = Math.max(1, Number(query.get('page') ?? 1))
+      const pages = Math.max(1, Math.ceil(found.length / per))
+      const body = JSON.stringify(found.slice((page - 1) * per, page * per))
+      const etag = etagOf(body)
+      const link = linkHeader(url, page, pages)
+      const asked = String(
+        (init?.headers as Record<string, string> | undefined)?.['if-none-match'] ?? '',
+      )
+      if (options.etags !== false && asked && asked === etag) {
+        // GitHub's own words: a conditional request that comes back `304`
+        // "does not count against your primary rate limit". No body, and the
+        // validator again so the next poll can ask the same cheap question.
+        return answer('', 304, { etag, ...(link ? { link } : {}) })
+      }
+      return answer(body, 200, {
+        ...(options.etags === false ? {} : { etag }),
+        ...(link ? { link } : {}),
       })
     }
     const pull = /\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)$/.exec(url)

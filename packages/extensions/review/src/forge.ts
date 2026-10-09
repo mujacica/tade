@@ -7,8 +7,8 @@ import {
   Unreachable,
 } from '@tade/extensions-core'
 import type { Forge, Review, ReviewRef } from '@tade/forges-core'
-import { ForgeError, hostOf, repoOf } from '@tade/forges-core'
-import { forgeFor } from '@tade/status'
+import { ForgeError } from '@tade/forges-core'
+import { type ForgePlace, forgeAt, remoteAt } from '@tade/status'
 
 // Finding the forge a project's work goes to, and asking it as little as
 // possible.
@@ -22,21 +22,16 @@ import { forgeFor } from '@tade/status'
 /** How often the lists may be asked again, whoever is asking. */
 export const POLL_MS = 60_000
 
-export interface Where {
-  project: ProjectRef
-  /** The repository as its forge names it: `owner/name`. */
-  repo: string
-  remote: string
-  /** The forge's own host, with any SSH alias in the remote resolved away. */
-  host: string
-  /**
-   * The sign-in the remote names, when it names one. The forge is already
-   * asking as it; this is here for the sentences, so "no access" can say whose
-   * access it is talking about.
-   */
-  account: string | null
-  forge: Forge
-}
+/**
+ * A project's forge: `forgeAt`'s answer with the project on it.
+ *
+ * The resolution itself is `@tade/status`'s (`forgeAt`), because intake needs
+ * the same two answers — where a project's work goes, and which sign-in
+ * reaches it — and must not import this extension to get them. What is left
+ * here is this extension's own: the settings it reads, the shared poll, the
+ * filters and the tools.
+ */
+export type Where = ForgePlace & { project: ProjectRef }
 
 /** What the settings say, with the defaults the design settled on. */
 export interface Settings {
@@ -132,10 +127,7 @@ function withPastedToken(
 
 /** A project's remote, as git has it. Empty when it has none — not an error. */
 export async function remoteOf(ctx: ExtensionContext, root: string): Promise<string> {
-  const got = await ctx.exec('git', ['-C', root, 'config', '--get', 'remote.origin.url'], {
-    timeoutMs: 5_000,
-  })
-  return got.code === 0 ? got.stdout.trim() : ''
+  return remoteAt(ctx.exec, root)
 }
 
 /**
@@ -146,23 +138,17 @@ export async function whereOf(
   ctx: ExtensionContext,
   project: ProjectRef,
 ): Promise<Where | { problem: string }> {
-  const remote = await remoteOf(ctx, project.root)
-  if (!remote) return { problem: `${project.name} has no remote: there is nothing to push to` }
-  const repo = repoOf(remote)
-  const forge = forgeFor(remote, forgeOptions(ctx, project.root))
-  if (!repo || !forge) return { problem: `no forge serves ${remote}` }
-  // Where it goes and whose it is, read out of the remote once: everything
-  // below says `where.host` rather than reading the URL again, because an SSH
-  // alias is a name for this machine and never a host to build a URL from.
-  const place = forge.placeOf(remote)
-  return {
-    project,
-    repo,
-    remote,
-    host: place?.host ?? hostOf(remote) ?? '',
-    account: place?.account ?? null,
-    forge,
+  const place = await forgeAt(project.root, forgeOptions(ctx, project.root))
+  if ('problem' in place) {
+    // The project's name rather than its path: the path is this machine's and
+    // the sentence is read by somebody who thinks in project names.
+    return {
+      problem: place.problem.startsWith(project.root)
+        ? `${project.name} has no remote: there is nothing to push to`
+        : place.problem,
+    }
   }
+  return { project, ...place }
 }
 
 /** Every project that has a forge, asked once. */

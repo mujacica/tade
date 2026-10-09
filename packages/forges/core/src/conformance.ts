@@ -41,6 +41,14 @@ export interface ForgeConformanceOptions {
   limited?(): Forge | Promise<Forge>
   /** A forge whose account may only read, for the refusal path. */
   readOnly?(): Forge | Promise<Forge>
+  /**
+   * For a forge that declares `tickets`: a repository the fixture has tickets
+   * in, a label at least one of them carries, and a number it has no ticket
+   * for. Left out, the ticket section asserts only what can be asserted
+   * without a fixture — that a forge saying it has them answers rather than
+   * throwing, and that one saying it has none refuses.
+   */
+  tickets?: { repo: string; label: string; unknown: number }
 }
 
 export function testForge(
@@ -70,6 +78,7 @@ export function testForge(
         'write',
         'since',
         'accounts',
+        'tickets',
       ] as const) {
         expect(typeof can[key]).toBe('boolean')
       }
@@ -369,6 +378,124 @@ export function testForge(
       const forge = await make()
       const who = await forge.whoami()
       expect('login' in who ? who.login : who.problem).toBeTruthy()
+    })
+
+    // --- tickets: the things people file, for a forge that can be asked
+
+    it('refuses to be asked about tickets at all when it says it has none', async () => {
+      const forge = await make()
+      if (forge.capabilities.tickets) return
+      // `unsupported`, never an empty list: "there are no tickets here" and "I
+      // cannot be asked about tickets" are opposite facts, and a caller that
+      // read the second as the first would report a repository as quiet.
+      for (const ask of [
+        forge.tickets({ repo: options.ref.repo }),
+        forge.ticket({ repo: options.ref.repo, number: 1, host: options.ref.host }),
+      ]) {
+        await expect(ask).rejects.toMatchObject({ trouble: 'unsupported' })
+      }
+    })
+
+    it('lists a repository with nothing matching as an empty page, never as missing', async () => {
+      const forge = await make()
+      if (!forge.capabilities.tickets) return
+      const page = await forge.tickets({
+        repo: options.ref.repo,
+        labels: ['a-label-nobody-has-ever-used-here'],
+      })
+      expect(page.items).toEqual([])
+      // The answer a poll reads as "nothing to do", which must never be
+      // reachable by a forge that was not asked with a validator.
+      expect(page.unchanged).toBe(false)
+    })
+
+    it('never says nothing changed to a caller that handed over no validator', async () => {
+      const forge = await make()
+      if (!forge.capabilities.tickets) return
+      const page = await forge.tickets({ repo: options.ref.repo })
+      expect(page.unchanged).toBe(false)
+      // A forge with no validator of its own says so rather than inventing
+      // one: a caller keeping a validator it was never given would ask the
+      // next poll a question this forge cannot answer.
+      expect(page.validator === null || typeof page.validator === 'string').toBe(true)
+    })
+
+    it('hands back no review as a ticket, whatever it was asked', async () => {
+      const forge = await make()
+      if (!forge.capabilities.tickets || !options.tickets) return
+      const page = await forge.tickets({ repo: options.tickets.repo, state: 'any' })
+      const reviews = await forge.reviews({ who: 'any' })
+      const numbers = new Set(reviews.items.map((one) => one.ref.number))
+      // The whole of what GitHub's own documentation warns about: every pull
+      // request is an issue there, so a forge that passed its answer through
+      // would start work on somebody's branch as though it were a request.
+      for (const ticket of page.items) expect(numbers.has(ticket.ref.number)).toBe(false)
+    })
+
+    it('says a ticket it has never heard of is missing, in a sentence', async () => {
+      const forge = await make()
+      if (!forge.capabilities.tickets || !options.tickets) return
+      try {
+        await forge.ticket({
+          repo: options.tickets.repo,
+          number: options.tickets.unknown,
+          host: options.ref.host,
+        })
+        expect.unreachable('an unknown ticket must be refused')
+      } catch (err) {
+        expect(err).toBeInstanceOf(ForgeError)
+        expect((err as ForgeError).trouble).toBe('missing')
+        expect((err as ForgeError).message).toBeTruthy()
+      }
+    })
+
+    it('narrows by label, and says who applied one rather than who wrote the words', async () => {
+      const forge = await make()
+      if (!forge.capabilities.tickets || !options.tickets) return
+      const page = await forge.tickets({
+        repo: options.tickets.repo,
+        labels: [options.tickets.label],
+      })
+      expect(page.items.length).toBeGreaterThan(0)
+      for (const one of page.items) expect(one.labels).toContain(options.tickets.label)
+      const first = page.items[0] as (typeof page.items)[number]
+      const whole = await forge.ticket(first.ref)
+      expect(whole.labels).toContain(options.tickets.label)
+      // Provenance is its own answer and an empty one is allowed — what is not
+      // allowed is the author standing in for the labeller, which is the one
+      // reading that would authorise the wrong person.
+      for (const was of whole.labelled) {
+        expect(whole.labels).toContain(was.label)
+        expect(was.by.login).toBeTruthy()
+        expect(typeof was.by.bot).toBe('boolean')
+      }
+    })
+
+    it('answers newest movement first, so a bounded read sees what just happened', async () => {
+      const forge = await make()
+      if (!forge.capabilities.tickets || !options.tickets) return
+      const page = await forge.tickets({ repo: options.tickets.repo, state: 'any' })
+      const moved = page.items.map((one) => Date.parse(one.updatedAt))
+      for (const [at, when] of moved.entries()) {
+        if (at === 0) continue
+        expect(when).toBeLessThanOrEqual(moved[at - 1] as number)
+      }
+    })
+
+    it('reads no more tickets than it was asked for, and says there is more', async () => {
+      const forge = await make()
+      if (!forge.capabilities.tickets || !options.tickets) return
+      const page = await forge.tickets({ repo: options.tickets.repo, state: 'any', limit: 1 })
+      expect(page.items.length).toBeLessThanOrEqual(1)
+      if (!page.cursor) return
+      const next = await forge.tickets({
+        repo: options.tickets.repo,
+        state: 'any',
+        limit: 1,
+        cursor: page.cursor,
+      })
+      const seen = new Set(page.items.map((one) => one.ref.number))
+      for (const one of next.items) expect(seen.has(one.ref.number)).toBe(false)
     })
   })
 }

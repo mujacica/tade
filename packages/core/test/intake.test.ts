@@ -565,9 +565,20 @@ describe('the shape of the settings', () => {
   })
 
   it('refuses a source nothing implements, rather than granting nothing quietly', () => {
+    // A typo of a real one, which is the case this is actually about: a grant
+    // written under a name nothing reads would look like permission and be
+    // nothing at all, so it is refused on the day somebody writes it.
     const read = ConfigSchema.safeParse({
-      surfaces: { intake: { sources: { github: { accept: true } } } },
+      surfaces: { intake: { sources: { githib: { accept: true } } } },
     })
     expect(read.success).toBe(false)
+    // And every name that is implemented parses, so this test cannot pass by
+    // the strict object having become strict about everything.
+    for (const source of INTAKE_SOURCES) {
+      const one = ConfigSchema.safeParse({
+        surfaces: { intake: { sources: { [source]: { accept: true } } } },
+      })
+      expect(one.success).toBe(true)
+    }
   })
 })

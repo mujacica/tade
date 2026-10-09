@@ -1,5 +1,6 @@
 import type { CheckRun } from '@tade/checks-core'
 import type { RequiredProgram } from '@tade/core'
+import type { TicketDetail, TicketPage, TicketQuery, TicketRef } from './tickets.ts'
 
 // The Forge port: the service a branch is offered to other people on, and
 // everything anybody says about it there.
@@ -191,6 +192,15 @@ export interface ForgeCapabilities {
   mergeQueue: boolean
   /** One review's base can be another's head, and it will say so. */
   stacks: boolean
+  /**
+   * Can answer about the things people *file* here, not only the branches they
+   * offer for merge — `tickets` and `ticket` (`tickets.ts`). False is an
+   * ordinary answer: a forge that mails patches to a list has reviews and no
+   * tickets, and both methods then throw `unsupported` rather than inventing
+   * an empty list, because "there are no tickets" and "I cannot be asked about
+   * tickets" are opposite facts.
+   */
+  tickets: boolean
   /** Anything that changes the forge: opening, saying, marking, merging. */
   write: boolean
   /** Cheap "what moved since" — otherwise a watch must list and compare. */
@@ -349,6 +359,26 @@ export interface Forge {
   ): Promise<void>
   /** Only ever when a person asked for exactly this. `queue` needs `capabilities.mergeQueue`. */
   merge(ref: ReviewRef, how: 'merge' | 'squash' | 'rebase' | 'queue'): Promise<void>
+  /**
+   * The tickets in one repository, newest movement last. Needs
+   * `capabilities.tickets`.
+   *
+   * A repository with nothing matching is an **empty page, never `missing`**:
+   * a label nobody has used yet is the ordinary case for anything polling one.
+   * Handing `validator` back from a previous page is how an unchanged answer
+   * is had cheaply, and then `unchanged` is true and `items` is empty because
+   * there was nothing to read.
+   */
+  tickets(query: TicketQuery): Promise<TicketPage>
+  /**
+   * One ticket, with **who applied each of its labels**. Needs
+   * `capabilities.tickets`.
+   *
+   * Its own call rather than a field on the list, because the provenance of a
+   * label is a second question on every forge that can answer it at all, and a
+   * caller that only wants to know what moved must not pay for it.
+   */
+  ticket(ref: TicketRef): Promise<TicketDetail>
   /** What is left of the budget, as the last answer reported it; null when it does not say. */
   limits(): { remaining: number; of: number; resetsAt: number } | null
 }

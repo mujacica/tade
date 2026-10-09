@@ -69,16 +69,24 @@ export const FLOOR: Record<string, number> = {
   // own CI and its own hook, so the tool that wrote it down had nothing left to
   // write, and the branchy half of this extension left with it.
   'packages/extensions/checks': 89,
-  'packages/forges/scripted': 86,
+  // Up with the tickets capability: the table answers about the things people
+  // file as well as the branches they offer, and it is the second
+  // implementation the conformance suite needs to stay honest about either.
+  'packages/forges/scripted': 89,
   'packages/workbench': 86,
   'packages/harnesses/pi': 89,
   'packages/status': 89,
-  'packages/forges/github': 90,
+  // Up with the issues half: the filtering GitHub's own documentation warns
+  // about, who applied a label as against who wrote the words, and the
+  // conditional request a poll lives on are each exercised against recorded
+  // shapes, because the alternative is a test that spends a rate limit.
+  'packages/forges/github': 93,
   'packages/mcp/http': 90,
-  // New, and the number is where its tests land rather than an aspiration: the
-  // spool, the look, the re-check and the reply are covered end to end against
-  // a real folder, which is what a source with no credential and no network
-  // buys. What is left is the half a hand-edited spool file reaches.
+  // The number is where its tests land rather than an aspiration. The local
+  // door's spool, look, re-check and reply are covered end to end against a
+  // real folder; the GitHub door's selector, provenance and five ways of
+  // holding are covered against a real checkout and a scripted GitHub. What is
+  // left is the half a hand-edited spool file reaches.
   'packages/extensions/intake': 92,
   'packages/extensions/deps': 91,
   'packages/mcp/stdio': 91,

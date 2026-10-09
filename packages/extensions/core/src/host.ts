@@ -187,6 +187,13 @@ export interface WatchOffer {
   /** How many of one look's findings to act on, where the watch says two is wrong for it. */
   most: number | null
   /**
+   * The input keys it requires, read off `input`. Empty for a watch that can be
+   * turned on with nothing — most of them. Here as well as in the schema
+   * because whoever reads it is deciding whether it may offer the watch *at
+   * all*, and digging a required list out of a JSON schema is not their job.
+   */
+  needs: readonly string[]
+  /**
    * Which intake source this is, where it is one; null for an ordinary watch.
    *
    * Offered rather than discovered, so that whoever is about to turn one on —
@@ -211,6 +218,16 @@ interface Entry {
    * was not, so nothing about it can change until Tade starts again.
    */
   imported: boolean
+}
+
+/**
+ * The input keys a watch requires, out of the schema it declares. A JSON
+ * schema's `required` and nothing cleverer: anything else would be this file
+ * deciding what a watch meant, and a watch says what it requires.
+ */
+function required(input: JsonSchema | undefined): readonly string[] {
+  const named = input?.required
+  return Array.isArray(named) ? named.map(String).filter(Boolean) : []
 }
 
 /** Why an extension cannot be used now, or null when it is ready. */
@@ -837,6 +854,8 @@ export class ExtensionHost {
         standing: watch.standing === true,
         network: watch.network === true,
         most: watch.most ?? null,
+        // Read off the schema it already declares rather than said twice.
+        needs: required(watch.input),
         intake: watch.intake ?? null,
         rechecks: typeof watch.recheck === 'function',
         replies: typeof watch.reply === 'function',

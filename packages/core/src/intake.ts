@@ -38,13 +38,15 @@ import type { Template } from './templates.ts'
  * config that will not load, and a watch that declared one would be a grant
  * nobody could honour.
  *
- * **It grows in the commit that implements one**, which is why there is one
- * name here today. `cli` is the local door — a person at this machine writing
- * a request into the spool — and it is both the way the whole pipeline is
- * exercised without a credential and the testing adapter the conformance suite
- * runs against, the way `drivers/scripted` and `forges/scripted` are.
+ * **It grows in the commit that implements one.** `cli` is the local door — a
+ * person at this machine writing a request into the spool — and it is both the
+ * way the whole pipeline is exercised without a credential and the testing
+ * adapter the conformance suite runs against, the way `drivers/scripted` and
+ * `forges/scripted` are. `github` is the first source that reaches off this
+ * machine: a poll of one repository's issues, through the forge the project
+ * already has.
  */
-export const INTAKE_SOURCES = ['cli'] as const
+export const INTAKE_SOURCES = ['cli', 'github'] as const
 export const IntakeSource = z.enum(INTAKE_SOURCES)
 export type IntakeSource = (typeof INTAKE_SOURCES)[number]
 
@@ -59,7 +61,16 @@ export type IntakeMode = (typeof INTAKE_MODES)[number]
 export const IntakeRequester = z.strictObject({
   /** `login`, `actor.id`, `user` — whatever the source calls it. */
   id: z.string().min(1),
-  /** What it displays. A person's own words about themselves: shown, never parsed. */
+  /**
+   * What is shown beside the handle, and it is **shown and never parsed** —
+   * which is the whole of what may be put here.
+   *
+   * A display name where the source has one. And, where the person who *asked*
+   * is not the person who wrote the words — a GitHub issue somebody else
+   * labelled — Tade's own short sentence saying so, because `intakeContext` is
+   * the one place that difference has to be legible to the agent reading it.
+   * Nothing reads this but that sentence, so nothing can authorise on it.
+   */
   label: z.string().default(''),
   /** True where the source itself says it is an app or a bot. The loop filter, by actor. */
   bot: z.boolean().default(false),
@@ -225,6 +236,25 @@ const REVISIONS: Readonly<Record<IntakeSource, (a: string, b: string) => number 
   cli: (a, b) => {
     const left = /^\d+$/.test(a) ? Number(a) : Number.NaN
     const right = /^\d+$/.test(b) ? Number(b) : Number.NaN
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return null
+    return left === right ? 0 : left > right ? 1 : -1
+  },
+  // An issue's `updated_at`, which GitHub documents as an ISO 8601 timestamp
+  // (`YYYY-MM-DDTHH:MM:SSZ`), parsed to a time. Compared as text it is right
+  // until one carries an offset — `09:00+02:00` is `07:00Z`, which is earlier
+  // than `08:00Z` and sorts later as a string — or until the same moment
+  // arrives written two ways. Anything that will not parse is not comparable,
+  // which holds rather than guessing an order.
+  //
+  // **GitHub moves `updated_at` for a comment as well as for an edit**, so a
+  // comment on something already taken reads as a new revision and re-parks a
+  // proposal a person had approved. That is the direction this is allowed to be
+  // wrong in — the hash written down beside it says whether the words actually
+  // moved — and it is why the whole of a request is read again rather than
+  // trusted.
+  github: (a, b) => {
+    const left = Date.parse(a)
+    const right = Date.parse(b)
     if (!Number.isFinite(left) || !Number.isFinite(right)) return null
     return left === right ? 0 : left > right ? 1 : -1
   },
@@ -409,6 +439,16 @@ export const IntakeSurface = z
          * exists.
          */
         cli: IntakeGrant,
+        /**
+         * One repository's issues, polled through the forge the
+         * project already has. What selects one is the watch's own
+         * input — the repository and the label — and what authorises
+         * it is this grant: `from` is the logins whose *labelling*
+         * counts, because applying the label is the act that asks
+         * Tade for the work and a label alone says nothing about who
+         * put it there.
+         */
+        github: IntakeGrant,
       })
       .prefault({}),
   })
