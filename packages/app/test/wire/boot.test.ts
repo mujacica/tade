@@ -102,8 +102,20 @@ describe('the window, booted', () => {
     // actually be wrong at: the window boots, draws, and nothing is bound.
     // The subject's own tests say it constructs nothing; this says `app.ts`
     // never asked it to.
+    //
+    // **On the port it would have used**, which is the half that was missing:
+    // a free port nothing was ever configured for answers nothing whether the
+    // away view is on or off, so the question has to be put to the port this
+    // window was told about. `enabled` is left alone, because its default is
+    // the thing being asserted. The test below is the control — same helper,
+    // same kind of port, and it has to answer.
     const port = await freePort()
-    await start()
+    await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        surfaces: { web: { port } },
+      }),
+    })
     await until('the first frame', () => terminal.written.includes('refunds'))
     expect(await answers(port)).toBe(false)
   })

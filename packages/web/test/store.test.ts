@@ -422,7 +422,10 @@ describe('the clock an age is counted against', () => {
     // so the page may not work this out: it reads the instant the server sent
     // and says that. With no snapshot there is nothing to say.
     const { store } = held()
-    expect(spendSince(store)).toBe(store.fresh.spendSince)
+    // The fixture's own moment, written out, so this says what the value is
+    // rather than that one field equals the field it is read from — which is
+    // an assertion that holds however wrong both of them are.
+    expect(spendSince(store)).toBe('2026-10-08T00:00:00.000Z')
     expect(spendSince(emptyStore())).toBeNull()
   })
 })
