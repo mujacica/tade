@@ -44,9 +44,12 @@ import type { Template } from './templates.ts'
  * adapter the conformance suite runs against, the way `drivers/scripted` and
  * `forges/scripted` are. `github` is the first source that reaches off this
  * machine: a poll of one repository's issues, through the forge the project
- * already has.
+ * already has. `slack` is **`@tade` in one channel, polled** — not a slash
+ * command and not a chat: there is no listener and no socket, so Tade notices a
+ * mention on its own clock rather than answering one, and nothing anywhere may
+ * describe it as the other thing.
  */
-export const INTAKE_SOURCES = ['cli', 'github'] as const
+export const INTAKE_SOURCES = ['cli', 'github', 'slack'] as const
 export const IntakeSource = z.enum(INTAKE_SOURCES)
 export type IntakeSource = (typeof INTAKE_SOURCES)[number]
 
@@ -258,6 +261,41 @@ const REVISIONS: Readonly<Record<IntakeSource, (a: string, b: string) => number 
     if (!Number.isFinite(left) || !Number.isFinite(right)) return null
     return left === right ? 0 : left > right ? 1 : -1
   },
+  // A Slack `ts` — `1727442000.123456`, seconds and microseconds — compared as
+  // **two integers and never as one number**, which is the whole reason this
+  // has a line of its own rather than reusing the decimal counter above.
+  // `Number('1727442000.123456')` is sixteen significant digits put through a
+  // double whose spacing at that magnitude is about a quarter of a microsecond,
+  // so two messages a microsecond apart are a rounding error away from
+  // comparing equal — and will be exactly equal once the seconds gain a digit.
+  // As text it is worse: `.9` sorts after `.10`.
+  //
+  // Anything that is not a Slack ts is not comparable, which holds rather than
+  // guessing an order.
+  slack: (a, b) => {
+    const left = slackTs(a)
+    const right = slackTs(b)
+    if (!left || !right) return null
+    if (left.seconds !== right.seconds) return left.seconds > right.seconds ? 1 : -1
+    return left.micros === right.micros ? 0 : left.micros > right.micros ? 1 : -1
+  },
+}
+
+/**
+ * A Slack `ts` pulled apart into whole seconds and whole microseconds, or null
+ * where it is not one.
+ *
+ * Exported because a connector has the same two things to do with one — order
+ * two of them, and say when the thing happened — and a second parser of a
+ * source's own id format is a second answer about which message is newer.
+ */
+export function slackTs(ts: string): { seconds: number; micros: number } | null {
+  const found = /^(\d{1,12})\.(\d{1,6})$/.exec(ts)
+  if (!found?.[1] || !found[2]) return null
+  // Padded, so `.9` is nine hundred thousand microseconds and not nine: Slack
+  // writes six digits, and a hand-written or truncated one must not sort as if
+  // the missing digits were leading zeroes.
+  return { seconds: Number(found[1]), micros: Number(found[2].padEnd(6, '0')) }
 }
 
 /**
@@ -461,6 +499,21 @@ export const IntakeSurface = z
          * put it there.
          */
         github: IntakeGrant,
+        /**
+         * `@tade` in one Slack channel, polled. The channel is the
+         * watch's own input — said once, locally, per project — and
+         * `from` is the Slack **user ids** whose mentions count,
+         * because a display name is its owner's to change and two
+         * people may have the same one.
+         *
+         * `reply` here is a reaction on the message and one of
+         * Tade's own seven sentences in its thread. That is the one
+         * source that can write into where a request came from, so
+         * what keeps it from reading its own words back is that a
+         * reply moves `latest_reply` and a Slack revision is the
+         * request's own `edited.ts` — never the thread's.
+         */
+        slack: IntakeGrant,
       })
       .prefault({}),
   })

@@ -279,6 +279,21 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.github.projects',
       'surfaces.intake.sources.github.reply',
       'surfaces.intake.sources.github.template',
+      // And the Slack source's eight, again by the prefix and not by anybody
+      // having listed them. Two of these are why the subtree is the rule rather
+      // than a list: `reply` is Tade writing into a channel other people read,
+      // and `from` is the Slack user ids whose @-mention starts an agent on this
+      // machine with these keys. A message in that channel is text the
+      // orchestrator may well end up reading, and it does not get to put its
+      // author on the list.
+      'surfaces.intake.sources.slack.accept',
+      'surfaces.intake.sources.slack.document',
+      'surfaces.intake.sources.slack.from',
+      'surfaces.intake.sources.slack.mode',
+      'surfaces.intake.sources.slack.names',
+      'surfaces.intake.sources.slack.projects',
+      'surfaces.intake.sources.slack.reply',
+      'surfaces.intake.sources.slack.template',
       'surfaces.web.bind',
       'surfaces.web.enabled',
       'surfaces.web.port',

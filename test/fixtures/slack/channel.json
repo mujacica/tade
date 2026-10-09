@@ -1,0 +1,140 @@
+{
+  "about": "One channel's messages in Slack's own documented conversations.history shape, written down once here so the tests exercise the shapes Slack actually returns rather than the shape a parser happens to want. `at` is an offset in seconds from the moment the watch was turned on and `slack.ts` turns it into a `ts`: a fixture with a fixed epoch in it is a test that passes until some date and then fails for a reason nobody can read. `ME` in text stands for the app's own user id, which `slack.ts` fills in, because a mention is `<@U…>` and the id is only known at run time. `threads` holds each thread WHOLE — the root first, then every reply, including one that was also sent to the channel and so appears in `messages` as well — because that is exactly the difference between what conversations.replies answers and what conversations.history can see.",
+  "messages": [
+    {
+      "about": "Somebody asking the app for something. The ordinary case, and the one that costs no second request.",
+      "at": 300,
+      "user": "U0KIM",
+      "text": "<@ME> the export button 500s when nothing is selected"
+    },
+    {
+      "about": "A message in the channel that is not addressed to the app. Not a request: the mention is the trigger, so a channel need not be a dedicated one.",
+      "at": 320,
+      "user": "U0SAM",
+      "text": "anyone seen the staging deploy go through?"
+    },
+    {
+      "about": "An ask that was edited. `ts` does not move and `edited.ts` does, which is why the revision is the edit.",
+      "at": 360,
+      "user": "U0SAM",
+      "text": "<@ME> the CSV export drops the last row",
+      "edited": {
+        "user": "U0SAM",
+        "at": 900
+      }
+    },
+    {
+      "about": "An ask with a thread under it. `reply_count` is what says a second request is needed at all.",
+      "at": 420,
+      "user": "U0KIM",
+      "text": "<@ME> login is slow for everybody this morning",
+      "thread_ts_self": true,
+      "reply_count": 2,
+      "latest_reply_at": 480
+    },
+    {
+      "about": "A mention inside a thread that somebody also sent to the channel. The only kind of in-thread mention a poll can see at all.",
+      "subtype": "thread_broadcast",
+      "at": 1200,
+      "user": "U0ROB",
+      "text": "<@ME> go and fix this one",
+      "thread_ts_at": 1140
+    },
+    {
+      "about": "A mention inside a thread that was NOT also sent to the channel. conversations.history does not return these, so this one is here only to prove the selector refuses it if it ever arrives.",
+      "at": 1180,
+      "user": "U0ROB",
+      "text": "<@ME> and this one too",
+      "thread_ts_at": 1140
+    },
+    {
+      "about": "A channel event. Not somebody asking for anything, and the allowlist of subtypes is what keeps it out.",
+      "subtype": "channel_join",
+      "at": 540,
+      "user": "U0NEW",
+      "text": "<@U0NEW> has joined the channel"
+    },
+    {
+      "about": "An app posting to the channel, mentioning Tade. A subtype the allowlist does not have, so it is not a candidate at all.",
+      "subtype": "bot_message",
+      "at": 600,
+      "bot_id": "B0CI",
+      "username": "CI",
+      "text": "<@ME> build 4812 failed on main"
+    },
+    {
+      "about": "An app posting as a user: bot_id and no subtype, so it reaches the rule and is refused there as is_bot.",
+      "at": 660,
+      "user": "U0BOT",
+      "bot_id": "B0ASSIST",
+      "app_id": "A0ASSIST",
+      "text": "<@ME> the export bug is still open"
+    },
+    {
+      "about": "A file somebody dropped with an ask about it. The files are references and nothing is downloaded.",
+      "subtype": "file_share",
+      "at": 720,
+      "user": "U0KIM",
+      "text": "<@ME> here is the failing payload",
+      "files": [
+        {
+          "id": "F0PAYLOAD",
+          "name": "payload.json",
+          "mimetype": "application/json",
+          "size": 2048,
+          "permalink": "https://acme.slack.com/files/U0KIM/F0PAYLOAD/payload.json",
+          "url_private": "https://files.slack.com/files-pri/T0ACME-F0PAYLOAD/payload.json"
+        }
+      ]
+    },
+    {
+      "about": "An ask Slack names nobody for. There is no authorisation question to ask about it, so it selects nothing.",
+      "at": 780,
+      "text": "<@ME> who left this here"
+    }
+  ],
+  "threads": {
+    "420": [
+      {
+        "about": "The ask itself, which is this thread's root.",
+        "at": 420,
+        "user": "U0KIM",
+        "text": "<@ME> login is slow for everybody this morning",
+        "thread_ts_self": true,
+        "reply_count": 2,
+        "latest_reply_at": 480
+      },
+      {
+        "at": 450,
+        "user": "U0SAM",
+        "text": "mine takes about eight seconds"
+      },
+      {
+        "at": 480,
+        "user": "U0ROB",
+        "text": "the auth service is at 90% cpu"
+      }
+    ],
+    "1140": [
+      {
+        "about": "A discussion nobody addressed to the app, which became the material when somebody did.",
+        "at": 1140,
+        "user": "U0SAM",
+        "text": "the nightly job has been failing since Tuesday"
+      },
+      {
+        "at": 1160,
+        "user": "U0ROB",
+        "text": "it is the retention sweep, it times out"
+      },
+      {
+        "about": "The ask, which is a reply somebody also sent to the channel.",
+        "subtype": "thread_broadcast",
+        "at": 1200,
+        "user": "U0ROB",
+        "text": "<@ME> go and fix this one",
+        "thread_ts_at": 1140
+      }
+    ]
+  }
+}

@@ -28,6 +28,8 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/extensions/core/src/shape.ts` | `intakeProblem`: what a source must have to be turned on at all |
 | `packages/extensions/core/src/watching.ts` | `askLook`, `askRecheck`, `askReply`, and the deadline all three are held to |
 | `packages/extensions/intake/` | the local door (the spool, the `cli` watch) and the `github` watch beside it |
+| `packages/extensions/intake/src/slack*.ts` | the Slack door: the four methods it needs (`slack-api.ts`), the pure half that reads a message as an envelope (`slack-message.ts`), and the watch |
+| `test/fixtures/slack/` | a Slack that answers from a file: `auth.test`, cursors, `has_more`, a 429 with a `Retry-After`, an edit, a deletion, metadata, a reaction already there |
 | `packages/forges/core/src/tickets.ts` | the things people *file*: `Ticket`, `Labelling`, `TicketQuery`, `capabilities.tickets` |
 | `packages/status/src/forges.ts` | `forgeAt`/`remoteAt`: which forge serves a checkout and as whom, for anybody |
 | `packages/workbench/src/intake.ts` | the doors: `takeIntake`, `intakeStands`, `sayBackAbout`, `intakeGrant` |
@@ -268,16 +270,81 @@ deliberately has none, so nothing Tade reads there can be something it wrote.
   in `reach.ts`. Held by `packages/orchestrator/test/intake.test.ts`, which names the absent tools
   so that adding one is a test to delete rather than a line nobody notices.
 
+## A chat source, and a source you can say something back to
+
+`slack` is the second one off this machine and the first with a way back. Seven things
+about it are the pattern rather than its own:
+
+- **The generous tier is not the tier your app gets, and the number to write the bounds against
+  is the small one.** Slack's `conversations.history` and `conversations.replies` are Tier 3 —
+  50+ a minute, `limit` up to 1,000 — for an **internal customer-built** app and a
+  Marketplace-approved one, and **1 request a minute with `limit` clamped to 15** for anything
+  distributed outside the Marketplace since 29 May 2025, existing installations from
+  3 March 2026. A connector written against the headline number works on the author's laptop
+  and 429s on everybody else's, so the ceilings are written for the clamped case and
+  `INTAKE_SETUP` says *which kind of app to make* rather than leaving somebody to find out
+  from a 429.
+- **A poll sees what the list endpoint returns and nothing else, and that is a limit to say
+  rather than work around.** `conversations.history` does not return thread replies, so a
+  plain `@tade` inside a thread is invisible to any amount of care in the selector, and
+  reading every thread to find one is a request per thread per look. What *is* visible —
+  a reply somebody also sent to the channel — is taken in with its whole thread, and the rest
+  is named in the setup as needing the Events API. **Never describe a polled source as chat**:
+  it notices a message, it does not answer one, and there is no three-second clock anywhere in
+  it.
+- **A revision is the request's own version, never the conversation's.** GitHub's `updated_at`
+  moves for a comment, which is why a proposal there is re-parked by a "thanks" and why
+  `REVISIONS` records that as the direction it is allowed to be wrong in. A source that
+  numbers every message separately can do better and must: `edited.ts ?? ts` is the ask's own
+  version, so an edit holds the work at the start door and a comment does not — and **that
+  same choice is what makes writing into the thread safe**, because a reply moves the thread
+  and not the ask.
+- **A reply needs one piece of state the source itself remembers, and `mark` alone is not
+  it.** The marker is Tade's and a transport has to be able to *recognise* it, so a source
+  with no dedupe key of its own needs somewhere to put one. On Slack that is two acts in one
+  order: `reactions.add` answers `already_reacted` per app, per emoji, per message, so the
+  reaction is the **claim** and is taken first; `chat.postMessage` carries the marker in
+  `metadata`, which Slack shows nobody and returns only to a read that asked for it. A window
+  that died between the two comes back, finds the claim made, reads the thread once, and
+  finishes the half that did not happen — which is why the extra read is on the retry path
+  only. **One emoji per saying**, or two statuses share an idempotency slot and the second is
+  silently "already said".
+- **Where what Tade posts can be read back as material, leaving its own words out is by
+  identity and never by text.** `auth.test` costs no scope and allows hundreds a minute, so
+  the app's own user id and `bot_id` are free to know — and they are also the mention the
+  watch triggers on. Matching Tade's own sentences instead would be defeated the first time
+  somebody quoted a status back.
+- **A cursor may never move past something the look deferred.** A bounded look leaves requests
+  behind — past its ceiling, or with a thread it could not finish — and a `since` past one of
+  those is a request that vanished with nothing written down. The cursor stops below the oldest
+  deferred one (`advanceTo`), and a sweep that did not reach the bottom of its own window does
+  not move at all: re-reading what it already has costs one request and no agent, because Tade
+  knows which keys it has seen. **A half-read request is not handed over at all** — the thread
+  is the material somebody approves.
+- **A rate limit ends a sweep and is never slept through.** A look has the window's deadline,
+  a throttled app's `Retry-After` is about as long, so a look that waited would be a look that
+  was given up on. A 429 on the **first** request is a look that could not look and throws,
+  with the tier in the sentence; one partway through keeps what it read, leaves the cursor
+  alone and says so.
+
+**An allowlist is of ids, not of names.** A display name is its owner's to change and a
+workspace may hold two people with the same one, while `from` decides whose words run as you
+with your keys. So `from` is `U…` ids, nothing asks the source who they are — one scope fewer
+and one request fewer — and the look **names the ids it saw** so they can be copied into the
+grant, because an allowlist of opaque ids nobody can find is an allowlist nobody fills in.
+
 ## What not to build
 
 A second scheduler · an `IntakeSource` port before a second source needs one · a second HTTP client
-for a forge Tade already talks to · a listener, a webhook endpoint or a public hostname · a
-caller-chosen template, grant or repository · a confidence threshold that starts work · attachment
-downloading · a reply that carries an agent's prose · a table of pending replies beside the journal ·
-a status that closes, assigns, labels or merges anything · a message to a channel a finding did not
-come from · a reply to a refusal · a backfill of statuses a shut window missed · token export,
-credential sync or automatic account switching · a remote kill switch for running agents · a `docs/`
-folder for any of it.
+for a forge Tade already talks to · a listener, a webhook endpoint, a public hostname or a socket
+held open inside a watch · a caller-chosen template, grant, repository or channel · an allowlist of
+display names · a confidence threshold that starts work · attachment downloading · a reply that
+carries an agent's prose · a table of pending replies beside the journal · a status that closes,
+assigns, labels or merges anything · a message to a channel a finding did not come from ·
+`reply_broadcast`, or anything else that says a status to more people than asked · a reply to a
+refusal · a backfill of statuses a shut window missed · a sleep on a `Retry-After` · a cursor that
+moves past a request the look deferred · token export, credential sync or automatic account
+switching · a remote kill switch for running agents · a `docs/` folder for any of it.
 
 ## Prompt injection is not solved, and nothing here may claim it is
 

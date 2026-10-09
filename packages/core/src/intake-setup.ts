@@ -40,6 +40,29 @@ export const INTAKE_SETUP: Readonly<Record<IntakeSource, readonly string[]>> = {
     'Then label an issue. mode is propose, so a task is made and parked for you to approve.',
     'For a workflow rather than one task: template: bug-repro-fix-review, document: report.',
   ],
+  // Slack's own numbers, read off its documentation on 2026-10-09, because the
+  // one that decides whether this is usable is not the one most people quote.
+  // `conversations.history` and `conversations.replies` are Tier 3 — 50+ a
+  // minute, up to 1,000 objects — for an **internal customer-built app** and
+  // for a Marketplace-approved one. For an app distributed outside the
+  // Marketplace and created after 29 May 2025, both are **1 request a minute
+  // with the `limit` parameter capped at 15 objects**, and existing
+  // non-Marketplace installations join them on 3 March 2026. So the app to make
+  // for this is the internal one in your own workspace, and the step says so
+  // rather than leaving somebody to find out from a 429.
+  slack: [
+    'A Slack app in your own workspace — an internal one, created from scratch, not distributed.',
+    'Bot scopes: channels:history for a public channel, or groups:history for a private one.',
+    'chat:write and reactions:write too, and surfaces.intake.sources.slack.reply: true, only if Tade may say a status back.',
+    'Install it, then INVITE the bot to the channel: without that every look answers not_in_channel.',
+    'The bot token (xoxb-…) as $SLACK_BOT_TOKEN, or extensions.intake.slack_token in config.yaml.',
+    'surfaces.intake.enabled: true, and surfaces.intake.sources.slack.accept: true.',
+    'surfaces.intake.sources.slack.projects: the Tade projects it may make work in.',
+    'surfaces.intake.sources.slack.from: Slack USER IDS (U…), not display names, which people change.',
+    'A watch, told the channel id (C…): Settings › Extensions, or a schedule over intake.slack.',
+    'Then @-mention the app in that channel. It is polled every two minutes: Tade notices a mention, it does not answer one.',
+    'A mention inside a thread is invisible to a poll unless you also send it to the channel. Instant replies need Socket Mode, which is not built.',
+  ],
 }
 
 /**
