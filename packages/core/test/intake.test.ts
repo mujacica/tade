@@ -43,6 +43,7 @@ const grant = (over: Partial<IntakeGrantRead> = {}): IntakeGrantRead => ({
   from: ['kim'],
   mode: 'propose',
   template: '',
+  document: '',
   ...over,
 })
 
@@ -473,13 +474,50 @@ describe('a template filled from a request', () => {
     expect('problem' in filled && filled.problem).toContain('refused')
   })
 
-  it('is refused where a template wants two documents and a request has one body', () => {
+  it('fills the one document a template requires, and leaves an optional one out', () => {
     const asks = template({
-      inputs: { ...template().inputs, more: { kind: 'document', about: '', required: false } },
+      inputs: {
+        ...template().inputs,
+        body: { kind: 'document', about: '', required: true },
+        extra: { kind: 'document', about: '', required: false },
+      },
     })
-    expect(intakeInputs(envelope(), asks)).toMatchObject({
-      problem: expect.stringContaining('one document'),
+    const filled = intakeInputs(envelope(), asks)
+    expect('ok' in filled && filled.inputs.body).toContain('export button')
+    // Left out rather than stamped with an empty string: `fillTemplate`'s own
+    // answer for an input nobody filled in.
+    expect('ok' in filled && 'extra' in filled.inputs).toBe(false)
+  })
+
+  it('asks the grant which document, where a template leaves the choice open', () => {
+    const asks = template({
+      inputs: {
+        ...template().inputs,
+        body: { kind: 'document', about: '', required: false },
+        extra: { kind: 'document', about: '', required: false },
+      },
     })
+    // Never by declaration order, which is a rule that is right until somebody
+    // reorders a file: the candidates are named and a person says which.
+    const open = intakeInputs(envelope(), asks)
+    expect('problem' in open && open.problem).toContain('say which takes it')
+    expect('problem' in open && open.problem).toContain('extra')
+    const said = intakeInputs(envelope(), asks, 'extra')
+    expect('ok' in said && said.inputs.extra).toContain('export button')
+    expect('ok' in said && 'body' in said.inputs).toBe(false)
+  })
+
+  it('refuses a document the grant names and the template does not have', () => {
+    const named = intakeInputs(envelope(), template(), 'nowhere')
+    expect('problem' in named && named.problem).toContain('"nowhere"')
+    expect('problem' in named && named.problem).toContain('body')
+  })
+
+  it('leaves an optional input it cannot fill out, and refuses a required one', () => {
+    const optional = template({
+      inputs: { ...template().inputs, severity: { kind: 'text', about: '', required: false } },
+    })
+    expect(intakeInputs(envelope(), optional)).toMatchObject({ ok: true })
   })
 })
 

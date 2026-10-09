@@ -26,7 +26,6 @@ import {
   type PlanStanding,
   planTooTight,
   readPublished,
-  type TadeEvent,
 } from '@tade/core'
 import { readTaskFile } from './tasks.ts'
 import { fillFor, stampTemplate, type TemplateFilled } from './templates.ts'
@@ -85,6 +84,7 @@ export function intakeGrant(config: Config, source: IntakeSource): IntakeGrantRe
     from: grant.from,
     mode: grant.mode,
     template: grant.template,
+    document: grant.document,
   }
 }
 
@@ -160,8 +160,11 @@ export async function takeIntake(
     }
   }
 
-  const events = await tade.log.read({}).catch((): TadeEvent[] => [])
-  const items = intakeFrom(events)
+  // Not caught: a journal that could not be read folds to an empty map, and an
+  // empty map says this request has never been seen — which is how one
+  // unreadable read becomes a second task for a request that already has one.
+  // The caller writes the hold and the next look tries again.
+  const items = intakeFrom(await tade.log.read({}))
   const already = items.get(item)
 
   if (decision.outcome === 'refused') {
@@ -257,6 +260,7 @@ export async function takeIntake(
       grant: granted.grant,
       mode: granted.mode,
       template: granted.template,
+      document: grant.document,
       agent: req.agent,
       items,
     })
@@ -328,6 +332,7 @@ async function carryOut(
     grant: string
     mode: IntakeMode
     template: string
+    document: string
     agent: {
       title: string
       prompt: string
@@ -353,7 +358,7 @@ async function carryOut(
     // week's shape.
     const version = published.template.version
     envelope = envelopeFor(candidate, project, req.grant, { name: req.template, version })
-    const inputs = intakeInputs(envelope, published.template)
+    const inputs = intakeInputs(envelope, published.template, req.document)
     if (!('ok' in inputs)) throw new Error(inputs.problem)
     filled = await fillFor(tade, { template: req.template, version, inputs: inputs.inputs })
     names = [...filled.names]
@@ -494,17 +499,28 @@ async function invalidate(tade: Workbench, already: IntakeItem, because: string)
   const running = new Set(tade.runs().map((run) => run.task))
   const parked: string[] = []
   const working: string[] = []
+  const stuck: string[] = []
   for (const task of already.tasks) {
     if (running.has(task)) {
       working.push(task)
       continue
     }
-    await tade.parkTask(task, true).catch(() => {})
-    await tade.holdQueued(task, because, { start: 'failed' }).catch(() => {})
-    parked.push(task)
+    try {
+      // Not swallowed: putting the hold back is the whole of what invalidating
+      // an approval *is*, and a park that quietly failed leaves a task the
+      // queue will start on words nobody approved.
+      await tade.parkTask(task, true)
+      await tade.holdQueued(task, because, { start: 'failed' })
+      parked.push(task)
+    } catch (err) {
+      stuck.push(`${task} (${err instanceof Error ? err.message : String(err)})`)
+    }
   }
   const said: string[] = []
   if (parked.length > 0) said.push(`${parked.join(', ')} is parked again`)
+  if (stuck.length > 0) {
+    said.push(`${stuck.join('; ')} could NOT be parked again and may still start`)
+  }
   if (working.length > 0) {
     said.push(
       `${working.join(', ')} is already working and was not stopped: nothing outside this machine stops an agent`,
@@ -538,7 +554,9 @@ export async function sayBackAbout(
     return { said: null, because: `${grant.path}.reply is off: nothing is posted anywhere` }
   }
   const item = intakeItem({ source: req.source, externalId: req.candidate.externalId })
-  const items = intakeFrom(await tade.log.read({}).catch((): TadeEvent[] => []))
+  // Not caught, for the reason above: unread would read as "nothing said yet",
+  // which is the one answer that lets the cap be passed.
+  const items = intakeFrom(await tade.log.read({}))
   const left = intakeRepliesLeft(items.get(item), req.now)
   if (left <= 0) {
     return {

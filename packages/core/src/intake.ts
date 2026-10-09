@@ -359,6 +359,16 @@ export const IntakeGrant = z
      * and never by the caller. Empty for one ordinary task.
      */
     template: z.string().default(''),
+    /**
+     * Which of that template's document inputs the request body goes in, where
+     * it declares more than one and none of them has to be filled.
+     *
+     * Safe to name here and never safe to let a caller name: every document
+     * input lands in the context file under the material heading, and which
+     * input carries the person's own sentence is not a choice at all. Empty
+     * means the only document input, or the only required one.
+     */
+    document: z.string().default(''),
   })
   .prefault({})
 
@@ -423,6 +433,8 @@ export interface IntakeGrantRead {
   mode: IntakeMode
   /** The template this source's work is stamped from. Empty for one ordinary task. */
   template: string
+  /** Which of that template's document inputs takes the request body. Empty for the obvious one. */
+  document: string
 }
 
 /** What the rule said about one candidate. */
@@ -539,27 +551,66 @@ export type IntakeInputs = { ok: true; inputs: Record<string, string> } | { prob
  * and a template that asks for anything else is **refused, naming it**, never
  * stamped with an empty string.
  */
-export function intakeInputs(one: Intake, template: Template): IntakeInputs {
+export function intakeInputs(
+  one: Intake,
+  template: Template,
+  /** Which document input the grant named, where it named one. */
+  document = '',
+): IntakeInputs {
+  const body = bodyInput(template, document)
+  if ('problem' in body) return body
   const inputs: Record<string, string> = {}
-  const said = intakeSummary(one)
-  const documents = Object.entries(template.inputs).filter(([, input]) => input.kind === 'document')
-  if (documents.length > 1) {
-    return {
-      problem: `${template.template} asks for ${documents.length} documents (${documents.map(([name]) => name).join(', ')}) and an intake has one body: a template for intake declares one document input`,
-    }
-  }
   for (const [name, input] of Object.entries(template.inputs)) {
     if (name === template.project_input) inputs[name] = one.project
-    else if (name === template.said_input) inputs[name] = said
+    else if (name === template.said_input) inputs[name] = intakeSummary(one)
     else if (name === template.name_suffix) inputs[name] = intakeSuffix(one)
-    else if (input.kind === 'document') inputs[name] = one.verbatim
-    else {
+    else if (name === body.input) inputs[name] = one.verbatim
+    else if (input.required) {
       return {
-        problem: `${template.template} needs "${name}", which nothing in a ${one.source} request fills: an intake fills the project, the request, the name suffix and one document, and a template with an unfilled input is refused rather than stamped with an empty string`,
+        problem: `${template.template} needs "${name}", which nothing in a ${one.source} request fills: an intake fills the project, the request, the name suffix and one document, and a template with an unfilled required input is refused rather than stamped with an empty string`,
       }
     }
+    // Anything else it declares and does not require is left out, which is
+    // `fillTemplate`'s own answer for an input nobody filled in.
   }
   return { ok: true, inputs }
+}
+
+/**
+ * Which of a template's document inputs the request body goes in.
+ *
+ * The grant's own `document` where it names one; the only document input where
+ * there is one; the only **required** one where several are declared and one of
+ * them has to be filled. Anything else is a choice nobody made, and it is
+ * refused with the candidates named rather than guessed at by declaration
+ * order — which is the sort of rule that is right until somebody reorders a
+ * file.
+ *
+ * It is safe for a grant to name this and it would not be safe for a caller
+ * to: every document input lands in the context file under the material
+ * heading, and which input carries the person's own sentence is not a choice at
+ * all — `said_input` is filled by `intakeSummary` before this is asked.
+ */
+function bodyInput(
+  template: Template,
+  named: string,
+): { input: string | null } | { problem: string } {
+  const documents = Object.entries(template.inputs).filter(([, input]) => input.kind === 'document')
+  if (named) {
+    const found = documents.find(([name]) => name === named)
+    if (!found) {
+      return {
+        problem: `the grant names "${named}" as ${template.template}'s document input, and ${documents.length === 0 ? 'it has none' : `it has ${documents.map(([name]) => name).join(', ')}`}`,
+      }
+    }
+    return { input: named }
+  }
+  if (documents.length <= 1) return { input: documents[0]?.[0] ?? null }
+  const required = documents.filter(([, input]) => input.required)
+  if (required.length === 1) return { input: required[0]?.[0] as string }
+  return {
+    problem: `${template.template} has ${documents.length} document inputs (${documents.map(([name]) => name).join(', ')}) and an intake has one body: say which takes it in the grant's own document key`,
+  }
 }
 
 // --- the sentences said where somebody is deciding

@@ -97,6 +97,17 @@ export function intakeGroup(config: Config): SettingGroup {
         keywords: ['template', 'workflow'],
       },
       {
+        path: `${at}.document`,
+        title: `Which of that template's documents a ${source} request fills`,
+        means:
+          'the name of one of the template’s document inputs, for a template that declares more than one and requires none of them. Empty takes the only one, or the only one it requires',
+        value: grant.document,
+        fallback: 'the obvious one',
+        type: { kind: 'text', placeholder: 'report' },
+        live: true,
+        keywords: ['document', 'body', 'input'],
+      },
+      {
         path: `${at}.reply`,
         title: `Say a status back to ${source}`,
         means:

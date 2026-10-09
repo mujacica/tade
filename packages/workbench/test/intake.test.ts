@@ -281,6 +281,100 @@ describe('work from outside this machine', () => {
     expect((await readTaskFile(home, 'app/cli-req-1'))?.parked).toBe(true)
   })
 
+  it('stamps a published template out, parked, and records which version it used', async () => {
+    // The template Tade ships, which declares two document inputs and requires
+    // neither — so the grant says which takes the request body.
+    await open({ template: 'bug-repro-fix-review', document: 'report' })
+    const taken = await take()
+    expect(taken.outcome).toBe('accepted')
+    const made = (await client.log.read({ types: ['task_created'] })).map((one) => one.task)
+    expect(made).toEqual(['app/fix-cli-req-1', 'app/read-cli-req-1'])
+    for (const task of made) {
+      const file = await readTaskFile(home, task as string)
+      // Every task a template makes is parked, because a plan half-started is
+      // nobody's idea of a workflow.
+      expect(file?.parked).toBe(true)
+      expect(file?.by).toBe('intake:cli')
+      // Tade's own sentence in the field drawn as the person's words, naming
+      // the version it was stamped from — and not a word of the body.
+      expect(file?.intent_spoken).toContain('bug-repro-fix-review@1')
+      expect(file?.intent_spoken).not.toContain('export button')
+      // And the body in the context file, as material, where every agent in
+      // the plan reads its own.
+      const context = readFileSync(join(taskDir(home, task as string), 'context.md'), 'utf8')
+      expect(context).toContain('the export button 500s')
+    }
+    // The published version is resolved here and written down: a draft moves
+    // on, and without this a task made today reads as having come from
+    // whatever the file says next week.
+    expect((await client.log.read({ types: ['intake_accepted'] }))[0]?.detail).toMatchObject({
+      template: 'bug-repro-fix-review',
+      version: 1,
+    })
+    expect((await client.log.read({ types: ['template_used'] }))[0]?.detail).toMatchObject({
+      template: 'bug-repro-fix-review',
+      parked: true,
+      by: 'intake:cli',
+    })
+  })
+
+  it('lifts the park on a template’s tasks only where the queue was granted', async () => {
+    await open({ template: 'bug-repro-fix-review', document: 'report', mode: 'queue' })
+    await take()
+    for (const task of ['app/fix-cli-req-1', 'app/read-cli-req-1']) {
+      expect((await readTaskFile(home, task))?.parked).toBe(false)
+    }
+  })
+
+  it('is held, with the choice named, where the grant does not say which document', async () => {
+    await open({ template: 'bug-repro-fix-review' })
+    const taken = await take()
+    expect(taken.outcome).toBe('held')
+    expect(taken.said).toContain('say which takes it')
+    // Nothing half-made, and the request kept for whoever fixes the grant.
+    expect(await made()).toBe(0)
+    expect(await settled()).toBe(false)
+  })
+
+  it('is held, naming the key, where the grant names a template nobody published', async () => {
+    await open({ template: 'no-such-template' })
+    const taken = await take()
+    expect(taken.outcome).toBe('held')
+    expect(taken.said).toContain('surfaces.intake.sources.cli.template')
+    expect(await made()).toBe(0)
+  })
+
+  it('refuses a template name that would reach outside the templates folder', async () => {
+    // The one value in this path that becomes part of a path, so it is held
+    // rather than argued about: a name is refused before anything is joined.
+    await open({ template: '../../etc/passwd' })
+    const taken = await take()
+    expect(taken.outcome).toBe('held')
+    expect(taken.said).toContain('not a name Tade will use')
+    expect(await made()).toBe(0)
+  })
+
+  it('recognises a template’s tasks a previous attempt made, and makes no second plan', async () => {
+    await open({ template: 'bug-repro-fix-review', document: 'report' })
+    await take()
+    expect(await crashAfterMaking()).toBe(1)
+    const again = await take()
+    expect(again.outcome).toBe('adopted')
+    // Two tasks, from one plan, however many times the delivery was attempted.
+    expect(await made()).toBe(2)
+  })
+
+  it('never reaches for anything that would stop an agent', async () => {
+    // The negative that matters, and the only honest way to hold it: a rule
+    // that stopped an agent on an outside signal would be a remote kill
+    // switch, so the module has no call to one at all. Held by absence, the way
+    // the away view holds read-only.
+    const source = readFileSync(join(import.meta.dirname, '..', 'src', 'intake.ts'), 'utf8')
+    for (const stopping of ['stopAgent', 'stopEverything', 'closeLane', 'removeTask']) {
+      expect(source).not.toContain(`${stopping}(`)
+    }
+  })
+
   it('refuses to carry on over a task that is not intake’s', async () => {
     await client.createTask({ project: 'app', slug: 'cli-req-1', intent: 'mine, by hand' })
     const taken = await take()

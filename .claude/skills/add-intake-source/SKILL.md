@@ -40,7 +40,10 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
    the comparator table in `REVISIONS` all grow together, and tsc names every one you missed.
 2. **Give it a `sources.<name>` grant** in `IntakeSurface`, reusing `IntakeGrant`. Default `false`
    for both switches, `[]` for both lists, `propose` for the mode. `accept` and `reply` are two
-   acts: accepting work reads somebody's words, replying posts into somebody else's system.
+   acts: accepting work reads somebody's words, replying posts into somebody else's system. Reuse
+   the grant whole rather than adding keys: `template` and `document` are what a source's work is
+   stamped from and which of that template's document inputs the body goes in, and both are the
+   owner's to say because a caller-chosen template is the hole that makes one dangerous.
 3. **Write its revision comparator** in `REVISIONS`, with a test. ISO timestamps are parsed to a
    time; a Slack `ts` is compared numerically; an opaque id is **not comparable** and says so.
    Never a lexical comparison of an arbitrary id: `"10" > "9"` is `false`.
@@ -113,6 +116,13 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
   does not get to put itself on an allowlist.
 - **Nothing takes a path.** No `path`, `file`, `dir`, `root`, `command` or `prompt` key on any
   intake route, held by a test. Enforcement by absence rather than a sanitiser.
+- **A template's inputs are filled by what each one *is*, never by a mapping a caller supplies.**
+  The project input gets the project, the said input gets Tade's sentence, the suffix gets the
+  external id, and the body gets the only document input — or the only *required* one, or the one
+  the grant's `document` names. Several documents and no required one is a choice nobody made:
+  refused with the candidates named, never guessed at by declaration order. An input intake cannot
+  fill is left out when it is optional and **refuses** when it is required, which is `fillTemplate`'s
+  own rule rather than a second one.
 - **Attachments are references.** A name, a claimed media type, a claimed size, a url. Tade writing
   a stranger's file into a task folder is a path-containment and a media-parsing problem nobody
   needs; fetching one is a tool a person allowed, which is a decision that already exists.

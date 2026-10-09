@@ -254,6 +254,7 @@ describe('the shape of the rule', () => {
       // property of the path and not of whether a page lists it.
       'surfaces.intake.enabled',
       'surfaces.intake.sources.cli.accept',
+      'surfaces.intake.sources.cli.document',
       'surfaces.intake.sources.cli.from',
       'surfaces.intake.sources.cli.mode',
       'surfaces.intake.sources.cli.projects',
