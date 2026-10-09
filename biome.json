@@ -24,5 +24,17 @@
         "noNonNullAssertion": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/web/src/assets/**/*.js"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "error"
+          }
+        }
+      }
+    }
+  ]
 }

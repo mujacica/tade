@@ -26,6 +26,15 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | the config | `surfaces.web` in `packages/core/src/config.ts`, read only by `surfaceOf` |
 | the sentences that may never get comfortable | `packages/core/src/away.ts`, re-exported by `src/surface.ts` |
 | the browser's files | `src/assets/` — `.html`/`.css`/`.js` only, **never `.ts`** |
+| the palette, the type scale, the primitives | `src/assets/tokens.css` — every colour is a window tone, checked by arithmetic |
+| the frame: header, bars, nav, the four region states | `src/assets/frame.css`, `src/assets/shell.js` |
+| what a screen looks like | `src/assets/away.css`, `src/assets/rows.js` |
+| a screen | `src/assets/screens.js` (work) or `pages.js` (lists), plus a route in `src/routes.ts` **and** a view in `src/assets/routes.js` |
+| what a figure says | `src/assets/figures.js` — money, tokens, ages, plan bars |
+| what a state looks like | `src/assets/glyphs.js` — glyph, word and tone, never colour alone |
+| the delta merge and the selectors | `src/assets/store.js` |
+| the router, the stream, the keyboard | `src/assets/boot.js` |
+| the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts` |
 | the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
 | what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with four goldens in `test/screens/scenarios/away.ts` |
@@ -89,7 +98,26 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   the network a device is on changes.
 - **A `.ts` file in `src/assets/` is renamed to `.js` at publish**, so it is served under one name here
   and another on somebody else's machine. `git add` every asset, too: staging copies only
-  `git ls-files` output, so an un-added `.css` is a page with no styles everywhere but here.
+  `git ls-files` output, so an un-added `.css` is a page with no styles everywhere but here
+  (`test/release.test.ts` reads the staged tree the way the server does).
+- **A screen is two tables, held equal.** `src/routes.ts` says which paths answer with the shell and
+  `src/assets/routes.js` says which the page knows; a path in one and not the other is a screen that
+  works until somebody reloads it. `test/routes-client.test.ts` asserts both directions.
+- **Nothing in the page derives a state.** `deriveState` already decided and the projection carries
+  its answer and its own `reason` clause, verbatim. A second wording is a second state machine — the
+  queue's words are `describeQueueState`'s, copied into `glyphs.js` because a browser cannot import a
+  `.ts` file and held equal by `test/glyphs.test.ts`. Four rules in `figures.js` are the domain's the
+  same way.
+- **Two nulls, two sentences.** A figure that is null because nobody recorded it and one that is null
+  because this device was not granted it are different facts, and a page that drew both as *not
+  recorded* tells somebody their work cost nothing. `you.reads` is the only way to tell them apart
+  from the page (`mayRead`), and every screen that can draw a dash asks.
+- **A screen is built once and then patched.** A delta writes text and classes into nodes that
+  already exist (`keyed`, `textIn`), so focus, a half-made selection and the scroll position survive
+  it — and **a delta never moves the current tab**, which only navigation does.
+- **An age freezes when the stream is not live** and gains the moment it was last true. An age
+  counting up against a snapshot nothing can refresh is the lie §5.10 exists to prevent, so `asOf`
+  hands the server's own last word to every row rather than the device's clock.
 - **Nothing in the client touches `innerHTML`**, there is no Markdown renderer, and the content policy
   has no `unsafe-inline`. Those three are what actually stands against injected script; `HttpOnly`
   stops the *theft* of a credential and not its use.
@@ -153,11 +181,39 @@ it, and there is no channel from a shell into the window — the `ToolHost` is a
 window's own child agents and must never become this. So it says which window is open and points at
 the panel that mints one.
 
+## The page, and what holds it
+
+`test/design.test.ts` checks the design by **arithmetic over the production files**: every hex is the
+xterm tone it names, every contrast ratio in a comment is the ratio the hex has, no text is under
+13px, the gutter is `padding-inline` and no shorthand can zero it, every token used is declared and
+every token declared is used, `--quiet` only appears in a rule that declares its own size, and the
+one `outline: none` in the stylesheet is named with its argument.
+
+`scripts/browser.ts` is the other half and it needs a real browser:
+
+```
+pnpm add -D -w playwright axe-core && pnpm exec playwright install chromium
+node packages/web/scripts/browser.ts --shots /tmp/away
+# or, with a Chrome the machine already has:
+TADE_BROWSER='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  node packages/web/scripts/browser.ts
+```
+
+It pairs a device through the real page, visits every route at 360/834/1440, runs axe, and checks the
+landmarks, the targets and that nothing scrolls sideways. **Neither is in the lockfile**, because
+Playwright's install pulls hundreds of megabytes of browser onto every machine, and this repository
+holds the line that `pnpm install` runs two scripts and installs nothing else. **With no browser it
+reports `unrun` with the reason and exits 2** — never a pass. That property is what
+`test/browser.test.ts` holds, offline, and it is the one that matters: an a11y harness that silently
+found nothing and went green is worse than none.
+
 ## What a test here cannot prove
 
 A real phone's camera reading the QR at the module size a terminal draws; iOS Safari's local-network
 prompt; whether `.local` resolves on the owner's devices; whether a real reverse proxy passes a
-stream through unbuffered. Each is **named as outstanding** rather than ticked. `test/qr.test.ts`
+stream through unbuffered; **whether the page is beautiful or useful**, which is the owner's after a
+week; and how it behaves in Safari and Firefox — the harness drives Chromium, and the other two are
+named rather than claimed. Each is **named as outstanding** rather than ticked. `test/qr.test.ts`
 proves the *encoding* by decoding it with `jsqr`, which is a different codebase — that is the most a
 machine here can say.
 

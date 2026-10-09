@@ -5,6 +5,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
+// The server's own reader of the browser's files, pointed at the staged tree
+// rather than at the checkout — which is the whole of what these two assert.
+import { assetFor, readAssets } from '../packages/web/src/assets.ts'
 import { changelogFor, notesFor } from '../scripts/release/changelog.ts'
 import { LIVE_RUN, liveTrouble, manifests, PUBLISHED } from '../scripts/release/repo.ts'
 import { exportsFor, rewrite, stage } from '../scripts/release/stage.ts'
@@ -91,6 +94,45 @@ describe('the publish directory', () => {
   it('asks for vitest nowhere: the suites that import it do not ship', () => {
     expect(manifest.dependencies.vitest).toBeUndefined()
     expect(staged.left.some((one) => one.startsWith('vitest'))).toBe(true)
+  })
+
+  it('ships the away view’s own files, under the names the page asks for', async () => {
+    // `stage` copies what `git ls-files` prints and rewrites `.ts` to `.js`.
+    // The away view's files are neither TypeScript nor imported by anything, so
+    // nothing else in the staging would notice them going missing — and a
+    // tarball whose stylesheet is absent is a page with no styles **everywhere
+    // but here**. So this reads the staged tree the way the server does.
+    const where = join(staged.out, 'packages/web/src/assets')
+    const assets = await readAssets(where)
+    expect(assets.size).toBeGreaterThan(5)
+    const shell = assetFor('/', assets)
+    expect(shell?.path).toBe('index.html')
+
+    // Every `src=` and `href=` the shell names, resolved against the **staged**
+    // files rather than the checkout's.
+    const html = shell?.bytes.toString('utf8') ?? ''
+    const named = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((one) => one[1] ?? '')
+    expect(named.length).toBeGreaterThanOrEqual(3)
+    for (const url of named) expect(assetFor(url, assets), url).not.toBeNull()
+
+    // And every module one of those pulls in through another module, which is
+    // in no HTML attribute at all.
+    for (const [name, asset] of assets) {
+      if (!name.endsWith('.js')) continue
+      const text = asset.bytes.toString('utf8')
+      for (const found of text.matchAll(/\bfrom\s*['"](\.[^'"]+)['"]/g)) {
+        const spec = (found[1] ?? '').replace(/^\.\//, '')
+        expect(assetFor(`/assets/${spec}`, assets), `${name} imports ${spec}`).not.toBeNull()
+      }
+    }
+  })
+
+  it('leaves no TypeScript among the files a browser is served', async () => {
+    // `stage` renames `.ts` to `.js`, so a `.ts` asset would be served under
+    // one name here and another on somebody else's machine — a bug that
+    // appears only after publishing.
+    const assets = await readAssets(join(staged.out, 'packages/web/src/assets'))
+    for (const name of assets.keys()) expect(name.endsWith('.ts'), name).toBe(false)
   })
 
   it('brings the native modules it cannot work without', () => {

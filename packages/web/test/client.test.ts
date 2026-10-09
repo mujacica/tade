@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 // The browser's own copy of the rule. A `.js` asset with no DOM in it, so a
 // test can import it: `boot.js` cannot be imported, because importing it runs
 // the page.
-import { BACKOFF_MS, backoffAt, connectionOf, STALE_AFTER_MS, saidOf } from '../src/assets/live.js'
+import {
+  BACKOFF_MS,
+  backoffAt,
+  connectionOf,
+  GIVEN_UP_AFTER,
+  partsOf,
+  STALE_AFTER_MS,
+  standingOf,
+} from '../src/assets/live.js'
 import {
   BACKOFF_MS as BACKOFF,
   backoffAt as backoffHere,
@@ -95,26 +103,52 @@ describe('how long it waits before trying again', () => {
 })
 
 describe('what it says, and what it never says', () => {
+  const said = (standing: string, connection: unknown, at: string, now: number) => {
+    const parts = partsOf(standing, connection, at, now)
+    return `${parts.glyph} ${parts.words}`
+  }
+
   it('shows the server’s own time, and the age only in the parenthesis', () => {
     const at = '2026-10-08T14:29:40.000Z'
-    expect(saidOf({ kind: 'live', sinceAt: NOW }, at, NOW)).toBe(`● live · as of ${at}`)
-    expect(saidOf({ kind: 'stale', sinceAt: NOW }, at, NOW + 34_000)).toContain('(34s)')
+    expect(said('live', { kind: 'live', sinceAt: NOW }, at, NOW)).toBe(`● live · as of ${at}`)
+    expect(said('stale', { kind: 'stale', sinceAt: NOW }, at, NOW + 34_000)).toContain('(34s)')
   })
 
   it('never says nothing is running when it could not ask', () => {
-    const said = saidOf({ kind: 'unreachable', sinceAt: NOW }, '11:07', NOW + 60_000)
-    expect(said).toContain('unreachable since 11:07')
-    expect(said).toContain('may be asleep')
+    const line = said('unreachable', { kind: 'unreachable', sinceAt: NOW }, '11:07', NOW + 60_000)
+    expect(line).toContain('unreachable since 11:07')
+    expect(line).toContain('may be asleep')
     // The rule, as a string check over the one line the page draws: nothing
     // about this state is nought, empty, or stopped.
     for (const word of ['nothing is running', 'no agents', '0 working', 'stopped']) {
-      expect(said.toLowerCase()).not.toContain(word)
+      expect(line.toLowerCase()).not.toContain(word)
     }
   })
 
   it('says Tade’s own sentence when it was told why', () => {
-    expect(saidOf({ kind: 'closed', why: 'Tade is closing' }, '11:07', NOW)).toBe(
+    expect(said('closed', { kind: 'closed', why: 'Tade is closing' }, '11:07', NOW)).toBe(
       '⏸ Tade is closing',
     )
+  })
+
+  it('tells a tunnel that blinked apart from a machine that has gone', () => {
+    // The same connection — not open — and two different things to say about
+    // it. A page that called the whole of a dead afternoon "reconnecting"
+    // would never admit it cannot reach anything; one that said "unreachable"
+    // the instant a tunnel hiccupped would cry wolf every few minutes.
+    const dropped = { kind: 'unreachable', sinceAt: NOW }
+    expect(standingOf(dropped, 0)).toBe('reconnecting')
+    expect(standingOf(dropped, GIVEN_UP_AFTER - 1)).toBe('reconnecting')
+    expect(standingOf(dropped, GIVEN_UP_AFTER)).toBe('unreachable')
+    // The threshold is the backoff curve's own length, so the two cannot be
+    // changed apart: once the wait has climbed to its ceiling, the page has
+    // spent the whole curve getting nowhere.
+    expect(GIVEN_UP_AFTER).toBe(BACKOFF_MS.length)
+  })
+
+  it('leaves every other standing exactly what the stream did', () => {
+    for (const kind of ['live', 'stale', 'closed']) {
+      expect(standingOf({ kind, sinceAt: NOW, why: 'x' }, 99)).toBe(kind)
+    }
   })
 })

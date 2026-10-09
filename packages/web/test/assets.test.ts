@@ -23,10 +23,23 @@ const ALL = files()
 const TEXT = ALL.filter((name) => /\.(html|css|js|json|webmanifest|svg)$/.test(name))
 
 describe('what may be in the folder', () => {
-  it('has the bootstrap in it', () => {
-    expect(ALL.sort()).toContain('index.html')
+  it('has the shell, the tokens and the entry in it', () => {
+    expect(ALL).toContain('index.html')
     expect(ALL).toContain('boot.js')
-    expect(ALL).toContain('boot.css')
+    // The palette and the type scale are their own file, so the arithmetic in
+    // `design.test.ts` has one place to read them from.
+    expect(ALL).toContain('tokens.css')
+    expect(ALL).toContain('frame.css')
+    expect(ALL).toContain('away.css')
+  })
+
+  it('keeps every module small enough to be read rather than trusted', () => {
+    // The whole away view is here and it is still meant to be read in an
+    // afternoon. A file over this is a file that has stopped being one thing.
+    for (const name of TEXT) {
+      const lines = readFileSync(join(DIR, name), 'utf8').split('\n').length
+      expect(lines, `${name} is ${lines} lines`).toBeLessThan(950)
+    }
   })
 
   it('has no .ts file, ever', () => {

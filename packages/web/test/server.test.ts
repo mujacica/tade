@@ -85,7 +85,7 @@ describe('what an unauthenticated request can get', () => {
 
   it('is the assets, and no data is in them either', async () => {
     const one = await start()
-    for (const path of ['/assets/boot.js', '/assets/boot.css']) {
+    for (const path of ['/assets/boot.js', '/assets/away.css', '/assets/frame.css']) {
       const answer = await ask(one, path)
       expect(answer.status, path).toBe(200)
       const text = answer.text
@@ -150,15 +150,15 @@ describe('the headers on every answer', () => {
   it('never store an API answer, and always revalidate an asset', async () => {
     const one = await start()
     expect((await ask(one, '/api/snapshot')).headers['cache-control']).toBe('no-store')
-    expect((await ask(one, '/assets/boot.css')).headers['cache-control']).toBe('no-cache')
+    expect((await ask(one, '/assets/away.css')).headers['cache-control']).toBe('no-cache')
   })
 
   it('answer 304 to a browser that already has the asset', async () => {
     const one = await start()
-    const first = await ask(one, '/assets/boot.css')
+    const first = await ask(one, '/assets/away.css')
     const etag = first.headers.etag
     expect(etag).toMatch(/^"[\w-]+"$/)
-    const again = await ask(one, '/assets/boot.css', {
+    const again = await ask(one, '/assets/away.css', {
       headers: { 'if-none-match': etag ?? '' },
     })
     expect(again.status).toBe(304)

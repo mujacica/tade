@@ -2,46 +2,33 @@
   The shell. It is the whole of what an unauthenticated request can get, and it
   carries no data at all: no task, no project, no name, no count. Everything on
   the page arrives from a route that needs a session, which is what makes
-  serving this to anybody who asks a safe thing to do.
+  serving this to anybody who asks a safe thing to do — and it is why **the same
+  bytes answer every screen's path**, so a deep link to a project that is not
+  there, or that this device may not read, is not a way of finding out which.
 
   No inline script and no inline style, because the content policy has neither
   `unsafe-inline` nor `eval`. Every value reaches the DOM through `textContent`;
-  nothing here or in `boot.js` touches `innerHTML`.
+  nothing here or in the modules it pulls in touches `innerHTML`.
 
-  This is the bootstrap, not the away view: it pairs a device and signs one out.
-  The eight screens are `away-readonly-ui`'s, in this folder, under these rules.
+  `lang` is on the one element that can carry it: the page's text is English
+  and a screen reader that has to guess reads it in whatever voice it was last
+  set to.
+
+  `<body>` is empty on purpose. `boot.js` decides which of two pages this is —
+  pair this device, or the control room — and building the frame in script keeps
+  one description of it instead of one here and one there that drift. What a
+  person sees before the script runs is the one line below, which is replaced
+  rather than hidden.
 -->
-<title>Tade</title>
+<html lang="en">
+  <title>Tade</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="color-scheme" content="dark light" />
-<link rel="stylesheet" href="/assets/boot.css" />
+<meta name="color-scheme" content="dark" />
+<link rel="stylesheet" href="/assets/tokens.css" />
+<link rel="stylesheet" href="/assets/frame.css" />
+<link rel="stylesheet" href="/assets/away.css" />
 <main id="main">
-  <h1>Tade</h1>
-  <p id="said">Loading…</p>
-
-  <section id="pairing" hidden>
-    <h2>Pair this device</h2>
-    <p>
-      Tade will ask at the machine before this device is let in. Give it a name
-      you will recognise in the device list.
-    </p>
-    <label for="label">This device</label>
-    <input id="label" type="text" maxlength="40" autocomplete="off" autocapitalize="words" />
-    <button id="pair" type="button">Pair</button>
-    <p id="pair-said" role="status"></p>
-  </section>
-
-  <section id="signed-in" hidden>
-    <h2>Signed in</h2>
-    <p id="live" role="status"></p>
-    <dl>
-      <dt>This device</dt>
-      <dd id="me"></dd>
-      <dt>What it may read</dt>
-      <dd id="reads"></dd>
-    </dl>
-    <button id="out" type="button">Sign this device out</button>
-    <p id="out-said" role="status"></p>
-  </section>
+  <p class="empty">Loading Tade…</p>
 </main>
 <script type="module" src="/assets/boot.js"></script>
+</html>

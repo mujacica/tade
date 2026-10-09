@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
+import { routeFor } from './routes.ts'
 
 // The browser's files: read into a map once, served from it for ever after.
 //
@@ -15,14 +16,11 @@ import { extname, join } from 'node:path'
 // window draws four times a second on one thread, and a route that reads a file
 // is a route that can make it stop.
 //
-// **What is here now is a bootstrap, and `away-readonly-ui` owns the rest.**
-// Three files: the shell, enough CSS that it is legible on a phone at night,
-// and the script that pairs a device or signs one out. They are what makes the
-// two session-lifecycle routes usable by a person — a device cannot pair
-// without a page to pair from — and nothing in them reads or draws any
-// projection, which is what makes serving them unauthenticated safe. The eight
-// screens, the design tokens and the accessibility work are a later slice's,
-// and they land in this same folder under the same rules.
+// **What is in the folder is the whole away view**: the shell, the design
+// tokens, the screens' stylesheet, and the modules that draw them. Nothing in
+// any of them reads or draws a projection of its own — every value on the page
+// arrives from a route that needs a session — which is what makes serving all
+// of it to anybody who can reach the port a safe thing to do.
 //
 // The rules, each held by `test/assets.test.ts`:
 //
@@ -113,12 +111,19 @@ export function etagOf(bytes: Buffer): string {
 /**
  * The asset a request path is for, or null.
  *
- * `/` and `/pair` are both the shell, because the client decides which screen
- * it is on. Everything else under `/assets/` is looked up by the rest of its
- * path — a lookup, not a join.
+ * **Every screen's path is the shell**, and which paths those are is asked of
+ * the route table rather than listed again here: two lists of the same thing is
+ * a deep link that `404`s on the day somebody adds a screen to only one of
+ * them. Everything else under `/assets/` is looked up by the rest of its path —
+ * a lookup, not a join.
+ *
+ * A document path carries a project or a task name in it and **nothing here
+ * reads one**: the answer is the same bytes whatever the name was, so a deep
+ * link to a project that is not there is not a way of finding out that it is
+ * not there.
  */
 export function assetFor(path: string, assets: ReadonlyMap<string, Asset>): Asset | null {
-  if (path === '/' || path === '/pair') return assets.get('index.html') ?? null
+  if (routeFor('GET', path)?.route.document === true) return assets.get('index.html') ?? null
   if (!path.startsWith('/assets/')) return null
   return assets.get(path.slice('/assets/'.length)) ?? null
 }

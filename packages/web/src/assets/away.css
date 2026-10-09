@@ -1,0 +1,519 @@
+/*
+  The screens: rows, cards, the queue's connectors, the tables, the figures,
+  somebody's own words, and the two controls this phase has.
+
+  Three rules, and the drawing is downstream of all three.
+
+  1. **Answer the question on the first screen, without scrolling.** The
+     question is *is anything stopped*, so `WANTS YOU` is the top of every
+     viewport and nothing is above it but the wordmark and the freshness clock.
+  2. **Minimal chrome.** A heading, then rows and figures. No section explains
+     itself; a caveat true under every row is a mark or a word (`~`, `—`, `≥`),
+     never a sentence.
+  3. **Nothing cuts its own rows to fit.** No `+3 more` in place of scrolling,
+     and a row too narrow for something says it one tap away rather than
+     truncating it into a lie.
+
+  `frame.css` is what this is drawn inside.
+*/
+/* ── rows ──────────────────────────────────────────────────────────────────── */
+
+.rows {
+  display: grid;
+}
+
+.rows > li > a,
+.rows > li > div {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr auto;
+  gap: var(--s3);
+  align-items: baseline;
+  /* 44px even though the text is one line: a row is a tap target. */
+  min-height: var(--tap);
+  padding-block: var(--s2);
+  border-block-end: 1px solid var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.rows > li > a:hover {
+  background: var(--chosen);
+}
+
+/* The row the keyboard is on, and the one `j`/`k` moves. */
+.rows > li.on > a,
+.rows > li.on > div {
+  background: var(--chosen);
+}
+
+.glyph {
+  font-size: var(--step-1);
+  line-height: var(--lead);
+  text-align: center;
+}
+
+.name {
+  min-width: 0;
+  color: var(--bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aside {
+  display: flex;
+  gap: var(--s3);
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step--1);
+  color: var(--heading);
+}
+
+/* A second line under a row's name: the state and its reason, verbatim. */
+.under {
+  grid-column: 2 / -1;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── the state words, each beside its glyph ────────────────────────────────── */
+
+.t-wants {
+  color: var(--violet);
+}
+.t-failed {
+  color: var(--red);
+}
+.t-working {
+  color: var(--amber);
+}
+.t-done {
+  color: var(--green);
+}
+.t-here {
+  color: var(--cyan);
+}
+.t-quiet {
+  color: var(--quiet);
+}
+
+.word {
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 2px var(--s2);
+  border-radius: var(--r3);
+  background: var(--raised);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+/* ── cards: WANTS YOU ──────────────────────────────────────────────────────── */
+
+.card {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s4);
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: 1px solid var(--chrome);
+  box-shadow: var(--lift);
+  color: inherit;
+  text-decoration: none;
+}
+
+.card:hover {
+  border-color: var(--edge);
+}
+
+.card.wants {
+  border-inline-start: 3px solid var(--violet);
+}
+
+.card.broke {
+  border-inline-start: 3px solid var(--red);
+}
+
+.card-top {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: var(--s3);
+  align-items: baseline;
+}
+
+.card .who {
+  color: var(--bright);
+  font-size: var(--step-1);
+  overflow-wrap: anywhere;
+}
+
+.card .why {
+  color: var(--heading);
+  font-size: var(--step-0);
+}
+
+/*
+  The approval's tool name, in mono. One line here, the whole of it on the task
+  page — a command cut mid-flag reads as a different command.
+*/
+.card .asked {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  padding-block-start: var(--s2);
+  border-block-start: 1px solid var(--raised);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--heading);
+}
+
+/* ── the project sub-navigation: scrollable, never collapsed into `+3 more` ── */
+
+.tabstrip {
+  display: flex;
+  gap: var(--s2);
+  margin-block-end: var(--s4);
+  padding-block-end: var(--s2);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  border-block-end: 1px solid var(--raised);
+}
+
+.tabstrip a {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s3);
+  border-radius: var(--r1);
+  color: var(--tab);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tabstrip a[aria-current="page"] {
+  background: var(--raised);
+  color: var(--cyan);
+}
+
+/* ── the queue, as an indented list with connectors ────────────────────────── */
+
+/*
+  A dependency graph at 390px is unreadable and a list is not. The edges are
+  drawn with a connector glyph and an indent, which is how the window itself
+  draws the queue — and it reads fine.
+*/
+.queue > li {
+  display: grid;
+  grid-template-columns: 1.75rem 1.5rem 1fr auto;
+  gap: var(--s2);
+  align-items: center;
+  padding-block: var(--s2);
+  min-height: var(--tap);
+}
+
+.queue .order {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--heading);
+  text-align: end;
+}
+
+.queue .waits {
+  grid-column: 3 / -1;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.queue .wait {
+  display: block;
+}
+
+/* Line art, and only line art: the words beside it carry the fact. */
+.queue .waits .edge {
+  color: var(--chrome);
+  font-family: var(--font-mono);
+}
+
+/* ── tables: checks and spend, the only things allowed wider than the page ─── */
+
+.scrolls {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--step-0);
+}
+
+caption {
+  text-align: start;
+  color: var(--heading);
+  font-size: var(--step--1);
+  padding-block-end: var(--s2);
+}
+
+th,
+td {
+  text-align: start;
+  padding: var(--s2) var(--s3) var(--s2) 0;
+  border-block-end: 1px solid var(--surface);
+  white-space: nowrap;
+}
+
+th {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+td.figure,
+th.figure {
+  text-align: end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── figures ───────────────────────────────────────────────────────────────── */
+
+.big {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step-3);
+  color: var(--bright);
+  line-height: var(--lead-tight);
+}
+
+.big-under {
+  color: var(--quiet);
+  font-size: var(--s4);
+}
+
+/*
+  Below a rule and outside the total: a subscription already paid for these, so
+  nobody is charged them and adding them to money would be the one lie this
+  page exists not to tell.
+*/
+.outside {
+  margin-block-start: var(--s3);
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+.meter {
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+}
+
+.meter.is-fine {
+  color: var(--amber);
+}
+.meter.is-warm {
+  color: var(--amber-light);
+}
+.meter.is-tight {
+  color: var(--red);
+}
+
+/* ── prose somebody wrote: a note, an intent, a title ──────────────────────── */
+
+/*
+  Rendered with `textContent` and never as markup, wrapped rather than
+  truncated, and `more` rather than an ellipsis — three dots written into
+  somebody's words cannot be told from three they typed.
+*/
+.said {
+  color: var(--bright);
+  line-height: var(--lead);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.said.folded {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  color: var(--amber);
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.block {
+  margin-block: var(--s2);
+  padding: var(--s3);
+  border-radius: var(--r1);
+  background: var(--raised);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--bright);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* Selectable: a command or a branch is a thing somebody copies. */
+  user-select: text;
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+}
+
+.dl dt {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.dl dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ── controls: the pairing screen, and signing this device out ─────────────── */
+
+.press {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding-inline: var(--s5);
+  border-radius: var(--r1);
+  background: var(--amber);
+  color: var(--ink); /* a coloured ground takes the dark ink: `inkOn`'s rule */
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.press:hover:not(:disabled) {
+  background: var(--amber-light);
+}
+
+.press.quietly {
+  background: var(--control);
+  color: var(--ink-light); /* a grey ground takes the light one */
+}
+
+.press.quietly:hover:not(:disabled) {
+  background: var(--hovered);
+}
+
+.press:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+label {
+  display: block;
+  margin-block-end: var(--s1);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+input {
+  width: 100%;
+  max-width: 22rem;
+  min-height: var(--tap);
+  padding: var(--s2) var(--s3);
+  border: var(--border);
+  border-radius: var(--r1);
+  background: var(--raised);
+  color: var(--bright);
+  font-family: var(--font-ui);
+  /* 17px, so iOS does not zoom the page when this takes focus. */
+  font-size: var(--step-1);
+}
+
+.column {
+  max-width: 34rem;
+  display: grid;
+  gap: var(--s4);
+  justify-items: start;
+}
+
+/* The sentence that may never get comfortable, where somebody is deciding. */
+.caveat {
+  padding: var(--s3);
+  border-radius: var(--r1);
+  border-inline-start: 3px solid var(--amber-dark);
+  background: var(--surface);
+  color: var(--heading);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
+[role="status"]:empty {
+  display: none;
+}
+
+/* ── the key sheet, shown by `?` ───────────────────────────────────────────── */
+
+.sheet {
+  position: fixed;
+  inset: auto var(--s4) calc(var(--s7) + var(--s4) + env(safe-area-inset-bottom)) var(--s4);
+  z-index: 6;
+  max-width: 24rem;
+  margin-inline: auto;
+  padding: var(--s4);
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  box-shadow: var(--lift);
+}
+
+.sheet dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+}
+
+.sheet dt {
+  font-family: var(--font-mono);
+  color: var(--pressed);
+}
+
+.sheet dd {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/*
+  **Rows dim; they do not change.** An age counting up against a snapshot
+  nothing can refresh is the lie this whole mode exists to prevent, so the ages
+  freeze and gain the moment they were last true (`figures.js`), the rows go to
+  60%, and nothing becomes nought.
+*/
+.held main {
+  opacity: 0.6;
+}

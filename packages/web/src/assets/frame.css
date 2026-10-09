@@ -1,0 +1,519 @@
+/*
+  The frame every screen is drawn inside: the wordmark and the freshness clock,
+  the bars that say how the page stands to the machine, the navigation, the
+  shape of a section, and the four drawings every region has.
+
+  **The freshness line and the bars are the most important thing here**, and
+  §5.10 is why: when the stream drops, every row keeps its last state and the
+  page gains one bar. No row changes glyph, no count changes, nothing becomes
+  nought. *Unreachable is never stopped* — a sleeping laptop runs nothing, and a
+  page that drew `0 working` because it could not ask would be lying about
+  somebody's morning.
+
+  **The four drawings every region has** (`dom.js` builds each): a skeleton
+  while it is coming, a sentence when it is empty, `—` plus a word when it is
+  unknown, and — when a read failed — its last good content at 60% with one line
+  saying so. The default for all four is a blank area that reads as broken,
+  which is why none of them is left to chance.
+
+  Three breakpoints, content-driven and not device-driven: one column with a
+  bottom tab bar, then a glyph rail, then a named rail. `away.css` has the
+  screens that are drawn inside this, and the card grid there reflows on its own
+  with no breakpoint at all.
+*/
+/* ── the frame ─────────────────────────────────────────────────────────────── */
+
+.skip {
+  position: absolute;
+  left: var(--s4);
+  top: calc(-1 * var(--s7));
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding-inline: var(--s3);
+  border-radius: var(--r1);
+  background: var(--amber);
+  color: var(--ink);
+  font-weight: 600;
+  transition: top var(--ease);
+}
+
+.skip:focus {
+  top: var(--s2);
+}
+
+/*
+  **Every link is a thumb-sized target.** Set once here rather than remembered
+  per screen, because the ones that get missed are always the standalone links
+  — a `more ›`, a `Go to Now` — which are exactly the ones somebody reaches for
+  on a phone. The rules below that name a class win on specificity and keep
+  their own shape: a card is already bigger, a tab and a rail entry are already
+  sized.
+*/
+main a {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+}
+
+/*
+  A row's own name, which has to stay one line with an ellipsis — so the height
+  comes from the line box rather than from flex centring, which `text-overflow`
+  does not survive.
+*/
+a.name {
+  display: block;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  /* A **name**, not a hyperlink in a document: the underline and the brand's
+     amber belong to the one outbound link in the design, and down a list of
+     twenty they are noise. */
+  color: var(--bright);
+  text-decoration: none;
+}
+
+a.name:hover {
+  color: var(--amber-light);
+}
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
+  padding-block: var(--s2);
+  /* The page's own ground, so rows scrolling under it do not show through. */
+  background: var(--ground);
+  border-block-end: var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  /* The header is 44px and so is the wordmark inside it: a link whose box is
+     the height of its text is one a thumb misses on the way to the tab bar. */
+  min-height: var(--tap);
+  gap: var(--s2);
+  color: var(--bright);
+  text-decoration: none;
+  font-size: var(--step-1);
+  letter-spacing: 0.02em;
+}
+
+/*
+  At 360px the freshness clock matters more than the second half of a wordmark
+  somebody is already looking at. The mark and the name stay; `away` goes.
+*/
+@media (max-width: 479px) {
+  .brand .what {
+    display: none;
+  }
+}
+
+/* 24px of amber, and never an image: the only branding on the page. */
+.brand .mark {
+  color: var(--amber);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.brand .what {
+  color: var(--heading);
+  font-size: var(--step-0);
+  font-weight: 400;
+}
+
+.fresh {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--heading);
+  text-align: end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  The dot's colour, and it is never the only thing that says this: the glyph
+  itself differs per state (● ◴ ○ ⏸ ▣) and the words follow it.
+*/
+.fresh .dot.is-live {
+  color: var(--green);
+}
+.fresh .dot.is-stale,
+.fresh .dot.is-reconnecting {
+  color: var(--amber);
+}
+.fresh .dot.is-gone {
+  color: var(--red);
+}
+.fresh .dot.is-closed {
+  color: var(--quiet);
+}
+
+.tools {
+  display: flex;
+  gap: var(--s2);
+  flex: 0 0 auto;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  border-radius: var(--r1);
+  color: var(--heading);
+  text-decoration: none;
+  font-size: var(--step-1);
+  cursor: pointer;
+}
+
+.icon:hover {
+  background: var(--raised);
+  color: var(--bright);
+}
+
+/* ── the bars: stale, unreachable, closed, resynced, and a read that failed ── */
+
+.bars {
+  display: grid;
+  gap: var(--s2);
+  padding-block: var(--s2);
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  gap: var(--s3);
+  align-items: start;
+  padding: var(--s3);
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: var(--border);
+  font-size: var(--step-0);
+}
+
+.bar.is-gone {
+  border-color: var(--red);
+}
+
+.bar.is-stale {
+  border-color: var(--amber-dark);
+}
+
+.bar .lead {
+  color: var(--bright);
+}
+
+.bar .under {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── navigation ────────────────────────────────────────────────────────────── */
+
+.frame {
+  display: grid;
+  gap: var(--s4);
+  /*
+    Room for the tab bar, plus the phone's own safe area. On a tablet and up
+    there is no tab bar and this goes back to an ordinary margin.
+  */
+  padding-block-end: calc(var(--s7) + var(--s4) + env(safe-area-inset-bottom));
+}
+
+.rail {
+  display: none;
+}
+
+.tabs {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 4;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background: var(--ground);
+  border-block-start: var(--border);
+  padding-block-end: env(safe-area-inset-bottom);
+}
+
+.tab {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding-block: var(--s2);
+  min-height: var(--tap);
+  color: var(--tab);
+  text-decoration: none;
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.tab .mark {
+  font-size: var(--step-1);
+  line-height: 1;
+}
+
+/* Where you are, in cyan, and said to a screen reader as well. */
+.tab[aria-current="page"] {
+  color: var(--cyan);
+}
+
+.tab .count {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+/* ── sections ──────────────────────────────────────────────────────────────── */
+
+main {
+  min-width: 0;
+}
+
+/*
+  **The one place a focus ring is not drawn, and the only one.**
+
+  A client-side navigation moves focus to this region so a screen reader starts
+  reading the screen somebody asked for rather than staying where the link was.
+  That focus is for the reading order; it is not a keyboard landing on a
+  control, and a two-pixel box drawn around the whole page says nothing to
+  anybody who can see it. Every actual control keeps its ring —
+  `test/design.test.ts` names this rule as the single exception and fails on a
+  second one.
+*/
+main[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* A heading that is also a link is a heading first: the underline and the
+   brand's amber on an uppercase section label read as a warning. */
+.section-head a {
+  color: var(--heading);
+  text-decoration: none;
+}
+
+.section-head a:hover {
+  color: var(--bright);
+}
+
+.section {
+  margin-block-end: var(--s6);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin-block-end: var(--s3);
+  padding-block-end: var(--s2);
+  border-block-end: 1px solid var(--raised);
+}
+
+/*
+  The one uppercase on the page, and it carries an `aria-label` in sentence case
+  so a screen reader reads a heading rather than spelling it.
+*/
+.section-head h2,
+.section-head h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--heading);
+}
+
+.section-head .figure {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--bright);
+  font-size: var(--step-0);
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin-block: var(--s4) var(--s4);
+}
+
+.page-head h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--step-2);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--bright);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  color: var(--heading);
+  text-decoration: none;
+  font-size: var(--step-0);
+}
+
+.back:hover {
+  color: var(--bright);
+}
+
+/* ── empty, unknown, error, loading ────────────────────────────────────────── */
+
+/* Never a blank box, and never an illustration. */
+.empty {
+  color: var(--heading);
+  padding-block: var(--s3);
+}
+
+/*
+  `unknown` is never drawn as nought: a dash, and a word for which of the three
+  it was — not run here, not recorded, could not look.
+*/
+.unknown {
+  color: var(--quiet);
+  font-size: var(--s4); /* --quiet is 4.74:1, which is AA at 16px and no smaller */
+}
+
+.unknown .dash {
+  font-family: var(--font-mono);
+  margin-inline-end: var(--s2);
+}
+
+/*
+  A region that could not be read keeps its last good content and says so. It
+  must not take the page with it, and must not replace a true answer with
+  nothing.
+*/
+.failed {
+  opacity: 0.6;
+}
+
+.failed-said {
+  display: flex;
+  gap: var(--s3);
+  align-items: baseline;
+  padding-block: var(--s2);
+  color: var(--red);
+  font-size: var(--step--1);
+  opacity: 1;
+}
+
+/* A skeleton says *this many rows are coming*; a spinner says only *something*. */
+.skeleton {
+  display: grid;
+  gap: var(--s2);
+}
+
+.skeleton span {
+  display: block;
+  height: 1.25rem;
+  border-radius: var(--r1);
+  background: var(--surface);
+}
+
+/* ── tablet: a glyph rail, and no tab bar ──────────────────────────────────── */
+
+@media (min-width: 768px) {
+  .frame {
+    grid-template-columns: 3.5rem 1fr;
+    gap: var(--s5);
+    padding-block-end: var(--s6);
+  }
+
+  .rail {
+    display: grid;
+    align-content: start;
+    gap: var(--s1);
+    position: sticky;
+    top: calc(var(--tap) + var(--s4));
+  }
+
+  .rail a {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    min-height: var(--tap);
+    padding-block: var(--s2);
+    border-radius: var(--r1);
+    color: var(--tab);
+    text-decoration: none;
+    font-size: var(--step--1);
+  }
+
+  .rail a:hover {
+    background: var(--raised);
+    color: var(--bright);
+  }
+
+  .rail a[aria-current="page"] {
+    color: var(--cyan);
+  }
+
+  /* `▌` — the window's own marker for where you are, 3px of the dark amber. */
+  .rail a[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    width: 3px;
+    height: var(--tap);
+    background: var(--cyan);
+  }
+
+  .rail a {
+    position: relative;
+  }
+
+  .rail .mark {
+    font-size: var(--step-1);
+    line-height: 1;
+  }
+
+  .tabs {
+    display: none;
+  }
+
+  .sheet {
+    inset-block-end: var(--s5);
+  }
+}
+
+/* ── desk: the rail gains its names ────────────────────────────────────────── */
+
+@media (min-width: 1100px) {
+  .frame {
+    grid-template-columns: 12.5rem 1fr;
+  }
+
+  .rail a {
+    grid-template-columns: 1.5rem 1fr auto;
+    justify-items: start;
+    align-items: center;
+    gap: var(--s3);
+    padding-inline: var(--s3);
+    font-size: var(--step-0);
+  }
+
+  .rail .count {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+  }
+}
+
+/* ── wide: the main column caps and centres ────────────────────────────────── */
+
+@media (min-width: 1600px) {
+  main {
+    max-width: 70rem;
+  }
+}

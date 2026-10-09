@@ -60,16 +60,51 @@ export interface Route {
   opens?: true
   /** Whether it may be answered with no session: the bootstrap, and nothing else. */
   public?: true
+  /**
+   * Whether this path is answered with the shell.
+   *
+   * `assets.ts` asks the table rather than keeping its own list of the document
+   * paths, because two lists of the same thing is a screen that deep-links to a
+   * `404` on the day somebody adds one to only the other.
+   */
+  document?: true
+}
+
+/** A path answered with the shell: one `GET`, public, carrying no data. */
+function shellAt(path: string, name: string): Route {
+  return { method: 'GET', path, name, needs: 'read', mutates: false, public: true, document: true }
 }
 
 export const ROUTES: readonly Route[] = [
-  // The shell, and the pairing page, which is the same shell. Public, and the
-  // thing that makes that safe is that it carries no data: it is a script that
-  // asks `/api/snapshot`, and that route is a `401` without a session.
-  // `test/server.test.ts` asserts the bytes of every public answer contain
-  // nothing of the projection.
-  { method: 'GET', path: '/', name: 'shell', needs: 'read', mutates: false, public: true },
-  { method: 'GET', path: '/pair', name: 'pair page', needs: 'read', mutates: false, public: true },
+  // **Every screen's own path, and all of them answered with the same bytes.**
+  // Public, and the thing that makes that safe is that the shell carries no
+  // data at all: it is a script that asks `/api/snapshot`, and that route is a
+  // `401` without a session. `test/server.test.ts` asserts the bytes of every
+  // public answer contain nothing of the projection.
+  //
+  // They are enumerated rather than matched with a wildcard for two reasons. A
+  // wildcard would make this table stop being the list of what the away view
+  // answers — which is the thing somebody checks read-only against in forty
+  // lines — and it would turn every mistyped path into a page that loads and
+  // then says it knows nothing, instead of the `404` it is.
+  //
+  // `:project` and `:task` are read and **not used**: the handler serves a file
+  // out of a map. So a deep link to a project that is not there, or that this
+  // device may not read, is byte-identical to one that is — which is the only
+  // way a public route can carry a name in its path without answering a
+  // question about it.
+  shellAt('/', 'shell'),
+  shellAt('/pair', 'pair page'),
+  shellAt('/p/:project', 'project page'),
+  shellAt('/t/:project/:task', 'task page'),
+  shellAt('/queue', 'queue page'),
+  shellAt('/checks', 'checks page'),
+  shellAt('/reviews', 'reviews page'),
+  shellAt('/spend', 'spend page'),
+  shellAt('/findings', 'findings page'),
+  shellAt('/notes', 'notes page'),
+  shellAt('/devices', 'devices page'),
+  shellAt('/more', 'more page'),
   // The stylesheet and the script. Public for the same reason the shell is:
   // they carry no data, and everything they draw they have to ask a route
   // that needs a session for.
