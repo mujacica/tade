@@ -28,7 +28,14 @@ import {
 } from '../../../../test/fixtures/slack/slack.ts'
 import { intakeExtension } from '../src/extension.ts'
 import { SLACK_MOST_MESSAGES, slackMessages } from '../src/slack.ts'
-import { advanceTo, isRequest, slackRefOf } from '../src/slack-message.ts'
+import {
+  advanceTo,
+  attachmentsOf,
+  isRequest,
+  permalinkOf,
+  slackRefOf,
+  tsOf,
+} from '../src/slack-message.ts'
 
 // The Slack door, against a Slack that answers from a file.
 //
@@ -335,6 +342,27 @@ describe('the look', () => {
     expect(quiet.said).toContain('nothing has been said')
   })
 
+  it('reads the channel of an app Slack has throttled, which is most of them', async () => {
+    // What a non-Marketplace app actually gets: `limit` silently clamped to 15
+    // however much was asked for, and one request a minute — so the second page
+    // of a sweep is a 429. The look still hands over work and leaves the cursor
+    // where it was, because everything here is bounded for this case rather than
+    // for the headline tier.
+    const many = Array.from({ length: 20 }, (_, at) => msg(300 + at * 10))
+    const script = slack({ messages: many, pageSize: 15, limitFrom: 3 })
+    const looked = await look(script)
+    expect(script.calls.map((one) => one.method)).toEqual([
+      'auth.test',
+      'conversations.history',
+      'conversations.history',
+    ])
+    // Slack clamped the page to 15 whatever was asked for, which is the half a
+    // fixture that honoured `limit` would never show.
+    expect(Number(script.calls[1]?.form.limit)).toBeGreaterThan(15)
+    expect(looked.found).toHaveLength(SLACK_MOST_MESSAGES)
+    expect(looked.since).toBe(`${BASE}.000000`)
+  })
+
   it('throws, with Slack’s own tier in the sentence, when the first request is rate limited', async () => {
     const script = slack({ limitFrom: 1, retryAfter: 60 })
     await expect(look(script)).rejects.toThrow(/asked for 60s/)
@@ -381,6 +409,10 @@ describe('the look', () => {
     await expect(look(slack({ error: 'not_in_channel' }))).rejects.toThrow(/invite the Slack app/)
     await expect(look(slack({ error: 'missing_scope' }))).rejects.toThrow(/channels:history/)
     await expect(look(slack({ error: 'invalid_auth' }))).rejects.toThrow(/invalid_auth/)
+    // An archived channel is Slack refusing, not a scope and not an outage, so
+    // it keeps its own word rather than being told to add a scope it has.
+    await expect(look(slack({ error: 'is_archived' }))).rejects.toThrow(/is_archived/)
+    await expect(look(slack({ error: 'is_archived' }))).rejects.not.toThrow(/channels:history/)
   })
 
   it('says where to put a token rather than looking without one, and stays ready', async () => {
@@ -548,6 +580,36 @@ describe('where the next look starts', () => {
 
   it('passes over what is not a ts rather than taking it as a cursor', () => {
     expect(advanceTo([{ ts: 'tomorrow' }, at(300)], [], `${BASE}.000000`, true)).toBe(ts(300))
+  })
+
+  it('reads a turnedOn nothing can parse as now, never as the beginning of time', () => {
+    // The safe direction for a watch whose whole opening rule is "what was
+    // already there is not news": the other reading backfills a year of
+    // somebody's channel on the first look.
+    const now = Date.parse('2026-10-09T12:00:00.000Z')
+    expect(tsOf('2026-09-19T00:00:00.000Z', now)).toBe(`${BASE}.000000`)
+    expect(tsOf('whenever', now)).toBe(`${Math.floor(now / 1000)}.000000`)
+    expect(tsOf('', now)).toBe(`${Math.floor(now / 1000)}.000000`)
+  })
+
+  it('leaves out a link it cannot build rather than building a wrong one', () => {
+    expect(permalinkOf({ url: 'https://acme.slack.com/' }, CHANNEL, ts(300))).toBe(
+      `https://acme.slack.com/archives/${CHANNEL}/p${ts(300).replace('.', '')}`,
+    )
+    // Whatever `auth.test` answered that is not a workspace address: no link,
+    // and the context file simply has none.
+    expect(permalinkOf({ url: '' }, CHANNEL, ts(300))).toBe('')
+    expect(permalinkOf({ url: 'not a url' }, CHANNEL, ts(300))).toBe('')
+    expect(permalinkOf({ url: 'http://acme.slack.com' }, CHANNEL, ts(300))).toBe('')
+  })
+
+  it('leaves out a file Slack gave no link for, rather than naming one nobody can open', () => {
+    expect(attachmentsOf({ files: [{ name: 'secret.pdf' }] })).toEqual([])
+    // `url_private` where there is no permalink: a link only this app could
+    // follow is still a reference, and still nothing downloaded.
+    expect(
+      attachmentsOf({ files: [{ url_private: 'https://files.slack.com/f/1' }] })[0],
+    ).toMatchObject({ name: 'a file Slack did not name', bytes: 0 })
   })
 })
 

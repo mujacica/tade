@@ -85,9 +85,12 @@ export const FLOOR: Record<string, number> = {
   // The number is where its tests land rather than an aspiration. The local
   // door's spool, look, re-check and reply are covered end to end against a
   // real folder; the GitHub door's selector, provenance and five ways of
-  // holding are covered against a real checkout and a scripted GitHub. What is
-  // left is the half a hand-edited spool file reaches.
-  'packages/extensions/intake': 92,
+  // holding are covered against a real checkout and a scripted GitHub; the
+  // Slack door's mention trigger, bounded sweep, revision rule and two-act
+  // reply are covered against a scripted Slack, including the throttled tier
+  // most apps actually get. What is left is the half a hand-edited spool file
+  // reaches.
+  'packages/extensions/intake': 95,
   'packages/extensions/deps': 91,
   'packages/mcp/stdio': 91,
   'packages/drivers/tmux': 92,
