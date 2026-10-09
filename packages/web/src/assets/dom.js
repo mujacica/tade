@@ -130,6 +130,13 @@ export function figureOf(said, label, klass = 'figure') {
  * blurs whatever is focused inside it in some browsers, and a list that
  * reordered nothing would otherwise blur the row somebody was on twice a
  * second.
+ *
+ * **The parent is the list and holds nothing else.** The rows are placed at
+ * the front, so a child without a `data-key` is not removed but does end up
+ * after them — which is almost never what somebody who put it there meant. A
+ * sentence that belongs beside a list goes next to the list's parent, not
+ * inside it. `test/dom.test.ts` pins that behaviour so it is a decision rather
+ * than a surprise.
  */
 export function keyed(parent, rows, keyOf, create, fill) {
   const held = new Map()

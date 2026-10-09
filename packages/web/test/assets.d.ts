@@ -134,6 +134,21 @@ declare module '*/assets/store.js' {
   export function asOf(store: Store, kind: string, now: number): { at: number; frozen: boolean }
 }
 
+declare module '*/assets/dom.js' {
+  /**
+   * Only `keyed` is declared, because only `keyed` is an algorithm. The rest of
+   * `dom.js` makes elements, which is a thing to look at in a browser rather
+   * than to describe twice.
+   */
+  export function keyed<R>(
+    parent: unknown,
+    rows: readonly R[],
+    keyOf: (row: R) => string,
+    create: (row: R) => unknown,
+    fill: (node: never, row: R) => void,
+  ): void
+}
+
 declare module '*/assets/shell.js' {
   export function barsFor(
     standing: string,

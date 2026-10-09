@@ -78,7 +78,7 @@ async function serve() {
   const bound = await server.listen()
   const at = bound.find((one) => one.startsWith('127.0.0.1'))
   if (at === undefined) throw new Error(`nothing bound on loopback: ${bound.join(', ')}`)
-  return { server, origin: `http://${at}`, tickets }
+  return { server, origin: `http://${at}`, tickets, held }
 }
 
 /**
@@ -147,6 +147,7 @@ interface Listen {
 
 interface Page {
   on: Listen
+  waitForFunction: (body: string, opts?: object) => Promise<unknown>
   goto: (url: string, opts?: object) => Promise<unknown>
   fill: (selector: string, value: string) => Promise<void>
   click: (selector: string) => Promise<void>
@@ -165,7 +166,7 @@ async function run() {
     findings.push(...allUnrun(why))
     return
   }
-  const { server, origin, tickets } = await serve()
+  const { server, origin, tickets, held } = await serve()
   const axe = await axeSource()
   if (axe.source === null) found('axe', '—', 'unrun', axe.why)
   try {
@@ -201,6 +202,7 @@ async function run() {
           found('quiet', `${look.name} @ ${width.name}`, 'pass', 'nothing thrown, nothing logged')
         }
       }
+      await deltaUnder(page, origin, server, held, width.name)
       await context.close()
     }
   } finally {
@@ -381,6 +383,113 @@ async function axeOn(page: Page, where: string, source: string) {
     found('axe', where, 'unrun', said(problem))
   }
 }
+
+/**
+ * A real delta, into an open page, under somebody's hands.
+ *
+ * **The thing nothing else can check.** The page claims that a change arriving
+ * twice a second does not take the keyboard's place or a half-made selection
+ * with it, and that claim is about a *delta applied to a live document* — a
+ * page loaded once never exercises it. So: focus a row, select some text in
+ * it, move the projection, push the delta the server would really send, and
+ * ask whether the same element is still focused with the same selection.
+ *
+ * The row's own text is changed in the same delta, so this is not the easy
+ * case where nothing about the focused row moved.
+ */
+async function deltaUnder(
+  page: Page,
+  origin: string,
+  server: {
+    streams: {
+      push: (device: string, delta: never, now: number) => void
+      listening: () => string[]
+    }
+  },
+  held: Map<string, ReturnType<typeof projector>>,
+  at: string,
+) {
+  const where = `a delta @ ${at}`
+  try {
+    await page.goto(`${origin}/`, { waitUntil: 'networkidle' })
+    await page.waitForSelector('main .rows li a', { timeout: 10_000 })
+    // Focus the second row and select inside it, which is what a person
+    // reading a list on a phone has actually done.
+    const before = (await page.evaluate(HOLD)) as { key: string; words: string }
+    if (before.key === '') throw new Error('nothing to hold on to on this page')
+
+    const device = server.streams.listening()[0]
+    const made = device === undefined ? undefined : held.get(device)
+    if (device === undefined || made === undefined) throw new Error('no stream to push into')
+    // The projection really moves: a task's reason changes, which is a field
+    // on the very row being held.
+    const next = input()
+    const first = next.tasks[0]
+    if (first === undefined) throw new Error('no task to move')
+    const delta = made.beat(
+      {
+        ...next,
+        tasks: [
+          { ...first, reason: { kind: 'clause', said: 'moved under your hands' } },
+          ...next.tasks.slice(1),
+        ],
+      },
+      NOW + 2_000,
+    )
+    if (delta === null) throw new Error('the projection did not move')
+    server.streams.push(device, delta as never, Date.now())
+    await page.waitForFunction(RECEIVED, { timeout: 10_000 })
+
+    const after = (await page.evaluate(HOLD_AGAIN)) as {
+      key: string
+      words: string
+      rows: number
+    }
+    if (after.key !== before.key) {
+      found('delta', where, 'fail', `focus moved from ${before.key} to ${after.key || 'nothing'}`)
+      return
+    }
+    if (after.words !== before.words) {
+      found('delta', where, 'fail', `the selection went: "${before.words}" to "${after.words}"`)
+      return
+    }
+    found('delta', where, 'pass', `${after.rows} rows redrawn, focus and selection kept`)
+  } catch (problem) {
+    found('delta', where, 'fail', said(problem))
+  }
+}
+
+/** Focus a row and select inside it, and say which row and what was selected. */
+const HOLD = `(() => {
+  const rows = [...document.querySelectorAll('main .rows li > a')]
+  const one = rows[1] || rows[0]
+  if (!one) return { key: '', words: '' }
+  one.focus()
+  const name = one.querySelector('.name')
+  const range = document.createRange()
+  range.selectNodeContents(name || one)
+  const picked = window.getSelection()
+  picked.removeAllRanges()
+  picked.addRange(range)
+  return {
+    key: one.closest('li').getAttribute('data-key') || '',
+    words: String(picked),
+  }
+})()`
+
+/** The page has drawn the reason the delta carried. */
+const RECEIVED = `() => document.body.innerText.includes('moved under your hands')`
+
+/** What is focused and selected now. */
+const HOLD_AGAIN = `(() => {
+  const on = document.activeElement
+  const row = on && on.closest ? on.closest('li') : null
+  return {
+    key: row ? row.getAttribute('data-key') || '' : '',
+    words: String(window.getSelection()),
+    rows: document.querySelectorAll('main .rows li').length,
+  }
+})()`
 
 function shotsDir(argv: readonly string[]): string | null {
   const at = argv.indexOf('--shots')

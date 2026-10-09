@@ -81,6 +81,7 @@ export const CHECKS = [
   'titles',
   'honesty',
   'quiet',
+  'delta',
 ] as const
 
 /**
