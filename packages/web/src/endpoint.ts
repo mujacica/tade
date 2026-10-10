@@ -196,6 +196,10 @@ function allowedSix(address: string): boolean {
   if (groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1) return false // loopback
   if ((first & 0xfe00) === 0xfc00) return false // unique local
   if ((first & 0xffc0) === 0xfe80) return false // link local
+  // Site-local, deprecated by RFC 3879 and refused anyway: nothing routes it,
+  // so the only thing a name resolving here could be aimed at is a network
+  // that still has it configured.
+  if ((first & 0xffc0) === 0xfec0) return false
   if ((first & 0xff00) === 0xff00) return false // multicast
   if (first === 0x0064 && second === 0xff9b) return false // NAT64
   if (first === 0x0100) return false // discard-only

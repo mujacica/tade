@@ -211,6 +211,11 @@ describe('whether a resolved address is somewhere on the public internet', () =>
       'fd12:3456::1',
       'fe80::1',
       'febf::1',
+      // Site-local: deprecated by RFC 3879, and refused because nothing
+      // routes it — so a name resolving here is aimed at a network that still
+      // has it configured.
+      'fec0::1',
+      'feff::1',
       'ff02::1',
       'ff00::',
       '64:ff9b::7f00:1',
