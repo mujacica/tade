@@ -22,6 +22,7 @@ import {
   Window,
 } from './guard.ts'
 import { headersFor } from './headers.ts'
+import { keepingOf, type Served, servedWorker } from './installable.ts'
 import { carryPairing } from './paired.ts'
 import { type Sink, Streams } from './peers.ts'
 import type { Grant, Reach } from './reach.ts'
@@ -125,6 +126,10 @@ export function webServer(opts: ServerOptions): WebServer {
     return read
   }
   let assets: Map<string, Asset> | null = null
+  // Built once, with the files and the setting — both of which are fixed for
+  // the life of a listener — because a hash over every etag on every request
+  // is a handler doing work, and the window draws on this thread.
+  let worker: Served | null = null
   const servers: Server[] = []
   const bound: string[] = []
   const boundHosts: string[] = []
@@ -232,6 +237,11 @@ export function webServer(opts: ServerOptions): WebServer {
       return answer(res, verdict.refusal)
     }
 
+    // The worker is the one public answer that is **made** rather than read:
+    // the file in the folder with a line of JSON in front of it, saying which
+    // files this shell is and what version they are. `asset` would answer it a
+    // `404`, which is deliberate — `/assets/sw.js` is not a thing to register.
+    if (found.route.name === 'worker') return serveWorker(req, res)
     if (found.route.public === true && !found.route.mutates) {
       return asset(req, res, path)
     }
@@ -288,7 +298,7 @@ export function webServer(opts: ServerOptions): WebServer {
         return json(res, opts.readingFor(reachOf(device)).notes(scope))
       }
       case 'devices':
-        return json(res, listing(device, devices.devices))
+        return json(res, listing(device, devices.devices, keepingOf(opts.surface)))
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
       default:
@@ -322,6 +332,37 @@ export function webServer(opts: ServerOptions): WebServer {
     // `404`. A browser needs none for this page, and a branch that cannot run
     // reads as a capability there is no test for.
     res.end(file.bytes)
+  }
+
+  /**
+   * The service worker, with its version in front of it.
+   *
+   * Served like an asset in every other way — `no-cache`, an etag, a `304`
+   * where the browser already has this one — because that is exactly what a
+   * worker's script wants: a browser revalidates it on navigations and decides
+   * there is an update by comparing the bytes, and an etag over the **served**
+   * bytes is what makes the comparison free when nothing changed.
+   *
+   * With the setting off this is not a `404`. A worker's script answering a
+   * non-ok status leaves the installed worker exactly where it was, so the
+   * only deactivation that works is one the device is told — which is what
+   * `shellOf` answers with when `installing` is false.
+   */
+  async function serveWorker(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    assets ??= await readAssets()
+    // Made once and kept: the files and the setting are both fixed for the
+    // life of a listener. Still null afterwards is a folder with no worker in
+    // it — a broken install, answered like any other file that is not there.
+    if (worker === null) worker = servedWorker(assets, { serving: opts.surface.installing })
+    if (worker === null) return answer(res, refuse('no_such'))
+    const headers = headersFor('asset', worker.type, worker.etag)
+    if (matchesEtag(header(req, 'if-none-match'), worker.etag)) {
+      res.writeHead(304, headers)
+      res.end()
+      return
+    }
+    res.writeHead(200, { ...headers, 'content-length': String(worker.bytes.length) })
+    res.end(worker.bytes)
   }
 
   /**

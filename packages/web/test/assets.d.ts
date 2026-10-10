@@ -281,3 +281,32 @@ declare module '*/assets/runs.js' {
 declare module '*/assets/designer.js' {
   export function workflowSays(row: any): string
 }
+
+declare module '*/assets/install.js' {
+  export const CACHE_PREFIX: string
+  export const NOT_SECURE: string
+  export function installable(): boolean
+  export function startInstall(
+    shell: { install?: boolean; keepsView?: boolean } | null,
+    told: (what: 'update' | 'gone') => void,
+  ): Promise<'on' | 'off' | 'insecure' | 'cannot'>
+  export function takeUpdate(): Promise<void>
+  export function forget(): Promise<void>
+}
+
+declare module '*/assets/offline.js' {
+  export const KEPT: readonly string[]
+  export const VIEW_KEY: string
+  export const VIEW_CACHE: string
+  /**
+   * Deliberately loose, like `store.js`'s. What a test asks of these is that
+   * the record is numbers and nothing else, which is a property rather than a
+   * shape — and a typed shape here would be a second description of the
+   * allow-list that nothing holds to the first.
+   */
+  export function countsOf(store: Record<string, any>, savedAt: number): Record<string, any>
+  export function onlyKept(value: unknown): Record<string, any> | null
+  export function saveView(counts: Record<string, any>): Promise<boolean>
+  export function readView(): Promise<Record<string, any> | null>
+  export function forgetView(): Promise<void>
+}

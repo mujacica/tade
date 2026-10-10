@@ -74,6 +74,8 @@ export const BASE: Surface = {
   acting: false,
   talking: false,
   drafting: false,
+  installing: false,
+  keepsView: false,
 }
 
 export interface Running {

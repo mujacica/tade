@@ -95,6 +95,32 @@ export interface Surface {
    * once somebody at the machine publishes it.
    */
   drafting: boolean
+  /**
+   * Whether a device may install the shell and open it with nothing to ask.
+   *
+   * **Read twice like the three above, and the second reading is the one that
+   * can take it away.** At start-up it decides what `/sw.js` answers with: the
+   * worker that precaches the shell, or the one that removes itself. There is
+   * no third answer and in particular no `404`, because a `404` on a worker's
+   * script leaves the installed one exactly where it was (w3c/ServiceWorker
+   * issue 204, closed as *will not do* in 2017). So turning it off is a thing
+   * the device has to be **told**, and it is told the next time it reaches
+   * this machine.
+   *
+   * It grants nothing. The shell carries no data at all — it is the same bytes
+   * for a device with every grant and for one that has never paired — and
+   * every value on the page still comes from a route that needs a session.
+   */
+  installing: boolean
+  /**
+   * Whether a device may keep a few counts on its own disk.
+   *
+   * Narrowed under `installing` rather than standing beside it: what this is
+   * for is the *cold* open, with nothing to ask, and there is no cold open
+   * without a shell to open. A setting that could be on while nothing could
+   * read it is a setting Tade accepts and ignores.
+   */
+  keepsView: boolean
 }
 
 /** The `surfaces.web` block, as the one reader of it sees it. */
@@ -106,6 +132,8 @@ export interface WebConfig {
   acting: boolean
   orchestrator: boolean
   drafts: boolean
+  install: boolean
+  offline: boolean
 }
 
 /** Off, on this machine, on the port nothing else wanted, changing nothing. */
@@ -117,6 +145,8 @@ export const OFF: Surface = {
   acting: false,
   talking: false,
   drafting: false,
+  installing: false,
+  keepsView: false,
 }
 
 /**
@@ -138,6 +168,10 @@ export function surfaceOf(web: WebConfig): Surface {
     acting: web.enabled && web.acting,
     talking: web.enabled && web.orchestrator,
     drafting: web.enabled && web.drafts,
+    installing: web.enabled && web.install,
+    // Two keys deep, because a view kept on a phone's disk is read by the
+    // shell on that phone and there is no shell without the first one.
+    keepsView: web.enabled && web.install && web.offline,
   }
 }
 

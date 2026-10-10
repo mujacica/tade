@@ -315,6 +315,13 @@ describe('the shape of the rule', () => {
       'surfaces.web.bind',
       'surfaces.web.drafts',
       'surfaces.web.enabled',
+      // The sixth and seventh, and `never` by the subtree for the same reason
+      // the fourth is. Neither grants a device anything — one puts the static
+      // page on a phone and the other lets that phone keep a few counts — and
+      // both are still here, because the subtree is the rule and because what
+      // they change is where Tade's own page ends up.
+      'surfaces.web.install',
+      'surfaces.web.offline',
       // The fourth away-view key, and `never` by the same subtree rather than
       // by a line of its own — which is the property this list is here to
       // show: a key added under `surfaces.web` is refused on the day it is

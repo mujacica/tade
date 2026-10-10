@@ -4,7 +4,16 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { ROUTES } from '../src/routes.ts'
-import { allUnrun, CHECKS, exitFor, LOOKS, sayReport, WIDTHS, worstOf } from './browser-plan.ts'
+import {
+  allUnrun,
+  CHECKS,
+  exitFor,
+  LOOKS,
+  MANUAL,
+  sayReport,
+  WIDTHS,
+  worstOf,
+} from './browser-plan.ts'
 
 // The browser harness, held to the one property that makes it worth having:
 // **a machine with no browser reports `unrun`, never a pass.**
@@ -115,6 +124,46 @@ describe('a report', () => {
     const said = sayReport(allUnrun('playwright is not installed on this machine'))
     for (const check of CHECKS) expect(said, check).toContain(check)
     expect(said).toContain('playwright is not installed')
+  })
+})
+
+describe('what a browser cannot be asked', () => {
+  it('names the steps a person still has to take, in every report', () => {
+    // **A browser emulating a phone is not a phone.** Headless Chromium at
+    // 360px registers a worker and loads offline, and none of that is evidence
+    // about Safari's Add to Home Screen, about which icon iOS picks, or about
+    // a shell on a phone that has been in a drawer for a fortnight.
+    expect(MANUAL.length).toBeGreaterThan(3)
+    const said = sayReport(allUnrun('no browser'))
+    for (const step of MANUAL) expect(said).toContain(step)
+  })
+
+  it('prints them under a passing run too, so `PASSED` is not read as more', () => {
+    const all = CHECKS.map((check) => ({
+      check,
+      where: 'a phone',
+      verdict: 'pass' as const,
+      said: 'ok',
+    }))
+    const said = sayReport(all)
+    expect(said).toContain('PASSED')
+    expect(said).toContain('asked of a person, not of this harness')
+    expect(said).toContain('real iPhone')
+  })
+
+  it('counts none of them as a finding, in either direction', () => {
+    // They are not verdicts and must never move one: a manual step nobody has
+    // taken is not a failure, and one somebody has taken is not a pass this
+    // program may claim.
+    expect(worstOf(allUnrun('no browser'))).toBe('unrun')
+    const counted = sayReport(allUnrun('no browser'))
+    expect(counted).toContain(`${CHECKS.length} unrun`)
+  })
+
+  it('names the three an installed shell owns', () => {
+    for (const check of ['install', 'offline-cold', 'no-api-cache']) {
+      expect(CHECKS as readonly string[], check).toContain(check)
+    }
   })
 })
 

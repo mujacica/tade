@@ -1,8 +1,11 @@
 import {
   DEVICES_AND_AGENTS,
   defaultConfigPath,
+  INSTALLED_IS_NOT_REVOCABLE,
+  INSTALLED_IS_NOT_REVOCABLE_SHORT,
   LAN_IS_PLAINTEXT,
   loadConfig,
+  OFFLINE_NEEDS_HTTPS,
   tadeHome,
   writeSetting,
 } from '@tade/core'
@@ -88,6 +91,11 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
           ? 'no device was paired'
           : `${gone.length} device(s) disconnected — their credentials are no longer sessions`,
       )
+      // **Off is not erased, and the difference is worth the line.** A device
+      // that installed the shell holds it until it next reaches this machine,
+      // and then a worker takes it off. Said here rather than left for
+      // somebody to discover a page still opening on a phone they revoked.
+      if (gone.length > 0) io.out(INSTALLED_IS_NOT_REVOCABLE)
       io.out(await takesEffect())
     })
 
@@ -184,6 +192,7 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
         why: 'revoked at the machine',
       })
       io.out(`${found.label || found.id} disconnected`)
+      io.out(`if it installed this page, ${INSTALLED_IS_NOT_REVOCABLE_SHORT}`)
       // Said rather than assumed: a window holding a stream for that device
       // closes it on its next beat, which is two seconds away — and with no
       // window open there is no stream to close, because there is no listener.
@@ -197,6 +206,10 @@ export interface Looked {
   bind: 'loopback' | 'lan'
   port: number
   trustedHosts: readonly string[]
+  /** Whether a device may install the shell, which is a fact about this file. */
+  installs: boolean
+  /** Whether an installed device may keep a few counts on its own disk. */
+  keepsView: boolean
   /** Whether a window is open on this home, which is what makes it answer. */
   windowOpen: boolean
   /**
@@ -224,7 +237,14 @@ async function look(): Promise<Looked> {
   // is set. `read: false` is carried all the way to the lines and to `--json`.
   const surface = loaded.ok
     ? surfaceOf(loaded.config.surfaces.web)
-    : { enabled: false, bind: 'loopback' as const, port: 7654, trustedHosts: [] }
+    : {
+        enabled: false,
+        bind: 'loopback' as const,
+        port: 7654,
+        trustedHosts: [],
+        installing: false,
+        keepsView: false,
+      }
   const read = await readDevices(home)
   const trusted = surface.trustedHosts.map((host) => `https://${host}/`)
   return {
@@ -232,6 +252,8 @@ async function look(): Promise<Looked> {
     bind: surface.bind,
     port: surface.port,
     trustedHosts: surface.trustedHosts,
+    installs: surface.installing,
+    keepsView: surface.keepsView,
     windowOpen: (await heldBy(home)) !== null,
     read: loaded.ok,
     urls: surface.enabled
@@ -269,6 +291,18 @@ function lines(said: Looked): string[] {
       : 'no window is open, so nothing is answering: the away view lives in the window and dies with it',
   )
   if (said.bind === 'lan') out.push(LAN)
+  if (said.installs) {
+    // **Said where somebody can see it, and with what it needs.** A phone that
+    // cannot install this gets no error it can act on — the browser simply
+    // does not offer it — so the one place that can explain is here and the
+    // Settings row.
+    out.push(
+      said.keepsView
+        ? 'a device may install it and keep a few counts it can open with nothing to ask'
+        : 'a device may install it; it opens with nothing until it can reach this machine',
+    )
+    out.push(OFFLINE_NEEDS_HTTPS)
+  }
   out.push(
     said.devices.length === 0
       ? 'no device is paired'

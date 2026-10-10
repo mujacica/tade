@@ -38,6 +38,21 @@ import { routeFor } from './routes.ts'
 //   cannot see a committed `.js`, so a vendored library would make the notices
 //   file quietly untrue.
 
+/**
+ * The one file in the folder that is **not** served as a file.
+ *
+ * It is read with everything else — one `readdir`, one set of etags, and the
+ * shell's version is a hash over them — and it is answered at `/sw.js` with
+ * that version in front of it (`installable.ts`). Named here rather than
+ * there because it is a fact about this folder, and because the arrow between
+ * the two files has to point one way: the thing that reads the folder may not
+ * ask the thing that versions it what is in the folder.
+ */
+export const WORKER_FILE = 'sw.js'
+
+/** Where it is served, which is the root, because that is its scope. */
+export const WORKER_PATH = '/sw.js'
+
 /** One file, ready to serve. */
 export interface Asset {
   path: string
@@ -145,7 +160,17 @@ export function etagOf(bytes: Buffer): string {
 export function assetFor(path: string, assets: ReadonlyMap<string, Asset>): Asset | null {
   if (routeFor('GET', path)?.route.document === true) return assets.get('index.html') ?? null
   if (!path.startsWith('/assets/')) return null
-  return assets.get(path.slice('/assets/'.length)) ?? null
+  const name = path.slice('/assets/'.length)
+  // **The worker is in the map and is not a file.** It is read with everything
+  // else — one `readdir`, one set of etags, and the version is a hash over
+  // them — and it is served at `/sw.js` with its version pasted in front of
+  // it. A worker's URL decides its scope, so one fetched here would have the
+  // scope `/assets/` and could never control the page; and the source without
+  // its prelude caches nothing while looking exactly like the real thing. Two
+  // ways to register the same script, one of them silently useless, is not a
+  // thing to leave lying in the folder.
+  if (name === WORKER_FILE) return null
+  return assets.get(name) ?? null
 }
 
 /**

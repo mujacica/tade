@@ -11,6 +11,7 @@ import {
   matchesEtag,
   readAssets,
   typeOf,
+  WORKER_FILE,
 } from '../src/assets.ts'
 import { CSP } from '../src/headers.ts'
 
@@ -36,6 +37,12 @@ describe('what may be in the folder', () => {
   it('has the shell, the tokens and the entry in it', () => {
     expect(ALL).toContain('index.html')
     expect(ALL).toContain('boot.js')
+    // The worker, the manifest and the icons: generated beside each other by
+    // `node packages/web/scripts/icons.ts`, and all four checked by the rules
+    // below like any other file here.
+    expect(ALL).toContain(WORKER_FILE)
+    expect(ALL).toContain('tade.webmanifest')
+    expect(ALL).toContain('icon-180.png')
     // The palette and the type scale are their own file, so the arithmetic in
     // `design.test.ts` has one place to read them from.
     expect(ALL).toContain('tokens.css')
@@ -221,6 +228,18 @@ describe('reading them into a map', () => {
     const assets = await readAssets()
     expect(assetFor('/', assets)?.path).toBe('index.html')
     expect(assetFor('/pair', assets)?.path).toBe('index.html')
+  })
+
+  it('serves the worker’s source as no file at all', async () => {
+    // It is read with everything else — one `readdir`, one set of etags, and
+    // the shell's version is a hash over them — and it is answered at `/sw.js`
+    // with that version in front of it. Served here as well, it would be a
+    // second URL for the same script: scope `/assets/`, so it could never
+    // control the page, and no prelude, so it would cache nothing while
+    // looking exactly like the real thing.
+    const assets = await readAssets()
+    expect(assets.has(WORKER_FILE)).toBe(true)
+    expect(assetFor(`/assets/${WORKER_FILE}`, assets)).toBeNull()
   })
 
   it('serves nothing for a path that is not in the map', async () => {

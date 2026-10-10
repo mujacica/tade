@@ -1,6 +1,7 @@
 import { appendFile, chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
+import type { Keeping } from './installable.ts'
 import { GRANTS, readsOf } from './reach.ts'
 import { reachOf, SCOPES } from './surface.ts'
 
@@ -300,9 +301,21 @@ export async function writeDevices(home: string, lines: readonly DeviceLine[]): 
  * may *actually* do is still decided at the act — the setting, the origin and
  * the state are all re-asked there — so this is a drawing hint and never an
  * authority.
+ *
+ * `shell` is beside the two rather than inside `you`, because it is a fact
+ * about the machine and not about this device: whether it offers an installed
+ * shell at all, and whether a page may keep a few counts on its own disk. Two
+ * booleans and no cache names — those are spelt in the page's own files, since
+ * the two moments they matter are a cold open with no answer and a session
+ * that has just been refused.
  */
-export function listing(me: Device, devices: readonly Device[]): Record<string, unknown> {
+export function listing(
+  me: Device,
+  devices: readonly Device[],
+  shell: Keeping,
+): Record<string, unknown> {
   return {
+    shell,
     you: {
       device: me.id,
       label: me.label,

@@ -15,6 +15,12 @@
 // script on it reach if it gets there", and the answer is this machine and
 // nothing else.
 //
+// `manifest-src` and `worker-src` are the two the installed shell needs, and
+// both are `'self'`: the manifest is a file out of this folder and the worker
+// is served from the root of this origin. Neither widens what the page can
+// reach — `connect-src` is still this machine and nothing else, and a worker
+// inherits it.
+//
 // `form-action 'none'` is not a leftover: there is no HTML form in the design.
 // Everything is `fetch` with JSON and a token, so a form post is not a shape
 // the page has — which is also the thing that makes a cross-site form post
@@ -24,6 +30,14 @@
 export const CSP = [
   "default-src 'none'",
   "script-src 'self'",
+  // **Written out rather than left to the fallback chain.** A service worker
+  // is governed by `worker-src`, which falls back to `child-src`, then to
+  // `script-src`, then to `default-src` — so `script-src 'self'` does allow
+  // one today. A policy whose most load-bearing script survives by a
+  // three-step fallback is a policy somebody has to remember the chain of, and
+  // the failure mode is a registration the browser refuses with nothing on the
+  // page able to say why.
+  "worker-src 'self'",
   "style-src 'self'",
   "img-src 'self' data:",
   "connect-src 'self'",

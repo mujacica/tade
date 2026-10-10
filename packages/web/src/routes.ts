@@ -156,6 +156,25 @@ export const ROUTES: readonly Route[] = [
   shellAt('/talk', 'talk page'),
   shellAt('/devices', 'devices page'),
   shellAt('/more', 'more page'),
+  // The service worker, at the root because that is what decides its scope: a
+  // worker is only allowed to control paths under the folder it was served
+  // from, so one served out of `/assets/` could never answer for `/`. Public
+  // like the shell and for the same reason — it is the shell's own file list
+  // and a version, and it can draw nothing.
+  //
+  // Not a `document`: it is answered with the worker rather than with
+  // `index.html`, and `assets.ts` asks that flag to decide which. Not an
+  // asset either, because what is served here is the file in the folder with
+  // a line of JSON in front of it (`installable.ts`).
+  {
+    method: 'GET',
+    path: '/sw.js',
+    name: 'worker',
+    needs: 'read',
+    mutates: false,
+    public: true,
+  },
+
   // The stylesheet and the script. Public for the same reason the shell is:
   // they carry no data, and everything they draw they have to ask a route
   // that needs a session for.

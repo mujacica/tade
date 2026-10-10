@@ -20,6 +20,8 @@ const ON: Surface = {
   acting: true,
   talking: false,
   drafting: false,
+  installing: false,
+  keepsView: false,
 }
 
 const HERE = { scheme: 'http', host: '127.0.0.1' }

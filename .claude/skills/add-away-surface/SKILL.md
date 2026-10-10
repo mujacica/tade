@@ -43,7 +43,11 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | what a refusal says | `src/errors.ts` |
 | the config | `surfaces.web` in `packages/core/src/config.ts`, read only by `surfaceOf` |
 | the sentences that may never get comfortable | `packages/core/src/away.ts`, re-exported by `src/surface.ts` |
-| the browser's files | `src/assets/` — `.html`/`.css`/`.js` only, **never `.ts`** |
+| the browser's files | `src/assets/` — `.html`/`.css`/`.js`/`.png`/`.webmanifest` only, **never `.ts`** |
+| what an installed shell is, and its version | `src/installable.ts` (the version, the prelude, the names), `src/assets/sw.js` (the worker) |
+| the page's half of installing | `src/assets/install.js` (register, update, forget) |
+| what a device may keep on its own disk | `src/assets/offline.js` (the allow-list, the store, the screen) |
+| the icons and the manifest | `scripts/icons.ts` — **generated**; `test/icons.test.ts` decodes the committed PNGs |
 | the palette, the type scale, the primitives | `src/assets/tokens.css` — every colour is a window tone, checked by arithmetic |
 | the frame: header, bars, nav, the four region states | `src/assets/frame.css`, `src/assets/shell.js` |
 | what a screen looks like | `src/assets/away.css`, `src/assets/rows.js` |
@@ -277,16 +281,51 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 - **Two presses for the two acts asking again does not undo** — `done` and `intake` — and the body's
   own `confirm: true` literal is the other half. Neither stands in for the other: the tap stops a
   mis-tap, and the literal means there is no shape of the body that says *do not*.
+- **The shell's version is a hash of its own bytes, and there is no stamp anywhere.**
+  `shellOf` hashes every file's path and etag; `/sw.js` answers with that as a line of JSON in
+  front of `assets/sw.js`. So a browser sees an update because the script's bytes changed, and
+  there is nothing to bump — a constant would be right on the machine that wrote it and wrong in
+  the tarball, and the symptom is a phone a week out of date with nothing saying why.
+- **The worker's source is in the folder and is not served as a file.** `assetFor` refuses
+  `/assets/sw.js`: a worker's URL is its scope, so one registered there could only control
+  `/assets/`, and the source without its prelude caches nothing while looking exactly like the
+  real thing.
+- **Turning installing off serves an *uninstalling* worker, never a `404`.** A worker whose script
+  fetch fails is left exactly where it was — w3c/ServiceWorker#204, closed as *will not do* in
+  2017 — so deactivation is something a device is **told**, and only when it next reaches this
+  machine. `INSTALLED_IS_NOT_REVOCABLE` says what that does not cover, and the off worker's bytes
+  are a **constant** so that *off* settles instead of reinstalling on every load.
+- **The worker precaches a folder and intercepts nothing else.** There is one `addAll`, no `put`
+  in the fetch path, and `/api` is not a path it will answer — so an authenticated answer on a
+  disk would have to be written on purpose. `test/worker.test.ts` runs the served bytes in a fake
+  scope and drives install, upgrade, rollback and uninstall; the browser harness cannot, because
+  each means different bytes at one URL and a second listener is a second origin.
+- **Nothing reloads a page somebody is typing in.** The serving worker never calls `skipWaiting`
+  on install; a waiting one is a bar with a button, and the swap happens on a press. The
+  *uninstalling* worker does skip, and it is not an exception: it serves nothing and claims
+  nothing, so there is no swap — made to wait it would sit behind that button for as long as a tab
+  stayed open, and the removal would never happen.
+- **A kept view is counts and a moment, and not a redacted snapshot.** `countsOf` builds a
+  different value; `onlyKept` is applied on the way in *and* on the way out; every field is a
+  number, which is the form of *no text at all* a test can check in one line.
+- **The two cache names are spelt in the page as well as in `installable.ts`**, held equal by
+  `test/offline.test.ts` — `glyphs.js`'s treatment, for the same reason: the two moments they
+  matter are a cold open with no answer and a session that has just been refused.
+- **Installing needs a secure origin, which a LAN address is not.** `127.0.0.0/8`, `::1` and
+  `localhost` are potentially trustworthy; `192.168.*` over plain HTTP is not, and the browser
+  refuses without saying why. `OFFLINE_NEEDS_HTTPS` is the sentence, and it carries the other half
+  people get wrong: an https name is a **new pairing**, because a session is bound to the host it
+  was minted on.
 - **`page.waitForFunction` cannot be used in the harness.** It polls by compiling a string in the
   page, and the content policy has no `unsafe-eval`. `page.evaluate` goes through the debugger
   protocol and needs none, so the waiting is a loop in `browser.ts` (`until`). That the policy
   refuses it is the point: a harness that loosened the header would be testing a page nobody is
   served.
 
-## Four sentences that may never get more comfortable
+## Seven sentences that may never get more comfortable
 
-In `src/surface.ts`, said once so no control, README line or commit message can say the easy half.
-`test/separation.test.ts` holds each of them.
+In `src/surface.ts` (re-exported from `@tade/core`'s `away.ts`), said once so no control, README
+line or commit message can say the easy half. `test/separation.test.ts` holds each of them.
 
 - `LAN_IS_PLAINTEXT` — on a LAN anybody on the wifi reads every page and the cookie, and
   `tailscale serve` is the way out. **Never** say a LAN is secure, encrypted, private or safe.
@@ -298,18 +337,27 @@ In `src/surface.ts`, said once so no control, README line or commit message can 
   person**: one on this machine can append a line and pair itself. Said with the way out in the same
   breath — the list shows every device, every act is journalled under its id, and "Disconnect
   everything" needs no network.
+- `OFFLINE_NEEDS_HTTPS` — installing needs a secure origin, and a private address on your own wifi
+  is **not** one however local it feels. The way out in the same breath, and with it: a new name is
+  a new pairing.
+- `INSTALLED_IS_NOT_REVOCABLE` — a shell on a phone is that phone's; a `404` does not remove one;
+  what comes off, comes off when that device next reaches this machine. Never *erased*, never
+  *wiped*, never a guarantee.
+- `LAST_VIEW_IS_A_COPY` — the **list** of what is kept, because *minimal* and *redacted* are the
+  words a comfortable version would keep while dropping what is actually on the disk.
 
 ## The config, and the five controls over it
 
-`surfaces.web` is read in exactly one place — `surfaceOf` — and its six keys are `never` in
+`surfaces.web` is read in exactly one place — `surfaceOf` — and its eight keys are `never` in
 `reach.ts`: each either widens who can reach the control room (`enabled`, `bind`), decides what the
 pairing code says (`port`), lets a device change something (`acting`), lets one talk to the model
-that holds the tools (`orchestrator`) or lets one save a draft every future run of a workflow would
-be stamped from (`drafts`). A tier is a property of the path, so
+that holds the tools (`orchestrator`), lets one save a draft every future run of a workflow would
+be stamped from (`drafts`), puts Tade's own page on somebody's phone (`install`) or lets that phone
+keep a few counts (`offline`, narrowed under `install`). A tier is a property of the path, so
 `packages/core/test/reach.test.ts` asserts it by subtree rather than through what Settings happens
 to list.
 
-**All six are `live: false`, honestly.** The listener comes up when the window starts and the epoch
+**All eight are `live: false`, honestly.** The listener comes up when the window starts and the epoch
 a connected phone holds is per server start, so turning one on mid-session would have to tear down
 and rebuild something somebody is looking at. Saying *takes effect on restart* is the honest answer;
 doing nothing and saying nothing is the setting Tade accepts and ignores.

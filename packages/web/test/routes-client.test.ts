@@ -20,8 +20,19 @@ import { ROUTES, routeFor } from '../src/routes.ts'
 // That is the worst kind of broken, because every test that never reloads
 // passes. So the two tables are asserted equal here, in both directions.
 
+/**
+ * The views that are not places, and so have no path on either side.
+ *
+ * `nowhere` is a path this router does not know — a version mismatch, drawn
+ * rather than guessed at — and `lastSeen` is a cold open with nothing
+ * answering, drawn out of what this device kept. Neither can be linked to,
+ * neither is ever handed to `pathOf`, and a `<title>` is still owed for both,
+ * which is why they are in `TITLES` and named here instead.
+ */
+const NOT_A_PLACE = ['nowhere', 'lastSeen']
+
 /** The views the router can be on, read off the titles it has words for. */
-const VIEWS = Object.keys(TITLES).filter((view) => view !== 'nowhere')
+const VIEWS = Object.keys(TITLES).filter((view) => !NOT_A_PLACE.includes(view))
 
 /**
  * One value per parameter a screen's path can carry.

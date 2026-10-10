@@ -38,6 +38,8 @@ const SURFACE: Surface = {
   acting: true,
   talking: false,
   drafting: false,
+  installing: false,
+  keepsView: false,
 }
 
 const BODY = {

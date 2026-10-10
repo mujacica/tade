@@ -440,6 +440,19 @@ cookie with it, so `tailscale serve localhost:7654` is the way to give a phone H
 keeps listening on this machine alone. `tade web` says what is on, `tade web devices` who is
 paired, and `tade web revoke --all` disconnects every one of them without needing a network.
 
+**Adding it to a home screen** is a sixth decision, and the first whose effect is on hardware this
+machine cannot reach — so it wants that `https` name too: a browser refuses a worker, a cache and
+an install on a plain address however local it feels, and a new name is a new pairing rather than a
+credential that moves. What goes onto the phone is the page — markup, styles, modules and two icons,
+under a version that is a hash of their own bytes — so there is no stamp to forget and an update is
+a bar with a button on it, never a reload under what you were typing. Nothing of the work is ever
+cached: the worker answers for that folder and does not so much as intercept a request to the
+machine. A seventh decision lets a phone keep a few counts and the moment they were true, so a tap
+with no signal says what it last knew rather than nothing — counts, no text of any kind. Turning
+installing off serves that phone a worker which deletes what it kept and removes itself, the next
+time it reaches you. A 404 would not, and a shell on a phone that never comes back is not yours to
+erase; what it holds is the page, which can draw nothing without a session.
+
 ## Installing
 
 Four ways in, all the same npm package. Whichever you use, the command is `tade`.

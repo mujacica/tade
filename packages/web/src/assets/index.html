@@ -10,6 +10,22 @@
   `unsafe-inline` nor `eval`. Every value reaches the DOM through `textContent`;
   nothing here or in the modules it pulls in touches `innerHTML`.
 
+  The manifest and the two icons are what a phone reads to put this on a home
+  screen. Both links are needed and neither is a duplicate of the other: the
+  manifest's icons are what Android and desktop Chrome use, and Safari ignores
+  them and reads `apple-touch-icon`, which is why there is a 180px PNG in the
+  folder. `theme-color` is the system bar, and it is `--ground` so that an
+  installed window has no light edge around a dark page. All of it is
+  generated — `node packages/web/scripts/icons.ts` — so the mark is one
+  drawing at four sizes rather than four drawings.
+
+  There is no `apple-mobile-web-app-capable` and no status-bar style. Since
+  iOS 26 every added site opens as a web app, 16.4 to 18 read the manifest's
+  `display`, and the one thing the Apple meta would still buy —
+  `black-translucent` — puts the header under the notch, because nothing here
+  reads `safe-area-inset-top`. A tag that needs a layout nobody wrote is a tag
+  that makes the page worse.
+
   `lang` is on the one element that can carry it: the page's text is English
   and a screen reader that has to guess reads it in whatever voice it was last
   set to.
@@ -24,6 +40,10 @@
   <title>Tade</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#121212" />
+<link rel="manifest" href="/assets/tade.webmanifest" />
+<link rel="icon" href="/assets/icon-192.png" />
+<link rel="apple-touch-icon" href="/assets/icon-180.png" />
 <link rel="stylesheet" href="/assets/tokens.css" />
 <link rel="stylesheet" href="/assets/frame.css" />
 <link rel="stylesheet" href="/assets/away.css" />

@@ -3,8 +3,14 @@ import { join } from 'node:path'
 import {
   DRAFTS_ARE_NOT_PUBLISHED,
   DRAFTS_ARE_NOT_PUBLISHED_SHORT,
+  INSTALLED_IS_NOT_REVOCABLE,
+  INSTALLED_IS_NOT_REVOCABLE_SHORT,
+  LAST_VIEW_IS_A_COPY,
+  LAST_VIEW_IS_A_COPY_SHORT,
   LOCAL_ONLY_ACTS,
   LOCAL_ONLY_SHORT,
+  OFFLINE_NEEDS_HTTPS,
+  OFFLINE_NEEDS_HTTPS_SHORT,
   TALKING_IS_NOT_YOU,
   TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
@@ -260,6 +266,8 @@ describe('what the surface is turned on as', () => {
       acting: false,
       orchestrator: false,
       drafts: false,
+      install: false,
+      offline: false,
     })
     // `lan` with `enabled: false` is **off**, not "on the network and
     // waiting": two decisions, and the one deciding whether anything listens
@@ -268,6 +276,38 @@ describe('what the surface is turned on as', () => {
     expect(surface.bind).toBe('loopback')
     expect(surface.trustedHosts).toEqual([])
     expect(listenOn(surface)).toEqual([])
+  })
+
+  it('narrows a kept view under installing, which is narrowed under enabled', () => {
+    // Three keys and one direction: nothing here can turn on what the file did
+    // not, and `offline` is read **under** `install` rather than beside it —
+    // what it is for is the cold open, and there is no cold open without a
+    // shell to open. A key that could be on while nothing could read it is a
+    // setting Tade accepts and ignores.
+    const web = {
+      enabled: true,
+      bind: 'loopback' as const,
+      port: 7654,
+      trusted_hosts: [],
+      acting: false,
+      orchestrator: false,
+      drafts: false,
+      install: true,
+      offline: true,
+    }
+    expect(surfaceOf(web)).toMatchObject({ installing: true, keepsView: true })
+    expect(surfaceOf({ ...web, install: false })).toMatchObject({
+      installing: false,
+      keepsView: false,
+    })
+    expect(surfaceOf({ ...web, offline: false })).toMatchObject({
+      installing: true,
+      keepsView: false,
+    })
+    expect(surfaceOf({ ...web, enabled: false })).toMatchObject({
+      installing: false,
+      keepsView: false,
+    })
   })
 
   it('listens on two addresses, explicitly, for each bind', () => {
@@ -284,6 +324,8 @@ describe('what the surface is turned on as', () => {
           acting: false,
           orchestrator: false,
           drafts: false,
+          install: false,
+          offline: false,
         }),
       ),
     ).toEqual(['127.0.0.1', '::1'])
@@ -297,6 +339,8 @@ describe('what the surface is turned on as', () => {
           acting: false,
           orchestrator: false,
           drafts: false,
+          install: false,
+          offline: false,
         }),
       ),
     ).toEqual(['0.0.0.0', '::'])
@@ -339,6 +383,8 @@ describe('what a session minted on an origin may ever do', () => {
     acting: true,
     orchestrator: false,
     drafts: false,
+    install: false,
+    offline: false,
   })
 
   it('is everything it was granted, from this machine', () => {
@@ -407,6 +453,55 @@ describe('the sentences', () => {
     // answer in it is one people scroll past.
     expect(COOKIES_IGNORE_PORTS).toContain('exact host')
     expect(COOKIES_IGNORE_PORTS).toContain('TLS')
+  })
+
+  it('say what a secure origin is, and that a private address is not one', () => {
+    // The fact that surprises people, and the reason it has to be said rather
+    // than discovered: a browser refuses all of this off a plain address on a
+    // network and explains nothing. `127.0.0.0/8`, `::1` and `localhost` are
+    // potentially trustworthy origins; `192.168.*` and `10.*` over plain HTTP
+    // are not, however local they feel.
+    expect(OFFLINE_NEEDS_HTTPS).toContain('secure origin')
+    expect(OFFLINE_NEEDS_HTTPS).toContain('localhost')
+    expect(OFFLINE_NEEDS_HTTPS).toContain('not one')
+    // And the way out, in the same breath as the refusal.
+    expect(OFFLINE_NEEDS_HTTPS).toContain('tailscale serve')
+    expect(OFFLINE_NEEDS_HTTPS).toContain('Trusted hostnames')
+    // The half people get wrong about the way out: a new name is a new
+    // pairing, because a session is bound to the host it was minted on.
+    expect(OFFLINE_NEEDS_HTTPS).toContain('pairs again')
+    expect(OFFLINE_NEEDS_HTTPS).toContain('nothing is carried across')
+    expect(OFFLINE_NEEDS_HTTPS_SHORT).toContain('LAN address is not')
+  })
+
+  it('say a 404 does not uninstall, which is the comfortable version of it', () => {
+    // The whole reason `/sw.js` answers in both states. A sentence that said
+    // *turning it off removes it* would be the easy half, and would be read
+    // as a promise about a phone in a drawer.
+    expect(INSTALLED_IS_NOT_REVOCABLE).toContain('on that device')
+    expect(INSTALLED_IS_NOT_REVOCABLE).toContain('404')
+    expect(INSTALLED_IS_NOT_REVOCABLE).toContain('next time that device')
+    expect(INSTALLED_IS_NOT_REVOCABLE).toContain('never comes back')
+    // And what stands instead: what is on the disk is the page and nothing of
+    // the work, which is the thing that makes the rest survivable.
+    expect(INSTALLED_IS_NOT_REVOCABLE).toContain('no project, no task, no note')
+    expect(INSTALLED_IS_NOT_REVOCABLE).toContain('without a session')
+    expect(INSTALLED_IS_NOT_REVOCABLE_SHORT).toContain('not before')
+    for (const comfortable of ['erased', 'wiped', 'removed everywhere', 'guarantee'])
+      expect(INSTALLED_IS_NOT_REVOCABLE.toLowerCase(), comfortable).not.toContain(comfortable)
+  })
+
+  it('list what a kept view holds rather than calling it minimal', () => {
+    // *Minimal* and *redacted* are the words a comfortable version of this
+    // would keep while dropping what was actually on the disk. So the list is
+    // the sentence, and `test/offline.test.ts` holds the record to it.
+    expect(LAST_VIEW_IS_A_COPY).toContain('counts and the moment')
+    expect(LAST_VIEW_IS_A_COPY).toContain('no text at all')
+    for (const never of ['no title', 'no intent', 'no note', 'no request', 'no name'])
+      expect(LAST_VIEW_IS_A_COPY, never).toContain(never)
+    expect(LAST_VIEW_IS_A_COPY).toContain('nothing can be acted on')
+    expect(LAST_VIEW_IS_A_COPY).toContain('cannot be taken back')
+    expect(LAST_VIEW_IS_A_COPY_SHORT).toContain('no text')
   })
 
   it('narrow what HttpOnly does, rather than calling it an answer to XSS', () => {

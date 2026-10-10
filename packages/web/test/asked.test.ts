@@ -31,6 +31,8 @@ const SURFACE: Surface = {
   acting: false,
   talking: true,
   drafting: false,
+  installing: false,
+  keepsView: false,
 }
 
 // **`was` through the same function the window compares against**, never a

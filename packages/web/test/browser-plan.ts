@@ -111,6 +111,17 @@ export const CHECKS = [
   'controls',
   'touch',
   'typing',
+  // The three an installed shell owns. `install` is a real registration in a
+  // real browser; `offline-cold` is a deep link opened with the network off,
+  // which is the whole point of the thing; `no-api-cache` enumerates every
+  // cache on the device afterwards and is the claim most able to break
+  // quietly. An upgrade, a rollback and an uninstall are **not** here: each
+  // means different bytes at the same URL, and a listener reads its files once
+  // — so a harness would need a second origin, and a second origin is a
+  // different registration. `test/worker.test.ts` runs all three properly.
+  'install',
+  'offline-cold',
+  'no-api-cache',
 ] as const
 
 /**
@@ -143,6 +154,30 @@ export const NOT_FOR_A_DEVICE_GRANTED_NOTHING = [
 ]
 
 /**
+ * The steps nothing in this repository can take, written down so that a green
+ * run is not read as more than it is.
+ *
+ * **A browser emulating a phone is not a phone.** Headless Chromium at 360px
+ * registers a worker and loads offline, and none of that is evidence about
+ * Safari's *Add to Home Screen*, about which icon iOS actually picks, about
+ * what an installed window looks like with a notch in it, or about what
+ * happens to a shell on a phone that has been in a drawer for a fortnight.
+ * Those are a person's, and the honest thing is to say which rather than to
+ * let the report imply they were covered.
+ *
+ * Printed at the end of every report, pass or fail, and counted as nothing:
+ * `worstOf` never sees them.
+ */
+export const MANUAL: readonly string[] = [
+  'On a real iPhone, over the https name (tailscale serve, or a proxy named in Trusted hostnames): Share → Add to Home Screen. The icon should be the amber mark on the dark ground, not a screenshot of the page.',
+  'Open it from the home screen. It should have no Safari address bar, and the status bar should be dark rather than white.',
+  'Pair it there. A device paired on localhost has no session on the https name — that is the host binding working, not a bug.',
+  'Turn the phone to airplane mode and open it again. It should draw the page and say it cannot reach the machine; with Let a device keep what it last saw on, it should say when it last could and what it then knew.',
+  'Turn Let a device install it off at the machine, restart Tade, and open the phone once with a signal. The app should stop working offline from then on — a 404 would not have done that.',
+  'Sign the device out, then look at Settings → Safari → Advanced → Website Data for the origin. What is left should be the page and nothing of the work.',
+]
+
+/**
  * Every check, unrun, with one reason — what a machine with no browser reports.
  *
  * One row per check rather than one line saying "skipped", because a report
@@ -163,6 +198,10 @@ export function worstOf(findings: readonly Finding[]): Verdict {
 /**
  * The report, as text.
  *
+ * The check column is as wide as the longest name there is, so a row does not
+ * push the ones beside it out of line — a report somebody skims is one whose
+ * columns line up.
+ *
  * The last line is the one somebody reads, and it says `unrun` where anything
  * was — never `pass` with a footnote, because a footnote is what gets quoted
  * as a green run.
@@ -170,7 +209,7 @@ export function worstOf(findings: readonly Finding[]): Verdict {
 export function sayReport(findings: readonly Finding[]): string {
   const rows = findings.map(
     (one) =>
-      `  ${one.verdict.padEnd(6)} ${one.check.padEnd(10)} ${one.where.padEnd(28)} ${one.said}`,
+      `  ${one.verdict.padEnd(6)} ${one.check.padEnd(12)} ${one.where.padEnd(28)} ${one.said}`,
   )
   const worst = worstOf(findings)
   const counts = (['pass', 'fail', 'unrun'] as const)
@@ -179,6 +218,11 @@ export function sayReport(findings: readonly Finding[]): string {
   return [
     'the away view, in a real browser',
     ...rows,
+    '',
+    // **Not findings, and never counted as any.** A browser emulating a phone
+    // is not a phone, and the report says which steps are still somebody's.
+    'asked of a person, not of this harness:',
+    ...MANUAL.map((step) => `  · ${step}`),
     '',
     `${counts}`,
     worst === 'unrun'

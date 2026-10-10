@@ -31,6 +31,8 @@ describe('nothing listens unless it is turned on', () => {
         acting: false,
         talking: false,
         drafting: false,
+        installing: false,
+        keepsView: false,
       },
       readingFor: reading,
       tickets: new Tickets(),
@@ -175,6 +177,94 @@ describe('the headers on every answer', () => {
     expect(again.headers['content-security-policy']).toBe(CSP)
   })
 })
+describe('the worker, as a browser is served it', () => {
+  it('is the file with its version in front of it, where installing is on', async () => {
+    const one = await start({ installing: true })
+    const answer = await ask(one, '/sw.js')
+    expect(answer.status).toBe(200)
+    expect(answer.headers['content-type']).toContain('javascript')
+    const line = answer.text.split('\n')[0] ?? ''
+    const shell = JSON.parse(line.slice('self.SHELL = '.length))
+    expect(shell.serving).toBe(true)
+    expect(shell.files).toContain('/')
+    expect(shell.files).toContain('/assets/boot.js')
+    expect(shell.version).toMatch(/^[\w-]{16}$/)
+    expect(shell.cache).toContain(shell.version)
+    // And the source itself, unchanged, under it.
+    expect(answer.text).toContain("addEventListener('fetch'")
+  })
+
+  it('is an uninstalling worker where it is off, and never a 404', async () => {
+    // The whole reason this route exists in both states. A `404` on a
+    // worker's script leaves the installed worker exactly where it was — the
+    // service worker specification was asked to unregister on 404 and 410 and
+    // decided against it in 2017 — so *off* has to be something the device is
+    // told, in bytes it will fetch anyway.
+    const one = await start()
+    const answer = await ask(one, '/sw.js')
+    expect(answer.status).toBe(200)
+    const shell = JSON.parse((answer.text.split('\n')[0] ?? '').slice('self.SHELL = '.length))
+    expect(shell.serving).toBe(false)
+    expect(shell.files).toEqual([])
+  })
+
+  it('is not served as a file as well, because a worker’s URL is its scope', async () => {
+    // One registered out of `/assets/` could only ever control `/assets/`, and
+    // the source without its prelude caches nothing while looking exactly like
+    // the real thing. Two ways to register one script, one of them silently
+    // useless, is not a thing to leave in the folder.
+    const one = await start({ installing: true })
+    expect((await ask(one, '/assets/sw.js')).status).toBe(404)
+  })
+
+  it('revalidates like an asset, and answers 304 to a browser that has it', async () => {
+    // Which is exactly what a worker's script wants: a browser refetches it on
+    // navigations and decides there is an update by comparing the bytes.
+    const one = await start({ installing: true })
+    const first = await ask(one, '/sw.js')
+    expect(first.headers['cache-control']).toBe('no-cache')
+    const etag = first.headers.etag ?? ''
+    expect(etag).toMatch(/^"[\w-]+"$/)
+    const again = await ask(one, '/sw.js', { headers: { 'if-none-match': etag } })
+    expect(again.status).toBe(304)
+  })
+
+  it('is different bytes on and off, which is what a browser calls an update', async () => {
+    const on = await start({ installing: true })
+    const off = await start()
+    expect((await ask(on, '/sw.js')).headers.etag).not.toBe((await ask(off, '/sw.js')).headers.etag)
+  })
+
+  it('carries no data and no route of the machine’s', async () => {
+    // Public, like the shell, and safe for the same reason: it is a file list
+    // and a hash. It cannot name a task, a project or a session, and it does
+    // not so much as mention the routes that could.
+    const one = await start({ installing: true })
+    const answer = await ask(one, '/sw.js')
+    expect(answer.text.toLowerCase()).not.toContain('tade_away=')
+    for (const path of ['/api/snapshot', '/api/stream', '/api/devices']) {
+      expect(answer.text, path).not.toContain(path)
+    }
+  })
+})
+
+describe('what a device is told about keeping anything', () => {
+  it('is two booleans beside the device list, and no names', async () => {
+    const one = await start({ installing: true, keepsView: true })
+    const paired = await pair(one)
+    const answer = await ask(one, '/api/devices', { headers: { cookie: paired.cookie } })
+    expect(answer.status).toBe(200)
+    expect(JSON.parse(answer.text).shell).toEqual({ install: true, keepsView: true })
+  })
+
+  it('says no where the machine does not offer it', async () => {
+    const one = await start()
+    const paired = await pair(one)
+    const answer = await ask(one, '/api/devices', { headers: { cookie: paired.cookie } })
+    expect(JSON.parse(answer.text).shell).toEqual({ install: false, keepsView: false })
+  })
+})
+
 describe('cross-site, against a real listener', () => {
   it('refuses a cross-site form post with a good cookie', async () => {
     // The shape that tries: a simple-request `POST` from a page the owner

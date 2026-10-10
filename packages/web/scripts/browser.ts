@@ -19,6 +19,7 @@ import {
   worstOf,
 } from '../test/browser-plan.ts'
 import { input, NOW } from '../test/fixtures.ts'
+import { asPwa } from './browser-pwa.ts'
 import {
   AXE,
   CONTROLS,
@@ -104,6 +105,10 @@ async function serve() {
       acting: true,
       talking: true,
       drafting: false,
+      // On, or there is no registration to ask anything of; what is precached
+      // is the page, which carries nobody's work.
+      installing: true,
+      keepsView: true,
     },
     acting: recording,
     // **Talking on too, with the same stub treatment**: a device the page has
@@ -225,6 +230,8 @@ interface Engine {
 
 interface Context {
   newPage: () => Promise<Page>
+  /** Off, for the cold load in `browser-pwa.ts`. */
+  setOffline: (offline: boolean) => Promise<void>
   close: () => Promise<void>
 }
 
@@ -508,6 +515,10 @@ async function asActing(
   } catch (problem) {
     for (const check of ['controls', 'touch', 'typing']) found(check, at, 'fail', said(problem))
   }
+  // **The installed shell, on this same device**: pairing is rate limited per
+  // address, the five tries are spent, and this is the right phone to ask
+  // anyway — narrow, touch, granted (`browser-pwa.ts`).
+  await asPwa({ context, origin, found })
   await context.close()
   granting = []
 }

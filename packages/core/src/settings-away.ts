@@ -3,13 +3,16 @@ import {
   AWAY_IS_WHILE_OPEN,
   DEVICES_SEEN_BY_AGENTS,
   DRAFTS_ARE_NOT_PUBLISHED,
+  INSTALLED_IS_NOT_REVOCABLE,
   LAN_IS_PLAINTEXT,
+  LAST_VIEW_IS_A_COPY,
+  OFFLINE_NEEDS_HTTPS,
 } from './away.ts'
 import type { Config } from './config.ts'
 import { TALKING_IS_NOT_YOU } from './origin.ts'
 import type { SettingGroup } from './settings.ts'
 
-// The away view's seven controls, as a person changes them.
+// The away view's nine controls, as a person changes them.
 //
 // Its own half of `settingsOf`, split off for the reason the projects half
 // was: that file reached the size a file is allowed to be. It is a seam rather
@@ -18,7 +21,7 @@ import type { SettingGroup } from './settings.ts'
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //
-// **All seven are `live: false`, honestly.** The listener comes up when the
+// **All nine are `live: false`, honestly.** The listener comes up when the
 // window starts, and the epoch a connected phone holds is per server start —
 // so turning one on mid-session would have to tear down and rebuild something
 // somebody is looking at. Saying *takes effect on restart* is the honest
@@ -156,6 +159,54 @@ export function awayGroup(config: Config): SettingGroup {
         // route table the listener builds, off is read at every save.
         live: false,
         keywords: ['draft', 'drafts', 'workflow', 'template', 'designer', 'edit', 'form'],
+      },
+      {
+        path: 'surfaces.web.install',
+        // A **sixth** decision, and the first one whose effect is on somebody
+        // else's hardware. The row says what is put there — the page, and
+        // nothing of the work — and then the two things a person cannot find
+        // out by trying it: that a browser refuses all of it off a secure
+        // origin, and that turning it off again is something a device has to
+        // be *told*, which happens when it next reaches this machine.
+        title: 'Let a device install it',
+        means: `on: a paired device can add this to a home screen and open it with nothing to ask, showing the page and never your work; off: a device that installed it is served a worker that removes it again. ${OFFLINE_NEEDS_HTTPS} ${INSTALLED_IS_NOT_REVOCABLE}`,
+        value: String(web.install),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        // `false` like the rest, and honestly so: what `/sw.js` answers with
+        // is built when the listener comes up, so both directions wait for a
+        // restart — and then the *device* waits until it next reaches this
+        // machine, which is said in the sentence rather than implied.
+        live: false,
+        keywords: [
+          'install',
+          'pwa',
+          'offline',
+          'home screen',
+          'icon',
+          'manifest',
+          'service worker',
+          'cache',
+          'standalone',
+        ],
+      },
+      {
+        path: 'surfaces.web.offline',
+        // A **seventh** decision, under the sixth rather than beside it: this
+        // is for the cold open and there is no cold open without a shell to
+        // open. The sentence is a *list* of what is kept, because minimal and
+        // redacted are the words a comfortable version of it would keep while
+        // dropping what was actually on the disk.
+        title: 'Let a device keep what it last saw',
+        means: `on: an installed device keeps a few counts and the moment they were true, so opening it with nothing to ask says what it last knew; off: it opens with nothing. ${LAST_VIEW_IS_A_COPY}`,
+        value: String(web.offline),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        // `false` like the rest. Turning it off clears what is on a device the
+        // next time that device reaches this machine, which is the same
+        // *told, not assumed* rule the row above has.
+        live: false,
+        keywords: ['offline', 'cache', 'last seen', 'counts', 'stale', 'train', 'aeroplane'],
       },
       {
         path: 'surfaces.web.trusted_hosts',

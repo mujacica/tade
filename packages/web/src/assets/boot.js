@@ -28,7 +28,9 @@ import { actsOf } from './acts.js'
 import { workflowScreen, workflowsScreen } from './designer.js'
 import { classOn, el, textIn } from './dom.js'
 import { inboxScreen, requestScreen } from './factory.js'
+import { forget, NOT_SECURE, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, standingOf } from './live.js'
+import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
 import {
   checksScreen,
   devicesScreen,
@@ -80,7 +82,22 @@ function ticketIn() {
   return found === null ? null : found[1]
 }
 
-const held = { ticket: null, session: null, devices: null, store: emptyStore() }
+const held = {
+  ticket: null,
+  session: null,
+  devices: null,
+  store: emptyStore(),
+  /**
+   * What the machine says about keeping anything: whether it offers an
+   * installed shell, and whether this device may keep a few counts. Null until
+   * the first answer, and null is *do nothing new* —
+   * an existing registration is still brought up to date, which is how a
+   * machine that turned this off tells a phone so.
+   */
+  shell: null,
+  /** The last view read off this device's disk, where there is one. */
+  lastView: null,
+}
 
 /** One request. JSON in, JSON out, and the token a form cannot send. */
 async function ask(method, path, body) {
@@ -161,6 +178,12 @@ let source = null
 let wanted = null
 /** A read that failed, kept as a bar until one succeeds. */
 let broke = []
+/** Whether a new shell is installed and waiting for somebody to say when. */
+let newer = false
+/** Whether this machine offers an installed copy and this browser refused it. */
+let refused = false
+/** When the last view was last written, so a beat is not a write. */
+let keptAt = 0
 
 /* ── the router ────────────────────────────────────────────────────────────── */
 
@@ -181,6 +204,7 @@ const SCREENS = {
   findings: () => findingsScreen(),
   notes: () => notesScreen(),
   talk: () => talkScreen(ctx),
+  lastSeen: () => lastSeenScreen(held.lastView ?? {}, Date.now()),
   devices: () => devicesScreen(ctx),
   pair: () => pairScreen(ctx),
   more: () => moreScreen(),
@@ -251,7 +275,7 @@ function paint() {
   const standing = standingOf(connection, tries)
   const clock = asOf(held.store, standing, now)
   freshIn(shown, standing, connection, held.store, now)
-  barsIn(shown, barsFor(standing, connection, held.store, now, tries, broke))
+  barsIn(shown, barsFor(standing, connection, held.store, now, tries, [...broke, ...offered()]))
   heldOn(document.body, standing)
   if (held.store.had) {
     navCounts(shown.links, {
@@ -269,6 +293,7 @@ function paint() {
       notes: held.store.rows.notes.size + omitted(held.store, 'notes'),
     })
   }
+  keep(now)
   screen?.update({
     store: held.store,
     standing,
@@ -292,6 +317,59 @@ function paint() {
       acts: actsOf(held.session),
     },
   })
+}
+
+/**
+ * The update bar, which is the whole of how a new shell reaches somebody.
+ *
+ * A bar with a button and never a reload. The page may be holding a note
+ * somebody typed on a train, and there is no version of *we reloaded and lost
+ * it* that is worth a fresher stylesheet — so the worker waits
+ * (`sw.js` never calls `skipWaiting` on install), this says so, and the swap
+ * happens on a press. The second line is the half people need before they dare
+ * press it.
+ */
+function offered() {
+  const said = []
+  if (refused) {
+    // **The silent failure, said once.** A browser on a plain address over a
+    // network refuses a worker, a cache and an install without a word, so a
+    // person who turned this on at the machine sees nothing happen and has
+    // nothing to go on. The clause is the domain's own.
+    said.push({
+      key: 'insecure',
+      tone: 'is-stale',
+      glyph: '⚠',
+      lead: 'This address cannot keep a copy of this page.',
+      under: `Installing ${NOT_SECURE} one. Everything else here works as it is.`,
+    })
+  }
+  if (!newer) return said
+  said.push({
+    key: 'update',
+    tone: 'is-stale',
+    glyph: '↑',
+    lead: 'A new version of this page is ready.',
+    under: 'Nothing reloads until you tap. Anything you have typed stays where it is.',
+    press: { said: 'Reload', does: () => void takeUpdate() },
+  })
+  return said
+}
+
+/**
+ * Keep the counts, at most twice a minute.
+ *
+ * The beat is five seconds and this is a write to a store on a phone's disk,
+ * so it is paced by the thing being written rather than by the thing that
+ * calls it. It is also the only moment the allow-list matters at run time:
+ * `countsOf` builds the record, and there is no path by which a row, a title
+ * or a note reaches it.
+ */
+function keep(now) {
+  if (held.shell?.keepsView !== true || !held.store.had) return
+  if (now - keptAt < 30_000) return
+  keptAt = now
+  void saveView(countsOf(held.store, now))
 }
 
 /** What crossed into wanting you, said once, to anybody listening. */
@@ -346,9 +424,9 @@ function openStream() {
   source.addEventListener('revoked', () => {
     source?.close()
     // Signed out is the pairing screen, which is where this device now is.
-    // Anything else would be a page pretending it still has a session.
-    held.session = null
-    go('/pair', { replace: true, reload: true })
+    // Anything else would be a page pretending it still has a session — and
+    // everything this device kept goes with the session.
+    void signedOut()
   })
   source.addEventListener('too_many', () => {
     seen = { ...seen, ended: 'This device has too many pages of Tade open.' }
@@ -378,8 +456,7 @@ function openStream() {
 async function again() {
   const mine = await ask('GET', '/api/devices')
   if (mine.status === 401 || mine.status === 403) {
-    held.session = null
-    go('/pair', { replace: true, reload: true })
+    await signedOut()
     return
   }
   if (mine.status === 200 && mine.body !== null) tookDevices(mine.body)
@@ -525,6 +602,26 @@ function wireKeys() {
 function tookDevices(body) {
   held.session = body.you
   held.devices = body.devices
+  held.shell = body.shell ?? null
+}
+
+/**
+ * Everything this device keeps, gone — and then the pairing screen.
+ *
+ * The one path out of a session, taken from three places: the stream saying
+ * this device was revoked, a read coming back `401`, and signing out. It is
+ * done **before** the navigation rather than after it, because the reload that
+ * follows is the last thing this page does.
+ *
+ * What it cannot do is said where somebody turns installing on: a device that
+ * is not here has not been told anything, and a shell already on its disk
+ * stays there until it next reaches this machine.
+ */
+async function signedOut() {
+  held.session = null
+  await forgetView()
+  await forget()
+  go('/pair', { replace: true, reload: true })
 }
 
 async function start() {
@@ -538,13 +635,60 @@ async function start() {
     draw(viewOf(location.pathname))
     wireBeat()
     openStream()
+    // After the first draw, never before it: registering a worker is a network
+    // round trip and a snapshot is what somebody opened this for. The machine
+    // says whether to, and saying no still brings an existing registration up
+    // to date — which is the one moment a phone can be told this was turned
+    // off.
+    void install()
     return
+  }
+  // **Unreachable is not signed out**, and the difference is the whole of what
+  // a kept view is for: a `0` is a machine that did not answer, and if this
+  // device kept a few counts they are what it last knew. Timestamped, with
+  // nothing on it that can be pressed.
+  if (mine.status === 0) {
+    held.lastView = await readView()
+    if (held.lastView !== null) {
+      // **No beat, like the pairing screen it stands in for.** There is
+      // nothing to refresh into: the numbers are a record, the screen patches
+      // nothing, and a timer that repainted an unchanging page every five
+      // seconds would be a phone kept awake for nothing. The way out of this
+      // screen is a reload, and the screen says so.
+      draw({ view: 'lastSeen' })
+      void install()
+      return
+    }
   }
   // No session: the pairing screen, whatever path was asked for. Replacing the
   // address rather than keeping it, so a reload after pairing lands on a real
   // screen rather than back here.
   draw({ view: 'pair' })
   if (location.pathname !== '/pair') history.replaceState(null, '', '/pair')
+  void install()
+}
+
+/**
+ * Register or refresh the shell, and clear a kept view nobody may keep.
+ *
+ * Both halves run whatever the answer was. The second is the quiet one: a
+ * machine that has turned the last view off clears what is on the disk the
+ * next time that phone reaches it, which is the same *told, not assumed* rule
+ * the uninstalling worker is.
+ */
+async function install() {
+  if (held.shell !== null && held.shell.keepsView !== true) await forgetView()
+  // One word in, one bar out: `update` puts the offer up, `gone` takes it
+  // down — the second is the uninstalling worker saying it has removed this
+  // device's copy, which must not leave an offer to reload behind it.
+  const how = await startInstall(held.shell, (what) => {
+    newer = what === 'update'
+    paint()
+  })
+  // Said only where the machine offers it: a browser that refuses something
+  // nobody was offering is not a thing to put a bar up about.
+  refused = how === 'insecure' && held.shell?.install === true
+  paint()
 }
 
 start().catch(() => {

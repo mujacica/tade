@@ -7,7 +7,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 // The server's own reader of the browser's files, pointed at the staged tree
 // rather than at the checkout — which is the whole of what these two assert.
-import { assetFor, readAssets } from '../packages/web/src/assets.ts'
+import { assetFor, readAssets, WORKER_FILE } from '../packages/web/src/assets.ts'
+import { shellOf } from '../packages/web/src/installable.ts'
 import { changelogFor, notesFor } from '../scripts/release/changelog.ts'
 import { LIVE_RUN, liveTrouble, manifests, PUBLISHED } from '../scripts/release/repo.ts'
 import { exportsFor, rewrite, stage } from '../scripts/release/stage.ts'
@@ -125,6 +126,31 @@ describe('the publish directory', () => {
         expect(assetFor(`/assets/${spec}`, assets), `${name} imports ${spec}`).not.toBeNull()
       }
     }
+  })
+
+  it('ships the installed shell at the same version this machine serves', async () => {
+    // **The drift this is against is invisible on the machine that staged
+    // it.** The shell's version is a hash of every file's path and etag, and
+    // `/sw.js` carries it; if staging changed one byte of one asset — a
+    // rewritten specifier, a text copy of a PNG — the tarball would serve a
+    // shell under a version this checkout never had, and the only symptom
+    // would be somebody's phone refusing to update or updating for ever.
+    const where = join(staged.out, 'packages/web/src/assets')
+    const mine = await readAssets()
+    const theirs = await readAssets(where)
+    expect(shellOf(theirs, { serving: true }).version).toBe(
+      shellOf(mine, { serving: true }).version,
+    )
+    // The worker itself, which nothing imports and no `href` names — so
+    // nothing else in this file would notice it going missing.
+    expect(theirs.get(WORKER_FILE)?.bytes).toEqual(mine.get(WORKER_FILE)?.bytes)
+    // And the icons, byte for byte: a PNG copied as text is a file that is
+    // still there, still the right size on a listing, and not an image.
+    for (const name of theirs.keys()) {
+      if (!name.endsWith('.png')) continue
+      expect(theirs.get(name)?.bytes, name).toEqual(mine.get(name)?.bytes)
+    }
+    expect([...theirs.keys()].filter((name) => name.endsWith('.png')).length).toBeGreaterThan(0)
   })
 
   it('leaves no TypeScript among the files a browser is served', async () => {

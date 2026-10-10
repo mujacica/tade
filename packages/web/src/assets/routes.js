@@ -148,6 +148,13 @@ export const TITLES = {
   more: 'More',
   pair: 'Pair this device',
   nowhere: 'Nothing here',
+  // **Two views that are not places.** `nowhere` is a path this router does
+  // not know and `lastSeen` is a cold open with nothing answering — neither
+  // has a path of its own, neither can be linked to, and `pathOf` is never
+  // called for either. They are here because a `<title>` is owed for every
+  // screen somebody can be looking at, and `test/routes-client.test.ts` names
+  // them as the two it does not expect the server to serve.
+  lastSeen: 'Last seen',
 }
 
 /**

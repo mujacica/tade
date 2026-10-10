@@ -45,6 +45,20 @@ describe('the shape of the table', () => {
     for (const route of both) expect(route.opens, route.name).toBe(true)
   })
 
+  it('has one route that is answered with the worker, and it is at the root', () => {
+    // A worker may only control paths under the folder it was served from, so
+    // `/sw.js` is the only place one can be served for a page whose screens
+    // are all at the root. It is public like the shell, carries no data and is
+    // not a `document` — `assets.ts` reads that flag to decide which of the
+    // two kinds of made answer a path is.
+    const worker = ROUTES.filter((route) => route.name === 'worker')
+    expect(worker.map((route) => `${route.method} ${route.path}`)).toEqual(['GET /sw.js'])
+    expect(worker[0]?.public).toBe(true)
+    expect(worker[0]?.mutates).toBe(false)
+    expect(worker[0]?.document).toBeUndefined()
+    expect(worker[0]?.path.split('/').length).toBe(2)
+  })
+
   it('has exactly one route that owns everything under it, and it is the files', () => {
     const under = ROUTES.filter((route) => route.under === true)
     expect(under.map((route) => route.path)).toEqual(['/assets'])
