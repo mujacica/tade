@@ -121,6 +121,31 @@ describe('an agent an extension starts', () => {
       prompt: 'Again.',
     })
     expect(again.task).toBe('shop/fix-shop-1a-2')
+
+    // Work that cannot share a tree gets one of its own here too — a
+    // dependency bump is one install and one lockfile, and this project has
+    // every agent in its own checkout. Only ever narrower: there is nothing to
+    // pass here that would put work into a shared checkout instead.
+    const apart = await window.startAgent({
+      project: 'shop',
+      title: 'update dependencies minor',
+      prompt: 'Bump them.',
+      alone: true,
+      prepare: async (worktree) => writeFileSync(join(worktree, 'bumped.txt'), 'moved\n'),
+    })
+    expect(apart.worktree).toBe(join(home, 'worktrees', 'shop-update-dependencies-minor'))
+    // A tree and a branch of its own, where the one beside the others says in
+    // its own file that it shares the checkout.
+    expect(readFileSync(join(taskDir(home, apart.task), 'task.yaml'), 'utf8')).not.toContain(
+      'workspace: checkout',
+    )
+    expect(readFileSync(join(own, 'task.yaml'), 'utf8')).toContain('workspace: checkout')
+    expect(repo.git('branch', '--list', 'tade/update-dependencies-minor')).toContain(
+      'tade/update-dependencies-minor',
+    )
+    // What `prepare` wrote is in that tree and in nobody else's.
+    expect(existsSync(join(apart.worktree, 'bumped.txt'))).toBe(true)
+    expect(existsSync(join(repo.root, 'bumped.txt'))).toBe(false)
   }, 60_000)
 
   it('ships the checks, dependencies, intake, Jev, reviews, Sentry and resources, and loads yours beside them', async () => {

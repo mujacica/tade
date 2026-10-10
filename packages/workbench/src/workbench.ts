@@ -96,6 +96,7 @@ import {
   beginFrom,
   branchSlug,
   createTask,
+  type FoundWork,
   guardName,
   nameTask,
   type ParkResult,
@@ -1237,24 +1238,19 @@ export class Workbench {
   }
 
   /**
-   * Something a watch found for the first time, written down so it never
-   * starts work twice. Given what to tell an agent, its work is made as queued
-   * work named for what it is about, which the queue starts as soon as there is
-   * room, in the project's own workspace. Otherwise it was told to someone, or
-   * could not be started on, and why. A start that fails is written down with
-   * why too: tried again at every look, it would fail at every look.
+   * Something a watch found for the first time, written down so it never starts
+   * work twice. Given what to tell an agent, its work is made as queued work named
+   * for what it is about, which the queue starts as soon as there is room — in the
+   * project's own workspace, or a tree of its own where the work says it cannot
+   * share one. Otherwise it was told to someone, or could not be, and why: written
+   * down too, because tried again at every look it would fail at every look.
    */
   async watchFound(
     id: string,
     finding: { key: string; title: string; intake?: IntakeCandidate },
     outcome:
       | {
-          agent: {
-            title: string
-            prompt: string
-            context?: string
-            links?: readonly { title: string; url: string }[]
-          }
+          agent: FoundWork
           /** A person asked for this delivery again: `takeIntake` says what that skips. */
           again?: boolean
         }
@@ -1303,6 +1299,10 @@ export class Workbench {
             by: `schedule:${id}`,
             ...(agent.context ? { context: agent.context } : {}),
             ...(agent.links && agent.links.length > 0 ? { links: agent.links } : {}),
+            // Work that cannot share a tree (`FoundWork.alone`) gets one of its
+            // own wherever the project has its agents work. Narrower than the
+            // project's answer and never wider.
+            ...(agent.alone ? { workspace: 'worktree' as const } : {}),
             start: { after: [], prompt: agent.prompt, touches: [] },
           })
         } catch (err) {

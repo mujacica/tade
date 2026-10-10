@@ -343,6 +343,11 @@ export function extensionWorkbench(
             intent: request.prompt,
             ...(request.context ? { context: request.context } : {}),
             ...(request.links ? { links: request.links } : {}),
+            // Work that cannot share a tree says so, and then it gets one of
+            // its own wherever the project has its agents work. Only ever
+            // narrower than the project's answer: there is nothing an extension
+            // can say here that moves work *into* a shared checkout.
+            ...(request.alone ? { workspace: 'worktree' as const } : {}),
             by: request.by ?? 'extension:unknown',
           })
           await request.prepare?.(task.worktree)

@@ -236,6 +236,9 @@ describe('checking and updating a project', () => {
     ])
     const agent = await looked.agent(looked.found[0]!)
     expect(agent.title).toBe('update requests')
+    // One install and one lockfile: a tree nobody else is in, whatever this
+    // project says about where its agents work.
+    expect(agent.alone).toBe(true)
     expect(agent.prompt).toContain('deps_update with packages ["requests"] and level minor')
     expect(agent.prompt).toContain('run `pnpm test`')
     expect(agent.context).toContain(

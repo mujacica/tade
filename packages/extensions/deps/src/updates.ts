@@ -48,8 +48,20 @@ import { files, report } from './look.ts'
 //   · **A package it has already tried twice is told about, not tried again.**
 //     The same rule the review watches keep, counted over a fortnight so a bad
 //     week does not stop it for good.
-//   · **Never in a checkout other agents share** unless whoever turned it on
-//     said it may.
+//   · **A tree of its own, whatever the project says.** A bump is one set of
+//     manifests, one install and one lockfile, which is the one shape of work
+//     that cannot be shared — so it asks for a worktree and a branch of its
+//     own (`WatchAgent.alone`) even in a project whose agents all work in its
+//     own checkout. That is what this watch used to *refuse* instead, and the
+//     refusal was the whole of why it did nothing at all in a project set up
+//     the ordinary way. Only ever narrower than the project's answer: nothing
+//     here moves work into a tree the project did not already name.
+//   · **In the shared checkout only where somebody asked, one at a time, and
+//     only while nobody is in it.** A project that can only be installed where
+//     it is checked out says so with `in_checkout`, and then this watch holds
+//     — finding nothing and saying why — while that tree has uncommitted work
+//     in it or an agent at work there, and offers one bump per look rather
+//     than two installs racing each other.
 
 /** Its name in the extension, and the half of its schedule id Tade keeps findings under. */
 const ID = 'updates'
@@ -147,14 +159,64 @@ function allowed(ctx: ExtensionContext): number {
  * Whether the agent this watch would start works in the project's own
  * checkout, which every other agent there shares.
  *
- * A config nobody could read is read as the checkout: that is the machine's
- * own default (`agents.workspace`), and guessing the safe-looking answer here
- * would be guessing the one that lets a clock rewrite a shared tree.
+ * Only ever asked where somebody turned this watch on with `in_checkout`:
+ * without it the work asks for a tree of its own and where the project's
+ * agents work does not come into it. A config nobody could read is read as the
+ * checkout — that is the machine's own default (`agents.workspace`), and
+ * guessing the safe-looking answer here would be guessing the one that lets a
+ * clock rewrite a shared tree.
  */
 async function sharesTheCheckout(ctx: WatchContext): Promise<boolean> {
   const loaded = await loadConfig(join(ctx.home, 'config.yaml')).catch(() => null)
   const workspace = loaded?.ok ? workspaceFor(loaded.config, ctx.watching.name) : 'checkout'
   return workspace === 'checkout'
+}
+
+/**
+ * Where this watch's work goes: a tree of its own, or the project's own
+ * checkout beside everybody else.
+ *
+ * One reader, asked at the look and again when an agent is told what to do, so
+ * the sentence the agent reads and the tree it is given can never disagree.
+ */
+async function inTheSharedCheckout(ctx: WatchContext): Promise<boolean> {
+  return ctx.input.in_checkout === true && (await sharesTheCheckout(ctx))
+}
+
+/**
+ * Why nothing may be bumped in the project's own checkout at this moment, or
+ * null when it may.
+ *
+ * Three separate answers and never one: an agent at work there, work nobody
+ * has committed, and nothing being able to see which — a look that cannot tell
+ * holds, because an answer nobody could get is not permission. Worded as
+ * standing facts with no count and no name in them: this is said when it
+ * starts being true and not at every look while it stays true, and a sentence
+ * carrying "2 agents" would be a new sentence every time somebody started one.
+ */
+async function busyCheckout(ctx: WatchContext): Promise<string | null> {
+  const name = ctx.watching.name
+  if (!ctx.tade) {
+    return `nothing here can see who is at work in ${name}’s own checkout, so nothing is bumped in it`
+  }
+  if (ctx.tade.agents().some((agent) => agent.project === name)) {
+    return `an agent is at work in ${name}’s own checkout, and a bump there would rewrite the tree under it`
+  }
+  const dirty = await ctx.exec(
+    'git',
+    ['-C', ctx.watching.root, 'status', '--porcelain=v2'],
+    // Long enough for a big tree on a cold cache, short enough that a look
+    // which is going nowhere is given up on well inside the watch's own
+    // deadline.
+    { timeoutMs: 20_000 },
+  )
+  if (dirty.code !== 0) {
+    return `git cannot say whether ${name}’s own checkout is clean, so nothing is bumped in it`
+  }
+  if (dirty.stdout.trim() !== '') {
+    return `${name}’s own checkout has work in it nobody has committed, and a bump there would be mixed into it`
+  }
+  return null
 }
 
 /** `- vitest: ~4.0.1 → ~4.0.5 (patch)`, under the manifest each is written in. */
@@ -213,7 +275,7 @@ export const dependencyUpdates: ExtensionWatch = {
   id: ID,
   title: 'Dependency updates',
   means:
-    'looks daily for patch and minor releases and puts an agent on them — the patches in one commit, each minor on its own — which installs, runs the project’s own checks and commits only if they pass; majors are reported and never bumped',
+    'looks daily for patch and minor releases and puts an agent on them in a worktree of its own, whatever the project says — the patches in one commit, each minor on its own — which installs, runs the project’s own checks and commits only if they pass; majors are reported and never bumped',
   every: '1d',
   input: object({
     level: oneOf(
@@ -221,20 +283,23 @@ export const dependencyUpdates: ExtensionWatch = {
       'how far a bump may go on its own: minor (the default) includes patch. A major is never bumped on a clock, only reported.',
     ),
     in_checkout: boolean(
-      'true to say a project whose agents share its own checkout may have its manifests bumped there anyway',
+      'true to bump where the project has its agents work rather than in a tree of its own — for a project that can only be installed in its own checkout. There it bumps one thing per look, and nothing at all while that checkout has uncommitted work in it or an agent at work there.',
     ),
   }),
 
   async check(ctx) {
     const since = new Date(ctx.now()).toISOString()
     const level: Level = ctx.input.level === 'patch' ? 'patch' : 'minor'
-    // Said before anything is read, because it is about where the work would
-    // go rather than about what there is to do — and said once: the same
-    // sentence at every look is the same problem, and Tade repeats neither.
-    if (ctx.input.in_checkout !== true && (await sharesTheCheckout(ctx))) {
-      throw new Error(
-        `bumping dependencies rewrites manifests and lockfiles, and ${ctx.watching.name}’s agents work in its own checkout, which every other agent there shares: set projects.${ctx.watching.name}.workspace to worktree, or turn this watch on with in_checkout true to say it may`,
-      )
+    // Asked before anything is read, because it is about where the work would
+    // go rather than about what there is to do. A tree somebody else is in is
+    // a reason to find nothing *now* and not a reason the look failed — the
+    // releases are still there, and tomorrow's look bumps them — so it is the
+    // look's own `said`, which Tade says when it starts being true rather than
+    // at every look while it stays true.
+    const shared = await inTheSharedCheckout(ctx)
+    if (shared) {
+      const busy = await busyCheckout(ctx)
+      if (busy) return { found: [], since, said: busy }
     }
     const found = await report(ctx, ctx.watching.root, () => {})
 
@@ -292,9 +357,10 @@ export const dependencyUpdates: ExtensionWatch = {
           ]
         : []
 
-    const findings: Finding[] = []
+    const bumps: Finding[] = []
+    const told: Finding[] = []
     if (batch.length > 0) {
-      findings.push({
+      bumps.push({
         key: keyOf('patch', batch),
         title: `bump ${batch.length} patch release${batch.length === 1 ? '' : 's'} (${said(batch.map((one) => one.name))})`,
         detail: [
@@ -314,7 +380,7 @@ export const dependencyUpdates: ExtensionWatch = {
       })
     }
     for (const one of minors) {
-      findings.push({
+      bumps.push({
         key: keyOf('minor', [one]),
         title: `bump ${one.name} to ${one.to}`,
         detail: [
@@ -331,7 +397,7 @@ export const dependencyUpdates: ExtensionWatch = {
     // is still behind. Said rather than tried again, and said again only when
     // a release after it makes the key new.
     for (const one of held) {
-      findings.push({
+      told.push({
         key: keyOf('held', [one]),
         title: `${one.name} is still behind ${one.to} after ${tried(one)} automatic bump${tried(one) === 1 ? '' : 's'}`,
         detail: [
@@ -343,13 +409,29 @@ export const dependencyUpdates: ExtensionWatch = {
       })
     }
 
+    // One bump per look where the work goes in a tree other agents share: two
+    // of them is two installs racing one lockfile and two commits on one
+    // branch, and `most` is a ceiling on agents started rather than a promise
+    // that two may share a tree. The rest wait for the next look, which holds
+    // while this one is still working there — which serialises them without
+    // anything having to keep a queue. What is only *reported* is not work in
+    // anybody's tree and is never held back.
+    const findings = [...(shared ? bumps.slice(0, 1) : bumps), ...told]
+    // And it says how many it held back, on the one it kept. A ceiling that
+    // quietly drops what it would not do is a watch that looks, every day, as
+    // though there were one thing behind.
+    const behind = shared ? bumps.length - 1 : 0
+    const first = findings[0]
+    if (first && behind > 0) {
+      first.detail = `${first.detail ?? ''}\n\n${behind} other bump${behind === 1 ? '' : 's'} ${behind === 1 ? 'waits' : 'wait'} for the next look: each is an install in this project’s own checkout, and two at once is two installs racing one lockfile.`
+    }
+
     // The majors ride on the first finding of the look rather than on each of
     // them: three agents each reporting the same breaking release is noise.
     // With nothing to bump there is no finding and they are not mentioned —
     // a major nobody is bumping is a standing fact rather than news, and
     // `deps_check` answers it whenever anybody asks.
     const majors = majorsSaid(found.report.findings)
-    const first = findings[0]
     if (first && majors.length > 0) first.detail = `${first.detail ?? ''}\n${majors.join('\n')}`
 
     return { found: findings, since }
@@ -370,13 +452,22 @@ export const dependencyUpdates: ExtensionWatch = {
     }
     const install = installCommands(await files(ctx, ctx.watching.root).catch(() => []))
     const patches = part.shape === 'patch'
+    // Where this work goes, asked of the one reader the look asked. Said in the
+    // prompt because the whole of what the agent is told about committing turns
+    // on it: a worktree of its own is a branch nobody else is on, and the
+    // project's own checkout is a tree whose other files are somebody else's.
+    const shared = await inTheSharedCheckout(ctx)
     return {
       title: patches ? `bump ${part.names.length} patch releases` : `bump ${part.names[0]}`,
+      ...(shared ? {} : { alone: true as const }),
       prompt: [
         patches
           ? `The ${part.names.length} patch release${part.names.length === 1 ? '' : 's'} in your task’s context file are behind in this project.`
           : `${part.names[0]} has a new minor release, in your task’s context file with what is required now and what it would be.`,
-        `Call deps_update with level ${part.shape} and packages ${JSON.stringify(part.names)}: it moves those requirements in your own worktree and nothing else, and leaves ranges and ceilings exactly as somebody wrote them.`,
+        `Call deps_update with level ${part.shape} and packages ${JSON.stringify(part.names)}: it moves those requirements ${shared ? 'where you work' : 'in your own worktree'} and nothing else, and leaves ranges and ceilings exactly as somebody wrote them.`,
+        shared
+          ? `You are working in ${ctx.watching.name}’s own checkout, which every other agent here shares: commit the manifests and lockfiles you moved and nothing else, each added by its path — never \`git add -A\`, \`git add .\` or \`git commit -a\`. If somebody else’s uncommitted work is in the tree when you get there, leave it exactly as it is and say so rather than bumping around it.`
+          : '',
         installing(install),
         'Then run this project’s own checks with `checks_run` — never by typing the command in a shell: Tade runs one suite per checkout, waits for anybody else’s rather than starting a second, and records what ran against the tree it ran on.',
         ctx.watching.test

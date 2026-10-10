@@ -198,6 +198,25 @@ export interface WatchAgent {
   prompt: string
   context?: string
   links?: readonly Link[]
+  /**
+   * That this work needs a tree nobody else is in — a worktree and a branch of
+   * its own — whatever the project says about where its agents work.
+   *
+   * For work whose whole shape is rewriting files that cannot be shared: a
+   * dependency bump is one set of manifests, one install and one lockfile, and
+   * two of those in one tree is two installs racing each other with somebody
+   * else's afternoon in between. Said by the watch rather than read off the
+   * config, because what a project answers is about *where agents work* and
+   * this is about *what this work does*; `workspaceFor` stays the one reader of
+   * the first question.
+   *
+   * It may only ever **narrow** where work goes. There is no value here that
+   * puts work into a shared checkout a project did not already say to use, so a
+   * watch cannot reach past somebody's setting into a tree other agents are in.
+   * Honoured where a finding becomes work (`watchFound`) and where an extension
+   * starts an agent itself (`ExtensionWorkbench.startAgent`).
+   */
+  alone?: boolean
 }
 
 /**

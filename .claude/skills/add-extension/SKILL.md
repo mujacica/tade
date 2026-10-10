@@ -43,6 +43,14 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   worktree, as `agents.workspace` says). When `ctx.tade` is null there is no
   window: say so, don't do the work somewhere else. When `ctx.caller.kind === 'agent'`, work in
   `ctx.caller.cwd`, which is where that agent works.
+- **Work that cannot share a tree says `alone: true`** — on the `startAgent` request, or on what a
+  watch's `agent()` returns (`WatchAgent.alone`) — and gets a worktree and a branch of its own even
+  in a project whose agents all work in its own checkout. It is for work whose whole shape is
+  rewriting files nobody can share: `deps` bumps every manifest and one lockfile, and two of those
+  in one tree is two installs racing each other. Said by the work rather than read off the config,
+  because `workspaceFor` answers *where agents work* and this is about *what this work does*; and it
+  may only ever **narrow** — there is no value here that puts work into a shared checkout a project
+  did not already name. Everything else leaves it alone and goes where the project says.
 - **`ready()` never touches the network** — it runs before the window opens. Return what to do
   ("set $SENTRY_AUTH_TOKEN…"), not that something failed.
 - **Say how it is used, in `workflow`.** A few lines for a person, each one way it is actually
