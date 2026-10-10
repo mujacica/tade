@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { contentHash, draftYaml, readDraft, type Template, templateDirs } from '@tade/core'
@@ -233,16 +233,79 @@ describe('saving one field of one draft', () => {
   })
 
   it('never writes outside the drafts directory, whatever it is handed', async () => {
-    // Enforcement by absence: `writeDraft` builds its own path and nothing
-    // passed in can move it. The gate refuses a name like this first
-    // (`DRAFT_NAME`), and this is the second answer behind it.
+    // **Three layers, and the first two are not this file's.** `DRAFT_NAME` at
+    // the door refuses a name Tade would not have written (`malformed`);
+    // `readDraft` refuses it again through `templateNameProblem`; and
+    // `writeDraft` builds its own path in the drafts directory, so nothing
+    // passed in can move it. The character class has no `/`, `\`, `.` or `:`
+    // in it, which makes `..`, an absolute path and a drive letter
+    // unrepresentable rather than refused.
     const home = await homeWith()
-    await expect(
-      drafting(home).web.save(
-        { template: '../escaped', was: rev(), scope: 'template', field: 'title', value: 'x' },
-        FROM,
-      ),
-    ).rejects.toBeInstanceOf(NotThere)
+    for (const template of [
+      '../escaped',
+      '../../etc/passwd',
+      '/etc/passwd',
+      '~/x',
+      'C:\\x',
+      'a/b',
+      'reproduce-and-fix/../other',
+    ]) {
+      await expect(
+        drafting(home).web.save(
+          { template, was: rev(), scope: 'template', field: 'title', value: 'x' },
+          FROM,
+        ),
+        template,
+      ).rejects.toBeInstanceOf(NotThere)
+    }
+    // And nothing was written anywhere: the drafts directory holds the one
+    // file it started with.
+    expect(await readdir(templateDirs(home).drafts)).toEqual(['reproduce-and-fix.yaml'])
+  })
+
+  it('writes the file’s own name and never the one the call carried', async () => {
+    // **The write path's name is the template's, not the device's.**
+    // `writeDraft` is handed the parsed template and builds its path from
+    // `template.template` — so even a draft whose file name and declared name
+    // disagree is written where the *file* says, and a device cannot move one
+    // draft's contents into another's file by naming the second. A future edit
+    // that let `editWorkflow` change that field would fail here.
+    const home = await homeWith()
+    const other = join(templateDirs(home).drafts, 'somebody-elses.yaml')
+    await writeFile(other, draftYaml({ ...draft, template: 'somebody-elses' }), 'utf8')
+    await drafting(home).web.save(
+      {
+        template: 'reproduce-and-fix',
+        was: rev(),
+        scope: 'template',
+        field: 'title',
+        value: 'only this one moves',
+      },
+      FROM,
+    )
+    expect(
+      await readFile(join(templateDirs(home).drafts, 'reproduce-and-fix.yaml'), 'utf8'),
+    ).toContain('only this one moves')
+    // The other draft is untouched, byte for byte.
+    expect(await readFile(other, 'utf8')).toBe(draftYaml({ ...draft, template: 'somebody-elses' }))
+  })
+
+  it('offers no field that could change which file a draft is', async () => {
+    // The other half of the same guarantee, asked of the validator rather than
+    // of the writer: there is no field id on the template's own form that
+    // names the template, so there is no value a device could send that would
+    // make the next save write somewhere else.
+    const home = await homeWith()
+    for (const field of ['template', 'version', 'name']) {
+      await expect(
+        drafting(home).web.save(
+          { template: 'reproduce-and-fix', was: rev(), scope: 'template', field, value: 'other' },
+          FROM,
+        ),
+        field,
+      ).rejects.toBeInstanceOf(NotOffered)
+    }
+    expect(await readdir(templateDirs(home).drafts)).toEqual(['reproduce-and-fix.yaml'])
   })
 
   it('saves every field the designer’s own form offers, including a wait', async () => {
