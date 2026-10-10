@@ -2,6 +2,7 @@ import { chmod, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { awayProblems } from '../src/away.ts'
 import { checksFor } from '../src/checks.ts'
 import { ConfigSchema, loadConfig, parseConfig, writeSetting } from '../src/config.ts'
 import { pushFor, pushNeedsABranch, pushProblems, workspaceFor } from '../src/project.ts'
@@ -448,6 +449,48 @@ describe('what a project pushes', () => {
     )
     expect(read.ok && read.warnings).toEqual([])
     expect(pushProblems(ConfigSchema.parse({ projects: { api: { root: '~/a' } } }))).toEqual([])
+  })
+
+  it('says an away-view key that is on and cannot mean what it says', () => {
+    // The one way somebody turns notifications on, waits, hears nothing and
+    // has no sentence anywhere to read: `push` is narrowed under `install`,
+    // because a notification is delivered to the worker the installed page
+    // registers. A warning and never an issue — refusing the file would take
+    // away everything else they wrote in it.
+    const read = parseConfig('surfaces:\n  web:\n    enabled: true\n    push: true\n')
+    expect(read.ok).toBe(true)
+    expect(read.ok && read.warnings.join(' ')).toContain('surfaces.web.push is on')
+    expect(read.ok && read.warnings.join(' ')).toContain('install is off')
+  })
+
+  it('says each of the three pairings that cannot hold, and nothing otherwise', () => {
+    const on = (over: Record<string, unknown>) =>
+      awayProblems({
+        enabled: true,
+        install: false,
+        offline: false,
+        push: false,
+        push_details: false,
+        ...over,
+      })
+    expect(on({ offline: true }).join(' ')).toContain('surfaces.web.offline is on')
+    expect(on({ push: true }).join(' ')).toContain('surfaces.web.push is on')
+    expect(on({ install: true, push_details: true }).join(' ')).toContain('push_details is on')
+    // Each key on with what it is narrowed under also on: nothing to say.
+    expect(on({ install: true, offline: true, push: true, push_details: true })).toEqual([])
+    expect(on({})).toEqual([])
+    // **Nothing listening is said once, by the first decision**, and not four
+    // times over: every surface that draws these already says the away view is
+    // off, and a sentence per key would be four about one off switch.
+    expect(
+      awayProblems({
+        enabled: false,
+        install: false,
+        offline: true,
+        push: true,
+        push_details: true,
+      }),
+    ).toEqual([])
   })
 
   it('refuses a mode that is not one of the three, rather than accepting and ignoring it', () => {

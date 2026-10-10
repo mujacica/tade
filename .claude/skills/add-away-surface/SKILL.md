@@ -47,7 +47,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | the device list | `src/devices.ts` — `<home>/web-devices.jsonl` |
 | the headers and the content policy | `src/headers.ts` |
 | what a refusal says | `src/errors.ts` |
-| the config | `surfaces.web` in `packages/core/src/config.ts`, read only by `surfaceOf` |
+| the config | `surfaces.web` in `@tade/core`'s `away.ts`, read only by `surfaceOf`; `awayProblems` says any key that is on and cannot mean what it says |
 | the sentences that may never get comfortable | `packages/core/src/away.ts`, re-exported by `src/surface.ts` |
 | the browser's files | `src/assets/` — `.html`/`.css`/`.js`/`.png`/`.webmanifest` only, **never `.ts`** |
 | what an installed shell is, and its version | `src/installable.ts` (the version, the prelude, the names), `src/assets/sw.js` (the worker) |

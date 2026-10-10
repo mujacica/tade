@@ -2,7 +2,7 @@ import { chmodSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
 import { z } from 'zod'
-import { WebSurface } from './away.ts'
+import { awayProblems, WebSurface } from './away.ts'
 import { dropGone } from './gone.ts'
 import { defaultConfigPath } from './home.ts'
 import { IntakeSurface } from './intake.ts'
@@ -735,6 +735,10 @@ export function parseConfig(text: string, path = '<inline>'): ConfigResult {
   // refused: it resolves to pushing nothing, and refusing the file would take
   // away everything else somebody wrote in it.
   warnings.push(...pushProblems(parsed.data))
+  // The away view's own keys that are on and cannot mean what they say, said
+  // the same way and for the same reason: a setting Tade accepts and ignores
+  // is worse than one it does not have.
+  warnings.push(...awayProblems(parsed.data.surfaces.web))
   return { ok: true, config: parsed.data, path, exists: true, warnings }
 }
 

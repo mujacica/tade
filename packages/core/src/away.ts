@@ -559,3 +559,58 @@ export const WebSurface = z
     push_key: z.string().default(''),
   })
   .prefault({})
+
+/**
+ * Keys under `surfaces.web` that are on and cannot mean what they say.
+ *
+ * `pushProblems`'s treatment (`project.ts`) and its reason: a setting Tade
+ * accepts and ignores is worse than one it does not have, so a file somebody
+ * wrote by hand is **told** rather than quietly doing nothing — and told as a
+ * warning rather than an issue, because refusing the file would take away
+ * everything else they wrote in it and `surfaceOf` already resolves these the
+ * safe way.
+ *
+ * Two keys, and both are narrowed under `install` by `surfaceOf`: a kept view
+ * is read by the shell on that phone, and a notification is delivered to the
+ * worker that shell registers. Each of them on with nothing to open is the
+ * one way somebody turns this on, waits, hears nothing, and has no sentence
+ * anywhere to read.
+ *
+ * Pure, total, and it only ever says things rather than changing them.
+ */
+export function awayProblems(web: {
+  enabled: boolean
+  install: boolean
+  offline: boolean
+  push: boolean
+  push_details: boolean
+}): string[] {
+  const out: string[] = []
+  if (!web.enabled) {
+    // Nothing is listening, which is the first decision and is said by every
+    // surface that draws it. Saying it again per key would be four sentences
+    // about one off switch.
+    return out
+  }
+  if (!web.install) {
+    if (web.offline) {
+      out.push(
+        'surfaces.web.offline is on and surfaces.web.install is off, so no device can keep ' +
+          'anything: what a kept view is for is opening the installed page with nothing to ask',
+      )
+    }
+    if (web.push) {
+      out.push(
+        'surfaces.web.push is on and surfaces.web.install is off, so nothing is sent: a ' +
+          'notification is delivered to the worker the installed page registers',
+      )
+    }
+  }
+  if (web.push_details && !web.push) {
+    out.push(
+      'surfaces.web.push_details is on and surfaces.web.push is off, so no notification is ' +
+        'sent for it to say anything in',
+    )
+  }
+  return out
+}
