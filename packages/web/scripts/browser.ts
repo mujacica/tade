@@ -393,6 +393,7 @@ async function asActing(
       drawn: string[]
       reasons: string[]
       small: string[]
+      blank: string[]
     }
     // Against the fixture's own two lists, so this is the page and the
     // projection held equal rather than the page against a literal.
@@ -410,6 +411,8 @@ async function asActing(
       found('controls', at, 'fail', `only ${shape.reasons.length} of 3 reasons are drawn`)
     } else if (shape.small.length > 0) {
       found('controls', at, 'fail', `too small to hit: ${shape.small.slice(0, 3).join('; ')}`)
+    } else if (shape.blank.length > 0) {
+      found('controls', at, 'fail', `showing an empty reason: ${shape.blank.join('; ')}`)
     } else {
       found(
         'controls',

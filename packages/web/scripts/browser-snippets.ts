@@ -11,7 +11,21 @@
 // answers a value: which controls are drawn, what the landmarks are, what is
 // focused, what is selected, what axe found.
 
-/** Which controls are drawn, which reasons are, and which targets are too small. */
+/**
+ * What one task screen's control blocks look like.
+ *
+ * Which verbs have a control, which have a reason instead, which targets are
+ * too small to hit, and which blocks are showing a reason that says nothing —
+ * the last because a visible empty line under a heading reads as something
+ * that failed to load, and there is no offline way to see one.
+ *
+ * **What `blank` can and cannot see, said rather than assumed.** A reason with
+ * nothing in it needs a row that names a verb in neither `can` nor `cannot`,
+ * and `ableOn` puts every verb in one of them — so the only way to get one
+ * is an older server talking to a newer page, which no fixture here models.
+ * It is a guard against that, not a covered behaviour, and reintroducing the
+ * drawing bug it is about does **not** turn it red.
+ */
 export const CONTROLS = `(() => {
   const NAMED = {
     'SET ASIDE': 'park',
@@ -26,6 +40,7 @@ export const CONTROLS = `(() => {
   const drawn = []
   const reasons = []
   const small = []
+  const blank = []
   for (const part of document.querySelectorAll('main .section')) {
     const head = (part.querySelector('h2')?.textContent || '').trim()
     const press = [...part.querySelectorAll('button')].filter((one) => one.offsetParent !== null)
@@ -35,6 +50,14 @@ export const CONTROLS = `(() => {
     if (!(head in NAMED)) continue
     if (press.length > 0) drawn.push(head)
     if (why.length > 0 && press.length === 0) reasons.push(head)
+    // A reason that is visible and says nothing, which reads as something that
+    // failed to load. The reason's own class and not every paragraph: the
+    // status line beside a control is a paragraph too, and is correctly empty
+    // until somebody presses something, so a check over both would flag a
+    // page that is right.
+    for (const one of part.querySelectorAll('p.empty')) {
+      if (one.offsetParent !== null && (one.textContent || '').trim() === '') blank.push(head)
+    }
     for (const one of press) {
       const box = one.getBoundingClientRect()
       if (box.height < 44 || box.width < 44) {
@@ -46,6 +69,7 @@ export const CONTROLS = `(() => {
     drawn: drawn.map((one) => NAMED[one]).filter(Boolean),
     reasons: reasons.map((one) => NAMED[one]).filter(Boolean),
     small,
+    blank: [...new Set(blank)],
   }
 })()`
 
