@@ -6,8 +6,10 @@ import {
   ForgeError,
   type ForgeOptions,
   hostOf,
+  type NoteReceipt,
   type OpenRequest,
   type Page,
+  type Patch,
   type RemotePlace,
   type Review,
   type ReviewDetail,
@@ -54,6 +56,13 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     write: true,
     since: true,
     tickets: true,
+    patches: true,
+    // GitHub's own word for a batch of line comments is "a review", and
+    // submitting one carries an event — `APPROVE`, `REQUEST_CHANGES`,
+    // `COMMENT`. Tade files no verdict, so the notes go up as plain review
+    // comments, one request each, which is the half of that API that has no
+    // verdict in it at all.
+    notes: true,
     // An SSH host alias — `git@github.com-ammujacic:…` — is how somebody with
     // two GitHub accounts keeps them apart, and `gh` holds a sign-in for each.
     accounts: true,
@@ -258,12 +267,18 @@ export function makeGithubForge(options: ForgeOptions): Forge {
 
   /** The commit a review's head is on now — asked again rather than remembered. */
   async function headOf(ref: ReviewRef): Promise<string> {
+    return (await endsOf(ref)).head
+  }
+
+  /** Both ends of a review as they are now, in the one request that answers both. */
+  async function endsOf(ref: ReviewRef): Promise<{ head: string; base: string | null }> {
     const detail = (await request(rest(`/repos/${ref.repo}/pulls/${ref.number}`))).body as {
       head?: { sha?: string }
+      base?: { sha?: string }
     } | null
     const sha = detail?.head?.sha
     if (!sha) throw new ForgeError('missing', `there is no ${ref.repo}#${ref.number}`)
-    return sha
+    return { head: sha, base: detail?.base?.sha ?? null }
   }
 
   async function nodeId(ref: ReviewRef): Promise<string> {
@@ -499,6 +514,76 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       })
     },
 
+    async patch(ref, limit): Promise<Patch> {
+      const ends = await endsOf(ref)
+      const want = limit?.files !== undefined && limit.files > 0 ? limit.files : 300
+      const files: Patch['files'][number][] = []
+      let more = false
+      // One past what was asked for, so `more` is set by having *seen* a file
+      // beyond the limit rather than by the count happening to reach it: a
+      // change with exactly as many files as the caller asked for is a change
+      // that was read in full, and saying otherwise would make a reviewer
+      // report half a change it actually had.
+      const per = Math.min(100, want + 1)
+      for (let page = 1; page <= 10; page += 1) {
+        const answer = await request(
+          rest(`/repos/${ref.repo}/pulls/${ref.number}/files?per_page=${per}&page=${page}`),
+        )
+        const got = Array.isArray(answer.body) ? (answer.body as Record<string, unknown>[]) : []
+        for (const one of got) {
+          if (files.length >= want) {
+            more = true
+            break
+          }
+          files.push(asFilePatch(one))
+        }
+        if (more || got.length < per) break
+      }
+      return { head: ends.head, base: ends.base, files, more }
+    },
+
+    async note(ref, what): Promise<readonly NoteReceipt[]> {
+      if (!what.on.trim()) throw new ForgeError('refused', 'say which commit the notes are of')
+      const receipts: NoteReceipt[] = []
+      for (const one of what.notes) {
+        try {
+          await request(rest(`/repos/${ref.repo}/pulls/${ref.number}/comments`), {
+            method: 'POST',
+            body: {
+              body: one.body,
+              commit_id: what.on,
+              path: one.path,
+              // A line is on the new side of the patch, which is the only side
+              // a note Tade writes is ever about; no line at all is GitHub's
+              // own `subject_type: file`, which is how a note about a whole
+              // file is anchored without inventing a line number for it.
+              ...(one.line === null ? { subject_type: 'file' } : { line: one.line, side: 'RIGHT' }),
+            },
+          })
+          receipts.push({ path: one.path, line: one.line, posted: true })
+        } catch (err) {
+          // One line that has moved under the patch is refused on its own; the
+          // rest still go up, and the caller is told which did not.
+          receipts.push({
+            path: one.path,
+            line: one.line,
+            posted: false,
+            said: err instanceof ForgeError ? (err.said ?? err.message) : String(err),
+          })
+        }
+      }
+      // Last, so a window that died halfway leaves the notes up and the thing
+      // that says a review happened absent — which reads as unfinished rather
+      // than as done, and is the direction a reconciling caller can recover.
+      if (what.body?.trim()) {
+        await request(rest(`/repos/${ref.repo}/issues/${ref.number}/comments`), {
+          method: 'POST',
+          body: { body: what.body },
+        })
+      }
+      return receipts
+    },
+
     async mark(ref, what) {
       if (what.ready) await graphql(READY, { id: await nodeId(ref) })
       if (what.draft) await graphql(DRAFT, { id: await nodeId(ref) })
@@ -566,4 +651,27 @@ function said(body: unknown): string {
   const raw = body as { message?: unknown; errors?: { message?: unknown }[] } | null
   const first = raw?.errors?.[0]?.message
   return typeof raw?.message === 'string' ? raw.message : typeof first === 'string' ? first : ''
+}
+
+/** One file of GitHub's `pulls/<n>/files`, in the port's words. */
+function asFilePatch(one: Record<string, unknown>): Patch['files'][number] {
+  const status = String(one.status ?? '')
+  const patch = typeof one.patch === 'string' && one.patch !== '' ? one.patch : null
+  return {
+    path: String(one.filename ?? ''),
+    from: typeof one.previous_filename === 'string' ? one.previous_filename : null,
+    added: Number(one.additions ?? 0),
+    removed: Number(one.deletions ?? 0),
+    what:
+      status === 'added'
+        ? 'added'
+        : status === 'removed'
+          ? 'removed'
+          : status === 'renamed'
+            ? 'renamed'
+            : 'changed',
+    // Null where GitHub handed none over: a binary file, or one it decided was
+    // too large. Never an empty string, which would read as an empty diff.
+    patch,
+  }
 }

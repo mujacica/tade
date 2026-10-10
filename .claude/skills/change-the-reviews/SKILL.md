@@ -12,7 +12,7 @@ by what the code cannot express, not by being careful at the call site.
 
 | Path | What |
 |---|---|
-| `packages/forges/core/src/port.ts` | the port: `Forge`, `Review`, `ReviewDetail`, `ReviewRef`, `ReviewState`, `Verdict`, `Thread`, `ReviewQuery`, `Page`, `OpenRequest`, `ForgeCapabilities`, `ForgeTrouble`, `ForgeError`, `hostOf`, `repoOf` |
+| `packages/forges/core/src/port.ts` | the port: `Forge`, `Review`, `ReviewDetail`, `ReviewRef`, `ReviewState`, `Verdict`, `Thread`, `ReviewQuery`, `Page`, `OpenRequest`, `Patch`/`FilePatch`, `Note`/`NoteReceipt`, `ForgeCapabilities`, `ForgeTrouble`, `ForgeError`, `hostOf`, `repoOf` |
 | `packages/forges/core/src/conformance.ts` | `testForge`: the suite every implementation passes |
 | `packages/forges/github/src/{index,map,queries}.ts` | GitHub: one credential, plain requests, and its vocabulary in `map.ts` alone |
 | `packages/forges/scripted/src/index.ts` | a forge that answers from a table: `ScriptedReview`, `Wrote` |
@@ -24,9 +24,13 @@ by what the code cannot express, not by being careful at the call site.
 | `packages/extensions/review/src/branch.ts` | `branchChecks`: CI on every branch the project has checked out — `readKey`, `REVIEWS_WATCH` |
 | `packages/extensions/review/src/commit.ts` | what CI can say about a commit here, and every honest reason it cannot: `standingOn`, `standingEverywhere`, `onRemote`, `ciOn`, `whatRan`, `cannotLook` |
 | `packages/extensions/review/src/record.ts` | what the watches found, out of the journal: `found`, `attemptsUnder`, `watchIsOn` |
+| `packages/extensions/review/src/reviewing.ts` | reviewing somebody's pull request, as policy: `REVIEW_ACTS`/`ACT_SETTINGS`/`Grants`, `mayI`, `grantProblem`, `reviewVersion`/`reviewKey`/`fixKey`/`keyIsAbout`, `marker`/`markedBy`/`oursAlready`, `FINDING_KINDS`/`findingFrom`, `anchorsIn`/`anchored`, `wouldLeak`, `whyNotReview`/`whyNotFix`/`reviewerOf`, `GRANTS_ARE_LOCAL`, `NOT_A_VERDICT`, `OUR_REVIEW_IS_MATERIAL` |
+| `packages/extensions/review/src/reviewer.ts` | what a reviewer reads and the one place that writes: `reviewPack`, `REVIEWER_RUBRIC`, `examineReview`, `publishReview`, `reviewerSettings`, `reviewerTools` |
+| `packages/extensions/review/src/reviewer-watch.ts` | the loop: `toReview`, `reviewFix`, `stillWorthIt` |
 | `packages/extensions/review/src/format.ts` | every word a person reads: `stateMarks`/`figuresOf`, `rowOf`, `summaryOf`, `listMarkdown`, `showMarkdown`, `threadLines`, `COMMENTS_ARE_MATERIAL` |
 | `packages/extensions/review/skills/open-a-review/` | what an *agent* is told to do — the other half, and not this one |
-| `test/fixtures/forge/github.ts` | `githubReplay`: a GitHub that answers from files |
+| `test/fixtures/forge/github.ts` | `githubReplay`: a GitHub that answers from files — `files`, `refusesNotes`, and `onNewSide`, which refuses a line comment the served patch does not have, the way the real one does |
+| `packages/extensions/review/test/pulls.ts` | what the two reviewing test files share: a real repository, the replay, and the journal lines that stand for work Tade already started |
 
 ## Adding a forge
 
@@ -119,6 +123,115 @@ wrong if nobody thinks about them.
   free — so a project nobody pushes from spends nothing however many worktrees are open in it. The
   other three do not clear it and wait to be turned on. With no credential the extension is not `ready()`, so no schedule is
   written at all rather than one failing all day.
+
+## Reviewing a pull request, which is the other direction
+
+Everything above is about work **Tade offered**. Reviewing is Tade reading somebody's change and
+writing in their repository, which is a different act with a different failure mode, so it is a
+different set of rules — `reviewing.ts` (policy, pure), `reviewer.ts` (the pack and the two tools)
+and `reviewer-watch.ts` (the two watches). **It is off, everywhere, until four lists in the config
+say otherwise, and nothing in this repository turns one on.**
+
+- **Four acts, four grants, nobody by default** (`REVIEW_ACTS`, `ACT_SETTINGS`): `review_in` is
+  whose pull requests may be reviewed at all, `comment_in` is where a review may be *posted*,
+  `fix_in` is where one may *start an agent*, and `push_in` is where that agent is told to push.
+  Each is a list of repositories, each empty, and none implies another — the same argument intake's
+  `accept`/`reply`/`names` makes. A person who wants Tade to read their changes has not thereby
+  asked it to write in somebody's repository.
+- **A grant names the host and one repository, and anything else is a configuration mistake**
+  (`grantProblem`). `acme/api` names a repository on every forge there is; reading it as one on
+  whichever forge is in front of us is how a grant for an internal GitLab comes to allow one on
+  github.com. And there is **no pattern**: `acme/*` is the same shape as `from: anybody` — a
+  standing allowance over repositories nobody has looked at, including ones made next month — and
+  it cannot be handed to a forge as a filter either, because GitHub's `repo:` qualifier takes one
+  `owner/name`, so a glob would match in Tade and find nothing there. Matching is host **and**
+  name, case-insensitively, every time (`mayI`), and a malformed line makes the look **throw**
+  rather than silently match nothing — the one case here where loud beats quiet, because a grant
+  that matches nothing looks exactly like a grant that works. An empty repository list is an
+  **empty answer and never an unfiltered query** (`openIn`): a forge asked about no repository in
+  particular answers about somebody's whole account, and no grant said that.
+- **The gates are at the call, not in the prompt.** `review_publish` checks the grant, the caller,
+  the state, the head, the kinds, the sentences and what is already posted — in that order, at the
+  moment of the call. A rule in a prompt is a rule the diff in front of the model can talk it out
+  of, and the diff is the attacker-controlled half.
+- **The reviewer is a different task, and that is the whole of its independence.** Not a different
+  account, which Tade does not have and must not switch (`accounts` is `never`). `who: 'any'`,
+  because the ordinary case is Tade's *own* review being read by an agent that did not write it.
+- **Who may publish is read out of the journal** (`reviewerOf`): the task a watch started on *that
+  review at that head*. An agent on other work calling `review_publish` is refused by name, and a
+  change nothing was sent to read has no review to publish. Derived, like everything else here —
+  a table would be wrong the moment somebody force-pushes.
+- **A review is of one commit, said everywhere** (`reviewVersion`, in the key, in the marker, in
+  the comment a person reads). `review_publish` takes the head it read as an argument and refuses
+  when the forge says otherwise; `recheck` drops a finding whose head moved while it queued. The
+  forge's `patch` is pinned for the same reason — a review read at one commit and commented on at
+  another is a comment on a line that has moved.
+- **The replay checks an anchor, so the anchoring is tested and not assumed.** `onNewSide` in the
+  fixture refuses a line comment whose line the served patch does not have, exactly as GitHub's
+  `422` does, and it is written separately from `anchorsIn` on purpose — a fixture that validated
+  with the code under test would agree with it about a line they were both wrong about.
+- **Anchors come from the patch and nowhere else** (`anchorsIn`, `anchored`). Three answers, never
+  two: the line is in the diff; the file is and the line is not, so it is a note about the file; the
+  file is not, so it is **adrift** and is named in the summary. Nothing is dropped in silence and
+  nothing is posted against code the reviewer never read. A file the forge handed no patch over for
+  has **no** anchors, which is why a binary file can only ever get a note about the file.
+- **There is no kind for anything cosmetic** (`FINDING_KINDS`), and `why` is required. That is the
+  only reliable way to keep an automated loop off whitespace: a reviewer with a cosmetic opinion has
+  nowhere to put it, and a finding whose consequence nobody can state is refused before it is
+  rendered. Enforcement by absence, not by a sentence asking nicely.
+- **What may never leave is refused, never scrubbed** (`wouldLeak`): a path under this home or a
+  checkout, anybody's home directory, a `file://` url, anything shaped like a credential. Per
+  finding, so one bad sentence does not take the review with it, and the summary says how many were
+  held back without quoting any of them. A sanitiser would post words nobody wrote and would be
+  wrong the first time a secret had a shape nobody listed.
+- **The marker is the record** (`marker`, `markedBy`). Everything Tade writes on a review carries
+  one, which is three things at once: publication is idempotent across a crash with nothing written
+  down anywhere (the comments already there are the ledger); the comment watch skips Tade's own
+  words, so a review never comes back as a comment to answer; and `review-fix` can tell *its own
+  review* from a bot echo and from a person's reply. It is read off the **notes** and never off the
+  summary, because the summary is a comment on the review as a whole and `threads` are the
+  conversations on its lines — so the summary goes last and only where something else goes with it.
+- **One review drives one fix** (`fixKey` carries the head and nothing else), **one fix at a time
+  per pull request** (`whyNotFix`), **two rounds a day** (`whyNotReview`, `ROUNDS_HOURS`) and a
+  cooldown longer than a CI run is short. Twenty findings are one agent: twenty agents in one
+  checkout is worse than the findings were.
+- **The pre-start check is in `agent()`, and `recheck` is deliberately not implemented.**
+  `recheck` is the hook for "is this still worth starting", and the queue only drives it for an
+  **intake** finding: `intakeHold` (`app/src/wire/queue.ts`) answers null for anything else
+  "without asking anybody anything". So a `recheck` on these two would be a method nothing calls —
+  the same fault as a setting nothing reads. `agent()` is asked only for what work is actually
+  started on, and a throw from it is written down as found **with its reason**, never tried again,
+  and reported as "could not start work on" (`wire/schedules.ts`). `stillWorthIt` is therefore
+  where the grant, the state and the head are read again, plus — for the fix watch — whether a fix
+  started in the meantime. If the queue ever learns to ask every watch and not only an intake one,
+  that is the place to move this to, and this paragraph is the note saying so.
+- **A grant that has gone stops new work and kills nothing.** `nothingToLookAt` returns no findings
+  and a sentence; `stillWorthIt` refuses a finding by name. Neither reaches an agent that is
+  already running, which would be a remote kill switch — the same rule intake has about an edited
+  request.
+- **404, a rate limit and nothing coming back are held, never an empty review** (`openIn`,
+  `asLookFailed`). A forge reported as "nothing to review" is the one answer that would make the
+  loop look finished when it had not started. The cost is in `stillWorthIt` and is written down
+  there: a throw from `agent()` burns the key, so a forge that is unreachable in the moment
+  between the look and the start loses that review **at that head** until something is pushed —
+  which is the lesser of the two against a reviewer started with no diff in front of it.
+- **Where a grant is written, and where it deliberately is not.** `config.yaml`, by hand or
+  through `tade config`'s file — the four keys are declared (`reviewerSettings`) so an unknown-key
+  warning never fires, and the extension's setup guide names them and then says **what is granted
+  right now** (`grantedNow`), because "off" and "on for one repository" look identical in a config
+  file somebody is scrolling. They are **not** in `setup().fields`, which is the panel a person
+  presses enter through: granting is not a step in a wizard. And they are unreachable to the
+  orchestrator (`extensions` is a `never` subtree in `reach.ts`) and to a paired device, which can
+  never change a setting at all — asserted in `reviewing.test.ts` rather than assumed.
+- **The dry run is `review_examine` and the evidence is `review_findings`.** Reading needs no
+  grant, so what a review would say can always be seen before anything is allowed to say it, and
+  what the two watches found — with the task each started — is already in the journal.
+- **What this does not hold, said rather than implied.** `push_in` decides what the fix agent is
+  *told* and whether a fix is started at all; it is not a lock on `git push`, because Tade sandboxes
+  nothing and says so (`SERVER_RUNS_AS_YOU`). What actually holds a push is `approvals`, and the
+  fix agent is told the branch, told to use `review_checkout`, and told to stop rather than push a
+  branch of its own. And no path anywhere files a verdict, resolves a conversation, marks anything
+  ready, force-pushes or merges: there is no argument one could go in.
 
 ## Adding or changing a tool
 
@@ -241,7 +354,9 @@ beside it. Then, in order of how likely each is to have moved:
 - `pnpm vitest run packages/extensions/review` — the tools (`review.test.ts`), the branch watch
   (`branch.test.ts`), checking a review out (`checkout.test.ts`, real repositories and a real fetch,
   rewritten to a bare repository next door with git's own `insteadOf`), the surfaces
-  (`surfaces.test.ts`), and `extensionConformance`.
+  (`surfaces.test.ts`), reviewing's policy with nothing plugged into it (`reviewing.test.ts`), the
+  two reviewing tools (`reviewer.test.ts`), the loop and its bounds (`reviewer-loop.test.ts`), and
+  `extensionConformance`.
 - `pnpm vitest run packages/status/test/forges.test.ts` if the registry or `forgeFor` moved.
 - `pnpm vitest run test/modularity.test.ts` if a file grew: `review/src/extension.ts` has a budget
   line of its own, and a number in it may only go down.

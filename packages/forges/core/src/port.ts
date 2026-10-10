@@ -148,6 +148,80 @@ export interface ReviewDetail extends Review {
   files: readonly { path: string; added: number; removed: number }[]
 }
 
+/**
+ * One file's patch in a change, as the forge wrote it.
+ *
+ * The patch and not a rendering of it: a reviewer that is told what changed in
+ * somebody's own words is reviewing the words. `patch` is null where the forge
+ * hands none over — a binary file, one too large for it, a rename with no
+ * content change — which is a **first-class answer** and not an empty diff:
+ * "nothing changed in this file" and "I was not given the change" are opposite
+ * facts, and a reviewer told the first about the second reviews a file it never
+ * saw.
+ */
+export interface FilePatch {
+  path: string
+  /** Where it was before a rename; null where it was not renamed. */
+  from: string | null
+  added: number
+  removed: number
+  what: 'added' | 'removed' | 'changed' | 'renamed'
+  /** The unified patch, as the forge wrote it; null where it hands none over. */
+  patch: string | null
+}
+
+/**
+ * The patch of a review, **pinned**: the commit it is of, said with it.
+ *
+ * `head` is what the review's head was at the moment the patch was read, and
+ * it is the whole reason this is not just a list of files. A review read at
+ * one commit and commented on at another is a comment on a line that has
+ * moved, so every caller that acts on a patch carries this sha and checks it
+ * again before it writes anything.
+ */
+export interface Patch {
+  /** The commit the patch is of. */
+  head: string
+  /** What it is against, where the forge says; null where it does not. */
+  base: string | null
+  files: readonly FilePatch[]
+  /** More files changed than were handed over: `limit` was reached. */
+  more: boolean
+}
+
+/**
+ * Something to say about one place in a change, with no verdict attached.
+ *
+ * `line` is a line **on the new side** of the patch, as the patch numbers it,
+ * and null is a note about the file as a whole. A note is never an approval,
+ * a rejection or a request for changes: there is no field for one, which is
+ * the same enforcement-by-absence the rest of this port uses — a forge cannot
+ * be asked for what cannot be said.
+ */
+export interface Note {
+  path: string
+  line: number | null
+  body: string
+}
+
+/**
+ * What came of one note, as the forge that posted it says.
+ *
+ * Per note rather than per batch, because posting a set of line comments is a
+ * request each on every forge there is: a line that has moved under the patch
+ * is refused on its own while the rest go up, and a caller that was handed one
+ * answer for the batch would either report a failure that did not happen or
+ * hide one that did.
+ */
+export interface NoteReceipt {
+  path: string
+  line: number | null
+  /** Whether it was created. */
+  posted: boolean
+  /** Why not, in the forge's own words. */
+  said?: string
+}
+
 /** What to list. Everything is optional; a forge that cannot narrow one says so in `capabilities`. */
 export interface ReviewQuery {
   /** Ours, waiting on us, or both. */
@@ -201,6 +275,21 @@ export interface ForgeCapabilities {
    * tickets" are opposite facts.
    */
   tickets: boolean
+  /**
+   * Can hand over the **patch** of a review, pinned to the commit it read —
+   * `patch` below. False is an ordinary answer and the method then throws
+   * `unsupported`, because "there is no diff" and "I cannot be asked for one"
+   * are opposite facts about somebody's change.
+   */
+  patches: boolean
+  /**
+   * Can anchor something said at a file and a line in a review's diff —
+   * `note` below — **without a verdict attached**. A forge whose only way of
+   * posting line comments is to submit an approval or a rejection with them
+   * declares `false`: Tade never files a verdict, so a capability that cannot
+   * be used without one is a capability it does not have.
+   */
+  notes: boolean
   /** Anything that changes the forge: opening, saying, marking, merging. */
   write: boolean
   /** Cheap "what moved since" — otherwise a watch must list and compare. */
@@ -347,6 +436,33 @@ export interface Forge {
   open(request: OpenRequest): Promise<Review>
   /** Say something: on the review, or as a reply inside one thread. */
   say(ref: ReviewRef, what: { body: string; thread?: string }): Promise<void>
+  /**
+   * The patch of a review, pinned to the commit it was read at. Needs
+   * `capabilities.patches`.
+   *
+   * A review with nothing in it is an **empty file list, never `missing`**: a
+   * branch whose commits are all on the base already is an ordinary thing for
+   * somebody to have opened, and a caller reading it as a failure to look
+   * would say a real review is broken.
+   */
+  patch(ref: ReviewRef, limit?: { files?: number }): Promise<Patch>
+  /**
+   * Say a set of things about places in a change, anchored to one commit.
+   * Needs `capabilities.notes` and `capabilities.write`.
+   *
+   * `on` is the commit the notes were written against, handed in rather than
+   * looked up, so a head that moved between reading the patch and writing the
+   * notes is a refusal from the forge rather than a comment on a line that is
+   * no longer there. `body` is what to say about the change as a whole, posted
+   * once; with no notes at all it is still posted, because a review that found
+   * nothing is a thing to say.
+   *
+   * Nothing here is a verdict, and there is no argument one could go in.
+   */
+  note(
+    ref: ReviewRef,
+    what: { on: string; notes: readonly Note[]; body?: string },
+  ): Promise<readonly NoteReceipt[]>
   /** Change what the forge shows about it. Nothing here merges anything. */
   mark(
     ref: ReviewRef,

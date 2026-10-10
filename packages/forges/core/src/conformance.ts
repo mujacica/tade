@@ -79,6 +79,8 @@ export function testForge(
         'since',
         'accounts',
         'tickets',
+        'patches',
+        'notes',
       ] as const) {
         expect(typeof can[key]).toBe('boolean')
       }
@@ -378,6 +380,90 @@ export function testForge(
       const forge = await make()
       const who = await forge.whoami()
       expect('login' in who ? who.login : who.problem).toBeTruthy()
+    })
+
+    // --- the patch, and saying something about one place in it
+
+    it('refuses to be asked for a patch at all when it says it hands none over', async () => {
+      const forge = await make()
+      if (forge.capabilities.patches) return
+      await expect(forge.patch(options.ref)).rejects.toMatchObject({ trouble: 'unsupported' })
+    })
+
+    it('pins the patch to the commit it read, and says what it could not hand over', async () => {
+      const forge = await make()
+      if (!forge.capabilities.patches) return
+      const patch = await forge.patch(options.ref)
+      // The sha is the whole point: a review read at one commit and commented
+      // on at another is a comment on a line that has moved.
+      expect(patch.head).toBeTruthy()
+      expect(typeof patch.more).toBe('boolean')
+      for (const file of patch.files) {
+        expect(file.path).toBeTruthy()
+        expect(file.added).toBeGreaterThanOrEqual(0)
+        expect(file.removed).toBeGreaterThanOrEqual(0)
+        expect(['added', 'removed', 'changed', 'renamed']).toContain(file.what)
+        // Null, never an empty string: "nothing changed here" and "I was not
+        // given the change" are opposite facts about somebody's file.
+        expect(file.patch === null || file.patch.length > 0).toBe(true)
+      }
+      const head = patch.head
+      // Asked again it pins the same way, so a caller may compare the two.
+      expect((await forge.patch(options.ref)).head).toBe(head)
+    })
+
+    it('reads no more of a patch than it was asked for, and says there was more', async () => {
+      const forge = await make()
+      if (!forge.capabilities.patches) return
+      const whole = await forge.patch(options.ref)
+      if (whole.files.length < 2) return
+      const some = await forge.patch(options.ref, { files: 1 })
+      expect(some.files.length).toBe(1)
+      expect(some.more).toBe(true)
+    })
+
+    it('says a review it has never heard of is missing rather than empty', async () => {
+      const forge = await make()
+      if (!forge.capabilities.patches) return
+      await expect(forge.patch(options.unknown)).rejects.toMatchObject({ trouble: 'missing' })
+    })
+
+    it('refuses to be asked to note anything when it says it cannot anchor one', async () => {
+      const forge = await make()
+      if (forge.capabilities.notes) return
+      await expect(
+        forge.note(options.ref, { on: 'deadbeef', notes: [], body: 'nothing' }),
+      ).rejects.toMatchObject({ trouble: 'unsupported' })
+    })
+
+    it('answers per note, so one line that moved never hides the rest', async () => {
+      const forge = await make()
+      if (!forge.capabilities.notes || !forge.capabilities.write) return
+      const patch = await forge.patch(options.ref)
+      const first = patch.files[0]
+      if (!first) return
+      const receipts = await forge.note(options.ref, {
+        on: patch.head,
+        body: 'A conformance run said this and nothing else.',
+        notes: [{ path: first.path, line: null, body: 'about this file' }],
+      })
+      expect(receipts.length).toBe(1)
+      for (const receipt of receipts) {
+        expect(receipt.path).toBeTruthy()
+        expect(typeof receipt.posted).toBe('boolean')
+        if (!receipt.posted) expect(receipt.said).toBeTruthy()
+      }
+    })
+
+    it('will not note anything on an account that may only read', async () => {
+      if (!options.readOnly) return
+      const forge = await options.readOnly()
+      if (!forge.capabilities.notes) return
+      // The quiet one: a write that happens on a read-only sign-in is the
+      // failure nobody sees until it is in somebody else's repository.
+      await expect(
+        forge.note(options.ref, { on: 'deadbeef', notes: [], body: 'no' }),
+      ).rejects.toBeInstanceOf(ForgeError)
     })
 
     // --- tickets: the things people file, for a forge that can be asked

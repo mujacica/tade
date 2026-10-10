@@ -588,3 +588,85 @@ describe('GitHub issues, as the port’s tickets', () => {
     ).rejects.toMatchObject({ trouble: 'network' })
   })
 })
+
+describe('the patch of a pull request', () => {
+  it('reads it pinned to both ends, and hands over nothing for a file it was given none for', async () => {
+    const { forge, replay } = make()
+    const patch = await forge.patch({ repo: 'acme/api', number: 412, host: 'github.com' })
+    expect(patch.head).toBe('a1b2c3d4e5f60718293a4b5c6d7e8f9012345678')
+    expect(patch.base).toBeTruthy()
+    expect(patch.files.map((one) => one.path)).toEqual(['src/refunds.ts', 'docs/refunds.png'])
+    expect(patch.files[0]?.patch).toContain('gateway.refund')
+    // Null, never an empty string: a binary file is one the forge handed no
+    // patch over for, which is not the same fact as an empty diff.
+    expect(patch.files[1]?.patch).toBeNull()
+    expect(patch.more).toBe(false)
+    expect(replay.calls.some((call) => call.includes('/pulls/412/files?per_page='))).toBe(true)
+  })
+
+  it('does not claim there is more just because the count reached the limit', async () => {
+    // Asked for exactly as many files as the change has, it has read the whole
+    // change — and a reviewer told otherwise reports half a change it had.
+    const { forge } = make()
+    const ref = { repo: 'acme/api', number: 412, host: 'github.com' }
+    expect((await forge.patch(ref, { files: 2 })).more).toBe(false)
+    const some = await forge.patch(ref, { files: 1 })
+    expect(some.files.length).toBe(1)
+    expect(some.more).toBe(true)
+  })
+
+  it('posts a note per line and a summary last, and never submits a verdict', async () => {
+    const { forge, replay } = make({ refusesNotes: { 'src/refunds.ts:99': 'not in the diff' } })
+    const ref = { repo: 'acme/api', number: 412, host: 'github.com' }
+    const receipts = await forge.note(ref, {
+      on: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+      body: 'what it came to',
+      notes: [
+        { path: 'src/refunds.ts', line: 42, body: 'on a line' },
+        { path: 'src/refunds.ts', line: null, body: 'on the file' },
+        { path: 'src/refunds.ts', line: 99, body: 'on a line that moved' },
+      ],
+    })
+    expect(receipts.map((one) => one.posted)).toEqual([true, true, false])
+    expect(receipts[2]?.said).toContain('not in the diff')
+    const sent = replay.bodies.filter((one) => (one as { commit_id?: string }).commit_id)
+    expect((sent[0] as { line?: number }).line).toBe(42)
+    expect((sent[0] as { side?: string }).side).toBe('RIGHT')
+    // A note about a whole file is GitHub's own `subject_type`, not a line
+    // number somebody invented for it.
+    expect((sent[1] as { subject_type?: string }).subject_type).toBe('file')
+    // The summary goes to the review as a whole, and it goes last.
+    const posts = replay.calls.filter((call) => call.startsWith('POST'))
+    expect(posts.at(-1)).toContain('/issues/412/comments')
+    // Nothing anywhere submits a GitHub review, which is where a verdict is.
+    expect(replay.calls.some((call) => /\/pulls\/412\/reviews/.test(call))).toBe(false)
+  })
+
+  it('is refused a line the diff does not have, the way the real one refuses it', async () => {
+    // The fixture plays GitHub's own rule here rather than taking any number a
+    // caller sends: anchoring is the whole of what keeps a comment off code
+    // nobody read, and a fixture that accepted anything would be the one place
+    // an anchoring bug could not show up.
+    const { forge } = make()
+    const receipts = await forge.note(
+      { repo: 'acme/api', number: 412, host: 'github.com' },
+      {
+        on: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+        notes: [
+          { path: 'src/refunds.ts', line: 1, body: 'a line outside every hunk' },
+          { path: 'nothing/here.ts', line: null, body: 'a file this change never touched' },
+        ],
+      },
+    )
+    expect(receipts.map((one) => one.posted)).toEqual([false, false])
+    expect(receipts[0]?.said).toContain('line must be part of the diff')
+    expect(receipts[1]?.said).toContain('not part of the pull request')
+  })
+
+  it('refuses to note anything without saying which commit it read', async () => {
+    const { forge } = make()
+    await expect(
+      forge.note({ repo: 'acme/api', number: 412, host: 'github.com' }, { on: '  ', notes: [] }),
+    ).rejects.toMatchObject({ trouble: 'refused' })
+  })
+})

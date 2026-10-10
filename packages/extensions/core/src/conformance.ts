@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ExtensionHost } from './host.ts'
-import type { TadeExtension } from './port.ts'
+import type { Caller, TadeExtension } from './port.ts'
 import { intakeProblem, shapeProblem } from './shape.ts'
 
 // The suite every extension passes, built-in or yours. It asserts the
@@ -121,9 +121,14 @@ export function extensionConformance(
           ? (tool.parameters.required as string[])
           : []
         if (required.length === 0) continue
-        await expect(
-          host.call(tool.name, {}, { caller: { kind: 'orchestrator' } }),
-        ).rejects.toThrow(/is needed/)
+        // Asked as somebody the tool is actually offered to, because the
+        // audience is checked before the inputs are: a tool only agents may
+        // call is refused for *that* and would never reach its own schema,
+        // which is the one thing this is asserting.
+        const caller: Caller = tool.for.includes('orchestrator')
+          ? { kind: 'orchestrator' }
+          : { kind: 'agent', task: 'here/asking', project: 'here', cwd: options.project ?? '/' }
+        await expect(host.call(tool.name, {}, { caller })).rejects.toThrow(/is needed/)
       }
     })
 

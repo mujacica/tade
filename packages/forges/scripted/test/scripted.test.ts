@@ -26,6 +26,30 @@ const commits = {
 }
 const logs = { 'acme/api@deadbee:tests': 'FAIL src/refunds.test.ts\n  8 failed, 412 passed\n' }
 
+// The patch of #412, two files, one of them handed over as nothing — a binary
+// file is the ordinary reason, and a reviewer told "nothing changed" about one
+// would be reviewing a file it never saw.
+const patches = {
+  'acme/api#412': [
+    {
+      path: 'src/refunds.ts',
+      from: null,
+      added: 4,
+      removed: 1,
+      what: 'changed' as const,
+      patch: '@@ -10,4 +10,7 @@\n context\n+  retry(once)\n+  keep(key)\n+  log(it)\n-  retry()\n',
+    },
+    {
+      path: 'docs/logo.png',
+      from: null,
+      added: 0,
+      removed: 0,
+      what: 'changed' as const,
+      patch: null,
+    },
+  ],
+}
+
 const reviews: ScriptedReview[] = [
   {
     ref: { repo: 'acme/api', number: 412, host: 'scripted.test' },
@@ -70,7 +94,7 @@ const tickets: ScriptedTicket[] = [
   },
 ]
 
-testForge('scripted', () => makeScriptedForge({ reviews, commits, logs, tickets }), {
+testForge('scripted', () => makeScriptedForge({ reviews, commits, logs, tickets, patches }), {
   ref: { repo: 'acme/api', number: 412, host: 'scripted.test' },
   unknown: { repo: 'acme/api', number: 9999, host: 'scripted.test' },
   remotes: { serves: 'git@scripted.test:acme/api.git', not: 'git@github.com:acme/api.git' },
@@ -78,13 +102,19 @@ testForge('scripted', () => makeScriptedForge({ reviews, commits, logs, tickets 
   commits: { withChecks: 'a1b2c3d', nothingRan: '0000000' },
   signedOut: () => makeScriptedForge({ reviews, me: null, trouble: 'auth' }),
   limited: () => makeScriptedForge({ reviews, trouble: 'rate' }),
-  readOnly: () => makeScriptedForge({ reviews, can: 'read' }),
+  readOnly: () => makeScriptedForge({ reviews, can: 'read', patches }),
   tickets: { repo: 'acme/api', label: 'tade', unknown: 9999 },
 })
 
 testForge(
-  'scripted with no tickets',
-  () => makeScriptedForge({ reviews, commits, logs, capabilities: { tickets: false } }),
+  'scripted with no tickets, no patch and no notes',
+  () =>
+    makeScriptedForge({
+      reviews,
+      commits,
+      logs,
+      capabilities: { tickets: false, patches: false, notes: false },
+    }),
   {
     ref: { repo: 'acme/api', number: 412, host: 'scripted.test' },
     unknown: { repo: 'acme/api', number: 9999, host: 'scripted.test' },
@@ -110,6 +140,35 @@ describe('a forge that answers from a table', () => {
     const found = await forge.reviewOf('acme/api', 'shop/new')
     expect(found?.state).toBe('draft')
     expect(found?.task).toBe('shop/new')
+  })
+
+  it('answers a note per note, so one line that moved never hides the rest', async () => {
+    const ref = { repo: 'acme/api', number: 412, host: 'scripted.test' }
+    const forge = makeScriptedForge({
+      reviews,
+      patches,
+      refuses: { 'src/refunds.ts:99': 'that line is not part of the diff' },
+    })
+    const patch = await forge.patch(ref)
+    // Pinned: the commit the patch is of comes back with it, and it is the
+    // commit the notes are then written against.
+    expect(patch.head).toBe('a1b2c3d')
+    expect(patch.files.map((one) => one.patch === null)).toEqual([false, true])
+    const receipts = await forge.note(ref, {
+      on: patch.head,
+      body: 'Two things, neither a verdict.',
+      notes: [
+        { path: 'src/refunds.ts', line: 12, body: 'the key is dropped here' },
+        { path: 'src/refunds.ts', line: 99, body: 'about a line that moved' },
+      ],
+    })
+    expect(receipts.map((one) => one.posted)).toEqual([true, false])
+    expect(receipts[1]?.said).toContain('not part of the diff')
+    const noted = forge.wrote.find((one) => one.kind === 'noted')
+    // Only what went up is written down: a test asking what Tade put in
+    // somebody's repository reads the same thing the receipts say.
+    expect(noted?.kind === 'noted' && noted.notes.map((one) => one.line)).toEqual([12])
+    expect(noted?.kind === 'noted' && noted.on).toBe('a1b2c3d')
   })
 
   it('publishes a head ref only when it is told to, because both answers are real', async () => {

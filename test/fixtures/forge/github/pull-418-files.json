@@ -1,0 +1,11 @@
+[
+  {
+    "sha": "99aa88b",
+    "filename": "package.json",
+    "status": "modified",
+    "additions": 1,
+    "deletions": 1,
+    "changes": 2,
+    "patch": "@@ -12,7 +12,7 @@\n   \"dependencies\": {\n-    \"stripe\": \"^14.2.0\"\n+    \"stripe\": \"^15.0.0\"\n   }\n"
+  }
+]

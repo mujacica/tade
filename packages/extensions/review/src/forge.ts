@@ -9,6 +9,7 @@ import {
 import type { Forge, Review, ReviewRef } from '@tade/forges-core'
 import { ForgeError } from '@tade/forges-core'
 import { type ForgePlace, forgeAt, remoteAt } from '@tade/status'
+import { ACT_SETTINGS, type Bounds, DEFAULT_BOUNDS, type Grants } from './reviewing.ts'
 
 // Finding the forge a project's work goes to, and asking it as little as
 // possible.
@@ -47,6 +48,16 @@ export interface Settings {
   merge: 'never' | 'when green and approved'
   brief: boolean
   body: string | undefined
+  /**
+   * What reviewing somebody's pull request is allowed to touch, per act.
+   *
+   * Read here with everything else so there is one reader of the settings,
+   * rather than a second one beside the feature that needs it. Every list is
+   * empty unless the config says otherwise, and `reviewing.ts` is what decides
+   * what an entry means.
+   */
+  grants: Grants
+  bounds: Bounds
 }
 
 export function settingsOf(ctx: ExtensionContext): Settings {
@@ -90,6 +101,22 @@ export function settingsOf(ctx: ExtensionContext): Settings {
     merge: merge === 'when green and approved' ? merge : 'never',
     brief: raw.brief !== false,
     body: typeof raw.body === 'string' && raw.body.trim() ? raw.body.trim() : undefined,
+    // One line per act rather than a fold with a cast on it: tsc names the one
+    // somebody forgot if there is ever a fifth.
+    grants: {
+      review: list(ACT_SETTINGS.review.key),
+      comment: list(ACT_SETTINGS.comment.key),
+      fix: list(ACT_SETTINGS.fix.key),
+      push: list(ACT_SETTINGS.push.key),
+    },
+    bounds: {
+      rounds: typeof raw.rounds === 'number' && raw.rounds > 0 ? raw.rounds : DEFAULT_BOUNDS.rounds,
+      cooldownMs:
+        typeof raw.cooldown === 'number' && raw.cooldown > 0
+          ? raw.cooldown * 60_000
+          : DEFAULT_BOUNDS.cooldownMs,
+      notes: typeof raw.notes === 'number' && raw.notes > 0 ? raw.notes : DEFAULT_BOUNDS.notes,
+    },
   }
 }
 

@@ -141,6 +141,18 @@ export interface ReplayOptions {
    */
   goneDetails?: readonly number[]
   /**
+   * The files of a pull request, in GitHub's own `pulls/<n>/files` shape, by
+   * number. Undefined is `pull-<n>-files.json` where there is one, and an
+   * empty list otherwise — a review whose commits are all on the base already,
+   * which is an ordinary thing for somebody to have opened.
+   */
+  files?: Record<number, Record<string, unknown>[]>
+  /**
+   * Paths whose line comments GitHub refuses, as it refuses one whose line is
+   * not part of the diff: `422`. By `<path>:<line>`.
+   */
+  refusesNotes?: Record<string, string>
+  /**
    * Conditional requests are answered: a repeat ask carrying the `etag` this
    * handed over gets `304` and no body.
    *
@@ -153,6 +165,15 @@ export interface ReplayOptions {
 
 export function githubReplay(options: ReplayOptions = {}): GithubReplay {
   const nodes = [read('pull-412.json'), read('pull-418.json')]
+  const filesOf = (number: number): Record<string, unknown>[] => {
+    const told = options.files?.[number]
+    if (told) return told
+    try {
+      return readList(`pull-${number}-files.json`) as Record<string, unknown>[]
+    } catch {
+      return []
+    }
+  }
   const checkRuns = read('check-runs.json')
   const issues = options.issues ?? (readList('issues.json') as Record<string, unknown>[])
   const issueEvents =
@@ -345,11 +366,53 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
         ...(link ? { link } : {}),
       })
     }
+    // The files of one pull request, paged the way GitHub pages them. Before
+    // the pull-request detail route, which would otherwise not match it but
+    // reads as though it might.
+    const files = /\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)\/files\?(.*)$/.exec(url)
+    if (files) {
+      const node = nodes.find((one) => one.number === Number(files[2]))
+      if (!node) return answer({ message: 'Not Found' }, 404)
+      const all = filesOf(Number(files[2]))
+      const query = new URLSearchParams(files[3] ?? '')
+      const per = Math.min(Math.max(1, Number(query.get('per_page') ?? 30)), 100)
+      const page = Math.max(1, Number(query.get('page') ?? 1))
+      return answer(all.slice((page - 1) * per, page * per))
+    }
+    // A line comment, which GitHub refuses with a `422` when the line it names
+    // is not part of the diff — the whole reason a note is answered for on its
+    // own rather than for the batch.
+    //
+    // **It is checked against the patch this replay serves**, the way the real
+    // one checks it against the real diff, rather than accepted because a test
+    // did not say otherwise: a fixture that took any line number would be the
+    // one place an anchoring bug could not show up, and anchoring is the whole
+    // of what keeps a comment off code nobody read. `refusesNotes` is for the
+    // other half — a line that *is* in the diff and is refused anyway.
+    const noted = /\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)\/comments$/.exec(url)
+    if (noted && method === 'POST') {
+      const sent = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const key = `${String(sent.path ?? '')}:${sent.line === undefined ? 'file' : String(sent.line)}`
+      const refused = options.refusesNotes?.[key]
+      if (refused) return answer({ message: refused }, 422)
+      const file = filesOf(Number(noted[2])).find((one) => one.filename === sent.path)
+      if (!file) {
+        return answer({ message: 'path is not part of the pull request' }, 422)
+      }
+      if (sent.line !== undefined && !onNewSide(String(file.patch ?? ''), Number(sent.line))) {
+        return answer({ message: 'line must be part of the diff' }, 422)
+      }
+      return answer({ id: 7000 + bodies.length, path: sent.path, line: sent.line })
+    }
     const pull = /\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)$/.exec(url)
     if (pull) {
       const node = nodes.find((one) => one.number === Number(pull[2]))
       if (!node) return answer({ message: 'Not Found' }, 404)
-      return answer({ number: node.number, head: { sha: node.headRefOid } })
+      return answer({
+        number: node.number,
+        head: { sha: node.headRefOid },
+        base: { sha: node.baseRefOid ?? 'base0000000000000000000000000000000000000' },
+      })
     }
     if (/\/pulls$/.test(url) && method === 'POST') {
       const sent = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
@@ -455,4 +518,28 @@ function matches(node: Record<string, unknown>, q: string, me: string): boolean 
     if (!ok) return false
   }
   return true
+}
+
+/**
+ * Whether a line is on the new side of a unified patch.
+ *
+ * Written here rather than imported, deliberately: this is the fixture playing
+ * GitHub's own rule, and a fixture that validated with the same code as the
+ * thing under test would agree with it about a line they were both wrong
+ * about.
+ */
+function onNewSide(patch: string, line: number): boolean {
+  if (patch === '') return false
+  let at = 0
+  for (const row of patch.replace(/\n$/, '').split('\n')) {
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(row)
+    if (hunk?.[1]) {
+      at = Number(hunk[1])
+      continue
+    }
+    if (at === 0 || row.startsWith('-') || row.startsWith('\\')) continue
+    if (at === line) return true
+    at += 1
+  }
+  return false
 }

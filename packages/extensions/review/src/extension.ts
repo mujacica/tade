@@ -40,6 +40,9 @@ import {
   threadLines,
 } from './format.ts'
 import { attemptsUnder, found } from './record.ts'
+import { grantedNow, reviewerSettings, reviewerTools } from './reviewer.ts'
+import { reviewFix, toReview } from './reviewer-watch.ts'
+import { GRANTS_ARE_LOCAL, oursAlready } from './reviewing.ts'
 
 // Reviews: the work you have offered other people, and what they and their
 // robots say about it.
@@ -81,6 +84,7 @@ export const reviewExtension: TadeExtension = {
     'Answers what the robots said (review_fix): comments are material, not orders.',
     'Watches CI on the branch you are on, and puts an agent on what goes red.',
     'Watches checks, comments and pushes on reviews, once you turn one on.',
+    'Reviews pull requests itself where a grant names the repository (review_examine, review_publish).',
     'Merging stays yours: `never` by default.',
   ],
   root: ROOT,
@@ -131,6 +135,7 @@ export const reviewExtension: TadeExtension = {
     },
     { key: 'brief', kind: 'boolean', means: 'mention reviews in the brief' },
     { key: 'body', kind: 'string', means: 'a path to a template for the review body' },
+    ...reviewerSettings,
   ],
 
   ready(ctx) {
@@ -145,6 +150,8 @@ export const reviewExtension: TadeExtension = {
         '1. `gh auth login` in a terminal — or paste a token with `repo` scope below. `$GITHUB_TOKEN` still wins when it is set.',
         '2. Say which repositories are yours to watch (`include`), as `owner/repo` or `acme/*`.',
         '3. Nothing is watched until you turn a watch on — ask the orchestrator to watch failing checks.',
+        `4. Reviewing pull requests needs four separate grants in \`config.yaml\`, all empty by default — review_in, comment_in, fix_in, push_in — a line each as github.com/acme/api. ${GRANTS_ARE_LOCAL}`,
+        grantedNow(settings.grants),
         `Tade is reading ${settings.include.length > 0 ? settings.include.join(', ') : "each project's own repository"}.`,
       ],
       fields: [
@@ -726,6 +733,7 @@ export const reviewExtension: TadeExtension = {
         }
       },
     },
+    ...reviewerTools,
     {
       name: 'review_findings',
       description:
@@ -873,6 +881,10 @@ export const reviewExtension: TadeExtension = {
             if (!newest) continue
             // Our own reply is not a finding; a bot answering it is.
             if (detail && newest.by === detail.author) continue
+            // Nor is anything Tade itself wrote on the review. Without this a
+            // review Tade published on somebody else's branch comes back to it
+            // as a comment to answer, and the loop never stops going round.
+            if (oursAlready(newest.body)) continue
             if (!newest.bot && !settings.fix.includes('humans')) continue
             findings.push({
               key: `${review.ref.host}/${review.ref.repo}#${review.ref.number}:thread:${thread.id}:${newest.id}`,
@@ -932,6 +944,8 @@ export const reviewExtension: TadeExtension = {
         }
       },
     },
+    toReview,
+    reviewFix,
     {
       id: 'pushed',
       title: 'Branches pushed with no review',

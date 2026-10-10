@@ -1,13 +1,17 @@
 import type { CheckRun } from '@tade/checks-core'
 import {
   type Access,
+  type FilePatch,
   type Forge,
   type ForgeCapabilities,
   ForgeError,
   type ForgeTrouble,
   hostOf,
+  type Note,
+  type NoteReceipt,
   type OpenRequest,
   type Page,
+  type Patch,
   type RemotePlace,
   type Review,
   type ReviewDetail,
@@ -44,6 +48,14 @@ export type Wrote =
   | { kind: 'said'; ref: ReviewRef; body: string; thread?: string }
   | { kind: 'marked'; ref: ReviewRef; what: Record<string, unknown> }
   | { kind: 'merged'; ref: ReviewRef; how: string }
+  | {
+      kind: 'noted'
+      ref: ReviewRef
+      /** The commit the notes were written against, as the caller said. */
+      on: string
+      notes: readonly Note[]
+      body: string | undefined
+    }
 
 export interface ScriptedForgeOptions {
   /** Who we are here; null for nobody signed in. */
@@ -64,6 +76,18 @@ export interface ScriptedForgeOptions {
   commits?: Readonly<Record<string, readonly CheckRun[]>>
   /** The tail of a check's log, by `<repo>@<commit>:<check>`. */
   logs?: Readonly<Record<string, string>>
+  /**
+   * The patch of a review, by `<repo>#<number>`. A review the table says
+   * nothing about has an empty patch rather than a missing one — a branch
+   * whose commits are all on the base already is an ordinary thing to open.
+   */
+  patches?: Readonly<Record<string, readonly FilePatch[]>>
+  /**
+   * Notes the forge will not take, by `<path>:<line>` — `src/a.ts:12`, or
+   * `src/a.ts:file` for a note about a whole file. What a line that has moved
+   * under the patch looks like, so a partial failure can be exercised.
+   */
+  refuses?: Readonly<Record<string, string>>
   hosts?: readonly string[]
   /** Repositories this sign-in cannot see, for the `no access` answer. */
   unseen?: readonly string[]
@@ -106,6 +130,8 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
     // account, and nothing above has to wonder.
     accounts: false,
     tickets: true,
+    patches: true,
+    notes: true,
     costPerPoll: 1,
     ...options.capabilities,
   }
@@ -267,6 +293,46 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
         ...(what.thread === undefined ? {} : { thread: what.thread }),
       })
     },
+    async patch(ref, limit): Promise<Patch> {
+      if (!capabilities.patches) {
+        throw new ForgeError('unsupported', 'the scripted forge was told it hands over no patch')
+      }
+      const one = found(ref)
+      const all = options.patches?.[`${ref.repo}#${ref.number}`] ?? []
+      const want = limit?.files !== undefined && limit.files > 0 ? limit.files : all.length
+      return {
+        head: one.head.sha,
+        base: one.base.sha,
+        files: all.slice(0, want),
+        more: all.length > want,
+      }
+    },
+
+    async note(ref, what): Promise<readonly NoteReceipt[]> {
+      if (!capabilities.notes) {
+        throw new ForgeError('unsupported', 'the scripted forge was told it cannot anchor a note')
+      }
+      writable()
+      found(ref)
+      if (!what.on.trim()) throw new ForgeError('refused', 'say which commit the notes are of')
+      const receipts = what.notes.map((note): NoteReceipt => {
+        const refused = options.refuses?.[`${note.path}:${note.line ?? 'file'}`]
+        return refused === undefined
+          ? { path: note.path, line: note.line, posted: true }
+          : { path: note.path, line: note.line, posted: false, said: refused }
+      })
+      wrote.push({
+        kind: 'noted',
+        ref,
+        on: what.on,
+        // Only what actually went up, so a test asking what Tade put in
+        // somebody's repository reads the same thing the receipts say.
+        notes: what.notes.filter((_, at) => receipts[at]?.posted),
+        body: what.body,
+      })
+      return receipts
+    },
+
     async mark(ref, what) {
       writable()
       const one = found(ref)

@@ -1,0 +1,19 @@
+[
+  {
+    "sha": "f1e2d3c",
+    "filename": "src/refunds.ts",
+    "status": "modified",
+    "additions": 40,
+    "deletions": 3,
+    "changes": 43,
+    "patch": "@@ -38,7 +38,12 @@ export async function refund(charge: Charge): Promise<Refund> {\n   const key = idempotencyKey(charge)\n-  return gateway.refund(charge, key)\n+  try {\n+    return await gateway.refund(charge, key)\n+  } catch {\n+    return await gateway.refund(charge)\n+  }\n }\n"
+  },
+  {
+    "sha": "aa11bb2",
+    "filename": "docs/refunds.png",
+    "status": "modified",
+    "additions": 0,
+    "deletions": 0,
+    "changes": 0
+  }
+]
