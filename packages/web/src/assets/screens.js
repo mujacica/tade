@@ -557,7 +557,11 @@ function blockFor(verb, ctx) {
       part.node.hidden = standing.kind === 'off'
       if (standing.kind === 'off') return
       const shown = standing.kind === 'yes'
-      why.hidden = shown
+      // Hidden where there is nothing to say as well as where the control is
+      // drawn: a row from a server that mentioned this verb in neither list
+      // has no reason to give, and an empty paragraph under a heading reads as
+      // something that failed to load.
+      why.hidden = shown || standing.why === ''
       textIn(why, shown ? '' : standing.why)
       row.hidden = !shown
       asks.hidden = !shown
