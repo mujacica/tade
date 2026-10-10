@@ -134,6 +134,13 @@ const PUBLISHES = 'it puts work, or Tade’s own reach, somewhere other people s
 const CONFIRMS = 'the confirmation it needs is a person’s own second press, which a sentence is not'
 const READS_WIDE =
   'what it answers carries more than this device may read — a command, a path, an agent’s own bytes'
+// The fifth, and the only one that is not about what a call can reach: it is
+// about what a call can make *stop being said*. Recording a decision about a
+// document takes it off the list the person reads to find out that an analysis
+// is still unread — so a phone that could write one could clear something
+// nobody ever saw waiting, which is the one failure the list exists to prevent.
+const DECIDES_FOR_SOMEBODY =
+  'it writes down a decision, and a decision recorded from away is one the person never saw waiting'
 
 /**
  * Every one of Tade's own tools, and what a remote turn may do with it.
@@ -218,6 +225,9 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // already serves what it has decided to serve. A tool that reads round a
   // grant is a grant that does not hold.
   tade_logs: { kind: 'local', because: READS_WIDE },
+  // A path in Tade's home, and a task id for tasks the away view no longer
+  // draws: a read wider than a read grant, like the rest of this group.
+  tade_documents: { kind: 'local', because: READS_WIDE },
   tade_notes: { kind: 'local', because: READS_WIDE },
   tade_terminal_read: { kind: 'local', because: READS_WIDE },
   tade_terminal_search: { kind: 'local', because: READS_WIDE },
@@ -227,6 +237,10 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_queue: { kind: 'local', because: READS_WIDE },
   tade_templates: { kind: 'local', because: READS_WIDE },
   tade_template_dry_run: { kind: 'local', because: READS_WIDE },
+
+  // Its own clause, because it is the only one here that is not about what a
+  // call can reach.
+  tade_document_triage: { kind: 'local', because: DECIDES_FOR_SOMEBODY },
 }
 
 /**
@@ -372,6 +386,8 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'task/rename': never(PUBLISHES),
   'queue/plan': never(EXECUTES),
   'queue/list': never(READS_WIDE),
+  'documents/list': never(READS_WIDE),
+  'documents/triage': never(DECIDES_FOR_SOMEBODY),
   'queue/change': never(PUBLISHES),
   'queue/schedule': never(EXECUTES),
   'template/list': never(READS_WIDE),

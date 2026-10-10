@@ -245,7 +245,8 @@ describe('what it opens knowing with several repositories', () => {
     )
   })
 
-  it('stops saying nobody has acted on one once work is queued off it', () => {
+  it('stops mentioning one once work has been queued off it', () => {
+    // Resolved, so it leaves the list: what bounds this section is decisions.
     const said =
       composeBriefing({
         now: NOW,
@@ -254,13 +255,30 @@ describe('what it opens knowing with several repositories', () => {
           event('task_created', 'app/fix-scopes', { after: ['app/scope-audit'] }, 60),
         ],
       }) ?? ''
-    expect(said).toContain(
-      '- app/scope-audit produced /h/t/audit.md, and app/fix-scopes was queued off it',
-    )
-    expect(said).not.toContain('nothing has been done about it yet')
+    expect(said).not.toContain('/h/t/audit.md')
   })
 
-  it('leaves a document out once it is old news', () => {
+  it('stops mentioning one once somebody says what they decided', () => {
+    const said =
+      composeBriefing({
+        now: NOW,
+        events: [
+          event('task_done', 'app/scope-audit', { by: 'agent', produces: '/h/t/audit.md' }, 120),
+          event(
+            'document_triaged',
+            'app/scope-audit',
+            { path: '/h/t/audit.md', by: 'person', decided: 'nothing follows: we already do this' },
+            60,
+          ),
+        ],
+      }) ?? ''
+    expect(said).not.toContain('/h/t/audit.md')
+  })
+
+  it('still says it five days on, because the file is still there to read', () => {
+    // It used to fall off after three days. That lost a document nobody had
+    // read on the fourth morning, without a word — and the only way to clear
+    // one was to queue work off it, which is the incentive backwards.
     const said =
       composeBriefing({
         now: NOW,
@@ -271,6 +289,31 @@ describe('what it opens knowing with several repositories', () => {
             { by: 'agent', produces: '/h/t/old.md' },
             5 * 24 * 60,
           ),
+        ],
+      }) ?? ''
+    expect(said).toContain('/h/t/old.md')
+  })
+
+  it('says a document was destroyed with its task, rather than saying nothing at all', () => {
+    const said =
+      composeBriefing({
+        now: NOW,
+        events: [
+          event('task_done', 'app/old-audit', { by: 'agent', produces: '/h/t/old.md' }, 120),
+          event('task_removed', 'app/old-audit', {}, 60),
+        ],
+      }) ?? ''
+    expect(said).toContain('/h/t/old.md')
+    expect(said).toContain('removed with its task')
+  })
+
+  it('retires a destroyed one eventually, because nothing can be done about it', () => {
+    const said =
+      composeBriefing({
+        now: NOW,
+        events: [
+          event('task_done', 'app/old-audit', { by: 'agent', produces: '/h/t/old.md' }, 8000),
+          event('task_removed', 'app/old-audit', {}, 7000),
         ],
       }) ?? ''
     expect(said).not.toContain('/h/t/old.md')

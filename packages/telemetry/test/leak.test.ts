@@ -53,6 +53,9 @@ const NOBODY_ELSE_S = [
   'command',
   'context',
   'cwd',
+  // What somebody decided about a document a task produced, in their own
+  // sentence: a sentence about the work, which is never Tade's trouble.
+  'decided',
   'dsn',
   'file',
   'intent',

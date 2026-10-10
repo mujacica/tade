@@ -5,6 +5,7 @@ import {
   type Arm,
   DONE_RULES,
   type DoneRule,
+  documentsWaitingSays,
   dryRunSays,
   inboxProvenance,
   inboxWaiting,
@@ -13,17 +14,20 @@ import {
   type Plan,
   planReport,
   readTemplates,
+  triagedSays,
   When,
 } from '@tade/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
 import {
   chatsFrom,
   clipped,
+  documentsOf,
   dryRunTemplate,
   inboxFrom,
   inboxItem,
   intakeWouldRun,
   openChat,
+  triageDocument,
   usedSays,
   useTemplate,
   type Workbench,
@@ -203,6 +207,21 @@ export class ToolHost {
         })
         return `${String(p.task)} is finished`
       },
+      // Documents tasks produced, and the one decision about one nothing can
+      // derive. Two methods and deliberately not a third: no way from here to
+      // read a document's *contents* — it is opened with the orchestrator's own
+      // file tool, so what it says arrives as material rather than as a Tade
+      // tool's answer, which is the one voice it has no reason to doubt.
+      'documents/list': async () => documentsWaitingSays(await documentsOf(tade), Date.now()),
+      'documents/triage': async (p) =>
+        triagedSays(
+          await triageDocument(tade, {
+            task: String(p.task ?? ''),
+            path: String(p.path ?? ''),
+            decided: String(p.decided ?? ''),
+            by: 'orchestrator',
+          }),
+        ),
       'queue/plan': async (p) => queueOf(opts).plan(planOf(p)),
       'queue/list': async () => queueOf(opts).describe(),
       // Stored workflows. Three methods and deliberately not a fourth: there

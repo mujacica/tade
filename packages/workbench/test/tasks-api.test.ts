@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { producedClause, producedIn, producesPath, taskDir } from '@tade/core'
+import { documentsIn, producedClause, producesPath, taskDir, waitingDocuments } from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { triageDocument } from '../src/documents.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Tasks and runs over the socket: the path the CLI and the orchestrator both
@@ -87,7 +88,7 @@ describe('task and run RPC', () => {
     expect(existsSync(join(task.worktree, 'notes', 'scope-audit.md'))).toBe(false)
     // And what the orchestrator is told is that same path, read back out of the
     // journal the way a briefing reads it.
-    const [doc] = producedIn(await client.events({ types: ['task_done'] }))
+    const [doc] = documentsIn(await client.events({ types: ['task_done'] }))
     expect(doc?.path).toBe(where)
     expect(producedClause(doc!)).toContain(where)
   })
@@ -107,6 +108,153 @@ describe('task and run RPC', () => {
       produces: producesPath(home, task.id, 'notes/scope-audit.md'),
       missing: true,
     })
+  })
+
+  it('reports a symlink that leaves the task folder as leaving it, and sends nobody to it', async () => {
+    // `producesProblem` refuses a *name* that climbs out, but a symlink
+    // written inside the folder is a name that passes and a path that does
+    // not — and the receipt is handed to whoever reads next as a thing to go
+    // and open. So the resolved path is checked against the folder it has to
+    // be in, and a receipt never points at somebody's key.
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'AUDIT.md',
+    })
+    const secret = join(home, 'secret.txt')
+    writeFileSync(secret, 'not a document\n')
+    symlinkSync(secret, producesPath(home, task.id, 'AUDIT.md'))
+    await client.markDone(task.id, { by: 'you' })
+
+    const [done] = await client.events({ types: ['task_done'] })
+    expect(done?.detail).toMatchObject({ missing: true, outside: true })
+    expect(done?.detail.bytes).toBeUndefined()
+    // Read back as a task that named a document and wrote none, which is what
+    // it is: there is nothing of its own there to read.
+    const [doc] = documentsIn(await client.events({}))
+    expect(doc?.state).toBe('missing')
+  })
+
+  it('says how big a document is, so a huge one can be declined before it is opened', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'AUDIT.md',
+    })
+    writeFileSync(producesPath(home, task.id, 'AUDIT.md'), 'x'.repeat(4096))
+    await client.markDone(task.id, { by: 'you' })
+    const [done] = await client.events({ types: ['task_done'] })
+    expect(done?.detail.bytes).toBe(4096)
+    expect(producedClause(documentsIn(await client.events({}))[0]!)).toContain('(4096 bytes)')
+  })
+
+  it('says on the removal that a document existed, before the folder holding it goes', async () => {
+    // The whole of what went wrong: removing a task is `rm -rf` of the only
+    // copy of what it produced, and the removal said nothing about it — so
+    // twelve of thirteen documents on one machine were destroyed with no line
+    // anywhere saying they had existed, six of them inside two seconds.
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'AUDIT.md',
+    })
+    const where = producesPath(home, task.id, 'AUDIT.md')
+    writeFileSync(where, '# what I found\n')
+    await client.markDone(task.id, { by: 'you', summary: 'audit written up' })
+    await client.removeTask({
+      root: repo.root,
+      worktree: task.worktree,
+      branch: task.branch,
+      task: task.id,
+      force: true,
+    })
+
+    const [gone] = await client.events({ types: ['task_removed'] })
+    expect(gone?.detail).toMatchObject({ produces: where, written: true })
+    // And the record outlives the file: the path no longer says where to look,
+    // which is exactly why somebody has to be told it was never read.
+    expect(existsSync(where)).toBe(false)
+    const [doc] = documentsIn(await client.events({}))
+    expect(doc).toMatchObject({ task: task.id, path: where, state: 'gone', triaged: null })
+  })
+
+  it('speaks for an agent killed before it finished, which never got a receipt', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'AUDIT.md',
+    })
+    writeFileSync(producesPath(home, task.id, 'AUDIT.md'), '# half of what I found\n')
+    // No markDone at all: the agent went before it could say anything.
+    await client.removeTask({
+      root: repo.root,
+      worktree: task.worktree,
+      branch: task.branch,
+      task: task.id,
+      force: true,
+    })
+    const [doc] = documentsIn(await client.events({}))
+    expect(doc).toMatchObject({ state: 'gone', task: task.id })
+  })
+
+  it('writes down what somebody decided, and refuses to write a second answer over it', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'AUDIT.md',
+    })
+    const where = producesPath(home, task.id, 'AUDIT.md')
+    writeFileSync(where, '# what I found\n')
+    await client.markDone(task.id, { by: 'you', summary: 'audit written up' })
+
+    const decided = 'nothing follows: the two call sites it names are already guarded'
+    const one = await triageDocument(client, { task: task.id, path: where, decided, by: 'person' })
+    expect(one.triaged).toMatchObject({ by: 'person', decided })
+
+    // Written down, verbatim, and nothing else happened: no task created, no
+    // run started, no setting changed. The only effect is that it stops being
+    // listed as waiting.
+    const [said] = await client.events({ types: ['document_triaged'] })
+    expect(said?.detail).toMatchObject({ path: where, by: 'person', decided })
+    expect(await client.events({ types: ['task_created'] })).toHaveLength(1)
+    expect(await client.events({ types: ['run_started'] })).toEqual([])
+    expect(await client.events({ types: ['config_changed'] })).toEqual([])
+    expect(waitingDocuments(documentsIn(await client.events({})), Date.now())).toEqual([])
+
+    // A second one is refused with what the first said: the first is somebody's.
+    await expect(
+      triageDocument(client, { task: task.id, path: where, decided: 'actually, queue it' }),
+    ).rejects.toThrow(decided)
+  })
+
+  it('refuses a document no task produced, and one with nothing said about it', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'AUDIT.md',
+    })
+    const where = producesPath(home, task.id, 'AUDIT.md')
+    writeFileSync(where, '# what I found\n')
+    await client.markDone(task.id, { by: 'you' })
+    // A path reconstructed from memory rather than read off the list.
+    await expect(
+      triageDocument(client, { task: task.id, path: '/h/guessed.md', decided: 'fine' }),
+    ).rejects.toThrow('is not a document')
+    await expect(
+      triageDocument(client, { task: task.id, path: where, decided: '   ' }),
+    ).rejects.toThrow('say what you decided')
   })
 
   it('writes no ignore rule into a project, and takes back the one it used to', async () => {

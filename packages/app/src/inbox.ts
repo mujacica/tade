@@ -171,6 +171,14 @@ export function eventNews(event: TadeEvent): string | null {
     const slept = typeof event.detail.slept === 'string' ? event.detail.slept : 'a while'
     return `${event.task} was cut off mid-turn while this machine slept for ${slept}, and has been told to carry on where it stopped. Nobody needs to start it again.`
   }
+  // A person decided about a document at the machine, so the orchestrator
+  // stops being told it is unread — and hears what they decided, in their
+  // words, because the next thing they say may well assume it.
+  if (event.type === 'document_triaged') {
+    const decided = typeof event.detail.decided === 'string' ? event.detail.decided.trim() : ''
+    const by = event.detail.by === 'person' ? 'The person' : 'Somebody'
+    return `${by} read the document ${event.task} produced and decided: ${decided || 'nothing said'}. It is no longer waiting on anybody.`
+  }
   if (event.type !== 'task_done') return null
   const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
   const who =
@@ -184,7 +192,11 @@ export function eventNews(event: TadeEvent): string | null {
   const head = `${event.task} finished (${who})${summary ? `: ${summary}` : ''}`
   const path = typeof event.detail.produces === 'string' ? event.detail.produces.trim() : ''
   if (!path) return head
-  const clause = producedClause({ path, missing: event.detail.missing === true })
+  const clause = producedClause({
+    path,
+    missing: event.detail.missing === true,
+    bytes: typeof event.detail.bytes === 'number' ? event.detail.bytes : null,
+  })
   // A summary is somebody's own sentence and may or may not end in a stop:
   // two full stops in the middle of one line read as a bug.
   return `${head}${/[.!?]$/.test(head) ? '' : '.'} It ${clause}`

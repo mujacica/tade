@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import {
   type DoneRule,
   producesPath,
@@ -428,11 +428,24 @@ export async function setTitle(
  * document and did not write one is a thing to go and ask about, and claiming
  * a file exists without looking is how a briefing sends somebody to a path
  * that is not there.
+ *
+ * `bytes` costs the same syscall `existsSync` did and answers what it could
+ * not: an empty file is not a written document, and a surface that says how
+ * big one is lets whoever reads it next decide before it is opened. Absent
+ * rather than nought where nothing could look.
+ *
+ * **A path that leaves the task's folder is reported as leaving it and never
+ * followed.** `producesProblem` refuses a name that climbs out, but a symlink
+ * written *inside* the folder is a name that passes and a path that does not,
+ * and the receipt is handed to whoever reads next as a thing to go and open.
+ * So the resolved path is checked against the folder it has to be in, and one
+ * that points elsewhere is `missing` with `outside` on it: nobody is sent to
+ * it, and the fact that something tried is in the journal.
  */
 export async function producedDetail(
   home: string,
   task: string | null,
-): Promise<{ produces?: string; missing?: true }> {
+): Promise<{ produces?: string; missing?: true; outside?: true; bytes?: number }> {
   if (!task) return {}
   const named = (await readTaskFile(home, task))?.produces?.trim()
   // Checked again on the way into the journal: the file on disk is somebody's
@@ -440,7 +453,22 @@ export async function producedDetail(
   // onto a path.
   if (!named || producesProblem(named)) return {}
   const produces = producesPath(home, task, named)
-  return existsSync(produces) ? { produces } : { produces, missing: true }
+  try {
+    const found = await stat(produces)
+    // A directory where a document should be is not a document, and neither
+    // is a socket: `stat` follows the link, so this is also what a symlink to
+    // a folder comes back as.
+    if (!found.isFile()) return { produces, missing: true }
+    const real = await realpath(produces)
+    const dir = await realpath(taskDir(home, task)).catch(() => taskDir(home, task))
+    const out = relative(dir, real)
+    // `..` leaves the folder, and an absolute answer means no relative path
+    // exists at all — another volume, which is as far outside as it gets.
+    if (out.startsWith('..') || isAbsolute(out)) return { produces, missing: true, outside: true }
+    return { produces, bytes: found.size }
+  } catch {
+    return { produces, missing: true }
+  }
 }
 
 /** A task's file, read and checked; null when there is none or it will not read. */

@@ -320,7 +320,7 @@ export class Away implements Subject {
    * The beat's own parts, out of held values only.
    *
    * `seenActions` is the last look and never a look; `spendToday` is a kept
-   * fold; `overridesFrom`, `writtenOrder`, `producedIn` and `ranOn` are folds
+   * fold; `overridesFrom`, `writtenOrder`, `documentsIn` and `ranOn` are folds
    * over the journal the window already has; `planUsage` is what each harness
    * already said. **No `git`, no `ps`, no `collectStatus`** — a page refresh
    * starts no work at all, which is the promise a test asserts as a count of

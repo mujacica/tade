@@ -13,6 +13,15 @@ import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 export interface ConfirmRemovePanel {
   kind: 'confirm-remove'
   task: string
+  /**
+   * The document this task produced that nobody has read, as a clause — or
+   * null where closing loses no document.
+   *
+   * The reason this panel is shown at all for an agent in the project's own
+   * checkout, where there is no unmerged work to lose: the task's folder is
+   * the only copy of what it produced, and closing the agent deletes it.
+   */
+  unread: string | null
   field: 'keep' | 'remove'
   busy: boolean
   error: string | null
@@ -27,6 +36,14 @@ export interface CloseDonePanel {
   kind: 'close-done'
   /** The tasks it would close, as the list names them. */
   tasks: string[]
+  /**
+   * Of those, the ones whose produced document nobody has read.
+   *
+   * Named before the press rather than counted after it: a task's folder is
+   * the only copy of the document it produced, so this button is the one that
+   * destroys them — six at once, in the case that put this field here.
+   */
+  unread: string[]
   field: 'keep' | 'remove'
   busy: boolean
   error: string | null
@@ -274,14 +291,24 @@ export interface ReloadPanel {
 }
 
 /** What `X` in the AGENTS heading asks first, with the agents it would close in it. */
-export function closeDonePanel(tasks: readonly string[]): CloseDonePanel {
-  return { kind: 'close-done', tasks: [...tasks], field: 'keep', busy: false, error: null }
+export function closeDonePanel(
+  tasks: readonly string[],
+  unread: readonly string[] = [],
+): CloseDonePanel {
+  return {
+    kind: 'close-done',
+    tasks: [...tasks],
+    unread: [...unread],
+    field: 'keep',
+    busy: false,
+    error: null,
+  }
 }
 
-export function confirmRemovePanel(task: string): ConfirmRemovePanel {
+export function confirmRemovePanel(task: string, unread: string | null = null): ConfirmRemovePanel {
   // Keep is where the keyboard starts: enter on a question like this should
   // be the answer that loses nothing.
-  return { kind: 'confirm-remove', task, field: 'keep', busy: false, error: null }
+  return { kind: 'confirm-remove', task, unread, field: 'keep', busy: false, error: null }
 }
 
 export function diffPanel(task: string, files: readonly string[], file = 0): DiffPanel {

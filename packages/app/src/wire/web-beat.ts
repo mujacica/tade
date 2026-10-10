@@ -1,6 +1,6 @@
 import { uptime } from 'node:os'
 import type { PlanStanding, Queued, QueueFacts, Spend, TadeEvent, Workspace } from '@tade/core'
-import { overridesFrom, producedIn, writtenOrder } from '@tade/core'
+import { documentsIn, overridesFrom, writtenOrder } from '@tade/core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import type { IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
 import {
@@ -27,7 +27,7 @@ import type { Transcript } from '../transcript.ts'
 //
 // Nothing here starts work. Every value is one the window already has for its
 // own drawing — `seenActions` is the last look and never a look, `spendToday`
-// is a kept fold, and `overridesFrom`/`writtenOrder`/`ranOn`/`producedIn` are
+// is a kept fold, and `overridesFrom`/`writtenOrder`/`ranOn`/`documentsIn` are
 // folds over the journal it already holds. **No `git`, no `ps`, no
 // `collectStatus`**: a page refresh starts nothing at all
 // (`test/wire/away.test.ts` asserts it as a count of calls).
@@ -162,13 +162,13 @@ export function beatParts(
   const ran = ranOn(live.events)
   // Folds over the journal the window already holds, each pure: whether an
   // agent is waiting on a question, and whether a task's document is actually
-  // there. `producedIn` says `missing` rather than `written`, which is the
-  // right way round — a task that names a document and has none is the case
-  // worth being able to see.
+  // there. The state and not the triage — a document somebody has already
+  // decided about is still a document that exists, and the phone is saying
+  // whether there is one to read, never whether anybody has read it.
   const waiting = new Set(live.tasks.filter((one) => one.waiting === true).map((one) => one.task))
   const written = new Set(
-    producedIn(live.events)
-      .filter((one) => !one.missing)
+    documentsIn(live.events)
+      .filter((one) => one.state === 'written')
       .map((one) => one.task),
   )
   // **A task is finished when the journal says so**, which is the rule

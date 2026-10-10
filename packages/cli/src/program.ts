@@ -11,6 +11,7 @@ import { registerChat } from './commands/chat.ts'
 import { registerCheck } from './commands/check.ts'
 import { registerChecks } from './commands/checks.ts'
 import { registerConfig } from './commands/config.ts'
+import { registerDocuments } from './commands/documents.ts'
 import { registerIntake } from './commands/intake.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerMcp } from './commands/mcp.ts'
@@ -89,6 +90,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerLanes(program, io, setExit)
   registerIntake(program, io, setExit)
   registerNotes(program, io, setExit)
+  registerDocuments(program, io, setExit)
   registerSpend(program, io)
   registerSchedules(program, io)
   registerSummary(program, io, setExit)

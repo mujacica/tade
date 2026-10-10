@@ -73,6 +73,22 @@ export const EventType = z.enum([
    */
   'task_done',
   /**
+   * Somebody read the document a task produced and said what they decided.
+   *
+   * The one thing about a document that **cannot be asked again**, which is
+   * the only reason it is written down: what work followed is derived from the
+   * tasks that name it and from its agent being started again, but "I read it
+   * and nothing should follow" leaves no mark anywhere else, and that is the
+   * answer a document waits on most often. Without it the only way to clear a
+   * document off the list is to queue work, which is the incentive backwards.
+   *
+   * It carries **whose** decision and **their sentence**, because the sentence
+   * is the whole value of the record — a bare flag is a flag that goes unset.
+   * The sentence is `decided` and never `because`: `because` is on telemetry's
+   * allow-list, and a sentence about somebody's work never leaves the machine.
+   */
+  'document_triaged',
+  /**
    * Somebody added to what a task's agent is told.
    *
    * The line carries **how much** was added and who added it, and never a word
@@ -379,6 +395,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   template_used: 'notable',
   state_change: 'notable',
   task_done: 'notable',
+  // Notable: a record nobody can reconstruct, so it is worth the fsync that
+  // `notable` is the threshold for. Never `blocking` — nothing waits on it.
+  document_triaged: 'notable',
   // Notable: what an agent is told changes what it does, so somebody coming
   // back wants to see that it was changed and by whom. Never `blocking` —
   // nothing is waiting on it.

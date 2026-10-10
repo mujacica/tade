@@ -1,11 +1,12 @@
 import {
   ago,
+  documentsIn,
   type Effort,
   effortSays,
   historyFrom,
   producedClause,
-  producedIn,
   type TadeEvent,
+  waitingDocuments,
 } from '@tade/core'
 
 // Where things stood when the window opened, for an orchestrator picking its
@@ -157,18 +158,28 @@ export function composeBriefing(input: BriefingInput): string | null {
     )
   }
 
-  // Its own section, and uncapped, for the reason `held` is: it is a thing
-  // somebody has to act on, and the whole point of a task saying what it
-  // produces is that the document is not lost — least of all to a cap. The
-  // journal is what remembers it, so a window that was shut when the agent
-  // finished still opens knowing there is something to read.
-  const produced = producedIn(events, { since: input.now - STALE })
-  if (produced.length > 0) {
+  // Its own section, uncapped and **not aged**, for the reason `held` is: it is
+  // a thing somebody has to act on, and the whole point of a task saying what
+  // it produces is that the document is not lost — least of all to a cap or to
+  // a clock. The journal is what remembers it, so a window that was shut when
+  // the agent finished still opens knowing there is something to read.
+  //
+  // What bounds it is that anything decided about leaves it (`waitingDocuments`):
+  // queued off, picked back up, or triaged. It used to be bounded by three days
+  // instead, which lost a document nobody had read on the fourth morning — and
+  // the only way to clear a line was to queue work, which is the incentive
+  // backwards. One whose task was removed is still named, because a document
+  // destroyed before anybody read it is a fact and not an absence.
+  const waiting = waitingDocuments(documentsIn(events), input.now)
+  if (waiting.length > 0) {
     sections.push(
       [
-        'Documents that finished tasks produced, and what has been done about each:',
-        ...produced.map(
-          (one) => `- ${one.task} ${producedClause(one)} (finished ${since(one.at)})`,
+        'Documents that finished tasks produced and nobody has decided about yet. Read each one before you say anything about it, then say what follows — and record what you decided with tade_document_triage, or this list says it is unread forever:',
+        ...waiting.map(
+          (one) =>
+            `- ${one.task} ${producedClause(one)} (finished ${since(one.at)}${
+              one.removedAt ? `, removed ${since(one.removedAt)}` : ''
+            })`,
         ),
       ].join('\n'),
     )

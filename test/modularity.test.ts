@@ -102,6 +102,16 @@ const BUDGET: Record<string, number> = {
   // harness's alike, so it reads as one subject rather than as a fortieth
   // description.
   'packages/orchestrator/src/tools-extension.ts': 970,
+  // The one dispatch table every orchestrator method goes through, written out
+  // flat: one entry per capability, forty-odd of them, and the uniformity is
+  // the property — the whole surface the orchestrator can reach is readable in
+  // one place. So it grows by a line or two whenever Tade can do something new,
+  // which is exactly what the default cannot express, and it had been sitting
+  // at precisely 800 by coincidence rather than by design. What does *not* go
+  // here is the saying: how an answer reads to a model belongs beside the fold
+  // it describes (`documentsWaitingSays` in core, `dryRunSays`, `usedSays`), so
+  // there is one wording of a fact rather than one per caller.
+  'packages/orchestrator/src/tool-host.ts': 820,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade

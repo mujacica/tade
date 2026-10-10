@@ -1,4 +1,11 @@
-import { type Config, chatTaskOf, expandHome } from '@tade/core'
+import {
+  type Config,
+  chatTaskOf,
+  documentSize,
+  documentsIn,
+  expandHome,
+  waitingDocuments,
+} from '@tade/core'
 import { slugify } from '@tade/voice-core'
 import { lostChats, reopenChat, type Workbench } from '@tade/workbench'
 import type { Frame } from '../frame.ts'
@@ -138,7 +145,17 @@ export class Agents implements Subject {
         this.wire.put(
           done.length === 0
             ? notice(this.wire.state, 'no agent here has finished yet')
-            : { ...this.wire.state, panel: closeDonePanel(done.map((pane) => pane.task)) },
+            : {
+                ...this.wire.state,
+                // The ones carrying a document nobody has read, named before
+                // the press and not after it: this button is how six analyses
+                // went in two seconds, and a count is the difference between
+                // a cleanup and a loss.
+                panel: closeDonePanel(
+                  done.map((pane) => pane.task),
+                  done.flatMap((pane) => (this.unreadDocument(pane.task) ? [pane.task] : [])),
+                ),
+              },
         )
         this.wire.draw()
       },
@@ -338,16 +355,28 @@ export class Agents implements Subject {
   /**
    * Close an agent: stop it and take it off the list. Asked first only when
    * that would lose something — work in a worktree of its own that is not
-   * merged. An agent in the project's checkout loses nothing by going: its work
-   * is in the checkout, and only its task folder goes with it.
+   * merged, or a document nobody has read.
+   *
+   * "An agent in the project's checkout loses nothing by going: only its task
+   * folder goes with it" was the whole of this rule, and it was wrong in
+   * exactly the case the task folder matters: a document a task produced lives
+   * *only* there, so closing the agent is what destroys it. On the machine
+   * this was found on, twelve of thirteen produced documents had gone that way
+   * — six of them inside two seconds of one cleanup, one of them twenty-six
+   * seconds after it was written — with nothing asked and nothing said.
+   *
+   * It **asks** and never refuses: a document is somebody's to keep or to
+   * throw away, and the loss is recorded either way (`task_removed` carries
+   * it), so a person who says yes can still be told afterwards what went.
    */
   async closeAgent(task: string): Promise<void> {
     const facts = this.wire.live?.factsOf(task)
     const unmerged =
       facts?.workspace === 'worktree' &&
       ((this.wire.live?.changes(task).length ?? 0) > 0 || (facts.ahead ?? 0) > 0)
-    const panel = confirmRemovePanel(task)
-    if (unmerged) {
+    const unread = this.unreadDocument(task)
+    const panel = confirmRemovePanel(task, unread)
+    if (unmerged || unread) {
       this.wire.put({ ...this.wire.state, panel })
       this.wire.draw()
       return
@@ -394,6 +423,28 @@ export class Agents implements Subject {
     } catch (err) {
       return why(err)
     }
+  }
+
+  /**
+   * The document this task produced that nobody has decided about, as a clause
+   * to put in front of somebody about to destroy it — or null where there is
+   * none to lose.
+   *
+   * Out of the journal the window already holds, so it costs no look at the
+   * disk: the fold is pure and the question is asked at the moment of the
+   * press, not kept.
+   */
+  private unreadDocument(task: string): string | null {
+    const events = this.wire.live?.events
+    if (!events) return null
+    const waiting = waitingDocuments(documentsIn(events), Date.now()).filter(
+      (one) => one.task === task && one.state === 'written',
+    )
+    if (waiting.length === 0) return null
+    const names = waiting.map(
+      (one) => `${one.path.split('/').at(-1) ?? one.path}${documentSize(one.bytes)}`,
+    )
+    return `${names.join(', ')} — nobody has read ${waiting.length === 1 ? 'it' : 'them'} yet`
   }
 
   /**

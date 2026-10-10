@@ -484,8 +484,27 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
   } else {
     rows.push(row().space().text('Nothing in it is unmerged.').build())
   }
+  // The document is said *after* the unmerged work and before the consequence,
+  // because it is the thing this panel was wrong about: an agent in the
+  // project's own checkout has no unmerged work to lose and its task folder is
+  // the only copy of what it produced, so "nothing in it is unmerged" used to
+  // be the last word before a document was deleted.
+  if (panel.unread) {
+    rows.push(blank(inner))
+    rows.push(row().space().text('It produced a document nobody has read:', skin.waiting).build())
+    rows.push(row().space(3).text(panel.unread).build())
+  }
   rows.push(blank(inner))
-  rows.push(row().space().text('Deletes the worktree and branch; the conversation stays.').build())
+  rows.push(
+    row()
+      .space()
+      .text(
+        panel.unread
+          ? 'Deletes the worktree, the branch and that document; the conversation stays.'
+          : 'Deletes the worktree and branch; the conversation stays.',
+      )
+      .build(),
+  )
   rows.push(
     panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
   )
@@ -496,7 +515,7 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
           .button('Keep it', { kind: 'control', id: 'keep' })
           .space()
           .button(
-            panel.busy ? 'Removing…' : unmerged ? 'Remove anyway' : 'Remove',
+            panel.busy ? 'Removing…' : unmerged || panel.unread ? 'Remove anyway' : 'Remove',
             { kind: 'control', id: 'remove' },
             panel.busy ? 'off' : 'danger',
           )
@@ -521,6 +540,7 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
   const row = () => new Row(inner, skin, pointer)
   const count = panel.tasks.length
   const rows: { text: string; hits: Hit[] }[] = [blank(inner)]
+  const unread = new Set(panel.unread)
   for (const task of panel.tasks.slice(0, 6)) {
     rows.push(
       row()
@@ -528,6 +548,8 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
         .text('✓', skin.done)
         .space()
         .text(task.split('/').at(-1) ?? task)
+        .space()
+        .text(unread.has(task) ? '· document unread' : '', skin.waiting)
         .build(),
     )
   }
@@ -539,6 +561,21 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
         .build(),
     )
   rows.push(blank(inner))
+  // Counted and said before the press. This button closed twenty agents at
+  // once on the machine this was found on, and six of them had written an
+  // analysis in the minutes before — all six deleted, nothing asked.
+  if (unread.size > 0) {
+    rows.push(
+      row()
+        .space()
+        .text(
+          `${unread.size} produced a document nobody has read. Closing deletes ${unread.size === 1 ? 'it' : 'them'}.`,
+          skin.waiting,
+        )
+        .build(),
+    )
+    rows.push(blank(inner))
+  }
   rows.push(
     row().space().text('Each stops, with its worktree and branch; conversations stay.').build(),
   )

@@ -80,6 +80,7 @@ import { parse as parseYaml } from 'yaml'
 import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
 import { recordAuthored } from './authored.ts'
 import { checksAt, checksGate, sharesCheckout } from './checks.ts'
+import { removedDocument } from './documents.ts'
 import { EventLog, readJournal } from './events.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { takeBackOwnIgnore } from './ignore.ts'
@@ -1440,12 +1441,14 @@ export class Workbench {
 
   /** Remove a task. Refuses to destroy uncommitted or unmerged work. */
   async removeTask(req: RemoveTaskRequest): Promise<RemoveResult> {
+    // Asked before the folder goes, because afterwards nothing can (`documents.ts`).
+    const lost = await removedDocument(this.home, req.task ?? null)
     const result = await removeTask({ ...req, home: this.home })
     if (result.removed) {
       await this.log.append({
         type: 'task_removed',
         ...(req.task ? { task: req.task } : {}),
-        detail: { branch: req.branch, worktree: req.worktree, forced: req.force === true },
+        detail: { branch: req.branch, worktree: req.worktree, forced: req.force === true, ...lost },
       })
     }
     return result
