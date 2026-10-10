@@ -717,3 +717,36 @@ describe('the sentences', () => {
     }
   })
 })
+
+describe('where a notification goes is a setting and never the environment', () => {
+  /** The one file that opens a socket to an address a browser chose. */
+  const sender = code(readFileSync(join(SRC, 'push-out.ts'), 'utf8'))
+
+  it('calls the library for the cryptography and never for the sending', () => {
+    // `web-push` is here as the harness for two protocols (RFC 8292, RFC 8188)
+    // and for nothing else. Its own sender resolves the endpoint again — which
+    // is the DNS-rebinding bug with a validator in front of it, because
+    // `endpoint.ts` checked *an address* and the library would look the name
+    // up a second time. So the socket is Tade's, with a `lookup` that answers
+    // with the address that was checked.
+    //
+    // The behaviour tests beside this one would notice the swap by going red
+    // on a request stub nothing called; this notices it in the source, which
+    // is where somebody reading the file for the first time looks.
+    const called = [...sender.matchAll(/webpush\.(\w+)/g)].map((found) => found[1])
+    expect([...new Set(called)].sort()).toEqual(['generateRequestDetails', 'generateVAPIDKeys'])
+  })
+
+  it('reads no environment variable anywhere in this package', () => {
+    // **The second reason the socket is Tade's.** `https-proxy-agent`, which
+    // `web-push`'s sender uses, honours `HTTPS_PROXY` — so on a machine with
+    // one set, *where Tade sends something* would be decided by a variable
+    // rather than by a setting, and that is a `never` in `reach.ts`'s own
+    // words. Asked of the whole package rather than of the sender, because the
+    // property worth having is that nothing in the away view's data boundary
+    // has an environment to be steered by.
+    for (const file of FILES) {
+      expect(code(readFileSync(file, 'utf8')), file).not.toContain('process.env')
+    }
+  })
+})

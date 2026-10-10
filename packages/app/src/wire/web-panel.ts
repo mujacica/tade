@@ -14,6 +14,7 @@ import {
   reachOf,
   readsOf,
   type Surface,
+  type Tickets,
 } from '@tade/web'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
 
@@ -140,4 +141,23 @@ export function pairingUrl(surface: Surface): string | null {
   if (address === undefined) return null
   const host = address.includes(':') ? `[${address}]` : address
   return `http://${host}:${surface.port}/pair`
+}
+
+/**
+ * A fresh code to scan, for the address a phone would reach this on.
+ *
+ * Beside `pairingUrl` because it is nothing but that URL with a ticket on it,
+ * and the one rule worth having in one place: **the outstanding one is
+ * cleared first**, so there is never a second live code for a phone that was
+ * shown the first — a code somebody photographed and walked away from is a
+ * credential, and only the one on the screen should be claimable.
+ *
+ * Nothing where the address cannot be worked out: a code that scans perfectly
+ * and goes nowhere is worse than none, and the panel says why instead.
+ */
+export function mintPairing(tickets: Tickets, surface: Surface, now: number): void {
+  const base = pairingUrl(surface)
+  if (base === null) return
+  tickets.clear()
+  tickets.mint(base, now)
 }

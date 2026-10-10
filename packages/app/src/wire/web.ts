@@ -9,7 +9,6 @@ import {
   type Workspace,
 } from '@tade/core'
 import {
-  appendDevice,
   type Confirmed,
   type Device,
   factsOf,
@@ -19,7 +18,6 @@ import {
   type Reach,
   reachOf,
   readDevices,
-  revokeAll,
   type SnapshotInput,
   Streams,
   surfaceOf,
@@ -51,8 +49,9 @@ import {
   upSinceOf,
 } from './web-beat.ts'
 import { halvesFor } from './web-halves.ts'
-import { awayView, pairingUrl } from './web-panel.ts'
+import { awayView, mintPairing } from './web-panel.ts'
 import { pushFor, type WebPush } from './web-push.ts'
+import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -285,6 +284,11 @@ export class Away implements Subject {
     // it on this beat and nowhere else, which is what "no unbounded timers"
     // means mechanically.
     this.streams.beat(now)
+    // And the one thing `streams.beat` cannot know: a device revoked somewhere
+    // other than this window — `tade web revoke`, `tade web off`. Fired and
+    // not awaited, because the beat is synchronous and the window draws on
+    // this thread; `web-sessions.ts` has the whole argument.
+    void letGoOfRevoked(this.sessions())
     // And the notifications: nothing awaited — somebody else's latency.
     this.push.beat()
     if (this.asking !== null) this.wire.draw()
@@ -471,16 +475,8 @@ export class Away implements Subject {
   }
 
   /** One device, disconnected at the machine. Its streams close now. */
-  private async revoke(id: string): Promise<void> {
-    await appendDevice(this.wire.opts.home, {
-      kind: 'revoked',
-      device: id,
-      at: new Date(this.wire.now()).toISOString(),
-      why: 'revoked at the machine',
-    })
-    this.forget(id)
-    await this.log({ type: 'web_revoked', detail: { device: id, why: 'revoked at the machine' } })
-    await this.reread()
+  private revoke(id: string): Promise<void> {
+    return revokeOne(this.sessions(), id)
   }
 
   /**
@@ -542,25 +538,27 @@ export class Away implements Subject {
     await this.reread()
   }
 
-  /**
-   * Every device, disconnected. **It needs no network**: what a phone holds is
-   * checked here on every request, so one that is off, lost or on another
-   * continent is disconnected by this.
-   */
-  private async revokeEverything(): Promise<void> {
-    const gone = await revokeAll(this.wire.opts.home, new Date(this.wire.now()))
-    for (const id of gone) {
-      this.forget(id)
-      await this.log({
-        type: 'web_revoked',
-        detail: { device: id, why: 'everything disconnected' },
-      })
+  /** Every device, and the outstanding code, gone. It needs no network. */
+  private revokeEverything(): Promise<void> {
+    return revokeEvery(this.sessions(), this.tickets)
+  }
+
+  /** What ending a session needs of this subject, in one place for all three. */
+  private sessions(): Sessions {
+    return {
+      home: this.wire.opts.home,
+      now: () => this.wire.now(),
+      listening: () => this.streams.listening(),
+      keep: (devices) => {
+        this.devices = devices
+      },
+      letGo: (device, why) => {
+        this.forget(device)
+        void this.log({ type: 'web_revoked', detail: { device, why } })
+      },
+      news: (said) => this.deps.news(said),
+      reread: () => this.reread(),
     }
-    this.tickets.clear()
-    this.deps.news(
-      gone.length === 0 ? 'no device was paired' : `${gone.length} device(s) disconnected`,
-    )
-    await this.reread()
   }
 
   /**
@@ -578,12 +576,8 @@ export class Away implements Subject {
 
   /** A fresh ticket for the address a phone would reach this on. */
   private mint(): void {
-    const server = this.server
-    if (server === null) return
-    const base = pairingUrl(surfaceOf(this.config().surfaces.web))
-    if (base === null) return
-    this.tickets.clear()
-    this.tickets.mint(base, this.wire.now())
+    if (this.server === null) return
+    mintPairing(this.tickets, surfaceOf(this.config().surfaces.web), this.wire.now())
   }
 
   /** What the panel draws, out of what this subject holds at this moment. */
