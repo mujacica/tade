@@ -68,7 +68,7 @@ describe('adding to a task’s context', () => {
     // context can tell what arrived afterwards from what the owner wrote.
     expect(text).toContain(add)
     expect(text).toContain('## Added 2026-10-09T11:00:00.000Z by device 00112233445566aa')
-    expect(made.bytes).toBe(text.length)
+    expect(made.bytes).toBe(Buffer.byteLength(text, 'utf8'))
     expect(made.heading).toContain('by device 00112233445566aa')
   })
 
@@ -207,6 +207,18 @@ describe('what it refuses to write', () => {
     await expect(
       addToContext(one.client, { task: 'app/never-made', add: 'x', by: 'you', at: 1 }),
     ).rejects.toThrow(NoTaskFolder)
+  })
+
+  it('counts in bytes, so a context of emoji cannot pass a bound made in characters', async () => {
+    // `stat` counts bytes and `text.length` counts UTF-16 code units. Added
+    // together they would let a context half again as big as the bound past
+    // it, which is the one way this total could be quietly wrong.
+    const one = await open()
+    const bugs = '\u{1f41b}'.repeat(10)
+    const made = await addToContext(one.client, { task: one.task, add: bugs, by: 'you', at: 1 })
+    expect(bugs.length).toBe(20)
+    expect(made.bytes).toBe(40 + (made.heading.length + 4))
+    expect(made.bytes).toBeGreaterThan(contextOf(one.home, one.task).length)
   })
 
   it('refuses rather than truncating once the context is as big as one may be', async () => {

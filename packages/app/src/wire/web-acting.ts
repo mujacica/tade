@@ -390,18 +390,24 @@ export function steer(deps: ActingDeps, call: SteerCall, from: From): Promise<Ou
 export function queued(deps: ActingDeps, call: QueueCall, from: From): Promise<Outcome> {
   return onTask(deps, call, async (facts) => {
     const by = byOf(from) as Asker
+    // **It has to be queued work**, and this is the check that keeps the
+    // answer the same as the row's. `ableOn` already says `cannot: queue` for
+    // anything with no `start` in its file; without this the verb would write
+    // a `queue_changed` line about a task the queue has never heard of, which
+    // `choicesFor` would read back the day somebody made it queued work.
+    if (facts.queue === '') throw new NotOffered(`${call.task} is not queued work`)
     // **Parked work is not startable queued work**, and `refuseParked` is the
-    // rule — asked here first only so that the answer is a refusal the page
-    // has a word for rather than the window appearing to break. The page does
-    // not offer either of these on a parked row; this is what a crafted call,
-    // or a tap on a screen drawn before somebody parked it, meets.
+    // rule — asked here first only so the answer is a refusal the page has a
+    // word for rather than the window appearing to break. The page offers
+    // neither of these on a parked row; this is what a crafted call, or a tap
+    // on a screen drawn before somebody parked it, meets.
     if (facts.parked && (call.change === 'start' || call.change === 'first')) {
       throw new NotOffered(`${call.task} is parked: pick it up again before it can start`)
     }
     if (call.change === 'first') {
       const now = deps.queue()
       if (!now.items.some((one) => one.task === call.task)) {
-        throw new NotOffered(`${call.task} is not queued work`)
+        throw new NotOffered(`${call.task} is not in the queue the window holds`)
       }
       await deps.tade.changeQueued({
         change: 'order',
@@ -510,7 +516,7 @@ export function context(deps: ActingDeps, call: ContextCall, from: From): Promis
       return {
         did: true,
         rev: after(facts),
-        said: `added to its context (${added.bytes} characters now)`,
+        said: `added to its context (${added.bytes} bytes now)`,
       }
     } catch (err) {
       if (err instanceof NoTaskFolder) throw new NotThere(err.message)

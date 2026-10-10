@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import {
   type Config,
   ConfigSchema,
+  type Queued,
   type TadeEvent,
   type Task,
   taskDir,
@@ -43,6 +44,17 @@ import { Away } from '../../src/wire/web.ts'
 // with the task's **real** park read back off its **real** file every time.
 // That is what keeps `seen()` honest: the facts a verb is checked against come
 // from the same place the row's revision did.
+//
+// **Where it answers nothing, nothing is the honest answer and not a kindness.**
+// `seenActions` is null, which is `unknown` and is what a task nobody has
+// looked at really reads; `spendToday` is empty, which is *nothing recorded*;
+// `git` is null on every task, which is what a tree nobody has scanned says.
+// Each of those is the direction that cannot make a test pass by accident —
+// a fixture that said `pass`, `$0.00` or `ready` would. The two things a test
+// has to be able to make true are real when it asks for them: `running` puts
+// an agent in the world *and* answers for its harness through `offer()`, and
+// `queued` puts a real `Queued` in front of the queue's own `queueStateOf`
+// rather than asserting a word onto the row.
 
 export const SECRET = 'A'.repeat(43)
 export const DEVICE = '00112233445566aa'
@@ -81,6 +93,15 @@ export interface Machine {
   watch(task: string): void
   /** An agent is running on this task, as the world and the harness say. */
   running(task: string, harness?: string): void
+  /**
+   * This task is queued work, with nothing in front of it.
+   *
+   * **A real `Queued` and a real `QueueFacts`**, because the queue's own rule
+   * is what decides the word on the row and a stand-in that just said `ready`
+   * would make every queue test pass against a fixture rather than against
+   * `queueStateOf`.
+   */
+  queued(task: string): void
   /** An approval is waiting on this task, by that id. */
   waiting(task: string, requestId: string, tool?: string): void
   /** That approval is not waiting any more, as a harness would stop holding it. */
@@ -146,6 +167,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const watched: string[] = [first.id]
   const agents = new Map<string, string>()
   const pending: { run: string; task: string; requestId: string; tool: string; at: number }[] = []
+  const queued: Queued[] = []
   const decided: Machine['decided'] = []
   const told: Machine['told'] = []
   let events: TadeEvent[] = []
@@ -162,7 +184,9 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     },
     seenActions: () => null,
     spendToday: () => ({ byTask: {} }),
-    queued: [],
+    get queued() {
+      return queued
+    },
     queueFacts: () => ({
       tasks: new Map(),
       finished: new Map(),
@@ -251,6 +275,13 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     told,
     watch: (task) => void watched.push(task),
     running: (task, harness = 'pi') => void agents.set(task, harness),
+    queued: (task) =>
+      void queued.push({
+        task,
+        project: 'app',
+        parked: false,
+        start: { after: [], prompt: 'do the thing', touches: [] },
+      } as unknown as Queued),
     waiting: (task, requestId, tool = 'Bash') =>
       void pending.push({ run: task, task, requestId, tool, at: Date.now() }),
     answered: (requestId) => {

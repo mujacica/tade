@@ -356,6 +356,30 @@ describe('the sentences', () => {
     expect(ACTING_IS_NOT_YOU).toContain('journal under the device')
   })
 
+  it('names what every verb there is actually does, so the sentence cannot fall behind', () => {
+    // **The failure this catches is a verb shipping and the sentence not
+    // moving.** It is the one place a person deciding whether to turn acting
+    // on reads what they are turning on, and the half that would quietly stop
+    // being said is the half that grew. One clause per verb, matched loosely
+    // because the sentence is prose and not a list — what is held is that each
+    // verb's own act is in it somewhere.
+    const said = ACTING_IS_NOT_YOU.toLowerCase()
+    const names: Record<string, string> = {
+      park: 'hold or release',
+      answer: 'answer what an agent is waiting on',
+      steer: 'tell one something',
+      queue: 'queued work',
+      done: 'mark work finished',
+      note: 'a note',
+      context: 'what a task is told',
+      intake: 'approve a request',
+    }
+    expect(Object.keys(names).sort()).toEqual(VERBS.map((verb) => verb.name).sort())
+    for (const [verb, clause] of Object.entries(names)) {
+      expect(said, `${verb}: ${clause}`).toContain(clause)
+    }
+  })
+
   it('have a short clause for the one line a control gets', () => {
     // Short enough to sit on a row beside a control, and still carrying the
     // half that matters: that a request from a device is a request.

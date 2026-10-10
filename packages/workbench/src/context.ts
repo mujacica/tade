@@ -45,12 +45,19 @@ import { aloneOn, taskContextPath } from './tasks.ts'
 // inside.
 
 /**
- * How much of a task's context may be the result of adding to it from away.
+ * How big a task's context may get by being added to.
  *
  * A total and not a per-append bound: the per-act bound is `@tade/web`'s
  * (`BOUNDS.add`), and without a total a phone could add four thousand
  * characters a thousand times and rewrite an agent's instructions by
  * accumulation. Over it is a refusal and never a truncation.
+ *
+ * **In bytes**, because that is the only unit both halves of the arithmetic
+ * can be in: what the file already holds comes from `stat`, which counts
+ * bytes, and `text.length` counts UTF-16 code units — so a context of emoji
+ * would pass a check made in characters and be half again as big on disk. The
+ * per-act bound is in characters, which is right for a bound on *typing*, and
+ * the two are named rather than mixed.
  */
 export const CONTEXT_MAX = 64_000
 
@@ -72,12 +79,12 @@ export class ContextNotOurs extends Error {
 
 /** That adding this would take the context past what one may ever be. */
 export class ContextTooBig extends Error {
-  /** What it is now, so the caller can say how much room is left. */
+  /** How big it is now, in bytes, so the caller can say how much room is left. */
   readonly bytes: number
 
   constructor(bytes: number) {
     super(
-      `that would take the context past ${CONTEXT_MAX} characters (it is ${bytes} now): say less, or edit it at the machine`,
+      `that would take the context past ${CONTEXT_MAX} bytes (it is ${bytes} now): say less, or edit it at the machine`,
     )
     this.name = 'ContextTooBig'
     this.bytes = bytes
@@ -87,6 +94,7 @@ export class ContextTooBig extends Error {
 /** What adding came to: how big the file is now, and the heading it went under. */
 export interface ContextAdded {
   task: string
+  /** How big the file is now, in bytes. */
   bytes: number
   /** Tade's own heading for the block. Never the text itself. */
   heading: string
@@ -142,14 +150,18 @@ export async function addToContext(
     try {
       const was = (await handle.stat()).size
       const text = `\n${heading}\n\n${req.add}\n`
-      if (was + text.length > CONTEXT_MAX) throw new ContextTooBig(was)
+      // Bytes on both sides of the comparison: `stat` counts bytes and
+      // `text.length` counts UTF-16 code units, and adding the two would let a
+      // context of emoji past a bound made in characters.
+      const adding = Buffer.byteLength(text, 'utf8')
+      if (was + adding > CONTEXT_MAX) throw new ContextTooBig(was)
       // Asked **again**, now that the file is open, so a directory on the path
       // that was swapped between the resolve and the open is a refusal rather
       // than a write somewhere else. The window is what it is; the answer to
       // it being open at all is in this file's own comment.
       await inside(home.home, req.task)
       await handle.write(text)
-      return was + text.length
+      return was + adding
     } finally {
       await handle.close()
     }
@@ -200,7 +212,12 @@ async function inside(home: string, task: string): Promise<{ home: string; dir: 
     throw new NoTaskFolder(task)
   }
   const step = relative(realHome, real)
-  if (step === '' || step.startsWith('..') || step.startsWith(sep) || resolve(step) === step) {
+  // The three shapes `relative` answers for something that is **not** inside:
+  // the empty string (it *is* the home), a step that climbs out, and — on
+  // Windows, across drives — an absolute path. `..` is matched as a whole
+  // segment rather than as a prefix, so the comparison says what it means.
+  const climbs = step === '..' || step.startsWith(`..${sep}`)
+  if (step === '' || climbs || step.startsWith(sep) || resolve(step) === step) {
     throw new ContextNotOurs(
       `${task}’s folder does not resolve inside Tade’s home: Tade will not write it`,
     )

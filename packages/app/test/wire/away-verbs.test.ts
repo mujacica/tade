@@ -201,8 +201,25 @@ describe('telling an agent something', () => {
 })
 
 describe('a choice about queued work', () => {
+  it('refuses a choice about work the queue has never heard of', async () => {
+    // **The answer has to be the same as the row's.** `ableOn` already says
+    // `cannot: queue` for anything with no `start` in its file; without the
+    // check at the act the verb would write a `queue_changed` line about a
+    // task the queue knows nothing about, which `choicesFor` would read back
+    // the day somebody made it queued work.
+    const one = await ready()
+    await one.refresh()
+    expect(rowOf(one, one.task).can.map((each) => each.verb)).not.toContain('queue')
+
+    const answer = await act(one.port, 'queue', { ...every(one), change: 'pause' })
+    expect(answer.status).toBe(404)
+    expect(answer.body.error).toBe('not_offered')
+    expect(await one.client.events({ types: ['queue_changed'] })).toEqual([])
+  })
+
   it('writes the choice down and starts nothing', async () => {
     const one = await ready()
+    one.queued(one.task)
     await one.refresh()
 
     const answer = await act(one.port, 'queue', { ...every(one), change: 'start' })
@@ -224,6 +241,7 @@ describe('a choice about queued work', () => {
     // a second copy: pressing start on parked work and watching nothing
     // happen reads as broken, so it is refused and said.
     const one = await ready()
+    one.queued(one.task)
     await one.client.parkTask(one.task, true)
     await one.refresh()
 
@@ -235,17 +253,32 @@ describe('a choice about queued work', () => {
   })
 
   it('puts one piece of work first without a device ever sending a list', async () => {
+    // **An order is a list of task ids, which is the one shape a device never
+    // sends**: the list is computed at the machine from the queue the window
+    // already holds, through the queue's own `orderFirst`.
     const one = await ready()
+    one.queued(one.task)
     await one.refresh()
     const answer = await act(one.port, 'queue', { ...every(one), change: 'first' })
-    // Nothing is queued in this fixture, so the honest answer is that there is
-    // nothing to put first — and the order is never written from the body.
-    expect(answer.status).toBe(404)
-    expect(answer.body.error).toBe('not_offered')
+    expect(answer.status).toBe(200)
+    const lines = await one.client.events({ types: ['queue_changed'] })
+    expect(lines.at(-1)?.detail).toMatchObject({
+      change: 'order',
+      order: [one.task],
+      by: 'device 00112233445566aa',
+    })
+  })
+
+  it('draws a queue control once it is queued work, and says so when it is not', async () => {
+    const one = await ready()
+    one.queued(one.task)
+    await one.refresh()
+    expect(rowOf(one, one.task).can.map((each) => each.verb)).toContain('queue')
   })
 
   it('is refused for a device granted answer and not steer', async () => {
     const one = await ready(['read', 'answer'])
+    one.queued(one.task)
     await one.refresh()
     const answer = await act(one.port, 'queue', { ...every(one), change: 'pause' })
     expect(answer.status).toBe(403)

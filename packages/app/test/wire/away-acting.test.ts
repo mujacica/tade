@@ -262,6 +262,44 @@ describe('letting one device act, at the machine', () => {
     expect(parkedIn(one.home, one.task)).toBe(true)
   })
 
+  it('grants both tiers, because one control that gave the gentler is the wrong half', async () => {
+    // **A widening said out loud and asserted.** §9.1's matrix has two tiers,
+    // and a grant that gave only `answer` would mean a phone that can allow a
+    // command and cannot set the work aside. A control per tier is the thing
+    // to build for a narrower grant; until then the sentence beside this one
+    // names all of it, and `test/separation.test.ts` holds the sentence.
+    const one = await machine()
+    await paired(one.home, one.port, [])
+    await one.away.open()
+    await one.away.reread()
+    one.show()
+    await grant(one.away, DEVICE)
+    const device = one.away.panel()?.away?.devices[0]
+    expect(device?.mayAct).toBe(true)
+    // Both tiers, through the door each one goes through: a park is `steer`
+    // and answering an approval is `answer`.
+    one.running(one.task)
+    one.waiting(one.task, 'req-1')
+    await one.refresh()
+    const answered = await post(one.port, 'answer', {
+      task: one.task,
+      was: revOf(one, one.task),
+      key: KEY,
+      rev: 0,
+      approval: 'req-1',
+      allow: true,
+    })
+    expect(answered.status).toBe(200)
+    const parked = await act(one.port, {
+      task: one.task,
+      parked: true,
+      was: revOf(one, one.task),
+      key: 'second0012345678',
+      rev: 0,
+    })
+    expect(parked.status).toBe(200)
+  })
+
   it('takes it back the same way, and the device is read-only again', async () => {
     const one = await ready()
     await one.away.reread()
