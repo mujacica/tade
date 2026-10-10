@@ -28,6 +28,7 @@ import {
   SAID_MOVED,
   SAID_SOMETHING,
   SHAPE,
+  STATUS,
 } from './browser-snippets.ts'
 
 // The away view, in a real browser, against the real server and the real files.
@@ -286,7 +287,7 @@ async function run() {
       await context.close()
     }
     await asGranted(made, origin, tickets, axe.source)
-    await asActing(made, origin, tickets, home)
+    await asActing(made, origin, tickets, home, server, held)
   } finally {
     await made.close()
     await server.close()
@@ -358,7 +359,14 @@ async function asGranted(made: Engine, origin: string, tickets: Tickets, axe: st
  * must never be one, so a harness that wanted one would be asking for the
  * thing this design is built to refuse.
  */
-async function asActing(made: Engine, origin: string, tickets: Tickets, home: string) {
+async function asActing(
+  made: Engine,
+  origin: string,
+  tickets: Tickets,
+  home: string,
+  server: Served,
+  held: Map<string, ReturnType<typeof projector>>,
+) {
   const width = [...WIDTHS].find((one) => one.narrow === true) ?? WIDTHS[0]
   if (width === undefined) return
   granting = [...GRANTS]
@@ -437,6 +445,29 @@ async function asActing(made: Engine, origin: string, tickets: Tickets, home: st
       found('touch', `${at} keyboard`, 'fail', `Enter asked for ${keyed.length} acts`)
     }
 
+    // **The answer to a press outlives the next frame.** A node carrying both
+    // what came of a press and a fact about the harness would have the delta
+    // two seconds later rewrite the second and take the first with it — so
+    // this is asked of `steer`, which is the control with something to say on
+    // every frame, after a wait longer than a beat.
+    const quiet = String(await page.evaluate(STATUS))
+    await page.locator('textarea[aria-label="what to tell its agent"]').first().fill('go on then')
+    await page.locator('button', { hasText: 'Send' }).first().tap()
+    await until(page, `${STATUS} !== ${JSON.stringify(quiet)}`)
+    const answered = String(await page.evaluate(STATUS))
+    // **A real delta, pushed**, because the thing being checked is what a
+    // frame does to the answer: nothing in this harness beats, so a wait alone
+    // would pass whatever the page did. The row that moves is the one the
+    // controls are on.
+    await nudge(server, held, device)
+    await until(page, RECEIVED)
+    const later = String(await page.evaluate(STATUS))
+    if (later === answered) {
+      found('typing', `${at} kept`, 'pass', 'the answer to a press outlived a real delta')
+    } else {
+      found('typing', `${at} kept`, 'fail', `"${answered}" became "${later}"`)
+    }
+
     // What somebody typed, against a refusal.
     const words = 'the fix is in the adapter'
     const box = page.locator('textarea[aria-label="what to write down"]').first()
@@ -454,6 +485,46 @@ async function asActing(made: Engine, origin: string, tickets: Tickets, home: st
   }
   await context.close()
   granting = []
+}
+
+/** What `deltaUnder` and `asActing` both need of the listener. */
+interface Served {
+  streams: {
+    push: (device: string, delta: never, now: number) => void
+    listening: () => string[]
+  }
+}
+
+/**
+ * Move the projection under a page, for real, and push the delta.
+ *
+ * One task's `reason` changes — a field on the very row the controls are on —
+ * so what arrives is a patch to a node the page already built, which is the
+ * shape every delta has and the shape that would wipe a status node carrying
+ * two different kinds of fact.
+ */
+async function nudge(
+  server: Served,
+  held: Map<string, ReturnType<typeof projector>>,
+  device: string,
+): Promise<void> {
+  const made = held.get(device)
+  if (made === undefined) throw new Error('no projector for this device')
+  const next = input()
+  const first = next.tasks[0]
+  if (first === undefined) throw new Error('no task to move')
+  const delta = made.beat(
+    {
+      ...next,
+      tasks: [
+        { ...first, reason: { kind: 'clause', said: 'moved under your hands' } },
+        ...next.tasks.slice(1),
+      ],
+    },
+    NOW + 2_000,
+  )
+  if (delta === null) throw new Error('the projection did not move')
+  server.streams.push(device, delta as never, Date.now())
 }
 
 /**
@@ -641,12 +712,7 @@ async function axeOn(page: Page, where: string, source: string) {
 async function deltaUnder(
   page: Page,
   origin: string,
-  server: {
-    streams: {
-      push: (device: string, delta: never, now: number) => void
-      listening: () => string[]
-    }
-  },
+  server: Served,
   held: Map<string, ReturnType<typeof projector>>,
   at: string,
 ) {
@@ -660,26 +726,11 @@ async function deltaUnder(
     if (before.key === '') throw new Error('nothing to hold on to on this page')
 
     const device = server.streams.listening()[0]
-    const made = device === undefined ? undefined : held.get(device)
-    if (device === undefined || made === undefined) throw new Error('no stream to push into')
+    if (device === undefined) throw new Error('no stream to push into')
     // The projection really moves: a task's reason changes, which is a field
     // on the very row being held.
-    const next = input()
-    const first = next.tasks[0]
-    if (first === undefined) throw new Error('no task to move')
-    const delta = made.beat(
-      {
-        ...next,
-        tasks: [
-          { ...first, reason: { kind: 'clause', said: 'moved under your hands' } },
-          ...next.tasks.slice(1),
-        ],
-      },
-      NOW + 2_000,
-    )
-    if (delta === null) throw new Error('the projection did not move')
-    server.streams.push(device, delta as never, Date.now())
-    await page.waitForFunction(RECEIVED, { timeout: 10_000 })
+    await nudge(server, held, device)
+    await until(page, RECEIVED)
 
     const after = (await page.evaluate(HOLD_AGAIN)) as {
       key: string

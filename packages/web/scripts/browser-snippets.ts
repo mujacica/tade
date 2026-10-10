@@ -54,6 +54,22 @@ export const SAID_SOMETHING = `[...document.querySelectorAll('main [role="status
   (one) => (one.textContent || '').includes('done')
 )`
 
+/**
+ * Everything on the page that is a status, as text.
+ *
+ * **What this is for has one shape**: a node that carries both what came of
+ * the last press and a fact about the harness that is true on every frame. The
+ * delta two seconds later rewrites the second and takes the first with it, so
+ * somebody taps, reads an answer, and watches it turn into a sentence they had
+ * already read. Read twice across a wait longer than a beat, and compared —
+ * rather than matched against a word, which would be a check against whatever
+ * this harness's stand-in happens to answer.
+ */
+export const STATUS = `[...document.querySelectorAll('main [role="status"]')]
+  .map((one) => (one.textContent || '').trim())
+  .filter((one) => one !== '')
+  .join(' | ')`
+
 /** That the note control was refused, in Tade's own sentence. */
 export const SAID_MOVED = `[...document.querySelectorAll('main [role="status"]')].some(
   (one) => (one.textContent || '').includes('changed while you were looking')
@@ -122,8 +138,15 @@ export const HOLD = `(() => {
   }
 })()`
 
-/** The page has drawn the reason the delta carried. */
-export const RECEIVED = `() => document.body.innerText.includes('moved under your hands')`
+/**
+ * The page has drawn the reason the delta carried.
+ *
+ * **An expression and not a function**, like every other snippet here: they go
+ * through `evaluate`, which needs no `eval` in the page — and the content
+ * policy has no `unsafe-eval`, so `waitForFunction`, which polls by compiling
+ * a string, cannot be used against this page at all.
+ */
+export const RECEIVED = `document.body.innerText.includes('moved under your hands')`
 
 /** What is focused and selected now. */
 export const HOLD_AGAIN = `(() => {

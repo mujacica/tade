@@ -472,13 +472,18 @@ function blockFor(verb, ctx) {
   const press = el('button', { class: 'press quietly' })
   const deny = verb === 'answer' ? el('button', { class: 'press quietly' }) : null
   const row = el('div', { class: 'presses' })
+  // **Two lines, not one.** `how` is a fact about this harness that is true on
+  // every frame; `said` is what came of the last press. One node for both
+  // would mean the next delta — two seconds away — wiping the answer somebody
+  // just got with a sentence they had already read.
+  const how = el('p', { class: 'empty' })
   const said = el('p', { attrs: { role: 'status' } })
   const asks = el('div', { class: 'presses' })
   into(part.body, why)
   if (box !== null) into(part.body, box)
   into(row, press)
   if (deny !== null) into(row, deny)
-  into(part.body, verb === 'queue' ? asks : row, said)
+  into(part.body, verb === 'queue' ? asks : row, how, said)
 
   let held = null
   let going = false
@@ -555,6 +560,7 @@ function blockFor(verb, ctx) {
       row.hidden = !shown
       asks.hidden = !shown
       said.hidden = !shown
+      how.hidden = true
       if (box !== null) box.hidden = !shown
       if (!shown) {
         asked = false
@@ -566,8 +572,9 @@ function blockFor(verb, ctx) {
       const offered = asksFor(task)
       for (const choice of choices) choice.node.hidden = !offered.includes(choice.ask)
       if (deny !== null) textIn(deny, 'Deny')
-      const how = howSaid(standing.how)
-      if (how !== '') textIn(said, how)
+      const clause = howSaid(standing.how)
+      how.hidden = clause === ''
+      textIn(how, clause)
     },
   }
 }
