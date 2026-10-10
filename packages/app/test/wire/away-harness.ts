@@ -179,6 +179,8 @@ export interface MachineOptions {
   ask?: (said: string, arm: Arm) => Promise<void>
   /** What stopping the turn answers: false for a harness that cannot. */
   stop?: () => Promise<boolean>
+  /** What writing the generated notification key does, where a test watches it. */
+  writeKey?: (key: string, value: string, was: string) => Promise<void>
 }
 
 export async function machine(over: MachineOptions = {}): Promise<Machine> {
@@ -334,6 +336,10 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     stands: over.stands ?? (() => Promise.resolve(null)),
     factory: over.factory ?? (() => nothingHandedOver()),
     saved: () => {},
+    // A fixture must not be kinder than reality: a key written here goes into
+    // the harness's own config file, so a test that turns notifications on
+    // reads a key back the way the window does.
+    writeKey: over.writeKey ?? (() => Promise.resolve()),
   })
   open.push(away)
   const made: Machine = {

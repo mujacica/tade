@@ -195,6 +195,39 @@ describe('tade web', () => {
     expect((await tade('web', 'status')).stdout).not.toContain('could not be read')
   })
 
+  it('says what notifications need of a phone, where they are turned on', async () => {
+    // **The half this command can see, and the half it cannot.** The machine
+    // being willing is a setting; the permission is on a phone and nothing
+    // here can press it or read it back — so somebody who turned it on and
+    // heard nothing has to be told which of the two this answer is about.
+    writeFileSync(
+      join(home, 'config.yaml'),
+      'surfaces:\n  web:\n    enabled: true\n    install: true\n    push: true\n',
+    )
+    const said = await tade('web', 'status')
+    expect(said.code).toBe(0)
+    expect(said.stdout).toContain('told when work wants you')
+    expect(said.stdout).toContain('allow notifications')
+    expect(said.stdout).toContain('home screen')
+    // And the honest half about the laptop: no background service, nothing
+    // caught up.
+    expect(said.stdout).toContain('caught up')
+    const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
+      notifies: boolean
+    }
+    expect(json.notifies).toBe(true)
+  })
+
+  it('says nothing about notifications where they are off', async () => {
+    writeFileSync(join(home, 'config.yaml'), 'surfaces:\n  web:\n    enabled: true\n')
+    const said = await tade('web', 'status')
+    expect(said.stdout).not.toContain('notification')
+    const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
+      notifies: boolean
+    }
+    expect(json.notifies).toBe(false)
+  })
+
   it('skips a damaged line of the device list rather than throwing it over', async () => {
     await paired({ device: '00112233445566aa', label: 'iPhone' })
     const path = join(home, 'web-devices.jsonl')

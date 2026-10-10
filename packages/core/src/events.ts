@@ -324,6 +324,37 @@ export const EventType = z.enum([
    * for a paragraph somebody typed on a phone.
    */
   'web_asked',
+  /**
+   * A paired device asked to be told about work, or stopped asking: the
+   * device, and Tade's own word for which.
+   *
+   * **Its own type and not a `web_paired`, because what it changes is the
+   * other direction.** Pairing decides what a phone may *read* when it asks;
+   * this decides that this machine will reach *out* to a third-party push
+   * service about that phone, unasked, on its own beat. A person who did not
+   * hold the phone is the one who most needs to see that happen, which is why
+   * it is `notable` like the grants rather than `routine` like a refusal.
+   *
+   * **The endpoint is not in it.** It is a URL at somebody else's service with
+   * a per-device token in its path, it is in `web-pushes.jsonl` where the
+   * sender reads it, and a journal line is what telemetry reads from.
+   */
+  'web_subscribed',
+  /**
+   * A notification was sent to a device, or could not be: the device, what the
+   * transition was, and what the push service said.
+   *
+   * `routine`, unlike every other `web_` line that is not a refusal, and the
+   * reason is the one thing that is different about this one: the person has
+   * **already been interrupted** by the thing itself. An earcon per
+   * notification would be the same news twice, once in each room.
+   *
+   * **No payload and no title**, whatever was sent: the words are built from a
+   * count (`noticed.ts`) and the record Tade keeps is which transition it was
+   * about. What went wrong, where something did, is a `warning` with a
+   * sentence in it.
+   */
+  'web_pushed',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -443,6 +474,14 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Notable for the reason `web_did` is, and more so: a turn in the
   // conversation the person types into, started by something that is not them.
   web_asked: 'notable',
+  // Notable like the grants: this machine now reaches out to a push service
+  // about a phone, and whoever was not holding it is the one who needs to see
+  // that it does.
+  web_subscribed: 'notable',
+  // Routine, and the one `web_` line that is not a refusal and still is: the
+  // person has already been interrupted by the notification itself, so an
+  // earcon here is the same news twice.
+  web_pushed: 'routine',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

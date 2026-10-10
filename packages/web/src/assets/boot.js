@@ -144,6 +144,15 @@ const ctx = {
   session: () => held.session,
   devices: () => held.devices,
   /**
+   * What the machine offers a device to keep and to be told, or null before
+   * the first answer.
+   *
+   * Read through the context rather than imported, because it arrives on
+   * `/api/devices` and can change under a page that is open — somebody turns
+   * notifications on at the machine and `freshen` is what tells this page.
+   */
+  shell: () => held.shell,
+  /**
    * The projection revision the screen being looked at is of.
    *
    * Sent with every act, so the machine can refuse one made from a tab left

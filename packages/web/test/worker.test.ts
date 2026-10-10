@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createContext, runInContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { assetsDir, etagOf, WORKER_FILE } from '../src/assets.ts'
+import { assetsDir, etagOf, readAssets, WORKER_FILE } from '../src/assets.ts'
 import { cacheName, type Shell, shellOf, VIEW_CACHE, workerBytes } from '../src/installable.ts'
 
 // The service worker, **run**.
@@ -97,7 +97,18 @@ interface Scope {
 function run(shell: Shell, caches: FakeCaches) {
   const listeners = new Map<string, ((event: Scope) => void)[]>()
   const said: string[] = []
+  const shown: { title: string; opts: Scope }[] = []
+  const opened: string[] = []
+  const focused: string[] = []
   const state = { claimed: 0, skipped: 0, unregistered: false }
+  const pages: { url: string; focus?: () => void }[] = [
+    {
+      url: 'https://machine.example/queue',
+      focus: () => {
+        focused.push('https://machine.example/queue')
+      },
+    },
+  ]
   const scope: Scope = {
     location: { origin: 'https://machine.example' },
     caches,
@@ -105,11 +116,21 @@ function run(shell: Shell, caches: FakeCaches) {
       claim: async () => {
         state.claimed += 1
       },
-      matchAll: async () => [{ postMessage: (what: { tade: string }) => said.push(what.tade) }],
+      matchAll: async (opts: { type?: string } = {}) =>
+        opts.type === 'window'
+          ? pages
+          : [{ postMessage: (what: { tade: string }) => said.push(what.tade) }],
+      openWindow: async (url: string) => {
+        opened.push(url)
+        return null
+      },
     },
     registration: {
       unregister: async () => {
         state.unregistered = true
+      },
+      showNotification: async (title: string, opts: Scope) => {
+        shown.push({ title, opts })
       },
     },
     skipWaiting: () => {
@@ -139,9 +160,34 @@ function run(shell: Shell, caches: FakeCaches) {
   return {
     said,
     state,
+    shown,
+    opened,
+    focused,
+    pages,
     install: () => fire('install', {}),
     activate: () => fire('activate', {}),
     message: (data: unknown) => fire('message', { data }),
+    /** A notification arrived. `data` is the payload, as a browser hands it. */
+    push: (payload: unknown, over: { broken?: boolean; none?: boolean } = {}) =>
+      fire('push', {
+        data: over.none
+          ? null
+          : {
+              json: () => {
+                if (over.broken === true) throw new Error('not json')
+                return payload
+              },
+            },
+      }),
+    /** Somebody tapped one. */
+    tapped: () => {
+      const closed: number[] = []
+      return fire('notificationclick', {
+        notification: {
+          close: () => closed.push(1),
+        },
+      }).then(() => closed.length)
+    },
     /** A request, and what the worker answered — or `null` for *not ours*. */
     async ask(
       url: string,
@@ -435,5 +481,103 @@ describe('what the source may never contain', () => {
     // that are here are the message handler (a person pressed the button) and
     // the uninstalling worker's install (there is nothing to swap).
     expect(CODE.match(/skipWaiting/g)?.length).toBe(2)
+  })
+})
+
+describe('a notification, arriving', () => {
+  it('draws exactly what was sent, with nothing fetched and nothing cached', async () => {
+    // **The rule this is for**: a worker that asked the machine *what was that
+    // about* would be a request made with the page's credentials by something
+    // nobody is looking at, on a schedule a push service decides.
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    await worker.install()
+    await worker.activate()
+    const before = caches.all.get(cacheName(shell.version))?.held.size
+    await worker.push({ title: 'Tade', body: '2 want your answer', tag: 'tade' })
+    expect(worker.shown).toHaveLength(1)
+    expect(worker.shown[0]?.title).toBe('Tade')
+    expect(worker.shown[0]?.opts.body).toBe('2 want your answer')
+    // One tag for everything, so a phone that was off for an hour holds one
+    // notification rather than a column of them.
+    expect(worker.shown[0]?.opts.tag).toBe('tade')
+    expect(worker.shown[0]?.opts.requireInteraction).toBe(false)
+    // **The icon is a file the real shell precaches**, so an offline phone
+    // draws one rather than a notification with a hole in it — asserted
+    // against the folder rather than against this test's three-file fixture,
+    // because the folder is what a phone downloads.
+    const real = shellOf(await readAssets(), { serving: true })
+    expect(real.files).toContain(worker.shown[0]?.opts.icon)
+    expect(real.files).toContain(worker.shown[0]?.opts.badge)
+    expect(caches.all.get(cacheName(shell.version))?.held.size).toBe(before)
+  })
+
+  it('always shows one, even where the payload says nothing it can use', async () => {
+    // `userVisibleOnly` is what every subscription is made with, and a browser
+    // handed a push that showed nothing draws **its own** *this site has been
+    // updated in the background* instead — somebody else's sentence on a lock
+    // screen — and then revokes the subscription after a few.
+    const { shell, caches } = machineServing(FIRST)
+    for (const how of [{ none: true }, { broken: true }] as const) {
+      const worker = run(shell, caches)
+      await worker.push(null, how)
+      expect(worker.shown, JSON.stringify(how)).toHaveLength(1)
+      expect(worker.shown[0]?.title).toBe('Tade')
+      expect(worker.shown[0]?.opts.body.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('bounds every field and falls back to Tade’s own words', async () => {
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    await worker.push({ title: 'x'.repeat(500), body: 'y'.repeat(500), tag: 'z'.repeat(500) })
+    expect(worker.shown[0]?.title.length).toBeLessThanOrEqual(60)
+    expect(worker.shown[0]?.opts.body.length).toBeLessThanOrEqual(160)
+    expect(worker.shown[0]?.opts.tag.length).toBeLessThanOrEqual(40)
+    // And a field of the wrong shape is Tade's own word rather than `[object
+    // Object]` on somebody's lock screen.
+    const second = run(shell, caches)
+    await second.push({ title: 42, body: { a: 1 }, tag: [] })
+    expect(second.shown[0]?.title).toBe('Tade')
+    expect(second.shown[0]?.opts.body).toBe('Something wants you')
+  })
+
+  it('focuses a page that is already open rather than opening another', async () => {
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    expect(await worker.tapped()).toBe(1)
+    expect(worker.focused).toEqual(['https://machine.example/queue'])
+    expect(worker.opened).toEqual([])
+  })
+
+  it('opens the root, and never a path out of the payload', async () => {
+    // **No path out of the payload**, which is the half worth the words: a
+    // notification that carried a url would be a project and a task in
+    // something a push service keeps and a lock screen draws.
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    worker.pages.length = 0
+    await worker.tapped()
+    expect(worker.opened).toEqual(['/'])
+  })
+
+  it('ignores a window of somebody else’s origin', async () => {
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    worker.pages.length = 0
+    worker.pages.push({ url: 'https://evil.example/', focus: () => worker.focused.push('evil') })
+    await worker.tapped()
+    expect(worker.focused).toEqual([])
+    expect(worker.opened).toEqual(['/'])
+  })
+
+  it('reaches no network and no route in the push handler, as text', () => {
+    // Read as text as well as run, because the thing this is against is a
+    // *future* line: one `fetch` in here and a notification is a request made
+    // by something nobody is looking at.
+    const push = /addEventListener\('push'[\s\S]*?^}\)/m.exec(CODE)?.[0] ?? ''
+    expect(push, 'the push handler').not.toBe('')
+    expect(push).not.toContain('fetch')
+    expect(push).not.toContain('caches')
   })
 })

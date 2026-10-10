@@ -7,12 +7,19 @@ import {
   LAN_IS_PLAINTEXT,
   LAST_VIEW_IS_A_COPY,
   OFFLINE_NEEDS_HTTPS,
+  PUSH_GOES_THROUGH_A_STRANGER,
+  PUSH_IS_WHILE_OPEN,
+  PUSH_KEY_IS_GENERATED,
+  PUSH_NEEDS_A_GESTURE,
+  PUSH_SAYS_NOTHING,
+  PUSH_SAYS_NOTHING_SHORT,
 } from './away.ts'
 import type { Config } from './config.ts'
 import { TALKING_IS_NOT_YOU } from './origin.ts'
+import { KEYS_AND_AGENTS } from './secrets.ts'
 import type { SettingGroup } from './settings.ts'
 
-// The away view's nine controls, as a person changes them.
+// The away view's thirteen controls, as a person changes them.
 //
 // Its own half of `settingsOf`, split off for the reason the projects half
 // was: that file reached the size a file is allowed to be. It is a seam rather
@@ -21,12 +28,19 @@ import type { SettingGroup } from './settings.ts'
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //
-// **All nine are `live: false`, honestly.** The listener comes up when the
-// window starts, and the epoch a connected phone holds is per server start —
-// so turning one on mid-session would have to tear down and rebuild something
-// somebody is looking at. Saying *takes effect on restart* is the honest
-// answer; doing nothing and saying nothing is the setting Tade accepts and
-// ignores.
+// **Nine of the thirteen are `live: false`, honestly.** The listener comes up
+// when the window starts, and the epoch a connected phone holds is per server
+// start — so turning one on mid-session would have to tear down and rebuild
+// something somebody is looking at. Saying *takes effect on restart* is the
+// honest answer; doing nothing and saying nothing is the setting Tade accepts
+// and ignores.
+//
+// **The three push ones and the key are `live: true`, equally honestly**, and
+// the difference is where they are read. A notification is not a route: it is
+// decided on the window's own beat, out of the config the window holds, so
+// there is no table built at start-up for a change to be behind. Both
+// directions take effect at the next beat — which is a second or two, and is
+// what somebody who has just turned notifications off is owed.
 
 export function awayGroup(config: Config): SettingGroup {
   const web = config.surfaces.web
@@ -207,6 +221,69 @@ export function awayGroup(config: Config): SettingGroup {
         // *told, not assumed* rule the row above has.
         live: false,
         keywords: ['offline', 'cache', 'last seen', 'counts', 'stale', 'train', 'aeroplane'],
+      },
+      {
+        path: 'surfaces.web.push',
+        // An **eighth** decision, under the sixth: a notification is delivered
+        // to a service worker, and there is no worker without the shell that
+        // registers one. The row says the two things a person cannot find out
+        // by trying it — that this is only half the switch, and that a closed
+        // laptop sends nothing — and says them before the switch rather than
+        // after it.
+        title: 'Send notifications to a device',
+        means: `on: a device that installed this and allowed notifications is sent one when work wants you, gets stuck, goes red or finishes — ${PUSH_SAYS_NOTHING_SHORT}; off: nothing is sent. ${PUSH_NEEDS_A_GESTURE} ${PUSH_GOES_THROUGH_A_STRANGER} ${PUSH_IS_WHILE_OPEN}`,
+        value: String(web.push),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        // `true`, and honestly: a notification is decided on the window's own
+        // beat out of the config it holds, so there is no start-up table for
+        // either direction to wait behind.
+        live: true,
+        keywords: [
+          'push',
+          'notification',
+          'notifications',
+          'alert',
+          'alerts',
+          'notify',
+          'badge',
+          'lock screen',
+          'vapid',
+          'web push',
+          'apns',
+          'fcm',
+        ],
+      },
+      {
+        path: 'surfaces.web.push_details',
+        // A **ninth** decision, under the eighth, and a row of its own rather
+        // than a clause on it: *send me notifications* and *put the name of my
+        // work on a lock screen* are different things to want, and a control
+        // that granted both at once would be a yes to a question nobody was
+        // asked. The sentence is the list of what is sent, because *generic*
+        // is the word a comfortable version of it would keep.
+        title: 'Let a notification name the work',
+        means: `on: a notification carries the name of the piece of work it is about; off: it carries a count and no text at all. ${PUSH_SAYS_NOTHING} It can never say more than that device was granted to read.`,
+        value: String(web.push_details),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        live: true,
+        keywords: ['details', 'payload', 'title', 'generic', 'redacted', 'privacy', 'lock screen'],
+      },
+      {
+        path: 'surfaces.web.push_key',
+        // The key, shown as itself like every other key Tade keeps, and the
+        // only one that is **generated** rather than pasted — which is why its
+        // own sentence is here as well as `KEYS_AND_AGENTS`. Clearing it is
+        // the revocation lever, and the row says so, because a field nobody
+        // can see the point of is a field somebody pastes something into.
+        title: 'Notification signing key',
+        means: `${PUSH_KEY_IS_GENERATED} ${KEYS_AND_AGENTS}`,
+        value: web.push_key,
+        fallback: 'generated when it is first needed',
+        type: { kind: 'text', placeholder: 'generated — clear this to mint a new one' },
+        live: true,
+        keywords: ['vapid', 'key', 'secret', 'sign', 'signing', 'revoke', 'rotate'],
       },
       {
         path: 'surfaces.web.trusted_hosts',

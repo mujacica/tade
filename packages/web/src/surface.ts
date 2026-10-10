@@ -7,6 +7,10 @@ import {
   DEVICES_SEEN_BY_AGENTS,
   HTTPONLY_IS_NOT_XSS,
   LAN_IS_PLAINTEXT,
+  PUSH_GOES_THROUGH_A_STRANGER,
+  PUSH_IS_WHILE_OPEN,
+  PUSH_NEEDS_A_GESTURE,
+  PUSH_SAYS_NOTHING,
 } from '@tade/core'
 import { GRANTS, type Grant, type Reach } from './reach.ts'
 
@@ -32,6 +36,10 @@ export {
   DEVICES_SEEN_BY_AGENTS,
   HTTPONLY_IS_NOT_XSS,
   LAN_IS_PLAINTEXT,
+  PUSH_GOES_THROUGH_A_STRANGER,
+  PUSH_IS_WHILE_OPEN,
+  PUSH_NEEDS_A_GESTURE,
+  PUSH_SAYS_NOTHING,
 }
 
 // What the away view is turned on as, and the sentences about it that are true
@@ -121,6 +129,32 @@ export interface Surface {
    * read it is a setting Tade accepts and ignores.
    */
   keepsView: boolean
+  /**
+   * Whether a device that installed the shell may be sent a notification.
+   *
+   * **Narrowed under `installing` like `keepsView`, and read at the beat
+   * rather than at start-up.** A notification is not a route: nothing is built
+   * with the listener for it, so both directions take effect at the next beat
+   * — which is why this is the one away-view capability whose setting is
+   * honestly `live`. What makes it small is what a notification carries
+   * (`PUSH_SAYS_NOTHING`), where it goes (`PUSH_GOES_THROUGH_A_STRANGER`) and
+   * that this window is the only thing that sends one
+   * (`PUSH_IS_WHILE_OPEN`).
+   *
+   * It grants nothing on its own: each phone still has to allow notifications
+   * in its own browser (`PUSH_NEEDS_A_GESTURE`), which nothing here can press.
+   */
+  pushing: boolean
+  /**
+   * Whether a notification may name the work it is about.
+   *
+   * Narrowed under `pushing` for the reason `keepsView` is narrowed under
+   * `installing`: a key that could be on while nothing could be sent is a
+   * setting Tade accepts and ignores. It is narrowed **again** per device at
+   * the moment a notification is built — a phone that may not read titles
+   * never gets one — so this is a ceiling and never a grant.
+   */
+  pushDetails: boolean
 }
 
 /** The `surfaces.web` block, as the one reader of it sees it. */
@@ -134,6 +168,8 @@ export interface WebConfig {
   drafts: boolean
   install: boolean
   offline: boolean
+  push: boolean
+  push_details: boolean
 }
 
 /** Off, on this machine, on the port nothing else wanted, changing nothing. */
@@ -147,6 +183,8 @@ export const OFF: Surface = {
   drafting: false,
   installing: false,
   keepsView: false,
+  pushing: false,
+  pushDetails: false,
 }
 
 /**
@@ -172,6 +210,13 @@ export function surfaceOf(web: WebConfig): Surface {
     // Two keys deep, because a view kept on a phone's disk is read by the
     // shell on that phone and there is no shell without the first one.
     keepsView: web.enabled && web.install && web.offline,
+    // Two keys deep for the same reason: a notification is delivered to a
+    // service worker, and there is no worker without the shell that registers
+    // one.
+    pushing: web.enabled && web.install && web.push,
+    // Three keys deep, and the third is this one's own: details that could be
+    // on while nothing could be sent is a setting Tade accepts and ignores.
+    pushDetails: web.enabled && web.install && web.push && web.push_details,
   }
 }
 

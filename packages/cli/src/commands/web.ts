@@ -6,6 +6,8 @@ import {
   LAN_IS_PLAINTEXT,
   loadConfig,
   OFFLINE_NEEDS_HTTPS,
+  PUSH_IS_WHILE_OPEN,
+  PUSH_NEEDS_A_GESTURE,
   tadeHome,
   writeSetting,
 } from '@tade/core'
@@ -210,6 +212,8 @@ export interface Looked {
   installs: boolean
   /** Whether an installed device may keep a few counts on its own disk. */
   keepsView: boolean
+  /** Whether an installed device may be sent a notification. */
+  notifies: boolean
   /** Whether a window is open on this home, which is what makes it answer. */
   windowOpen: boolean
   /**
@@ -244,6 +248,7 @@ async function look(): Promise<Looked> {
         trustedHosts: [],
         installing: false,
         keepsView: false,
+        pushing: false,
       }
   const read = await readDevices(home)
   const trusted = surface.trustedHosts.map((host) => `https://${host}/`)
@@ -254,6 +259,7 @@ async function look(): Promise<Looked> {
     trustedHosts: surface.trustedHosts,
     installs: surface.installing,
     keepsView: surface.keepsView,
+    notifies: surface.pushing,
     windowOpen: (await heldBy(home)) !== null,
     read: loaded.ok,
     urls: surface.enabled
@@ -302,6 +308,16 @@ function lines(said: Looked): string[] {
         : 'a device may install it; it opens with nothing until it can reach this machine',
     )
     out.push(OFFLINE_NEEDS_HTTPS)
+  }
+  if (said.notifies) {
+    // **Said here because the two halves are in two places.** This machine
+    // being willing is one of them; the other is a permission on a phone that
+    // nothing here can press or read back, so a person who turned the setting
+    // on and heard nothing has no way to tell *not granted* from *broken*
+    // except by being told which half this command can see.
+    out.push('a device that allowed notifications is told when work wants you')
+    out.push(PUSH_NEEDS_A_GESTURE)
+    out.push(PUSH_IS_WHILE_OPEN)
   }
   out.push(
     said.devices.length === 0

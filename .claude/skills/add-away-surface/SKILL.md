@@ -15,6 +15,12 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
 | a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
 | what a device may **save** | `src/drafting.ts` (the interface and the draft's revision), `src/drafted.ts` (the closed table, the gate and the sequence), `DRAFTS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-drafting.ts`, and the form in `src/assets/designer.js` |
+| what a device may ask about **being told** | `src/pushing.ts` (the interface and what the page is told), `src/pushed.ts` (the closed table, the gate and the sequence), `PUSHES` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-push.ts`, and the control in `src/assets/push.js` |
+| what is worth a notification, and what it may say | `src/noticed.ts` — pure: the five transitions, the payload, the budget, the quiet hours, the presence rule and the dedupe |
+| where a notification may be sent | `src/endpoint.ts` (the URL and the addresses), `src/push-out.ts` (the sender), `src/push-scripted.ts` (the one every test uses) |
+| which devices asked to be told | `src/pushes.ts` — `<home>/web-pushes.jsonl`, and `sendable` is the binding |
+| the notification a phone draws, and the tap | `src/assets/sw.js`'s `push` and `notificationclick` |
+| the two files a listener serves | `src/files.ts` — the asset map and the worker, each read once |
 | which halves the window hands over | `packages/app/src/wire/web-halves.ts` |
 | the pairing exchange's own five steps | `src/paired.ts` (the order), `src/tickets.ts` (the burn) |
 | what a device may **say to Tade** | `src/asking.ts` (the interface and the revision), `src/asked.ts` (the gate and the sequence), `ASKS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-asking.ts`, and the screen in `src/assets/talk.js` |
@@ -69,12 +75,47 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   lifecycle — this browser's own credential, created and destroyed — and `test/routes.test.ts`
   asserts that set is exactly those two **by name**. A third fails the test until somebody puts it
   in `LIFECYCLE` deliberately, which is the conversation the rule is for.
-- **There are three second tables, each with its own setting, and absence is
-  the enforcement for all three.** `ACTS` is `surfaces.web.acting`, `ASKS` is
-  `surfaces.web.orchestrator`, `DRAFTS` is `surfaces.web.drafts`. `halvesFor`
-  hands over the matching interface and nothing else, so with a setting off a
-  crafted call is the `404` of a path nobody built. Each one's `unlocked()` is
-  re-read at every act, turn and save: on waits for a restart, off is now.
+- **There are four second tables, each with its own setting, and absence is
+  the enforcement for all four.** `ACTS` is `surfaces.web.acting`, `ASKS` is
+  `surfaces.web.orchestrator`, `DRAFTS` is `surfaces.web.drafts`, `PUSHES` is
+  `surfaces.web.push`. `halvesFor` hands over the matching interface and
+  nothing else, so with a setting off a crafted call is the `404` of a path
+  nobody built. Each one's `unlocked()` is re-read at every act, turn, save and
+  subscribe: on waits for a restart, off is now.
+- **`PUSHES` is the one second table whose subject is not the work**, which is
+  why it has no receipt and no entity revision: a subscription is *this browser
+  saying where to reach it*, so a repeat meets its own row (one per device, last
+  one wins) and there is nothing a key would buy. It would have belonged in
+  `LIFECYCLE` beside pairing and signing out, and it is a table of its own only
+  because it has a setting — and in this package a setting is enforced by a
+  table that is not built when it is off.
+- **A notification is sent on the window's beat or not at all, and nothing is
+  caught up.** The transitions are between this beat and the last one, held in
+  memory, so a window that has just opened sends nothing: a laptop shut
+  overnight must not wake up and send six notifications about last night
+  (`PUSH_IS_WHILE_OPEN`). There is no route that asks for one — a device able
+  to ask would be a device able to make this machine POST to an address of its
+  choosing, at a rate of its choosing.
+- **The endpoint is the one value in Tade that decides what this machine
+  connects to, and it comes from a browser.** Two layers and both are needed:
+  the URL (`https`, no credentials, port 443, a name rather than an address)
+  and *every* address it resolves to. The connection is then made to the
+  address that was checked, by handing `node:https` a `lookup` that answers
+  with it — a checker that lets the HTTP client resolve again is the
+  DNS-rebinding bug with a validator in front of it. The vetted library
+  (`web-push`, MPL-2.0) is called for the cryptography only: its own sender
+  reads `HTTPS_PROXY`, which would make *where Tade sends something* a variable
+  rather than a setting.
+- **A notification is per device, and so is what it may be about.** The
+  collections are the window's own and are built once for every phone, so
+  `changesFor` narrows the transitions to the projects that device reads before
+  anything else — a count is still a fact about work it cannot see, and doing
+  it before the budget means one device's silence does not spend another's.
+- **A notification carries a count and no text**, and the detail is two halves:
+  `surfaces.web.push_details` is the ceiling and the device's own `titles`
+  grant is the floor. A `410` or `404` is the one answer that forgets a
+  subscription; everything else that goes wrong is a retry paced by the next
+  transition, because a window has no scheduler to pace one with.
 - **A draft is a target with no project, which is why saving has its own
   gate.** A verb names a task and the device's read scope is the per-project
   boundary; a workflow names the repository it works in through an *input* and

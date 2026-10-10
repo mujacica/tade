@@ -418,8 +418,8 @@ machine, then a keypress per device. Even then it is eight bounded things — an
 waiting on, tell one something, hold or release queued work, mark work finished, write a note, add
 to what a task is told, set a task aside, approve a request a grant here already allowed — and each
 needs this machine or an `https` name you trusted, so a credential that crossed a network in the
-clear never buys one. A setting, a credential, a command, a new agent, a push, a merge and a check
-overrule stay unreachable from a phone, because **no route for any of them exists**; and every act
+clear never buys one. A setting, a credential, a command, a new agent, a git push, a merge and a
+check overrule stay unreachable from a phone, because **no route for any of them exists**; and every act
 a device takes is in the journal under its own id, never as your words.
 
 Letting one **talk to Tade** is a fourth decision, with its own setting and its own keypress per
@@ -452,6 +452,24 @@ with no signal says what it last knew rather than nothing — counts, no text of
 installing off serves that phone a worker which deletes what it kept and removes itself, the next
 time it reaches you. A 404 would not, and a shell on a phone that never comes back is not yours to
 erase; what it holds is the page, which can draw nothing without a session.
+
+**Being told** is an eighth decision, under that one, and it is two switches rather than one: the
+machine has to be willing and each phone has to allow notifications itself, in its own browser's
+prompt — which nothing here can press, and which on iOS is offered only to a page you added to the
+home screen. Then a notification arrives when something actually changes: work wants your answer,
+an agent has stopped, a check has gone red, a piece of work has finished. It says **how many** and
+nothing else — no project, no task, no title, nothing you wrote and nothing an agent did. A ninth
+decision adds the name of the work, and never more than that phone was already granted to read,
+because what it goes onto is a lock screen.
+
+A phone cannot be woken by your laptop, so every notification goes through the push service its
+browser chose — Apple's, Google's, Mozilla's — which sees that *something* was sent, when, and how
+big. What it cannot see is what it says: the payload is encrypted to a key that browser generated
+and keeps, and the key Tade signs with is generated on your machine and goes nowhere else. Clearing
+it in Settings mints a new one, which makes every subscription unusable at once. And because there
+is no background service, there is nothing to catch up: a closed window and a sleeping machine send
+nothing, and a window that comes back says what is true now rather than six things about last
+night.
 
 ## Installing
 

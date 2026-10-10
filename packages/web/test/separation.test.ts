@@ -16,6 +16,8 @@ import {
 } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { readDraftSave, SAVINGS } from '../src/drafted.ts'
+import { PUSHINGS, readSubscribe } from '../src/pushed.ts'
+import { AUTH_BYTES, P256DH_BYTES } from '../src/pushing.ts'
 import {
   ACTING_IS_NOT_YOU,
   ACTING_IS_NOT_YOU_SHORT,
@@ -190,6 +192,63 @@ describe('what a verb may never reach, as the verb table grows', () => {
     expect(methods.filter((one) => one !== 'unlocked')).toEqual(Object.keys(SAVINGS))
   })
 
+  it('declares exactly the two methods the notification table has, and nothing else', () => {
+    // Both directions, mechanically, exactly as `WebActing` is held to `VERBS`
+    // and `WebDrafting` to `SAVINGS`. The one that matters here is the
+    // direction that would add a method: a `send` on this interface is one
+    // line from a route, and a route is one line from a device able to make
+    // this machine POST to an address of its choosing.
+    const text = readFileSync(join(SRC, 'pushing.ts'), 'utf8')
+    const block = /export interface WebPushing \{([\s\S]*?)\n\}/.exec(text)?.[1] ?? ''
+    expect(block, 'the WebPushing block').not.toBe('')
+    const methods = [...block.matchAll(/^ {2}([a-z][A-Za-z]*)\(/gm)].map((one) => one[1])
+    expect(methods.filter((one) => one !== 'unlocked').sort()).toEqual(Object.keys(PUSHINGS).sort())
+  })
+
+  it('has no shape in the notification half that could send one or read one', () => {
+    // The absences, in code. A `send` would make a device the thing that
+    // decides when this machine reaches out; a `list` would answer with
+    // another phone's endpoint, which is a URL at a push service with a
+    // per-device token in it.
+    const text = code(readFileSync(join(SRC, 'pushing.ts'), 'utf8'))
+    for (const shape of ['send', 'notify', 'test', 'list', 'all', 'devices', 'endpoint(']) {
+      expect(text.toLowerCase(), `pushing.ts has ${shape}`).not.toContain(
+        `${shape.replace('(', '')}(`,
+      )
+    }
+  })
+
+  it('takes no path, no command and no device in a subscription’s body', () => {
+    // The same cross-product the verbs and the saves get. The one that would
+    // have got away is `device`: a body that could name one would be a phone
+    // subscribing another, and the binding is the whole of what makes a
+    // subscription safe.
+    const every = {
+      endpoint: 'https://web.push.apple.com/QDzVM4rMVZ1l0bT8VvPaDQ',
+      p256dh: Buffer.alloc(P256DH_BYTES, 4).toString('base64url'),
+      auth: Buffer.alloc(AUTH_BYTES, 7).toString('base64url'),
+    }
+    expect(readSubscribe(every).ok).toBe(true)
+    for (const name of [
+      'device',
+      'path',
+      'file',
+      'cwd',
+      'cmd',
+      'command',
+      'prompt',
+      'setting',
+      'scopes',
+      'task',
+      'project',
+      'title',
+      'body',
+      'url',
+    ]) {
+      expect(readSubscribe({ ...every, [name]: 'anything' }).ok, name).toBe(false)
+    }
+  })
+
   it('has no shape in the saving half that could publish, make or remove one', () => {
     // The absences, in code: `DRAFTS_ARE_NOT_PUBLISHED` is the sentence and
     // these are what make it true. A `publish` on this interface would be one
@@ -265,6 +324,8 @@ describe('what the surface is turned on as', () => {
       trusted_hosts: ['x'],
       acting: false,
       orchestrator: false,
+      push: false,
+      push_details: false,
       drafts: false,
       install: false,
       offline: false,
@@ -291,6 +352,8 @@ describe('what the surface is turned on as', () => {
       trusted_hosts: [],
       acting: false,
       orchestrator: false,
+      push: false,
+      push_details: false,
       drafts: false,
       install: true,
       offline: true,
@@ -323,6 +386,8 @@ describe('what the surface is turned on as', () => {
           trusted_hosts: [],
           acting: false,
           orchestrator: false,
+          push: false,
+          push_details: false,
           drafts: false,
           install: false,
           offline: false,
@@ -338,6 +403,8 @@ describe('what the surface is turned on as', () => {
           trusted_hosts: [],
           acting: false,
           orchestrator: false,
+          push: false,
+          push_details: false,
           drafts: false,
           install: false,
           offline: false,
@@ -382,6 +449,8 @@ describe('what a session minted on an origin may ever do', () => {
     trusted_hosts: ['studio.yak-bebop.ts.net'],
     acting: true,
     orchestrator: false,
+    push: false,
+    push_details: false,
     drafts: false,
     install: false,
     offline: false,

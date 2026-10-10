@@ -33,6 +33,8 @@ const SURFACE: Surface = {
   drafting: false,
   installing: false,
   keepsView: false,
+  pushing: false,
+  pushDetails: false,
 }
 
 // **`was` through the same function the window compares against**, never a

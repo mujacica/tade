@@ -1,5 +1,5 @@
 import type { Config, InboxRow, Queued, TadeEvent } from '@tade/core'
-import type { Device, ServerOptions, Surface, TaskFacts } from '@tade/web'
+import type { Device, ServerOptions, Surface, TaskFacts, WebPushing } from '@tade/web'
 import { surfaceOf } from '@tade/web'
 import type { Workbench } from '@tade/workbench'
 import { webActing } from './web-acting.ts'
@@ -7,7 +7,7 @@ import { type Talking, webAsking } from './web-asking.ts'
 import { steeringFor } from './web-beat.ts'
 import { webDrafting } from './web-drafting.ts'
 
-// The three halves of the away view the window hands over, and the one rule
+// The four halves of the away view the window hands over, and the one rule
 // they share.
 //
 // **Each is handed over only where its own setting says so, and absence is the
@@ -42,6 +42,16 @@ export interface Halving {
   talk: Talking
   /** A draft was saved, so whatever folds the templates reads them again. */
   saved: () => void
+  /**
+   * What a device may ask about being told, and the public key to subscribe
+   * with.
+   *
+   * Handed in already built rather than made here, because the push half is a
+   * thing the window *holds* — the subscriptions, the key, the last beat's
+   * facts — and the other three are stateless adapters over the workbench.
+   * `WebPush` in `web-push.ts` is it; what is here is which halves exist.
+   */
+  notifications: () => { half: WebPushing; key: () => string }
   now: () => number
 }
 
@@ -114,6 +124,21 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
             now: () => deps.now(),
           }),
         }
+      : {}),
+    // **Handed over only where the setting says so**, like the other three.
+    // The asymmetry is smaller here and is said that way in the setting's own
+    // words: the route table waits for a restart as usual, but what *sends* a
+    // notification reads the setting on every beat — so turning it off stops
+    // delivery within a beat whether or not the route is still there.
+    //
+    // `vapid` goes with it and never without it: a page told a public key by a
+    // listener with no notifying half would draw a control with no route
+    // behind it.
+    ...(surface.pushing
+      ? (() => {
+          const notifications = deps.notifications()
+          return { pushing: notifications.half, vapid: notifications.key }
+        })()
       : {}),
   }
 }

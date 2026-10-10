@@ -234,6 +234,118 @@ export const LAST_VIEW_IS_A_COPY =
 export const LAST_VIEW_IS_A_COPY_SHORT = 'counts and a timestamp on that device’s disk, no text'
 
 /**
+ * What a notification travels through, said where somebody turns push on.
+ *
+ * The fact first, because it is the one nobody guesses: a phone cannot be
+ * woken by this machine. Every notification goes to the browser maker's own
+ * push service — Apple's, Google's, Mozilla's — whose address the phone chose
+ * and handed over, and that service sees that *something* was sent to that
+ * subscription, when, and how big it was.
+ *
+ * And the way out in the same breath, with the half people get wrong attached
+ * to it: what it cannot see is what the notification says. The payload is
+ * encrypted to a key pair the browser generated and keeps (RFC 8291), so the
+ * service relays bytes it cannot read — and the key Tade signs with (RFC 8292)
+ * is generated on this machine, lives in `config.yaml` with every other key,
+ * and is never synchronised anywhere.
+ */
+export const PUSH_GOES_THROUGH_A_STRANGER =
+  'A phone cannot be woken by this machine, so every notification goes through the push service ' +
+  'its browser chose — Apple’s, Google’s, Mozilla’s — which sees that something was sent to that ' +
+  'subscription, when, and how big it was. What it cannot see is what it says: the payload is ' +
+  'encrypted to a key that browser generated and keeps, and the key Tade signs with is generated ' +
+  'here and goes nowhere else.'
+
+/** The short clause, for the one line a control gets. */
+export const PUSH_GOES_THROUGH_A_STRANGER_SHORT =
+  'relayed by the phone’s own push service, which cannot read it'
+
+/**
+ * What a notification says, named rather than described.
+ *
+ * `DRAFTS_ARE_NOT_PUBLISHED`'s treatment, for its reason: *minimal* and
+ * *generic* are the words a comfortable version of this sentence would keep
+ * while dropping what was actually sent. So the list is the sentence, and
+ * `packages/web/test/noticed.test.ts` holds the payload to it.
+ *
+ * The second half is the trade details are, said where somebody turns them on:
+ * a notification is **kept** by a push service until the phone takes it and
+ * then drawn on a lock screen, which is a different place from a page behind a
+ * session — and it is still narrowed by what that device was granted to read,
+ * so a phone that may not read titles never gets one in a notification either.
+ */
+export const PUSH_SAYS_NOTHING =
+  'A notification says how many pieces of work want you and nothing else: no project, no task, ' +
+  'no title, no words of yours, nothing an agent wrote and no code. Details add the name of the ' +
+  'work — to something a push service keeps until the phone takes it and a lock screen draws ' +
+  'without being unlocked — and never more than that device was granted to read anyway.'
+
+/** The short clause, for the one line a control gets. */
+export const PUSH_SAYS_NOTHING_SHORT = 'a count and no text at all unless you turn details on'
+
+/**
+ * What push cannot do, said where somebody would otherwise assume it.
+ *
+ * The honest half of "notifications": people expect a notification service to
+ * be *a service*, and this one is a window on a laptop. Tade has no daemon
+ * (`AWAY_IS_WHILE_OPEN` is the same fact about reading), so a notification is
+ * something this window does on its own beat — and a closed window, a shut lid
+ * and a machine asleep all send nothing.
+ *
+ * And it says **nothing is caught up**, because that is the half somebody
+ * would otherwise expect for free: a window that comes back does not send what
+ * it missed. Six notifications for last night is the behaviour that gets a
+ * feature turned off, and what happened is on the page when the phone asks.
+ */
+export const PUSH_IS_WHILE_OPEN =
+  'Notifications are sent by this window on its own beat, so a closed window and a sleeping ' +
+  'machine send nothing — Tade has no background service and does not claim one. Nothing is ' +
+  'caught up either: a window that comes back says what is true now rather than six things about ' +
+  'last night, and what happened is on the page when the phone next asks.'
+
+/** The short clause, for the one line a control gets. */
+export const PUSH_IS_WHILE_OPEN_SHORT =
+  'only while this window is open and awake, and never caught up'
+
+/**
+ * Why turning this on sends nothing yet, said where it is turned on.
+ *
+ * **Two switches, deliberately, and this is the sentence that says so.** This
+ * one lets a device *ask*; the other is the browser's own permission prompt on
+ * the phone, which nothing here can press and no setting can stand in for.
+ * Both are off until somebody says otherwise, and in two different places.
+ *
+ * The iOS limit is in it because it is the one that looks like a bug: Safari
+ * offers the prompt only to a page that was added to the home screen, and
+ * refuses silently otherwise. And the way back is in the same breath, both
+ * ways round — the phone's own settings, or signing that device out here.
+ */
+export const PUSH_NEEDS_A_GESTURE =
+  'This lets a paired device ask; it subscribes nothing. Each phone has to allow notifications ' +
+  'itself, in its browser’s own prompt — and on iOS that prompt is offered only to a page added ' +
+  'to the home screen, which is why nothing happens in Safari’s own tab. Taking the permission ' +
+  'back on the phone, or signing that device out here, stops every notification to it.'
+
+/** The short clause, for the one line a control gets. */
+export const PUSH_NEEDS_A_GESTURE_SHORT = 'each phone still has to allow them itself'
+
+/**
+ * What the key is, said where it is shown.
+ *
+ * `KEYS_AND_AGENTS` covers what every key in the file is; this is the part
+ * that is only true of this one. It is **generated** rather than pasted, there
+ * is nowhere to get one from, and the thing somebody would want to do with the
+ * field is the thing it is for: clearing it mints a new one, which is how
+ * every subscription is revoked at once without asking a push service
+ * anything.
+ */
+export const PUSH_KEY_IS_GENERATED =
+  'Generated on this machine the first time a notification is sent, and nowhere else: there is ' +
+  'nothing to paste here. Clearing it mints a new one, which makes every subscription a phone ' +
+  'holds unusable and is the way to revoke them all at once — every device then has to allow ' +
+  'notifications again.'
+
+/**
  * The away view's own config block: `surfaces.web`.
  *
  * Here rather than in `config.ts` for the reason the sentences above are here:
@@ -386,5 +498,64 @@ export const WebSurface = z
      * list and not a promise about care.
      */
     offline: z.boolean().default(false),
+    /**
+     * Whether a device that installed the shell may be sent a notification.
+     *
+     * **An eighth decision, narrowed under the sixth** for the reason the
+     * seventh is: a notification is delivered to a *service worker*, and there
+     * is no worker without the shell that registers one. A key that could be
+     * on while nothing could receive anything is a setting Tade accepts and
+     * ignores.
+     *
+     * **And it is still only half of the switch.** This one lets a device
+     * *ask*; the other half is the browser's own permission prompt on the
+     * phone, which nothing on this machine can press and no setting can stand
+     * in for (`PUSH_NEEDS_A_GESTURE`). Both are off until somebody says
+     * otherwise, in two different places, because "the laptop is willing" and
+     * "this phone agreed" are different facts and conflating them is how a
+     * setting turns into a subscription nobody asked for.
+     *
+     * What it grants is **not** reading: a notification carries a count and no
+     * text (`PUSH_SAYS_NOTHING`), it goes through the phone's own push service
+     * (`PUSH_GOES_THROUGH_A_STRANGER`), and it is sent by this window on its
+     * own beat or not at all (`PUSH_IS_WHILE_OPEN`).
+     *
+     * Turning it **off** stops every future send, read at the beat — the
+     * direction that takes authority away is immediate, as it is for the three
+     * capability keys above.
+     */
+    push: z.boolean().default(false),
+    /**
+     * Whether a notification may name the work it is about.
+     *
+     * **A ninth decision, narrowed under the eighth, and the trade is in
+     * `PUSH_SAYS_NOTHING`.** Off — the default — a notification is a count: a
+     * phone is told *two things want you* and has to be unlocked to learn
+     * which. On, it carries the name of the work, which a push service keeps
+     * until the phone takes it and a lock screen draws without being unlocked.
+     *
+     * It is a setting and not a per-device grant because what it decides is
+     * what may appear on a lock screen, which is one answer for every phone of
+     * yours. The per-device half is still there and still narrows it: a device
+     * that was not granted `titles` gets no name in a notification either, so
+     * this can only ever reach as far as that device's own reading already
+     * does.
+     */
+    push_details: z.boolean().default(false),
+    /**
+     * The key notifications are signed with (RFC 8292), as the config holds it.
+     *
+     * A key like every other key Tade keeps — `config.yaml`, `0600`, readable
+     * back, the environment winning over it (`findSecret`) — and two things
+     * are true only of this one, which is why `PUSH_KEY_IS_GENERATED` is said
+     * where it is shown. It is **generated** on this machine rather than
+     * pasted, because there is nobody to get one from. And clearing it is a
+     * revocation: a new key makes every subscription a phone holds unusable,
+     * which is the only way to take them all back without asking a push
+     * service anything.
+     *
+     * Empty is the default and means *not generated yet*, never an error.
+     */
+    push_key: z.string().default(''),
   })
   .prefault({})

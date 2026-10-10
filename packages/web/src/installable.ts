@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { type Asset, etagOf, WORKER_FILE } from './assets.ts'
+import { NOT_NOTIFYING, type Notifying, notifyingOf } from './pushing.ts'
 
 // What makes the away view a thing a phone can keep: the static shell, the
 // version it is cached under, and the worker that is handed both.
@@ -198,7 +199,7 @@ export function servedWorker(
  * It goes out beside the device list rather than in the shell, because the
  * shell is the same bytes for everybody and this is a fact about the machine.
  *
- * **Two booleans and no names.** The cache names are spelt in the page's own
+ * **Booleans and one key, and no cache names.** The cache names are spelt in the page's own
  * files and held equal to the ones here by a test, because the two moments
  * they matter most are the two where there is nothing to ask: a cold open with
  * no answer, and a session that has just been refused. A name that arrived on
@@ -209,9 +210,27 @@ export interface Keeping {
   install: boolean
   /** Whether the page may keep a redacted last view beside it. */
   keepsView: boolean
+  /**
+   * What this machine offers about notifications: whether a device may
+   * subscribe, and the public key to do it with.
+   *
+   * Beside the other two and the same kind of thing: a fact about the machine,
+   * the same for every device, which is why all of `Keeping` goes out beside
+   * the device list rather than in the shell. Whether *this* phone is
+   * subscribed is not here and not anywhere — the browser knows that better
+   * (`pushing.ts` has the argument).
+   */
+  notifying: Notifying
 }
 
-/** What a surface means for a page, which is two facts and no settings. */
-export function keepingOf(surface: { installing: boolean; keepsView: boolean }): Keeping {
-  return { install: surface.installing, keepsView: surface.keepsView }
+/** What a surface means for a page, which is three facts and no settings. */
+export function keepingOf(
+  surface: { installing: boolean; keepsView: boolean; pushing?: boolean },
+  key = '',
+): Keeping {
+  return {
+    install: surface.installing,
+    keepsView: surface.keepsView,
+    notifying: surface.pushing === true ? notifyingOf({ pushing: true, key }) : NOT_NOTIFYING,
+  }
 }

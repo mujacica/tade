@@ -1,5 +1,6 @@
 import { SAYINGS } from './asked.ts'
 import { SAVINGS } from './drafted.ts'
+import { PUSHINGS } from './pushed.ts'
 import type { Scope, Surface } from './surface.ts'
 import { VERBS } from './verbs.ts'
 
@@ -73,6 +74,14 @@ export interface Route {
    * `test/routes.test.ts` says so.
    */
   saves?: string
+  /**
+   * What about notifications this route changes, where it is one of `PUSHES`.
+   *
+   * Carried rather than read back out of the path, for the reason `verb`,
+   * `saves` and `says` are. A route has exactly one of the four and never two,
+   * and `test/routes.test.ts` says so.
+   */
+  notifies?: string
   /**
    * The thing this route says to the conversation, where it is one of `ASKS`.
    *
@@ -282,6 +291,38 @@ export const ASKS: readonly Route[] = Object.keys(SAYINGS).map((name) => ({
   says: name,
 }))
 
+/**
+ * The notification routes: **one path per thing a device may ask about being
+ * told**, and the table is `PUSHINGS`.
+ *
+ * A fourth table, and the one whose subject is not the work at all: a
+ * subscription is this browser saying where to reach it, which is the category
+ * `LIFECYCLE` is. It is a second table rather than two more entries there
+ * because it has **a setting of its own** — and in this package a setting is
+ * enforced by a table that is not built when it is off, so that a crafted call
+ * is the `404` of a path nobody built rather than a `403` naming a setting.
+ *
+ * `read` and no more, which is the scope the whole table is at: being told
+ * that two things want you reveals nothing this device could not already read.
+ * The trusted-origin layer the guard applies above `read` is therefore not
+ * reached, and is re-asked in `admitPush` instead with the argument for why —
+ * a read-only credential that crossed a network in the clear must not buy an
+ * outbound request.
+ *
+ * `/api/notify/...` and deliberately **not** `/api/push`, which
+ * `test/routes.test.ts` keeps out of every table: that one is a git push, and
+ * two meanings of one word in a route table is the ambiguity somebody resolves
+ * by guessing.
+ */
+export const PUSHES: readonly Route[] = Object.keys(PUSHINGS).map((name) => ({
+  method: 'POST' as const,
+  path: `/api/notify/${name}`,
+  name: `notify ${name}`,
+  needs: 'read' as Scope,
+  mutates: true,
+  notifies: name,
+}))
+
 export const DRAFTS: readonly Route[] = Object.keys(SAVINGS).map((name) => ({
   method: 'POST' as const,
   path: `/api/draft/${name}`,
@@ -310,6 +351,7 @@ export function routesFor(surface: Surface): readonly Route[] {
     ...(surface.acting ? ACTS : []),
     ...(surface.talking ? ASKS : []),
     ...(surface.drafting ? DRAFTS : []),
+    ...(surface.pushing ? PUSHES : []),
   ]
 }
 

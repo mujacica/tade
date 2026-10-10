@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { ACTS, ASKS, DRAFTS, LIFECYCLE, ROUTES, routeFor, routesFor } from '../src/routes.ts'
+import {
+  ACTS,
+  ASKS,
+  DRAFTS,
+  LIFECYCLE,
+  PUSHES,
+  ROUTES,
+  routeFor,
+  routesFor,
+} from '../src/routes.ts'
 import { OFF, type Surface } from '../src/surface.ts'
 
 // Read-only, enforced by absence, asserted in one file.
@@ -83,6 +92,10 @@ describe('the shape of the table', () => {
       '/api/grant',
       '/api/intake',
       '/api/publish',
+      // `/api/push` is a **git** push, which is a `never remote` line. What a
+      // device may ask about notifications is `/api/notify/...` in `PUSHES`,
+      // deliberately spelt differently: two meanings of one word in a route
+      // table is the ambiguity somebody resolves by guessing.
       '/api/push',
       '/api/merge',
       '/api/agent',
@@ -113,13 +126,13 @@ describe('the shape of the table', () => {
   })
 })
 
-describe('the three tables a setting turns on', () => {
+describe('the four tables a setting turns on', () => {
   it('puts nothing in the base table, so read-only stays an absence', () => {
-    // Each of the three is a second table `routesFor` adds only where its own
+    // Each of the four is a second table `routesFor` adds only where its own
     // setting says so, which is why `ROUTES` is still the list somebody checks
     // read-only against in forty lines.
     const paths = ROUTES.map((route) => route.path)
-    for (const route of [...ACTS, ...ASKS, ...DRAFTS]) {
+    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES]) {
       expect(paths, route.path).not.toContain(route.path)
     }
   })
@@ -140,6 +153,47 @@ describe('the three tables a setting turns on', () => {
     expect(on({ drafting: true })).toContain('/api/draft/save')
     expect(on({ drafting: true })).not.toContain('/api/act/park')
     expect(on({ acting: true, talking: true })).not.toContain('/api/draft/save')
+    // The fourth, and the asymmetry worth asserting the other way round: a
+    // device granted every acting tier has no path to subscribe either, and a
+    // device that may subscribe has none to act.
+    expect(on({ pushing: true })).toContain('/api/notify/subscribe')
+    expect(on({ pushing: true })).toContain('/api/notify/forget')
+    expect(on({ pushing: true })).not.toContain('/api/act/park')
+    expect(on({ acting: true, talking: true, drafting: true })).not.toContain(
+      '/api/notify/subscribe',
+    )
+  })
+
+  it('needs no more than read to be told, which is the honest scope', () => {
+    // Being told that two things want you reveals nothing this device could
+    // not already read. The trusted-origin layer the guard applies above
+    // `read` is therefore not reached, and `admitPush` re-asks it instead —
+    // which `test/pushed.test.ts` is what holds.
+    for (const route of PUSHES) expect(route.needs, route.path).toBe('read')
+  })
+
+  it('has no route that asks for a notification to be sent', () => {
+    // A device able to ask for one would be a device able to make this machine
+    // POST to an address of its choosing, at a rate of its choosing — which is
+    // the whole of what `endpoint.ts` exists to stop being interesting.
+    const every = routesFor({
+      ...OFF,
+      enabled: true,
+      acting: true,
+      talking: true,
+      drafting: true,
+      pushing: true,
+    })
+    const paths = every.map((route) => route.path)
+    for (const forbidden of [
+      '/api/notify/send',
+      '/api/notify/test',
+      '/api/notify',
+      '/api/notify/all',
+      '/api/notify/devices',
+    ]) {
+      expect(paths, forbidden).not.toContain(forbidden)
+    }
   })
 
   it('gives every saving route the draft scope, which no verb and no saying has', () => {
@@ -147,12 +201,14 @@ describe('the three tables a setting turns on', () => {
     for (const route of [...ACTS, ...ASKS]) expect(route.needs, route.path).not.toBe('draft')
   })
 
-  it('gives every route in the three tables exactly one of the three jobs', () => {
-    // A route reaches a `WebActing` method, a `WebAsking` one or a
-    // `WebDrafting` one, and never two: two would be a handler that had to
-    // choose, which is the shape `carryOut` answers with a `404`.
-    for (const route of [...ACTS, ...ASKS, ...DRAFTS]) {
-      const jobs = [route.verb, route.says, route.saves].filter((one) => one !== undefined)
+  it('gives every route in the four tables exactly one of the four jobs', () => {
+    // A route reaches a `WebActing` method, a `WebAsking` one, a `WebDrafting`
+    // one or a `WebPushing` one, and never two: two would be a handler that
+    // had to choose, which is the shape `carryOut` answers with a `404`.
+    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES]) {
+      const jobs = [route.verb, route.says, route.saves, route.notifies].filter(
+        (one) => one !== undefined,
+      )
       expect(jobs, route.path).toHaveLength(1)
       expect(route.method, route.path).toBe('POST')
       expect(route.mutates, route.path).toBe(true)

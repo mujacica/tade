@@ -33,6 +33,7 @@ import {
   untilSaid,
 } from './figures.js'
 import { checkMark } from './glyphs.js'
+import { NOT_OFFERED, OFF, ON, PUSH_SAID, pushState, subscribe, unsubscribe } from './push.js'
 import { MORE } from './routes.js'
 import {
   createFindingRow,
@@ -618,6 +619,63 @@ export function devicesScreen(ctx) {
   const said = el('p', { attrs: { role: 'status' } })
   into(mine.body, facts, noSession, out, said)
 
+  // **The notifications control, and it is on this screen because this is the
+  // screen about this device.** The permission belongs to the phone, not to
+  // the machine, and `pushState` reads the phone's own answer rather than a
+  // row in a file — so a permission somebody took back in their browser's
+  // settings draws as blocked here instead of as on.
+  const telling = section('NOTIFICATIONS')
+  const tellingSaid = el('p', { attrs: { role: 'status' } })
+  const tell = el('button', { class: 'press' })
+  into(
+    telling.body,
+    tellingSaid,
+    tell,
+    el('p', {
+      class: 'caveat',
+      text: 'A notification says how many pieces of work want you and nothing else — no project, no task, no title — unless details are turned on at the machine. It is relayed by your browser’s own push service, which cannot read it, and it is sent only while Tade’s window is open and the machine is awake. Nothing is caught up afterwards.',
+    }),
+  )
+  /** What the *phone* says, which is the one thing this screen cannot derive. */
+  let standing = null
+  /**
+   * What the machine was offering when the phone was last asked.
+   *
+   * Kept so that `update` can tell *the machine changed its mind* from *this
+   * is the fourth paint of the same second*: asking the browser costs a
+   * `getRegistration` and a `getSubscription`, which is not a thing to do four
+   * times a second, and not asking at all would leave the control absent for
+   * as long as the screen stays open after somebody turns notifications on.
+   */
+  let asked = null
+  const askPhone = async () => {
+    asked = JSON.stringify(ctx.shell()?.notifying ?? null)
+    standing = await pushState(ctx.shell())
+    drawTelling()
+  }
+  const drawTelling = () => {
+    // Hidden rather than drawn as unavailable while the machine is not
+    // offering it: a control for a thing nobody turned on costs a section to
+    // say nothing. The same decision the window makes about its own away
+    // panel.
+    telling.node.hidden = standing === null || standing === NOT_OFFERED
+    textIn(tellingSaid, standing === null ? 'asking…' : (PUSH_SAID[standing] ?? ''))
+    tell.hidden = standing !== ON && standing !== OFF
+    textIn(tell, standing === ON ? 'Stop telling this device' : 'Tell this device')
+  }
+  drawTelling()
+  void askPhone()
+
+  tell.addEventListener('click', async () => {
+    tell.disabled = true
+    // **The press is what raises the browser's prompt**, and it has to be this
+    // handler: a prompt that is not a direct answer to a gesture is refused by
+    // every browser that implements this, silently.
+    standing = standing === ON ? await unsubscribe(ctx.ask) : await subscribe(ctx.shell(), ctx.ask)
+    tell.disabled = false
+    drawTelling()
+  })
+
   const others = section('DEVICES')
   const list = el('ul', { class: 'rows' })
   const loading = el('p', { class: 'empty', text: 'asking…' })
@@ -647,6 +705,7 @@ export function devicesScreen(ctx) {
   into(
     node,
     mine.node,
+    telling.node,
     others.node,
     el('p', {
       class: 'caveat',
@@ -666,6 +725,11 @@ export function devicesScreen(ctx) {
         ['session runs out', until === null ? null : `in ${until}`],
       ])
       sayIn(noSession, who === null ? '— could not read this device’s own session' : null)
+      // The machine's half arrives on `/api/devices`, which `freshen` asks
+      // again when this screen opens — so somebody who turns notifications on
+      // at the machine and reloads the phone gets the control, and nobody
+      // pays for a round trip per paint.
+      if (asked !== JSON.stringify(ctx.shell()?.notifying ?? null)) void askPhone()
       const rows = ctx.devices()
       loading.hidden = rows !== null
       keyed(

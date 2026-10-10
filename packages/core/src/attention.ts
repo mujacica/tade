@@ -15,7 +15,17 @@ export type Channel = (typeof Channel)[keyof typeof Channel]
 
 const LOUDNESS: Record<Channel, number> = { speak: 2, earcon: 1, silent: 0 }
 
-export type Surface = 'voice' | 'watch' | 'tui'
+/**
+ * Where an interruption would land.
+ *
+ * `push` is a phone that is not in the room, and it is a surface here rather
+ * than a rule of its own so that the budget, the quiet hours and the presence
+ * window are read out of the one table every surface is read out of. What is
+ * *different* about it — that a notification nobody is there to read is kept
+ * until somebody swipes it — is in its row below and in `@tade/web`'s
+ * `noticed.ts`, never in a second copy of this decision.
+ */
+export type Surface = 'voice' | 'watch' | 'tui' | 'push'
 
 export interface AttentionSettings {
   /** The most this surface will ever do. */
@@ -55,6 +65,42 @@ export const DEFAULT_ATTENTION: Record<Surface, AttentionSettings> = {
   watch: { ceiling: 'speak', budget: 12, quiet: null, focusWindowMs: 30_000 },
   // A screen you are looking at should never talk to you.
   tui: { ceiling: 'silent', budget: 0, quiet: null, focusWindowMs: 0 },
+  // **A lower budget than voice, and that is not timidity.** A sentence that
+  // was spoken is gone; a notification is kept until somebody swipes it, so
+  // six an hour is six things to clear rather than six things that went by.
+  // Quiet hours are voice's, because the two interrupt the same evening — and
+  // the presence window is wider: a phone is for somebody who is not here, so
+  // *here at all* is the question rather than which lane has their attention
+  // (`noticed.ts` has the argument).
+  push: { ceiling: 'speak', budget: 4, quiet: { from: 22, to: 8 }, focusWindowMs: 120_000 },
+}
+
+/**
+ * The settings for one surface, with the two halves a person writes put over
+ * the top.
+ *
+ * **One spelling of the overlay, because the two halves are facts about the
+ * person rather than about the surface.** `surfaces.voice.attention` is where
+ * quiet hours and the hourly budget are written — voice was first and the keys
+ * stayed where they were — and they mean the same thing to a phone in another
+ * room as they do to an earbud: *not between these hours*, and *not more than
+ * this many times*. A second copy of that reading, with its own fallbacks, is
+ * exactly the drift this file is kept in one piece to prevent.
+ *
+ * Anything unwritten falls back to the surface's own row, which is why `push`
+ * keeps its lower budget and its wider presence window unless somebody says
+ * otherwise.
+ */
+export function attentionFor(
+  surface: Surface,
+  written: { budget?: number | undefined; quiet?: string | undefined } = {},
+): AttentionSettings {
+  const own = DEFAULT_ATTENTION[surface]
+  return {
+    ...own,
+    ...(written.budget === undefined ? {} : { budget: written.budget }),
+    quiet: parseQuietHours(written.quiet) ?? own.quiet,
+  }
 }
 
 export interface AttentionContext {
@@ -145,11 +191,23 @@ function baseReason(event: TadeEvent): string {
 }
 
 function isQuiet(context: AttentionContext, settings: AttentionSettings): boolean {
-  if (!settings.quiet) return false
-  const hour = context.localHour ?? new Date(context.now).getHours()
-  const { from, to } = settings.quiet
+  return inQuietHours(settings.quiet, context.localHour ?? new Date(context.now).getHours())
+}
+
+/**
+ * Whether an hour is inside somebody's quiet hours.
+ *
+ * Exported because a second surface asks it — a notification is held back by
+ * the same evening a spoken sentence is — and the wrap over midnight is the
+ * part a second implementation gets wrong. `isQuiet` above is its one other
+ * caller, so there is one rule rather than one rule and a copy.
+ */
+export function inQuietHours(quiet: { from: number; to: number } | null, hour: number): boolean {
+  if (!quiet) return false
   // Quiet hours normally wrap midnight.
-  return from <= to ? hour >= from && hour < to : hour >= from || hour < to
+  return quiet.from <= quiet.to
+    ? hour >= quiet.from && hour < quiet.to
+    : hour >= quiet.from || hour < quiet.to
 }
 
 function isFocused(

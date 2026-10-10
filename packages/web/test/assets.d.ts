@@ -310,3 +310,41 @@ declare module '*/assets/offline.js' {
   export function readView(): Promise<Record<string, any> | null>
   export function forgetView(): Promise<void>
 }
+
+/**
+ * Notifications, from the page's side.
+ *
+ * The six words and the sentence for each are declared, because they are the
+ * decisions: which of them this device is at, and what somebody reads about
+ * it. The control that draws them is `pages.js` and is deliberately absent,
+ * for the reason at the head of this file.
+ */
+declare module '*/assets/push.js' {
+  export const NOT_OFFERED: string
+  export const CANNOT: string
+  export const INSECURE: string
+  export const DENIED: string
+  export const OFF: string
+  export const ON: string
+  export const NEEDS_HOME_SCREEN: string
+  export const PUSH_SAID: Readonly<Record<string, string>>
+  export function pushable(): boolean
+  export function pushState(
+    shell: { notifying?: { offered?: boolean; key?: string } } | null,
+  ): Promise<string>
+  export function subscribe(
+    shell: { notifying?: { offered?: boolean; key?: string } } | null,
+    ask: (method: string, path: string, body: unknown) => Promise<{ status: number }>,
+  ): Promise<string>
+  export function unsubscribe(
+    ask: (method: string, path: string, body: unknown) => Promise<{ status: number }>,
+  ): Promise<string>
+  export function bodyOf(made: {
+    toJSON(): { endpoint?: string; keys?: Record<string, string> }
+  }): {
+    endpoint: string
+    p256dh: string
+    auth: string
+  }
+  export function keyBytes(key: string): Uint8Array
+}

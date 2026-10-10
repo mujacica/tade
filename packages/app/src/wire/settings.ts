@@ -398,8 +398,16 @@ export class Settings implements Subject {
    * is thrown to whoever asked.
    *
    * `undefined` takes the key away, which is how a preference stops being one.
+   *
+   * A string as well as a flag, because one of the keys with no field is a
+   * **generated** value rather than a preference: the notification signing key
+   * (`surfaces.web.push_key`). It goes through this door rather than reaching
+   * `writeSetting` itself, so the generated one is written, read back, handed
+   * to everywhere a config is held and recorded as `config_changed` exactly as
+   * a typed one is — and a key whose write left the file unloadable puts it
+   * back.
    */
-  async writeKey(key: string, value: boolean | undefined, was: string): Promise<void> {
+  async writeKey(key: string, value: boolean | string | undefined, was: string): Promise<void> {
     let before: string | null = null
     try {
       before = readFileSync(this.path, 'utf8')
@@ -416,7 +424,17 @@ export class Settings implements Subject {
     void this.wire.opts.client.log
       .append({
         type: 'config_changed',
-        detail: { path: key, was, now: value === undefined ? '' : String(value), by: 'window' },
+        detail: {
+          path: key,
+          was,
+          // **Never the value where it is a credential**, which is the one
+          // thing this line may not carry: a key is never in the journal
+          // (`KEYS_AND_AGENTS`). A count of characters is a thing Tade may
+          // say, and is enough to tell a write that landed from one that did
+          // not.
+          now: said(key, value),
+          by: 'window',
+        },
       })
       .catch(() => {})
   }
@@ -599,4 +617,20 @@ export class Settings implements Subject {
     })()
     return beaten ? ` ${beaten} is set, though, and that is what is used.` : ''
   }
+}
+
+/**
+ * What a `config_changed` line says a key was set to.
+ *
+ * A credential is **never** the value: a key is not in the journal, not in
+ * what telemetry sends and not in a launch line (`KEYS_AND_AGENTS`), and the
+ * one key with no field on the page is the generated notification one. What
+ * goes in instead is a count of characters, which is a thing Tade may say and
+ * is enough to tell a write that landed from one that did not.
+ */
+function said(key: string, value: boolean | string | undefined): string {
+  if (value === undefined) return ''
+  if (typeof value !== 'string') return String(value)
+  if (!key.endsWith('_key') && !key.endsWith('.key') && !key.endsWith('token')) return value
+  return value === '' ? '' : `${value.length} characters`
 }

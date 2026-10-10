@@ -52,6 +52,7 @@ import {
 } from './web-beat.ts'
 import { halvesFor } from './web-halves.ts'
 import { awayView, pairingUrl } from './web-panel.ts'
+import { pushFor, type WebPush } from './web-push.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -128,6 +129,8 @@ export interface AwayDeps {
    * name here would be a second thing to keep in step for no gain.
    */
   saved(): void
+  /** The one door a setting is written by: the generated notification key. */
+  writeKey(key: string, value: string, was: string): Promise<void>
 }
 
 export class Away implements Subject {
@@ -139,6 +142,7 @@ export class Away implements Subject {
       void this.log({ type: 'warning', detail: { warning: said.why, device: said.device } }),
   })
   private readonly tickets = new Tickets()
+  private readonly push: WebPush
   /** One projector per device, made on demand and dropped when it is revoked. */
   private readonly projectors = new Map<string, Projector>()
   /** The revision each projector last saw a *beat*, so a read can catch it up. */
@@ -166,6 +170,12 @@ export class Away implements Subject {
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
     this.deps = deps
+    // Out of the collections the beat already built: no look at the world.
+    this.push = pushFor(wire, deps, {
+      tasks: () => this.collections().tasks,
+      devices: () => this.devices,
+      tell: (told) => void this.log(told),
+    })
   }
 
   /**
@@ -185,6 +195,7 @@ export class Away implements Subject {
       readingFor: (reach) => this.readingFor(reach),
       confirm: (ask) => this.confirm(ask),
       ...halvesFor(surface, {
+        notifications: () => ({ half: this.push.half(), key: () => this.push.key() }),
         tade: this.wire.opts.client,
         home: this.wire.opts.home,
         config: () => this.config(),
@@ -225,6 +236,7 @@ export class Away implements Subject {
       this.deps.news(`the away view could not listen on port ${surface.port}`)
     }
     this.devices = (await readDevices(this.wire.opts.home)).devices
+    await this.push.open()
   }
 
   /** Close every stream, then the listener. Safe twice, and safe before `open`. */
@@ -273,6 +285,8 @@ export class Away implements Subject {
     // it on this beat and nowhere else, which is what "no unbounded timers"
     // means mechanically.
     this.streams.beat(now)
+    // And the notifications: nothing awaited — somebody else's latency.
+    this.push.beat()
     if (this.asking !== null) this.wire.draw()
   }
 

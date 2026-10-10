@@ -1,15 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { carryOut } from './acted.ts'
-import type { WebActing } from './acting.ts'
 import type { Standing } from './acts.ts'
 import { carryAsk } from './asked.ts'
-import type { WebAsking } from './asking.ts'
-import { type Asset, assetFor, assetsDir, matchesEtag, readAssets } from './assets.ts'
+import { assetsDir, readAssets } from './assets.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
-import type { WebDrafting } from './drafting.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
+import { filesFor } from './files.ts'
 import {
   type Asking,
   allowed,
@@ -22,11 +20,10 @@ import {
   Window,
 } from './guard.ts'
 import { headersFor } from './headers.ts'
-import { keepingOf, type Served, servedWorker } from './installable.ts'
+import { keepingOf } from './installable.ts'
 import { carryPairing } from './paired.ts'
 import { type Sink, Streams } from './peers.ts'
-import type { Grant, Reach } from './reach.ts'
-import type { WebReading } from './reading.ts'
+import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
 import { askingOf, codeOf, header, inTime, labelOf, pathOf, queryOf, readBody } from './request.ts'
 import { type Route, routeFor, routesFor } from './routes.ts'
@@ -125,11 +122,9 @@ export function webServer(opts: ServerOptions): WebServer {
     read ??= receipts.open()
     return read
   }
-  let assets: Map<string, Asset> | null = null
-  // Built once, with the files and the setting — both of which are fixed for
-  // the life of a listener — because a hash over every etag on every request
-  // is a handler doing work, and the window draws on this thread.
-  let worker: Served | null = null
+  // The files, read on demand and kept: `files.ts` owns both of them and the
+  // one decision they share, which is what `/sw.js` answers with.
+  const files = filesFor({ serving: opts.surface.installing })
   const servers: Server[] = []
   const bound: string[] = []
   const boundHosts: string[] = []
@@ -237,13 +232,16 @@ export function webServer(opts: ServerOptions): WebServer {
       return answer(res, verdict.refusal)
     }
 
-    // The worker is the one public answer that is **made** rather than read:
-    // the file in the folder with a line of JSON in front of it, saying which
-    // files this shell is and what version they are. `asset` would answer it a
+    // **The one public answer that is made rather than read**: the file in the
+    // folder with a line of JSON in front of it. `asset` would answer it a
     // `404`, which is deliberate — `/assets/sw.js` is not a thing to register.
-    if (found.route.name === 'worker') return serveWorker(req, res)
+    if (found.route.name === 'worker') {
+      if (!(await files.worker(req, res))) answer(res, refuse('no_such'))
+      return
+    }
     if (found.route.public === true && !found.route.mutates) {
-      return asset(req, res, path)
+      if (!(await files.asset(req, res, path))) answer(res, refuse('no_such'))
+      return
     }
     if (found.route.name === 'pair') {
       return carryPairing(req, res, {
@@ -298,7 +296,19 @@ export function webServer(opts: ServerOptions): WebServer {
         return json(res, opts.readingFor(reachOf(device)).notes(scope))
       }
       case 'devices':
-        return json(res, listing(device, devices.devices, keepingOf(opts.surface)))
+        return json(
+          res,
+          listing(
+            device,
+            devices.devices,
+            // **Asked per request rather than built with the listener**,
+            // because the key is generated the first time it is needed: a
+            // page that asked before that happened and cached *no key* would
+            // never draw the control again. Never allowed to throw a request
+            // over — the safe answer is that nothing is offered.
+            keepingOf(opts.surface, asked(opts.vapid, '')),
+          ),
+        )
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
       default:
@@ -311,58 +321,11 @@ export function webServer(opts: ServerOptions): WebServer {
         if (found.route.saves !== undefined) {
           return save(req, res, found.route.saves, device, verdict.origin, request)
         }
+        if (found.route.notifies !== undefined) {
+          return notify(req, res, found.route.notifies, device, verdict.origin, request)
+        }
         return answer(res, refuse('no_such'))
     }
-  }
-
-  /** A file, with a 304 where the browser already has this version. */
-  async function asset(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
-    assets ??= await readAssets()
-    const file = assetFor(path, assets)
-    if (file === null) return answer(res, refuse('no_such'))
-    const headers = headersFor('asset', file.type, file.etag)
-    if (matchesEtag(header(req, 'if-none-match'), file.etag)) {
-      res.writeHead(304, headers)
-      res.end()
-      return
-    }
-    res.writeHead(200, { ...headers, 'content-length': String(file.bytes.length) })
-    // No `HEAD` branch, because no `HEAD` reaches here: the table carries
-    // three methods and a request under any other finds no route and is a
-    // `404`. A browser needs none for this page, and a branch that cannot run
-    // reads as a capability there is no test for.
-    res.end(file.bytes)
-  }
-
-  /**
-   * The service worker, with its version in front of it.
-   *
-   * Served like an asset in every other way — `no-cache`, an etag, a `304`
-   * where the browser already has this one — because that is exactly what a
-   * worker's script wants: a browser revalidates it on navigations and decides
-   * there is an update by comparing the bytes, and an etag over the **served**
-   * bytes is what makes the comparison free when nothing changed.
-   *
-   * With the setting off this is not a `404`. A worker's script answering a
-   * non-ok status leaves the installed worker exactly where it was, so the
-   * only deactivation that works is one the device is told — which is what
-   * `shellOf` answers with when `installing` is false.
-   */
-  async function serveWorker(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    assets ??= await readAssets()
-    // Made once and kept: the files and the setting are both fixed for the
-    // life of a listener. Still null afterwards is a folder with no worker in
-    // it — a broken install, answered like any other file that is not there.
-    if (worker === null) worker = servedWorker(assets, { serving: opts.surface.installing })
-    if (worker === null) return answer(res, refuse('no_such'))
-    const headers = headersFor('asset', worker.type, worker.etag)
-    if (matchesEtag(header(req, 'if-none-match'), worker.etag)) {
-      res.writeHead(304, headers)
-      res.end()
-      return
-    }
-    res.writeHead(200, { ...headers, 'content-length': String(worker.bytes.length) })
-    res.end(worker.bytes)
   }
 
   /**
@@ -466,7 +429,7 @@ export function webServer(opts: ServerOptions): WebServer {
       acting,
       receipts,
       surface: opts.surface,
-      unlocked: unlocked(acting),
+      unlocked: asked(() => acting.unlocked(), false),
       rev: opts.readingFor(reachOf(device)).rev,
       reach: reachOf(device),
       scopes: device.scopes as Standing['scopes'],
@@ -514,7 +477,7 @@ export function webServer(opts: ServerOptions): WebServer {
       asking,
       receipts,
       surface: opts.surface,
-      unlocked: talking(asking),
+      unlocked: asked(() => asking.unlocked(), false),
       rev: opts.readingFor(reachOf(device)).rev,
       reach: reachOf(device),
       scopes: device.scopes as Scope[],
@@ -562,7 +525,7 @@ export function webServer(opts: ServerOptions): WebServer {
       drafting,
       receipts,
       surface: opts.surface,
-      unlocked: saving(drafting),
+      unlocked: asked(() => drafting.unlocked(), false),
       rev: opts.readingFor(reachOf(device)).rev,
       reach: reachOf(device),
       scopes: device.scopes as Scope[],
@@ -585,44 +548,73 @@ export function webServer(opts: ServerOptions): WebServer {
   }
 
   /**
-   * Whether saving a draft is unlocked, asked of the window and never allowed
-   * to throw a request over. The same treatment `unlocked` and `talking` get,
-   * for the same reason: the safe answer to this question is *no*.
-   */
-  function saving(drafting: WebDrafting): boolean {
-    try {
-      return drafting.unlocked()
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Whether talking is unlocked, asked of the window and never allowed to
-   * throw a request over. The same treatment `unlocked` gets, for the same
-   * reason: the safe answer to this question is *no*.
-   */
-  function talking(asking: WebAsking): boolean {
-    try {
-      return asking.unlocked()
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Whether acting is unlocked, asked of the window and never allowed to throw
-   * a request over.
+   * Subscribing or forgetting: the body, then `carryPush`, then the bytes.
    *
-   * A `false` here is a refusal with a sentence; an exception out of the
-   * window's own reader would be a `500` on a question whose safe answer is
-   * *no*.
+   * The fourth sibling of `act`, `say` and `save`, and the same five lines:
+   * read a bounded body, decide nothing here, write the answer, and write the
+   * audit line **whatever** came of it. The line is a `web_subscribed` rather
+   * than a `web_did` — what changed is not work, it is that this machine will
+   * now reach out to a push service about that phone, and that is the question
+   * somebody reading back has.
+   *
+   * There is no `readReceipts()` here, and `pushed.ts` has the argument: a
+   * repeat of this meets its own row, so there is nothing a key would buy.
    */
-  function unlocked(acting: WebActing): boolean {
+  async function notify(
+    req: IncomingMessage,
+    res: ServerResponse,
+    notifies: string,
+    device: Device,
+    origin: { scheme: string; host: string },
+    request: string,
+  ): Promise<void> {
+    const pushing = opts.pushing
+    // No `WebPushing` at all is a window that was not given the notifying
+    // half, which is "this listener does not do that": a `404`, like every
+    // other capability that is not here.
+    if (pushing === undefined) return answer(res, refuse('no_such'))
+    const got = await readBody(req)
+    if (!got.read) return answer(res, got.refusal)
+
+    const answered = await carryPush(notifies, got.body, {
+      pushing,
+      surface: opts.surface,
+      unlocked: asked(() => pushing.unlocked(), false),
+      rev: opts.readingFor(reachOf(device)).rev,
+      reach: reachOf(device),
+      scopes: device.scopes as Scope[],
+      origin,
+      device: device.id,
+      now: now(),
+      request,
+    })
+    if (answered.warning !== null) {
+      tell({ type: 'warning', detail: { warning: answered.warning, request } })
+    }
+    // No task, ever: a subscription is about a device and about no work at all,
+    // so there is no `event.task` to put one on.
+    const { task: _none, ...detail } = answered.did
+    tell({ type: 'web_subscribed', detail })
+    if (answered.refusal !== null) return answer(res, answered.refusal)
+    return json(res, answered.body ?? {})
+  }
+
+  /**
+   * One of the window's own readers, asked, and **never allowed to throw a
+   * request over**.
+   *
+   * One function and not five, which is what it had been: the five questions —
+   * is acting unlocked, is talking, is saving, are notifications, and what is
+   * the public key — all have the same answer when the reader throws, and it
+   * is the *safe* one. `false` and `''` are refusals with a sentence behind
+   * them; an exception out of a window's accessor would be a `500` on a
+   * question somebody can read.
+   */
+  function asked<T>(read: (() => T) | undefined, safe: T): T {
     try {
-      return acting.unlocked()
+      return read?.() ?? safe
     } catch {
-      return false
+      return safe
     }
   }
 
@@ -707,7 +699,7 @@ export function webServer(opts: ServerOptions): WebServer {
     handle,
     async listen(): Promise<readonly string[]> {
       if (!opts.surface.enabled) return []
-      assets ??= await readAssets()
+      const found = await readAssets()
       if (opts.surface.acting || opts.surface.talking) await readReceipts()
       // **A folder with no files in it is said, not served.** `readAssets`
       // answers a folder it could not read the same way it answers an empty
@@ -715,7 +707,7 @@ export function webServer(opts: ServerOptions): WebServer {
       // with nothing anywhere saying why — the one failure here that only
       // happens on somebody else's machine. A warning costs a line and is the
       // difference between a broken install and a mystery.
-      if (assets.size === 0) {
+      if (found.size === 0) {
         tell({
           type: 'warning',
           detail: {

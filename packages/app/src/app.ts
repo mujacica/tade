@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
-import { type Arming, DEFAULT_ATTENTION, parseQuietHours, taskDir, titlesOf } from '@tade/core'
+import { type Arming, attentionFor, taskDir, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -255,6 +255,8 @@ export class App {
       // A file edit writes no journal line, so the fold is told rather than
       // left to find out on its own clock.
       saved: () => this.intake.markStale(),
+      // The one door a setting is written by, for the one key nothing types.
+      writeKey: (key, value, was) => this.settings.writeKey(key, value, was),
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
@@ -625,12 +627,10 @@ export class App {
       await VoiceSurface.start({
         tade: this.opts.client,
         // Yours, where it is a matter of taste. Everything else about what is
-        // worth interrupting you for is the engine's, and not a setting.
-        settings: {
-          ...DEFAULT_ATTENTION.voice,
-          ...(attention.budget === undefined ? {} : { budget: attention.budget }),
-          quiet: parseQuietHours(attention.quiet) ?? DEFAULT_ATTENTION.voice.quiet,
-        },
+        // worth interrupting you for is the engine's, and not a setting — and
+        // the overlay is `attentionFor`'s, so the phone reads the same quiet
+        // hours and the same budget out of the same two keys.
+        settings: attentionFor('voice', attention),
         speaker: this.voice.muteable(
           this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
         ),

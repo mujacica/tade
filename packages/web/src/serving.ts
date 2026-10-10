@@ -3,6 +3,7 @@ import type { WebActing } from './acting.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebDrafting } from './drafting.ts'
 import type { Streams } from './peers.ts'
+import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
 import type { Surface } from './surface.ts'
@@ -12,9 +13,9 @@ import type { Tickets } from './tickets.ts'
 //
 // **The contract, in its own file**, for the reason `input.ts` and
 // `reading.ts` are: it is the thing a reader checks this subsystem against,
-// and a listener and the shape of what it is given are different subjects. Ten
-// fields, three of them optional, and every one of them is something only the
-// process holding `tade.lock` can answer — which is why the away view is
+// and a listener and the shape of what it is given are different subjects.
+// Twelve fields, five of them optional, and every one of them is something
+// only the process holding `tade.lock` can answer — which is why the away view is
 // handed them rather than going and looking.
 //
 // Nothing here does anything. `server.ts` is the listener.
@@ -62,6 +63,8 @@ export interface Told {
     | 'web_refused'
     | 'web_did'
     | 'web_asked'
+    | 'web_subscribed'
+    | 'web_pushed'
     | 'warning'
   /**
    * The task the line is about, where it is about one.
@@ -129,6 +132,29 @@ export interface ServerOptions {
    * free text to a model that holds tools.
    */
   asking?: WebAsking
+  /**
+   * What a paired device may *ask about being told*, where a person turned
+   * notifications on.
+   *
+   * **Optional, and its absence is the guarantee**, exactly as `acting`,
+   * `asking` and `drafting` are: a window that was not given this serves no
+   * notification route, so a crafted call is the `404` of a path nobody built
+   * rather than a `403` naming a setting. `pushing.unlocked()` is read again
+   * at every call, and the window reads the setting again on every beat before
+   * it sends anything — so turning it off stops delivery within a beat.
+   */
+  pushing?: WebPushing
+  /**
+   * The VAPID public key, where there is one.
+   *
+   * An accessor and not a value, because the key is generated the first time a
+   * notification is needed: a listener that read it once at start-up would
+   * answer *no key* for the whole of its life on a machine that had just
+   * turned notifications on. The **public** half only — nothing in this
+   * package ever holds the private one, which is the window's and is read out
+   * of the config where every other key lives.
+   */
+  vapid?: () => string
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

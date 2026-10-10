@@ -6,6 +6,7 @@ import { allowDevice } from '../src/devices.ts'
 import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
+import { OFF } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
   allUnrun,
@@ -97,14 +98,14 @@ async function serve() {
     // the honesty passes below still render a page with no control on it. What
     // it buys is the third pass, where a device granted both tiers drives a
     // real tap, a real Tab and a real refusal.
+    // **`OFF` and then what this harness turns on**, so a capability added to
+    // the surface arrives here off rather than as a guess.
     surface: {
+      ...OFF,
       enabled: true,
-      bind: 'loopback',
       port: 0,
-      trustedHosts: [],
       acting: true,
       talking: true,
-      drafting: false,
       // On, or there is no registration to ask anything of; what is precached
       // is the page, which carries nobody's work.
       installing: true,

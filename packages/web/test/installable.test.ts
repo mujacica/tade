@@ -156,12 +156,34 @@ describe('the prelude, and the bytes that go out', () => {
 })
 
 describe('what the page is told', () => {
-  it('is two booleans and no names at all', () => {
+  it('is booleans and one key, and no names at all', () => {
     // The names are spelt in the page's own files, because the two moments
     // they matter are the two where there is nothing to ask.
     expect(keepingOf({ installing: true, keepsView: false })).toEqual({
       install: true,
       keepsView: false,
+      notifying: { offered: false, key: '' },
+    })
+  })
+
+  it('offers notifications only with the setting on **and** a key', () => {
+    // Both halves, because a page told *offered* with nothing to subscribe
+    // with would draw a control whose only possible outcome is a browser
+    // throwing. The key is the public one and is meant to leave the machine;
+    // it is the only value in this subsystem that is.
+    expect(keepingOf({ installing: true, keepsView: false, pushing: true })).toMatchObject({
+      notifying: { offered: false, key: '' },
+    })
+    expect(keepingOf({ installing: true, keepsView: false, pushing: true }, 'BKey')).toEqual({
+      install: true,
+      keepsView: false,
+      notifying: { offered: true, key: 'BKey' },
+    })
+    // And the setting off takes the key out of the answer too: a page that was
+    // handed one by a listener serving no notification route would draw a
+    // control with nothing behind it.
+    expect(keepingOf({ installing: true, keepsView: false }, 'BKey')).toMatchObject({
+      notifying: { offered: false, key: '' },
     })
   })
 })

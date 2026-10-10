@@ -163,6 +163,7 @@ async function wiring(
     stands: () => Promise.resolve(null),
     factory: () => nothingHandedOver(),
     saved: () => {},
+    writeKey: () => Promise.resolve(),
   })
   open.push(away)
   return { away, home, news, decided, logged, at: () => state, drawn: () => draws }
@@ -229,6 +230,22 @@ describe('what it costs when nobody is looking', () => {
     // Not "cheap": **nothing**. Building a projection means four folds over
     // the whole journal plus a row per task, and an enabled away view nobody
     // has paired a phone to must not pay for one of them every two seconds.
+    expect(held.reads).toEqual([])
+  })
+
+  it('reads nothing of the window over a hundred beats with notifications on', async () => {
+    // The same promise with the eighth capability turned on and nobody
+    // subscribed: `WebPush.beat` returns on its second line, so a machine that
+    // offers notifications to a phone that has not asked for any still pays
+    // nothing — and in particular does not build a projection to compare.
+    const held = heldState({ tasks: 40 })
+    const { away } = await wiring({
+      web: { enabled: true, install: true, push: true },
+      live: held.live,
+    })
+    await away.open()
+    held.reads.length = 0
+    for (let at = 0; at < 100; at++) away.beat()
     expect(held.reads).toEqual([])
   })
 

@@ -175,6 +175,19 @@ export const MANUAL: readonly string[] = [
   'Turn the phone to airplane mode and open it again. It should draw the page and say it cannot reach the machine; with Let a device keep what it last saw on, it should say when it last could and what it then knew.',
   'Turn Let a device install it off at the machine, restart Tade, and open the phone once with a signal. The app should stop working offline from then on — a 404 would not have done that.',
   'Sign the device out, then look at Settings → Safari → Advanced → Website Data for the origin. What is left should be the page and nothing of the work.',
+  // **Notifications, and every step of this one is a person's.** Nothing
+  // offline can deliver a push: it needs a VAPID key of the owner's, a real
+  // push service's cooperation and a permission only somebody holding the
+  // phone can grant. `push-out.test.ts` checks the protocol against
+  // `node:crypto` and `web-push.test.ts` checks the wiring against a push
+  // service that is not one; what is left is whether Apple accepts it, which
+  // is this.
+  'Turn Send notifications to a device on at the machine. On the installed app, Devices → NOTIFICATIONS → Tell this device. iOS should raise its own permission prompt — in Safari’s tab rather than the installed app it should not, and the page should say so instead of looking broken.',
+  'Lock the phone and make something want you: start an agent on a task whose tools need approving. One notification should arrive, saying how many pieces of work want you and naming nothing — no project, no task, no title.',
+  'Turn Let a notification name the work on at the machine, grant that device what work is called, and do it again. The name should appear; with either half off, it should not.',
+  'Tap the notification. It should open the app where it was, not a new window and not the root of a browser.',
+  'Close Tade and make something else happen. Nothing should arrive — there is no background service, and nothing is caught up when the window comes back.',
+  'Sign the device out at the machine and make something happen. Nothing should arrive, with the phone never asked anything.',
 ]
 
 /**

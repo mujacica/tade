@@ -34,6 +34,8 @@ const LAN: Surface = {
   drafting: false,
   installing: false,
   keepsView: false,
+  pushing: false,
+  pushDetails: false,
 }
 
 const SESSION = {

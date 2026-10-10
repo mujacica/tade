@@ -18,13 +18,13 @@
     │  Away view                 █│                                                                               █│    
  ▾ F│                            █│ Let a paired device talk to T…  ████──── off                     ↻ on restart █│    
    ▾│  Intake                    █│                                                                               █│    
-    │                            █│ checkout — What is pushed        never                                ▾       █│    
-    │  Projects              ● 1 █│                                                                               █│    
-   ▸│                            █│ checkout — Checks needed befo…   push                                 ▾       █│    
+    │                            █│ Send notifications to a device  ████──── off                                  ▕│    
+    │  Projects              ● 1 █│                                                                               ▕│    
+   ▸│                            █│ Let a notification name the w…  ████──── off                                  ▕│    
 ━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│ search — What is pushed          never                                ▾       ▕│    
+    │                            █│ Notification signing key         generated when it is first needed            ▕│    
     │  Telemetry                 █│                                                                               ▕│   ▕
-    │                            ▕│ search — Checks needed before    push                                 ▾       ▕│   ▕
+    │                            ▕│ checkout — What is pushed        never                                ▾       ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

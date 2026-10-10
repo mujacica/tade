@@ -9,7 +9,7 @@
 // could never control the page, and one with no prelude would cache nothing
 // while looking exactly like the real thing.
 //
-// Four rules, and each of them is a thing that goes wrong quietly:
+// Five rules, and each of them is a thing that goes wrong quietly:
 //
 // 1. **Nothing authenticated is ever cached.** There is no `put` in this file
 //    outside the one precache, and the only paths it will answer are the ones
@@ -35,6 +35,14 @@
 //    `serving: false`, and these bytes delete every cache of ours and
 //    unregister. That happens the next time the phone reaches this machine, and
 //    what it cannot do is said where somebody turns the setting on.
+// 5. **A notification is drawn from the payload and never fetched.** The
+//    `push` handler reads the two strings it was sent and shows them; there is
+//    no `fetch` in it, no request to `/api` and nothing written to a cache. A
+//    worker that asked the machine *what was that about* would be a request
+//    made with the page's credentials by something nobody is looking at, on a
+//    schedule a push service decides — and an offline phone would draw a
+//    notification with a hole in it. What was sent is all there is, which is
+//    why the machine builds a payload that stands on its own (`noticed.ts`).
 
 /**
  * What this worker was born knowing, or null.
@@ -144,6 +152,106 @@ async function fromShell(wanted, asked) {
   const cache = await self.caches.open(SHELL.cache)
   const held = await cache.match(wanted)
   return held ?? fetch(asked)
+}
+
+/**
+ * A notification arrived.
+ *
+ * **`showNotification` is not optional.** Every subscription is made
+ * `userVisibleOnly`, and a browser that is handed a push and shown nothing
+ * revokes the subscription after a few — Chrome draws its own *this site has
+ * been updated in the background* notification instead, which is somebody
+ * else's sentence on your lock screen. So this always shows one, and the one
+ * case where it has nothing to show is answered with Tade's own words rather
+ * than with silence.
+ *
+ * **The payload is read defensively because it arrived from the network.** It
+ * is encrypted to this browser's own keys, so only the machine that holds the
+ * signing key could have produced it — but a worker that threw inside `push`
+ * is a worker that shows the browser's own notification instead, so every
+ * field is read as *whatever came, as a string, bounded*.
+ *
+ * `tag` with `renotify` left alone is what makes a phone that was off for an
+ * hour hold **one** notification rather than a column of them: the newer
+ * replaces the older silently, which is the same decision the machine makes
+ * with the push service's own `Topic` header, made in both places because
+ * either one alone leaves the stack somewhere.
+ */
+self.addEventListener('push', (event) => {
+  const said = read(event)
+  event.waitUntil(
+    self.registration.showNotification(said.title, {
+      body: said.body,
+      tag: said.tag,
+      // The shell's own icon, which is a file in the precache: a notification
+      // that reached for a URL the phone does not have would draw without one
+      // and look broken.
+      icon: '/assets/icon-192.png',
+      badge: '/assets/icon-192.png',
+      // **Not silent and not requiring interaction.** Silent is what a phone
+      // does with a notification nobody meant to send; requiring interaction
+      // would leave one on a lock screen until somebody dealt with it, which
+      // is a thing to do to somebody about their own alarm clock and not about
+      // a test run.
+      requireInteraction: false,
+    }),
+  )
+})
+
+/** The payload, read as three bounded strings, with Tade's own words as the floor. */
+function read(event) {
+  const fallback = { title: 'Tade', body: 'Something wants you', tag: 'tade' }
+  if (event.data === null || event.data === undefined) return fallback
+  let sent = null
+  try {
+    sent = event.data.json()
+  } catch {
+    // Not JSON, which cannot happen through `noticed.ts` and is therefore a
+    // bug rather than a shape to handle. Shown as Tade's own sentence, because
+    // the alternative is the browser's.
+    return fallback
+  }
+  if (sent === null || typeof sent !== 'object') return fallback
+  return {
+    title: text(sent.title, fallback.title, 60),
+    body: text(sent.body, fallback.body, 160),
+    tag: text(sent.tag, fallback.tag, 40),
+  }
+}
+
+/** One field: a string, bounded, or the floor. */
+function text(value, floor, most) {
+  return typeof value === 'string' && value !== '' ? value.slice(0, most) : floor
+}
+
+/**
+ * Somebody tapped it: Tade's own page, and the one already open if there is
+ * one.
+ *
+ * **No path out of the payload**, which is the half worth the words. A
+ * notification that carried a url would be a project and a task in something a
+ * push service keeps and a lock screen draws — so it carries neither, and this
+ * opens the root. The page then opens where it was last left, which is what
+ * somebody tapping a notification wanted anyway.
+ *
+ * An already-open window is focused rather than a second one opened, because
+ * three tabs of the same control room is what the alternative looks like after
+ * three notifications.
+ */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil(open())
+})
+
+async function open() {
+  const pages = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  for (const page of pages) {
+    if (new URL(page.url).origin !== self.location.origin) continue
+    if ('focus' in page) return page.focus()
+  }
+  // `openWindow` is only allowed from a notification click, which is exactly
+  // where this is.
+  return self.clients.openWindow('/')
 }
 
 self.addEventListener('message', (event) => {

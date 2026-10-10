@@ -328,6 +328,9 @@ describe('the shape of the rule', () => {
       // written, by somebody who never read `reach.ts`.
       'surfaces.web.orchestrator',
       'surfaces.web.port',
+      'surfaces.web.push',
+      'surfaces.web.push_details',
+      'surfaces.web.push_key',
       'surfaces.web.trusted_hosts',
       'telemetry.dsn',
     ])

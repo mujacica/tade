@@ -33,6 +33,8 @@ describe('nothing listens unless it is turned on', () => {
         drafting: false,
         installing: false,
         keepsView: false,
+        pushing: false,
+        pushDetails: false,
       },
       readingFor: reading,
       tickets: new Tickets(),
@@ -249,19 +251,27 @@ describe('the worker, as a browser is served it', () => {
 })
 
 describe('what a device is told about keeping anything', () => {
-  it('is two booleans beside the device list, and no names', async () => {
+  it('is booleans beside the device list, and no names', async () => {
     const one = await start({ installing: true, keepsView: true })
     const paired = await pair(one)
     const answer = await ask(one, '/api/devices', { headers: { cookie: paired.cookie } })
     expect(answer.status).toBe(200)
-    expect(JSON.parse(answer.text).shell).toEqual({ install: true, keepsView: true })
+    expect(JSON.parse(answer.text).shell).toEqual({
+      install: true,
+      keepsView: true,
+      notifying: { offered: false, key: '' },
+    })
   })
 
   it('says no where the machine does not offer it', async () => {
     const one = await start()
     const paired = await pair(one)
     const answer = await ask(one, '/api/devices', { headers: { cookie: paired.cookie } })
-    expect(JSON.parse(answer.text).shell).toEqual({ install: false, keepsView: false })
+    expect(JSON.parse(answer.text).shell).toEqual({
+      install: false,
+      keepsView: false,
+      notifying: { offered: false, key: '' },
+    })
   })
 })
 
