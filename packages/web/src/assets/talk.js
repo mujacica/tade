@@ -23,9 +23,10 @@ import { chatOf, omitted, talkOf } from './store.js'
 // - **What was typed survives everything but a `200`.** A `409` is the world
 //   having moved — Tade started answering somebody else — and throwing away
 //   the paragraph somebody typed on a phone because of it is the one failure
-//   they cannot undo. It is also why the box is never rebuilt on a delta: the
-//   screen is built once and patched (`keyed`), so focus, a half-made
-//   selection and a half-typed message all survive a frame.
+//   they cannot undo. Three different things could take it: a delta, which
+//   cannot, because the screen is built once and patched (`keyed`); a
+//   navigation, which replaces the region and so is answered by `draftStore`;
+//   and a refusal, which is `afterAnswer`'s one line.
 // - **The composer is absent where it could not be used**, with its reason.
 //   Three different absences and three different sentences: this surface is
 //   not turned on, this device was not granted it, or Tade is answering
@@ -39,6 +40,36 @@ import { chatOf, omitted, talkOf } from './store.js'
 
 /** How long a message may be, which is `ASK_BOUND` said on this side. */
 const BOUND = 4000
+
+/**
+ * What somebody has typed and not sent, kept across a navigation.
+ *
+ * **A navigation is the one moment the page replaces a region** — that is the
+ * rule, and it is right: it is what the person asked for, and focus moving to
+ * the new screen is correct. What is wrong is losing a half-typed message to
+ * it: tapping Now to check what an agent is doing and coming back to an empty
+ * box is the same failure as a refusal clearing it, and the person cannot undo
+ * either.
+ *
+ * **In this module and nowhere on the device.** It is this tab's half-finished
+ * sentence: worth keeping while the page is open, and not worth writing into
+ * the browser's own storage — which this page may never touch at all, and
+ * which `test/assets.test.ts` holds it to by name. Exported so that what
+ * survives a rebuild is a thing a test can hold rather than a listener nothing
+ * offline can reach.
+ */
+export function draftStore() {
+  let held = ''
+  return {
+    get: () => held,
+    set: (said) => {
+      held = typeof said === 'string' ? said : ''
+    },
+  }
+}
+
+/** The one draft this page keeps, which is why it is made once and not per screen. */
+const draft = draftStore()
 
 export function talkScreen(ctx) {
   const node = el('div')
@@ -58,6 +89,8 @@ export function talkScreen(ctx) {
       'aria-label': 'what to say to Tade',
     },
   })
+  box.value = draft.get()
+  box.addEventListener('input', () => draft.set(box.value))
   const press = el('button', { class: 'press quietly', text: 'Send' })
   const stop = el('button', { class: 'press quietly', text: 'Stop it' })
   const presses = el('div', { class: 'presses' })
@@ -79,7 +112,10 @@ export function talkScreen(ctx) {
     going = false
     const came = afterAnswer(answer, ctx.sentence(answer))
     textIn(said, came.said)
-    if (came.clear && what === 'ask') box.value = ''
+    if (came.clear && what === 'ask') {
+      box.value = ''
+      draft.set('')
+    }
     settle()
   }
 

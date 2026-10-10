@@ -174,12 +174,36 @@ declare module '*/assets/shell.js' {
   export function titleFor(where: { view: string; project?: string; task?: string }): string
 }
 
+/**
+ * The conversation screen, of which only the **decisions** are declared.
+ *
+ * `talkScreen` builds DOM and is deliberately absent, for the reason given at
+ * the head of this file: a type declaration for a renderer is a second
+ * description of it that nothing holds to the first. What is here is the three
+ * questions that are functions — why there is no box, who said a line, what a
+ * line says — and the draft, which is the one piece of state a navigation
+ * would otherwise take.
+ */
+declare module '*/assets/talk.js' {
+  export function reasonFor(talk: unknown): string
+  export function whoSaid(line: unknown): string
+  export function saidOn(line: unknown): string
+  export function draftStore(): { get(): string; set(said: unknown): void }
+}
+
 declare module '*/assets/acts.js' {
   export const SHOWN: readonly string[]
   export const NEEDS: Readonly<Record<string, string>>
   export const QUEUE_ASKS: readonly { change: string; said: string; starts?: boolean }[]
   export function asksFor(row: unknown): readonly { change: string; said: string }[]
-  export function actsOf(session: unknown): { answer: boolean; steer: boolean }
+  export function actsOf(session: unknown): { answer: boolean; steer: boolean; ask: boolean }
+  export function askBody(
+    talk: unknown,
+    key: string,
+    rev: number,
+    said: string,
+  ): Record<string, unknown>
+  export function stopBody(talk: unknown, key: string, rev: number): Record<string, unknown>
   export function standingOf(
     verb: string,
     row: unknown,

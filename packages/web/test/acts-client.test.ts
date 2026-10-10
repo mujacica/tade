@@ -15,6 +15,7 @@ import {
   standingOf,
   wordsFor,
 } from '../src/assets/acts.js'
+import { draftStore, reasonFor, saidOn, whoSaid } from '../src/assets/talk.js'
 import { ERRORS } from '../src/errors.ts'
 import { VERBS, verbFor } from '../src/verbs.ts'
 import { task } from './fixtures.ts'
@@ -327,5 +328,73 @@ describe('the row the projection actually produces', () => {
     for (const one of controlsFor(row, BOTH)) {
       expect(['off', 'no', 'yes'], one.verb).toContain(one.kind)
     }
+  })
+})
+
+// The conversation screen's own rules, as far as they can be asked offline.
+//
+// **What a browser is the only place for is named rather than claimed.** A tap
+// on a real target, a real `Enter` on a focused button, and a `<textarea>`
+// still holding its value after a `409` are `scripts/browser.ts`'s, and that
+// harness reports `unrun` with a reason on a machine with no browser. What is
+// here is the three decisions that are functions: why there is no box, what a
+// line says, and what survives a navigation.
+describe('the conversation screen', () => {
+  it('says why there is no box, and says a different thing for each reason', () => {
+    // Three absences and three sentences, because what to do about each is
+    // different: turn a setting on, be granted it, or wait. A page that said
+    // *you cannot do that* to all three would send somebody to the wrong
+    // place twice out of three times.
+    expect(reasonFor(null)).toContain('not turned on for this machine')
+    expect(reasonFor({ mine: false, busy: false, rev: 'b0', whose: null })).toContain(
+      'not granted talking to Tade',
+    )
+    expect(reasonFor({ mine: true, busy: true, rev: 'b1', whose: 'you' })).toBe(
+      'Tade is answering the person at the machine.',
+    )
+    expect(reasonFor({ mine: true, busy: true, rev: 'b1', whose: 'device aa11' })).toContain(
+      'device aa11',
+    )
+    // And nothing at all where there is a box, so the reason cannot be left
+    // over from the last frame.
+    expect(reasonFor({ mine: true, busy: false, rev: 'b0', whose: null })).toBe('')
+  })
+
+  it('says who said each line, and never says a device was you', () => {
+    expect(whoSaid({ from: 'you' })).toBe('you, at the machine')
+    expect(whoSaid({ from: 'device aa11' })).toBe('device aa11')
+    // Tade's own lines and the model's: the kind's own word already says it.
+    for (const from of ['', null, undefined]) expect(whoSaid({ from })).toBe('')
+  })
+
+  it('says what a tool line is, where it has no words of its own', () => {
+    // A tool carries a name and an outcome and never its arguments, so the row
+    // has no words — and a blank one reads as a reply that failed to load.
+    expect(saidOn({ kind: 'tool', text: null, outcome: 'running' })).toBe('still going')
+    expect(saidOn({ kind: 'tool', text: null, outcome: 'ok' })).toBe('')
+    expect(saidOn({ kind: 'reply', text: { words: 'two are working', more: false } })).toBe(
+      'two are working',
+    )
+    // Over the budget, the page says there is more rather than writing three
+    // dots into somebody's words.
+    expect(saidOn({ kind: 'asked', text: { words: 'half of it', more: true } })).toBe(
+      'half of it …',
+    )
+  })
+
+  it('keeps a half-typed message across a navigation, and lets a send clear it', () => {
+    // A navigation is the one moment the page replaces a region, which is
+    // right — and losing a half-written message to it is the same failure as a
+    // refusal clearing the box.
+    const draft = draftStore()
+    expect(draft.get()).toBe('')
+    draft.set('is the refund flow still red')
+    expect(draft.get()).toBe('is the refund flow still red')
+    draft.set('')
+    expect(draft.get()).toBe('')
+    // Anything that is not words is nothing, so a cleared box cannot leave
+    // `undefined` where a string is read.
+    draft.set(undefined)
+    expect(draft.get()).toBe('')
   })
 })

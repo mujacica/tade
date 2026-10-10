@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { type From, Moved, NotOffered, NotThere, type Outcome } from '../src/acting.ts'
 import { admitAsk, boundToSaying, carryAsk, readAsk, type Telling } from '../src/asked.ts'
-import { ASK_BOUND, type AskCall, type StopCall, type WebAsking } from '../src/asking.ts'
+import {
+  ASK_BOUND,
+  type AskCall,
+  chatRev,
+  noChat,
+  type StopCall,
+  type WebAsking,
+} from '../src/asking.ts'
 import { namesOnly } from '../src/reach.ts'
 import { Receipts } from '../src/receipts.ts'
 import type { Scope, Surface } from '../src/surface.ts'
@@ -25,7 +32,15 @@ const SURFACE: Surface = {
   talking: true,
 }
 
-const BODY = { was: 'l4.b0', key: 'abcdefgh12345678', rev: 4, said: 'is anything waiting for me?' }
+// **`was` through the same function the window compares against**, never a
+// literal: two spellings of one revision is a comparison that is always true
+// or always false, and neither failure looks like one.
+const BODY = {
+  was: chatRev(noChat()),
+  key: 'abcdefgh12345678',
+  rev: 4,
+  said: 'is anything waiting for me?',
+}
 
 /** A window that does what the test says, and remembers being asked. */
 function window_(
@@ -298,7 +313,7 @@ describe('stopping the turn', () => {
     const made = window_()
     const answered = await carryAsk(
       'stop',
-      { was: 'l4.b1', key: 'abcdefgh12345678', rev: 4 },
+      { was: chatRev({ busy: true }), key: 'abcdefgh12345678', rev: 4 },
       await context(made.asking, { scopes: ['read', 'steer'] }, 'stop-scope'),
     )
     expect(answered.refusal?.error).toBe('out_of_scope')
@@ -308,10 +323,22 @@ describe('stopping the turn', () => {
     const made = window_({ stop: () => Promise.reject(new NotThere('nothing is in flight')) })
     const answered = await carryAsk(
       'stop',
-      { was: 'l4.b0', key: 'abcdefgh12345678', rev: 4 },
+      { was: chatRev(noChat()), key: 'abcdefgh12345678', rev: 4 },
       await context(made.asking, {}, 'stop-nothing'),
     )
     expect(answered.refusal?.error).toBe('no_such')
+  })
+})
+
+describe('the conversation’s own revision', () => {
+  it('is the one fact a message assumes, and nothing that moves on its own', () => {
+    // A count of lines would refuse the commonest message there is: the one
+    // somebody typed while an answer was arriving. What a message genuinely
+    // assumes is that nothing is in flight, so that is the whole of it.
+    expect(chatRev(noChat())).toBe('b0')
+    expect(chatRev({ busy: false })).toBe('b0')
+    expect(chatRev({ busy: true })).toBe('b1')
+    expect(chatRev(noChat())).not.toBe(chatRev({ busy: true }))
   })
 })
 

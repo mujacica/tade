@@ -1,4 +1,5 @@
 import type { Arm } from '@tade/core'
+import { chatRev } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AWAY_CONTROLS, awayPanel } from '../../src/panels/away/state.ts'
 import { PLAIN } from '../../src/skin.ts'
@@ -46,11 +47,11 @@ async function ready(
 /**
  * The conversation's own revision, as the projection would put it on `you`.
  *
- * One field: whether anything is in flight. A count of lines would refuse the
- * commonest message there is — the one typed while an answer was arriving.
+ * **Through the same function both sides use**, never a literal: two spellings
+ * of one revision is a comparison that is always true or always false.
  */
 function revOf(busy = false): string {
-  return `b${busy ? 1 : 0}`
+  return chatRev({ busy })
 }
 
 describe('one message, all the way through', () => {
