@@ -29,6 +29,10 @@ import { generateVapid } from '../src/push-out.ts'
 
 /** What the whole of `self`, `navigator` and `Notification` look like. */
 interface Browser {
+  /** Whether `getRegistration` throws: a private window, an enterprise policy. */
+  sealed?: boolean
+  /** Whether `getSubscription` and `unsubscribe` throw. */
+  opaque?: boolean
   secure?: boolean
   worker?: boolean
   pushManager?: boolean
@@ -83,13 +87,17 @@ function browser(over: Browser = {}) {
     toJSON: () => ({ endpoint: ENDPOINT, keys: KEYS }),
     unsubscribe: () => {
       asked.push('unsubscribe')
+      if (over.opaque === true) return Promise.reject(new Error('no'))
       subscribed = false
       return Promise.resolve(true)
     },
   }
   const registration = {
     pushManager: {
-      getSubscription: () => Promise.resolve(subscribed ? subscription : null),
+      getSubscription: () =>
+        over.opaque === true
+          ? Promise.reject(new Error('no'))
+          : Promise.resolve(subscribed ? subscription : null),
       subscribe: (opts: { userVisibleOnly?: boolean; applicationServerKey?: Uint8Array }) => {
         asked.push('subscribe')
         if (over.refuses === true) return Promise.reject(new Error('no'))
@@ -115,7 +123,9 @@ function browser(over: Browser = {}) {
       : {
           serviceWorker: {
             getRegistration: () =>
-              Promise.resolve(over.registration === false ? undefined : registration),
+              over.sealed === true
+                ? Promise.reject(new Error('not allowed here'))
+                : Promise.resolve(over.registration === false ? undefined : registration),
           },
         }),
   })
@@ -200,6 +210,16 @@ describe('where this device stands', () => {
     expect(await pushState(shell())).toBe(DENIED)
   })
 
+  it('says off, never on, for a browser that will not answer about one', async () => {
+    // **The safe direction.** A browser that throws when asked about its own
+    // subscription is one nothing can be concluded from, and drawing *on* over
+    // it would be a page saying this device is being told when it may not be.
+    browser({ notification: 'granted', subscribed: true, opaque: true })
+    expect(await pushState(shell())).toBe(OFF)
+    browser({ notification: 'granted', sealed: true })
+    expect(await pushState(shell())).toBe(OFF)
+  })
+
   it('reads on and off out of the browser’s own subscription', async () => {
     // **The phone's answer and not the machine's.** A row in a file here and a
     // permission somebody revoked there are two different facts, and only one
@@ -280,6 +300,19 @@ describe('subscribing, which only ever happens from a press', () => {
     expect(await subscribe(shell(), asking().ask)).toBe(CANNOT)
   })
 
+  it('answers cannot for a browser that will not hand over its registration', async () => {
+    // A private window in some browsers, an enterprise policy in others: the
+    // API is there and using it is refused. Not an error anybody can act on,
+    // and the page works without any of this — so it is a word rather than a
+    // throw, and the page draws the sentence for it.
+    const asks = asking()
+    browser({ sealed: true })
+    expect(await subscribe(shell(), asks.ask)).toBe(CANNOT)
+    expect(asks.sent).toEqual([])
+    browser({ registration: false })
+    expect(await subscribe(shell(), asking().ask)).toBe(CANNOT)
+  })
+
   it('tells the difference between an insecure origin and a browser with none of it', async () => {
     // Two answers rather than one, because one of them is a thing somebody can
     // fix and the other is not.
@@ -309,6 +342,24 @@ describe('stopping', () => {
     const asks = asking()
     expect(await unsubscribe(asks.ask)).toBe(OFF)
     expect(asks.sent).toHaveLength(1)
+  })
+
+  it('answers off where the browser would not unsubscribe, because the machine has', async () => {
+    // **The one swallow here that is deliberate**, and this is the test that
+    // says so: the machine has already forgotten the row, so this device gets
+    // nothing whatever its browser does with the subscription object. The
+    // other order — browser first, machine second — is the one that leaves a
+    // machine posting to a dead endpoint until a push service says `410`.
+    const fake = browser({ notification: 'granted', subscribed: true, opaque: true })
+    const asks = asking()
+    expect(await unsubscribe(asks.ask)).toBe(OFF)
+    // The machine first, and it landed.
+    expect(asks.sent).toEqual([{ method: 'POST', path: '/api/notify/forget', body: {} }])
+    // The browser would not even say what it holds, so there was nothing to
+    // call `unsubscribe` on — and that is still *off*, because the machine
+    // will not post to it again.
+    expect(fake.asked).toEqual([])
+    expect(fake.isSubscribed()).toBe(true)
   })
 })
 

@@ -13,6 +13,7 @@ import {
   type Task,
   taskDir,
   type Workspace,
+  writeSetting,
 } from '@tade/core'
 import {
   allowDevice,
@@ -179,7 +180,13 @@ export interface MachineOptions {
   ask?: (said: string, arm: Arm) => Promise<void>
   /** What stopping the turn answers: false for a harness that cannot. */
   stop?: () => Promise<boolean>
-  /** What writing the generated notification key does, where a test watches it. */
+  /**
+   * What writing the generated notification key does, where a test watches it.
+   *
+   * Unset, it writes into this harness's own `config.yaml` — see the default
+   * below for why a stub that answered without writing would be a fixture
+   * kinder than reality.
+   */
   writeKey?: (key: string, value: string, was: string) => Promise<void>
 }
 
@@ -339,7 +346,20 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     // A fixture must not be kinder than reality: a key written here goes into
     // the harness's own config file, so a test that turns notifications on
     // reads a key back the way the window does.
-    writeKey: over.writeKey ?? (() => Promise.resolve()),
+    // **A fixture must not be kinder than reality**, and a stub that answered
+    // *written* without writing is the kindest shape there is: the one key
+    // that goes through this door is generated, so a test whose key silently
+    // vanished would be a window minting a new one on every beat and nothing
+    // saying so. The default writes it into this harness's own `config.yaml`
+    // through the one writer a setting goes through — and deliberately does
+    // **not** hand it to the window, which is the direction that makes a test
+    // depending on it fail rather than pass.
+    writeKey:
+      over.writeKey ??
+      ((key, value) => {
+        writeSetting(join(home, 'config.yaml'), key, value)
+        return Promise.resolve()
+      }),
   })
   open.push(away)
   const made: Machine = {
