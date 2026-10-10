@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema, startOfToday } from '@tade/core'
+import { ConfigSchema, LOCAL, startOfToday } from '@tade/core'
 import { readDevices, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
@@ -148,6 +148,17 @@ async function wiring(
       decided.push(allow)
     },
     news: (said) => news.push(said),
+    // Nothing of the conversation: this harness is for the panel and the
+    // beat, and a `null` transcript with nothing in flight is what a window
+    // with talking turned off hands over.
+    talk: {
+      arm: () => LOCAL,
+      busy: () => false,
+      whose: () => '',
+      askRemote: () => Promise.resolve(),
+      stopTurn: () => Promise.resolve(false),
+      remoteSaid: () => {},
+    },
     stands: () => Promise.resolve(null),
   })
   open.push(away)

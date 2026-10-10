@@ -17,4 +17,5 @@ export {
   writtenTools,
 } from './extensions.ts'
 export * from './orchestrator.ts'
+export * from './origin.ts'
 export * from './tool-host.ts'

@@ -44,9 +44,18 @@ export const SPEAKS = 1
  * answer yes to, and one the machine grants that is missing here is a reading
  * the page silently treats as withheld.
  */
-export const GRANTS = ['titles', 'intent', 'notes', 'findings', 'spend', 'reviews', 'accounts']
+export const GRANTS = [
+  'titles',
+  'intent',
+  'notes',
+  'findings',
+  'spend',
+  'reviews',
+  'accounts',
+  'talk',
+]
 
-const COLLECTIONS = ['projects', 'tasks', 'queue', 'findings', 'notes', 'plans']
+const COLLECTIONS = ['projects', 'tasks', 'queue', 'findings', 'notes', 'plans', 'chat']
 
 /** Nothing held yet: the state before the first frame arrives. */
 export function emptyStore() {
@@ -182,6 +191,30 @@ export function queueIn(store, project) {
 const order = (row) => (row.order === null || row.order === undefined ? 1e9 : row.order)
 
 /** Notes, newest first, which is the one collection that is read that way. */
+/**
+ * The conversation's lines, oldest first.
+ *
+ * Sorted by id, which is `<the moment, ISO>#<n>` and therefore the order
+ * things were said — the one collection whose order *is* its meaning. Every
+ * other selector here sorts for the wire's sake; this one sorts because a
+ * conversation read out of order is not a conversation.
+ */
+export function chatOf(store) {
+  return rowsOf(store, 'chat').sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
+
+/**
+ * The conversation as it stands: the revision to echo, whether a turn is in
+ * flight and whose, and whether this device may send one.
+ *
+ * `null` where talking is not turned on, which is **not** an empty
+ * conversation: a page told there are no lines would say Tade had never been
+ * spoken to, and what is true is that this surface is off.
+ */
+export function talkOf(store) {
+  return store.you?.talk ?? null
+}
+
 export function notesOf(store) {
   return rowsOf(store, 'notes').reverse()
 }

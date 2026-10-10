@@ -414,11 +414,22 @@ with nothing to present. What the phone then gets is **read-only**: what is work
 you, the queue, the checks, the reviews, what it has cost and your notes.
 
 Letting one change anything is a **third** decision, and off until you make it: one setting at the
-machine, then a keypress per device. Even then it is one verb — set a task aside, or pick it back
-up — and it needs this machine or an `https` name you trusted, so a credential that crossed a
-network in the clear never buys one. A setting, a credential, a command, a new agent, a push, a
-merge and a check overrule stay unreachable from a phone, because **no route for any of them
-exists**; and every act a device takes is in the journal under its own id, never as your words.
+machine, then a keypress per device. Even then it is eight bounded things — answer what an agent is
+waiting on, tell one something, hold or release queued work, mark work finished, write a note, add
+to what a task is told, set a task aside, approve a request a grant here already allowed — and each
+needs this machine or an `https` name you trusted, so a credential that crossed a network in the
+clear never buys one. A setting, a credential, a command, a new agent, a push, a merge and a check
+overrule stay unreachable from a phone, because **no route for any of them exists**; and every act
+a device takes is in the journal under its own id, never as your words.
+
+Letting one **talk to Tade** is a fourth decision, with its own setting and its own keypress per
+device, because it is a different kind of thing: free text into the same conversation you type
+into, answered by a model that holds tools. So what stands against it is not an absent route — it
+is that while Tade is answering a device, its own tools are narrowed to reading *that device's* view
+of your work plus whatever that device was granted, and every other tool it has, its harness's shell
+included, is refused at the call. In code, not asked nicely: a message naming a setting is refused
+however it is worded, and a line you typed last week cannot authorise one either. A harness Tade
+cannot narrow that way answers nobody and says so, rather than running one unrestricted.
 
 ![The away view in the window: the addresses it is bound to, a QR code to scan a phone in with, and the sentence that an agent on this machine could pair itself](https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg)
 

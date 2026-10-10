@@ -16,15 +16,15 @@
   A │  Window                    █│                                                                               █│    
   M │                            █│ Let a paired device act         ████──── off                     ↻ on restart █│    
     │  Away view                 █│                                                                               █│    
- ▾ F│                            █│ checkout — What is pushed        never                                ▾       █│    
+ ▾ F│                            █│ Let a paired device talk to T…  ████──── off                     ↻ on restart █│    
    ▾│  Intake                    █│                                                                               █│    
-    │                            █│ checkout — Checks needed befo…   push                                 ▾       █│    
+    │                            █│ checkout — What is pushed        never                                ▾       █│    
     │  Projects              ● 1 █│                                                                               █│    
-   ▸│                            █│ search — What is pushed          never                                ▾       █│    
-━   │  Journal                   █│                                                                               █│   ━
-    │                            █│ search — Checks needed before    push                                 ▾       ▕│    
+   ▸│                            █│ checkout — Checks needed befo…   push                                 ▾       █│    
+━   │  Journal                   █│                                                                               ▕│   ━
+    │                            █│ search — What is pushed          never                                ▾       ▕│    
     │  Telemetry                 █│                                                                               ▕│   ▕
-    │                            ▕│ infra — What is pushed           never                                ▾       ▕│   ▕
+    │                            ▕│ search — Checks needed before    push                                 ▾       ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

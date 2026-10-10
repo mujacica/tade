@@ -2,6 +2,7 @@ import type { PlanStanding, Spend } from '@tade/core'
 import { taskRev } from './acting.ts'
 import { withoutPaths } from './fields.ts'
 import {
+  type ChatIn,
   type FindingIn,
   factsOf,
   type NoteIn,
@@ -13,6 +14,7 @@ import {
 } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, textOf, withheld } from './page.ts'
 import type {
+  ChatRow,
   Collection,
   FindingRow,
   Freshness,
@@ -246,6 +248,47 @@ export function noteRows(notes: readonly NoteIn[], reach: Reach, budget: Budget)
   return rows
 }
 
+/**
+ * The conversation's lines, as this device may read them.
+ *
+ * Three things happen here and nowhere else, and each is the reason this is a
+ * function rather than a `map` in `snapshotOf`:
+ *
+ * 1. **Every line is run through `withoutPaths`, a person's own included.**
+ *    This is the one collection whose text is not held to the authored rule,
+ *    and the reason is what a conversation *is*: a model quotes what its tools
+ *    answered — `tade status`'s own JSON, a file it read, an error with a path
+ *    in it — and a person types paths at it all day. Leaving it verbatim would
+ *    make the projection's claim (*the away view adds no path of its own*)
+ *    false for the largest string on the page, and leaving only replies
+ *    scrubbed would make the claim depend on which half a reader happened to
+ *    look at. So it is kept at the boundary that makes it, as it is for
+ *    `fresh.warnings` — the other string here this package did not write.
+ *
+ *    What that costs, said rather than implied: a path somebody typed into a
+ *    message reads as `…` on the phone. It is the one place the away view does
+ *    not show what was said as it was said, and `GRANT_MEANS.talk` is where a
+ *    person is told so before granting it.
+ * 2. **A tool line carries a name and an outcome.** Never `detail`, which is
+ *    the call's own arguments — a command, a path, a prompt — and is what
+ *    `NEVER_A_FIELD` forbids by that name and by `args` and `payload`.
+ * 3. **The newest lines win.** A conversation is read from the bottom, so the
+ *    budget takes the *last* `budget.chat` lines rather than the first, and
+ *    the count says how many were left behind.
+ */
+export function chatRows(lines: readonly ChatIn[], budget: Budget): ChatRow[] {
+  return lines.map((line) => ({
+    id: line.id,
+    at: ISO(line.at),
+    kind: line.kind,
+    from: SOME(line.from),
+    text: textOf(withoutPaths(line.text), budget.text),
+    tool: SOME(line.tool),
+    outcome: line.outcome === '' ? null : line.outcome,
+    streaming: line.streaming,
+  }))
+}
+
 function planRow(plan: PlanStanding, reach: Reach, budget: Budget): PlanRow {
   return {
     id: `${plan.harness}/${plan.account ?? ''}`,
@@ -392,6 +435,15 @@ export function snapshotOf(
       )
     : withheld<PlanStanding>(input.plans.length)
 
+  // **The last lines rather than the first**, because a conversation is read
+  // from the bottom: what a phone opening the screen needs is the exchange
+  // that just happened. The cursor pages *backwards* through what is left, so
+  // `after` names the oldest line this page carried.
+  const allChat = input.talk === null ? [] : chatRows(input.talk.lines, budget)
+  const chatPage = has(reach, 'talk')
+    ? pageOf([...allChat].reverse(), budget.chat, (row) => row.id, cursors.chat ?? null)
+    : withheld<ChatRow>(allChat.length)
+
   const shownPerProject = new Map<string, number>()
   for (const task of taskPage.rows)
     shownPerProject.set(task.project, (shownPerProject.get(task.project) ?? 0) + 1)
@@ -399,7 +451,19 @@ export function snapshotOf(
   return {
     v: PROTOCOL_VERSION,
     fresh: freshnessOf(input, now, budget),
-    you: { device: reach.device, reads: readsOf(reach) },
+    you: {
+      device: reach.device,
+      reads: readsOf(reach),
+      talk:
+        input.talk === null
+          ? null
+          : {
+              rev: input.talk.rev,
+              busy: input.talk.busy,
+              whose: SOME(input.talk.whose),
+              mine: input.talk.mine,
+            },
+    },
     pages: {
       projects: info(projectPage),
       // The fairness cut and the page cut are both cuts, so the count has to
@@ -415,6 +479,7 @@ export function snapshotOf(
       findings: info(findingPage),
       notes: info(notePage),
       plans: info(planPage),
+      chat: info(chatPage),
     },
     projects: projectPage.rows.map((project) =>
       projectRow(project, reach, budget, tasks, shownPerProject.get(project.name) ?? 0),
@@ -424,6 +489,10 @@ export function snapshotOf(
     findings: findingPage.rows.map((found) => findingRow(found, budget)),
     notes: [...notePage.rows].sort((a, b) => byText(a.id, b.id)),
     plans: planPage.rows.map((plan) => planRow(plan, reach, budget)),
+    // Back into the order they were said in: the budget chose from the end,
+    // and a page that drew them backwards would be a second ordering of the
+    // one thing whose order is its meaning.
+    chat: [...chatPage.rows].sort((a, b) => byText(a.id, b.id)),
   }
 }
 

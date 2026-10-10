@@ -95,7 +95,13 @@ const BUDGET: Record<string, number> = {
   // at its budget, and three tools that share one boundary — what the
   // orchestrator may do with a stored workflow — read better in one place than
   // inferred from three descriptions among forty.
-  'packages/orchestrator/src/tools-extension.ts': 975,
+  //
+  // 975 -> 970 when the `tool_call` gate moved out to `tools-gate.ts`. Same
+  // two reasons again: the file was at its budget, and the gate is not a tool
+  // — it is the thing asked *before* every one of them, its own and the
+  // harness's alike, so it reads as one subject rather than as a fortieth
+  // description.
+  'packages/orchestrator/src/tools-extension.ts': 970,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade

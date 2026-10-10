@@ -39,7 +39,14 @@ describe('the projection', () => {
 
   it('says which device it is for and what that device may read', () => {
     const snapshot = snapshotOf(input({ reach: reach(['notes', 'spend']) }), NOW)
-    expect(snapshot.you).toEqual({ device: 'dev_7f3a9c21', reads: ['notes', 'spend'] })
+    expect(snapshot.you).toEqual({
+      device: 'dev_7f3a9c21',
+      reads: ['notes', 'spend'],
+      // The conversation as it stands, and `mine` **false**: the collections
+      // are built once for everybody and whoever knows this device's scopes
+      // raises it (`inputFor`).
+      talk: { rev: 'b0', busy: false, whose: null, mine: true },
+    })
   })
 
   it('drops a grant nothing here understands rather than drawing the word', () => {

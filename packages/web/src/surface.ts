@@ -72,6 +72,17 @@ export interface Surface {
    * trusted origin.
    */
   acting: boolean
+  /**
+   * Whether a paired device may talk to the orchestrator.
+   *
+   * **Read twice like `acting`, and for the same two reasons**: at start-up it
+   * decides whether the asking route is in the table at all (`routesFor`), and
+   * at every turn it is read again so turning it off takes authority away now.
+   * It is a *fourth* decision and not a reading of `acting`: a verb is a target
+   * plus the state it expects, and this is free text to a model that holds
+   * tools. One switch for both would be a yes to a question nobody was asked.
+   */
+  talking: boolean
 }
 
 /** The `surfaces.web` block, as the one reader of it sees it. */
@@ -81,6 +92,7 @@ export interface WebConfig {
   port: number
   trusted_hosts: readonly string[]
   acting: boolean
+  orchestrator: boolean
 }
 
 /** Off, on this machine, on the port nothing else wanted, changing nothing. */
@@ -90,6 +102,7 @@ export const OFF: Surface = {
   port: 7654,
   trustedHosts: [],
   acting: false,
+  talking: false,
 }
 
 /**
@@ -97,10 +110,10 @@ export const OFF: Surface = {
  *
  * A `lan` bind with `enabled: false` is off, not "on the network and waiting":
  * two decisions, and the one that decides whether anything listens is read
- * first. `acting` is narrowed the same way and for the same reason — a config
- * that says a device may act and that nothing is listening says, together,
- * that nothing may act. Nothing here can turn anything on that the file did
- * not.
+ * first. `acting` and `talking` are narrowed the same way and for the same
+ * reason — a config that says a device may act and that nothing is listening
+ * says, together, that nothing may act. Nothing here can turn anything on
+ * that the file did not.
  */
 export function surfaceOf(web: WebConfig): Surface {
   return {
@@ -109,6 +122,7 @@ export function surfaceOf(web: WebConfig): Surface {
     port: web.port,
     trustedHosts: web.enabled ? [...web.trusted_hosts] : [],
     acting: web.enabled && web.acting,
+    talking: web.enabled && web.orchestrator,
   }
 }
 
@@ -167,11 +181,19 @@ export function scopesOn(
 /**
  * What a device may do, in widening order.
  *
- * Phase 1 mints `read` and there is nothing else to mint; the rest are here
- * because a route's required scope is declared in the route table
- * (`routes.ts`) and a table whose only word is `read` cannot say that a verb
- * needs more than one. `test/routes.test.ts` asserts no Phase 1 route needs
- * more than `read`, which is the half of the guarantee a type cannot give.
+ * Pairing mints `read` and nothing else; everything above it is a grant made
+ * at the machine, per device, through the one door that widens one
+ * (`allowDevice`). A route's required scope is declared in the route table
+ * (`routes.ts`), and `test/routes.test.ts` asserts no route in `ROUTES` needs
+ * more than `read` — which is the half of the guarantee a type cannot give.
+ *
+ * `ask` is the last of them and is the odd one: `answer` and `steer` are what
+ * a *verb* needs, and `ask` is what sending a message to the orchestrator
+ * needs. It is deliberately not implied by either — a device that may answer
+ * what is waiting has not been granted free text to a model that holds tools,
+ * and the two are granted by two controls. What a turn sent under it may then
+ * reach is `answer` and `steer` again, read as an `Arm` (`@tade/core`'s
+ * `origin.ts`), so there is no third list of the same decision.
  */
 export const SCOPES = ['read', 'answer', 'steer', 'ask'] as const
 export type Scope = (typeof SCOPES)[number]

@@ -610,6 +610,12 @@ export interface Granted {
  * then this grants what the sentence beside it names
  * (`ACTING_IS_NOT_YOU`), and that sentence is held to naming all of it.
  *
+ * **It leaves `ask` exactly as it was**, which is why the scopes are composed
+ * from what the device already has rather than written out. Two controls over
+ * one list is how one of them silently takes the other's grant away: a device
+ * that could talk to Tade and was then granted acting would have stopped
+ * being able to, with nobody told and nothing in the journal saying so.
+ *
  * The projects it may act in are the ones it may already read, so revoking a
  * project revokes acting in it in the same act.
  *
@@ -618,6 +624,14 @@ export interface Granted {
  * accepting and ignoring a setting would be. The control is not drawn there
  * either; this is the half that holds if something else ever presses it.
  */
+/** What granting `ask` needs: the file, the setting read now, and the clock. */
+export interface TalkDeps {
+  home: string
+  /** Whether talking is on, read at the act. A grant nothing could use is not written. */
+  talking: () => boolean
+  now: () => number
+}
+
 export async function letOneAct(
   deps: GrantDeps,
   devices: readonly Device[],
@@ -628,13 +642,64 @@ export async function letOneAct(
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
-  const may = device.scopes.some((scope) => scope !== 'read')
-  // **`read` is never taken away here.** Widening what one device may do and
-  // signing it out are different acts, and only the first of them is this
-  // control; a grant written without `read` would quietly make a phone stop
-  // being able to see anything.
-  const scopes = may ? ['read'] : ['read', 'answer', 'steer']
+  const may = device.scopes.some((scope) => scope === 'answer' || scope === 'steer')
+  // **`read` is never taken away here, and neither is anything this control
+  // does not decide.** Widening what one device may do and signing it out are
+  // different acts, and only the first of them is this control; a grant
+  // written without `read` would quietly make a phone stop being able to see
+  // anything, and one written without `ask` would take talking away from a
+  // device somebody granted it to.
+  const scopes = kept(device, ['answer', 'steer'], !may)
   await allowDevice(deps.home, id, scopes, new Date(deps.now()))
   const what = device.label === '' ? 'that device' : device.label
   return { scopes, said: may ? `${what} can no longer act` : `${what} can act` }
+}
+
+/**
+ * Let one device talk to Tade, or take it back. **A person at this machine,
+ * only**, and a second control from the one above.
+ *
+ * `acting` and this are different decisions and each has its own sentence on
+ * its own control: eight bounded verbs, and free text to a model that holds
+ * tools. A person who granted the first has not answered the second.
+ *
+ * What it grants is `ask` and nothing else. What a turn sent under it may
+ * *do* is read off the `answer` and `steer` scopes the act control writes
+ * (`armFor`), so a device that may talk and may not act is answered in words
+ * and changes nothing — and there is no third list of the same decision.
+ */
+export async function letOneTalk(
+  deps: TalkDeps,
+  devices: readonly Device[],
+  id: string,
+): Promise<Granted> {
+  if (!deps.talking()) {
+    throw new Error('turn on “Let a paired device talk to Tade” in Settings → Away view first')
+  }
+  const device = devices.find((one) => one.id === id && one.revoked === null)
+  if (device === undefined) throw new Error('that device is not paired')
+  const may = device.scopes.includes('ask')
+  const scopes = kept(device, ['ask'], !may)
+  await allowDevice(deps.home, id, scopes, new Date(deps.now()))
+  const what = device.label === '' ? 'that device' : device.label
+  return {
+    scopes,
+    said: may ? `${what} can no longer talk to Tade` : `${what} can talk to Tade`,
+  }
+}
+
+/**
+ * The scopes a grant writes: everything this control does not decide, kept as
+ * it was, plus the ones it does where it is turning them on.
+ *
+ * **`allowDevice` writes the whole list**, so every control over it has to
+ * compose rather than enumerate — and the day two of them enumerate is the day
+ * the second one silently revokes the first. `read` is in the kept half by
+ * construction: no control here decides it.
+ */
+function kept(device: Device, decides: readonly string[], on: boolean): string[] {
+  const rest = device.scopes.filter((scope) => !decides.includes(scope))
+  const scopes = new Set<string>(['read', ...rest])
+  if (on) for (const scope of decides) scopes.add(scope)
+  return [...scopes]
 }

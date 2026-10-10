@@ -1,25 +1,16 @@
-import { networkInterfaces } from 'node:os'
 import {
-  ACTING_IS_NOT_YOU,
+  type Arm,
+  type Arming,
   type Config,
-  DEVICES_SEEN_BY_AGENTS,
   type InboxRow,
-  LAN_IS_PLAINTEXT,
-  overridesFrom,
-  type PlanStanding,
   planStandings,
-  producedIn,
-  routesOf,
   startOfToday,
   titlesOf,
   type Workspace,
-  writtenOrder,
 } from '@tade/core'
 import {
   appendDevice,
-  blocksFor,
   type Confirmed,
-  codeFor,
   type Device,
   factsOf,
   type PairingAsk,
@@ -28,7 +19,6 @@ import {
   type Reach,
   reachOf,
   readDevices,
-  readsOf,
   revokeAll,
   type SnapshotInput,
   Streams,
@@ -40,14 +30,15 @@ import {
   type WebServer,
   webServer,
 } from '@tade/web'
-import type { Steering } from '../away.ts'
 import { awayCollections } from '../away.ts'
 import type { Frame } from '../frame.ts'
 import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
-import type { AwayDevice, AwayView } from '../panels/away/view.ts'
+import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
+
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
-import { letOneAct, webActing } from './web-acting.ts'
+import { letOneAct, letOneTalk, webActing } from './web-acting.ts'
+import { armingFor, type Talking, webAsking } from './web-asking.ts'
 import {
   type AwayBeat,
   type AwayHeld,
@@ -55,8 +46,10 @@ import {
   type Held,
   nothingYet,
   steeringFor,
+  talkFor,
   upSinceOf,
 } from './web-beat.ts'
+import { awayView, pairingUrl } from './web-panel.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -90,6 +83,20 @@ export interface AwayDeps {
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */
   news(said: string): void
+  /**
+   * What the away view is allowed to know of the conversation: five methods,
+   * and the orchestrator subject happens to have all five.
+   *
+   * **Named one by one rather than taking that subject**, which is the same
+   * decision `ActingDeps` makes about the workbench: a parameter typed as the
+   * subject would put `say` — the one function that writes a `said` line —
+   * one property access away from a route.
+   *
+   * The transcript is **not** here, because it is not the subject's to answer:
+   * it is in `AppState`, which this subject already holds. A sixth method for
+   * it would be a second way to read one value.
+   */
+  talk: Talking
   /**
    * Why work that came from outside this machine may not go ahead now, or
    * null — the queue's own question (`intakeStands`), asked at the moment a
@@ -190,6 +197,26 @@ export class Away implements Subject {
             }),
           }
         : {}),
+      // **Handed over only where the setting says so**, like acting and for
+      // the same reason: with talking off there is no `WebAsking` and no
+      // asking route, so a crafted call is the `404` of a path nobody built.
+      // `unlocked()` is read again at every turn.
+      ...(surface.talking
+        ? {
+            asking: webAsking({
+              talking: () => this.talking(),
+              // The list as it is **now**, so a grant narrowed or a phone
+              // disconnected a second ago means something before the next
+              // restart.
+              devices: () => this.devices,
+              seen: () => this.conversation(),
+              ask: (said, arm) => this.deps.talk.askRemote(said, arm),
+              stop: () => this.deps.talk.stopTurn(),
+              said: (text, device) => this.deps.talk.remoteSaid(text, device),
+              now: () => this.wire.now(),
+            }),
+          }
+        : {}),
       tickets: this.tickets,
       streams: this.streams,
       tell: (told) => void this.log(told),
@@ -280,8 +307,11 @@ export class Away implements Subject {
     const world = live?.world ?? null
     const made =
       live === null || world === null ? nothingYet() : awayCollections(this.partsOf(live, world))
-    this.held = made
-    return made
+    // **The conversation goes over the top**, because it is the window's and
+    // not the world's: `null` from `nothingYet` would say *talking is not
+    // turned on* until `Live` has looked once — the first second of a window.
+    this.held = { ...made, talk: this.talkNow() }
+    return this.held
   }
 
   /**
@@ -423,6 +453,12 @@ export class Away implements Subject {
       else if (control === AWAY_CONTROLS.all) await this.revokeEverything()
       else if (control.startsWith(AWAY_CONTROLS.revoke)) {
         await this.revoke(control.slice(AWAY_CONTROLS.revoke.length))
+      } else if (control.startsWith(AWAY_CONTROLS.talk)) {
+        // Checked **before** `act`, because `away-talk:` and `away-act:` are
+        // different prefixes and the order of these branches is the order a
+        // reader checks them in; a prefix that is a prefix of another would be
+        // a control that silently did the other thing.
+        await this.letItTalk(control.slice(AWAY_CONTROLS.talk.length))
       } else if (control.startsWith(AWAY_CONTROLS.act)) {
         await this.letItAct(control.slice(AWAY_CONTROLS.act.length))
       }
@@ -479,6 +515,35 @@ export class Away implements Subject {
   }
 
   /**
+   * Let one device talk to Tade, or take it back. **A keypress at this
+   * machine**, and a second one from the act grant.
+   *
+   * The same door `letItAct` is and the same argument for there being no other
+   * one: the thing that grants authority is never reachable from inside the
+   * authority it granted. What it grants is `ask` and nothing else — a device
+   * that may talk and may not act can be answered in words and cannot change
+   * anything, because what a turn may *do* is read off the same `answer` and
+   * `steer` scopes the act control writes.
+   */
+  private async letItTalk(id: string): Promise<void> {
+    const granted = await letOneTalk(
+      {
+        home: this.wire.opts.home,
+        talking: () => surfaceOf(this.config().surfaces.web).talking,
+        now: () => this.wire.now(),
+      },
+      this.devices,
+      id,
+    )
+    await this.log({
+      type: 'web_paired',
+      detail: { device: id, scopes: granted.scopes.join(' '), granted: 'at the machine' },
+    })
+    this.deps.news(granted.said)
+    await this.reread()
+  }
+
+  /**
    * Every device, disconnected. **It needs no network**: what a phone holds is
    * checked here on every request, so one that is off, lost or on another
    * continent is disconnected by this.
@@ -516,89 +581,28 @@ export class Away implements Subject {
   private mint(): void {
     const server = this.server
     if (server === null) return
-    const base = this.pairingUrl()
+    const base = pairingUrl(surfaceOf(this.config().surfaces.web))
     if (base === null) return
     this.tickets.clear()
     this.tickets.mint(base, this.wire.now())
   }
 
-  /**
-   * Where a phone should go, as a URL with no ticket on it yet.
-   *
-   * On a `lan` bind it is a reachable address — `routesOf`'s rule, so never a
-   * link-local and never loopback, because a code for one of those scans
-   * perfectly and goes nowhere. On a loopback bind it is `localhost`, which is
-   * also what `tailscale serve` connects to.
-   */
-  private pairingUrl(): string | null {
-    const surface = surfaceOf(this.config().surfaces.web)
-    // A trusted host first, when somebody named one: that is the `https`
-    // origin a proxy terminates for, and it is the only one worth printing
-    // when it exists, because it is the one that keeps working off this wifi.
-    const trusted = surface.trustedHosts[0]
-    if (trusted !== undefined) return `https://${trusted}/pair`
-    if (surface.bind === 'loopback') return `http://localhost:${surface.port}/pair`
-    const address = routesOf(networkInterfaces())[0]
-    if (address === undefined) return null
-    const host = address.includes(':') ? `[${address}]` : address
-    return `http://${host}:${surface.port}/pair`
-  }
-
-  /** What the panel draws. Facts every frame, never remembered. */
+  /** What the panel draws, out of what this subject holds at this moment. */
   private view(): AwayView {
-    const surface = surfaceOf(this.config().surfaces.web)
     const now = this.wire.now()
     const ticket = this.tickets.outstanding(now)[0] ?? null
-    const code = ticket === null ? null : codeFor(ticket.url)
-    return {
-      // What is *listening*, never what the config says: a bind that failed is
-      // a config that says yes and a machine that says no.
-      listening: this.server !== null && this.server.bound.length > 0,
-      bind: surface.bind,
+    return awayView({
+      surface: surfaceOf(this.config().surfaces.web),
       bound: this.server?.bound ?? [],
-      reachable: surface.bind === 'lan' ? routesOf(networkInterfaces()) : ['localhost'],
-      ticket:
-        ticket === null
-          ? null
-          : {
-              url: ticket.url,
-              secondsLeft: Math.max(0, Math.ceil((ticket.at + 90_000 - now) / 1000)),
-            },
-      code: code === null ? [] : blocksFor(code),
-      asking:
-        this.asking === null
-          ? null
-          : {
-              label: this.asking.ask.label,
-              from: this.asking.ask.from,
-              host: this.asking.ask.host,
-              secondsLeft: Math.max(0, Math.ceil((this.asking.at + 60_000 - now) / 1000)),
-            },
-      devices: this.deviceViews(),
+      listening: this.server !== null && this.server.bound.length > 0,
+      ticket,
+      asking: this.asking,
+      devices: this.devices,
+      live: new Set(this.streams.listening()),
       streams: this.streams.count,
-      acting: surface.acting,
-      acts: ACTING_IS_NOT_YOU,
-      lan: LAN_IS_PLAINTEXT,
-      agents: `${DEVICES_SEEN_BY_AGENTS[0]?.toUpperCase() ?? ''}${DEVICES_SEEN_BY_AGENTS.slice(1)}, which is why this list shows every device there is.`,
       problem: this.problem,
-    }
-  }
-
-  private deviceViews(): AwayDevice[] {
-    const live = new Set(this.streams.listening())
-    return this.devices
-      .filter((one) => one.revoked === null)
-      .map((one) => ({
-        id: one.id,
-        label: one.label,
-        pairedAt: one.pairedAt,
-        reads: readsOf(reachOf(one)),
-        // Anything beyond `read`, folded to one answer: the row has width for
-        // a word and not a list, and what somebody scanning the list is asking
-        // is *can any of these change my work*.
-        mayAct: one.scopes.some((scope) => scope !== 'read'),
-        live: live.has(one.id),
-      }))
+      now,
+    })
   }
 
   /**
@@ -678,6 +682,13 @@ export class Away implements Subject {
     const parts = this.collections()
     return {
       ...parts,
+      // **Raised here and nowhere else**, because whether this device may send
+      // a message is a fact about *this* device and the collections are built
+      // once for everybody. `mine` arrives `false` from `talkIn`, so a wiring
+      // change that forgot this line leaves every phone reading the
+      // conversation and unable to send one — a capability that stopped
+      // working rather than one that was handed out.
+      talk: parts.talk === null ? null : { ...parts.talk, mine: this.mayAsk(reach.device) },
       reach,
       lifetime: {
         // The **server's** epoch, so a snapshot's freshness and a delta's `id`
@@ -689,6 +700,73 @@ export class Away implements Subject {
         openedAt: this.wire.openedAt,
       },
     }
+  }
+
+  /**
+   * Whether one device may send a message: granted `ask`, and still paired.
+   *
+   * A **drawing hint** and not permission — `admitAsk` re-asks the scope, the
+   * setting and the origin at the turn, and `webAsking` builds the arm from
+   * the device record again. What it is for is the rule `TaskRow.can` already
+   * follows: a control nothing could carry out is a control nobody can
+   * explain, so the page leaves the composer out rather than drawing one that
+   * answers `403`.
+   */
+  private mayAsk(device: string): boolean {
+    return this.paired(device)?.scopes.includes('ask') === true
+  }
+
+  /** The conversation as the projection takes it, or null where talking is off. */
+  private talkNow(): ReturnType<typeof talkFor> {
+    return talkFor(this.wire.state.transcript, this.deps.talk, this.talking())
+  }
+
+  private talking(): boolean {
+    return surfaceOf(this.config().surfaces.web).talking
+  }
+
+  /** The conversation as it stands: the one fact a message assumes, and whose. */
+  private conversation(): { busy: boolean; whose: string } {
+    return { busy: this.deps.talk.busy(), whose: this.deps.talk.whose() }
+  }
+
+  /**
+   * What a remote turn's "where are we" is answered with: that device's own
+   * projection, which `Arming.seen` has the argument for.
+   *
+   * A device that has gone **throws** rather than answering an empty tree:
+   * *that device is no longer paired* is a true sentence a model can act on,
+   * and nought projects would read as a machine with no work on it.
+   */
+  seen(arm: Arm): Promise<unknown> {
+    if (arm.how !== 'remote') throw new Error('only a turn from away is answered this way')
+    const device = this.paired(arm.device)
+    if (device === undefined) throw new Error('that device is no longer paired')
+    return Promise.resolve(this.readingFor(reachOf(device)).snapshot())
+  }
+
+  /**
+   * What the `ToolHost` asks at every call: the arm, narrowed to what that
+   * device is granted now, and this device's own projection.
+   *
+   * Built here rather than in `app.ts` because every one of its three answers
+   * is this subject's: the lease is the conversation's and the device list is
+   * this one's, and a window that handed them over separately would be two
+   * places deciding what a turn from away may reach.
+   */
+  arming(): Arming {
+    return armingFor({
+      arm: () => this.deps.talk.arm(),
+      paired: (device) => this.paired(device) ?? null,
+      seen: (arm) => this.seen(arm),
+      log: (event) => this.wire.opts.client.log.append(event),
+      note: (said) => this.deps.news(said),
+    })
+  }
+
+  /** One device as the list has it **now**, or undefined for one that is gone. */
+  private paired(device: string): Device | undefined {
+    return this.devices.find((one) => one.id === device && one.revoked === null)
   }
 
   private config(): Config {

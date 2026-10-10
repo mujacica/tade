@@ -2,7 +2,7 @@ import { uptime } from 'node:os'
 import type { PlanStanding, Queued, QueueFacts, Spend, TadeEvent, Workspace } from '@tade/core'
 import { overridesFrom, producedIn, writtenOrder } from '@tade/core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
-import type { SnapshotInput } from '@tade/web'
+import type { SnapshotInput, TalkIn } from '@tade/web'
 import {
   type awayCollections,
   nothingKnown,
@@ -10,8 +10,10 @@ import {
   type Steering,
   steeringOf,
   type TaskExtra,
+  talkIn,
 } from '../away.ts'
 import type { ActionsView, NoteShown } from '../frame.ts'
+import type { Transcript } from '../transcript.ts'
 
 // What the window hands the away view on a beat, and what it reads to build it.
 //
@@ -32,7 +34,7 @@ import type { ActionsView, NoteShown } from '../frame.ts'
 /** What the window hands the away view on a beat. */
 export type AwayBeat = Parameters<typeof awayCollections>[0]
 
-/** Nothing projected yet: an away view that has had no beat still answers. */
+/** Everything a projection needs but the device it is for and the lifetime. */
 export type AwayHeld = Omit<SnapshotInput, 'reach' | 'lifetime'>
 
 /**
@@ -82,6 +84,25 @@ export function upSinceOf(): number | null {
   }
 }
 
+/**
+ * The conversation, as the projection takes it — or null where talking from
+ * away is off.
+ *
+ * **Here because it is not part of the world**, which is the bug it fixes: the
+ * collections are `nothingYet()` until `Live` has looked once, and a `null`
+ * conversation there would tell a phone *talking is not turned on* for the
+ * first second of every window. The world and the conversation go stale on
+ * different clocks, so they are read in different places.
+ */
+export function talkFor(
+  transcript: Transcript,
+  talk: { busy(): boolean; whose(): string },
+  on: boolean,
+): TalkIn | null {
+  if (!on) return null
+  return talkIn({ transcript, busy: talk.busy(), whose: talk.whose() })
+}
+
 /** Nothing projected yet: an away view that has had no beat still answers. */
 export function nothingYet(): AwayHeld {
   return {
@@ -96,6 +117,9 @@ export function nothingYet(): AwayHeld {
     // Nothing folded yet, so there is no period to name: `unknown`, which the
     // page says by saying nothing rather than by naming a date in 1970.
     spendSince: null,
+    // Overlaid by whoever holds the conversation (`talkFor`): it is not part
+    // of the world, so it is not this function's to answer.
+    talk: null,
   }
 }
 

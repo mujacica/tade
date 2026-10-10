@@ -71,11 +71,35 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   time — and write the change down (`config_changed`) with what it was before, so somebody who was
   not watching can find it and undo it.
 
+## A tool is reachable from away only if somebody decided it is
+
+`packages/orchestrator/src/origin.ts` holds **two closed tables**: which of Tade's own tools a turn
+from a paired device may call, and what each `ToolHost` method may do with the parameters it
+carries. Both are **exhaustive and asserted against the real lists** (`test/origin.test.ts`), and
+both **default to no** — so a tool or a method added without a line fails that test, and at runtime
+an unnamed one is refused.
+
+- **A new tool needs a line in `REMOTE_TOOLS`, and the honest default is `local`.** The four clauses
+  the `local` half is written with — it executes, it grants, it publishes, it reads wider — are
+  grouped rather than written per entry, because the argument really is the same for each.
+- **A new `ToolHost` method needs a line in `REMOTE_METHODS`**, with how its project is found. A
+  method that reads a task id resolves to the **empty string** where there is no project half, never
+  `null`: `null` means *deliberately about no project* (a note about everything), and those two being
+  one value is a hole a bare name walks through.
+- **A tool that shells out to the CLI reaches no method at all** (`tade_notes`, `tade_updates`), so
+  the tool table is the only gate for it — which is why reads whose answer is wider than a read grant
+  are `local` even though they change nothing.
+- Only where a turn runs under a remote arm does any of this apply. A local turn is checked against
+  nothing, which is the type saying it rather than a comment promising it (`Arm`).
+
 ## Steps
 
 1. Add the tool with `tool(name, description, schema, run)` in the extension.
 2. If it needs a capability Tade does not have, add that first (see `add-workbench-operation`),
    then expose it as a method on the `ToolHost`.
+2b. Give it a line in **both** tables in `origin.ts` — `REMOTE_TOOLS` for the tool, `REMOTE_METHODS`
+   for the method — or `test/origin.test.ts` fails. `local` with one of the four clauses is the
+   answer for almost everything.
 3. Test it in `packages/orchestrator/test/tools.test.ts` against a real pi and a real workbench: the
    fake model in `test/fixtures/fake-model.ts` issues the tool call, and the assertion is that the
    effect really happened (an event in the log, a worktree on disk), not merely that pi accepted it —

@@ -167,6 +167,10 @@ export function inputFrom(home: string, reach: Reach, now: number): SnapshotInpu
     // Nothing is folded here: this reads task files and never the journal, so
     // there is no period any money figure covers and no figure to cover.
     spendSince: null,
+    // And no conversation: it is the window's own transcript, held in the
+    // process that is talking, so a script reading files cannot see one.
+    // `null` is *not turned on*, which is the honest answer here.
+    talk: null,
   }
 }
 

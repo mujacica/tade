@@ -276,6 +276,9 @@ describe('the whole thing is what the wire accepts', () => {
         ...collections(),
         reach: { device: 'dev_1', projects: { kind: 'every' }, granted: [] },
         lifetime: { epoch: 'e', rev: 1, openedAt: 0 },
+        // The conversation is laid over the world's folds by the window
+        // (`talkFor`), so a test about the folds hands over none.
+        talk: null,
       },
       Date.parse('2026-10-08T14:30:00.000Z'),
     )

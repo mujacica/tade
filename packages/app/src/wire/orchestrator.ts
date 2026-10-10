@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import {
+  type Arm,
   type Config,
   composeBrief,
   describeWork,
@@ -40,6 +41,7 @@ import { runScreen, ScreenCancelled, type Ui } from '../screen.ts'
 import { addProject, editSettings, writeSetting } from '../settings.ts'
 import { PLAIN } from '../skin.ts'
 import {
+  deviceSaid,
   fromThinker,
   interrupted,
   problem,
@@ -59,6 +61,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { armOfThinker, cannotTalk, stopTurn, whoseTurn } from './orchestrator-away.ts'
 
 // The thing you talk to, seen from the window.
 //
@@ -522,6 +525,86 @@ export class Orchestrator implements Subject {
       this.speakingTurn = false
       this.deps.voice.flushSpeech()
     }
+  }
+
+  /** How far the turn in flight reaches: what the `ToolHost` asks at every call. */
+  arm(): Arm {
+    return armOfThinker(this.thinker)
+  }
+
+  /** Whether a turn is in flight, as its harness folds the signals. */
+  busy(): boolean {
+    return this.thinker?.busy?.() ?? false
+  }
+
+  /** Whose turn is in flight, as `byOf` writes it. Empty for none. */
+  whose(): string {
+    return whoseTurn(this.thinker)
+  }
+
+  /** Why a paired device cannot be answered here, or null when it can. */
+  cannotTalk(): string | null {
+    return cannotTalk(this.thinker)
+  }
+
+  /** Stop the turn in flight, if its harness can. False where it cannot. */
+  stopTurn(): Promise<boolean> {
+    return stopTurn(this.thinker, () => this.interrupt())
+  }
+
+  /**
+   * Something a paired device said, into the same conversation.
+   *
+   * **Three things this is not**, each of which would be the hole Phase 3 was
+   * written around:
+   *
+   * - it is **not** `say`, so `deps.remember` is never called and no `said`
+   *   line is written. That is necessary and nowhere near sufficient — an old
+   *   `said` line of the person's is still in the journal and `namedBy` reads
+   *   forty of them — which is why the real refusals are the two tables the
+   *   arm is checked against at every tool call.
+   * - it is **not** `voice.handle`, so the spoken grammar never sees it. That
+   *   grammar parks, steers and starts things directly, by-passing every gate
+   *   the away view has; a sentence from a phone reaching it would be the
+   *   verbs without the scope checks.
+   * - it does **not** take the news that is waiting. News is what Tade tells
+   *   *the person's* conversation, and a question from a phone must not
+   *   consume it — the next thing they say still carries it.
+   */
+  async askRemote(text: string, arm: Arm): Promise<void> {
+    const thinker = this.thinker
+    const askFrom = thinker?.askFrom
+    const cannot = this.cannotTalk()
+    if (!thinker || !askFrom || cannot) {
+      throw new Error(cannot ?? 'this Tade cannot answer a paired device')
+    }
+    // Shown before the words are handed over, so a turn Tade is already on is
+    // never a spinner with nothing above it.
+    this.wire.put(
+      withTranscript(this.wire.state, thinking(this.wire.state.transcript, this.wire.now())),
+    )
+    this.wire.draw()
+    await askFrom.call(thinker, text, arm)
+  }
+
+  /**
+   * A device's words, in the conversation, marked as theirs.
+   *
+   * Said here rather than left to whatever answers, for the reason the local
+   * path shows what you typed the moment it is sent: a turn whose question is
+   * invisible is a turn the person at the machine cannot make sense of. And it
+   * carries the device's id, because a line from a phone that read as
+   * something they typed is the `said` confusion in the one place somebody
+   * actually reads the words.
+   */
+  remoteSaid(text: string, device: string): void {
+    this.wire.put(
+      withTranscript(
+        { ...this.wire.state, bottom: ORCHESTRATOR_TAB },
+        deviceSaid(this.wire.state.transcript, text, this.wire.now(), device),
+      ),
+    )
+    this.wire.draw()
   }
 
   /** Everything addressed to Tade arrives here, however it was said. */

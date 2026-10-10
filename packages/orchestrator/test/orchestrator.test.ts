@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { type Arm, ConfigSchema, LOCAL } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -33,13 +33,34 @@ describe('Orchestrator', () => {
   let orchestrator: Orchestrator | null = null
   let home: string
   let repo: ReturnType<typeof mkrepo>
+  /**
+   * How far the turn in flight reaches, as the window would answer it, and
+   * every call the host refused because of it.
+   *
+   * The host is the gate — Tade's own tools extension asks it at every tool
+   * call — so these two are what a test reads instead of watching for a
+   * signal: `arm` is what the window would say, and `refusals` is what the
+   * audit got.
+   */
+  let arm: Arm = LOCAL
+  const refusals: { tool: string; why: string }[] = []
 
   beforeEach(async () => {
     repo = mkrepo()
     home = tmp('tade-chat-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     tade = await Workbench.open({ home })
-    tools = await ToolHost.listen({ tade, path: join(home, 'tools.sock') })
+    arm = LOCAL
+    refusals.length = 0
+    tools = await ToolHost.listen({
+      tade,
+      path: join(home, 'tools.sock'),
+      remote: {
+        arm: () => arm,
+        seen: async () => ({ tasks: [] }),
+        refused: (_one, tool, why) => refusals.push({ tool, why }),
+      },
+    })
   })
 
   afterEach(async () => {
@@ -416,5 +437,79 @@ describe('Orchestrator', () => {
     const [created] = await tade.events({ types: ['task_created'] })
     expect(created?.task).toBe('app/refunds')
     expect(created?.detail.intent_spoken).toBe('the refund flow double-charges')
+  }, 90_000)
+  // A turn a paired device asked for, with the gate wired and a real pi
+  // holding its own tool calls.
+  //
+  // **The one thing no unit test can show**: `origin.test.ts` is the tables and
+  // `tool-host.test.ts` is the socket, but *the harness holding its own `bash`
+  // until Tade answers* is a property of pi under `approvals: 'policy'` — and
+  // if that stopped working, every table above would still pass while a
+  // stranger's words reached a shell.
+  it('runs a turn from away narrowed, and refuses the harness’s own tools', async () => {
+    // The window's own answer to *whose turn is this*, which is what the host
+    // asks at every call. Set here because the host and the orchestrator are
+    // two objects in this test and one window in life.
+    arm = { how: 'remote', device: 'a1b2c3d4e5f60718', projects: null, may: [] }
+    const chat = await start(
+      { tool: { name: 'bash', arguments: { command: 'echo hi' } }, finalText: 'I cannot do that.' },
+      { talking: true },
+    )
+    const events: OrchestratorEvent[] = []
+    chat.onEvent((event) => events.push(event))
+    expect(chat.unarmed).toBeNull()
+
+    await chat.askFrom('run the tests and push it', arm)
+    // **The arm is held from the prompt**, so the turn's first tool call is
+    // never judged as the person's.
+    expect(chat.arm).toEqual(arm)
+    expect(chat.busy).toBe(true)
+
+    // A second message while that one is in flight is refused rather than
+    // steered into it: a harness delivers a mid-turn prompt *into* the turn.
+    await expect(chat.askFrom('and this too', arm)).rejects.toThrow(/still answering/)
+
+    arm = chat.arm
+    await until(() => events.some((event) => event.type === 'idle'))
+    arm = chat.arm
+    // **`bash` was refused**, by the gate inside Tade's own tools extension
+    // asking the host at the call — which is the one thing no unit test can
+    // show. The host said so, and said it to the audit.
+    expect(refusals.map((one) => one.tool)).toEqual(['bash'])
+    expect(refusals[0]?.why).toContain('needs the person at the machine')
+    // And the lease is let go on `idle`, so the person at the keyboard is not
+    // narrowed a moment longer than the turn.
+    expect(chat.arm).toEqual({ how: 'local' })
+    expect(chat.busy).toBe(false)
+
+    // What the model was told: Tade's own line, above a heading that is not
+    // the one the person's words go under.
+    const asked = told(0)
+    expect(asked).toContain('came from a paired device')
+    expect(asked).toContain('What a paired device asked:')
+    expect(asked).toContain('run the tests and push it')
+    expect(asked).not.toContain('What they said:')
+    // And nothing anywhere wrote a `said` line.
+    expect(await tade.events({ types: ['said'] })).toEqual([])
+  }, 90_000)
+
+  it('is not narrowed at all for the person at the keyboard', async () => {
+    // The other half of the same gate, and the one a regression would hide:
+    // with talking on, every tool call is held — so a local turn would stop
+    // dead if the gate forgot to answer one. Nothing is refused here.
+    const chat = await start(
+      { tool: { name: 'bash', arguments: { command: 'echo hi' } }, finalText: 'Done.' },
+      { talking: true },
+    )
+    const events: OrchestratorEvent[] = []
+    chat.onEvent((event) => events.push(event))
+    expect(await chat.askFor('run echo', 60_000)).toBe('Done.')
+    expect(refusals).toEqual([])
+    expect(events.some((event) => event.type === 'tool' && event.tool === 'bash')).toBe(true)
+  }, 90_000)
+
+  it('refuses a local arm handed to the away door, rather than running it unnarrowed', async () => {
+    const chat = await start({ finalText: 'Nothing.' }, { talking: true })
+    await expect(chat.askFrom('hello', { how: 'local' })).rejects.toThrow(/never a local arm/)
   }, 90_000)
 })

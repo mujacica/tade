@@ -5,18 +5,19 @@ import {
   LAN_IS_PLAINTEXT,
 } from './away.ts'
 import type { Config } from './config.ts'
+import { TALKING_IS_NOT_YOU } from './origin.ts'
 import type { SettingGroup } from './settings.ts'
 
-// The away view's five controls, as a person changes them.
+// The away view's six controls, as a person changes them.
 //
 // Its own half of `settingsOf`, split off for the reason the projects half
 // was: that file reached the size a file is allowed to be. It is a seam rather
-// than a cut — these five are exactly the keys `reach.ts` refuses to the
+// than a cut — these six are exactly the keys `reach.ts` refuses to the
 // orchestrator by subtree, and exactly the ones whose `means` carries a
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //
-// **All five are `live: false`, honestly.** The listener comes up when the
+// **All six are `live: false`, honestly.** The listener comes up when the
 // window starts, and the epoch a connected phone holds is per server start —
 // so turning one on mid-session would have to tear down and rebuild something
 // somebody is looking at. Saying *takes effect on restart* is the honest
@@ -51,6 +52,8 @@ export function awayGroup(config: Config): SettingGroup {
       'https',
       'act',
       'acting',
+      'ask',
+      'talk',
     ],
     settings: [
       {
@@ -113,6 +116,27 @@ export function awayGroup(config: Config): SettingGroup {
         // claimed to be live.
         live: false,
         keywords: ['act', 'acting', 'approve', 'steer', 'park', 'change', 'answer', 'verb'],
+      },
+      {
+        path: 'surfaces.web.orchestrator',
+        // A **fourth** decision, and the one that must never share a switch
+        // with Acting. Acting's verbs each name a target and the state they
+        // expect; this hands free text to a model that holds tools, which is
+        // the difference between answering a question and being able to ask
+        // for anything. The sentence says what the narrowing is rather than
+        // promising the model behaves, because a paragraph in a prompt is
+        // information and this is the control somebody decides on.
+        title: 'Let a paired device talk to Tade',
+        means: `on: a device you have granted it can send a message into the same conversation you type into, and is answered in words; off: there is no route to send one. ${TALKING_IS_NOT_YOU}`,
+        value: String(web.orchestrator),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        // `false` like the rest, and asymmetric the same way `acting` is:
+        // turning it on needs a restart because the route table is built with
+        // the listener, and turning it off is read at every turn — so the
+        // direction that takes authority away is immediate.
+        live: false,
+        keywords: ['ask', 'talk', 'chat', 'message', 'orchestrator', 'conversation', 'prompt'],
       },
       {
         path: 'surfaces.web.trusted_hosts',

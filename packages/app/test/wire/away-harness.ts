@@ -3,8 +3,10 @@ import { createServer, request } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import {
+  type Arm,
   type Config,
   ConfigSchema,
+  LOCAL,
   type Queued,
   type TadeEvent,
   type Task,
@@ -26,6 +28,7 @@ import type { ActionsView } from '../../src/frame.ts'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import { awayPanel } from '../../src/panels/away/state.ts'
+import { emptyTranscript, type Transcript } from '../../src/transcript.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
 
@@ -125,6 +128,10 @@ export interface Machine {
   refresh(): Promise<void>
   /** Open the panel, which is what `panel()` draws only when it is open. */
   show(): void
+  /** What a device said to Tade, in the order it was said. */
+  said: { text: string; device: string }[]
+  /** The arms every remote turn was handed, so a test can read what it narrowed to. */
+  armed: Arm[]
 }
 
 export interface MachineOptions {
@@ -147,6 +154,17 @@ export interface MachineOptions {
    * a test about the grant for the wrong reason.
    */
   intake?: boolean
+  /** Talking to Tade on, as `surfaces.web.orchestrator` turns it on. */
+  talking?: boolean
+  /** The conversation the window holds, where a test needs lines in it. */
+  transcript?: Transcript
+  /** Whether a turn is in flight, and whose. */
+  busy?: boolean
+  whose?: string
+  /** What `askRemote` does, where a test wants it to fail or to record the arm. */
+  ask?: (said: string, arm: Arm) => Promise<void>
+  /** What stopping the turn answers: false for a harness that cannot. */
+  stop?: () => Promise<boolean>
 }
 
 export async function machine(over: MachineOptions = {}): Promise<Machine> {
@@ -169,7 +187,12 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     ConfigSchema.parse({
       projects: { app: { root: repo.root } },
       surfaces: {
-        web: { enabled: true, port, acting: over.acting ?? true },
+        web: {
+          enabled: true,
+          port,
+          acting: over.acting ?? true,
+          orchestrator: over.talking === true,
+        },
         ...(over.intake === true ? { intake: INTAKE } : {}),
       },
     })
@@ -209,6 +232,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     tasks: [],
     machineUpSince: null,
     spendSince: null,
+    talk: null,
     worktreeOf: () => repo.root,
   }
 
@@ -268,9 +292,23 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     note: () => {},
   } as unknown as Wiring
 
+  const said: { text: string; device: string }[] = []
+  const armed: Arm[] = []
   const away = new Away(wire, {
     decided: () => {},
-    news: (said) => news.push(said),
+    news: (one) => news.push(one),
+    talk: {
+      arm: () =>
+        over.busy === true ? { how: 'remote', device: DEVICE, projects: null, may: [] } : LOCAL,
+      busy: () => over.busy === true,
+      whose: () => over.whose ?? '',
+      askRemote: async (text: string, arm: Arm) => {
+        armed.push(arm)
+        await over.ask?.(text, arm)
+      },
+      stopTurn: over.stop ?? (() => Promise.resolve(true)),
+      remoteSaid: (text: string, device: string) => said.push({ text, device }),
+    },
     stands: over.stands ?? (() => Promise.resolve(null)),
   })
   open.push(away)
@@ -281,6 +319,8 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     task: first.id,
     port,
     news,
+    said,
+    armed,
     decided,
     told,
     watch: (task) => void watched.push(task),
@@ -327,7 +367,14 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     ungrant: () => {
       held = ConfigSchema.parse({
         projects: { app: { root: repo.root } },
-        surfaces: { web: { enabled: true, port, acting: over.acting ?? true } },
+        surfaces: {
+          web: {
+            enabled: true,
+            port,
+            acting: over.acting ?? true,
+            orchestrator: over.talking === true,
+          },
+        },
       })
     },
     refresh: async () => {
@@ -566,13 +613,22 @@ export function act(
   verb: string,
   body: Record<string, unknown>,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, `/api/act/${verb}`, body)
+}
+
+/** One `POST` with everything the guard asks of a mutation on it. */
+function send(
+  port: number,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
   const text = JSON.stringify(body)
   return new Promise((done, failed) => {
     const req = request(
       {
         host: '127.0.0.1',
         port,
-        path: `/api/act/${verb}`,
+        path,
         method: 'POST',
         headers: {
           host: `127.0.0.1:${port}`,
@@ -600,6 +656,22 @@ export function act(
     req.write(text)
     req.end()
   })
+}
+
+/**
+ * One message to Tade, as a browser would send it.
+ *
+ * A sibling of `act` and not a parameter on it, because the two paths are two
+ * tables with two settings behind them: a test that reached the asking route
+ * by passing `'ask'` as a verb would be a test that passes while they are one
+ * route.
+ */
+export function ask(
+  port: number,
+  what: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, `/api/ask/${what}`, body)
 }
 
 /** A device in the file, already granted whatever the test needs. */

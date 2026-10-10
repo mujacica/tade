@@ -36,6 +36,7 @@ const SURFACE: Surface = {
   port: 7654,
   trustedHosts: [],
   acting: true,
+  talking: false,
 }
 
 const BODY = {

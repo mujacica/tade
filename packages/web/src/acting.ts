@@ -1,3 +1,4 @@
+import { byOf, type Who } from '@tade/core'
 import type { Scope } from './surface.ts'
 
 // What a paired device may *do*, as the one interface the window implements.
@@ -189,25 +190,17 @@ export interface IntakeCall extends Target {
  * said. So provenance is a parameter of every verb, the local path says
  * `local` with the same type, and `byOf` is the one place either becomes a
  * word in a record.
- */
-export type From =
-  /** The keyboard, the voice, the window's own controls. */
-  | { how: 'local' }
-  /** A paired device, by the id the machine gave it. Never its label. */
-  | { how: 'remote'; device: string }
-
-/**
- * What goes in a record's `by`, for either provenance.
  *
- * `you` for the keyboard, because that is the word every other door already
- * writes and `historyFrom` already reads as *something you did*. A device is
- * named by its id and never by its label: a label is a person's own words
- * about their own phone, and an id is 16 hex characters that mean nothing on
- * their own. The one thing neither ever becomes is a `said` line.
+ * **It is `@tade/core`'s `Who`**, re-exported under the name every call site
+ * here already uses. It moved because the orchestrator needs the same fact
+ * about the same two doors — a turn from away has a provenance exactly as an
+ * act does — and `@tade/core` cannot import this package: the arrow goes the
+ * other way and `test/modularity.test.ts` holds it. Two spellings of *who
+ * asked* is the failure this type exists to prevent.
  */
-export function byOf(from: From): string {
-  return from.how === 'local' ? 'you' : `device ${from.device}`
-}
+export type From = Who
+
+export { byOf }
 
 /**
  * The verbs, one method each.

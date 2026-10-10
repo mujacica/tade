@@ -1,5 +1,14 @@
 import { noSpend, type PlanStanding, type Spend } from '@tade/core'
-import type { FindingIn, NoteIn, ProjectIn, QueueIn, SnapshotInput, TaskIn } from '../src/input.ts'
+import type {
+  ChatIn,
+  FindingIn,
+  NoteIn,
+  ProjectIn,
+  QueueIn,
+  SnapshotInput,
+  TalkIn,
+  TaskIn,
+} from '../src/input.ts'
 import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 
 // One input, built to be caught.
@@ -221,8 +230,64 @@ export function input(over: Partial<SnapshotInput> = {}): SnapshotInput {
     ],
     machineUpSince: Date.parse('2026-10-07T08:00:00.000Z'),
     spendSince: Date.parse('2026-10-08T00:00:00.000Z'),
+    talk: talk(),
     ...over,
   }
+}
+
+/**
+ * The conversation, with one of each kind of line in it.
+ *
+ * **Every line carries something the projection must not pass on**, for the
+ * reason the warnings above do: a fixture whose conversation happens to be
+ * tidy is the leakage test passing while the claim is false. So the person's
+ * own message names a path, the reply quotes one back, and the tool line
+ * carries a name whose arguments were a command.
+ */
+export function talk(over: Partial<TalkIn> = {}): TalkIn {
+  const lines: ChatIn[] = [
+    {
+      id: '2026-10-08T14:00:00.000Z#0',
+      at: Date.parse('2026-10-08T14:00:00.000Z'),
+      kind: 'asked',
+      from: 'you',
+      text: `what is going on in ${PRIVATE.root}?`,
+      tool: '',
+      outcome: '',
+      streaming: false,
+    },
+    {
+      id: '2026-10-08T14:00:01.000Z#0',
+      at: Date.parse('2026-10-08T14:00:01.000Z'),
+      kind: 'tool',
+      from: '',
+      text: '',
+      tool: 'tade_status',
+      outcome: 'ok',
+      streaming: false,
+    },
+    {
+      id: '2026-10-08T14:00:02.000Z#0',
+      at: Date.parse('2026-10-08T14:00:02.000Z'),
+      kind: 'reply',
+      from: '',
+      text: `two agents are working; one is held on a command in ${PRIVATE.worktree}`,
+      tool: '',
+      outcome: '',
+      streaming: false,
+    },
+    {
+      id: '2026-10-08T14:00:03.000Z#0',
+      at: Date.parse('2026-10-08T14:00:03.000Z'),
+      kind: 'asked',
+      from: 'device a1b2c3d4e5f60718',
+      text: 'is anything waiting for me?',
+      tool: '',
+      outcome: '',
+      streaming: false,
+    },
+  ]
+  return { lines, rev: 'b0', busy: false, whose: '', mine: true, ...over }
 }
 
 /** The moment every test projects at, so a golden is a golden. */

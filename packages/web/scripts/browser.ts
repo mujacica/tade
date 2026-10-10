@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Moved, type Outcome, type WebActing } from '../src/acting.ts'
+import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
 import { allowDevice } from '../src/devices.ts'
 import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
@@ -96,8 +96,29 @@ async function serve() {
     // the honesty passes below still render a page with no control on it. What
     // it buys is the third pass, where a device granted both tiers drives a
     // real tap, a real Tab and a real refusal.
-    surface: { enabled: true, bind: 'loopback', port: 0, trustedHosts: [], acting: true },
+    surface: {
+      enabled: true,
+      bind: 'loopback',
+      port: 0,
+      trustedHosts: [],
+      acting: true,
+      talking: true,
+    },
     acting: recording,
+    // **Talking on too, with the same stub treatment**: a device the page has
+    // no `ask` scope for draws no composer at all, which is what the honesty
+    // passes read, and the third pass grants it so a real tap sends a real
+    // message. `stop` answers `not_offered`, for the reason `note` answers
+    // `gone`: a harness where everything succeeds can never show that a
+    // refusal leaves what somebody typed where it was.
+    asking: {
+      unlocked: () => true,
+      ask: (call) => {
+        asked.push({ verb: 'ask', task: '', said: call.said })
+        return Promise.resolve({ did: true, rev: call.was, said: 'Tade is answering' })
+      },
+      stop: () => Promise.reject(new NotOffered('this harness cannot stop a turn')),
+    },
     readingFor: (reach: Reach) => {
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
@@ -385,7 +406,7 @@ async function asActing(
     granting = []
     return
   }
-  await allowDevice(home, device, ['read', 'answer', 'steer'], new Date())
+  await allowDevice(home, device, ['read', 'answer', 'steer', 'ask'], new Date())
   try {
     await page.goto(`${origin}/t/sentry/away-projection`, { waitUntil: 'networkidle' })
     await page.waitForSelector('main textarea', { timeout: 10_000 })

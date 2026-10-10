@@ -126,11 +126,14 @@ export const ACTING_IS_NOT_YOU_SHORT = 'a device acts as a request, never as you
  *
  * **Off, and the default is the decision.** `enabled` is a listener on this
  * machine; `bind` is whether that listener is on your network; `acting` is
- * whether a paired device may change anything at all. Three decisions, never
- * one, because conflating the first two is how a laptop in a cafe serves its
- * control room to the cafe, and conflating the last with either is how reading
- * from the sofa turns into acting from anywhere. All of them are `never` in
- * `reach.ts` by subtree: each changes who can reach Tade, or what they can do.
+ * whether a paired device may change anything at all; `orchestrator` is
+ * whether one may say something to the model that holds the tools. Four
+ * decisions, never one, because conflating the first two is how a laptop in a
+ * cafe serves its control room to the cafe, conflating the third with either
+ * is how reading from the sofa turns into acting from anywhere, and the fourth
+ * is a different kind of thing again — eight bounded verbs against free text.
+ * All of them are `never` in `reach.ts` by subtree: each changes who can reach
+ * Tade, or what they can do.
  */
 export const WebSurface = z
   .strictObject({
@@ -177,5 +180,32 @@ export const WebSurface = z
      * takes away authority is immediate.
      */
     acting: z.boolean().default(false),
+    /**
+     * Whether a paired device may talk to the orchestrator.
+     *
+     * **A fourth decision, and the one that is categorically different from
+     * the other three.** `acting`'s verbs are bounded: each names a target and
+     * the state it expects, each is enumerable, and the worst a crafted one
+     * can do is the thing it says on it. This hands **free text to a model
+     * that holds tools**, which is the difference between answering a question
+     * and being able to ask for anything — so it is its own setting, its own
+     * event type and its own provenance, and it must never share a switch with
+     * `acting` (DESIGN.md Phase 3).
+     *
+     * What makes it safe is not the sentence Tade prepends to the turn. It is
+     * that while a remote turn is in flight the orchestrator's own tools are
+     * narrowed to a closed list — `@tade/orchestrator`'s `origin.ts` — and
+     * everything unnamed is refused at the two gates the model calls through,
+     * so an old `said` line of the person's and an `open`-tier setting are both
+     * out of reach however the request is worded. A harness that cannot be
+     * narrowed that way serves no remote turn at all and says so, rather than
+     * running one unrestricted.
+     *
+     * Turning it **on** takes effect the next time Tade starts, for the reason
+     * `acting` does: the route table is built with the listener. Turning it
+     * **off** is read at every turn, so the direction that takes authority
+     * away is immediate.
+     */
+    orchestrator: z.boolean().default(false),
   })
   .prefault({})

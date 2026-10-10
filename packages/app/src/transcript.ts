@@ -1,4 +1,4 @@
-import { wentQuiet } from '@tade/core'
+import { byOf, wentQuiet } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
 
 // The conversation with the orchestrator, as it happens.
@@ -17,8 +17,17 @@ export type ToolState = 'running' | 'ok' | 'failed'
 export type Speaker = 'orchestrator' | 'tade'
 
 export type Entry =
-  /** What you said or typed, with the pictures you sent along. */
-  | { kind: 'you'; text: string; images: string[]; at: number }
+  /**
+   * What was said *to* Tade, with the pictures that went along.
+   *
+   * `from` is who said it, as `byOf` writes it: `you` at the machine, or
+   * `device <id>` from a paired device. **Never absent and never guessed**: a
+   * request from a phone that read as something the person typed is the `said`
+   * confusion one layer up, in the one place somebody actually reads the
+   * words, and it is also what the window needs in order to say why its own
+   * tools were narrowed for a few seconds.
+   */
+  | { kind: 'you'; text: string; images: string[]; at: number; from: string }
   /** Where Tade's own grammar sent it, and why: `start · checkout/refunds`. */
   | { kind: 'routed'; text: string; at: number }
   /** Words back: the orchestrator's (markdown), or a reply from Tade itself. */
@@ -111,7 +120,33 @@ export function youSaid(
   at: number,
   images: readonly string[] = [],
 ): Transcript {
-  return push({ ...transcript, stopped: false }, { kind: 'you', text, images: [...images], at })
+  return push(
+    { ...transcript, stopped: false },
+    { kind: 'you', text, images: [...images], at, from: 'you' },
+  )
+}
+
+/**
+ * A paired device said something: shown the same way, marked as theirs.
+ *
+ * **Its own function rather than a parameter on `youSaid`**, because the two
+ * have different defaults and the wrong one is silent: a `from` that could be
+ * left out would be left out, and the line would read as the person's. Here a
+ * caller has to say which of the two doors it is.
+ *
+ * `byOf` writes the word, so the transcript, the journal and the projection
+ * all name a device the same way — and none of them ever names it `you`.
+ */
+export function deviceSaid(
+  transcript: Transcript,
+  text: string,
+  at: number,
+  device: string,
+): Transcript {
+  return push(
+    { ...transcript, stopped: false },
+    { kind: 'you', text, images: [], at, from: byOf({ how: 'remote', device }) },
+  )
 }
 
 /** The orchestrator has been handed something, and is working until it is idle again. */

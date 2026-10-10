@@ -11,6 +11,7 @@ import {
   finishedFrom,
   historyFrom,
   isReady,
+  LOCAL,
   loadConfig,
   modelDetail,
   readiness,
@@ -203,6 +204,12 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // orchestrator may touch is checked there rather than in its own process.
       let settings: ReturnType<App['configTools']> | null = null
       let watches: ReturnType<App['watchTools']> | null = null
+      // How far the turn in flight reaches, and what a narrowed one is
+      // answered with. Null until the window is up, and **a remote arm is
+      // impossible until then**: the host reads `LOCAL` for every call, which
+      // is the right answer because nothing from away can have arrived yet —
+      // the listener is the window's too.
+      let away: ReturnType<App['awayTools']> | null = null
       const opening = () => new Error('Tade is still opening: ask again in a moment')
       // Where everything stands, derived fresh. What `tade_status` answers
       // with, and what the efforts in the briefing are folded out of.
@@ -280,6 +287,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           },
         },
         status,
+        remote: {
+          arm: () => away?.arm() ?? LOCAL,
+          seen: async (arm) => {
+            if (!away) throw opening()
+            return away.seen(arm)
+          },
+          refused: (arm, method, why) => away?.refused(arm, method, why),
+        },
         orchestratorModel: async (said) => {
           // Among what the orchestrator's own harness offers, and kept for
           // the next start either way. Only its own: a model is resolved by
@@ -380,6 +395,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         queue = app.queueTools()
         settings = app.configTools()
         watches = app.watchTools()
+        away = app.awayTools()
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty
@@ -422,6 +438,12 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                 new Set(finishedFrom(journal).keys()),
               ),
               safe,
+              // Whether the conversation needs a gate on its own tool calls,
+              // which is wired when it starts. Read from the config here
+              // rather than asked later, because a gate added mid-session
+              // would be a gate the turn already in flight never had — and
+              // the setting says *takes effect on restart* for that reason.
+              talking: config.surfaces.web.enabled && config.surfaces.web.orchestrator,
               extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
               onUsage: ({ model, ...usage }) => {
                 void client.log
@@ -455,6 +477,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                   interrupt: () => started.interrupt(),
                   offers: thinkerOffers(config.orchestrator.harness, started.capabilities),
                   onEvent: (listener) => started.onEvent(listener),
+                  // The away half: a turn under an arm, and the three
+                  // questions anything outside the window asks about one. All
+                  // four are the orchestrator's own, so there is no second
+                  // answer to *whose turn is this* anywhere.
+                  askFrom: (text, arm) => started.askFrom(text, arm),
+                  arm: () => started.arm,
+                  busy: () => started.busy,
+                  unarmed: () => started.unarmed,
                 })
                 // Nothing chosen, so the harness picked: keep what it picked, so the
                 // next time an agent switches model the orchestrator does not follow.

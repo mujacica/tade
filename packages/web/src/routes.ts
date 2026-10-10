@@ -1,3 +1,4 @@
+import { SAYINGS } from './asked.ts'
 import type { Scope, Surface } from './surface.ts'
 import { VERBS } from './verbs.ts'
 
@@ -64,6 +65,16 @@ export interface Route {
    */
   verb?: string
   /**
+   * The thing this route says to the conversation, where it is one of `ASKS`.
+   *
+   * Carried rather than read back out of the path, for the reason `verb` is: a
+   * handler that parsed a name out of a URL is a handler one route change away
+   * from accepting a name nobody declared. A route has one or the other and
+   * never both — a verb reaches a `WebActing` method and this reaches a
+   * `WebAsking` one, and `test/routes.test.ts` says so.
+   */
+  says?: string
+  /**
    * Whether it changes anything at all. Mutations carry the cross-site layers:
    * an exact `Origin`, JSON only, and the session's own token.
    */
@@ -123,6 +134,7 @@ export const ROUTES: readonly Route[] = [
   shellAt('/spend', 'spend page'),
   shellAt('/findings', 'findings page'),
   shellAt('/notes', 'notes page'),
+  shellAt('/talk', 'talk page'),
   shellAt('/devices', 'devices page'),
   shellAt('/more', 'more page'),
   // The stylesheet and the script. Public for the same reason the shell is:
@@ -206,6 +218,33 @@ export const ACTS: readonly Route[] = VERBS.map((verb) => ({
 }))
 
 /**
+ * The asking routes: **one path per thing a device may say**, and the table is
+ * `SAYINGS`.
+ *
+ * A third table and not two more entries in `ACTS`, for the reason
+ * `asking.ts` gives: a verb is a target plus the state it expects, and a
+ * message has no target. They need a different scope (`ask`), a different
+ * setting (`surfaces.web.orchestrator`) and a different interface, so folding
+ * them in would mean `ACTS` carrying a row whose `verb` reaches no `WebActing`
+ * method — which is exactly the shape `carryOut` answers with a `404`.
+ *
+ * A path each rather than one `/api/ask/:what`, so there is no handler that
+ * takes a name and dispatches on it: a name that is not in `SAYINGS` has no
+ * path, and a path that has no route is a `404`.
+ */
+export const ASKS: readonly Route[] = Object.keys(SAYINGS).map((name) => ({
+  method: 'POST' as const,
+  path: `/api/ask/${name}`,
+  name: `ask ${name}`,
+  // Both need `ask` and neither is implied by `answer` or `steer`: stopping
+  // the turn you started is part of being able to start one, and a device that
+  // may answer an approval has not been granted free text to a model.
+  needs: 'ask' as Scope,
+  mutates: true,
+  says: name,
+}))
+
+/**
  * The table this listener answers from, which is a fact about the config.
  *
  * Built once, when the server is made, which is why turning `acting` **on**
@@ -215,7 +254,7 @@ export const ACTS: readonly Route[] = VERBS.map((verb) => ({
  * direction, and the setting's own words say so.
  */
 export function routesFor(surface: Surface): readonly Route[] {
-  return surface.acting ? [...ROUTES, ...ACTS] : ROUTES
+  return [...ROUTES, ...(surface.acting ? ACTS : []), ...(surface.talking ? ASKS : [])]
 }
 
 /** The route for a method and a path, and the segment it matched. */

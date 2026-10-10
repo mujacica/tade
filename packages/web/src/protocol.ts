@@ -71,7 +71,15 @@ export const FreshnessSchema = z.strictObject({
 export type Freshness = z.infer<typeof FreshnessSchema>
 
 /** The collections a projection has, each keyed by a stable id. */
-export const COLLECTIONS = ['projects', 'tasks', 'queue', 'findings', 'notes', 'plans'] as const
+export const COLLECTIONS = [
+  'projects',
+  'tasks',
+  'queue',
+  'findings',
+  'notes',
+  'plans',
+  'chat',
+] as const
 export type Collection = (typeof COLLECTIONS)[number]
 
 /**
@@ -289,6 +297,35 @@ export const NoteRowSchema = z.strictObject({
 })
 export type NoteRow = z.infer<typeof NoteRowSchema>
 
+/**
+ * One line of the conversation with Tade.
+ *
+ * **A hand-written allow-list over a transcript, and the name `transcript` is
+ * still forbidden** (`fields.ts`): what makes a raw one dangerous is a tool
+ * call's arguments, a tool's answer, a lane's bytes and a machine path, and
+ * every one of those is still a name that fails a test. What is here is five
+ * fields, a tool's **name**, and an outcome in one word.
+ */
+export const ChatRowSchema = z.strictObject({
+  /** The line's own place in the conversation. Stable: a delta is keyed by it. */
+  id: z.string(),
+  at: z.string(),
+  // `tade` and not `said`, which is the word this package may not even
+  // contain: `said` is the one event type whose writer authorises a setting
+  // change, and `test/protocol.test.ts` holds every source here to not naming
+  // it. The line is Tade stating something either way.
+  kind: z.enum(['asked', 'reply', 'tool', 'tade', 'problem']),
+  /** `you` or `device <id>`. Null for Tade's own lines and the model's. */
+  from: z.string().nullable(),
+  /** The words. A person's verbatim; a model's with anything path-shaped taken out. */
+  text: SaidSchema.nullable(),
+  /** The tool's **name** and never its arguments. */
+  tool: z.string().nullable(),
+  outcome: z.enum(['running', 'ok', 'failed']).nullable(),
+  streaming: z.boolean(),
+})
+export type ChatRow = z.infer<typeof ChatRowSchema>
+
 export const PlanRowSchema = z.strictObject({
   /** `<harness>/<account>`. */
   id: z.string(),
@@ -313,6 +350,28 @@ export const YouSchema = z.strictObject({
   device: z.string(),
   /** What this device was granted at the machine. */
   reads: z.array(z.enum(GRANTS)),
+  /**
+   * The conversation as it stands, or null where talking is turned off.
+   *
+   * **On `you` rather than as a seventh page**, because it is not rows: it is
+   * the revision a message echoes back, whether anything is in flight, whose
+   * turn it is, and whether this device may send one. `you` already rides on
+   * every delta (`delta.you`), so all four stream without a second mechanism.
+   *
+   * `mine` is a drawing hint and **not permission**: the gate re-asks the
+   * scope, the setting and the origin at the turn. It is here so the page can
+   * leave the composer out with its reason rather than draw one that answers
+   * `403` — the rule `TaskRow.can` already follows.
+   */
+  talk: z
+    .strictObject({
+      rev: z.string(),
+      busy: z.boolean(),
+      /** `you` or `device <id>`. Null for nothing in flight. Never a label. */
+      whose: z.string().nullable(),
+      mine: z.boolean(),
+    })
+    .nullable(),
 })
 export type You = z.infer<typeof YouSchema>
 
@@ -328,6 +387,7 @@ export const SnapshotSchema = z.strictObject({
     findings: PageInfoSchema,
     notes: PageInfoSchema,
     plans: PageInfoSchema,
+    chat: PageInfoSchema,
   }),
   projects: z.array(ProjectRowSchema),
   tasks: z.array(TaskRowSchema),
@@ -335,6 +395,7 @@ export const SnapshotSchema = z.strictObject({
   findings: z.array(FindingRowSchema),
   notes: z.array(NoteRowSchema),
   plans: z.array(PlanRowSchema),
+  chat: z.array(ChatRowSchema),
 })
 export type Snapshot = z.infer<typeof SnapshotSchema>
 
@@ -363,6 +424,7 @@ export const DeltaSchema = z.strictObject({
     findings: z.record(z.string(), FindingRowSchema.partial()).optional(),
     notes: z.record(z.string(), NoteRowSchema.partial()).optional(),
     plans: z.record(z.string(), PlanRowSchema.partial()).optional(),
+    chat: z.record(z.string(), ChatRowSchema.partial()).optional(),
   }),
   del: z.strictObject({
     projects: z.array(z.string()).optional(),
@@ -371,6 +433,7 @@ export const DeltaSchema = z.strictObject({
     findings: z.array(z.string()).optional(),
     notes: z.array(z.string()).optional(),
     plans: z.array(z.string()).optional(),
+    chat: z.array(z.string()).optional(),
   }),
   pages: z
     .strictObject({
@@ -380,6 +443,7 @@ export const DeltaSchema = z.strictObject({
       findings: PageInfoSchema.optional(),
       notes: PageInfoSchema.optional(),
       plans: PageInfoSchema.optional(),
+      chat: PageInfoSchema.optional(),
     })
     .optional(),
   you: YouSchema.optional(),
@@ -394,6 +458,7 @@ export interface Rows {
   findings: FindingRow
   notes: NoteRow
   plans: PlanRow
+  chat: ChatRow
 }
 
 /**
@@ -412,4 +477,5 @@ export const KEYED: { [C in Collection]: (row: Rows[C]) => string } = {
   findings: (row) => row.key,
   notes: (row) => row.id,
   plans: (row) => row.id,
+  chat: (row) => row.id,
 }

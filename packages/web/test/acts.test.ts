@@ -18,6 +18,7 @@ const ON: Surface = {
   port: 7654,
   trustedHosts: ['studio.yak-bebop.ts.net'],
   acting: true,
+  talking: false,
 }
 
 const HERE = { scheme: 'http', host: '127.0.0.1' }

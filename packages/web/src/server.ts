@@ -3,6 +3,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { carryOut } from './acted.ts'
 import type { WebActing } from './acting.ts'
 import type { Standing } from './acts.ts'
+import { carryAsk } from './asked.ts'
+import type { WebAsking } from './asking.ts'
 import { type Asset, assetFor, assetsDir, matchesEtag, readAssets } from './assets.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
@@ -34,7 +36,7 @@ import {
 } from './serving.ts'
 import { clearCookie, mint, renewal, SESSION_MS, sessionOf, setCookie } from './sessions.ts'
 import { cursorOf } from './stream.ts'
-import { listenOn, reachOf, type Surface, scopesOn } from './surface.ts'
+import { listenOn, reachOf, type Scope, scopesOn } from './surface.ts'
 import { couldBeTicket } from './tickets.ts'
 
 // The away view's own HTTP server: `node:http`, one handler, the table in
@@ -191,19 +193,23 @@ export function webServer(opts: ServerOptions): WebServer {
     const verdict = allowed(asking, found.route, guarding)
     if (!verdict.ok) {
       said(asking, found.route, verdict.why)
-      // **A verb refused at the door is written down too.** Everything else
+      // **A verb or a message refused at the door is written down too.** Everything else
       // refused here is a port scanner or a stale tab, and a line per refusal
       // would make the journal a request log; a *verb* is different — a device
       // that asked to change something and was not allowed to is exactly what
       // a person reading back needs to see, and it is the case the audit
       // matters most in. The device id where there was a session, and nothing
       // invented where there was not.
-      if (found.route.verb !== undefined) {
+      // A **verb or a message**, and each under its own type: an act and a
+      // paragraph to a model are different things to read back, and the
+      // question somebody has about a phone is which of the two it asked for.
+      const asked = found.route.verb ?? found.route.says
+      if (asked !== undefined) {
         tell({
-          type: 'web_did',
+          type: found.route.says === undefined ? 'web_did' : 'web_asked',
           detail: {
             device: guarding.session?.device ?? '',
-            tool: found.route.verb,
+            tool: asked,
             state: 'refused',
             why: verdict.refusal.error,
           },
@@ -270,6 +276,9 @@ export function webServer(opts: ServerOptions): WebServer {
       default:
         if (found.route.verb !== undefined) {
           return act(req, res, found.route, device, verdict.origin, request)
+        }
+        if (found.route.says !== undefined) {
+          return say(req, res, found.route.says, device, verdict.origin, request)
         }
         return answer(res, refuse('no_such'))
     }
@@ -523,6 +532,67 @@ export function webServer(opts: ServerOptions): WebServer {
   }
 
   /**
+   * One message to Tade: the body, then `carryAsk`, then the bytes.
+   *
+   * The sibling of `act`, and deliberately the same five lines: read a bounded
+   * body, decide nothing here, write the answer, and write the audit line
+   * **whatever** came of it. The line is a `web_asked` rather than a `web_did`
+   * — a bounded verb and a paragraph to a model are different things to read
+   * back, and the question somebody has about a phone is *what did it ask*.
+   */
+  async function say(
+    req: IncomingMessage,
+    res: ServerResponse,
+    says: string,
+    device: Device,
+    origin: { scheme: string; host: string },
+    request: string,
+  ): Promise<void> {
+    const asking = opts.asking
+    // No `WebAsking` at all is a window that was not given the asking half,
+    // which is "this listener does not do that": a `404`, like every other
+    // capability that is not here.
+    if (asking === undefined) return answer(res, refuse('no_such'))
+    const got = await readBody(req)
+    if (!got.read) return answer(res, got.refusal)
+    await readReceipts()
+
+    const answered = await carryAsk(says, got.body, {
+      asking,
+      receipts,
+      surface: opts.surface,
+      unlocked: talking(asking),
+      rev: opts.readingFor(reachOf(device)).rev,
+      reach: reachOf(device),
+      scopes: device.scopes as Scope[],
+      origin,
+      device: device.id,
+      now: now(),
+      request,
+    })
+    if (answered.warning !== null) {
+      tell({ type: 'warning', detail: { warning: answered.warning, request } })
+    }
+    const { task: _task, ...detail } = answered.did
+    tell({ type: 'web_asked', detail })
+    if (answered.refusal !== null) return answer(res, answered.refusal)
+    return json(res, answered.body ?? {})
+  }
+
+  /**
+   * Whether talking is unlocked, asked of the window and never allowed to
+   * throw a request over. The same treatment `unlocked` gets, for the same
+   * reason: the safe answer to this question is *no*.
+   */
+  function talking(asking: WebAsking): boolean {
+    try {
+      return asking.unlocked()
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Whether acting is unlocked, asked of the window and never allowed to throw
    * a request over.
    *
@@ -620,7 +690,7 @@ export function webServer(opts: ServerOptions): WebServer {
     async listen(): Promise<readonly string[]> {
       if (!opts.surface.enabled) return []
       assets ??= await readAssets()
-      if (opts.surface.acting) await readReceipts()
+      if (opts.surface.acting || opts.surface.talking) await readReceipts()
       // **A folder with no files in it is said, not served.** `readAssets`
       // answers a folder it could not read the same way it answers an empty
       // one, which is right for it and is a listener that `404`s every page

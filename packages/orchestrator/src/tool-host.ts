@@ -2,12 +2,14 @@ import { chmod, mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import {
+  type Arm,
   DONE_RULES,
   type DoneRule,
   dryRunSays,
   inboxProvenance,
   inboxWaiting,
   type LaneId,
+  LOCAL,
   type Plan,
   planReport,
   readTemplates,
@@ -27,6 +29,7 @@ import {
   type Workbench,
   wouldRunSays,
 } from '@tade/workbench'
+import { type Arming, allowMethod, allowTool, waiting, writtenBy } from './origin.ts'
 
 // How the orchestrator's tools reach the workbench.
 //
@@ -133,6 +136,16 @@ export interface ToolHostOptions {
     list(find: string): Promise<string>
     change(req: { watch: string; project: string; on: boolean; said: string }): Promise<string>
   }
+  /**
+   * How far the turn in flight reaches, and what a narrowed one is answered
+   * with (`Arming`, in `origin.ts` beside the tables it is asked about).
+   *
+   * **Optional, and its absence is the guarantee.** With nothing handed over,
+   * every call is `LOCAL` and this host behaves exactly as it did — which is
+   * what a window with `surfaces.web.orchestrator` off hands over, so there is
+   * no remote arm to be in and no narrowing to get wrong.
+   */
+  remote?: Arming
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -141,7 +154,7 @@ export interface ToolHostOptions {
   }) => Promise<string>
 }
 
-type Handler = (params: Record<string, unknown>) => unknown | Promise<unknown>
+type Handler = (params: Record<string, unknown>, arm: Arm) => unknown | Promise<unknown>
 
 /** Which terminal a call names, as said: an id, a name, a number, or nothing when there is one. */
 const said = (p: Record<string, unknown>): string => (p.terminal ? String(p.terminal) : '')
@@ -153,11 +166,18 @@ export class ToolHost {
   private readonly server: Server
   private readonly sockets = new Set<Socket>()
   private readonly methods: Record<string, Handler>
+  private readonly opts: ToolHostOptions
 
-  private constructor(path: string, server: Server, methods: Record<string, Handler>) {
+  private constructor(
+    path: string,
+    server: Server,
+    methods: Record<string, Handler>,
+    opts: ToolHostOptions,
+  ) {
     this.path = path
     this.server = server
     this.methods = methods
+    this.opts = opts
   }
 
   static async listen(opts: ToolHostOptions): Promise<ToolHost> {
@@ -335,7 +355,27 @@ export class ToolHost {
       // and there is no method here that would, because which sign-in agents
       // run as is a person's.
       'plan/limits': async () => planReport(tade.planUsage(), Date.now()),
-      'status/read': async () => {
+      // **The gate itself**, asked by Tade's own tools extension before every
+      // tool this session has — its own and the harness's alike. It answers a
+      // decision and nothing else, which is why a remote turn may reach it:
+      // the alternative is a gate that cannot be asked during the turn it is
+      // for.
+      'origin/allow': (p, arm) => {
+        const tool = String(p.tool ?? '')
+        const said = allowTool(tool, arm)
+        if (said.ok) return { allow: true }
+        opts.remote?.refused(arm, tool, said.said)
+        return { allow: false, reason: said.said }
+      },
+      'status/read': async (_p, arm) => {
+        // A remote turn is answered with that device's own projection, which
+        // is the narrowing rather than a filter over a wider answer: nothing
+        // is taken out of `tade status` here, because `tade status` is never
+        // built for one.
+        if (arm.how === 'remote') {
+          if (!opts.remote) throw new Error('this Tade cannot answer a paired device')
+          return opts.remote.seen(arm)
+        }
         if (!opts.status) throw new Error('this Tade has no window to ask')
         return opts.status()
       },
@@ -395,7 +435,11 @@ export class ToolHost {
         })
       },
       'worker/list': () => tade.runs(),
-      'worker/pending': (p) => tade.pendingApprovals(p.task ? String(p.task) : undefined),
+      // Narrowed on the way out for a remote arm: the tool's name, the run and
+      // the request, and never the harness's own summary of the command. The
+      // page is shown the same (`TaskIn.approval`), for the same reason.
+      'worker/pending': (p, arm) =>
+        waiting(tade.pendingApprovals(p.task ? String(p.task) : undefined), arm),
       'worker/steer': async (p) => {
         await tade.steerAgent(String(p.task), String(p.message))
         return { ok: true }
@@ -412,11 +456,15 @@ export class ToolHost {
         )
         return { ok: true }
       },
-      'memory/remember': (p) =>
+      // `by` is **rewritten** for a remote arm and never taken from the call:
+      // a note the orchestrator wrote because a phone asked for it is the
+      // phone's, and one filed as the orchestrator's own is the same
+      // provenance hole as a remote act recorded as `you`.
+      'memory/remember': (p, arm) =>
         tade.remember(
           String(p.text),
           p.scope === null || p.scope === undefined ? null : String(p.scope),
-          p.by ? String(p.by) : 'tade',
+          writtenBy(arm, p.by),
           p.summary ? String(p.summary) : null,
         ),
       'events/read': (p) => tade.events(p as never),
@@ -467,7 +515,7 @@ export class ToolHost {
     await mkdir(dirname(opts.path), { recursive: true, mode: 0o700 })
     await rm(opts.path, { force: true })
     const server = createServer()
-    const host = new ToolHost(opts.path, server, methods)
+    const host = new ToolHost(opts.path, server, methods, opts)
     server.on('connection', (socket) => host.accept(socket))
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
@@ -502,6 +550,24 @@ export class ToolHost {
     })
   }
 
+  /**
+   * How far this call reaches, asked at the call and never cached.
+   *
+   * A throw out of the window's own reader is answered with `LOCAL`? No: the
+   * safe answer to *whose turn is this* is the narrowest one there is, so a
+   * reader that threw is read as a remote arm granted nothing. A window that
+   * cannot say who is asking must not be read as saying the person is.
+   */
+  private armOf(): Arm {
+    const remote = this.opts.remote
+    if (!remote) return LOCAL
+    try {
+      return remote.arm()
+    } catch {
+      return { how: 'remote', device: '', projects: [], may: [] }
+    }
+  }
+
   private async dispatch(socket: Socket, body: string): Promise<void> {
     let id: unknown = null
     try {
@@ -511,9 +577,24 @@ export class ToolHost {
         params?: Record<string, unknown>
       }
       id = message.id ?? null
-      const handler = this.methods[message.method ?? '']
+      const method = message.method ?? ''
+      const handler = this.methods[method]
       if (!handler) throw new Error(`no such method: ${message.method}`)
-      reply(socket, { jsonrpc: '2.0', id, result: (await handler(message.params ?? {})) ?? null })
+      const params = message.params ?? {}
+      // **The gate, and it is in front of every method rather than inside the
+      // ones somebody remembered.** A connection to this socket is the only
+      // way in, so a tool the harness's own gate let through, a tool call Tade
+      // never registered, and a second process of the same agent are all
+      // judged here by the same table.
+      const arm = this.armOf()
+      if (arm.how === 'remote') {
+        const allowed = allowMethod(method, params, arm, this.projectFor(method, params))
+        if (!allowed.ok) {
+          this.opts.remote?.refused(arm, method, allowed.said)
+          throw new Error(allowed.said)
+        }
+      }
+      reply(socket, { jsonrpc: '2.0', id, result: (await handler(params, arm)) ?? null })
     } catch (err) {
       // A tool that fails must say why in words the model can act on, not
       // drop the connection and leave it guessing.
@@ -523,6 +604,28 @@ export class ToolHost {
         error: { code: -32000, message: err instanceof Error ? err.message : String(err) },
       })
     }
+  }
+
+  /**
+   * The project a call is about, for the one method whose project only the
+   * window can find.
+   *
+   * `worker/decide` names a run and a request, and which task a run belongs to
+   * is the supervisor's answer rather than something in the call — so a remote
+   * arm's project check for it goes through the approval it names. An approval
+   * that is not there answers `null` and the method's own re-check refuses it
+   * as gone, which is the right order: *not found* is not *out of scope*.
+   */
+  private projectFor(method: string, params: Record<string, unknown>): string | null {
+    if (method !== 'worker/decide') return null
+    const run = String(params.run ?? '')
+    const request = String(params.requestId ?? '')
+    const found = this.opts.tade
+      .pendingApprovals()
+      .find((one) => one.run === run && one.requestId === request)
+    if (!found) return null
+    const cut = found.task.indexOf('/')
+    return cut <= 0 ? null : found.task.slice(0, cut)
   }
 
   async close(): Promise<void> {

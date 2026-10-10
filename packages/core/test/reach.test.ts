@@ -314,6 +314,11 @@ describe('the shape of the rule', () => {
       'surfaces.web.acting',
       'surfaces.web.bind',
       'surfaces.web.enabled',
+      // The fourth away-view key, and `never` by the same subtree rather than
+      // by a line of its own — which is the property this list is here to
+      // show: a key added under `surfaces.web` is refused on the day it is
+      // written, by somebody who never read `reach.ts`.
+      'surfaces.web.orchestrator',
       'surfaces.web.port',
       'surfaces.web.trusted_hosts',
       'telemetry.dsn',

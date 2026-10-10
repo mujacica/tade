@@ -29,6 +29,27 @@
 const mark = (glyph, word, tone) => ({ glyph, word, tone })
 
 /**
+ * What kind of line one of the conversation's lines is: who is speaking.
+ *
+ * **Five, and they are about *who* rather than about how it should look.** The
+ * window draws a routed line, a note and a suggestion differently because it
+ * has the room; a phone does not, and a page that chose a shape from a guess
+ * would be a second reading of the same entries. `tade` is Tade stating
+ * something, whatever prompted it.
+ *
+ * `t-quiet` for a tool line is deliberate: a tool that worked is the least
+ * interesting thing on the screen, and one that failed is already a `problem`
+ * line beside it.
+ */
+export const CHAT_KINDS = {
+  asked: mark('❯', 'asked', 't-wants'),
+  reply: mark('·', 'Tade', 't-working'),
+  tool: mark('⌸', 'used a tool', 't-quiet'),
+  tade: mark('·', 'Tade', 't-quiet'),
+  problem: mark('▲', 'went wrong', 't-failed'),
+}
+
+/**
  * A task's state, as `deriveState` answered it.
  *
  * `t-quiet` for queued and parked is deliberate: neither is a thing to look at,

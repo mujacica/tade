@@ -30,6 +30,7 @@ const LAN: Surface = {
   port: 7654,
   trustedHosts: ['studio.yak-bebop.ts.net'],
   acting: true,
+  talking: false,
 }
 
 const SESSION = {

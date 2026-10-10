@@ -63,6 +63,7 @@ import {
   rowsOf,
   wantingIds,
 } from './store.js'
+import { talkScreen } from './talk.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
 function ticketIn() {
@@ -169,6 +170,7 @@ const SCREENS = {
   spend: () => spendScreen(),
   findings: () => findingsScreen(),
   notes: () => notesScreen(),
+  talk: () => talkScreen(ctx),
   devices: () => devicesScreen(ctx),
   pair: () => pairScreen(ctx),
   more: () => moreScreen(),

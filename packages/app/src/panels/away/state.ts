@@ -67,6 +67,18 @@ export const AWAY_CONTROLS = {
    * turned on is a button that cannot do what it says.
    */
   act: 'away-act:',
+  /**
+   * Let one device talk to Tade, or take it back: `away-talk:<id>`.
+   *
+   * **A second control and not a wider first one.** Acting's eight verbs are
+   * each a target plus the state it expects; this is free text to a model that
+   * holds tools, which is the difference between answering a question and
+   * being able to ask for anything. A person who granted the first has not
+   * answered the second, and one control for both would be a yes to a question
+   * nobody was asked. Drawn only where `surfaces.web.orchestrator` is on, for
+   * the reason the act chip is drawn only where acting is.
+   */
+  talk: 'away-talk:',
 } as const
 
 /**

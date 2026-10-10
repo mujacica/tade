@@ -78,7 +78,29 @@ export function asksFor(row) {
 export function actsOf(session) {
   const scopes = session === null || session === undefined ? [] : (session.scopes ?? [])
   const has = (scope) => Array.isArray(scopes) && scopes.includes(scope)
-  return { answer: has('answer'), steer: has('steer') }
+  // `ask` is a third scope and not implied by either tier: a device granted
+  // both acting tiers has been granted eight bounded verbs, and not free text
+  // to a model that holds tools.
+  return { answer: has('answer'), steer: has('steer'), ask: has('ask') }
+}
+
+/**
+ * What one message sends.
+ *
+ * `was` is the **conversation's** own revision — what the screen said, echoed
+ * back — so a message typed while Tade started answering somebody else is a
+ * `409` that redraws the truth rather than words joining a turn they were not
+ * meant for. The key is minted once per press and kept across a retry, which
+ * is what makes the one failure a phone on a train actually has — send, lose
+ * signal, send again — one turn rather than two.
+ */
+export function askBody(talk, key, rev, said) {
+  return { was: talk?.rev ?? '', key, rev, said }
+}
+
+/** What stopping the turn sends: the same four fields, minus the words. */
+export function stopBody(talk, key, rev) {
+  return { was: talk?.rev ?? '', key, rev }
 }
 
 /**

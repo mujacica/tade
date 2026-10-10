@@ -124,6 +124,16 @@ export const NEVER_A_FIELD: Readonly<Record<string, string>> = {
   diff: 'a diff ships source to a device and to a cache; that is its own act and its own setting',
   patch: 'a patch is a diff with a different name on it, and ships the same source',
   output: 'a lane’s bytes can carry anything an agent printed by accident',
+  // **Still forbidden, and the conversation collection is not an exception to
+  // it.** What makes a raw transcript dangerous is what it carries: a tool
+  // call's arguments, a tool's answer, a lane's bytes, a machine path, a
+  // provider's own envelope — and every one of those is still a name that
+  // fails this test (`args`, `payload`, `output`, `root`, `worktree`, `cwd`).
+  // `ChatRow` is the hand-written allow-list over one: five fields, a tool's
+  // **name** and never its arguments, an outcome in one word, every line
+  // path-elided on the way out, and the whole collection behind its own grant.
+  // A field called `transcript` would be the raw thing arriving by the name a
+  // harness reaches for, which is the mistake this entry is about.
   transcript: 'the largest, least structured, most injection-prone surface Tade has',
   payload: 'a tool call’s arguments are the call itself, machine paths and all',
   args: 'the arguments of a call under the name a harness is most likely to use',

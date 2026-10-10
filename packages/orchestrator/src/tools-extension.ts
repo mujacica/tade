@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
 import { join } from 'node:path'
 import { configTools } from './tools-config.ts'
+import { type Gateable, gateTools } from './tools-gate.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -74,7 +75,7 @@ interface ToolDefinition {
     ctx: ToolContext,
   ): Promise<ToolResult>
 }
-interface PiApi {
+interface PiApi extends Gateable {
   registerTool(tool: ToolDefinition): void
   /** Switches this session only; the default for new sessions is left alone. */
   setModel?(model: unknown): Promise<boolean>
@@ -863,6 +864,7 @@ export function orchestratorTools(
  * switched in the session it is already in.
  */
 export default function tadeTools(pi: PiApi): void {
+  gateTools(pi, rpc)
   const switchModel = async (
     chosen: { provider: string; id: string },
     ctx: ToolContext,

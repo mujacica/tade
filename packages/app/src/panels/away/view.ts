@@ -58,6 +58,16 @@ export interface AwayView {
    * granting it.
    */
   acting: boolean
+  /**
+   * Whether `surfaces.web.orchestrator` is on.
+   *
+   * A second flag for a second decision, read the same way `acting` is: with
+   * it off there is no route a message could reach, so the chip is not drawn
+   * rather than drawn and refused.
+   */
+  talking: boolean
+  /** Said when talking is on. `TALKING_IS_NOT_YOU`, verbatim. */
+  talks: string
   /** Said when acting is on. `ACTING_IS_NOT_YOU`, verbatim. */
   acts: string
   /** Said when a LAN bind is on. `LAN_IS_PLAINTEXT`, verbatim. */
@@ -85,6 +95,8 @@ export interface AwayDevice {
    * the record either way.
    */
   mayAct: boolean
+  /** Whether it was granted `ask`: free text into the conversation. */
+  mayTalk: boolean
   /** Whether it has a live stream open now. */
   live: boolean
 }
@@ -290,13 +302,22 @@ function middleOf(
       lines.push(row().space().text(said, skin.waiting).build())
     }
   }
+  if (view.talking) {
+    // Its own paragraph, above the list, for the same reason acting's is: the
+    // moment to read what a device will be able to do is before granting it.
+    // Whole, never cut — the half that says what the narrowing actually is, is
+    // the half somebody deciding needs.
+    for (const said of wrap(view.talks, inner - 3)) {
+      lines.push(row().space().text(said, skin.waiting).build())
+    }
+  }
   const first = lines.length
   if (view.devices.length === 0) {
     lines.push(row().space().text('No device has been paired.', skin.hint).build())
     return { lines, chosen: null }
   }
   for (const [at, device] of view.devices.entries()) {
-    lines.push(deviceLine(device, at === panel.chosen, view.acting, ctx, inner))
+    lines.push(deviceLine(device, at === panel.chosen, view, ctx, inner))
   }
   // Where the chosen row is in the whole region, so scrolling follows it: an
   // offset anchored in the rows it was drawn on would move when the code did.
@@ -336,17 +357,25 @@ function footOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
 function deviceLine(
   device: AwayDevice,
   chosen: boolean,
-  acting: boolean,
+  view: Pick<AwayView, 'acting' | 'talking'>,
   ctx: PanelContext,
   inner: number,
 ): Line {
   const { skin } = ctx
+  const acting = view.acting
   const reads = device.reads.length === 0 ? 'names and counts' : device.reads.join(', ')
   // `may act` is on the row rather than only on the control, because the list
   // is what somebody reads to answer *can any of these change my work* — and a
   // capability you can only see by looking at the state of a button is one
   // nobody audits. Absent with acting off, where it cannot be true.
-  const said = acting && device.mayAct ? `${reads} · may act` : reads
+  // Two words rather than two clauses, because the row is cut to the panel's
+  // width and the half that would be cut is the second one — which is the one
+  // somebody scanning the list is least likely to have expected.
+  const can = [
+    acting && device.mayAct ? 'may act' : '',
+    view.talking && device.mayTalk ? 'may talk' : '',
+  ].filter(Boolean)
+  const said = can.length === 0 ? reads : `${reads} · ${can.join(' · ')}`
   return new Row(inner, skin, ctx.pointer)
     .space()
     .text(chosen ? '›' : ' ', skin.signal)
@@ -371,6 +400,16 @@ function deviceLine(
           'act',
           { kind: 'control', id: `${AWAY_CONTROLS.act}${device.id}` },
           device.mayAct ? 'danger' : 'go',
+        ).space()
+      }
+      if (view.talking) {
+        // The same shape as the act chip and the same argument: one chip, one
+        // word, the colour saying which way it goes, and the *state* in the
+        // row's own words above rather than in colour alone.
+        r.chip(
+          'talk',
+          { kind: 'control', id: `${AWAY_CONTROLS.talk}${device.id}` },
+          device.mayTalk ? 'danger' : 'go',
         ).space()
       }
       return r

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
-import type { Config } from '@tade/core'
+import type { Arm, Config } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
 import type { HarnessModels } from '@tade/harnesses-core'
 import type { Reporter } from '@tade/telemetry'
@@ -60,6 +60,69 @@ export interface Thinker {
   /** What its harness can be asked of a turn in flight, in `offer()`'s words. */
   offers?: ThinkerOffers
   onEvent?(listener: (event: ThinkerEvent) => void): () => void
+  /**
+   * Say something a paired device asked, under an arm that narrows what the
+   * turn may reach.
+   *
+   * **A second method and not a parameter on `ask`**, which is what makes
+   * "local control is unchanged" something a type says rather than something a
+   * comment promises: there is no argument on the local path that could carry
+   * an arm, and no default that could be forgotten. It answers nothing — the
+   * reply streams through `onEvent` — and throws rather than reporting a
+   * reason, because a harness that cannot be narrowed and a conversation that
+   * is already busy are different refusals with different sentences.
+   *
+   * Absent on a thinker that has no notion of one, which is every one but the
+   * real orchestrator: a window given such a thinker serves nothing from away
+   * and says so.
+   */
+  askFrom?(text: string, arm: Arm): Promise<void>
+  /** How far the turn in flight reaches: what the `ToolHost` asks at every call. */
+  arm?(): Arm
+  /** Whether a turn is in flight, so a surface says *still answering* rather than guessing. */
+  busy?(): boolean
+  /** Why this harness cannot answer a paired device, or null when it can. */
+  unarmed?(): string | null
+}
+
+/**
+ * The five things a subject shares, built out of the window's own answers.
+ *
+ * **Here rather than in `app.ts` because this is where `Wiring` is declared**,
+ * and because a getter inside an object literal has a `this` of its own: the
+ * two fields that change — the state and the world as last looked at — have to
+ * be read *as they are at every look*, not captured once. That is the whole
+ * reason this is six accessors rather than six values, and the reason it is
+ * easy to get wrong is why it is written down beside the type.
+ */
+export function wiringFor(
+  opts: AppOptions,
+  window: {
+    state: () => AppState
+    put: (next: AppState) => void
+    live: () => Live | null
+    now: () => number
+    layout: () => LayoutPrefs
+    draw: () => void
+  },
+): Wiring {
+  return {
+    get opts() {
+      return opts
+    },
+    get state() {
+      return window.state()
+    },
+    put: (next) => window.put(next),
+    get live() {
+      return window.live()
+    },
+    now: () => window.now(),
+    layout: () => window.layout(),
+    openedAt: opts.now?.() ?? Date.now(),
+    draw: () => window.draw(),
+    note: (err) => window.put(notice(window.state(), why(err))),
+  }
 }
 
 /** A picture to send with what you said: where it is, and what kind. */

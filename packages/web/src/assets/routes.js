@@ -62,6 +62,7 @@ export function viewOf(path) {
  */
 const PLAIN = [
   'queue',
+  'talk',
   'checks',
   'reviews',
   'spend',
@@ -109,6 +110,7 @@ export const TITLES = {
   spend: 'Spend',
   findings: 'Findings',
   notes: 'Notes',
+  talk: 'With Tade',
   devices: 'Devices',
   more: 'More',
   pair: 'Pair this device',
@@ -133,6 +135,10 @@ export const NAV = [
 
 /** The weekly reads, listed on every screen's rail and under More on a phone. */
 export const MORE = [
+  // First among the weekly reads, because it is the one that is read *because
+  // something happened* rather than on a round: a reply arrived, or Tade is
+  // answering somebody. The others are lists that are true whenever you look.
+  { view: 'talk', mark: '❯', label: 'With Tade', counts: null },
   { view: 'reviews', mark: '◴', label: 'Reviews', counts: 'reviews' },
   { view: 'findings', mark: '◈', label: 'Findings', counts: 'findings' },
   { view: 'notes', mark: '✎', label: 'Notes', counts: 'notes' },

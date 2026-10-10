@@ -1,5 +1,10 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
-import { ACTING_IS_NOT_YOU, DEVICES_SEEN_BY_AGENTS, LAN_IS_PLAINTEXT } from '@tade/core'
+import {
+  ACTING_IS_NOT_YOU,
+  DEVICES_SEEN_BY_AGENTS,
+  LAN_IS_PLAINTEXT,
+  TALKING_IS_NOT_YOU,
+} from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { AWAY_CONTROLS, awayClick, awayKey, awayPanel } from '../src/panels/away/state.ts'
@@ -29,6 +34,8 @@ function view(over: Partial<AwayView> = {}): AwayView {
     ticket: { url: URL, secondsLeft: 84 },
     code: code === null ? [] : blocksFor(code),
     asking: null,
+    talking: false,
+    talks: TALKING_IS_NOT_YOU,
     devices: [
       {
         id: '00112233445566aa',
@@ -36,6 +43,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
         pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
         reads: ['titles'],
         mayAct: false,
+        mayTalk: false,
         live: true,
       },
     ],
@@ -49,20 +57,30 @@ function view(over: Partial<AwayView> = {}): AwayView {
   }
 }
 
-function drawn(over: Partial<AwayView> = {}, size: { width?: number; height?: number } = {}) {
+function drawn(
+  over: Partial<AwayView> = {},
+  size: { width?: number; height?: number; date?: (at: number) => string } = {},
+) {
   const ctx = {
     width: size.width ?? 120,
     height: size.height ?? 34,
     skin: skinFor({}, false),
     pointer: { hover: null, pressed: null },
-    date: (at: number) => new Date(at).toISOString(),
+    // A whole ISO string by default, so a golden is a golden — and twenty-odd
+    // columns the real window spends on `11 Sep`. A test about **what fits on
+    // a row** has to use the shape the window actually draws, or it is a test
+    // about this line.
+    date: size.date ?? ((at: number) => new Date(at).toISOString()),
     bindings: {},
     away: view(over),
   } as unknown as PanelContext
   return drawPanel(awayPanel(), ctx).panel
 }
 
-const said = (over?: Partial<AwayView>, size?: { width?: number; height?: number }) =>
+const said = (
+  over?: Partial<AwayView>,
+  size?: { width?: number; height?: number; date?: (at: number) => string },
+) =>
   drawn(over, size)
     .rows.map((row) => stripTerminalSequences(row))
     .join('\n')
@@ -206,6 +224,7 @@ describe('what the panel never carries', () => {
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: [],
             mayAct: false,
+            mayTalk: false,
             live: false,
           },
         ],
@@ -253,6 +272,7 @@ describe('letting one device act', () => {
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: ['titles'],
             mayAct: true,
+            mayTalk: false,
             live: true,
           },
         ],
@@ -290,6 +310,7 @@ describe('letting one device act', () => {
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: [],
             mayAct: true,
+            mayTalk: false,
             live: false,
           },
         ],
@@ -298,5 +319,85 @@ describe('letting one device act', () => {
     )
     expect(text).not.toContain('may act')
     for (const word of ['never your own words', 'overrule']) expect(text).not.toContain(word)
+  })
+})
+
+describe('letting one device talk to Tade', () => {
+  it('draws no control for it at all while the setting is off', () => {
+    // Absent, not greyed out, and **not implied by acting**: these are two
+    // decisions with two settings, and a person who turned the first on has
+    // not answered the second.
+    const text = said({ acting: true }, { height: 72 })
+    expect(text).toContain('[act]')
+    expect(text).not.toContain('[talk]')
+    expect(text).not.toContain('may talk')
+  })
+
+  it('offers it per device once a person has turned talking on', () => {
+    const text = said({ talking: true }, { height: 72 })
+    expect(text).toContain('[talk]')
+  })
+
+  it('says which devices may, and says both where a device has both', () => {
+    const text = said(
+      {
+        acting: true,
+        talking: true,
+        devices: [
+          {
+            id: '00112233445566aa',
+            label: 'iPhone',
+            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
+            reads: ['titles'],
+            mayAct: true,
+            mayTalk: true,
+            live: true,
+          },
+        ],
+      },
+      // **The date the window actually draws**, because this is the one test
+      // about what fits on a row: a row that fills its width loses its pinned
+      // chips whole rather than half-drawn (`Row.build`), and `×` is the chip
+      // that must never be the one that goes.
+      { height: 72, date: () => '11 Sep' },
+    )
+    // **Both, on the row, in words.** Two grants is two facts, and a list that
+    // folded them into one would be a list somebody reads to answer the wrong
+    // question — *can this change my work* and *can this ask Tade for
+    // anything* have different answers.
+    expect(text).toContain('may act')
+    expect(text).toContain('may talk')
+    expect(text).toContain('[act]')
+    expect(text).toContain('[talk]')
+  })
+
+  it('says what a device talking to Tade is, whole, above the list', () => {
+    // The whole sentence, never cut: the half that says what the narrowing
+    // actually is — a closed list of tools, in code — is the half somebody
+    // deciding needs, and the half that would go first.
+    const text = said({ talking: true }, { height: 96 })
+    for (const word of TALKING_IS_NOT_YOU.split(/\s+/)) expect(text, word).toContain(word)
+  })
+
+  it('says nothing about talking where it is off, even with a device granted it', () => {
+    const text = said(
+      {
+        talking: false,
+        devices: [
+          {
+            id: '00112233445566aa',
+            label: 'iPhone',
+            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
+            reads: [],
+            mayAct: false,
+            mayTalk: true,
+            live: false,
+          },
+        ],
+      },
+      { height: 72 },
+    )
+    expect(text).not.toContain('may talk')
+    expect(text).not.toContain('refused in code')
   })
 })

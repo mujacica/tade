@@ -91,9 +91,25 @@ describe('the scope each verb needs, written twice', () => {
 
 describe('what this device may draw', () => {
   it('reads the scopes off its own session, and nothing off a row', () => {
-    expect(actsOf({ scopes: ['read', 'steer'] })).toEqual({ answer: false, steer: true })
-    expect(actsOf({ scopes: ['read', 'answer'] })).toEqual({ answer: true, steer: false })
-    expect(actsOf({ scopes: ['read', 'answer', 'steer'] })).toEqual(BOTH)
+    expect(actsOf({ scopes: ['read', 'steer'] })).toEqual({
+      answer: false,
+      steer: true,
+      ask: false,
+    })
+    expect(actsOf({ scopes: ['read', 'answer'] })).toEqual({
+      answer: true,
+      steer: false,
+      ask: false,
+    })
+    expect(actsOf({ scopes: ['read', 'answer', 'steer'] })).toEqual({ ...BOTH, ask: false })
+    // **A third scope, and neither tier implies it.** A device granted both
+    // acting tiers has been granted eight bounded verbs; talking to a model
+    // that holds tools is a separate grant with a separate control.
+    expect(actsOf({ scopes: ['read', 'ask'] })).toEqual({
+      answer: false,
+      steer: false,
+      ask: true,
+    })
   })
 
   it('draws nothing for a session that is not there, or carries nothing', () => {
@@ -101,7 +117,11 @@ describe('what this device may draw', () => {
     // would be a control present and refused on every row of a read-only
     // phone.
     for (const session of [null, undefined, {}, { scopes: null }, { scopes: 'steer' }]) {
-      expect(actsOf(session), JSON.stringify(session)).toEqual({ answer: false, steer: false })
+      expect(actsOf(session), JSON.stringify(session)).toEqual({
+        answer: false,
+        steer: false,
+        ask: false,
+      })
     }
   })
 })

@@ -1,7 +1,7 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type {
+  Arm,
   Config,
   Effort,
   Note,
@@ -10,11 +10,19 @@ import type {
   ThinkingLevel,
   Unsubscribe,
 } from '@tade/core'
-import { composePrompt, expandHome, livingSkills, orchestratorRoute, wentQuiet } from '@tade/core'
+import {
+  AWAY_WORDS,
+  cameFromAway,
+  composePrompt,
+  expandHome,
+  LOCAL,
+  livingSkills,
+  orchestratorRoute,
+  wentQuiet,
+} from '@tade/core'
 import {
   type HarnessModels,
   modelsOffered,
-  WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
   type WorkerExtras,
@@ -25,82 +33,19 @@ import { sessionIdFor } from '@tade/harnesses-pi'
 import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
 import { composeBriefing } from './briefing.ts'
 import { activeSkills, enabledTools } from './extensions.ts'
+import { skillsRoot, TOOLS_MCP, toolEnv, writeToolServer } from './launch.ts'
 import { modelNamed, startingModel } from './model.ts'
+import { canBeArmed } from './origin.ts'
 
-/**
- * What Tade's own tools are told, whichever harness loads them: where to call
- * back to, where Tade keeps things, how to run the CLI that answers "where
- * are we" exactly as a person would see it, and which extension tools this
- * orchestrator was given.
- */
-function toolEnv(opts: OrchestratorOptions): Record<string, string> {
-  const env: Record<string, string> = {}
-  for (const [key, value] of Object.entries(opts.env ?? process.env)) {
-    if (typeof value === 'string') env[key] = value
-  }
-  env.TADE_SOCKET = opts.socket
-  env.TADE_HOME = opts.home
-  // Where extensions live, so the tools do not have to guess at paths the
-  // config may have moved.
-  env.TADE_EXTENSIONS = expandHome(
-    opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
-  )
-  env.TADE_SKILLS = skillsRoot(opts)
-  env.TADE_CLI = process.execPath
-  env.TADE_CLI_ARGS = CLI_BIN
-  // The extension tools listed for this run, said here rather than left to
-  // whatever a harness happens to pass down to a server it spawns: pi's
-  // adapter sets this from the same `extras`, and nobody promises Claude Code
-  // hands its own environment to an MCP server, so an orchestrator on one
-  // silently had fewer tools than an orchestrator on the other — a capability
-  // difference nobody declared. Taken back out when there are none, because
-  // Tade opened from inside an agent inherits that agent's list, and the
-  // orchestrator's tools are not an agent's.
-  if (opts.extensions?.extras.tools) env[WORKER_ENV.tools] = opts.extensions.extras.tools
-  else delete env[WORKER_ENV.tools]
-  return env
-}
-
-/**
- * An MCP server that serves Tade's own tools, written where the harness that
- * starts it can find it: the same tools pi loads as an extension, in the
- * terms a harness that speaks MCP takes them.
- *
- * Exported so a test can start exactly what a harness would start, from
- * exactly the bytes it would read.
- */
-export function writeToolServer(opts: OrchestratorOptions): string {
-  const path = join(opts.runDir, 'tade-tools.mcp.json')
-  mkdirSync(opts.runDir, { recursive: true, mode: 0o700 })
-  writeFileSync(
-    path,
-    `${JSON.stringify(
-      {
-        mcpServers: {
-          tade: { type: 'stdio', command: process.execPath, args: [TOOLS_MCP], env: toolEnv(opts) },
-        },
-      },
-      null,
-      2,
-    )}\n`,
-    { mode: 0o600 },
-  )
-  return path
-}
-
-/** Where approved lessons live, beside everything else Tade keeps. */
-function skillsRoot(opts: { home: string }): string {
-  return join(opts.home, 'skills')
-}
+// Re-exported, so a file split for size is not a rename of everybody's
+// imports: both are what a harness is handed at launch, and `launch.ts` is
+// where they are written.
+export { TOOLS_MCP, writeToolServer }
 
 // The thing you talk to. An agent like any other, except that its tools are
 // Tade's own and nobody supervises it: it is the interface, not the work.
 
 export const TOOLS_EXTENSION = fileURLToPath(new URL('./tools-extension.ts', import.meta.url))
-/** The same tools, served over MCP to a harness that speaks it. */
-export const TOOLS_MCP = fileURLToPath(new URL('./tools-mcp.ts', import.meta.url))
-/** The `tade` CLI in a source checkout, which the status tool shells out to. */
-const CLI_BIN = fileURLToPath(new URL('../../cli/src/bin.ts', import.meta.url))
 
 export const ORCHESTRATOR_RUN = 'orchestrator'
 export const ORCHESTRATOR_TASK = 'tade/orchestrator'
@@ -166,6 +111,21 @@ export interface OrchestratorOptions {
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
+  /**
+   * Whether a paired device may talk to this conversation
+   * (`surfaces.web.orchestrator`).
+   *
+   * **It changes nothing about how the conversation is run**, which is the
+   * point: the gate on its tool calls is registered either way and answers
+   * *yes* to every local one, so the orchestrator is ungated for the person at
+   * the keyboard exactly as it was.
+   *
+   * What it is read for is **saying so at the start**. A harness that cannot
+   * be narrowed serves no remote turn (`canBeArmed`), and the person who
+   * turned the setting on is the one who needs to hear that nothing will come
+   * of it — at start-up, rather than from a phone being refused an hour later.
+   */
+  talking?: boolean
   /**
    * Start with none of the self-written extensions loaded. This is the way
    * back when one of them is what broke, so it must not depend on any of them.
@@ -241,6 +201,36 @@ export class Orchestrator {
    * afterwards is a harness we would be inventing.
    */
   private quietOn: string | null = null
+  /**
+   * The arm the turn in flight runs under, or null between turns.
+   *
+   * **One at a time, and held from the prompt until `idle`.** That window is
+   * deliberately wider than the remote turn's own tool calls, and the
+   * direction it errs in is the whole point: a call Tade cannot attribute to a
+   * turn is judged against the *narrower* arm, so the worst that happens is
+   * the person at the keyboard being refused something for a few seconds —
+   * said out loud, with escape as the way out — rather than a stranger's words
+   * reaching a tool after their turn was supposed to be over.
+   *
+   * Released on `idle`, which the harness sends when there is no turn in
+   * flight *and* nothing queued, and never on `abort` alone: clearing it the
+   * moment a stop is asked for would re-widen the host while a tool call from
+   * the dying turn is still in the air.
+   */
+  private leased: Arm | null = null
+  /**
+   * Whether anything is in flight, folded from the signals rather than asked.
+   *
+   * A prompt sent mid-turn is *steered into that turn* by every harness here,
+   * so "is it busy" cannot be read after the fact — and a remote message
+   * steered into a local turn would be a stranger's words inside a turn whose
+   * arm is the person's. So a remote ask is refused while this is true, and
+   * the phone is told plainly rather than having its words disappear into
+   * somebody else's question.
+   */
+  private working = false
+  /** Why this harness cannot run a remote turn, or null when it can. */
+  private unarmable: string | null = null
 
   private constructor(adapter: WorkerAdapter) {
     this.adapter = adapter
@@ -266,6 +256,14 @@ export class Orchestrator {
       approvals: 'bypass',
       // Tade's own interface: gating its tool calls on an approval would mean
       // asking permission to answer "where are we".
+      //
+      // **And the gate on a turn from away is not this.** It is a `tool_call`
+      // hook inside Tade's own tools extension, asking the `ToolHost` at the
+      // call (`origin/allow`) — so it needs no approval mode, no supervision
+      // channel, and nothing about a local turn changes. It had to be there
+      // rather than here for a mechanical reason as well: the supervision
+      // extension and the tools extension both register this run's extension
+      // tools, and pi refuses to start on the collision.
       supervised: false,
       ...(opts.args ? { args: [...opts.args] } : {}),
     })
@@ -277,6 +275,17 @@ export class Orchestrator {
         `${harness} ${adapter.capabilities.why.headless ?? 'cannot be the one you talk to'}: it runs agents`,
       )
     }
+    // Whether a remote turn could be run at all, decided before one arrives
+    // and **said** rather than discovered: a harness that cannot be narrowed
+    // serves no remote turn, and the person who turned the setting on is the
+    // one who needs to know that nothing will come of it.
+    const armed = canBeArmed(adapter.capabilities)
+    if (opts.talking === true && !armed.ok) {
+      opts.onWarning?.(
+        `${harness} ${armed.why}, so a paired device cannot talk to Tade through it — nothing from away will be answered, and every message is refused with that reason`,
+      )
+    }
+
     // The exact model, settled before anything starts and among what this
     // harness offers: a name it cannot place makes it exit before it reads a
     // word, which looked like an orchestrator that never answered.
@@ -354,6 +363,7 @@ export class Orchestrator {
     if (instructions) mine.instructions = instructions
 
     const orchestrator = new Orchestrator(adapter)
+    orchestrator.unarmable = armed.ok ? null : armed.why
     const emit = (event: OrchestratorEvent) => {
       for (const listener of orchestrator.eventListeners) listener(event)
     }
@@ -395,6 +405,11 @@ export class Orchestrator {
         for (const listener of orchestrator.errorListeners) listener(reason)
         emit({ type: 'error', reason })
       } else if (signal.type === 'idle') {
+        // The turn is over: nothing in flight and nothing queued, which is the
+        // one moment the lease can be let go without re-widening the host
+        // while a call from the turn is still in the air.
+        orchestrator.leased = null
+        orchestrator.working = false
         // The turn is over, so this is the last moment anything can notice it
         // ended on a tool call and said nothing. Said before `idle`, because
         // `idle` is what stops the spinner and the reason has to be on screen
@@ -405,9 +420,13 @@ export class Orchestrator {
         for (const listener of orchestrator.idleListeners) listener()
         emit({ type: 'idle' })
       } else if (signal.type === 'failed') {
+        orchestrator.leased = null
+        orchestrator.working = false
         orchestrator.gone = signal.error
         emit({ type: 'failed', reason: signal.error })
       } else if (signal.type === 'exited') {
+        orchestrator.leased = null
+        orchestrator.working = false
         orchestrator.gone ??=
           signal.code === 0 ? 'it stopped' : `it exited with code ${signal.code}`
         emit({ type: 'exited', code: signal.code })
@@ -446,7 +465,91 @@ export class Orchestrator {
   /** Say something, with pictures if there are any. Replies arrive through `onMessage`. */
   async ask(text: string, images: readonly WorkerImage[] = []): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    this.working = true
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, images)
+  }
+
+  /**
+   * How far the turn in flight reaches: what the `ToolHost` asks at every
+   * call, and the window's own answer to *whose turn is this*.
+   *
+   * `LOCAL` between turns, which is the honest answer and not a permissive
+   * one: there is no turn to narrow, and anything calling the host outside one
+   * is the window's own child doing what the window asked.
+   */
+  get arm(): Arm {
+    return this.leased ?? LOCAL
+  }
+
+  /** Whether a turn is in flight, so a surface can say *still answering* rather than guessing. */
+  get busy(): boolean {
+    return this.working
+  }
+
+  /**
+   * Why this harness cannot answer a paired device, or null when it can.
+   *
+   * Read by whatever offers the capability, so a phone is told *this harness
+   * cannot be narrowed* rather than being answered by a conversation nothing
+   * was holding back. Never a silent unrestricted run: `askFrom` refuses on
+   * the same answer.
+   */
+  get unarmed(): string | null {
+    return this.unarmable
+  }
+
+  /**
+   * Say something a paired device asked, under an arm that narrows what the
+   * turn may reach.
+   *
+   * Four refusals before anything is sent, and each is a sentence rather than
+   * a dropped message:
+   *
+   * 1. **not running** — nothing to say it to;
+   * 2. **this harness cannot be narrowed** (`canBeArmed`), which is the one
+   *    that must never become a silent unrestricted run;
+   * 3. **a local arm asked for** — there is no path here for a turn that
+   *    claims to be the person's, because the one caller of this is the away
+   *    view's own door and the local path is `ask`;
+   * 4. **something is already in flight.** A prompt sent mid-turn is *steered
+   *    into that turn* by every harness here, so a remote message arriving
+   *    while the person's question is being answered would put a stranger's
+   *    words inside it — and inside its arm. Refused, with the phone told
+   *    plainly, which is also why the page keeps what somebody typed: only a
+   *    `200` clears the box.
+   *
+   * Nothing waits for the answer. The reply streams through `onEvent` like any
+   * other turn, and the lease is let go on `idle`.
+   */
+  async askFrom(text: string, arm: Arm): Promise<void> {
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    if (this.unarmable) {
+      throw new Error(
+        `Tade cannot answer a paired device here: ${this.adapter.id} ${this.unarmable}`,
+      )
+    }
+    if (arm.how !== 'remote') throw new Error('a turn asked for from away is never a local arm')
+    if (this.leased !== null || this.working) {
+      throw new Error('Tade is still answering the last thing it was asked')
+    }
+    // **Set before the prompt is sent, and that order is the whole of it.** A
+    // lease taken after the harness has the message is a window in which the
+    // turn's first tool call is judged as the person's.
+    this.leased = arm
+    this.working = true
+    try {
+      await this.adapter.prompt(
+        ORCHESTRATOR_RUN,
+        [cameFromAway(arm), '', AWAY_WORDS, text].join('\n'),
+      )
+    } catch (error) {
+      // It never started, so nothing is in flight and the host must not stay
+      // narrowed: a lease nothing will ever release is an orchestrator whose
+      // own tools are refused until Tade is restarted.
+      this.leased = null
+      this.working = false
+      throw error
+    }
   }
 
   /**
@@ -456,6 +559,7 @@ export class Orchestrator {
    */
   async tell(text: string): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    this.working = true
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, [], { whenBusy: 'queue' })
   }
 

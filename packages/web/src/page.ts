@@ -21,6 +21,15 @@ export interface Budget {
   notes: number
   plans: number
   /**
+   * Lines of the conversation.
+   *
+   * Smaller than the notes budget and deliberately so: a conversation is read
+   * from the bottom, so what a phone needs is the last exchange and the one
+   * before it — and the whole of what has ever been said to Tade is the one
+   * collection that grows without bound while nobody is looking at it.
+   */
+  chat: number
+  /**
    * Code points of one piece of free text somebody wrote.
    *
    * Code points and not bytes or UTF-16 units: a cut in the middle of a
@@ -57,6 +66,7 @@ export const BUDGET: Budget = {
   findings: 100,
   notes: 200,
   plans: 20,
+  chat: 120,
   text: 600,
   warnings: 10,
 }

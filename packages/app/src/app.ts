@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
-import { DEFAULT_ATTENTION, parseQuietHours, taskDir, titlesOf } from '@tade/core'
+import { type Arming, DEFAULT_ATTENTION, parseQuietHours, taskDir, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -35,7 +35,7 @@ import {
   type Thinker,
   type Wiring,
   type WorkerImageFile,
-  why,
+  wiringFor,
 } from './wire/context.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
@@ -58,6 +58,7 @@ import { Settings, type SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 import { Away } from './wire/web.ts'
+import { talkingThrough } from './wire/web-asking.ts'
 import { Window } from './wire/window.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -159,32 +160,17 @@ export class App {
   private readonly subjects: readonly Subject[]
 
   private constructor(opts: AppOptions) {
-    // Named rather than `this`, because a getter inside an object literal has
-    // a `this` of its own: the window has to be closed over for the two fields
-    // that change to be read as they are at every look.
-    const app = this
     this.opts = opts
-    this.wire = {
-      get opts() {
-        return opts
-      },
-      get state() {
-        return app.state
-      },
+    this.wire = wiringFor(opts, {
+      state: () => this.state,
       put: (next) => {
-        app.state = next
+        this.state = next
       },
-      get live() {
-        return app.live
-      },
-      now: () => app.now(),
-      layout: () => app.window.layout(),
-      openedAt: opts.now?.() ?? Date.now(),
-      draw: () => app.draw(),
-      note: (err) => {
-        app.state = notice(app.state, why(err))
-      },
-    }
+      live: () => this.live,
+      now: () => this.now(),
+      layout: () => this.window.layout(),
+      draw: () => this.draw(),
+    })
     this.notes = new Notes(this.wire, {
       copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
     })
@@ -257,6 +243,9 @@ export class App {
     this.away = new Away(this.wire, {
       decided: (allow) => this.agents.decide(allow),
       news: (said) => this.orchestrator.note(said),
+      // The conversation, through the one subject that holds it: `Talking` is
+      // five methods, so what a route can reach is that list and not `say`.
+      talk: talkingThrough(() => this.orchestrator),
       // The queue's own rule, so a device approving work that came from
       // outside meets the same grant, plan and source checks a start does.
       stands: (row) => this.queue.standsFor(row),
@@ -783,6 +772,11 @@ export class App {
   /** What the orchestrator's watch tools do, answered from this window. */
   watchTools(): WatchTools {
     return this.schedules.tools()
+  }
+
+  /** What the `ToolHost` asks at every call. `Away.arming` has the argument. */
+  awayTools(): Arming {
+    return this.away.arming()
   }
 
   private draw(): void {

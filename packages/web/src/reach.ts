@@ -38,6 +38,7 @@ export const GRANTS = [
   'spend',
   'reviews',
   'accounts',
+  'talk',
 ] as const
 export type Grant = (typeof GRANTS)[number]
 
@@ -50,6 +51,21 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
   spend: 'what the work has cost, in money and tokens',
   reviews: 'the link to each review on its forge',
   accounts: 'which sign-in each agent runs as',
+  // The conversation, and the one grant that needs more than a clause, because
+  // two things about it are true and neither is guessable. It is the only
+  // collection whose text is **not** shown as it was said — every line has
+  // anything path-shaped taken out (`chatRows`), because a model quotes what
+  // its tools answered. And it is the only one that can carry something
+  // nothing here can find: a credential somebody pasted into a message, or one
+  // a tool printed and the model repeated. Tool lines carry a name and an
+  // outcome and never an argument, which is the part that *is* enforced.
+  //
+  // What is granted here is *reading* it. Sending a message is
+  // `surfaces.web.orchestrator` plus the `ask` scope, which is a different
+  // decision made in a different place.
+  talk:
+    'the conversation with Tade — what was asked, what it answered, which tools it used; ' +
+    'machine paths are taken out, and anything else said into it is not',
 }
 
 /**

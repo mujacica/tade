@@ -215,6 +215,7 @@ export function applyDelta(snapshot: Snapshot, delta: Delta): Snapshot {
     findings: merge(snapshot.findings, delta.set.findings, delta.del.findings, KEYED.findings),
     notes: merge(snapshot.notes, delta.set.notes, delta.del.notes, KEYED.notes),
     plans: merge(snapshot.plans, delta.set.plans, delta.del.plans, KEYED.plans),
+    chat: merge(snapshot.chat, delta.set.chat, delta.del.chat, KEYED.chat),
   }
 }
 

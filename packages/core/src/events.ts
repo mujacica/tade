@@ -305,6 +305,25 @@ export const EventType = z.enum([
    * the phone is the one who most needs to know.
    */
   'web_did',
+  /**
+   * A paired device said something to the orchestrator: the device, how much
+   * it sent, and what came of the turn.
+   *
+   * **Its own type and not a `web_did`, because it answers a different
+   * question.** A `web_did` is one bounded verb against one target; this is
+   * free text handed to a model that holds tools, and "what has this phone
+   * asked Tade" is the question somebody reading back actually has. It is
+   * also the type the `said` rule is stated against: a remote request is
+   * **never** a `said` line — `namedBy` reads those to authorise a setting
+   * change, and nothing in this one can ever reach that set.
+   *
+   * **The words are not in it, deliberately.** The detail carries the device,
+   * the length and the outcome; what was typed is in the conversation, where
+   * the window draws it marked as the device's. A journal line is what
+   * telemetry reads from and what `summary` reads back, and neither is a place
+   * for a paragraph somebody typed on a phone.
+   */
+  'web_asked',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -421,6 +440,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // somebody asked from off the machine, which is the one thing about the away
   // view a person at the keyboard cannot see happening.
   web_did: 'notable',
+  // Notable for the reason `web_did` is, and more so: a turn in the
+  // conversation the person types into, started by something that is not them.
+  web_asked: 'notable',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

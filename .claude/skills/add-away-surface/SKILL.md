@@ -14,6 +14,9 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
 | a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
+| what a device may **say to Tade** | `src/asking.ts` (the interface and the revision), `src/asked.ts` (the gate and the sequence), `ASKS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-asking.ts`, and the screen in `src/assets/talk.js` |
+| what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables) |
+| the conversation, as a device reads it | `ChatIn`/`TalkIn` in `src/input.ts`, `chatRows` in `src/snapshot.ts`, `talkIn`/`chatLines` in `packages/app/src/away.ts` |
 | what a task's revision is made of | `taskRev`/`TaskFacts` in `src/acting.ts`, `factsOf` in `src/input.ts` |
 | what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
 | what the window hands the projection each beat | `packages/app/src/wire/web-beat.ts` |
@@ -226,15 +229,16 @@ In `src/surface.ts`, said once so no control, README line or commit message can 
   breath — the list shows every device, every act is journalled under its id, and "Disconnect
   everything" needs no network.
 
-## The config, and the four controls over it
+## The config, and the five controls over it
 
-`surfaces.web` is read in exactly one place — `surfaceOf` — and its four keys are `never` in
+`surfaces.web` is read in exactly one place — `surfaceOf` — and its five keys are `never` in
 `reach.ts`: each either widens who can reach the control room (`enabled`, `bind`), decides what the
-pairing code says (`port`), or names a host whose `https` origin is trusted (`trusted_hosts`). A
-tier is a property of the path, so `packages/core/test/reach.test.ts` asserts it by subtree rather
-than through what Settings happens to list.
+pairing code says (`port`), lets a device change something (`acting`) or lets one talk to the model
+that holds the tools (`orchestrator`). A tier is a property of the path, so
+`packages/core/test/reach.test.ts` asserts it by subtree rather than through what Settings happens
+to list.
 
-**All four are `live: false`, honestly.** The listener comes up when the window starts and the epoch
+**All five are `live: false`, honestly.** The listener comes up when the window starts and the epoch
 a connected phone holds is per server start, so turning one on mid-session would have to tear down
 and rebuild something somebody is looking at. Saying *takes effect on restart* is the honest answer;
 doing nothing and saying nothing is the setting Tade accepts and ignores.
@@ -253,6 +257,64 @@ socket in `@tade/orchestrator` for the window's own children, and is **not this*
 (`test/separation.test.ts`). Each of those is a `never remote` line with an argument behind it; if a
 phase wants one, it gets its own setting in the `never` subtree, its own threat model and its own
 go/no-go, not a route somebody added.
+
+## Talking to Tade is a third table, not a ninth verb
+
+`surfaces.web.orchestrator` is a **fourth** decision and must never share a
+switch with `acting`. Every verb is a target plus the state it expects, each
+enumerable; this hands **free text to a model that holds tools**, which is the
+difference between answering a question and being able to ask for anything.
+So: its own setting, its own scope (`ask`, implied by neither acting tier), its
+own table (`ASKS`), its own interface (`WebAsking`), its own event type
+(`web_asked`) and its own grant control in the panel.
+
+- **What makes it safe is two gates and a closed list, not the sentence Tade
+  prepends.** `cameFromAway` is kept because a person reading the transcript
+  needs it and because it tells the model why a refusal is correct — it is
+  **not** the enforcement, and anything that treats it as one is the bug.
+  `packages/orchestrator/src/origin.ts` has both tables and the argument.
+- **Omitting `said` was never enough, and that is the correction to DESIGN
+  Phase 3.** `namedBy` reads the last forty lines the *person* said, so a
+  remote turn naming a setting they happened to name last week is authorised by
+  their line; and `settingReach`'s `open` tier needs no words at all. So the
+  answer is not about what a remote turn writes — it is that `config/change` is
+  not reachable from one.
+- **The harness's own tools are the other half.** pi gives the orchestrator
+  `bash`, `write` and `edit`, and those never touch Tade's code — so the gate
+  is a `tool_call` hook **inside Tade's own tools extension** (`gateTools`),
+  asking the host at the call (`origin/allow`). It needs no approval mode and
+  no supervision channel, which is what keeps a local turn exactly as it was;
+  and it had to be there rather than in the supervision extension for a
+  mechanical reason too — both register this run's extension tools, and pi
+  refuses to start on the collision. A remote turn is therefore only possible
+  where the harness can hold its own tool calls (`permissionGate`) **and**
+  loads Tade's code as its own modules (`nativeExtensions`): `canBeArmed` is
+  the one reader, and a harness that lacks either **answers nobody and says
+  why** rather than running one unrestricted.
+- **A socket that cannot be answered means allow**, and the argument is not
+  convenience: the thing that answers `origin/allow` is the window, and the
+  window is also the only thing that can serve a message from away. No window,
+  no remote turn, nobody to narrow — while failing closed there would break
+  the orchestrator of a window that died, for no safety at all.
+- **One turn at a time, and the lease is held from the prompt until `idle`.**
+  A harness delivers a mid-turn prompt *into* that turn, so a message accepted
+  while the person's question is being answered would put a stranger's words
+  inside the person's arm. The window is deliberately narrowed wider than the
+  remote turn's own calls: a call Tade cannot attribute is judged against the
+  *narrower* arm, so the worst case is the person being refused for a few
+  seconds — said out loud, with escape as the way out.
+- **`status/read` under a remote arm answers that device's own projection.**
+  Not `tade status`, which carries project roots, worktrees and the harness's
+  summaries of waiting commands. That is what keeps `ask` from being a way
+  round every read grant, and it is why `worker/pending` is narrowed to a
+  tool's **name** on the way out (`waiting`).
+- **`memory/remember`'s `by` is rewritten from the arm.** The tool sends
+  `orchestrator`, which is true of a local turn and false of a remote one.
+- **The conversation is the one collection whose text is not shown as it was
+  said**: every line is path-elided (`chatRows`), because a model quotes what
+  its tools answered. `GRANT_MEANS.talk` is where a person is told so, and
+  `transcript`, `args`, `payload` and `output` are all still names that fail
+  `NEVER_A_FIELD`.
 
 **There are eight verbs and they are the whole of what a device may ever do**: `park`, `answer`,
 `steer`, `queue`, `done`, `note`, `context` and `intake`. Park went first because it is the smallest
@@ -293,6 +355,10 @@ implied away.
 would mean a phone that can allow a command and cannot set the work aside. A control per tier is the
 thing to build if somebody wants the narrower grant; until then `ACTING_IS_NOT_YOU` is held to naming
 all of it (`test/separation.test.ts`).
+
+**Talking is a second control beside it**, and the two **compose**: `allowDevice` writes the whole
+scope list, so every control over it builds from what the device already has (`kept`). Two controls
+that each enumerated would mean the second silently revoking the first, with nobody told.
 
 ## `tade web`, and what it cannot do
 

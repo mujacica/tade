@@ -52,6 +52,7 @@ describe('a beat on which only the clock moved', () => {
         tasks: 400,
         tasksPerProject: 400,
         queue: 200,
+        chat: 120,
         findings: 100,
         notes: 200,
         plans: 20,

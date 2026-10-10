@@ -1,4 +1,9 @@
-import { ACTING_IS_NOT_YOU, DEVICES_SEEN_BY_AGENTS, LAN_IS_PLAINTEXT } from '@tade/core'
+import {
+  ACTING_IS_NOT_YOU,
+  DEVICES_SEEN_BY_AGENTS,
+  LAN_IS_PLAINTEXT,
+  TALKING_IS_NOT_YOU,
+} from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
 import { awayPanel } from '../../../src/panels/away/state.ts'
 import type { AwayView } from '../../../src/panels/away/view.ts'
@@ -34,6 +39,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
         pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
         reads: ['titles', 'intent'],
         mayAct: false,
+        mayTalk: false,
         live: true,
       },
       {
@@ -42,12 +48,15 @@ function view(over: Partial<AwayView> = {}): AwayView {
         pairedAt: Date.parse('2026-09-11T09:40:00.000Z'),
         reads: [],
         mayAct: false,
+        mayTalk: false,
         live: false,
       },
     ],
     streams: 1,
     acting: false,
+    talking: false,
     acts: ACTING_IS_NOT_YOU,
+    talks: TALKING_IS_NOT_YOU,
     lan: LAN_IS_PLAINTEXT,
     agents: AGENTS,
     problem: null,

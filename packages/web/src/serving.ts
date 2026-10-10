@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebActing } from './acting.ts'
+import type { WebAsking } from './asking.ts'
 import type { Streams } from './peers.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
@@ -59,6 +60,7 @@ export interface Told {
     | 'web_revoked'
     | 'web_refused'
     | 'web_did'
+    | 'web_asked'
     | 'warning'
   /**
    * The task the line is about, where it is about one.
@@ -102,6 +104,20 @@ export interface ServerOptions {
    * every act so that turning the setting off takes effect now.
    */
   acting?: WebActing
+  /**
+   * What a paired device may *say to Tade*, where a person turned talking on.
+   *
+   * **Optional, and its absence is the guarantee**, exactly as `acting` is: a
+   * window that was not given this serves no asking route, so a crafted call
+   * is the `404` of a path nobody built rather than a `403` naming a setting.
+   * `asking.unlocked()` is read again at every turn, so turning the setting
+   * off takes effect now.
+   *
+   * It is a **second** optional and not a field on `acting`, because the two
+   * are different decisions with different settings: eight bounded verbs, and
+   * free text to a model that holds tools.
+   */
+  asking?: WebAsking
   /** The tickets the pairing panel minted. */
   tickets: Tickets
   /**

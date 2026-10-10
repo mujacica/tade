@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { TALKING_IS_NOT_YOU, TALKING_IS_NOT_YOU_SHORT } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   ACTING_IS_NOT_YOU,
@@ -196,6 +197,7 @@ describe('what the surface is turned on as', () => {
       port: 7654,
       trusted_hosts: ['x'],
       acting: false,
+      orchestrator: false,
     })
     // `lan` with `enabled: false` is **off**, not "on the network and
     // waiting": two decisions, and the one deciding whether anything listens
@@ -212,12 +214,26 @@ describe('what the surface is turned on as', () => {
     // served a property of the machine rather than of the setting.
     expect(
       listenOn(
-        surfaceOf({ enabled: true, bind: 'loopback', port: 1, trusted_hosts: [], acting: false }),
+        surfaceOf({
+          enabled: true,
+          bind: 'loopback',
+          port: 1,
+          trusted_hosts: [],
+          acting: false,
+          orchestrator: false,
+        }),
       ),
     ).toEqual(['127.0.0.1', '::1'])
     expect(
       listenOn(
-        surfaceOf({ enabled: true, bind: 'lan', port: 1, trusted_hosts: [], acting: false }),
+        surfaceOf({
+          enabled: true,
+          bind: 'lan',
+          port: 1,
+          trusted_hosts: [],
+          acting: false,
+          orchestrator: false,
+        }),
       ),
     ).toEqual(['0.0.0.0', '::'])
   })
@@ -257,6 +273,7 @@ describe('what a session minted on an origin may ever do', () => {
     port: 7654,
     trusted_hosts: ['studio.yak-bebop.ts.net'],
     acting: true,
+    orchestrator: false,
   })
 
   it('is everything it was granted, from this machine', () => {
@@ -380,7 +397,37 @@ describe('the sentences', () => {
     }
   })
 
+  it('say what a device talking to Tade is, and what the narrowing actually is', () => {
+    // **The sentence that must never get comfortable**, and the clause that
+    // would go first is the one saying what stands against a stranger's words:
+    // a closed list of tools, in code. A control that said *Tade is careful
+    // with messages from away* would be this sentence with its argument taken
+    // out.
+    expect(TALKING_IS_NOT_YOU).toContain('never your own words')
+    expect(TALKING_IS_NOT_YOU).toContain('cannot authorise a setting change')
+    expect(TALKING_IS_NOT_YOU).toContain('refused in code')
+    for (const never of [
+      'no setting',
+      'no credential',
+      'no command',
+      'no new agent',
+      'no push',
+      'no merge',
+      'no check overruled',
+    ]) {
+      expect(TALKING_IS_NOT_YOU, never).toContain(never)
+    }
+    // And where it is: the transcript, marked, and the journal under the id.
+    expect(TALKING_IS_NOT_YOU).toContain('transcript')
+    expect(TALKING_IS_NOT_YOU).toContain('journal under its id')
+    for (const word of ['secure', 'encrypted', 'private', 'safe', 'harmless']) {
+      expect(TALKING_IS_NOT_YOU.toLowerCase(), word).not.toContain(word)
+    }
+  })
+
   it('have a short clause for the one line a control gets', () => {
+    expect(TALKING_IS_NOT_YOU_SHORT.length).toBeLessThan(70)
+    expect(TALKING_IS_NOT_YOU_SHORT).toContain('never as your own words')
     // Short enough to sit on a row beside a control, and still carrying the
     // half that matters: that a request from a device is a request.
     expect(ACTING_IS_NOT_YOU_SHORT).toContain('never as your own words')

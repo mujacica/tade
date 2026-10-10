@@ -108,6 +108,7 @@ describe('the report', () => {
       'findings',
       'notes',
       'plans',
+      'chat',
     ])
     expect(found.collections.find((one) => one.collection === 'tasks')?.rows).toBe(4)
     expect(found.nulls).toBeGreaterThan(0)

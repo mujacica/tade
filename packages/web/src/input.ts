@@ -370,6 +370,102 @@ export interface NoteIn {
   at: string
 }
 
+/**
+ * One line of the conversation with Tade, as the window holds it.
+ *
+ * **The whole of what crosses, and `transcript` is not a field.**
+ * `fields.ts`'s `NEVER_A_FIELD` names a transcript as *the largest, least
+ * structured, most injection-prone surface Tade has*, and that entry stands:
+ * what a raw one carries — a tool call's arguments, a tool's answer, a lane's
+ * bytes, a machine path — is still a name that fails a test. This is the
+ * hand-written allow-list over it, which is the only shape that gets to go to
+ * a phone: five fields, a tool's **name** and never its arguments, and an
+ * outcome in one word.
+ *
+ * Behind its own grant (`talk`), because reading what somebody typed at their
+ * own keyboard is a decision somebody makes per device, exactly as `notes` is.
+ */
+export interface ChatIn {
+  /**
+   * The stable id: the line's own place in the conversation.
+   *
+   * Stable is load-bearing (a delta is a shallow merge keyed by this), and the
+   * conversation is append-only with a cap at the front — so the id is minted
+   * from a counter the window keeps and never from a position in the array,
+   * which would make every line that fell off the top renumber all the rest.
+   */
+  id: string
+  at: number
+  /**
+   * What kind of line it is. Five, and they are about *who is speaking*
+   * rather than about how it should look: a page that chose a shape from a
+   * guess is a second state machine.
+   */
+  kind: 'asked' | 'reply' | 'tool' | 'tade' | 'problem'
+  /**
+   * Who asked, as `byOf` writes it: `you` at the machine, `device <id>` from
+   * away, or empty for Tade's own lines and the model's — which goes out as
+   * `null`, because one spelling of *nobody said* is the only way a client can
+   * be written once.
+   *
+   * **The reason this collection exists at all.** A conversation that showed
+   * what was said and not who said it would let a request from a phone read,
+   * on the phone and in the window, as something the person typed — which is
+   * the `said` confusion one layer up, in the one place a person actually
+   * reads the words.
+   */
+  from: string
+  /**
+   * The words.
+   *
+   * AUTHORED where a person wrote them — their own message, a device's own
+   * message — and kept verbatim. A **reply** is a model's words rather than a
+   * person's, and a model quotes what its tools answered, so that one is run
+   * through `withoutPaths` on the way out (`chatRows`). It is the second
+   * metadata-ish field whose text this package did not write; `fresh.warnings`
+   * was the first, and the treatment is the same.
+   */
+  text: string
+  /** The tool's **name**, in Tade's own words for it. Empty for other lines. */
+  tool: string
+  /** How a tool line went, in one word. Empty where it is not a tool line. */
+  outcome: '' | 'running' | 'ok' | 'failed'
+  /** Still arriving, so the page can draw it as such rather than as finished. */
+  streaming: boolean
+}
+
+/**
+ * The conversation, as this device may see and use it.
+ *
+ * `null` where talking is turned off, which is `unknown` and not an empty
+ * conversation: a page told *there are no lines* would say Tade had never been
+ * spoken to, and what is true is that this surface is not on.
+ */
+export interface TalkIn {
+  lines: readonly ChatIn[]
+  /**
+   * The conversation's own revision (`chatRev`), which a message echoes back
+   * as `was`. Tade's own value, built from the same facts the window
+   * re-checks at the moment it hands the words over.
+   */
+  rev: string
+  /** Whether a turn is in flight, which is what a message needs to be false. */
+  busy: boolean
+  /** Whose turn is in flight, as `byOf` writes it. Empty for none. */
+  whose: string
+  /**
+   * Whether **this** device may send one: granted `ask`, on a trusted origin,
+   * with the setting on.
+   *
+   * A drawing hint and **not permission** — the gate re-asks every layer at
+   * the turn (`admitAsk`) — and it is here for the reason `TaskRow.can` is:
+   * a control nothing could carry out is a control nobody can explain, so the
+   * page draws the conversation without a composer rather than a composer that
+   * answers `403`.
+   */
+  mine: boolean
+}
+
 /** Everything one projection is built from. */
 export interface SnapshotInput {
   lifetime: Lifetime
@@ -379,6 +475,8 @@ export interface SnapshotInput {
   queue: readonly QueueIn[]
   findings: readonly FindingIn[]
   notes: readonly NoteIn[]
+  /** The conversation with Tade, or null where talking is turned off. */
+  talk: TalkIn | null
   /** What each account's plan standing is. Already pathless in `@tade/core`. */
   plans: readonly PlanStanding[]
   /**

@@ -21,15 +21,19 @@ import type { Offer } from '@tade/harnesses-core'
 import type {
   Can,
   Cannot,
+  ChatIn,
   ChecksIn,
   How,
   NoteIn,
   ProjectIn,
   QueueIn,
   QueueStateIn,
+  TalkIn,
   TaskIn,
 } from '@tade/web'
+import { chatRev } from '@tade/web'
 import type { ActionsView, NoteShown } from './frame.ts'
+import type { Entry, Transcript } from './transcript.ts'
 
 // What the away view is handed, built out of what the window already holds.
 //
@@ -458,6 +462,14 @@ export interface AwayCollections {
   spendSince: number | null
 }
 
+// **The conversation is deliberately not among them.** Everything above is a
+// fold of the *world* — what `Live` last looked at, on the clock it looks on —
+// and the conversation is the window's own, true the moment it is read. So
+// `talkIn` is called by whoever holds it (`wire/web-beat.ts`'s `talkFor`) and
+// laid over these, and `AwayHeld` is what the two make together. Folding it in
+// here would mean a `null` conversation for as long as `Live` has not looked
+// once, which a page reads as *talking is not turned on*.
+
 /**
  * The whole input, built once per beat and shared by every device.
  *
@@ -510,6 +522,93 @@ export function awayCollections(parts: AwayParts): AwayCollections {
     // described: the window folds from its own midnight, and the phone is
     // somewhere else.
     spendSince: parts.spendSince,
+  }
+}
+
+/**
+ * The conversation, as a device may read it.
+ *
+ * **One line per entry, and `kind` is about who is speaking rather than how it
+ * should look.** The window draws a routed line, a suggestion and a note
+ * differently because it has the room; a phone does not, and a page that chose
+ * a shape from a guess would be a second reading of the same entries. So the
+ * five kinds are *asked*, *reply*, *tool*, *tade* (Tade's own words, whatever
+ * prompted them) and *problem*, and `glyphs.js` has one rule for each.
+ *
+ * **What is left out is the point.** A tool entry's `detail` is the call's own
+ * arguments — a command, a path, a prompt — and its `result` is what the tool
+ * answered; neither crosses. The tool's **name** does, which is what Phase 3
+ * promised and what a person on a phone can actually act on.
+ */
+export function talkIn(from: { transcript: Transcript; busy: boolean; whose: string }): TalkIn {
+  const lines = chatLines(from.transcript)
+  return {
+    lines,
+    // Built from the same two facts the window re-checks at the moment it
+    // hands a message over, through the same function the device echoes back.
+    rev: chatRev({ busy: from.busy }),
+    busy: from.busy,
+    whose: from.whose,
+    // Raised per device by whoever knows that device's scopes. Never here.
+    mine: false,
+  }
+}
+
+/**
+ * Every entry as a line, with an id that is stable while the conversation
+ * grows and loses its front.
+ *
+ * `<the moment, ISO>#<n>` — the shape a note's id already has, and for the
+ * same two reasons. It sorts in the order things were said, which matters
+ * because a delta is a shallow merge keyed by it and the page draws them in id
+ * order; and it does not move when an old entry falls off the top, which an
+ * index would. `n` tells apart two entries in the same millisecond, counted
+ * over the whole list so that dropping one from the front changes nobody's id.
+ */
+export function chatLines(transcript: Transcript): ChatIn[] {
+  const seen = new Map<number, number>()
+  const out: ChatIn[] = []
+  for (const entry of transcript.entries) {
+    const n = seen.get(entry.at) ?? 0
+    seen.set(entry.at, n + 1)
+    out.push({ ...chatLine(entry), id: `${new Date(entry.at).toISOString()}#${n}`, at: entry.at })
+  }
+  return out
+}
+
+/** One entry's own fields, without its id. */
+function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
+  const plain = { from: '', tool: '', outcome: '' as const, streaming: false }
+  switch (entry.kind) {
+    case 'you':
+      return { ...plain, kind: 'asked', from: entry.from, text: entry.text }
+    case 'said':
+      return {
+        ...plain,
+        // The model's words and Tade's own are different lines, because what
+        // somebody may believe of them is different: one is a reply, the other
+        // is Tade stating something.
+        kind: entry.by === 'orchestrator' ? 'reply' : 'tade',
+        text: entry.text,
+        streaming: entry.streaming,
+      }
+    case 'tool':
+      return {
+        ...plain,
+        kind: 'tool',
+        // The name, and **never** `detail` (the call's arguments) or `result`
+        // (what it answered). `NEVER_A_FIELD` forbids both by name.
+        tool: entry.tool,
+        text: '',
+        outcome: entry.state,
+      }
+    case 'problem':
+      return { ...plain, kind: 'problem', text: entry.text }
+    // Tade's own lines: where its grammar sent something, what it did, and
+    // something it offered to ask. All three are Tade stating a fact, and a
+    // phone has room for the fact and not for three shapes of it.
+    default:
+      return { ...plain, kind: 'tade', text: entry.text }
   }
 }
 

@@ -123,6 +123,15 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
           text,
         }),
       )
+      // **Whose words these are, drawn where somebody reads them.** Only when
+      // they are not the person's own: a line saying *you* above everything
+      // the person typed is noise on every exchange, and the one case that
+      // needs saying is the one that would otherwise read as theirs. The id is
+      // what the journal and the device list name a phone by, so the line
+      // joins up with both.
+      if (entry.from !== '' && entry.from !== 'you') {
+        out.push({ text: `  ${skin.hint(`from ${entry.from}, not from you`)}` })
+      }
       for (const image of entry.images) {
         out.push({ text: `  ${skin.hint(`▣ ${basename(image)}`)}` })
       }

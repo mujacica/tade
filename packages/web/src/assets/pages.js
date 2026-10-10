@@ -74,7 +74,7 @@ import {
  * place reads as "you have none", which is a page answering a question nobody
  * asked it.
  */
-function nothingSaid(may, total, nothing) {
+export function nothingSaid(may, total, nothing) {
   if (may) return nothing
   return total === 0
     ? 'not granted to this device'

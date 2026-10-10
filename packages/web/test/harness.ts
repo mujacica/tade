@@ -72,6 +72,7 @@ export const BASE: Surface = {
   // deliberately. A fixture that was kinder than the default would be the one
   // thing these tests exist to catch.
   acting: false,
+  talking: false,
 }
 
 export interface Running {
