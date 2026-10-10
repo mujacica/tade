@@ -47,16 +47,58 @@ export function titlesOf(config: Config): Record<string, string> {
  *
  * Three answers, and they are the three the person asked for: nothing reaches
  * the remote, the branch it is on is pushed, or its own branch is pushed and a
- * review is opened on it. `never` is the default, so a Tade nobody has
- * configured behaves exactly as it did — agents commit and stop.
+ * review is opened on it.
  *
  * It lives here rather than beside the schema because a value only means
  * anything against `workspaceFor`: `branch-and-review` needs a branch of the
  * agent's own, which is what `worktree` is, and in `checkout` there is none to
- * open a review for. That pairing is resolved once, in `pushFor`, and said.
+ * open a review for. That pairing is resolved once, in `pushFor`, and said —
+ * and it is also why there is no one default (`pushDefault`).
  */
 export const PUSH_MODES = ['never', 'branch', 'branch-and-review'] as const
 export type PushMode = (typeof PUSH_MODES)[number]
+
+/**
+ * What a project that has said nothing does with finished work, which is a
+ * different answer in each workspace.
+ *
+ * **Asked for in as many words**, and the reason it is a table rather than one
+ * value: a worktree is a branch of the agent's own, nobody else is on it, and
+ * work that sits there finished and unpushed is work nobody can see — so the
+ * end of a worktree task is a branch pushed and a review opened on it. A
+ * shared checkout has no such branch, every agent is on the one the project is
+ * on, and a push there carries everybody's commits — so it stays `never`, and
+ * pushing goes on being a person's.
+ *
+ * The two halves are the same rule read twice: **the default may only ever put
+ * an agent's own work where somebody can read it, never anybody else's.** That
+ * is what keeps this from being a resolver that answers with more than was
+ * asked for — the one wrong answer `pushFor` has always refused is a shared
+ * branch pushed by default, and this cannot reach one.
+ *
+ * Unset is a real state, which is the whole reason `agents.push` carries no
+ * schema default: "nobody said" and "somebody said `never`" have to be two
+ * different answers, or a person's deliberate refusal is indistinguishable
+ * from a file written before any of this existed.
+ */
+const PUSH_DEFAULTS: Readonly<Record<AgentWorkspace, PushMode>> = {
+  checkout: 'never',
+  worktree: 'branch-and-review',
+}
+
+/** What finished work does where nobody has said: `PUSH_DEFAULTS`, read. */
+export function pushDefault(workspace: AgentWorkspace): PushMode {
+  return PUSH_DEFAULTS[workspace]
+}
+
+/**
+ * Both defaults in one clause, for wherever there is room to say the whole
+ * rule: the sentence beside the machine's own row, read on the Settings page
+ * and in the orchestrator's listing of the same row. Where there is room for
+ * one word instead — the field itself, `tade config`'s padded listing — that
+ * word is `pushDefault`'s, and this is what explains it.
+ */
+export const PUSH_BY_DEFAULT = 'branch-and-review in a worktree, never in a shared checkout'
 
 /** What reaches the remote in a project, and why that is not what was asked for. */
 export interface Pushes {
@@ -92,14 +134,25 @@ export function pushNeedsABranch(project: string): string {
  * the setting under it. Callers about to make a task pass `workspaceFor`;
  * callers about an existing one pass what its file says.
  *
- * Pure, total, and it only ever answers with *less*: the one pairing that
- * cannot hold resolves to `never` with the reason, never to a push nobody
- * asked for. Pushing straight to a shared branch when somebody asked for a
- * review is the one wrong answer here — it is more on the remote than they
- * asked for, not less.
+ * Three readings, narrowest first: what this project said, then what the
+ * machine said, then `pushDefault` for the workspace in front of us. A value
+ * anybody wrote wins over the default in both directions — `push: never` on a
+ * project whose agents get a worktree each is a deliberate refusal and is kept
+ * as one.
+ *
+ * Pure, total, and the one pairing that cannot hold resolves to `never` with
+ * the reason, never to a push nobody asked for. Pushing straight to a shared
+ * branch when somebody asked for a review is the one wrong answer here — it is
+ * more on the remote than they asked for, not less — and no default can reach
+ * it, because the `checkout` default is `never`.
+ *
+ * Nothing here pushes anything. The mode is words in an agent's prompt
+ * (`pushTold`), said to an agent as it starts, so changing what this answers
+ * reaches the next agent and never a branch somebody finished with last week.
  */
 export function pushFor(config: Config, project: string | null, workspace: AgentWorkspace): Pushes {
-  const asked = (project ? config.projects[project]?.push : undefined) ?? config.agents.push
+  const said = (project ? config.projects[project]?.push : undefined) ?? config.agents.push
+  const asked = said ?? pushDefault(workspace)
   if (asked === 'branch-and-review' && workspace === 'checkout') {
     return { mode: 'never', asked, problem: pushNeedsABranch(project ?? 'this project') }
   }

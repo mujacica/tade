@@ -63,6 +63,11 @@ Every agent gets a lane of its own. By default they all work in the project's ch
 gives each a worktree and branch instead. What each one *is* — working, idle, waiting on you,
 failed, finished — is read back from git and the processes, never remembered.
 
+With a worktree each, finished work ends up where somebody can read it: the agent pushes its own
+branch and opens a pull request on it, published rather than a draft. In the shared checkout there is
+no branch of its own to open one for, so it commits and stops and pushing stays yours. Either answer
+is one setting, per project or for the machine, and merging is never Tade's.
+
 <table>
 <tr>
 <td width="34%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/agents.svg" alt="Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused"></td>

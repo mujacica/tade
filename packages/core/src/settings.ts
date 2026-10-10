@@ -7,7 +7,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from './config.ts'
-import { PUSH_MODES } from './project.ts'
+import { PUSH_BY_DEFAULT, PUSH_MODES, pushDefault } from './project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
@@ -204,15 +204,20 @@ export function settingsOf(
         },
         {
           // The machine's answer, which every project that has not given its
-          // own follows (`projects.<name>.push`). `never` by default, so
-          // nothing reaches anybody's remote until somebody says it should.
+          // own follows (`projects.<name>.push`). Empty is a value here and
+          // not a hole: it hands the question to the workspace, which answers
+          // it differently in each (`PUSH_BY_DEFAULT`), and it is the only way
+          // back to that after somebody has chosen a mode.
           path: 'agents.push',
           title: 'What agents push',
-          means:
-            'never: nothing leaves the machine; branch: the branch they are on; branch-and-review: their own branch, with a review opened on it',
-          value: config.agents.push,
-          fallback: 'never',
-          type: { kind: 'choice', options: [...PUSH_MODES] },
+          means: `never: nothing leaves the machine; branch: the branch they are on; branch-and-review: their own branch, with a review opened on it. Unset follows where agents work — ${PUSH_BY_DEFAULT}`,
+          value: config.agents.push ?? '',
+          // The resolved word rather than the rule, because this is read in a
+          // field a line wide and in `tade config`'s padded listing: the rule
+          // is in `means` above, and what it comes to here is what the machine
+          // says about where its agents work.
+          fallback: pushDefault(config.agents.workspace),
+          type: { kind: 'choice', options: ['', ...PUSH_MODES] },
           live: true,
           keywords: ['push', 'pushing', 'remote', 'review', 'pull request'],
         },

@@ -3,28 +3,28 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  push                       │ Matching “push”                                                                │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass █│ What agents push                                                              █│    
-    │                            █│     ◉ never                                                                   █│    
-   ⠋│  Models                    █│     ○ branch                                                                  █│    
-    │                            █│     ○ branch-and-review                                                       █│    
-    │  Orchestrator              █│                                                                               █│    
- ▸ S│                            █│▌Needed before                    push                                 ▾       █│    
- ▸ S│  Checks                    █│▌                                when a push or commit needs a green run       █│    
- ▸ I│                            █│▌                                behind it — held only under approvals.mode p… █│    
- ▾ C│  Voice                     █│▌                                                                              █│    
-  M │                            █│ Push to talk                       ctrl   +   space       Change…             █│    
-  A │  Window                    █│                                                                               █│    
-  M │                            █│ Let a paired device act         ████──── off                     ↻ on restart █│    
-    │  Away view                 █│                                                                               █│    
- ▾ F│                            █│ Let a paired device talk to T…  ████──── off                     ↻ on restart █│    
-   ▾│  Intake                    █│                                                                               █│    
-    │                            █│ Send notifications to a device  ████──── off                                  ▕│    
-    │  Projects              ● 1 █│                                                                               ▕│    
-   ▸│                            █│ Let a notification name the w…  ████──── off                                  ▕│    
-━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│ Notification signing key         generated when it is first needed            ▕│    
-    │  Telemetry                 █│                                                                               ▕│   ▕
-    │                            ▕│ checkout — What is pushed        never                                ▾       ▕│   ▕
+ ▌  │  Agents             bypass █│ What agents push                 never                                ▾       █│    
+    │                            █│                                                                               █│    
+   ⠋│  Models                    █│▌Needed before                    push                                 ▾       █│    
+    │                            █│▌                                when a push or commit needs a green run       █│    
+    │  Orchestrator              █│▌                                behind it — held only under approvals.mode p… █│    
+ ▸ S│                            █│▌                                                                              █│    
+ ▸ S│  Checks                    █│ Push to talk                       ctrl   +   space       Change…             █│    
+ ▸ I│                            █│                                                                               █│    
+ ▾ C│  Voice                     █│ Let a paired device act         ████──── off                     ↻ on restart █│    
+  M │                            █│                                                                               █│    
+  A │  Window                    █│ Let a paired device talk to T…  ████──── off                     ↻ on restart █│    
+  M │                            █│                                                                               █│    
+    │  Away view                 █│ Send notifications to a device  ████──── off                                  █│    
+ ▾ F│                            █│                                                                               █│    
+   ▾│  Intake                    █│ Let a notification name the w…  ████──── off                                  █│    
+    │                            █│                                                                               █│    
+    │  Projects              ● 1 █│ Notification signing key         generated when it is first needed            ▕│    
+   ▸│                            █│                                                                               ▕│    
+━   │  Journal                   █│ checkout — What is pushed        never                                ▾       ▕│   ━
+    │                            █│                                                                               ▕│    
+    │  Telemetry                 █│ checkout — Checks needed befo…   push                                 ▾       ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

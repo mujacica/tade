@@ -144,6 +144,16 @@ are exactly two files it can go wrong in:
   belongs beside them. The bug is never the resolution, it is the site that still reads the global
   — so grep for the global key after you add the override and make sure the only reader left is
   the resolver.
+- **A default that depends on another setting goes in the resolver, and then the global carries no
+  schema default either.** `agents.push` is the one: what "nobody said" means is a different answer
+  in each workspace (`pushDefault` — `branch-and-review` where each agent has a worktree and a branch
+  of its own, `never` where they share the project's checkout), so a `.default()` on the schema would
+  make a person's deliberate `never` and a file written before any of this existed the same answer.
+  Both levels go `.optional()`, the table lives beside `pushFor`, and the Settings row offers `''`
+  with the two defaults as its `fallback` (`PUSH_BY_DEFAULT`) so empty reads as an answer. The bound
+  on this shape is the next bullet: a default may answer with more than the file said only where the
+  *more* is bounded to that agent's own work — `pushDefault` cannot reach a shared branch, because
+  the `checkout` answer is `never`.
 - **A resolver may answer with *less* than was asked for, and then it has to say so.** `pushFor` is
   the one that does: `branch-and-review` needs a branch of the agent's own, so in a `checkout`
   project it cannot mean what it says and resolves to pushing nothing, with `pushNeedsABranch` as

@@ -42,6 +42,18 @@ export interface Settings {
   include: string[]
   exclude: string[]
   who: 'mine' | 'waiting on you' | 'both'
+  /**
+   * Whether `review_open` opens a draft rather than a published review.
+   *
+   * **Off**, which is the person's own answer and a reversal of what this
+   * used to do. An agent is told to push nothing it has not seen green and to
+   * open the review once it has, so by the time there is one to open there is
+   * nothing left for a draft to mean — and a draft is not in anybody's list of
+   * things to look at, so work that finished reads as work still going on.
+   * Somebody who wants the old behaviour writes `draft: true` here and gets it
+   * for every review; an agent that genuinely is still arguing with the robots
+   * passes `draft` to `review_open` for that one.
+   */
   draft: boolean
   fix: string[]
   attempts: number
@@ -93,7 +105,7 @@ export function settingsOf(ctx: ExtensionContext): Settings {
     include: list('include'),
     exclude: list('exclude'),
     who: who === 'mine' || who === 'waiting on you' ? who : 'both',
-    draft: raw.draft !== false,
+    draft: raw.draft === true,
     // What may be fixed without asking. Human review comments are not in it
     // by default: a person's comment usually contains a decision, not a defect.
     fix: fix.length > 0 ? fix : ['checks', 'bots'],

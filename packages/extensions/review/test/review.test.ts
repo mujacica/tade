@@ -267,29 +267,52 @@ describe('opening one', () => {
     ).rejects.toThrow(/not on the remote yet/)
   })
 
-  it('opens a draft with the task trailer in its body', async () => {
-    const { host, replay } = load({
-      git: {
-        'rev-parse --abbrev-ref': 'shop/new\n',
-        'ls-remote': 'abc123\trefs/heads/shop/new\n',
-        'symbolic-ref': 'origin/main\n',
-        'log -1': 'make refunds retry\n',
-      },
-    })
+  const opening = () => ({
+    git: {
+      'rev-parse --abbrev-ref': 'shop/new\n',
+      'ls-remote': 'abc123\trefs/heads/shop/new\n',
+      'symbolic-ref': 'origin/main\n',
+      'log -1': 'make refunds retry\n',
+    },
+  })
+
+  const opened = (replay: { bodies: unknown[] }) =>
+    replay.bodies.find((body) => (body as { head?: string }).head === 'shop/new') as {
+      body: string
+      draft: boolean
+      title: string
+    }
+
+  it('opens it published, with the task trailer in its body', async () => {
+    // An agent pushes only what it has seen green and opens the review once it
+    // has, so there is nothing left for a draft to mean — and a draft is in
+    // nobody's list of things to look at, which made finished work read as work
+    // still going on. Asked for by the person in as many words.
+    const { host, replay } = load(opening())
     const answer = await (await host).call(
       'review_open',
       {},
       { caller: { kind: 'agent', task: 'api/refunds', project: 'api', cwd: '/src/api' } },
     )
-    expect(answer.text).toContain('as a draft')
-    const sent = replay.bodies.find((body) => (body as { head?: string }).head === 'shop/new') as {
-      body: string
-      draft: boolean
-      title: string
-    }
-    expect(sent.draft).toBe(true)
+    expect(answer.text).not.toContain('draft')
+    const sent = opened(replay)
+    expect(sent.draft).toBe(false)
     expect(sent.title).toBe('make refunds retry')
     expect(sent.body).toContain('Tade-Task: api/refunds')
+  })
+
+  it('opens a draft where somebody asked for one, by the setting or for the one review', async () => {
+    // Still a thing to ask for, at both levels: the settings turn it back on
+    // for every review, and an agent with something genuinely unfinished says
+    // so for that one.
+    const asked = { caller: { kind: 'orchestrator' } } as const
+    const bySetting = load({ ...opening(), settings: { draft: true } })
+    const said = await (await bySetting.host).call('review_open', {}, asked)
+    expect(said.text).toContain('as a draft')
+    expect(opened(bySetting.replay).draft).toBe(true)
+    const byInput = load(opening())
+    await (await byInput.host).call('review_open', { draft: true }, asked)
+    expect(opened(byInput.replay).draft).toBe(true)
   })
 
   it('hands back the review a branch already has rather than opening a second', async () => {
@@ -547,7 +570,9 @@ describe('the words and the settings', () => {
     expect(settings.fix).toEqual(['checks', 'bots'])
     expect(settings.merge).toBe('never')
     expect(settings.attempts).toBe(2)
-    expect(settings.draft).toBe(true)
+    // And publishes rather than drafts: `review_open` is called on work that
+    // is already green, so the draft is the thing somebody asks for.
+    expect(settings.draft).toBe(false)
   })
 
   it('marks a review ready only when it is green, approved and unblocked', () => {
