@@ -22,6 +22,7 @@ import {
 import { Workbench } from '@tade/workbench'
 import { parse } from 'yaml'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import type { ActionsView } from '../../src/frame.ts'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import { awayPanel } from '../../src/panels/away/state.ts'
@@ -102,6 +103,14 @@ export interface Machine {
    * `queueStateOf`.
    */
   queued(task: string): void
+  /**
+   * What the last look at this task's checks said: red, or nothing at all.
+   *
+   * Nothing at all is the default and is the honest one — a task nobody has
+   * looked at reads `unknown`, and the away view may not start a look to find
+   * out.
+   */
+  checked(task: string, rollup: 'pass' | 'fail'): void
   /** An approval is waiting on this task, by that id. */
   waiting(task: string, requestId: string, tool?: string): void
   /** That approval is not waiting any more, as a harness would stop holding it. */
@@ -168,6 +177,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const agents = new Map<string, string>()
   const pending: { run: string; task: string; requestId: string; tool: string; at: number }[] = []
   const queued: Queued[] = []
+  const looked = new Map<string, ActionsView>()
   const decided: Machine['decided'] = []
   const told: Machine['told'] = []
   let events: TadeEvent[] = []
@@ -182,7 +192,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     get world(): Workspace {
       return worldOf(home, repo.root, watched, agents)
     },
-    seenActions: () => null,
+    seenActions: (task: string) => looked.get(task) ?? null,
     spendToday: () => ({ byTask: {} }),
     get queued() {
       return queued
@@ -275,6 +285,32 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     told,
     watch: (task) => void watched.push(task),
     running: (task, harness = 'pi') => void agents.set(task, harness),
+    checked: (task, rollup) =>
+      void looked.set(task, {
+        task,
+        branch: null,
+        base: null,
+        ahead: null,
+        behind: null,
+        dirty: 0,
+        shared: true,
+        commit: 'abc1234',
+        mine: [],
+        others: [],
+        review: null,
+        checks: [
+          {
+            id: 'tests',
+            required: true,
+            state: rollup === 'fail' ? 'failed' : 'passed',
+          },
+        ],
+        rollup,
+        source: 'its commit hook',
+        unread: [],
+        running: null,
+        notes: [],
+      } as unknown as ActionsView),
     queued: (task) =>
       void queued.push({
         task,

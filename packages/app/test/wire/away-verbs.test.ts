@@ -324,6 +324,35 @@ describe('marking work finished', () => {
     expect(await one.client.events({ types: ['task_done'] })).toHaveLength(1)
   })
 
+  it('marks work finished whose checks are red, because the local door does too', async () => {
+    // **Not a gate, deliberately.** Anyone can mark a task finished by hand
+    // whatever its rule (`DONE_RULES`), and the keyboard's own door asks
+    // nothing about checks — so a verb that refused here would be a gate Tade
+    // does not have, invented in the one surface a person is furthest from
+    // the work. What the page owes instead is the rollup *beside* the control,
+    // which the row carries.
+    const one = await ready()
+    one.checked(one.task, 'fail')
+    await one.refresh()
+    expect(rowOf(one, one.task).checks).toMatchObject({ state: 'fail', failed: ['tests'] })
+    expect(rowOf(one, one.task).can.map((each) => each.verb)).toContain('done')
+
+    const answer = await act(one.port, 'done', { ...every(one), confirm: true })
+    expect(answer.status).toBe(200)
+    expect(await one.client.events({ types: ['task_done'] })).toHaveLength(1)
+  })
+
+  it('says `unknown` where nothing has looked, and never `pass` by omission', async () => {
+    // A check nobody ran is not a check that passed, and the away view may not
+    // start a look to find out. The row says `unknown`, which is first-class,
+    // and marking work finished is still a person's to do.
+    const one = await ready()
+    await one.refresh()
+    expect(rowOf(one, one.task).checks).toMatchObject({ state: 'unknown', failed: [] })
+    const answer = await act(one.port, 'done', { ...every(one), confirm: true })
+    expect(answer.status).toBe(200)
+  })
+
   it('says so on the row once it is finished, rather than offering it again', async () => {
     const one = await ready()
     await one.refresh()
