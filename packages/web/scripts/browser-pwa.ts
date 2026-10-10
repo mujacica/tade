@@ -1,4 +1,4 @@
-import type { Verdict } from '../test/browser-plan.ts'
+import { READY, said, type Verdict } from '../test/browser-plan.ts'
 
 // The three questions about an installed shell that only a browser can answer,
 // and the several it cannot.
@@ -117,7 +117,7 @@ export async function asPwa(run: PwaRun): Promise<void> {
 /** It registers, it becomes active, and it takes charge of the page it is on. */
 async function installed(run: PwaRun, page: Page): Promise<void> {
   try {
-    await page.goto(`${run.origin}/`, { waitUntil: 'networkidle' })
+    await page.goto(`${run.origin}/`, { waitUntil: READY })
     await page.waitForSelector('header .brand', { timeout: 10_000 })
     const reg = (await until(
       page,
@@ -211,7 +211,7 @@ async function coldOffline(run: PwaRun, page: Page): Promise<void> {
 async function nothingOfTheWork(run: PwaRun, page: Page): Promise<void> {
   try {
     for (const path of ['/', '/queue', '/notes', '/devices', '/spend']) {
-      await page.goto(`${run.origin}${path}`, { waitUntil: 'networkidle' })
+      await page.goto(`${run.origin}${path}`, { waitUntil: READY })
     }
     const held = (await page.evaluate(CACHED)) as Cached
     const strangers = held.names.filter((name) => !name.startsWith('tade-'))
@@ -248,8 +248,4 @@ async function until(
     await new Promise((done) => setTimeout(done, 250))
   }
   return null
-}
-
-function said(problem: unknown): string {
-  return problem instanceof Error ? problem.message : String(problem)
 }

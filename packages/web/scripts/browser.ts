@@ -15,6 +15,8 @@ import {
   LOOKS,
   NOT_FOR_A_DEVICE_GRANTED_NOTHING,
   NOT_FOR_A_GRANTED_DEVICE,
+  READY,
+  said,
   sayReport,
   WIDTHS,
   worstOf,
@@ -217,9 +219,6 @@ async function axeSource(): Promise<{ source: string | null; why: string }> {
   }
 }
 
-const said = (problem: unknown) =>
-  problem instanceof Error ? (problem.message.split('\n')[0] ?? '') : String(problem)
-
 function found(check: string, where: string, verdict: Finding['verdict'], what: string) {
   findings.push({ check, where, verdict, said: what })
 }
@@ -417,7 +416,7 @@ async function asActing(
   }
   await allowDevice(home, device, ['read', 'answer', 'steer', 'ask'], new Date())
   try {
-    await page.goto(`${origin}/t/sentry/away-projection`, { waitUntil: 'networkidle' })
+    await page.goto(`${origin}/t/sentry/away-projection`, { waitUntil: READY })
     await page.waitForSelector('main textarea', { timeout: 10_000 })
     const shape = (await page.evaluate(CONTROLS)) as {
       drawn: string[]
@@ -601,7 +600,7 @@ async function deviceIn(page: Page): Promise<string | null> {
  */
 async function pairIn(page: Page, origin: string, ticket: string, at: string) {
   try {
-    await page.goto(`${origin}/pair#t=${ticket}`, { waitUntil: 'networkidle' })
+    await page.goto(`${origin}/pair#t=${ticket}`, { waitUntil: READY })
     await page.waitForSelector('#label', { timeout: 10_000 })
     await page.fill('#label', 'the harness')
     await page.click('button.press')
@@ -647,7 +646,7 @@ async function lookAt(
 ) {
   const where = `${look.name} @ ${width.name}`
   try {
-    await page.goto(`${origin}${look.path}`, { waitUntil: 'networkidle' })
+    await page.goto(`${origin}${look.path}`, { waitUntil: READY })
     await page.waitForSelector('main', { timeout: 10_000 })
   } catch (problem) {
     found('landmarks', where, 'fail', said(problem))
@@ -755,7 +754,7 @@ async function deltaUnder(
 ) {
   const where = `a delta @ ${at}`
   try {
-    await page.goto(`${origin}/`, { waitUntil: 'networkidle' })
+    await page.goto(`${origin}/`, { waitUntil: READY })
     await page.waitForSelector('main .rows li a', { timeout: 10_000 })
     // Focus the second row and select inside it, which is what a person
     // reading a list on a phone has actually done.

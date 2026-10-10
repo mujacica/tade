@@ -10,6 +10,7 @@ import {
   exitFor,
   LOOKS,
   MANUAL,
+  READY,
   sayReport,
   WIDTHS,
   worstOf,
@@ -218,4 +219,38 @@ describe('the harness itself', () => {
     expect(out).not.toContain('PASSED')
     expect('code' in answer ? answer.code : 0).toBe(2)
   }, 70_000)
+})
+
+describe('what a navigation waits for', () => {
+  // The bug this guards against produced the most misleading report this
+  // harness can produce: every screen failing `landmarks` with the harness's
+  // own `Timeout 30000ms exceeded`, no `axe`, target-size or sideways-scroll
+  // check ever reached, and nothing anywhere saying that the waiting was the
+  // thing at fault. It is also invisible offline — the suite drives no browser
+  // — so a source check is the only thing that can hold it.
+
+  const SCRIPTS = ['browser.ts', 'browser-pwa.ts'].map((name) =>
+    readFileSync(join(import.meta.dirname, '..', 'scripts', name), 'utf8'),
+  )
+
+  it('never waits for the network to go idle, which a page holding a stream never does', () => {
+    // `READY`'s own comment carries the argument and the two measurements.
+    for (const text of SCRIPTS) expect(text).not.toContain('networkidle')
+  })
+
+  it('waits for the document rather than for nothing at all', () => {
+    // Not `commit`, which resolves before the page has parsed: the checks read
+    // the DOM immediately afterwards.
+    expect(READY).toBe('load')
+  })
+
+  it('navigates only through that constant, so one place decides it', () => {
+    for (const text of SCRIPTS) {
+      for (const found of text.matchAll(/waitUntil: ([A-Za-z']+)/g)) {
+        // `commit` is allowed where it is deliberate and commented: the offline
+        // cold-load has no network to finish loading over.
+        expect(['READY', "'commit'"], found[0]).toContain(found[1])
+      }
+    }
+  })
 })

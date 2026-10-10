@@ -250,3 +250,41 @@ export function sayReport(findings: readonly Finding[]): string {
 export function exitFor(worst: Verdict): number {
   return worst === 'pass' ? 0 : worst === 'fail' ? 1 : 2
 }
+
+/**
+ * What a navigation in the harness waits for, and why it is not `networkidle`.
+ *
+ * **`networkidle` cannot ever fire on a signed-in away page.** The shell opens
+ * a stream to `/api/stream` and keeps it open — that is the whole point of it —
+ * so there is never a 500ms window with no connection in flight, and every
+ * `goto` waiting for one sits there until it times out. The symptom is as bad
+ * as a symptom gets, because it does not look like a bug in the waiting: the
+ * report comes back with *every screen* failing on `landmarks` with the
+ * harness's own `Timeout 30000ms exceeded`, and not one `axe`, target-size or
+ * sideways-scroll check is ever reached. Measured on two browsers:
+ * `networkidle` gave 78 pass / 80 fail with all eighty being that timeout;
+ * `load` gives 466 pass / 0 fail over the same page.
+ *
+ * The one navigation that *did* pass under `networkidle` is the pairing page,
+ * and that is the tell — it is the only one reached before the device has a
+ * session, so it is the only one with no stream behind it.
+ *
+ * `load` is right rather than merely working: what the harness actually needs
+ * is the document and its subresources, and everything dynamic after that is
+ * already waited for properly — `waitForSelector('main')` right after the
+ * navigation, and `until()` for anything the page has to have done. Playwright
+ * discourages `networkidle` in its own documentation for this reason.
+ */
+export const READY = 'load'
+
+/**
+ * One line of what went wrong, which is what a row in the report has width
+ * for.
+ *
+ * Here rather than in each script because both of them had their own copy, and
+ * two spellings of "the first line of the message" is the sort of difference
+ * nobody notices until one of them starts printing a stack trace into a table.
+ */
+export function said(problem: unknown): string {
+  return problem instanceof Error ? (problem.message.split('\n')[0] ?? '') : String(problem)
+}
