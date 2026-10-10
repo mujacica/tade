@@ -149,9 +149,14 @@ describe('whether one control is drawn, and what is said instead', () => {
     expect(new Set(made.map((one) => one.verb)).size).toBe(SHOWN.length)
   })
 
-  it('has a heading and a word for every verb', () => {
-    for (const verb of SHOWN) {
-      expect(headingFor(verb), verb).toMatch(/^[A-Z ]+$/)
+  it('has a heading for every verb, and a word for every one with a single press', () => {
+    for (const verb of SHOWN) expect(headingFor(verb), verb).toMatch(/^[A-Z ]+$/)
+    // `queue` is the one with no single press: its five choices each carry
+    // their own word, so a word here would be one nobody ever sees. Empty
+    // rather than a plausible default, which is how a control ends up
+    // labelled *Do it*.
+    expect(SHOWN.filter((verb) => wordsFor(verb, ROW) === '')).toEqual(['queue'])
+    for (const verb of SHOWN.filter((one) => one !== 'queue')) {
       expect(wordsFor(verb, ROW).length, verb).toBeGreaterThan(3)
     }
     // The one that reads both ways, because park is one toggle.

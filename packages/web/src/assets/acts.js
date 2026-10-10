@@ -183,7 +183,14 @@ export function confirms(verb) {
   return verb === 'done' || verb === 'intake'
 }
 
-/** What a control says, once and in Tade's words. */
+/**
+ * What one control's press says, in Tade's words.
+ *
+ * **Empty for `queue`, which has no single press**: its five choices are
+ * `QUEUE_ASKS` and each carries its own word, so a word here would be one
+ * nobody ever sees. Empty rather than a plausible default, because a default
+ * is how a control ends up labelled *Do it*.
+ */
 export function wordsFor(verb, row) {
   switch (verb) {
     case 'park':
@@ -201,7 +208,7 @@ export function wordsFor(verb, row) {
     case 'intake':
       return 'Approve this request'
     default:
-      return 'Do it'
+      return ''
   }
 }
 

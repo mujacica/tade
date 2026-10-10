@@ -521,7 +521,9 @@ function blockFor(verb, ctx) {
   })
 
   const settle = () => {
-    textIn(press, asked ? 'Tap again to confirm' : wordsFor(verb, held ?? {}))
+    const word = wordsFor(verb, held ?? {})
+    if (word === '') return
+    textIn(press, asked ? 'Tap again to confirm' : word)
     classOn(press, 'asked', asked)
   }
 
