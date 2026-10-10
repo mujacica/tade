@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { readRuns } from '@tade/checks-core'
 import {
   AccountName,
+  type Asker,
   type Caution,
   type Config,
   ConfigSchema,
@@ -1326,7 +1327,7 @@ export class Workbench {
     change: QueueChange
     /** For `order`: the tasks, first to last. What is not named keeps its place behind. */
     order?: readonly string[]
-    by: 'you' | 'orchestrator'
+    by: Asker
   }): Promise<void> {
     if (!req.task && (req.change === 'start' || req.change === 'wait')) {
       throw new Error(`${req.change} is for one piece of work: say which`)
@@ -1385,7 +1386,7 @@ export class Workbench {
    */
   async markDone(
     task: string,
-    how: { by: 'you' | 'orchestrator' | 'rule'; summary?: string; rule?: DoneRule },
+    how: { by: Asker | 'rule'; summary?: string; rule?: DoneRule },
   ): Promise<void> {
     await this.log.append({
       type: 'task_done',

@@ -89,6 +89,14 @@ function taskIn(project: string, folder: string, file: TaskFile): TaskIn {
     lanes: file.lanes.length,
     question: false,
     approval: null,
+    // Nothing here looks at the journal or at a harness, so what may be asked
+    // of a task is honestly nothing: `ableOn`'s answers all turn on facts this
+    // script cannot read, and a `can` arrived at by defaulting is a control
+    // drawn for something nobody could carry out.
+    finished: false,
+    queue: '',
+    can: [],
+    cannot: [],
     spend: noSpend(),
     checks: { state: 'unknown', failed: [], missing: [], overridden: false },
     review: null,

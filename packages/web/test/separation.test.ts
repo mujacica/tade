@@ -16,6 +16,7 @@ import {
   surfaceOf,
   trusted,
 } from '../src/surface.ts'
+import { VERBS } from '../src/verbs.ts'
 
 // Two things this package must never become, and the sentences it must never
 // stop saying.
@@ -33,6 +34,18 @@ function sources(dir = SRC): string[] {
 }
 
 const FILES = sources()
+
+/**
+ * One source with everything inside backticks taken out.
+ *
+ * These files name what they must never reach, in the comment that says they
+ * do not reach it — so a test over the whole text fails on the explanation
+ * rather than on the thing, and a test that fails on its own explanation is
+ * one somebody deletes.
+ */
+function code(text: string): string {
+  return text.replaceAll(/`[^`]*`/g, '``')
+}
 
 describe('the away server is not the ToolHost', () => {
   it('reaches neither the orchestrator nor a Unix socket', () => {
@@ -106,6 +119,66 @@ describe('the away server is not the ToolHost', () => {
         if (text.includes(banned)) problems.push(`${file} uses ${banned}`)
     }
     expect(problems).toEqual([])
+  })
+})
+
+describe('what a verb may never reach, as the verb table grows', () => {
+  it('has no shape a name, a path or a command could be dispatched on', () => {
+    // **The guarantee is the absence**, and this is where it stops being a
+    // sentence in `acting.ts`. Every verb reaches the window by somebody
+    // adding a method to `WebActing` and an entry to `VERBS`; what this
+    // asserts is that nothing anybody added takes a name and dispatches on it.
+    //
+    // **Code, not prose**, which is the same correction the first test in this
+    // file carries: `acting.ts` names every one of these in the comment that
+    // says it does not have one, so what is read is the file with everything
+    // inside backticks taken out. A test that failed on its own explanation is
+    // one somebody deletes.
+    const text = code(readFileSync(join(SRC, 'acting.ts'), 'utf8'))
+    for (const shape of [
+      'run(verb',
+      'run(name',
+      'call(tool',
+      'startAgent',
+      'setSetting',
+      'writeSetting',
+      'approveReview',
+    ]) {
+      expect(text, `acting.ts has ${shape}`).not.toContain(shape)
+    }
+  })
+
+  it('declares exactly the methods the verb table has, and nothing else', () => {
+    // Both directions, mechanically: a method with no verb is a door nothing
+    // opens *yet*, which is the one a route somebody adds in a hurry finds —
+    // and a verb with no method is a `404` nobody can explain. The names are
+    // read out of the interface rather than out of an object, because the
+    // interface is the thing a reviewer reads.
+    const text = readFileSync(join(SRC, 'acting.ts'), 'utf8')
+    const block = /export interface WebActing \{([\s\S]*?)\n\}/.exec(text)?.[1] ?? ''
+    expect(block, 'the WebActing block').not.toBe('')
+    const methods = [...block.matchAll(/^ {2}([a-z][A-Za-z]*)\(/gm)].map((one) => one[1])
+    expect(methods.filter((one) => one !== 'unlocked').sort()).toEqual(
+      VERBS.map((verb) => verb.name).sort(),
+    )
+  })
+
+  it('takes no path and no command in any verb\u2019s body, over the whole table', () => {
+    // The same cross-product `test/verbs.test.ts` runs, asserted here too and
+    // on purpose: that file is about what a body parses to, and this one is
+    // about the claims this package makes. A verb that accepted one of these
+    // is the one that turns a request from a phone into execution.
+    const every = {
+      task: 'tade/away-steer-and-edit',
+      was: 'p0.a0.q0.g0.f0.knone',
+      key: 'abcdefgh12345678',
+      rev: 0,
+    }
+    for (const verb of VERBS) {
+      for (const name of ['path', 'file', 'cwd', 'cmd', 'command', 'prompt', 'setting', 'scopes']) {
+        expect(verb.read({ ...every, [name]: 'anything' }).ok, `${verb.name} ${name}`).toBe(false)
+      }
+    }
   })
 })
 

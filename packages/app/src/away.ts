@@ -17,7 +17,18 @@ import {
   UNRECORDED,
   type Workspace,
 } from '@tade/core'
-import type { ChecksIn, NoteIn, ProjectIn, QueueIn, QueueStateIn, TaskIn } from '@tade/web'
+import type { Offer } from '@tade/harnesses-core'
+import type {
+  Can,
+  Cannot,
+  ChecksIn,
+  How,
+  NoteIn,
+  ProjectIn,
+  QueueIn,
+  QueueStateIn,
+  TaskIn,
+} from '@tade/web'
 import type { ActionsView, NoteShown } from './frame.ts'
 
 // What the away view is handed, built out of what the window already holds.
@@ -60,6 +71,130 @@ export interface TaskExtra {
   approval: { id: string; tool: string; sinceAt: number } | null
   /** Whether the document it produces has been written. */
   produced: boolean
+  /** Whether the journal already says the task is finished. */
+  finished: boolean
+  /** `QueueState`'s own word, or empty for work that is not queued. */
+  queue: string
+  /** How its agent may be told something, as its harness says. */
+  steering: Steering
+}
+
+/**
+ * How a task's agent may be told something, as its harness says.
+ *
+ * **The away view's own vocabulary and not the harness port's.** `offer()`
+ * answers this question for every surface in Tade and answers it as a
+ * `Support` plus a note; this is that answer mapped into the three words the
+ * wire has (`HOWS`), so a harness gaining a fourth kind of support is a change
+ * in `steeringOf` and not a new word on a phone.
+ *
+ * `how` is null for *cannot*, and then `why` is the sentence beside the
+ * control the page turns off — the harness's own `why` where it wrote one,
+ * and Tade's where the reason is Tade's.
+ */
+export interface Steering {
+  how: How | null
+  why: string
+}
+
+/** Nothing is running, so there is nothing to tell. */
+export function notSteerable(why = 'no agent is running on it'): Steering {
+  return { how: null, why }
+}
+
+/**
+ * `offer()`'s answer, in the away view's three words.
+ *
+ * Here rather than in `@tade/web` because `offer` is the harness port's and
+ * the projection may not borrow its vocabulary (R2) — and here rather than
+ * in the window's wiring because it is a pure mapping and this is where the
+ * pure mapping of what the window holds onto what the page sees lives.
+ */
+export function steeringOf(offer: Offer): Steering {
+  if (!offer.shown) return notSteerable(offer.note ?? 'this harness cannot be told anything')
+  switch (offer.support) {
+    case 'live':
+      return { how: 'now', why: '' }
+    case 'idle':
+      return { how: 'next-turn', why: offer.note ?? '' }
+    case 'restart':
+      return { how: 'restart', why: offer.note ?? '' }
+    default:
+      return notSteerable(offer.note ?? 'this harness cannot be told anything')
+  }
+}
+
+/**
+ * What may be asked of one task right now, and what may not with why.
+ *
+ * **Possible, never permitted.** Every answer here is about the world — a
+ * harness with no way to take a message, an agent that is not running, work
+ * already finished, a request that came from outside. What a *device* may do
+ * is the gate's (`acts.ts`), asked again at the act against the scopes a
+ * person granted at the machine and the origin the request came from. A row
+ * that says `can` is still refused where the grant does not allow it, and that
+ * is the right way round: the page may not draw a control nothing could carry
+ * out, and it may not be the thing that decides who is allowed to press one.
+ *
+ * **Every verb appears in exactly one of the two lists**, which is what lets
+ * the page draw a reason wherever it draws a disabled control instead of
+ * leaving a hole somebody has to guess at. `test/away.test.ts` asserts that of
+ * the whole of `VERBS`.
+ */
+export function ableOn(task: AbleFacts): { can: Can[]; cannot: Cannot[] } {
+  const can: Can[] = []
+  const cannot: Cannot[] = []
+  const yes = (verb: string, how: How = 'now'): void => void can.push({ verb, how })
+  const no = (verb: string, why: string): void => void cannot.push({ verb, why })
+
+  // Setting work aside is always safe; picking it up again is not, for work
+  // that came from outside the machine — that is approving somebody else's
+  // request, which is the `intake` verb and its two re-checks (`parked.ts`'s
+  // `NotYours`). So the park control is offered in one direction only there,
+  // with the other verb named rather than a dead end.
+  if (task.parked && task.origin === 'intake') {
+    no(
+      'park',
+      'it came from outside this machine: approving it is its own act, with its own checks',
+    )
+  } else yes('park')
+
+  if (task.approval) yes('answer')
+  else no('answer', 'nothing is waiting on an answer')
+
+  if (task.agents === 0) no('steer', notSteerable().why)
+  else if (task.steering.how === null) no('steer', task.steering.why)
+  else yes('steer', task.steering.how)
+
+  if (task.queue === '') no('queue', 'it is not queued work')
+  else yes('queue')
+
+  if (task.finished) no('done', 'the journal already says it is finished')
+  else yes('done')
+
+  // A note and a context block are always possible: both are appends to files
+  // Tade owns, neither needs an agent and neither can lose anything somebody
+  // wrote here. What they need is the grant, which is not this question.
+  yes('note')
+  yes('context')
+
+  if (task.origin !== 'intake') no('intake', 'it did not come from outside this machine')
+  else if (task.finished) no('intake', 'the journal already says it is finished')
+  else if (!task.parked) no('intake', 'it is not waiting to be approved')
+  else yes('intake')
+
+  return { can, cannot }
+}
+
+/** What `ableOn` reads. Named, so a test can build one without a `Task`. */
+export interface AbleFacts {
+  parked: boolean
+  origin: string
+  approval: boolean
+  agents: number
+  finished: boolean
+  queue: string
+  steering: Steering
 }
 
 /** What a run was on, as the journal recorded it. Never guessed from a name. */
@@ -162,6 +297,19 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
     lanes: task.lanes.length,
     question: extra.question,
     approval: extra.approval,
+    finished: extra.finished,
+    queue: extra.queue,
+    // What is *possible*, which is a question about a harness and a lane and
+    // so one only the window can answer. Permission is asked again at the act.
+    ...ableOn({
+      parked: task.parked === true,
+      origin: taskOrigin(task.by).kind,
+      approval: extra.approval !== null,
+      agents: task.agents.length,
+      finished: extra.finished,
+      queue: extra.queue,
+      steering: extra.steering,
+    }),
     spend: extra.spend ?? noSpendAt(),
     checks: checksIn(extra.work, extra.overridden),
     review: git?.pr ?? null,
@@ -328,10 +476,19 @@ export interface AwayCollections {
  */
 export function awayCollections(parts: AwayParts): AwayCollections {
   const tasks: TaskIn[] = []
+  // Folded once here rather than carried per task, so the word on a task row
+  // and the state on its queue row are the same reading of the same facts.
+  const words = queueWords(parts.queued, parts.queueFacts)
   for (const project of parts.world.projects) {
     for (const task of project.tasks) {
       const extra = parts.extras.get(task.id) ?? nothingKnown()
-      tasks.push(taskIn(task, extra, parts.pending.get(task.id) ?? 0))
+      tasks.push(
+        taskIn(
+          task,
+          { ...extra, queue: words.get(task.id) ?? '' },
+          parts.pending.get(task.id) ?? 0,
+        ),
+      )
     }
   }
   return {
@@ -356,6 +513,21 @@ export function awayCollections(parts: AwayParts): AwayCollections {
   }
 }
 
+/**
+ * Where each queued task stands, in the queue's own one word.
+ *
+ * The *word* and nothing else: the queue collection carries the whole of each
+ * state with its sentence and its counts, and what this is for is `taskRev` —
+ * so a queue choice made from a screen drawn while the work was waiting on
+ * something else is refused as a choice about a different world. One fold, so
+ * the row and the queue row cannot disagree about which state it is in.
+ */
+export function queueWords(items: readonly Queued[], facts: QueueFacts): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const item of items) out.set(item.task, queueStateOf(item, facts).kind)
+  return out
+}
+
 /** What is true of a task the window has learned nothing extra about. */
 export function nothingKnown(): TaskExtra {
   return {
@@ -366,6 +538,12 @@ export function nothingKnown(): TaskExtra {
     question: false,
     approval: null,
     produced: false,
+    finished: false,
+    queue: '',
+    // **Nothing known is nothing offered**, which is the direction that has to
+    // be right: a task the window has learned nothing about must not draw a
+    // steer control on the strength of a default.
+    steering: notSteerable('nothing here knows what its harness can do'),
   }
 }
 

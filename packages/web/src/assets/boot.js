@@ -24,6 +24,7 @@
 // stopped.** A dropped stream adds a bar and changes no row, no glyph and no
 // count. Nothing here ever draws the page empty because it could not ask.
 
+import { actsOf } from './acts.js'
 import { classOn, el, textIn } from './dom.js'
 import { backoffAt, connectionOf, standingOf } from './live.js'
 import {
@@ -57,7 +58,6 @@ import {
   asOf,
   emptyStore,
   GRANTS,
-  mayAct,
   mayRead,
   omitted,
   rowsOf,
@@ -266,7 +266,11 @@ function paint() {
       // it at the act anyway: the setting, the origin, the project and the
       // state the screen said. A page that lied here would get a `403`, which
       // is the right way round.
-      act: mayAct(held.session),
+      //
+      // Per verb and not one flag, because the two tiers are two scopes: a
+      // device granted `answer` and not `steer` draws the approval control and
+      // nothing else.
+      acts: actsOf(held.session),
     },
   })
 }

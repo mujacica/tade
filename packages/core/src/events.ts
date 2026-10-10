@@ -15,6 +15,25 @@ export const URGENCY_RANK: Record<Urgency, number> = {
   trace: 3,
 }
 
+/**
+ * Who a record says did something.
+ *
+ * Three answers and not two, because the third is load-bearing: `you` is the
+ * keyboard, `orchestrator` is the thing you talk to acting on your word, and
+ * `device <id>` is **a request from a paired device** — which is not the
+ * person's own doing and must never be written as though it were.
+ * `historyFrom` reads a `by` that is not `you` as *not something you did*, and
+ * `namedBy` authorises an `asked`-tier setting change only against words
+ * somebody actually said. A remote act recorded as `you` would quietly widen
+ * both (`ACTING_IS_NOT_YOU`).
+ *
+ * The device's **id** and never its label: a label is a person's own words
+ * about their own phone, and an id is sixteen hex characters that mean nothing
+ * on their own. `@tade/web`'s `byOf` is the one place either becomes one of
+ * these.
+ */
+export type Asker = 'you' | 'orchestrator' | `device ${string}`
+
 export const EventType = z.enum([
   // lanes
   'lane_opened',
@@ -53,6 +72,17 @@ export const EventType = z.enum([
    * own rule met. What work waiting on it waits for.
    */
   'task_done',
+  /**
+   * Somebody added to what a task's agent is told.
+   *
+   * The line carries **how much** was added and who added it, and never a word
+   * of it: the text is in the task's own context file, where the agent reads
+   * it, and a journal holding a second copy would put somebody's words in two
+   * places with one of them unreachable. Here rather than folded into
+   * `state_change` because a context edit changes nothing about the task's
+   * state and everything about what the next turn does.
+   */
+  'context_added',
   // the queue
   /** Queued work started: what it waited on finished, its time came, or someone started it. */
   'queue_started',
@@ -299,6 +329,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   template_used: 'notable',
   state_change: 'notable',
   task_done: 'notable',
+  // Notable: what an agent is told changes what it does, so somebody coming
+  // back wants to see that it was changed and by whom. Never `blocking` —
+  // nothing is waiting on it.
+  context_added: 'notable',
   queue_started: 'notable',
   // Not blocking: nothing is running into a wall, and the orchestrator is told
   // in words. Blocking would raise a pane for work that has none.

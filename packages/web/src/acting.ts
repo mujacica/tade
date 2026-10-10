@@ -16,8 +16,14 @@ import type { Scope } from './surface.ts'
 // diff as the argument for them. DESIGN.md §9.1's `never remote` lines are
 // kept by this file having no shape they could arrive in:
 //
-// - no `startAgent`, which is the one verb that turns text into execution;
-// - no file path, so no repository edit and no symlink to resolve;
+// - no `startAgent`, which is the one verb that turns text into execution.
+//   `steer` is a message into a conversation that is **already** running and
+//   the window refuses it where no agent is;
+// - no file path. The one verb that writes a file (`context`) names a **task
+//   id** and the window works out where that task's own files are, so there
+//   is no path on the wire to contain, no `..` to refuse and no symlink to
+//   resolve — and the containment that is still owed is owed at the machine,
+//   where the folder could be a link to somewhere else;
 // - no command, so nothing to run;
 // - no push, merge, review answer or check override;
 // - no setting, no credential, no extension, no MCP server, no device and no
@@ -65,9 +71,110 @@ export interface Target {
   was: string
 }
 
-/** Park a task, or pick it back up. */
+/** Park a task, or pick it back up. The one verb that is a toggle. */
 export interface ParkCall extends Target {
   parked: boolean
+}
+
+/** Allow or deny the approval an agent is held on. */
+export interface AnswerCall extends Target {
+  /**
+   * The approval, by the id the harness gave it.
+   *
+   * **Named in the act rather than folded into `was`.** A revision can say
+   * *an approval is waiting*; it cannot say *which*, and an agent that
+   * finished one call and is now held on the next looks identical from a
+   * revision. So the id travels with the act and the window compares it
+   * against the approval it is actually holding — exact, with nothing
+   * hashed and nothing that can collide.
+   */
+  approval: string
+  allow: boolean
+}
+
+/** Say something to a running agent: an answer to its question, or a nudge. */
+export interface SteerCall extends Target {
+  /**
+   * What to say, verbatim and bounded.
+   *
+   * **A message into a conversation that is already running, and never a
+   * prompt that starts one.** There is no shape here that reaches
+   * `startAgent`: the window refuses it where no agent is on the task
+   * (`TaskFacts.agents`), and a harness that cannot take one is *named* in
+   * the projection rather than having the words typed at its terminal from
+   * away.
+   */
+  said: string
+}
+
+/** One choice about queued work: the queue's own words, for one task. */
+export interface QueueCall extends Target {
+  change: QueueAsk
+}
+
+/**
+ * What a device may ask of queued work.
+ *
+ * `pause`, `resume`, `start` and `wait` are `QUEUE_CHANGES`' own words for one
+ * piece of work, and they are *choices written down* — what starts is still
+ * `readyToStart`'s to decide, and a paused or parked task that this says
+ * `start` about still does not start. `first` is `order` with the list
+ * computed at the machine out of the queue as it stands, because a list of
+ * task ids in a body is the one shape that could reorder work in a project
+ * this device may not see.
+ *
+ * What is **not** here: pausing or resuming a whole project. Those name no
+ * task, and every verb is a target plus the state it expects — a
+ * project-wide hold has no entity revision to echo back, so a replay of one
+ * could not be told from a fresh ask. Outstanding, not decided against.
+ */
+export const QUEUE_ASKS = ['pause', 'resume', 'start', 'wait', 'first'] as const
+export type QueueAsk = (typeof QUEUE_ASKS)[number]
+
+/** Mark a task finished by hand, which is the one rule nothing derives. */
+export interface DoneCall extends Target {
+  /**
+   * That somebody meant it.
+   *
+   * `true` and nothing else parses, so there is no body shape that means *do
+   * not*: a field that could be `false` would be a confirmation a client
+   * sends by accident and a reviewer reads as checked. The page's own second
+   * tap is the other half, and neither stands in for the other.
+   */
+  confirm: true
+  /** What it finished as, in the person's own words. Verbatim, bounded. */
+  summary: string
+}
+
+/** Write something down about a task, exactly as it was sent. */
+export interface NoteCall extends Target {
+  text: string
+}
+
+/**
+ * Add to what a task's agent is told.
+ *
+ * **An append, and the append is the design.** A replace would mean sending
+ * the context's current text to the phone first, and this package has no way
+ * to read one — `WebReading` answers out of what the window already holds
+ * and no handler does any work — while for a task that came from outside
+ * the machine the body is a stranger's words (`OUTSIDE_IS_MATERIAL`), which is
+ * its own grant and its own conversation. So the act carries only what to add,
+ * and what falls out is the property an If-Match was reaching for: **an append
+ * cannot overwrite a local edit**, whatever somebody typed here meanwhile.
+ */
+export interface ContextCall extends Target {
+  add: string
+}
+
+/** Approve a request that arrived from outside this machine. */
+export interface IntakeCall extends Target {
+  /**
+   * That somebody meant it, for the reason `DoneCall` carries one: approving
+   * a stranger's request into an agent on this machine is not a thing to do
+   * by a mis-tap, and asking again does not undo it.
+   */
+  confirm: true
 }
 
 /**
@@ -129,6 +236,13 @@ export interface WebActing {
    */
   unlocked(): boolean
   park(call: ParkCall, from: From): Promise<Outcome>
+  answer(call: AnswerCall, from: From): Promise<Outcome>
+  steer(call: SteerCall, from: From): Promise<Outcome>
+  queue(call: QueueCall, from: From): Promise<Outcome>
+  done(call: DoneCall, from: From): Promise<Outcome>
+  note(call: NoteCall, from: From): Promise<Outcome>
+  context(call: ContextCall, from: From): Promise<Outcome>
+  intake(call: IntakeCall, from: From): Promise<Outcome>
 }
 
 /** That the thing moved on since the caller looked. Thrown by a verb. */
@@ -169,33 +283,167 @@ export class OutOfScope extends Error {
 }
 
 /**
- * What a task's own revision is made of, for the verbs there are.
+ * That what was sent is longer than one act may carry.
  *
- * One field, and that is honest rather than thin: the only verb is park, the
- * only thing it assumes is the park, and an opaque digest over fields no verb
- * depends on would refuse perfectly current acts every time a figure moved.
- * When a verb arrives that assumes something else — an approval still
- * pending, a content hash still matching — it goes in here, every screen's
- * value changes once, and every act in flight at that moment gets a `gone`
- * and redraws. That is the right failure for a deploy and the reason this is
- * one function rather than a convention.
+ * `too_big`, and the bound it is over is `BOUNDS`' — which is about a
+ * *sentence* and not about a socket: `readBody`'s cap is the one that keeps a
+ * request from being a denial of service, and this is the one that keeps an
+ * append to a task's context from being an agent's instructions rewritten from
+ * away. **Never a truncation**: half of what somebody wrote, written down
+ * verbatim, is a lie about what they said.
+ */
+export class TooMuch extends Error {
+  constructor(said: string) {
+    super(said)
+    this.name = 'TooMuch'
+  }
+}
+
+/**
+ * That the verb exists, the device may have it, and **this harness cannot do
+ * it** — or there is nothing there to do it to.
+ *
+ * The one refusal whose answer is `not_offered`: a `404` with the same
+ * sentence a path nobody built gets. The page is not supposed to reach this at
+ * all — a task row carries what may be asked of it and what may not, with
+ * the harness's own `why` (`Cannot` below), so an inert control is never drawn
+ * — and the honest answer to a crafted call for something this harness has
+ * no way of doing is that there is nothing here by that name.
+ */
+export class NotOffered extends Error {
+  constructor(said: string) {
+    super(said)
+    this.name = 'NotOffered'
+  }
+}
+
+/**
+ * What may be asked of one task right now, and how it would happen.
+ *
+ * **The away view's own words, not a harness's.** `Support` is
+ * `@tade/harnesses-core`'s vocabulary for the same question and this package
+ * does not borrow it (R2): the window maps one onto the other, so a harness
+ * gaining a fifth kind of support is a change in one place and not a new word
+ * on the wire.
+ */
+export const HOWS = ['now', 'next-turn', 'restart'] as const
+export type How = (typeof HOWS)[number]
+
+/** One verb this task can be asked for, and when it would take effect. */
+export interface Can {
+  verb: string
+  how: How
+}
+
+/**
+ * One verb this task **cannot** be asked for, and why not.
+ *
+ * Named rather than passed over in silence, which is the rule the checks
+ * reading already follows: what Tade cannot do is *said*, so the failure mode
+ * is "the page told you this harness has no way to steer" rather than a
+ * control that does nothing or an absence that reads as a bug. The sentence is
+ * the harness's own `why` where it has one, and Tade's own where the reason is
+ * Tade's — either way it is a sentence somebody wrote.
+ */
+export interface Cannot {
+  verb: string
+  why: string
+}
+
+/**
+ * How much free text one act may carry, per verb.
+ *
+ * Bounded here rather than at the body reader, because the body's own cap
+ * (`readBody`) is about a socket and these are about a *sentence*: a note is
+ * something somebody typed on a phone, and a context block that was pages long
+ * would be an agent's instructions rewritten from away under the heading of an
+ * addition. Over the bound is `too_big` and never a silent truncation —
+ * cutting somebody's words in half and writing them down verbatim is the one
+ * thing a note may never be.
+ */
+export const BOUNDS = {
+  /** A message into a running turn. Longer than a sentence, shorter than a brief. */
+  said: 2_000,
+  /** A note, which is the thing Tade is told rather than derives. */
+  text: 4_000,
+  /** What a person adds to a task's context from a phone. */
+  add: 4_000,
+  /** What a task finished as. A headline, not a report. */
+  summary: 500,
+} as const
+
+/**
+ * What a task's own revision is made of: **one field per thing a verb
+ * assumes**, and nothing else.
+ *
+ * The rule for what belongs here is exactly that. A field no verb depends on
+ * would refuse perfectly current acts every time a figure moved; a thing a
+ * verb assumes and that is *not* here is a replay nothing refuses. Each line
+ * below names the verb that needs it, which is how the next one gets added
+ * honestly — and adding one changes every screen's value at once, so every act
+ * in flight at that moment gets a `gone` and redraws. That is the right
+ * failure for a deploy and the reason this is one function rather than a
+ * convention.
+ *
+ * **Readable rather than hashed.** A digest would be shorter and would also
+ * mean two different worlds could agree by collision, and the one thing a
+ * revision decides is whether somebody's screen was telling the truth. What
+ * cannot be said in a field this small is named in the act instead:
+ * `AnswerCall.approval` carries the approval's own id, because *an approval is
+ * waiting* and *this* approval is waiting are different facts.
  */
 export interface TaskFacts {
-  /** The told fact out of the task file, never `state === 'parked'`. */
+  /** The told fact out of the task file, never `state === 'parked'`. `park`. */
   parked: boolean
+  /** Whether an approval is waiting at all. `answer`. */
+  approval: boolean
+  /** Whether its agent asked something and is waiting. `steer`. */
+  question: boolean
+  /** How many agents are on it. A steer needs one; a start must not find one. */
+  agents: number
+  /** Whether the journal already says it is finished. `done`. */
+  finished: boolean
+  /** `QueueState`'s own word, or the empty string where it is not queued. `queue`. */
+  queue: string
+}
+
+/** Nothing is waiting, nothing is running, and it is not queued work. */
+export function noFacts(): TaskFacts {
+  return {
+    parked: false,
+    approval: false,
+    question: false,
+    agents: 0,
+    finished: false,
+    queue: '',
+  }
 }
 
 /**
  * A task's entity revision: short, opaque, and the same rule on both sides.
  *
  * The projection writes it onto every row and a device echoes it back as
- * `was`; the window builds it again from the file at the moment of the write
- * and refuses a mismatch. One function, so the two cannot drift — two
- * spellings of this would be a comparison that is always true or always
- * false, and neither failure would look like one.
+ * `was`; the window builds it again out of the file and its own live state at
+ * the moment of the write and refuses a mismatch. One function, so the two
+ * cannot drift — two spellings of this would be a comparison that is always
+ * true or always false, and neither failure would look like one.
+ *
+ * The letters are not vocabulary and nothing reads them back: it is a value to
+ * echo, not a value to parse. What they buy over a digest is that a test can
+ * say which fact moved, and that two worlds cannot agree by accident.
  */
 export function taskRev(facts: TaskFacts): string {
-  return facts.parked ? 'p1' : 'p0'
+  return [
+    `p${facts.parked ? 1 : 0}`,
+    `a${facts.approval ? 1 : 0}`,
+    `q${facts.question ? 1 : 0}`,
+    // Capped, because a count in a revision is about *whether what you saw is
+    // still true* and a task with nine agents and one with ten are the same
+    // answer to every verb here.
+    `g${Math.min(Math.max(Math.trunc(facts.agents), 0), 9)}`,
+    `f${facts.finished ? 1 : 0}`,
+    `k${facts.queue || 'none'}`,
+  ].join('.')
 }
 
 /** The project half of a task id, which is the per-project scope boundary. */

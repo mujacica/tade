@@ -2,6 +2,7 @@ import {
   describeQueueState,
   expandHome,
   holdSaid,
+  type InboxRow,
   type IntakeItem,
   intakeFrom,
   intakeOf,
@@ -224,6 +225,28 @@ export class Queue implements Subject {
    * removed — holds, because a request nobody can check is a request nobody has
    * confirmed still stands.
    */
+  /**
+   * The same question, asked of an inbox row rather than of a start.
+   *
+   * **Here because the rule has to be one rule.** A paired device asking to
+   * approve a request that came from outside gets the grant, the plan and the
+   * source asked again — which is what the queue asks at the moment it
+   * would start one, and a second reading of it in the away view's own wiring
+   * would be a second answer to one question. The window hands this to
+   * `webActing` as `stands`.
+   *
+   * A row Tade has no record of holds: approving a request whose own item is
+   * not in the journal is approving something nothing can check.
+   */
+  async standsFor(row: InboxRow): Promise<string | null> {
+    const events = this.wire.live?.events ?? (await this.wire.opts.client.events({}))
+    const one = intakeFrom(events).get(row.item) ?? null
+    if (!one) {
+      return `has no record on this machine that Tade can check: approve it at the machine`
+    }
+    return this.intakeHold(one, row.tasks[0] ?? '')
+  }
+
   private async intakeHold(one: IntakeItem | null, task: string): Promise<string | null> {
     if (!one) return null
     const host = this.wire.opts.extensions

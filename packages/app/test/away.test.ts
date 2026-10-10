@@ -1,16 +1,21 @@
 import type { Queued, QueueFacts, TadeEvent, Task, Workspace } from '@tade/core'
-import { SnapshotSchema, snapshotOf } from '@tade/web'
+import { SnapshotSchema, snapshotOf, VERBS } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import {
+  ableOn,
   awayCollections,
   checksIn,
   noteIn,
   nothingKnown,
   queueIn,
   ranOn,
+  steeringOf,
   taskIn,
 } from '../src/away.ts'
 import type { ActionsView } from '../src/frame.ts'
+
+/** Every verb there is, so the two lists are held to covering all of them. */
+const VERB_NAMES = VERBS.map((verb) => verb.name)
 
 // What the window hands the away view, and the one thing it must never hand
 // over.
@@ -359,3 +364,155 @@ function queued(over: Partial<Queued> = {}): Queued {
     ...over,
   }
 }
+
+describe('what may be asked of one task', () => {
+  const steerable = { how: 'now' as const, why: '' }
+  const facts = (over: Partial<Parameters<typeof ableOn>[0]> = {}) => ({
+    parked: false,
+    origin: 'you',
+    approval: false,
+    agents: 0,
+    finished: false,
+    queue: '',
+    steering: steerable,
+    ...over,
+  })
+  const can = (over: Partial<Parameters<typeof ableOn>[0]> = {}) =>
+    ableOn(facts(over)).can.map((one) => one.verb)
+  const why = (verb: string, over: Partial<Parameters<typeof ableOn>[0]> = {}) =>
+    ableOn(facts(over)).cannot.find((one) => one.verb === verb)?.why ?? ''
+
+  it('puts every verb in exactly one of the two lists, for every world', () => {
+    // **The assertion the page's honesty rests on.** A verb in neither list is
+    // a control nobody can explain: either a hole where one should be, or an
+    // absence that reads as a bug. A verb in both is two answers to one
+    // question. Over the whole cross-product of the facts, not a sample.
+    const worlds = [
+      {},
+      { parked: true },
+      { parked: true, origin: 'intake' },
+      { origin: 'intake' },
+      { approval: true },
+      { agents: 1 },
+      { agents: 1, steering: { how: null, why: 'pi cannot take one mid-turn' } },
+      { finished: true },
+      { queue: 'ready' },
+      { queue: 'paused', parked: true },
+      { origin: 'intake', parked: true, finished: true },
+    ] as const
+    for (const world of worlds) {
+      const made = ableOn(facts(world))
+      const named = [...made.can.map((one) => one.verb), ...made.cannot.map((one) => one.verb)]
+      expect(named.sort(), JSON.stringify(world)).toEqual([...VERB_NAMES].sort())
+      // And a reason for every one that cannot, because an absence is not a
+      // sentence somebody wrote.
+      for (const one of made.cannot) {
+        expect(one.why.length, `${JSON.stringify(world)} ${one.verb}`).toBeGreaterThan(5)
+      }
+    }
+  })
+
+  it('offers a note and a context block whatever else is true', () => {
+    // Both are appends to files Tade owns: neither needs an agent, and neither
+    // can lose anything somebody wrote here. What they need is the grant,
+    // which is a different question.
+    for (const world of [{}, { finished: true }, { parked: true }, { origin: 'intake' }] as const) {
+      expect(can(world), JSON.stringify(world)).toContain('note')
+      expect(can(world), JSON.stringify(world)).toContain('context')
+    }
+  })
+
+  it('offers an answer only where one is waiting', () => {
+    expect(can({ approval: true })).toContain('answer')
+    expect(can()).not.toContain('answer')
+    expect(why('answer')).toContain('nothing is waiting')
+  })
+
+  it('offers a steer only where an agent is running and its harness can take one', () => {
+    expect(can({ agents: 1 })).toContain('steer')
+    // Nothing running is a different answer from the harness having no way,
+    // and both are a sentence rather than a hole.
+    expect(why('steer')).toContain('no agent is running')
+    expect(why('steer', { agents: 1, steering: { how: null, why: 'pi has no way' } })).toBe(
+      'pi has no way',
+    )
+  })
+
+  it('carries how a steer would happen, so a wait is said before somebody types', () => {
+    const made = ableOn(facts({ agents: 1, steering: { how: 'next-turn', why: 'waits' } }))
+    expect(made.can.find((one) => one.verb === 'steer')?.how).toBe('next-turn')
+  })
+
+  it('offers a queue choice only for queued work', () => {
+    expect(can({ queue: 'ready' })).toContain('queue')
+    expect(can()).not.toContain('queue')
+    expect(why('queue')).toContain('not queued work')
+  })
+
+  it('stops offering to finish what the journal says is finished', () => {
+    expect(can()).toContain('done')
+    expect(can({ finished: true })).not.toContain('done')
+    expect(why('done', { finished: true })).toContain('already says')
+  })
+
+  it('names the other verb where park will not pick work from outside back up', () => {
+    // **A proposed intake is a parked task**, so lifting the park is approving
+    // somebody else's request — which is the `intake` verb and its two
+    // re-checks. The row says so rather than offering a control that is
+    // refused.
+    expect(can({ parked: true, origin: 'intake' })).not.toContain('park')
+    expect(why('park', { parked: true, origin: 'intake' })).toContain('came from outside')
+    expect(can({ parked: true, origin: 'intake' })).toContain('intake')
+    // Setting one aside is always safe: *not this one yet* is a hold.
+    expect(can({ origin: 'intake' })).toContain('park')
+  })
+
+  it('offers an intake approval only for work from outside that is waiting for one', () => {
+    expect(can({ origin: 'intake', parked: true })).toContain('intake')
+    expect(why('intake')).toContain('did not come from outside')
+    expect(why('intake', { origin: 'intake' })).toContain('not waiting to be approved')
+    expect(why('intake', { origin: 'intake', parked: true, finished: true })).toContain(
+      'already says',
+    )
+  })
+})
+
+describe('how a harness says an agent may be told something', () => {
+  it('maps every support the port has onto the three words the wire uses', () => {
+    // `offer()` is the one rule every surface asks; this is the away view
+    // asking it too, in its own vocabulary (R2). A fifth kind of support is a
+    // change here and not a new word on a phone.
+    expect(steeringOf({ shown: true, support: 'live', note: null })).toEqual({
+      how: 'now',
+      why: '',
+    })
+    expect(steeringOf({ shown: true, support: 'idle', note: 'waits for its turn' })).toEqual({
+      how: 'next-turn',
+      why: 'waits for its turn',
+    })
+    expect(steeringOf({ shown: true, support: 'restart', note: 'starts it again' })).toEqual({
+      how: 'restart',
+      why: 'starts it again',
+    })
+  })
+
+  it('is *cannot* with the harness\u2019s own sentence where it is not shown', () => {
+    expect(steeringOf({ shown: false, support: 'none', note: 'pi cannot take one' })).toEqual({
+      how: null,
+      why: 'pi cannot take one',
+    })
+    // And Tade's own where the harness wrote none, because whatever reaches a
+    // person is a sentence somebody wrote.
+    expect(steeringOf({ shown: false, support: 'none', note: null }).why.length).toBeGreaterThan(5)
+  })
+
+  it('offers nothing for a task the window has learned nothing about', () => {
+    // **Nothing known is nothing offered**, which is the direction that has to
+    // be right: a default of *may* would draw a steer control on the strength
+    // of having no answer.
+    expect(nothingKnown().steering.how).toBeNull()
+    expect(nothingKnown().steering.why.length).toBeGreaterThan(5)
+    expect(nothingKnown().finished).toBe(false)
+    expect(nothingKnown().queue).toBe('')
+  })
+})

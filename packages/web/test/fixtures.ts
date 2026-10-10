@@ -84,6 +84,25 @@ export function task(over: Partial<TaskIn> = {}): TaskIn {
     lanes: 2,
     question: false,
     approval: null,
+    finished: false,
+    queue: '',
+    // **Every verb named**, in one list or the other, because that is what the
+    // page is held to and a fixture mentioning four would be a page tested
+    // with half its controls missing. The shape is a working task nobody
+    // queued: its agent is running, nothing waits on an answer, and it did not
+    // come from outside.
+    can: [
+      { verb: 'park', how: 'now' },
+      { verb: 'steer', how: 'next-turn' },
+      { verb: 'done', how: 'now' },
+      { verb: 'note', how: 'now' },
+      { verb: 'context', how: 'now' },
+    ],
+    cannot: [
+      { verb: 'answer', why: 'nothing is waiting on an answer' },
+      { verb: 'queue', why: 'it is not queued work' },
+      { verb: 'intake', why: 'it did not come from outside this machine' },
+    ],
     spend: spend(),
     checks: { state: 'unknown', failed: [], missing: ['tests'], overridden: false },
     review: { state: 'open', url: 'https://github.invalid/acme/sentry/pull/412' },

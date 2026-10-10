@@ -131,7 +131,6 @@ declare module '*/assets/store.js' {
   export function checksWord(fold: Record<string, any>): string
   export function reviewsOf(store: Store): { offered: readonly any[]; unoffered: readonly any[] }
   export function mayRead(store: Store, grant: string): boolean
-  export function mayAct(session: unknown): boolean
   export function omitted(store: Store, collection: string): number
   export function asOf(store: Store, kind: string, now: number): { at: number; frozen: boolean }
   export function spendSince(store: Store): string | null
@@ -173,4 +172,36 @@ declare module '*/assets/shell.js' {
   ): { key: string; glyph: string; lead: string; under?: string; tone?: string }[]
   export function crossing(was: Set<string> | null, is: Set<string>): string
   export function titleFor(where: { view: string; project?: string; task?: string }): string
+}
+
+declare module '*/assets/acts.js' {
+  export const SHOWN: readonly string[]
+  export const NEEDS: Readonly<Record<string, string>>
+  export const QUEUE_ASKS: readonly { change: string; said: string; starts?: boolean }[]
+  export function asksFor(row: unknown): readonly { change: string; said: string }[]
+  export function actsOf(session: unknown): { answer: boolean; steer: boolean }
+  export function standingOf(
+    verb: string,
+    row: unknown,
+    acts: { answer: boolean; steer: boolean },
+  ): { kind: 'off' | 'no' | 'yes'; how?: string; why: string }
+  export function controlsFor(
+    row: unknown,
+    acts: { answer: boolean; steer: boolean },
+  ): { verb: string; kind: string; how?: string; why: string }[]
+  export function bodyFor(
+    verb: string,
+    row: unknown,
+    key: string,
+    rev: number,
+    typed: Record<string, unknown>,
+  ): Record<string, unknown>
+  export function afterAnswer(
+    answer: unknown,
+    sentence: string,
+  ): { ok: boolean; clear: boolean; said: string; moved: boolean }
+  export function confirms(verb: string): boolean
+  export function wordsFor(verb: string, row: unknown): string
+  export function headingFor(verb: string): string
+  export function howSaid(how: string): string
 }

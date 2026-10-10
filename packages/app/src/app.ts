@@ -257,6 +257,9 @@ export class App {
     this.away = new Away(this.wire, {
       decided: (allow) => this.agents.decide(allow),
       news: (said) => this.orchestrator.note(said),
+      // The queue's own rule, so a device approving work that came from
+      // outside meets the same grant, plan and source checks a start does.
+      stands: (row) => this.queue.standsFor(row),
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),

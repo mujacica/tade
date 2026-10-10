@@ -1,8 +1,9 @@
-import { networkInterfaces, uptime } from 'node:os'
+import { networkInterfaces } from 'node:os'
 import {
   ACTING_IS_NOT_YOU,
   type Config,
   DEVICES_SEEN_BY_AGENTS,
+  type InboxRow,
   LAN_IS_PLAINTEXT,
   overridesFrom,
   type PlanStanding,
@@ -20,6 +21,7 @@ import {
   type Confirmed,
   codeFor,
   type Device,
+  factsOf,
   type PairingAsk,
   type Projector,
   projector,
@@ -31,19 +33,30 @@ import {
   type SnapshotInput,
   Streams,
   surfaceOf,
+  type TaskFacts,
   Tickets,
   type Told,
   type WebReading,
   type WebServer,
   webServer,
 } from '@tade/web'
-import { awayCollections, nothingKnown, ranOn, type TaskExtra } from '../away.ts'
+import type { Steering } from '../away.ts'
+import { awayCollections } from '../away.ts'
 import type { Frame } from '../frame.ts'
 import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
 import { letOneAct, webActing } from './web-acting.ts'
+import {
+  type AwayBeat,
+  type AwayHeld,
+  beatParts,
+  type Held,
+  nothingYet,
+  steeringFor,
+  upSinceOf,
+} from './web-beat.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -77,6 +90,17 @@ export interface AwayDeps {
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */
   news(said: string): void
+  /**
+   * Why work that came from outside this machine may not go ahead now, or
+   * null — the queue's own question (`intakeStands`), asked at the moment a
+   * paired device asks to approve one.
+   *
+   * Handed in rather than asked here, because answering it needs the
+   * extension host that can reach the watch, and the subject that already
+   * does is the queue. **A throw holds**: a source nobody could ask has not
+   * said yes.
+   */
+  stands(row: InboxRow): Promise<string | null>
 }
 
 export class Away implements Subject {
@@ -110,7 +134,7 @@ export class Away implements Subject {
    * is never drawn as nought.
    */
   private readonly upSince: number | null = upSinceOf()
-  private held: Omit<SnapshotInput, 'reach' | 'lifetime'> | null = null
+  private held: AwayHeld | null = null
 
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
@@ -143,6 +167,26 @@ export class Away implements Subject {
             acting: webActing({
               tade: this.wire.opts.client,
               acting: () => surfaceOf(this.config().surfaces.web).acting,
+              // **The facts the row carried, out of the row itself.** What a
+              // verb's `was` is compared against is built by `factsOf` from
+              // the same projected task the device tapped, so a mismatch is
+              // the world having moved and never two spellings of a
+              // revision.
+              seen: (task) => this.factsOn(task),
+              steering: (task) => steeringFor(this.wire.opts.client, task),
+              // The queue's own rule asked of work that came from outside,
+              // which needs the extension host: only a window can ask a
+              // watch whether a request still stands.
+              stands: (row) => this.deps.stands(row),
+              queue: () => ({
+                items: this.wire.live?.queued ?? [],
+                events: this.wire.live?.queueFacts().events ?? [],
+              }),
+              // The window's own config, read at the act: a grant somebody
+              // turned off a second ago has to mean something before the next
+              // restart.
+              config: () => this.config(),
+              now: () => this.wire.now(),
             }),
           }
         : {}),
@@ -229,13 +273,13 @@ export class Away implements Subject {
    * is running*. What it reaches the page as instead is a projection with no
    * rows and its own freshness, which the page draws as *nothing read yet*.
    */
-  private collections(): Omit<SnapshotInput, 'reach' | 'lifetime'> {
+  private collections(): AwayHeld {
     const held = this.held
     if (held !== null) return held
     const live = this.wire.live
     const world = live?.world ?? null
     const made =
-      live === null || world === null ? empty() : awayCollections(this.partsOf(live, world))
+      live === null || world === null ? nothingYet() : awayCollections(this.partsOf(live, world))
     this.held = made
     return made
   }
@@ -271,6 +315,7 @@ export class Away implements Subject {
         spendSince: startOfToday(this.wire.now()),
       },
       world,
+      (task) => steeringFor(this.wire.opts.client, task),
     )
   }
 
@@ -614,6 +659,20 @@ export class Away implements Subject {
     return made
   }
 
+  /**
+   * What the projection last said about one task, as the facts a verb checks.
+   *
+   * Out of the collections the beat already built and **not** a fresh look:
+   * the row the device tapped was built from these, so this is the comparison
+   * being exact rather than approximate. What it is not is a lock — the
+   * collections move on a beat, and what makes each act atomic at the moment
+   * of the write is the door it goes through (`web-acting.ts` has the table).
+   */
+  private factsOn(task: string): TaskFacts | null {
+    const row = this.collections().tasks.find((one) => one.id === task)
+    return row === undefined ? null : factsOf(row)
+  }
+
   /** The collections, with this device's reach and the server's own lifetime. */
   private inputFor(reach: Reach): SnapshotInput {
     const parts = this.collections()
@@ -660,139 +719,4 @@ export class Away implements Subject {
       )
     }
   }
-}
-
-/** What the window hands the away view on a beat. */
-export type AwayBeat = Parameters<typeof awayCollections>[0]
-
-/** When the machine came up, or null where nothing could say. */
-function upSinceOf(): number | null {
-  try {
-    const seconds = uptime()
-    return Number.isFinite(seconds) && seconds > 0 ? Date.now() - seconds * 1000 : null
-  } catch {
-    // `unknown`, and never nought: a page drawing "up for 0s" because nothing
-    // answered is the one lie that would make the whole panel worthless.
-    return null
-  }
-}
-
-/** Nothing projected yet: an away view that has had no beat still answers. */
-function empty(): Omit<SnapshotInput, 'reach' | 'lifetime'> {
-  return {
-    projects: [],
-    tasks: [],
-    queue: [],
-    findings: [],
-    notes: [],
-    plans: [],
-    warnings: [],
-    machineUpSince: null,
-    // Nothing folded yet, so there is no period to name: `unknown`, which the
-    // page says by saying nothing rather than by naming a date in 1970.
-    spendSince: null,
-  }
-}
-
-/**
- * The beat's own parts, built out of what `Live` holds.
- *
- * Here rather than in `app.ts` so the window's wiring stays wiring, and out of
- * held values only: `seenActions` is the last look and never a look,
- * `spendToday` is a kept fold, and `overridesFrom`/`orderFrom`/`ranOn` are
- * folds over the journal the window already has. **No `git`, no `ps`, no
- * `collectStatus`** — a page refresh starts no work at all.
- */
-export function beatParts(live: Beatable, world: Workspace): AwayBeat {
-  const spend = live.spendToday()
-  const overrides = overridesFrom(live.events)
-  const ran = ranOn(live.events)
-  // Folds over the journal the window already holds, each pure: whether an
-  // agent is waiting on a question, and whether a task's document is actually
-  // there. `producedIn` says `missing` rather than `written`, which is the
-  // right way round — a task that names a document and has none is the case
-  // worth being able to see.
-  const waiting = new Set(live.tasks.filter((one) => one.waiting === true).map((one) => one.task))
-  const written = new Set(
-    producedIn(live.events)
-      .filter((one) => !one.missing)
-      .map((one) => one.task),
-  )
-  const extras = new Map<string, TaskExtra>()
-  const pending = new Map<string, number>()
-  for (const approval of live.pending) {
-    pending.set(approval.task, (pending.get(approval.task) ?? 0) + 1)
-  }
-  for (const project of world.projects) {
-    for (const task of project.tasks) {
-      const approval = live.pending.find((one) => one.task === task.id) ?? null
-      extras.set(task.id, {
-        ...nothingKnown(),
-        work: live.seenActions(task.id),
-        overridden: overrides.some((one) => one.task === task.id),
-        spend: spend.byTask[task.id] ?? null,
-        ran: ran.get(task.id) ?? nothingKnown().ran,
-        question: waiting.has(task.id),
-        approval:
-          approval === null
-            ? null
-            : // The tool's **name** and nothing else. The harness's one-line
-              // summary of the call is the command with its paths in it, and
-              // answering an approval from away is a later slice's — which
-              // gets to decide what a person is shown before they say yes.
-              { id: approval.requestId, tool: approval.tool, sinceAt: approval.at },
-        produced: written.has(task.id),
-      })
-    }
-  }
-  return {
-    world,
-    titles: live.titles,
-    extras,
-    pending,
-    queued: live.queued,
-    queueFacts: live.queueFacts(),
-    order: writtenOrder(live.events),
-    notes: live.notes(null),
-    plans: live.plans,
-    machineUpSince: live.machineUpSince,
-    spendSince: live.spendSince,
-  }
-}
-
-/**
- * What `Away` reads of `Live`: held values, every one of them.
- *
- * Named rather than taking `Live` itself, so the one place that decides what
- * leaves the machine can be read against a list of nine accessors instead of
- * against a thousand-line class — and so a tenth cannot arrive by accident.
- */
-export interface Held {
-  events: readonly import('@tade/core').TadeEvent[]
-  pending: readonly { requestId: string; task: string; tool: string; at: number }[]
-  world: Workspace | null
-  seenActions(task: string): import('../frame.ts').ActionsView | null
-  spendToday(): { byTask: Record<string, import('@tade/core').Spend> }
-  queued: readonly import('@tade/core').Queued[]
-  queueFacts(): import('@tade/core').QueueFacts
-  notes(project: string | null): readonly import('../frame.ts').NoteShown[]
-  tasks: readonly { task: string; waiting?: boolean }[]
-}
-
-/** What `beatParts` needs, so it can be tested without a window. */
-export interface Beatable {
-  events: readonly import('@tade/core').TadeEvent[]
-  pending: readonly { requestId: string; task: string; tool: string; at: number }[]
-  seenActions(task: string): import('../frame.ts').ActionsView | null
-  spendToday(): { byTask: Record<string, import('@tade/core').Spend> }
-  queued: readonly import('@tade/core').Queued[]
-  queueFacts(): import('@tade/core').QueueFacts
-  notes(project: string | null): readonly import('../frame.ts').NoteShown[]
-  plans: readonly PlanStanding[]
-  titles: Readonly<Record<string, string>>
-  /** The task snapshots the window already drew, for `waiting`. */
-  tasks: readonly { task: string; waiting?: boolean }[]
-  machineUpSince: number | null
-  /** When `spendToday`'s fold starts, which is the period every figure covers. */
-  spendSince: number | null
 }

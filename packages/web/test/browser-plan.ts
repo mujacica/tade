@@ -83,6 +83,13 @@ export const CHECKS = [
   'granted',
   'quiet',
   'delta',
+  // The three a control owns, and none of them is answerable offline. A tap is
+  // a real pointer on a real target; a keyboard is a real Tab order and a real
+  // Enter on a `<button>`; and what somebody typed surviving a refusal is a
+  // real `fetch` coming back `409` while a `<textarea>` still holds its value.
+  'controls',
+  'touch',
+  'typing',
 ] as const
 
 /**

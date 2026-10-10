@@ -121,6 +121,12 @@ async function wiring(
           },
         },
         planUsage: () => [],
+        // What `steeringFor` asks: which agent is running on a task, and what
+        // its harness can do. Nothing is, here — so what every row says is
+        // that there is nothing to tell, which is the honest answer and is the
+        // one a projection built for a page to read must not default past.
+        runs: () => [],
+        capabilitiesOf: () => null,
       },
     },
     get state() {
@@ -142,6 +148,7 @@ async function wiring(
       decided.push(allow)
     },
     news: (said) => news.push(said),
+    stands: () => Promise.resolve(null),
   })
   open.push(away)
   return { away, home, news, decided, logged, at: () => state, drawn: () => draws }

@@ -254,10 +254,31 @@ describe('reach and motion', () => {
     expect(AWAY).not.toContain('@keyframes')
   })
 
-  it('uses `!important` only where reduced motion needs it', () => {
+  it('uses `!important` only where it is named, with its argument', () => {
+    // **Two reasons, both written down**, which is the same treatment the one
+    // `outline: none` in this stylesheet gets. A third one has to earn a line
+    // here and a comment beside the rule, which is the conversation this test
+    // is for.
+    //
+    // - reduced motion: the whole point is to beat whatever any rule said.
+    // - `[hidden]`: the page turns a region off with `el.hidden`, which is
+    //   `display: none` in the **user agent's** stylesheet — and any author
+    //   rule beats a UA one, so the moment a region gained `display: flex`
+    //   here, `hidden` stopped hiding it. `!important` is the only form that
+    //   holds, because what it has to beat is a class on the same element.
+    const named = /animation|transition|scroll-behavior|display:\s*none/
     for (const found of CSS.matchAll(/[^;{}]*!important/g)) {
-      expect(found[0], found[0]).toMatch(/animation|transition|scroll-behavior/)
+      expect(found[0], found[0]).toMatch(named)
     }
+    // And `display: none !important` is the `[hidden]` rule and nothing else,
+    // because the alternation above cannot say which selector it was under.
+    // The comment above a rule is part of what precedes its brace, so what is
+    // compared is the last line of it: the selector.
+    const rules = [...TOKENS.matchAll(/([^{}]*)\{[^{}]*display:\s*none !important[^{}]*\}/g)]
+    expect(rules.map((one) => (one[1] ?? '').trim().split('\n').at(-1)?.trim())).toEqual([
+      '[hidden]',
+    ])
+    expect(AWAY).not.toMatch(/display:\s*none !important/)
   })
 })
 

@@ -102,7 +102,7 @@ export function awayGroup(config: Config): SettingGroup {
         // named — which is why the sentence says what acting can never reach
         // rather than leaving it to be inferred.
         title: 'Let a paired device act',
-        means: `on: a device you have granted it can answer an approval, steer an agent and park or pick up work; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
+        means: `on: a device you have granted it can answer an approval, tell an agent something, change what is queued, mark work finished, write a note, add to what a task is told, and approve a request a grant here already allowed; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
         value: String(web.acting),
         fallback: 'false',
         type: { kind: 'flag' },

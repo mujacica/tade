@@ -103,8 +103,10 @@ export const AWAY_IS_WHILE_OPEN =
  * refusal is in code rather than in a prompt.
  */
 export const ACTING_IS_NOT_YOU =
-  'A request from a paired device is never your own words: it can only answer, steer and park ' +
-  'work you already set up, and it can never change a setting, read a credential, run a command, ' +
+  'A request from a paired device is never your own words. On work you already set up it can ' +
+  'answer what an agent is waiting on, tell one something, hold or release queued work, add a ' +
+  'note or a line to what a task is told, mark work finished, and approve a request a grant ' +
+  'here already allowed. It can never change a setting, read a credential, run a command, ' +
   'start an agent, push, merge or overrule a check. Acting needs this machine itself or an https ' +
   'origin you named in Trusted hostnames, so a credential that crossed a network in the clear ' +
   'never buys one — and every act is in the journal under the device that took it.'

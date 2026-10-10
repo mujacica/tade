@@ -13,7 +13,11 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | Changing | File |
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
-| a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, and the window's own half in `packages/app/src/wire/web-acting.ts` |
+| a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
+| what a task's revision is made of | `taskRev`/`TaskFacts` in `src/acting.ts`, `factsOf` in `src/input.ts` |
+| what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
+| what the window hands the projection each beat | `packages/app/src/wire/web-beat.ts` |
+| adding to a task's context | `packages/workbench/src/context.ts` |
 | what has to be true of an **act** | `src/acts.ts` — pure, and `test/acts.test.ts` runs the cross-product |
 | the act's own sequence, claim to receipt | `src/acted.ts` — no sockets, so a replay, a restart and an altered payload are each one line of setup |
 | idempotency, and what a repeat is answered with | `src/receipts.ts` — `<home>/web-acts.jsonl` |
@@ -34,6 +38,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | the palette, the type scale, the primitives | `src/assets/tokens.css` — every colour is a window tone, checked by arithmetic |
 | the frame: header, bars, nav, the four region states | `src/assets/frame.css`, `src/assets/shell.js` |
 | what a screen looks like | `src/assets/away.css`, `src/assets/rows.js` |
+| which controls a screen offers, and what each sends | `src/assets/acts.js` — pure; `screens.js` builds the nodes |
 | a screen | `src/assets/screens.js` (work) or `pages.js` (lists), plus a route in `src/routes.ts` **and** a view in `src/assets/routes.js` |
 | what a figure says | `src/assets/figures.js` — money, tokens, ages, plan bars |
 | what a state looks like | `src/assets/glyphs.js` — glyph, word and tone, never colour alone |
@@ -183,6 +188,27 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 - **Nothing in the client touches `innerHTML`**, there is no Markdown renderer, and the content policy
   has no `unsafe-inline`. Those three are what actually stands against injected script; `HttpOnly`
   stops the *theft* of a credential and not its use.
+- **`[hidden]` is an author rule with `!important`, in `tokens.css`.** The page turns a region off
+  with `el.hidden = true`, which is `display: none` in the *user agent's* stylesheet — and any author
+  rule beats a UA one. The moment a region gained `display: flex`, `hidden` stopped hiding it and
+  every control a row said could **not** be asked for was drawn anyway, with its reason beside it.
+  Nothing offline could see it; the browser harness found it in one run.
+- **A control nothing could carry out is absent with its reason, never disabled.** A task row carries
+  two lists — `can`, and `cannot` with a `why` — and `ableOn` puts every verb in exactly one of them
+  (`packages/app/test/away.test.ts` asserts it over the cross-product). A verb in neither is a hole
+  somebody has to guess at; in both is two answers to one question. **It is not permission**: the
+  gate re-asks the scope, the setting, the project and the origin at the act, and the page's `actsOf`
+  is a drawing hint read off its own session.
+- **Only a `200` clears a box.** A `409` is the world having moved, and throwing away a paragraph
+  somebody typed on a phone because of it is the one failure they cannot undo (`afterAnswer`).
+- **Two presses for the two acts asking again does not undo** — `done` and `intake` — and the body's
+  own `confirm: true` literal is the other half. Neither stands in for the other: the tap stops a
+  mis-tap, and the literal means there is no shape of the body that says *do not*.
+- **`page.waitForFunction` cannot be used in the harness.** It polls by compiling a string in the
+  page, and the content policy has no `unsafe-eval`. `page.evaluate` goes through the debugger
+  protocol and needs none, so the waiting is a loop in `browser.ts` (`until`). That the policy
+  refuses it is the point: a harness that loosened the header would be testing a page nobody is
+  served.
 
 ## Four sentences that may never get more comfortable
 
@@ -219,18 +245,54 @@ correct (it scrolls) and moved every settings golden.
 
 ## What is not built, and must not arrive because a route was convenient
 
-No setting is writable, nothing grants anything, nothing publishes, nothing starts an agent, nothing
-runs a command, nothing reaches a credential and nothing reaches the `ToolHost` — which is a Unix
+No setting is writable, nothing grants anything, nothing publishes, nothing starts an agent (`steer`
+is a message into a conversation that is **already** running, refused where no agent is), nothing
+runs a command, nothing pushes, merges, answers a review or overrules a check, nothing reaches a
+credential and nothing reaches the `ToolHost` — which is a Unix
 socket in `@tade/orchestrator` for the window's own children, and is **not this**
 (`test/separation.test.ts`). Each of those is a `never remote` line with an argument behind it; if a
 phase wants one, it gets its own setting in the `never` subtree, its own threat model and its own
 go/no-go, not a route somebody added.
 
-**The one verb that exists is park and unpark**, and the rest of DESIGN §9.1's matrix — answering an
-approval, answering a question, steering an agent, a note, the context file — arrives in the slices
-that own those, each as a line in `VERBS` and a method on `WebActing`. Park went first because it is
-the smallest act that proves the whole path: told rather than derived, one bit of state to expect,
-already a hold with the queue's own rules behind it, and undone by the same verb.
+**There are eight verbs and they are the whole of what a device may ever do**: `park`, `answer`,
+`steer`, `queue`, `done`, `note`, `context` and `intake`. Park went first because it is the smallest
+act that proves the whole path; the rest are §9.1's matrix filled in, each a line in `VERBS`, a
+method on `WebActing`, and a control in `acts.js`.
+
+**Three in the matrix are deliberately not verbs**, and `verbs.ts` carries the argument beside the
+table: a whole project's queue (it names no task, so it has no entity revision to echo and no replay
+could be told from a fresh ask), a diff, a review's text or a lane's output (each ships source or an
+agent's bytes to a phone and a browser cache — a *reading* grant with its own threat model, and a
+name `NEVER_A_FIELD` already refuses), and stopping an agent (not a hold, not undone by the same
+verb).
+
+**Every verb makes two checks and they answer different questions.** `onTask` compares the revision
+the device echoed (`was`) against the one the projection would put on that row now — that one is
+about *the screen*, it is exact because both sides are `taskRev` over the same facts, and it is **not
+a lock**: the projection moves on a beat. What makes each act atomic at the moment of the write is
+the door it goes through, and `web-acting.ts` has the table of which door and what it guarantees. A
+verb whose answer to that column is "nothing" and whose effect is not idempotent does not ship.
+
+**`taskRev` is one field per thing a verb assumes**, readable rather than hashed: a field no verb
+depends on refuses perfectly current acts every time a figure moves, and a thing a verb assumes that
+is *not* in it is a replay nothing refuses. Both failures are silent. What cannot fit in a field that
+small is named in the act instead — `AnswerCall.approval` carries the approval's own id, because *an
+approval is waiting* and *this* approval is waiting are different facts.
+
+**The context verb appends and there is no replace.** A replace would mean sending the context's
+current text to the phone first, and this package has no way to read one (`WebReading` is synchronous
+and answers out of what the window already holds) — while for a task that came from outside the
+machine the body is a stranger's words. So the act carries only what to add, and what falls out is
+the property an If-Match was reaching for: **an append cannot overwrite a local edit**. The
+containment is `workbench/src/context.ts`' and is owed *there*: the id is `TaskId`'s regex, the
+task's folder is `realpath`'d and must come out inside the home, and the file is opened `O_NOFOLLOW`.
+Only the last of those is atomic, Node has no `openat`, and that limit is written down rather than
+implied away.
+
+**The grant control gives both tiers**, `answer` and `steer`, because one that gave only the gentler
+would mean a phone that can allow a command and cannot set the work aside. A control per tier is the
+thing to build if somebody wants the narrower grant; until then `ACTING_IS_NOT_YOU` is held to naming
+all of it (`test/separation.test.ts`).
 
 ## `tade web`, and what it cannot do
 
@@ -268,10 +330,15 @@ TADE_BROWSER='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
 ```
 
 It pairs a device through the real page, visits every route at 360/834/1440, runs axe, and checks the
-landmarks, the targets and that nothing scrolls sideways. **It pairs twice**: a device granted
-nothing, which is what the honesty checks are for, and then one granted everything at the widest
-width — because every figure draws differently with the grant, and the page with actual money,
-notes and sign-ins on it is the one the owner will look at. **Neither is in the lockfile**, because
+landmarks, the targets and that nothing scrolls sideways. **It pairs three times**: a device granted
+nothing, which is what the honesty checks are for; one granted everything at the widest width —
+because every figure draws differently with the grant, and the page with actual money, notes and
+sign-ins on it is the one the owner will look at; and one granted **both acting tiers** at 360px,
+where the three checks only a browser can answer live (`controls`, `touch`, `typing`): that what a
+row says may be asked of it is what is drawn and what it says cannot be is absent *with its reason*,
+that a real tap and a real `Enter` on a focused `<button>` each ask for exactly one act, and that a
+refusal leaves what somebody typed where it was. Its grant is `allowDevice` — the same append the
+pairing panel makes, because there is no route for one and there must never be. **Neither is in the lockfile**, because
 Playwright's install pulls hundreds of megabytes of browser onto every machine, and this repository
 holds the line that `pnpm install` runs two scripts and installs nothing else. **With no browser it
 reports `unrun` with the reason and exits 2** — never a pass. That property is what

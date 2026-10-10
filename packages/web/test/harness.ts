@@ -2,7 +2,7 @@ import { mkdtemp } from 'node:fs/promises'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { WebActing } from '../src/acting.ts'
+import { noFacts, type TaskFacts, type WebActing } from '../src/acting.ts'
 import type { Streams } from '../src/peers.ts'
 import type { Reach } from '../src/reach.ts'
 import { type Projector, projector, type WebReading } from '../src/reading.ts'
@@ -29,6 +29,38 @@ import { input, NOW } from './fixtures.ts'
 // it is a forbidden header name, so it strips it silently — and a
 // DNS-rebinding test written with `fetch` therefore sends the real host, gets
 // a `200`, and is a test that passes while asserting nothing.
+
+/**
+ * A `WebActing` with every verb refusing, and whichever ones a test wants.
+ *
+ * **Every method, every time**, which is the point: a test that built a
+ * `WebActing` by hand would have to be found and edited for each new verb, and
+ * the one that was forgotten would be the one whose route went to a method
+ * that was not there. Here the default for each is a throw with the verb's own
+ * name in it — so a test that reaches a verb it did not mean to is a
+ * failure that says which.
+ */
+export function actingStub(over: Partial<WebActing> = {}): WebActing {
+  const no = (verb: string) => (): Promise<never> =>
+    Promise.reject(new Error(`this test did not expect ${verb}`))
+  return {
+    unlocked: () => true,
+    park: no('park'),
+    answer: no('answer'),
+    steer: no('steer'),
+    queue: no('queue'),
+    done: no('done'),
+    note: no('note'),
+    context: no('context'),
+    intake: no('intake'),
+    ...over,
+  }
+}
+
+/** The facts a task's revision is built from, with nothing waiting on it. */
+export function facts(over: Partial<TaskFacts> = {}): TaskFacts {
+  return { ...noFacts(), ...over }
+}
 
 export const BASE: Surface = {
   enabled: true,

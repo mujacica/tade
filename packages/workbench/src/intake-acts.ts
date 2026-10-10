@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import {
+  type Asker,
   type Config,
   choicesFor,
   type DoneRule,
@@ -26,18 +27,46 @@ import { readTaskFile, taskContextPath } from './tasks.ts'
 import { budgetFrom, busyFrom, type TemplateDeps, type Unread } from './templates.ts'
 import type { Workbench } from './workbench.ts'
 
+/**
+ * What an intake act needs of the machine — named, rather than the whole
+ * facade.
+ *
+ * `Workbench` satisfies it and is what every caller passes; the interface
+ * exists so that **the one caller that is not a person** can be given exactly
+ * these doors and nothing else. The window's end of a request from a paired
+ * device holds a narrow set of workbench methods on purpose
+ * (`wire/web-acting.ts`), and a parameter typed as the facade would have made
+ * approving one mean handing that path `startAgent`, the account doors and
+ * every setting writer to get at `parkTask`.
+ */
+export interface IntakeDoors {
+  home: string
+  config: Config
+  log: Pick<Workbench['log'], 'read' | 'append'>
+  parkTask: Workbench['parkTask']
+  changeQueued: Workbench['changeQueued']
+  holdQueued: Workbench['holdQueued']
+  runs: Workbench['runs']
+}
+
 // What a person at this machine does about a request that arrived from
 // outside: read the inbox, open one, approve it, refuse it, try it again.
 //
 // **These are the local mutation doors, and there are only these four.** The
 // window calls them, the CLI calls them, and a web adapter would call them —
-// which is why they take a `Workbench` and a request rather than a terminal, a
-// panel or an HTTP body. Nothing here is reachable from off this machine
-// today: no route, no handler, no port. That is the seam research.md asks for
-// and the reservation DECISIONS.md allows, and it is a seam rather than a
-// surface precisely because *configuring intake is never remote* — a phone may
-// one day approve what a local grant already allowed; it may not create the
-// grant.
+// which is why they take a set of doors and a request rather than a terminal, a
+// panel or an HTTP body. **One of the four is now reachable from off this
+// machine and three are not**: a paired device may *approve* through
+// `approveIntake`, under the `intake` verb, and it may not refuse, retry or
+// read a request's own text. That is the seam research.md asks for, used for
+// exactly what DECISIONS.md allows — *configuring intake is never remote*, so
+// a phone approves what a local grant already allowed and may not create the
+// grant, widen it, or reply to anybody.
+//
+// What approving from away costs is two re-checks a keypress does not need:
+// the grant **and the source**, both at the moment of the act. They are in
+// `approveIntake` rather than at the door that calls it, because a check in
+// the surface is a check the next surface has to remember.
 //
 // **Reading never needs the window.** `inboxFrom` takes a home and a journal,
 // so `tade intake` answers from the files while a window is open — the
@@ -184,7 +213,7 @@ export interface IntakeActed {
 }
 
 /** The one place an act's refusal is turned into a throw, with core's own sentence. */
-async function rowFor(tade: Workbench, item: string, act: InboxAct): Promise<InboxRow> {
+async function rowFor(tade: IntakeDoors, item: string, act: InboxAct): Promise<InboxRow> {
   const row = await inboxItem({ home: tade.home, events: await tade.log.read({}), item })
   if (!row) throw new Error(`nothing called ${item} has been handed to this machine`)
   const off = whyNotAct(row, act)
@@ -207,13 +236,26 @@ async function rowFor(tade: Workbench, item: string, act: InboxAct): Promise<Inb
  * moment that matters — but because approving under a grant somebody has since
  * turned off should say so at the press rather than hold silently a second
  * later.
+ *
+ * **And where the asking is not a person at this machine, the source is asked
+ * too, here.** A keypress is somebody who has read the request deciding about
+ * it; a request from a paired device is not, and the two re-checks DESIGN
+ * §9.1 asks of approving one from away are the grant and *the source still
+ * saying what it said* (`parked.ts`'s `NotYours` has the argument). So a `by`
+ * that is not `you` must bring `stands`, and one that does not is **refused**
+ * rather than approved without it: a check nobody could make is not a check
+ * that passed, which is the one direction this has to get right.
  */
 export async function approveIntake(
-  tade: Workbench,
+  tade: IntakeDoors,
   req: {
     item: string
     start?: boolean
-    by: 'you'
+    /**
+     * Who asked. `you` is a keypress here; `device <id>` is a request from a
+     * paired device and brings `stands` with it.
+     */
+    by: Asker
     /**
      * The config as it stands *now*, where the caller has a fresher answer
      * than the workbench does.
@@ -225,6 +267,16 @@ export async function approveIntake(
      * workbench's own.
      */
     config?: Config
+    /**
+     * Why this request may not go ahead now, or null — the queue's own
+     * question (`intakeStands`), asked at the moment of approving.
+     *
+     * Only an open window can answer it: it needs the extension host that can
+     * ask a watch about its source. Required for any `by` but `you`, and a
+     * throw out of it holds, because a source that could not be asked has not
+     * said yes.
+     */
+    stands?: (row: InboxRow) => Promise<string | null>
   },
 ): Promise<IntakeActed> {
   const row = await rowFor(tade, req.item, req.start ? 'start' : 'approve')
@@ -236,6 +288,24 @@ export async function approveIntake(
     if (!grant.projects.includes(row.project)) {
       throw new Error(`${grant.path}.projects no longer lists ${row.project}: nothing would start`)
     }
+  }
+  if (req.by !== 'you') {
+    // **Fail closed, in both directions.** No `stands` is a caller that cannot
+    // ask the source, and an answer that says why not is the source having
+    // moved on: closed, rewritten, relabelled, or unreachable. Either way
+    // nothing is approved.
+    if (!req.stands) {
+      throw new Error(
+        `approving ${row.externalId} from away means asking ${row.source} whether it still stands, and only an open window can: approve it at the machine`,
+      )
+    }
+    const because = await req
+      .stands(row)
+      .catch(
+        (err) =>
+          `could not be checked at its source: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    if (because) throw new Error(`${row.externalId} ${because}`)
   }
   const parked = row.work.filter((one) => one.parked).map((one) => one.task)
   for (const task of parked) await tade.parkTask(task, false)
@@ -270,7 +340,7 @@ export async function approveIntake(
  * with a different button.
  */
 export async function refuseIntake(
-  tade: Workbench,
+  tade: IntakeDoors,
   req: { item: string; why?: string; by: 'you' },
 ): Promise<IntakeActed> {
   const row = await rowFor(tade, req.item, 'refuse')
@@ -339,7 +409,7 @@ export async function refuseIntake(
  * that sent it.
  */
 export async function retryIntake(
-  tade: Workbench,
+  tade: IntakeDoors,
   req: {
     item: string
     by: 'you'

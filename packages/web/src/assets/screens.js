@@ -11,6 +11,18 @@
 // an empty heading reads as broken.
 
 import {
+  afterAnswer,
+  asksFor,
+  bodyFor,
+  confirms,
+  controlsFor,
+  headingFor,
+  howSaid,
+  QUEUE_ASKS,
+  SHOWN,
+  wordsFor,
+} from './acts.js'
+import {
   classOn,
   el,
   empty,
@@ -344,12 +356,14 @@ function spendIn(section_, made, tasks, partial, may, since = null) {
 /* ── one task ──────────────────────────────────────────────────────────────── */
 
 /**
- * A task, read-only.
+ * A task: what it is, and what may be asked of it.
  *
- * What is **not** here is the point of Phase 1: no approve, no deny, no steer,
- * no diff and no lane output. Not greyed out and not behind a toast — absent,
- * because a control that is missing is already the answer and a disabled one
- * invites a tap and then says nothing.
+ * **What is absent is still the point.** There is no diff, no lane output and
+ * no transcript — each ships source or an agent's bytes to a phone and to a
+ * browser cache, which is a *reading* grant with its own threat model and not
+ * a control. And a control that nothing could carry out is absent too, with
+ * the reason beside it: not greyed out and not behind a toast, because a
+ * disabled button invites a tap and then says nothing.
  */
 export function taskScreen(where, ctx) {
   const node = el('div')
@@ -384,7 +398,11 @@ export function taskScreen(where, ctx) {
   )
   const parts = [state, asked, agent, work, checks, rest]
   const made = partsOf(state, agent, work, checks, rest)
-  const park = parkIn(state, ctx, where)
+  // **Every control the page has, built once** — one block per verb, in the
+  // order `SHOWN` gives, each hidden until the row says it may be asked for.
+  // Built here rather than per update, so what somebody has typed into one
+  // survives every delta (`keyed`'s rule, one layer up).
+  const acts = ctx === undefined || ctx === null ? null : actsIn(node, ctx)
 
   return {
     node,
@@ -401,64 +419,196 @@ export function taskScreen(where, ctx) {
       workIn(made, task)
       taskChecksIn(made, task)
       restIn(made, task, view)
-      park.update(task, view)
+      acts?.update(task, view)
     },
   }
 }
 
 /**
- * The one control on this page that changes anything: park, or pick back up.
+ * Every control this page has, as one block per verb.
  *
- * **Absent rather than refused**, three times over. It is not built at all
- * where this device was not granted `steer` — the `scopes` on its own session,
- * out of `/api/devices`, which is also what the machine re-checks. And where
- * it is built, what it sends is the task's own `rev`: what the screen said,
- * echoed back, so a park somebody made at the keyboard since is a `409` that
- * redraws the truth rather than a toggle that undoes their decision.
+ * **Absent rather than refused, three times over.** A verb this device was not
+ * granted is not built at all and says nothing — a sentence naming a scope
+ * somebody does not have is a map of what else there is to ask for. A verb the
+ * *world* cannot do right now is absent with the row's own reason beside it.
+ * And what every one of them sends is the task's own `rev`: what the screen
+ * said, echoed back, so an act against a world that has moved is a `409` that
+ * redraws the truth rather than a tap that undoes somebody's decision.
  *
- * The key is minted here, once per press, and **kept across a retry**: a press
- * whose answer never arrived is a press whose repeat must not be a second act,
- * and the key is what makes the machine able to tell the two apart.
+ * **The key is minted once per press and kept across a retry**: a press whose
+ * answer never arrived is a press whose repeat must not be a second act, and
+ * the key is what makes the machine able to tell the two apart.
+ *
+ * What is typed stays typed until the act actually happened (`afterAnswer`).
  */
-function parkIn(section_, ctx, where) {
-  const press = el('button', { class: 'press quietly' })
-  const said = el('p', { attrs: { role: 'status' } })
-  let may = false
-  let rev = null
-  let parked = false
-  let going = false
-  if (ctx !== undefined && ctx !== null) into(section_.body, press, said)
-
-  press.addEventListener('click', async () => {
-    if (going || rev === null) return
-    going = true
-    press.disabled = true
-    const answer = await ctx.ask('POST', '/api/act/park', {
-      task: `${where.project}/${where.task}`,
-      parked: !parked,
-      was: rev,
-      key: keyOf(),
-      rev: ctx.revOf(),
-    })
-    going = false
-    press.disabled = false
-    // Tade's own sentence either way. A `409` is not an error to apologise
-    // for: the next frame carries what is actually true, and this says which
-    // of the two happened.
-    textIn(said, answer.status === 200 ? (answer.body?.said ?? 'done') : ctx.sentence(answer))
-  })
-
+function actsIn(node, ctx) {
+  const blocks = new Map()
+  for (const verb of SHOWN) {
+    const block = blockFor(verb, ctx)
+    blocks.set(verb, block)
+    into(node, block.node)
+  }
   return {
     update(task, view) {
-      may = view.may.act === true
-      rev = task.rev
-      parked = task.parked
-      press.hidden = !may
-      said.hidden = !may
-      if (!may) return
-      textIn(press, parked ? 'Pick this back up' : 'Set this aside')
+      const acts = view.may.acts ?? { answer: false, steer: false }
+      for (const one of controlsFor(task, acts)) {
+        blocks.get(one.verb)?.update(task, one)
+      }
     },
   }
+}
+
+/**
+ * One verb's block: a heading, whatever it needs typed, and the press.
+ *
+ * One shape for all eight, because the differences are three fields — what it
+ * says, whether it takes text, and how many presses it has — and eight
+ * hand-written blocks would be eight places for a `rev` to stop being echoed.
+ */
+function blockFor(verb, ctx) {
+  const part = section(headingFor(verb))
+  const why = el('p', { class: 'empty' })
+  const box = TYPES[verb] === undefined ? null : el('textarea', { attrs: TYPES[verb] })
+  const press = el('button', { class: 'press quietly' })
+  const deny = verb === 'answer' ? el('button', { class: 'press quietly' }) : null
+  const row = el('div', { class: 'presses' })
+  const said = el('p', { attrs: { role: 'status' } })
+  const asks = el('div', { class: 'presses' })
+  into(part.body, why)
+  if (box !== null) into(part.body, box)
+  into(row, press)
+  if (deny !== null) into(row, deny)
+  into(part.body, verb === 'queue' ? asks : row, said)
+
+  let held = null
+  let going = false
+  let asked = false
+
+  const send = async (typed) => {
+    if (going || held === null) return
+    going = true
+    press.disabled = true
+    if (deny !== null) deny.disabled = true
+    const answer = await ctx.ask(
+      'POST',
+      `/api/act/${verb}`,
+      bodyFor(verb, held, keyOf(), ctx.revOf(), typed),
+    )
+    going = false
+    press.disabled = false
+    if (deny !== null) deny.disabled = false
+    const came = afterAnswer(answer, ctx.sentence(answer))
+    textIn(said, came.said)
+    // **Only what actually happened clears the box.** A `409` is the world
+    // having moved, and throwing away a paragraph somebody typed on a phone
+    // because of it is the one failure they cannot undo.
+    if (came.clear && box !== null) box.value = ''
+    asked = false
+    settle()
+  }
+
+  const typedOf = (over = {}) => ({
+    said: box?.value ?? '',
+    text: box?.value ?? '',
+    add: box?.value ?? '',
+    summary: box?.value ?? '',
+    ...over,
+  })
+
+  const settle = () => {
+    textIn(press, asked ? 'Tap again to confirm' : wordsFor(verb, held ?? {}))
+    classOn(press, 'asked', asked)
+  }
+
+  press.addEventListener('click', () => {
+    // A second tap for the two that asking again does not undo. The schema's
+    // own `confirm` literal is the other half, and neither stands in for the
+    // other: this stops a mis-tap, and the literal stops a body that means
+    // *do not*.
+    if (confirms(verb) && !asked) {
+      asked = true
+      settle()
+      return
+    }
+    void send(typedOf(verb === 'answer' ? { allow: true } : {}))
+  })
+  deny?.addEventListener('click', () => void send(typedOf({ allow: false })))
+  const choices = []
+  for (const ask of verb === 'queue' ? QUEUE_ASKS : []) {
+    const one = el('button', { class: 'press quietly', text: ask.said })
+    one.addEventListener('click', () => void send(typedOf({ change: ask.change })))
+    choices.push({ ask, node: one })
+    into(asks, one)
+  }
+
+  return {
+    node: part.node,
+    update(task, standing) {
+      held = task
+      // Nothing at all for a verb this device was not granted: no heading, no
+      // reason, no control.
+      part.node.hidden = standing.kind === 'off'
+      if (standing.kind === 'off') return
+      const shown = standing.kind === 'yes'
+      why.hidden = shown
+      textIn(why, shown ? '' : standing.why)
+      row.hidden = !shown
+      asks.hidden = !shown
+      said.hidden = !shown
+      if (box !== null) box.hidden = !shown
+      if (!shown) {
+        asked = false
+        return
+      }
+      settle()
+      // Built once and hidden per row: parked work has no startable choice,
+      // and offering one is a tap that can only be refused.
+      const offered = asksFor(task)
+      for (const choice of choices) choice.node.hidden = !offered.includes(choice.ask)
+      if (deny !== null) textIn(deny, 'Deny')
+      const how = howSaid(standing.how)
+      if (how !== '') textIn(said, how)
+    },
+  }
+}
+
+/**
+ * The boxes, and what each one is for.
+ *
+ * `maxlength` is the server's own bound (`BOUNDS`), so a phone says *that is
+ * as much as this takes* while somebody is typing rather than after they send
+ * it — and the server still refuses one past it, because a client bound is a
+ * courtesy and never a check.
+ *
+ * **An `aria-label` as well as a placeholder**, because a placeholder is not a
+ * label: it goes the moment somebody types, so a screen reader meeting a
+ * half-filled box would have nothing to say about what it is for.
+ */
+const TYPES = {
+  steer: {
+    rows: '3',
+    maxlength: '2000',
+    placeholder: 'what to tell its agent',
+    'aria-label': 'what to tell its agent',
+  },
+  note: {
+    rows: '3',
+    maxlength: '4000',
+    placeholder: 'what to write down, as you write it',
+    'aria-label': 'what to write down',
+  },
+  context: {
+    rows: '4',
+    maxlength: '4000',
+    placeholder: 'what to add to what it is told',
+    'aria-label': 'what to add to what it is told',
+  },
+  done: {
+    rows: '2',
+    maxlength: '500',
+    placeholder: 'what it finished as (optional)',
+    'aria-label': 'what it finished as',
+  },
 }
 
 /**

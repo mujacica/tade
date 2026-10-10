@@ -1,5 +1,6 @@
 import { DONE_RULES, ReviewState, TaskState } from '@tade/core'
 import { z } from 'zod'
+import { HOWS } from './acting.ts'
 import { GRANTS } from './reach.ts'
 
 // What goes on the wire, declared as an allow-list. Nothing is inherited.
@@ -155,6 +156,19 @@ export const TaskRowSchema = z.strictObject({
   question: z.boolean(),
   /** The tool's **name** and when it started waiting. Never the command. */
   approval: z.strictObject({ id: z.string(), tool: z.string(), since: z.string() }).nullable(),
+  /** Whether the journal already says it is finished. Not a state: a record. */
+  finished: z.boolean(),
+  /**
+   * What may be asked of this task, and what may not with the reason.
+   *
+   * **Not permission** — the gate decides that at the act and re-asks every
+   * layer. This is whether the thing is possible at all: a harness with no way
+   * to take a message, an agent that is not running, work already finished. It
+   * is two lists because a control the page turns off needs a sentence beside
+   * it, and an absence is not one.
+   */
+  can: z.array(z.strictObject({ verb: z.string(), how: z.enum(HOWS) })),
+  cannot: z.array(z.strictObject({ verb: z.string(), why: z.string() })),
   createdAt: z.string(),
   /** A moment, never an elapsed figure: see `tick` in `delta.ts`. */
   movedAt: z.string().nullable(),

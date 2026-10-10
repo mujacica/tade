@@ -1,4 +1,5 @@
 import type { DoneRule, PlanStanding, ReviewState, Spend, TaskState } from '@tade/core'
+import type { Can, Cannot, TaskFacts } from './acting.ts'
 import type { Reach } from './reach.ts'
 
 // What the away view is handed, and the reason it is handed this and not more.
@@ -210,15 +211,75 @@ export interface TaskIn {
    *
    * `tool` is the tool's **name** and nothing else. The harness's one-line
    * summary — which is the command, with its paths — is not here and must not
-   * be added: answering an approval from away is Phase 2's and its own slice
-   * decides what a person is shown before they say yes.
+   * be added, and that stands now that answering one from away is a verb: what
+   * a person on a phone is shown before they say yes is the tool's name and
+   * the count of what else waits, and the command stays at the machine where
+   * the lane is.
    */
   approval: { id: string; tool: string; sinceAt: number } | null
+  /**
+   * Whether the journal already says this task is finished. Metadata.
+   *
+   * Not a state: `deriveState` has no `done`, because what a task's state is
+   * about is the work and this is about the record. It is here because two
+   * things need it — a page must not offer to finish what is finished, and
+   * `taskRev` carries it so that a second `done` from a screen drawn before
+   * the first is refused rather than appending a second `task_done` line.
+   */
+  finished: boolean
+  /**
+   * The queue's own word for where this task stands, or empty for work that is
+   * not queued. Metadata.
+   *
+   * `QueueStateIn['kind']`, and the *word* only: the queue collection carries
+   * the whole of it, with the sentence and the counts. What this is for is
+   * `taskRev` — a queue choice made from a screen drawn when the work was
+   * waiting on something else is a choice about a different world.
+   */
+  queue: string
+  /**
+   * What may be asked of this task right now, and what may not with why.
+   *
+   * **Two lists rather than one, and the second is the point.** A control the
+   * page cannot draw is a control nobody can explain: *this harness has no way
+   * to take a message mid-turn* is a sentence somebody wrote, and an absence is
+   * not. So what cannot be asked is named (`cannot`) exactly as what cannot be
+   * read is, and the page draws the reason beside the control it has turned
+   * off rather than leaving a hole.
+   *
+   * It is **not** permission. A device's scopes and the acting setting are the
+   * gate's (`acts.ts`), re-asked at the act; this is about whether the thing
+   * is *possible* — a harness that cannot steer, an agent that is not
+   * running, a task already finished. A row that says `can` is still refused
+   * where the grant does not allow it.
+   */
+  can: readonly Can[]
+  cannot: readonly Cannot[]
   /** The fold. Already a pure value in `@tade/core`: no paths, no ids. */
   spend: Spend
   checks: ChecksIn
   /** The review this branch is out for. `url` is carried only with `reviews`. */
   review: { state: ReviewState; url: string } | null
+}
+
+/**
+ * The facts a task's own revision is built from, out of its projected row.
+ *
+ * **One rule, and this is where the two sides meet it.** `snapshot.ts` calls
+ * it to put `rev` on the row, and the window calls it at the act to build the
+ * revision `was` is compared against. Two spellings of the same six fields
+ * would be a comparison that is always true or always false, and neither
+ * failure would look like one.
+ */
+export function factsOf(task: TaskIn): TaskFacts {
+  return {
+    parked: task.parked,
+    approval: task.approval !== null,
+    question: task.question,
+    agents: task.agents,
+    finished: task.finished,
+    queue: task.queue,
+  }
 }
 
 /** What a project is, once its paths are not in it. */

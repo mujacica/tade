@@ -1,4 +1,12 @@
-import { Moved, NotThere, type Outcome, OutOfScope, type WebActing } from './acting.ts'
+import {
+  Moved,
+  NotOffered,
+  NotThere,
+  type Outcome,
+  OutOfScope,
+  TooMuch,
+  type WebActing,
+} from './acting.ts'
 import { admit, type Standing } from './acts.ts'
 import { type Refusal, refuse } from './errors.ts'
 import type { Claimed, Receipts } from './receipts.ts'
@@ -152,15 +160,26 @@ export async function carryOut(route: Route, body: unknown, ctx: Acted): Promise
       asked.run(ctx.acting, { how: 'remote', device: ctx.device }),
     )
   } catch (error) {
-    // **Three failures, three answers, and none of them is a retry.** The
-    // state moved under the caller, the thing is not there, or the window
-    // itself broke — and in that last case the `asked` line stands with
+    // **Five failures, five answers, and none of them is a retry.** The
+    // state moved under the caller, the thing is not there, the device was not
+    // granted that, nothing here can do it, what was sent was too long — or
+    // the window itself broke — and in that last case the `asked` line stands with
     // nothing after it, so a repeat of this key is `unsure` rather than a
     // second attempt. That is the fail-closed half, and it is why the claim is
     // written before the act rather than after it.
     if (error instanceof Moved) return no(ctx, asked, refuse('gone', { rev: error.rev }))
     if (error instanceof NotThere) return no(ctx, asked, refuse('no_such'))
     if (error instanceof OutOfScope) return no(ctx, asked, refuse('out_of_scope'))
+    // **The harness cannot do it, or there is nothing there to do it to.** A
+    // `404` with the sentence a path nobody built gets: the page is not
+    // supposed to reach this at all, because every row says what may be asked
+    // of it and what may not with the reason, so a control nothing could carry
+    // out is never drawn. What arrives here is a crafted call or a tab from
+    // before the agent stopped, and neither is owed a map of the harness.
+    if (error instanceof NotOffered) return no(ctx, asked, refuse('not_offered'))
+    // Over the bound on what one act may carry. `too_big` rather than
+    // `malformed`, because the body parsed and the request was understood.
+    if (error instanceof TooMuch) return no(ctx, asked, refuse('too_big'))
     return {
       ...no(ctx, asked, refuse('broke', { request: ctx.request })),
       warning: `the away view could not carry out ${asked.verb}: ${String(error).slice(0, 200)}`,

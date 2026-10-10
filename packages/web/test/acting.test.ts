@@ -4,7 +4,16 @@ import type { From, Outcome, ParkCall, WebActing } from '../src/acting.ts'
 import { allowDevice, appendDevice, readDevices } from '../src/devices.ts'
 import { receiptsPath } from '../src/receipts.ts'
 import { CSRF_HEADER } from '../src/request.ts'
-import { type Answer, ask, closeAll, pair, type Running, said, start } from './harness.ts'
+import {
+  type Answer,
+  actingStub,
+  ask,
+  closeAll,
+  pair,
+  type Running,
+  said,
+  start,
+} from './harness.ts'
 
 // The door, for an act: every layer a request has to get through before a verb
 // is reached, asked of a real listener over a real socket.
@@ -30,7 +39,7 @@ function window_(
   const calls: { call: ParkCall; from: From }[] = []
   return {
     calls,
-    acting: {
+    acting: actingStub({
       unlocked: () => over.unlocked ?? true,
       park: (call, from) => {
         calls.push({ call, from })
@@ -39,7 +48,7 @@ function window_(
           Promise.resolve<Outcome>({ did: true, rev: 'p1', said: 'set aside' })
         )
       },
-    },
+    }),
   }
 }
 

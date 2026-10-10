@@ -226,6 +226,22 @@ button {
   min-height: var(--tap);
 }
 
+/*
+  `hidden` wins over anything this stylesheet says about display.
+
+  **The bug this closes was found in a browser and nowhere else.** The page
+  turns a region off with `el.hidden = true`, which is `display: none` in the
+  user agent's own stylesheet — and an author rule, any author rule, beats a
+  UA one. So the moment a region gained `display: flex` or `display: block`
+  here, `hidden` stopped hiding it: every control the row said could **not** be
+  asked for was drawn anyway, with its reason beside it, and nothing in the
+  offline suite could see it. `!important` is the only form that holds,
+  because the thing it has to beat is a class on the same element.
+*/
+[hidden] {
+  display: none !important;
+}
+
 /* Never removed, never only a colour change: 2px of cyan, offset so it reads. */
 :focus-visible {
   outline: 2px solid var(--cyan);

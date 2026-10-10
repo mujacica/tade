@@ -5,16 +5,19 @@ import { type Acted, carryOut } from '../src/acted.ts'
 import {
   type From,
   Moved,
+  NotOffered,
   NotThere,
   type Outcome,
+  OutOfScope,
   type ParkCall,
+  TooMuch,
   type WebActing,
 } from '../src/acting.ts'
 import { namesOnly } from '../src/reach.ts'
 import { Receipts } from '../src/receipts.ts'
 import { ACTS, type Route } from '../src/routes.ts'
 import type { Scope, Surface } from '../src/surface.ts'
-import { homeFor } from './harness.ts'
+import { actingStub, homeFor } from './harness.ts'
 
 // One act, end to end, with a real receipt store on disk and a window that
 // answers whatever the test wants it to.
@@ -50,7 +53,7 @@ function window_(
   const calls: { call: ParkCall; from: From }[] = []
   return {
     calls,
-    acting: {
+    acting: actingStub({
       unlocked: () => over.unlocked ?? true,
       park: (call, from) => {
         calls.push({ call, from })
@@ -59,7 +62,7 @@ function window_(
           Promise.resolve<Outcome>({ did: true, rev: 'p1', said: 'set aside' })
         )
       },
-    },
+    }),
   }
 }
 
@@ -289,6 +292,64 @@ describe('what the window says back', () => {
     const answered = await carryOut(ROUTE, BODY, await context(made.acting, {}, 'acted-nothere'))
     expect(answered.refusal?.error).toBe('no_such')
     expect(answered.warning).toBeNull()
+  })
+
+  it('turns a device that was not granted *that* into a `403`, with no hint', async () => {
+    const made = window_({
+      park: () => Promise.reject(new OutOfScope('tade/x came from outside this machine')),
+    })
+    const answered = await carryOut(ROUTE, BODY, await context(made.acting, {}, 'acted-scope'))
+    expect(answered.refusal?.error).toBe('out_of_scope')
+    expect(answered.refusal?.status).toBe(403)
+    // The door's own sentence stays at the machine: the page gets Tade's one
+    // line about scope, and the reason goes nowhere near a phone.
+    expect(answered.refusal?.said).not.toContain('outside this machine')
+    expect(answered.warning).toBeNull()
+  })
+
+  it('turns something nothing here can do into the `404` a path nobody built gets', async () => {
+    // **An off capability is not a thing to probe.** A harness that cannot
+    // take a message, an agent that is not running — the page already has the
+    // reason on the row and drew no control, so what reaches here is a crafted
+    // call or a tab from before the agent stopped, and neither is owed a map
+    // of the harness.
+    const made = window_({ park: () => Promise.reject(new NotOffered('pi cannot do that')) })
+    const answered = await carryOut(ROUTE, BODY, await context(made.acting, {}, 'acted-offer'))
+    expect(answered.refusal?.error).toBe('not_offered')
+    expect(answered.refusal?.status).toBe(404)
+    expect(answered.refusal?.said).toBe('there is nothing here by that name')
+    expect(answered.warning).toBeNull()
+  })
+
+  it('turns too much to carry into a `413`, and never a truncation', async () => {
+    const made = window_({ park: () => Promise.reject(new TooMuch('that is past 64000')) })
+    const answered = await carryOut(ROUTE, BODY, await context(made.acting, {}, 'acted-toobig'))
+    expect(answered.refusal?.error).toBe('too_big')
+    expect(answered.refusal?.status).toBe(413)
+    expect(answered.warning).toBeNull()
+  })
+
+  it('writes a line for every one of those, under the device that asked', async () => {
+    // **A refusal is the case the audit matters most in.** Each of the five
+    // ways a verb can fail gets a line with the refusal's own word on it, so
+    // a person reading back can see what a device asked for and what it got.
+    for (const [error, thrown] of [
+      ['gone', new Moved('moved', 'p1')],
+      ['no_such', new NotThere('gone')],
+      ['out_of_scope', new OutOfScope('not yours')],
+      ['not_offered', new NotOffered('cannot')],
+      ['too_big', new TooMuch('too much')],
+    ] as const) {
+      const made = window_({ park: () => Promise.reject(thrown) })
+      const answered = await carryOut(ROUTE, BODY, await context(made.acting, {}, `acted-${error}`))
+      expect(answered.did, error).toMatchObject({
+        device: '00112233445566aa',
+        tool: 'park',
+        task: 'tade/away-action-gate',
+        state: 'refused',
+        why: error,
+      })
+    }
   })
 
   it('turns anything else into a request id, with the detail in a warning', async () => {

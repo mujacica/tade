@@ -12,7 +12,6 @@ import {
   standingOf,
 } from '../src/assets/live.js'
 import { keyOf } from '../src/assets/screens.js'
-import { mayAct } from '../src/assets/store.js'
 import {
   BACKOFF_MS as BACKOFF,
   backoffAt as backoffHere,
@@ -20,7 +19,7 @@ import {
   connectionOf as connectionHere,
   STALE_AFTER_MS as STALE,
 } from '../src/stream.ts'
-import { KEY, PARK } from '../src/verbs.ts'
+import { KEY } from '../src/verbs.ts'
 
 // The one rule that is written twice, held to agreeing.
 //
@@ -156,24 +155,10 @@ describe('what it says, and what it never says', () => {
   })
 })
 
-describe('the one control the page has that changes anything', () => {
-  it('is drawn only for a device granted the scope the verbs need', () => {
-    // The page's copy of a server rule, held against the verb table rather
-    // than against a literal: a verb filed at another tier would make the two
-    // disagree, and the page would draw a button that is refused.
-    expect(PARK.needs).toBe('steer')
-    expect(mayAct({ scopes: ['read', PARK.needs] })).toBe(true)
-    expect(mayAct({ scopes: ['read'] })).toBe(false)
-  })
-
-  it('answers no for every shape of nothing, rather than throwing', () => {
-    // A page drawn before `/api/devices` has answered, a session with no
-    // scopes on it, and a body that is not the shape it should be: all of them
-    // are *no control*, because the safe answer to "may this device act" is no.
-    for (const session of [null, undefined, {}, { scopes: null }, { scopes: 'steer' }]) {
-      expect(mayAct(session as never), JSON.stringify(session ?? null)).toBe(false)
-    }
-  })
+describe('the keys the page mints for a press', () => {
+  // Which scope each verb needs, and what a device granted nothing may draw,
+  // moved to `test/acts-client.test.ts` with the rest of what a control
+  // decides — there is one table now and it is held against `VERBS` there.
 
   it('mints a key the server will accept, and a fresh one every press', () => {
     // A key is how the machine tells one press from a retry of the same one,

@@ -1,14 +1,15 @@
 import type { PlanStanding, Spend } from '@tade/core'
 import { taskRev } from './acting.ts'
 import { withoutPaths } from './fields.ts'
-import type {
-  FindingIn,
-  NoteIn,
-  QueueIn,
-  QueueStateIn,
-  ReasonIn,
-  SnapshotInput,
-  TaskIn,
+import {
+  type FindingIn,
+  factsOf,
+  type NoteIn,
+  type QueueIn,
+  type QueueStateIn,
+  type ReasonIn,
+  type SnapshotInput,
+  type TaskIn,
 } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, textOf, withheld } from './page.ts'
 import type {
@@ -130,13 +131,22 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     reason: reasonOf(task.reason),
     stalled: task.stalled,
     parked: task.parked,
-    rev: taskRev({ parked: task.parked }),
+    // **The row's own revision, built from the same rule the window builds it
+    // from at the moment of a write.** Every fact in it is one some verb
+    // assumes, so a screen is refused exactly when what it was looking at has
+    // moved and not when some figure did.
+    rev: taskRev(factsOf(task)),
     wantsYou: wantsYou(task.state),
     question: task.question,
     approval:
       task.approval === null
         ? null
         : { id: task.approval.id, tool: task.approval.tool, since: ISO(task.approval.sinceAt) },
+    finished: task.finished,
+    // Carried as the window worked them out: whether a thing is possible is a
+    // question about a harness and a lane, which only the window can answer.
+    can: task.can.map((one) => ({ verb: one.verb, how: one.how })),
+    cannot: task.cannot.map((one) => ({ verb: one.verb, why: one.why })),
     createdAt: ISO(task.createdAt),
     movedAt: ISO_OR(task.movedAt),
     title: said(task.title, has(reach, 'titles')),
