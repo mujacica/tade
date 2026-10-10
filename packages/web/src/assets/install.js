@@ -113,7 +113,13 @@ export async function startInstall(shell, told) {
   } else {
     // Deliberately not awaited: an update check is a network round trip, and
     // the page has a snapshot to ask for.
-    reg.update().catch(() => {})
+    reg.update().catch(() => {
+      // **The one failure here that is not worth a word.** An update check
+      // fails because the machine is not answering, which is the ordinary
+      // case for a phone out of range — and the page already says that, at
+      // the top, in a bar of its own. A second sentence about it would be one
+      // every time somebody opens this on a train.
+    })
   }
   // **The uninstalling worker says so**, which is the other half of its not
   // waiting: without this the page would have put a *new version is ready*

@@ -1,6 +1,11 @@
 import { OFFLINE_NEEDS_HTTPS_SHORT } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { NOT_SECURE, CACHE_PREFIX as PAGE_PREFIX } from '../src/assets/install.js'
+import {
+  installable,
+  NOT_SECURE,
+  CACHE_PREFIX as PAGE_PREFIX,
+  startInstall,
+} from '../src/assets/install.js'
 import {
   countsOf,
   KEPT,
@@ -113,6 +118,29 @@ describe('where it is kept', () => {
     expect(PAGE_PREFIX).toBe(CACHE_PREFIX)
     expect(PAGE_CACHE).toBe(VIEW_CACHE)
     expect(PAGE_CACHE.startsWith(PAGE_PREFIX)).toBe(true)
+  })
+
+  it('tries nothing at all where a browser would refuse it', async () => {
+    // **The one branch of the page's install that can be asked offline, and it
+    // is the one deciding whether any of the rest happens.** A worker, a cache
+    // and an install all need a potentially trustworthy origin, so a page
+    // served over plain HTTP on a network must not reach for any of them. The
+    // stand-in is a bare `self` with no `isSecureContext` on it, which is what
+    // that origin looks like from inside the page.
+    const had = Reflect.get(globalThis, 'self')
+    Reflect.set(globalThis, 'self', {})
+    try {
+      expect(installable()).toBe(false)
+      let told = 0
+      expect(
+        await startInstall({ install: true }, () => {
+          told += 1
+        }),
+      ).toBe('insecure')
+      expect(told).toBe(0)
+    } finally {
+      Reflect.set(globalThis, 'self', had)
+    }
   })
 
   it('says why a browser refused it in the domain’s own words', () => {

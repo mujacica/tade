@@ -180,8 +180,15 @@ let wanted = null
 let broke = []
 /** Whether a new shell is installed and waiting for somebody to say when. */
 let newer = false
-/** Whether this machine offers an installed copy and this browser refused it. */
-let refused = false
+/**
+ * Why this browser kept no copy, where the machine offered one — or null.
+ *
+ * `insecure` is the origin, which is a thing somebody can fix; `cannot` is a
+ * browser that has none of this, which is not. **Both are said**, because a
+ * machine whose setting says *a device may install it* and a phone where
+ * nothing happened is a silence somebody has to go and find the reason for.
+ */
+let refused = null
 /** When the last view was last written, so a beat is not a write. */
 let keptAt = 0
 
@@ -331,17 +338,23 @@ function paint() {
  */
 function offered() {
   const said = []
-  if (refused) {
+  if (refused !== null) {
     // **The silent failure, said once.** A browser on a plain address over a
     // network refuses a worker, a cache and an install without a word, so a
     // person who turned this on at the machine sees nothing happen and has
-    // nothing to go on. The clause is the domain's own.
+    // nothing to go on. The clause for the fixable half is the domain's own.
     said.push({
-      key: 'insecure',
+      key: 'refused',
       tone: 'is-stale',
       glyph: '⚠',
-      lead: 'This address cannot keep a copy of this page.',
-      under: `Installing ${NOT_SECURE} one. Everything else here works as it is.`,
+      lead:
+        refused === 'insecure'
+          ? 'This address cannot keep a copy of this page.'
+          : 'This browser will not keep a copy of this page.',
+      under:
+        refused === 'insecure'
+          ? `Installing ${NOT_SECURE} one. Everything else here works as it is.`
+          : 'Everything else here works exactly as it does now.',
     })
   }
   if (!newer) return said
@@ -687,7 +700,8 @@ async function install() {
   })
   // Said only where the machine offers it: a browser that refuses something
   // nobody was offering is not a thing to put a bar up about.
-  refused = how === 'insecure' && held.shell?.install === true
+  const offering = held.shell?.install === true
+  refused = offering && (how === 'insecure' || how === 'cannot') ? how : null
   paint()
 }
 
