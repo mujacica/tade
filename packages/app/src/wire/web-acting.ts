@@ -345,8 +345,16 @@ export function answer(deps: ActingDeps, call: AnswerCall, from: From): Promise<
  *    The page already has that sentence on the row and draws no control; this
  *    is what happens to a crafted call, and it is `not_offered` — the same
  *    `404` as a path nobody built.
+ *
+ * **And where the words end up, said out loud.** `steerAgent` delivers over
+ * the supervision channel where there is one and types at the lane where there
+ * is not — which is what a person would do themselves, and the lane it names
+ * is always `<task>/agent`. So the fallback reaches an agent's own input and
+ * never a shell: a terminal lane has a different id and there is no verb that
+ * takes one. That is the whole of why *no raw terminal* holds here, and it
+ * holds by there being no lane id on the wire rather than by a check.
  */
-export function steer(deps: ActingDeps, call: SteerCall, from: From): Promise<Outcome> {
+export function steer(deps: ActingDeps, call: SteerCall, _from: From): Promise<Outcome> {
   return onTask(deps, call, async (facts) => {
     if (facts.agents === 0) throw new NotOffered(`no agent is running on ${call.task}`)
     const how = deps.steering(call.task)
@@ -358,13 +366,17 @@ export function steer(deps: ActingDeps, call: SteerCall, from: From): Promise<Ou
       // true now, never a retry and never a second route to the same lane.
       throw new Moved(err instanceof Error ? err.message : String(err), after(facts))
     }
-    // **No line of its own, and that is deliberate.** `web_did` already
-    // records it — the device, the verb, the task and what came of it — and a
-    // second record of one fact is one more thing to keep in step. The
-    // keyboard's own steer writes no line either, so a remote one that did
-    // would make `historyFrom` count a message from a phone and not the
-    // identical one typed here. The words themselves are in the conversation,
-    // where the agent read them, and nowhere else.
+    // **No line of its own, and that is why `from` is unused here.** `web_did`
+    // already records this act — the device, the verb, the task and what came
+    // of it — and a second record of one fact is one more thing to keep in
+    // step. The keyboard's own steer writes no line either, so a remote one
+    // that did would make `historyFrom` count a message from a phone and not
+    // the identical one typed here. The words themselves are in the
+    // conversation, where the agent read them, and nowhere else.
+    //
+    // The parameter stays in the signature because `WebActing` declares one
+    // for every verb: a provenance that could be left out of a method is one
+    // that will be, in the commit that gives this verb a record of its own.
     return {
       did: true,
       rev: after(facts),
