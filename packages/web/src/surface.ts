@@ -83,6 +83,18 @@ export interface Surface {
    * tools. One switch for both would be a yes to a question nobody was asked.
    */
   talking: boolean
+  /**
+   * Whether a paired device may save a field of a draft workflow.
+   *
+   * **Read twice like `acting` and `talking`, and for the same two reasons**:
+   * at start-up it decides whether the saving route is in the table at all
+   * (`routesFor`), and at every save it is read again so turning it off takes
+   * authority away now. It is a *fifth* decision and not a reading of either:
+   * a verb is about work that exists, a message is free text to a model, and
+   * this writes a file every future run of a workflow would be stamped from
+   * once somebody at the machine publishes it.
+   */
+  drafting: boolean
 }
 
 /** The `surfaces.web` block, as the one reader of it sees it. */
@@ -93,6 +105,7 @@ export interface WebConfig {
   trusted_hosts: readonly string[]
   acting: boolean
   orchestrator: boolean
+  drafts: boolean
 }
 
 /** Off, on this machine, on the port nothing else wanted, changing nothing. */
@@ -103,6 +116,7 @@ export const OFF: Surface = {
   trustedHosts: [],
   acting: false,
   talking: false,
+  drafting: false,
 }
 
 /**
@@ -123,6 +137,7 @@ export function surfaceOf(web: WebConfig): Surface {
     trustedHosts: web.enabled ? [...web.trusted_hosts] : [],
     acting: web.enabled && web.acting,
     talking: web.enabled && web.orchestrator,
+    drafting: web.enabled && web.drafts,
   }
 }
 
@@ -187,15 +202,23 @@ export function scopesOn(
  * (`routes.ts`), and `test/routes.test.ts` asserts no route in `ROUTES` needs
  * more than `read` — which is the half of the guarantee a type cannot give.
  *
- * `ask` is the last of them and is the odd one: `answer` and `steer` are what
- * a *verb* needs, and `ask` is what sending a message to the orchestrator
- * needs. It is deliberately not implied by either — a device that may answer
- * what is waiting has not been granted free text to a model that holds tools,
- * and the two are granted by two controls. What a turn sent under it may then
- * reach is `answer` and `steer` again, read as an `Arm` (`@tade/core`'s
- * `origin.ts`), so there is no third list of the same decision.
+ * `ask` is the fourth and is the odd one: `answer` and `steer` are what a
+ * *verb* needs, and `ask` is what sending a message to the orchestrator needs.
+ * It is deliberately not implied by either — a device that may answer what is
+ * waiting has not been granted free text to a model that holds tools, and the
+ * two are granted by two controls. What a turn sent under it may then reach is
+ * `answer` and `steer` again, read as an `Arm` (`@tade/core`'s `origin.ts`),
+ * so there is no third list of the same decision.
+ *
+ * `draft` is the fifth, and it is not implied by anything either — nor does it
+ * imply anything. The four above it are all about work that already exists or
+ * a conversation that is already going; this writes a file that decides what
+ * every future run of a workflow does, once somebody at the machine publishes
+ * it. It is also the one scope with a reading requirement of its own: a
+ * workflow can name any repository, so `admitDraft` refuses a device whose
+ * reading is a list rather than every project.
  */
-export const SCOPES = ['read', 'answer', 'steer', 'ask'] as const
+export const SCOPES = ['read', 'answer', 'steer', 'ask', 'draft'] as const
 export type Scope = (typeof SCOPES)[number]
 
 /** Whether a host is this machine, in any of its three spellings. */

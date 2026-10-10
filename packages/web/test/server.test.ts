@@ -30,6 +30,7 @@ describe('nothing listens unless it is turned on', () => {
         trustedHosts: [],
         acting: false,
         talking: false,
+        drafting: false,
       },
       readingFor: reading,
       tickets: new Tickets(),

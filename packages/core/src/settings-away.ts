@@ -2,22 +2,23 @@ import {
   ACTING_IS_NOT_YOU,
   AWAY_IS_WHILE_OPEN,
   DEVICES_SEEN_BY_AGENTS,
+  DRAFTS_ARE_NOT_PUBLISHED,
   LAN_IS_PLAINTEXT,
 } from './away.ts'
 import type { Config } from './config.ts'
 import { TALKING_IS_NOT_YOU } from './origin.ts'
 import type { SettingGroup } from './settings.ts'
 
-// The away view's six controls, as a person changes them.
+// The away view's seven controls, as a person changes them.
 //
 // Its own half of `settingsOf`, split off for the reason the projects half
 // was: that file reached the size a file is allowed to be. It is a seam rather
-// than a cut — these six are exactly the keys `reach.ts` refuses to the
+// than a cut — these seven are exactly the keys `reach.ts` refuses to the
 // orchestrator by subtree, and exactly the ones whose `means` carries a
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //
-// **All six are `live: false`, honestly.** The listener comes up when the
+// **All seven are `live: false`, honestly.** The listener comes up when the
 // window starts, and the epoch a connected phone holds is per server start —
 // so turning one on mid-session would have to tear down and rebuild something
 // somebody is looking at. Saying *takes effect on restart* is the honest
@@ -137,6 +138,24 @@ export function awayGroup(config: Config): SettingGroup {
         // direction that takes authority away is immediate.
         live: false,
         keywords: ['ask', 'talk', 'chat', 'message', 'orchestrator', 'conversation', 'prompt'],
+      },
+      {
+        path: 'surfaces.web.drafts',
+        // A **fifth** decision, and a row of its own rather than a clause on
+        // Acting: Acting's verbs are about work that already exists, and this
+        // writes a file every future run of a workflow would be stamped from
+        // once somebody here publishes it. The sentence names what it cannot
+        // reach, because *bounded* is the word a comfortable version of it
+        // would keep while dropping the bound.
+        title: 'Let a paired device save a draft workflow',
+        means: `on: a device you have granted it can fill in one field at a time of a workflow that is already drafted; off: there is no route to save one. ${DRAFTS_ARE_NOT_PUBLISHED}`,
+        value: String(web.drafts),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        // `false` like the rest, and asymmetric the same way: on waits for the
+        // route table the listener builds, off is read at every save.
+        live: false,
+        keywords: ['draft', 'drafts', 'workflow', 'template', 'designer', 'edit', 'form'],
       },
       {
         path: 'surfaces.web.trusted_hosts',

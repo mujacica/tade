@@ -73,6 +73,7 @@ export const BASE: Surface = {
   // thing these tests exist to catch.
   acting: false,
   talking: false,
+  drafting: false,
 }
 
 export interface Running {

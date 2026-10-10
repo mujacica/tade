@@ -25,6 +25,7 @@ import {
   taskMark,
 } from './glyphs.js'
 import { safeHref, taskPath } from './routes.js'
+import { taskAt } from './store.js'
 
 /**
  * A section: a heading, a figure, and a body that is never left blank.
@@ -410,4 +411,67 @@ export function sayIn(node, said) {
 /** Whose a task is, said rather than left as a word nobody defined. */
 export function originOf(task) {
   return `asked for by ${originSaid(task.origin)}`
+}
+
+/* ── the factory floor's shared pieces ─────────────────────────────────────── */
+
+// Four rows the inbox, the runs and the designer all draw, here rather than in
+// one of the three: an act that stays at the machine, a wait with the reason
+// somebody gave for it, a problem or a warning, and the task a request's
+// approval would be about. A copy in each screen would be three drawings of
+// one row, which is how two of them come to say different things about the
+// same fact.
+
+/** One task row out of the store, by its `<project>/<task>` id. */
+export function rowFor(store, id) {
+  const cut = id.indexOf('/')
+  if (cut < 0) return null
+  return taskAt(store, id.slice(0, cut), id.slice(cut + 1))
+}
+
+export function createLocally() {
+  const node = el('li')
+  const body = el('div', { class: 'row-static' })
+  const name = el('span', { class: 'name' })
+  const under = el('span', { class: 'under' })
+  into(body, name, under)
+  return into(node, body)
+}
+
+export function fillLocally(node, one) {
+  const [body] = node.children
+  const [name, under] = body.children
+  textIn(name, `${one.act} — at the machine`)
+  textIn(under, one.why)
+}
+
+export function createWaitRow() {
+  const node = el('li', { class: 'wait' })
+  const name = el('span', { class: 'name' })
+  const why = el('span', { class: 'under' })
+  return into(node, name, why)
+}
+
+export function fillWaitRow(node, wait) {
+  const [name, why] = node.children
+  textIn(name, `after ${wait.task}`)
+  // **A wait with no reason given is the one thing `checkPlan` cannot tell you
+  // anything useful about**, so the absence is said rather than left blank.
+  textIn(why, wait.why === null ? 'no reason was given for this wait' : wait.why.words)
+}
+
+export function createSaidRow() {
+  const node = el('li')
+  const body = el('div', { class: 'row-static' })
+  const glyph = glyphOf(checkMark('fail'))
+  const name = el('span', { class: 'name' })
+  into(body, glyph, name)
+  return into(node, body)
+}
+
+export function fillSaidRow(node, one) {
+  const [body] = node.children
+  const [glyph, name] = body.children
+  markIn(glyph, one.bad ? checkMark('fail') : { glyph: '⚠', word: 'warning', tone: 't-working' })
+  textIn(name, one.said)
 }

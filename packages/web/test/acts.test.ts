@@ -19,6 +19,7 @@ const ON: Surface = {
   trustedHosts: ['studio.yak-bebop.ts.net'],
   acting: true,
   talking: false,
+  drafting: false,
 }
 
 const HERE = { scheme: 'http', host: '127.0.0.1' }

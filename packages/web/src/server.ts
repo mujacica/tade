@@ -7,6 +7,8 @@ import { carryAsk } from './asked.ts'
 import type { WebAsking } from './asking.ts'
 import { type Asset, assetFor, assetsDir, matchesEtag, readAssets } from './assets.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
+import { carrySave } from './drafted.ts'
+import type { WebDrafting } from './drafting.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
 import {
   type Asking,
@@ -20,6 +22,7 @@ import {
   Window,
 } from './guard.ts'
 import { headersFor } from './headers.ts'
+import { carryPairing } from './paired.ts'
 import { type Sink, Streams } from './peers.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
@@ -203,7 +206,7 @@ export function webServer(opts: ServerOptions): WebServer {
       // A **verb or a message**, and each under its own type: an act and a
       // paragraph to a model are different things to read back, and the
       // question somebody has about a phone is which of the two it asked for.
-      const asked = found.route.verb ?? found.route.says
+      const asked = found.route.verb ?? found.route.says ?? found.route.saves
       if (asked !== undefined) {
         tell({
           type: found.route.says === undefined ? 'web_did' : 'web_asked',
@@ -233,7 +236,22 @@ export function webServer(opts: ServerOptions): WebServer {
       return asset(req, res, path)
     }
     if (found.route.name === 'pair') {
-      return pair(req, res, asking, verdict.origin, request)
+      return carryPairing(req, res, {
+        asking,
+        origin: verdict.origin,
+        request,
+        tickets: opts.tickets,
+        confirm: opts.confirm,
+        confirmMs,
+        home: opts.home,
+        surface: opts.surface,
+        pairing,
+        now,
+        tell,
+        said: (why) => said(asking, found.route, why),
+        answer: (refusal) => answer(res, refusal),
+        json: (body, status) => json(res, body, status),
+      })
     }
 
     const device = devices.devices.find((one) => one.id === verdict.device)
@@ -280,6 +298,9 @@ export function webServer(opts: ServerOptions): WebServer {
         if (found.route.says !== undefined) {
           return say(req, res, found.route.says, device, verdict.origin, request)
         }
+        if (found.route.saves !== undefined) {
+          return save(req, res, found.route.saves, device, verdict.origin, request)
+        }
         return answer(res, refuse('no_such'))
     }
   }
@@ -301,115 +322,6 @@ export function webServer(opts: ServerOptions): WebServer {
     // `404`. A browser needs none for this page, and a branch that cannot run
     // reads as a capability there is no test for.
     res.end(file.bytes)
-  }
-
-  /**
-   * Pairing: the one route that mints a credential.
-   *
-   * The order is the whole of it. The rate limit is counted **before** the
-   * ticket is looked at, so a stream of guesses costs a map entry rather than a
-   * scan; the ticket is **claimed** — which burns it — before anybody at the
-   * machine is asked, so a refusal, a deadline, a crash and a replay all find
-   * nothing; and the device is written down only once the person has said yes.
-   */
-  async function pair(
-    req: IncomingMessage,
-    res: ServerResponse,
-    asking: Asking,
-    origin: { scheme: string; host: string },
-    request: string,
-  ): Promise<void> {
-    if (pairing.over(asking.from, now())) {
-      said(asking, null, `pairing refused: ${PAIR_TRIES} tries already`)
-      return answer(res, refuse('slow_down', { after: pairing.after(asking.from, now()) }))
-    }
-    pairing.add(asking.from, now())
-
-    const got = await readBody(req)
-    if (!got.read) return answer(res, got.refusal)
-    if (typeof got.body !== 'object' || got.body === null || Array.isArray(got.body)) {
-      return answer(res, refuse('malformed'))
-    }
-    const asked = got.body as Record<string, unknown>
-    if (!couldBeTicket(asked.ticket)) return answer(res, refuse('malformed'))
-    const label = typeof asked.label === 'string' ? asked.label : ''
-
-    const claim = opts.tickets.claim(asked.ticket, now())
-    if (!claim.ok) {
-      tell({ type: 'web_denied', detail: { why: claim.why, from: asking.from } })
-      // The same answer to the phone whichever it was. Which it was is in the
-      // journal, where a `used` is somebody replaying and an `unknown` is
-      // somebody guessing, and the phone learns neither.
-      return answer(res, refuse('no_session'))
-    }
-
-    let confirmed: Confirmed
-    try {
-      confirmed = await inTime(
-        opts.confirm({ label: labelOf(label), from: asking.from, host: asking.host ?? '' }),
-        confirmMs,
-        // A deadline is an **answer**, not a failure: nobody was there. The
-        // ticket is already burned, so there is nothing to undo and no retry
-        // against the same secret — which is the whole reason the claim
-        // happens before this await rather than after it.
-        { let: false, why: 'nobody answered' } satisfies Confirmed,
-      )
-    } catch (error) {
-      // The window's own `confirm` threw. Also not a retry, and also already
-      // burned; what it is, is a bug in the window worth a line somebody can
-      // read, and a sentence with an id for the phone.
-      tell({
-        type: 'warning',
-        detail: {
-          warning: `the away view could not ask about a pairing: ${String(error).slice(0, 200)}`,
-          request,
-        },
-      })
-      return answer(res, refuse('broke', { request }))
-    }
-
-    if (!confirmed.let) {
-      tell({ type: 'web_denied', detail: { why: confirmed.why, from: asking.from } })
-      // A refusal and nobody answering are the same answer here and two lines
-      // in the journal: the phone cannot tell them apart, which is right —
-      // "there is nobody at that machine" is a fact about somebody's day.
-      return answer(res, refuse('no_session'))
-    }
-
-    const minted = mint()
-    const scopes = scopesOn(origin, opts.surface, ['read'])
-    const until = new Date(now() + SESSION_MS)
-    await appendDevice(opts.home, {
-      kind: 'paired',
-      device: minted.device,
-      at: new Date(now()).toISOString(),
-      label: labelOf(label),
-      digest: minted.digest,
-      host: asking.host ?? '',
-      csrf: minted.csrf,
-      until: until.toISOString(),
-      scopes: [...scopes],
-      projects: confirmed.projects === null ? null : [...confirmed.projects],
-      granted: [...confirmed.granted],
-      from: asking.from,
-    })
-    tell({
-      type: 'web_paired',
-      detail: {
-        device: minted.device,
-        from: asking.from,
-        // Never the label: a label is a person's own words about their own
-        // phone, and the telemetry allow-list keeps `device` and not this.
-        scopes: scopes.join(' '),
-        granted: [...confirmed.granted].join(' '),
-      },
-    })
-    res.setHeader('set-cookie', setCookie(minted.cookie, origin.scheme === 'https'))
-    return json(
-      res,
-      { device: minted.device, scopes, csrf: minted.csrf, reads: [...confirmed.granted] },
-      201,
-    )
   }
 
   /**
@@ -577,6 +489,71 @@ export function webServer(opts: ServerOptions): WebServer {
     tell({ type: 'web_asked', detail })
     if (answered.refusal !== null) return answer(res, answered.refusal)
     return json(res, answered.body ?? {})
+  }
+
+  /**
+   * One field of one draft, saved.
+   *
+   * The same shape `say` has, and the same five things owed: the body read
+   * once, the receipts read once, the gate, the audit line whatever happened,
+   * and the answer as a value so the caller writes the headers it always
+   * writes. A `web_did` and not a `web_asked`: a save is an act with a target,
+   * not a paragraph to a model.
+   */
+  async function save(
+    req: IncomingMessage,
+    res: ServerResponse,
+    saves: string,
+    device: Device,
+    origin: { scheme: string; host: string },
+    request: string,
+  ): Promise<void> {
+    const drafting = opts.drafting
+    // No `WebDrafting` at all is a window that was not given the saving half,
+    // which is "this listener does not do that": a `404`, like every other
+    // capability that is not here.
+    if (drafting === undefined) return answer(res, refuse('no_such'))
+    const got = await readBody(req)
+    if (!got.read) return answer(res, got.refusal)
+    await readReceipts()
+
+    const answered = await carrySave(saves, got.body, {
+      drafting,
+      receipts,
+      surface: opts.surface,
+      unlocked: saving(drafting),
+      rev: opts.readingFor(reachOf(device)).rev,
+      reach: reachOf(device),
+      scopes: device.scopes as Scope[],
+      origin,
+      device: device.id,
+      now: now(),
+      request,
+    })
+    if (answered.warning !== null) {
+      tell({ type: 'warning', detail: { warning: answered.warning, request } })
+    }
+    // **The draft's name goes in the detail and never on `event.task`.** A
+    // workflow is not a task, and a `web_did` carrying one as its task would
+    // make the journal claim a task exists by that name — which every fold
+    // keyed by task would then read as one.
+    const { task: template, ...rest } = answered.did
+    tell({ type: 'web_did', detail: { ...rest, ...(template === '' ? {} : { template }) } })
+    if (answered.refusal !== null) return answer(res, answered.refusal)
+    return json(res, answered.body ?? {})
+  }
+
+  /**
+   * Whether saving a draft is unlocked, asked of the window and never allowed
+   * to throw a request over. The same treatment `unlocked` and `talking` get,
+   * for the same reason: the safe answer to this question is *no*.
+   */
+  function saving(drafting: WebDrafting): boolean {
+    try {
+      return drafting.unlocked()
+    } catch {
+      return false
+    }
   }
 
   /**

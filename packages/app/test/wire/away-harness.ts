@@ -6,6 +6,7 @@ import {
   type Arm,
   type Config,
   ConfigSchema,
+  type GitSnapshot,
   LOCAL,
   type Queued,
   type TadeEvent,
@@ -17,6 +18,7 @@ import {
   allowDevice,
   digestOf,
   type Reach,
+  type Snapshot,
   type TaskRow,
   type WebReading,
   writeDevices,
@@ -31,6 +33,8 @@ import { awayPanel } from '../../src/panels/away/state.ts'
 import { emptyTranscript, type Transcript } from '../../src/transcript.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
+import { type FactoryHeld, nothingHandedOver } from '../../src/wire/web-beat.ts'
+import { homeConfig, INTAKE } from './away-intake.ts'
 
 // A window with a real workbench behind it, a real listener on loopback, and a
 // phone making real requests.
@@ -116,6 +120,14 @@ export interface Machine {
   checked(task: string, rollup: 'pass' | 'fail'): void
   /** An approval is waiting on this task, by that id. */
   waiting(task: string, requestId: string, tool?: string): void
+  /**
+   * This task's branch is out for review, as a forge answered.
+   *
+   * A real `GitSnapshot`, because what the row carries is read off one: a
+   * fixture that asserted the state onto the row would pass while the
+   * projection read a different field.
+   */
+  reviewed(task: string, state: 'draft' | 'open' | 'merged' | 'closed', url?: string): void
   /** That approval is not waiting any more, as a harness would stop holding it. */
   answered(requestId: string): void
   /** Take the intake grant out of the window's config, leaving the home's. */
@@ -138,6 +150,8 @@ export interface MachineOptions {
   acting?: boolean
   /** Why work from outside may not go ahead, where a test wants it held. */
   stands?: () => Promise<string | null>
+  /** The factory floor, where a test wants requests, doors, runs or workflows in it. */
+  factory?: () => FactoryHeld
   /** The config the window reads, where a test needs a grant in it. */
   config?: (over: { root: string; port: number }) => Config
   /** What `steerAgent` does, where a test wants it to fail. */
@@ -201,6 +215,14 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const pending: { run: string; task: string; requestId: string; tool: string; at: number }[] = []
   const queued: Queued[] = []
   const looked = new Map<string, ActionsView>()
+  /**
+   * The git snapshot per task, where a test asked for one.
+   *
+   * **Null is still the default**, which is what a tree nobody has scanned
+   * says: a fixture that handed every task a clean snapshot would make a
+   * review state and a branch appear on work nobody has pushed.
+   */
+  const reviews = new Map<string, GitSnapshot>()
   const decided: Machine['decided'] = []
   const told: Machine['told'] = []
   let events: TadeEvent[] = []
@@ -213,7 +235,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
       return pending
     },
     get world(): Workspace {
-      return worldOf(home, repo.root, watched, agents)
+      return worldOf(home, repo.root, watched, agents, reviews)
     },
     seenActions: (task: string) => looked.get(task) ?? null,
     spendToday: () => ({ byTask: {} }),
@@ -310,6 +332,8 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
       remoteSaid: (text: string, device: string) => said.push({ text, device }),
     },
     stands: over.stands ?? (() => Promise.resolve(null)),
+    factory: over.factory ?? (() => nothingHandedOver()),
+    saved: () => {},
   })
   open.push(away)
   const made: Machine = {
@@ -364,6 +388,21 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
       const at = pending.findIndex((one) => one.requestId === requestId)
       if (at >= 0) pending.splice(at, 1)
     },
+    reviewed: (task, state, url = `https://forge.invalid/app/pull/${state}`) => {
+      reviews.set(task, {
+        branch: `tade/${task.split('/')[1] ?? task}`,
+        head: 'a'.repeat(40),
+        headSubject: 'the fix',
+        headTime: Date.now(),
+        dirty: [],
+        ahead: 2,
+        behind: 0,
+        baseRef: 'main',
+        mergedIntoBase: state === 'merged',
+        upstreamGone: false,
+        pr: { state, url },
+      })
+    },
     ungrant: () => {
       held = ConfigSchema.parse({
         projects: { app: { root: repo.root } },
@@ -389,84 +428,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
 }
 
 /** Intake on, accepting `cli` requests from `kim` into `app`. */
-const INTAKE = {
-  enabled: true,
-  sources: { cli: { accept: true, projects: ['app'], from: ['kim'] } },
-}
-
-/** The home's own `config.yaml`, which is what the workbench reads. */
-function homeConfig(root: string, intake: boolean): string {
-  const lines = ['projects:', '  app:', `    root: ${root}`]
-  if (intake) {
-    lines.push(
-      'surfaces:',
-      '  intake:',
-      '    enabled: true',
-      '    sources:',
-      '      cli:',
-      '        accept: true',
-      '        projects: [app]',
-      '        from: [kim]',
-    )
-  }
-  return `${lines.join('\n')}\n`
-}
-
-/**
- * One request handed to this machine through the door a watch actually uses.
- *
- * `watchFound` and not `takeIntake`: which keys get written down as *found* is
- * half the dedupe, and a fixture that called the rule underneath would make a
- * proposal nothing could later recognise as the same request.
- */
-export async function delivered(
-  one: Machine,
-  over: { revision?: string; requester?: string } = {},
-): Promise<string> {
-  await one.client.setSchedule(
-    {
-      id: 'intake-cli',
-      name: 'intake cli',
-      project: 'app',
-      said: '',
-      when: { every: '5m' },
-      does: { kind: 'watch', watch: 'intake.cli', input: {}, found: 'agent', most: 1 },
-      missed: 'skip',
-      by: 'you',
-      created: '2026-10-01T08:00:00.000Z',
-    },
-    'you',
-  )
-  const revision = over.revision ?? '1'
-  const taken = await one.client.watchFound(
-    'intake-cli',
-    {
-      key: `cli:req-1:${revision}`,
-      title: 'cli req-1',
-      intake: {
-        source: 'cli',
-        externalId: 'req-1',
-        revision,
-        url: 'https://example.invalid/req-1',
-        requester: { id: over.requester ?? 'kim', label: 'Kim', bot: false },
-        from: 'app',
-        verbatim: 'the export button 500s when the selection is empty',
-        material: { ref: 'req-1.0001.json', hash: 'sha256:aaa' },
-        attachments: [],
-        sourceAt: '2026-10-09T00:00:00.000Z',
-        seenAt: '2026-10-09T00:01:00.000Z',
-        correlation: `req-1-${revision}`,
-      },
-    },
-    { agent: { title: 'cli req-1', prompt: 'A request came in from cli (req-1).' } },
-  )
-  const task = taken.task ?? ''
-  if (task === '') throw new Error(`that delivery made nothing: ${taken.outcome}`)
-  one.watch(task)
-  await one.refresh()
-  return task
-}
-
 /**
  * A capabilities answer that can take a message live. The one `offer()` reads.
  *
@@ -515,6 +476,7 @@ function worldOf(
   root: string,
   tasks: readonly string[],
   agents: ReadonlyMap<string, string>,
+  git: ReadonlyMap<string, GitSnapshot> = new Map(),
 ): Workspace {
   return {
     generatedAt: new Date().toISOString(),
@@ -524,7 +486,7 @@ function worldOf(
         root,
         brief: null,
         untracked: [],
-        tasks: tasks.map((id) => taskOf(home, root, id, agents.has(id))),
+        tasks: tasks.map((id) => taskOf(home, root, id, agents.has(id), git.get(id) ?? null)),
       },
     ],
     elsewhere: [],
@@ -533,11 +495,23 @@ function worldOf(
   }
 }
 
-function taskOf(home: string, root: string, id: string, running: boolean): Task {
+function taskOf(
+  home: string,
+  root: string,
+  id: string,
+  running: boolean,
+  git: GitSnapshot | null = null,
+): Task {
+  // **Read out of the real task file, including the two the runs fold needs.**
+  // `effort` and `start` are what group tasks into a run and what the graph's
+  // edges are, and a fixture that ignored them would make every run of one
+  // task with no waits — which is the one shape the fold cannot get wrong.
   const file = parse(readFileSync(join(taskDir(home, id), 'task.yaml'), 'utf8')) as {
     parked?: boolean
     by?: string
     done?: Task['done']
+    effort?: string
+    start?: Task['start']
   }
   return {
     id,
@@ -548,7 +522,9 @@ function taskOf(home: string, root: string, id: string, running: boolean): Task 
     state: file.parked === true ? 'parked' : 'queued',
     reason: 'no agent has started',
     stalled: false,
-    git: null,
+    ...(file.effort === undefined ? {} : { effort: file.effort }),
+    ...(file.start === undefined ? {} : { start: file.start }),
+    git,
     agents: running
       ? [
           {
@@ -601,6 +577,43 @@ export function rowOf(one: Machine, task: string): TaskRow {
   if (row === undefined) throw new Error(`no row for ${task}`)
   return row
 }
+
+/**
+ * The whole projection, as a device with those grants would read it.
+ *
+ * Through `readingFor` for `rowOf`'s reason: what a test reads is literally
+ * what a phone would have been sent, built by the one function that decides
+ * what leaves the machine — never a shape the test assembled, which would make
+ * every assertion about the fixture.
+ */
+export function projectionOf(
+  one: Machine,
+  granted: readonly string[] = [],
+  /**
+   * The device this reading is for.
+   *
+   * **A different id per reach, and the default is only right once per test.**
+   * The window keeps one projector per device (`projectorFor`) — which is
+   * correct, because a read scope is per device and the projection is built
+   * per device — so two reads under one id get the projection built for
+   * whichever reach asked first. A test comparing a granted read with an
+   * ungranted one has to ask as two devices, which is what a person with two
+   * phones actually has.
+   */
+  device = DEVICE,
+): Snapshot {
+  const made = (
+    one.away as unknown as { readingFor: (reach: Reach) => WebReading }
+  ).readingFor.call(one.away, {
+    device,
+    projects: { kind: 'every' },
+    granted: granted as Reach['granted'],
+  })
+  return made.snapshot()
+}
+
+/** A second device id, for the read that is compared with the first. */
+export const OTHER = '00112233445566bb'
 
 /** Just its revision, which is what every verb echoes back. */
 export function revOf(one: Machine, task: string): string {
@@ -675,7 +688,19 @@ export function ask(
 }
 
 /** A device in the file, already granted whatever the test needs. */
-export async function paired(home: string, port: number, scopes: readonly string[]): Promise<void> {
+export async function paired(
+  home: string,
+  port: number,
+  scopes: readonly string[],
+  /**
+   * What this device was granted at the machine.
+   *
+   * On the `paired` line and not through `allowDevice`, because that is where
+   * the record keeps them: widening what a device may *do* and widening what
+   * it may *read* are two acts, and only the first has a door of its own.
+   */
+  granted: readonly string[] = [],
+): Promise<void> {
   await writeDevices(home, [
     {
       kind: 'paired',
@@ -688,11 +713,20 @@ export async function paired(home: string, port: number, scopes: readonly string
       until: new Date(Date.now() + 86_400_000).toISOString(),
       scopes: ['read'],
       projects: null,
-      granted: [],
+      granted: granted as never,
       from: '127.0.0.1',
     },
   ])
   if (scopes.length > 0) await allowDevice(home, DEVICE, scopes, new Date())
+}
+
+/** One save of a draft field, as a browser would send it. */
+export function save(
+  port: number,
+  what: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, `/api/draft/${what}`, body)
 }
 
 /**

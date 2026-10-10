@@ -29,6 +29,26 @@ export interface Budget {
    * collection that grows without bound while nobody is looking at it.
    */
   chat: number
+  /** Requests handed to this machine, newest first. */
+  intake: number
+  /** The doors. There are four of them, and a cap here is a formality. */
+  sources: number
+  /** Runs of a workflow, newest first. */
+  runs: number
+  /** Stored workflows. */
+  workflows: number
+  /**
+   * How many request **bodies** cross on one snapshot.
+   *
+   * A second budget over the `intake` collection, and the only one of its kind
+   * here: every row goes out, and only this many carry the words somebody
+   * wrote. A body is `material` long and a machine with forty requests would
+   * otherwise put a third of a megabyte on every frame for a phone reading
+   * one of them — so the ones that carry theirs are the ones waiting on
+   * somebody (`intakeIn`), and every other row says *its words are not on this
+   * page*.
+   */
+  materials: number
   /**
    * Code points of one piece of free text somebody wrote.
    *
@@ -37,6 +57,22 @@ export interface Budget {
    * mean something different for every language.
    */
   text: number
+  /**
+   * Code points of one *long* piece of text: a request's own body, and a
+   * workflow step's prompt.
+   *
+   * **A second bound and not a bigger `text`**, because the two are different
+   * things to be wrong about. `text` bounds a line on a row — a title, a
+   * handle, the reason beside a wait — and forty of them ride on one frame; a
+   * body is the thing somebody opened the page to read, and cutting it at 600
+   * characters makes the one screen that exists to show it useless. One of
+   * each is on screen at a time, so the bigger bound is paid once.
+   *
+   * It is still a bound. A ticket with a 400 KiB log pasted into it is a real
+   * ticket, and `more` is how the page says there is further to go
+   * (`textOf`) — never an ellipsis written into somebody's words.
+   */
+  material: number
   /**
    * How many of status's warnings cross, past which they are counted.
    *
@@ -67,7 +103,13 @@ export const BUDGET: Budget = {
   notes: 200,
   plans: 20,
   chat: 120,
+  intake: 120,
+  sources: 20,
+  runs: 60,
+  workflows: 40,
+  materials: 8,
   text: 600,
+  material: 8_000,
   warnings: 10,
 }
 

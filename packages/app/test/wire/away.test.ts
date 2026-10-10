@@ -10,6 +10,7 @@ import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
+import { nothingHandedOver } from '../../src/wire/web-beat.ts'
 
 // The window's end of the away view: its lifetime, what it costs when nobody
 // is looking, and the keypress that is the whole of pairing's authorisation.
@@ -160,6 +161,8 @@ async function wiring(
       remoteSaid: () => {},
     },
     stands: () => Promise.resolve(null),
+    factory: () => nothingHandedOver(),
+    saved: () => {},
   })
   open.push(away)
   return { away, home, news, decided, logged, at: () => state, drawn: () => draws }

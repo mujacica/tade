@@ -30,6 +30,7 @@ const SURFACE: Surface = {
   trustedHosts: [],
   acting: false,
   talking: true,
+  drafting: false,
 }
 
 // **`was` through the same function the window compares against**, never a

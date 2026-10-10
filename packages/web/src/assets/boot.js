@@ -25,7 +25,9 @@
 // count. Nothing here ever draws the page empty because it could not ask.
 
 import { actsOf } from './acts.js'
+import { workflowScreen, workflowsScreen } from './designer.js'
 import { classOn, el, textIn } from './dom.js'
+import { inboxScreen, requestScreen } from './factory.js'
 import { backoffAt, connectionOf, standingOf } from './live.js'
 import {
   checksScreen,
@@ -40,6 +42,7 @@ import {
   spendScreen,
 } from './pages.js'
 import { viewOf } from './routes.js'
+import { runScreen, runsScreen } from './runs.js'
 import { nowScreen, projectScreen, taskScreen } from './screens.js'
 import {
   barsFor,
@@ -58,6 +61,7 @@ import {
   asOf,
   emptyStore,
   GRANTS,
+  intakeWaiting,
   mayRead,
   omitted,
   rowsOf,
@@ -165,6 +169,12 @@ const SCREENS = {
   project: (at) => projectScreen(at),
   task: (at) => taskScreen(at, ctx),
   queue: () => queueScreen(),
+  inbox: () => inboxScreen(),
+  request: (at) => requestScreen(at, ctx),
+  runs: () => runsScreen(),
+  run: (at) => runScreen(at),
+  workflows: () => workflowsScreen(),
+  workflow: (at) => workflowScreen(at, ctx),
   checks: () => checksScreen(),
   reviews: () => reviewsScreen(),
   spend: () => spendScreen(),
@@ -247,6 +257,13 @@ function paint() {
     navCounts(shown.links, {
       wantsYou: rowsOf(held.store, 'tasks').filter((task) => task.wantsYou).length,
       queue: held.store.rows.queue.size + omitted(held.store, 'queue'),
+      // **What is waiting on somebody**, not how many requests there are: a
+      // badge counting forty answered tickets is a badge nobody looks at
+      // twice. `intakeWaiting` is the domain's own list of states, copied into
+      // `store.js` and held equal to it.
+      intake: intakeWaiting(held.store).length,
+      runs: held.store.rows.runs.size + omitted(held.store, 'runs'),
+      workflows: held.store.rows.workflows.size + omitted(held.store, 'workflows'),
       reviews: rowsOf(held.store, 'tasks').filter((task) => task.review !== null).length,
       findings: held.store.rows.findings.size,
       notes: held.store.rows.notes.size + omitted(held.store, 'notes'),

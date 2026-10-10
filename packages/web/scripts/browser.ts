@@ -103,6 +103,7 @@ async function serve() {
       trustedHosts: [],
       acting: true,
       talking: true,
+      drafting: false,
     },
     acting: recording,
     // **Talking on too, with the same stub treatment**: a device the page has

@@ -78,10 +78,16 @@ export function asksFor(row) {
 export function actsOf(session) {
   const scopes = session === null || session === undefined ? [] : (session.scopes ?? [])
   const has = (scope) => Array.isArray(scopes) && scopes.includes(scope)
-  // `ask` is a third scope and not implied by either tier: a device granted
-  // both acting tiers has been granted eight bounded verbs, and not free text
-  // to a model that holds tools.
-  return { answer: has('answer'), steer: has('steer'), ask: has('ask') }
+  // `ask` and `draft` are third and fourth scopes and neither is implied by a
+  // tier: a device granted both acting tiers has been granted eight bounded
+  // verbs about work that exists — not free text to a model that holds tools,
+  // and not a file every future run of a workflow would be stamped from.
+  return {
+    answer: has('answer'),
+    steer: has('steer'),
+    ask: has('ask'),
+    draft: has('draft'),
+  }
 }
 
 /**
@@ -101,6 +107,64 @@ export function askBody(talk, key, rev, said) {
 /** What stopping the turn sends: the same four fields, minus the words. */
 export function stopBody(talk, key, rev) {
   return { was: talk?.rev ?? '', key, rev }
+}
+
+/**
+ * What one save of a draft field sends.
+ *
+ * `was` is the **draft's** own revision — its content hash, as the screen was
+ * drawn against it — so a save from a form drawn before somebody else edited
+ * the same draft is a `409` that redraws the truth rather than a write that
+ * silently loses theirs. The scope is the step's **name** and not its
+ * position: a position moves when a step is added, and a save against one
+ * would write the right field of the wrong agent.
+ */
+export function draftBody(row, part, field, value, key, rev) {
+  return {
+    template: row?.name ?? '',
+    was: row?.rev ?? '',
+    scope: part,
+    field,
+    value,
+    key,
+    rev,
+  }
+}
+
+/**
+ * Whether a draft field may be saved from here, and why not where it may not.
+ *
+ * Four answers in one place, because a form that asked them separately is a
+ * form where one of them gets forgotten:
+ *
+ * - the device was not granted `draft` — **nothing is drawn**, not even a
+ *   reason: a sentence naming a scope somebody does not have is a map of what
+ *   else there is to ask for;
+ * - the workflow itself cannot be saved from away (`editable`): it is one Tade
+ *   ships, there is no draft, or the setting is off;
+ * - the field says it cannot be changed here (`off`), which is the template's
+ *   own rule and beats anything this device was granted;
+ * - it can.
+ */
+export function savingOf(row, field, acts) {
+  if (acts?.draft !== true) return { kind: 'off', why: '' }
+  if (row?.editable !== true || row?.rev === null || row?.rev === undefined) {
+    return { kind: 'no', why: whyNotSave(row) }
+  }
+  if (field?.off !== null && field?.off !== undefined && field.off !== '') {
+    return { kind: 'no', why: field.off }
+  }
+  return { kind: 'yes', why: '' }
+}
+
+/** Why this workflow cannot be saved from away, in the row's own terms. */
+function whyNotSave(row) {
+  if (row === null || row === undefined) return 'there is no workflow here to save'
+  if (row.builtIn) return 'Tade ships this one: its bytes are in Tade’s own source'
+  if (row.shows !== 'draft') {
+    return 'there is no draft: a published version is a snapshot nothing may change'
+  }
+  return 'saving a draft from a device is turned off at the machine'
 }
 
 /**

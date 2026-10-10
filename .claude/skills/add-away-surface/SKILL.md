@@ -14,10 +14,17 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
 | a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
+| what a device may **save** | `src/drafting.ts` (the interface and the draft's revision), `src/drafted.ts` (the closed table, the gate and the sequence), `DRAFTS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-drafting.ts`, and the form in `src/assets/designer.js` |
+| which halves the window hands over | `packages/app/src/wire/web-halves.ts` |
+| the pairing exchange's own five steps | `src/paired.ts` (the order), `src/tickets.ts` (the burn) |
 | what a device may **say to Tade** | `src/asking.ts` (the interface and the revision), `src/asked.ts` (the gate and the sequence), `ASKS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-asking.ts`, and the screen in `src/assets/talk.js` |
 | what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables) |
 | the conversation, as a device reads it | `ChatIn`/`TalkIn` in `src/input.ts`, `chatRows` in `src/snapshot.ts`, `talkIn`/`chatLines` in `packages/app/src/away.ts` |
 | what a task's revision is made of | `taskRev`/`TaskFacts` in `src/acting.ts`, `factsOf` in `src/input.ts` |
+| the factory floor's four collections | `src/protocol-factory.ts` (the schemas), `src/factory.ts` (the input types and the projection), `packages/app/src/away-factory.ts` (the window's own mapping), `packages/app/src/wire/web-factory.ts` (the fold it keeps) |
+| where one source of outside work stands | `intake-sources.ts` in `@tade/core` (the nine states), `doorsOf` in `wire/web-factory.ts` |
+| what kind of trouble a look ran into | `watch-looks.ts` in `@tade/core`, `troubleOf` in `@tade/extensions-core`, written down by `wire/schedules.ts` |
+| a request's own words, as a device reads them | `IntakeIn.material` in `src/factory.ts`, `Bodies` in `wire/web-factory.ts`, `MATERIAL_LABEL` in `@tade/core` |
 | what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
 | what the window hands the projection each beat | `packages/app/src/wire/web-beat.ts` |
 | adding to a task's context | `packages/workbench/src/context.ts` |
@@ -30,7 +37,6 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
-| the pairing exchange | `src/tickets.ts` (the burn), `server.ts`'s `pair` |
 | the credential | `src/sessions.ts` |
 | the device list | `src/devices.ts` — `<home>/web-devices.jsonl` |
 | the headers and the content policy | `src/headers.ts` |
@@ -42,7 +48,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | the frame: header, bars, nav, the four region states | `src/assets/frame.css`, `src/assets/shell.js` |
 | what a screen looks like | `src/assets/away.css`, `src/assets/rows.js` |
 | which controls a screen offers, and what each sends | `src/assets/acts.js` — pure; `screens.js` builds the nodes |
-| a screen | `src/assets/screens.js` (work) or `pages.js` (lists), plus a route in `src/routes.ts` **and** a view in `src/assets/routes.js` |
+| a screen | `src/assets/screens.js` (work), `pages.js` (lists), `factory.js` (what was handed over), `runs.js` (a run's graph) or `designer.js` (the workflows), plus a route in `src/routes.ts` **and** a view in `src/assets/routes.js` |
 | what a figure says | `src/assets/figures.js` — money, tokens, ages, plan bars |
 | what a state looks like | `src/assets/glyphs.js` — glyph, word and tone, never colour alone |
 | the delta merge and the selectors | `src/assets/store.js` |
@@ -59,6 +65,24 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   lifecycle — this browser's own credential, created and destroyed — and `test/routes.test.ts`
   asserts that set is exactly those two **by name**. A third fails the test until somebody puts it
   in `LIFECYCLE` deliberately, which is the conversation the rule is for.
+- **There are three second tables, each with its own setting, and absence is
+  the enforcement for all three.** `ACTS` is `surfaces.web.acting`, `ASKS` is
+  `surfaces.web.orchestrator`, `DRAFTS` is `surfaces.web.drafts`. `halvesFor`
+  hands over the matching interface and nothing else, so with a setting off a
+  crafted call is the `404` of a path nobody built. Each one's `unlocked()` is
+  re-read at every act, turn and save: on waits for a restart, off is now.
+- **A draft is a target with no project, which is why saving has its own
+  gate.** A verb names a task and the device's read scope is the per-project
+  boundary; a workflow names the repository it works in through an *input* and
+  can name any of them. So `admitDraft` refuses a device whose reading is a
+  **list** rather than every project — the narrowing is in the direction that
+  takes authority away, and there is no later moment to ask it at, because a
+  draft saved now is read by a run next week.
+- **A draft's revision is its content hash, and that is the opposite of
+  `TaskFacts` on purpose.** A task changes constantly in ways no act depends
+  on, so its revision is a handful of named facts; a draft changes only when
+  somebody writes one, so every change to it is one a save depends on and the
+  whole file is the fact.
 - **Acting is a second table a setting turns on, and absence is the enforcement.** `routesFor`
   adds `ACTS` only where `surfaces.web.acting` is true, and the window hands over a `WebActing`
   only there — so with it off a crafted call is the `404` of a path nobody built, not a `403`
@@ -178,6 +202,52 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   queue's words are `describeQueueState`'s, copied into `glyphs.js` because a browser cannot import a
   `.ts` file and held equal by `test/glyphs.test.ts`. Four rules in `figures.js` are the domain's the
   same way.
+- **Outside text is a third kind of value, with two grants of its own.**
+  `AUTHORED` is the owner's and rides on the grant for the thing it is part of;
+  `OUTSIDE` (`fields.ts`) is a stranger's and rides on `requests` or
+  `material`. Neither is scrubbed — rewording somebody's request is the same
+  lie as rewording a note, and what an agent was handed and what a person reads
+  have to be the same text. What stands instead is the grant, the budget, the
+  heading (`MATERIAL_LABEL`, which travels **with** the body rather than being
+  the page's to choose), and the page never building markup.
+- **A body crosses for the requests somebody is being asked to decide about,
+  and every other row says so.** `budget.materials` is a second budget over one
+  collection: a machine with forty requests would otherwise put a third of a
+  megabyte on every frame for a phone reading one of them. *Not granted*,
+  *nothing was written down* and *not on this page* are three different
+  answers and `materialSays` says which.
+- **An empty inbox has five meanings and four of them are somebody's to fix**,
+  which is why the doors are their own collection (`sources`): off, ungranted,
+  unwatched, unreachable, rate-limited, refused and found-nothing are seven
+  different things to do next, and a page with one word for them says *nothing
+  yet* while a connector has been answering `429` since Tuesday. The *kind* of
+  trouble is recorded at the look (`troubleOf`) and never parsed back out of
+  the sentence.
+- **`proposed` and `started` are never one word.** One is waiting for a person
+  and the other is an agent spending money; `glyphs.js` keeps them as far apart
+  in shape and tone as *wants you* and *working*, because that is what they are.
+- **A run is an effort and nothing new**, so its graph is the fold of the task
+  files that name it and its edges are the `start.after` the queue's own rule
+  reads. The depth is a **number** on the wire and not a drawing: the window
+  draws boxes and lines because it has eighty columns, a phone stacks the
+  layers, and both read the same `waits` rather than being two layouts of two
+  graphs. A cycle is walked with a visited set — these are files anybody can
+  edit, and a projection may not hang the window on one.
+- **The designer is a list, a form and a dry run, and never a canvas.** The
+  form's rows are `workflowFields`' own, so neither surface can offer a field
+  the validator would refuse. A template previews its **shape**
+  (`workflowPlaces`) and not a dry run, because nobody has filled its inputs
+  in; the dry run proper belongs to a *request*, where they are real
+  (`intakeWouldRun`).
+- **Which template a workflow row's steps are of is said, never inferred.**
+  `shows` is `draft`, `published` or `nothing`: a draft is a file no run reads
+  and the one thing an edit can reach, a published snapshot is what a run
+  points at and never changes, and a row that did not say which would make
+  `v3` mean two things on one screen.
+- **An act that stays at this machine is named with one clause**, never left as
+  a hole and never explained in a paragraph: `locally` on a row is the act and
+  a sentence, and the long form is said once where somebody is deciding
+  (`LOCAL_ONLY_ACTS`, on the control in Settings).
 - **Two nulls, two sentences.** A figure that is null because nobody recorded it and one that is null
   because this device was not granted it are different facts, and a page that drew both as *not
   recorded* tells somebody their work cost nothing. `you.reads` is the only way to tell them apart
@@ -231,14 +301,15 @@ In `src/surface.ts`, said once so no control, README line or commit message can 
 
 ## The config, and the five controls over it
 
-`surfaces.web` is read in exactly one place — `surfaceOf` — and its five keys are `never` in
+`surfaces.web` is read in exactly one place — `surfaceOf` — and its six keys are `never` in
 `reach.ts`: each either widens who can reach the control room (`enabled`, `bind`), decides what the
-pairing code says (`port`), lets a device change something (`acting`) or lets one talk to the model
-that holds the tools (`orchestrator`). A tier is a property of the path, so
+pairing code says (`port`), lets a device change something (`acting`), lets one talk to the model
+that holds the tools (`orchestrator`) or lets one save a draft every future run of a workflow would
+be stamped from (`drafts`). A tier is a property of the path, so
 `packages/core/test/reach.test.ts` asserts it by subtree rather than through what Settings happens
 to list.
 
-**All five are `live: false`, honestly.** The listener comes up when the window starts and the epoch
+**All six are `live: false`, honestly.** The listener comes up when the window starts and the epoch
 a connected phone holds is per server start, so turning one on mid-session would have to tear down
 and rebuild something somebody is looking at. Saying *takes effect on restart* is the honest answer;
 doing nothing and saying nothing is the setting Tade accepts and ignores.
@@ -249,10 +320,12 @@ correct (it scrolls) and moved every settings golden.
 
 ## What is not built, and must not arrive because a route was convenient
 
-No setting is writable, nothing grants anything, nothing publishes, nothing starts an agent (`steer`
-is a message into a conversation that is **already** running, refused where no agent is), nothing
-runs a command, nothing pushes, merges, answers a review or overrules a check, nothing reaches a
-credential and nothing reaches the `ToolHost` — which is a Unix
+No setting is writable, nothing grants anything, **nothing publishes a workflow or a persona,
+nothing makes, renames or deletes a draft, and nothing touches a published version** — which never
+changes once it is out, so a run that points at `name@3` goes on pointing at it. Nothing turns a
+source on, nothing starts an agent (`steer` is a message into a conversation that is **already**
+running, refused where no agent is), nothing runs a command, nothing pushes, merges, answers a
+review or overrules a check, nothing reaches a credential and nothing reaches the `ToolHost` — which is a Unix
 socket in `@tade/orchestrator` for the window's own children, and is **not this**
 (`test/separation.test.ts`). Each of those is a `never remote` line with an argument behind it; if a
 phase wants one, it gets its own setting in the `never` subtree, its own threat model and its own

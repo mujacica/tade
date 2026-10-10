@@ -150,6 +150,14 @@ export function inputFrom(home: string, reach: Reach, now: number): SnapshotInpu
     reach,
     projects,
     tasks,
+    // Measured from a real home, and the factory floor is not in a task file:
+    // the inbox is a fold of the journal and the workflows are their own
+    // files, so this script measures what it can read and says nothing about
+    // the rest rather than making rows up.
+    intake: [],
+    sources: [],
+    runs: [],
+    workflows: [],
     queue: tasks
       .filter((task) => task.state === 'queued')
       .map((task) => ({

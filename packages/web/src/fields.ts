@@ -75,11 +75,57 @@ export const AUTHORED: readonly string[] = [
   'notes[].text.words',
   'notes[].summary.words',
   'plans[].account.words',
+  // The workflows, which the owner wrote: a step's prompt, a template's title
+  // and what it is about, the reason beside a wait, and the value in a form
+  // field — which is one of the others seen through the designer.
+  'workflows[].title.words',
+  'workflows[].about.words',
+  'workflows[].inputs[].about.words',
+  'workflows[].steps[].prompt.words',
+  'workflows[].steps[].after[].why.words',
+  'workflows[].steps[].fields[].value.words',
+  'workflows[].fields[].value.words',
+  'runs[].steps[].waits[].why.words',
 ]
 
 /** Whether a string at this path is free text somebody wrote. */
 export function authored(at: string): boolean {
   return AUTHORED.includes(at)
+}
+
+/**
+ * The paths that hold text somebody **outside this machine** wrote.
+ *
+ * The third kind of value, and the reason it is a list of its own rather than
+ * more entries in `AUTHORED`: the two differ in who may read them and in what
+ * a reader is told about them, not in whether they are scrubbed.
+ *
+ * - `AUTHORED` is the owner's. It rides on the grant for the thing it is part
+ *   of — a title with `titles`, a note with `notes` — and the page draws it as
+ *   theirs.
+ * - **This is a stranger's.** It rides on `requests` or `material`, which are
+ *   grants of their own and are off with everything else off; the body is
+ *   drawn under `MATERIAL_LABEL` so a reader is told whose words they are; and
+ *   `test/leak.test.ts` asserts that **with neither grant, not one of these
+ *   paths is in the projection at all** — not shortened, not empty, absent.
+ *
+ * Neither kind is scrubbed. A note is never reworded because the house rule
+ * says so; a request is never reworded because what an agent was handed and
+ * what a person reads have to be the same text, or the page is a second
+ * version of somebody's words with nobody having decided that.
+ *
+ * Asserted in both directions, like `AUTHORED`: a path here the projection
+ * never produces is a line that outlived its field.
+ */
+export const OUTSIDE: readonly string[] = [
+  'intake[].title.words',
+  'intake[].who.words',
+  'intake[].material.words',
+]
+
+/** Whether a string at this path is text somebody outside this machine wrote. */
+export function outside(at: string): boolean {
+  return OUTSIDE.includes(at)
 }
 
 /**

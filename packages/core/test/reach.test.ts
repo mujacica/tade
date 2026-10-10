@@ -313,6 +313,7 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.slack.template',
       'surfaces.web.acting',
       'surfaces.web.bind',
+      'surfaces.web.drafts',
       'surfaces.web.enabled',
       // The fourth away-view key, and `never` by the same subtree rather than
       // by a line of its own — which is the property this list is here to

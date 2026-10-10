@@ -1,7 +1,18 @@
 import { DONE_RULES, ReviewState, TaskState } from '@tade/core'
 import { z } from 'zod'
 import { HOWS } from './acting.ts'
+import {
+  type IntakeRow,
+  IntakeRowSchema,
+  type RunRow,
+  RunRowSchema,
+  type SourceRow,
+  SourceRowSchema,
+  type WorkflowRow,
+  WorkflowRowSchema,
+} from './protocol-factory.ts'
 import { GRANTS } from './reach.ts'
+import { type Said, SaidSchema } from './said.ts'
 
 // What goes on the wire, declared as an allow-list. Nothing is inherited.
 //
@@ -25,19 +36,10 @@ import { GRANTS } from './reach.ts'
 /** The wire version. On every snapshot and every delta. */
 export const PROTOCOL_VERSION = 1
 
-/**
- * A piece of free text somebody wrote, as much of it as the budget allowed.
- *
- * `more` and not an ellipsis: three dots written into the text cannot be told
- * from three dots the person typed, and the house rule about a note is that it
- * is never reworded. See `page.ts`.
- */
-export const SaidSchema = z.strictObject({
-  /** As much of what was said as the budget allowed. */
-  words: z.string(),
-  more: z.boolean(),
-})
-export type Said = z.infer<typeof SaidSchema>
+// Free text's own shape is `said.ts`, a leaf both schema files import: this
+// one composes `protocol-factory.ts`, so a `Said` defined here and imported
+// there is an import cycle that type-checks and then throws inside zod.
+export { type Said, SaidSchema }
 
 /**
  * How fresh this is, and whose server lifetime it belongs to.
@@ -79,6 +81,15 @@ export const COLLECTIONS = [
   'notes',
   'plans',
   'chat',
+  // The factory floor: what was handed to this machine, the doors it came
+  // through, what a run of a workflow is doing, and the workflows themselves.
+  // Their row schemas are `protocol-factory.ts`'s, for the reason that file
+  // gives — this one is the allow-list somebody reads, and four more
+  // collections in the middle of it is a reader who skims.
+  'intake',
+  'sources',
+  'runs',
+  'workflows',
 ] as const
 export type Collection = (typeof COLLECTIONS)[number]
 
@@ -388,6 +399,10 @@ export const SnapshotSchema = z.strictObject({
     notes: PageInfoSchema,
     plans: PageInfoSchema,
     chat: PageInfoSchema,
+    intake: PageInfoSchema,
+    sources: PageInfoSchema,
+    runs: PageInfoSchema,
+    workflows: PageInfoSchema,
   }),
   projects: z.array(ProjectRowSchema),
   tasks: z.array(TaskRowSchema),
@@ -396,6 +411,10 @@ export const SnapshotSchema = z.strictObject({
   notes: z.array(NoteRowSchema),
   plans: z.array(PlanRowSchema),
   chat: z.array(ChatRowSchema),
+  intake: z.array(IntakeRowSchema),
+  sources: z.array(SourceRowSchema),
+  runs: z.array(RunRowSchema),
+  workflows: z.array(WorkflowRowSchema),
 })
 export type Snapshot = z.infer<typeof SnapshotSchema>
 
@@ -425,6 +444,10 @@ export const DeltaSchema = z.strictObject({
     notes: z.record(z.string(), NoteRowSchema.partial()).optional(),
     plans: z.record(z.string(), PlanRowSchema.partial()).optional(),
     chat: z.record(z.string(), ChatRowSchema.partial()).optional(),
+    intake: z.record(z.string(), IntakeRowSchema.partial()).optional(),
+    sources: z.record(z.string(), SourceRowSchema.partial()).optional(),
+    runs: z.record(z.string(), RunRowSchema.partial()).optional(),
+    workflows: z.record(z.string(), WorkflowRowSchema.partial()).optional(),
   }),
   del: z.strictObject({
     projects: z.array(z.string()).optional(),
@@ -434,6 +457,10 @@ export const DeltaSchema = z.strictObject({
     notes: z.array(z.string()).optional(),
     plans: z.array(z.string()).optional(),
     chat: z.array(z.string()).optional(),
+    intake: z.array(z.string()).optional(),
+    sources: z.array(z.string()).optional(),
+    runs: z.array(z.string()).optional(),
+    workflows: z.array(z.string()).optional(),
   }),
   pages: z
     .strictObject({
@@ -444,6 +471,10 @@ export const DeltaSchema = z.strictObject({
       notes: PageInfoSchema.optional(),
       plans: PageInfoSchema.optional(),
       chat: PageInfoSchema.optional(),
+      intake: PageInfoSchema.optional(),
+      sources: PageInfoSchema.optional(),
+      runs: PageInfoSchema.optional(),
+      workflows: PageInfoSchema.optional(),
     })
     .optional(),
   you: YouSchema.optional(),
@@ -459,6 +490,10 @@ export interface Rows {
   notes: NoteRow
   plans: PlanRow
   chat: ChatRow
+  intake: IntakeRow
+  sources: SourceRow
+  runs: RunRow
+  workflows: WorkflowRow
 }
 
 /**
@@ -478,4 +513,13 @@ export const KEYED: { [C in Collection]: (row: Rows[C]) => string } = {
   notes: (row) => row.id,
   plans: (row) => row.id,
   chat: (row) => row.id,
+  // `<source>:<externalId>`, which is the request itself across every revision
+  // of it — never the revision, which moves when somebody edits a ticket and
+  // would make one request look like two.
+  intake: (row) => row.item,
+  sources: (row) => row.source,
+  // The effort's own slug. A run is the fold of the task files naming it, so
+  // its id is the name they name and nothing derived from its members.
+  runs: (row) => row.run,
+  workflows: (row) => row.name,
 }

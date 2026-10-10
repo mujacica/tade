@@ -53,9 +53,24 @@ export const GRANTS = [
   'reviews',
   'accounts',
   'talk',
+  'requests',
+  'material',
+  'workflows',
 ]
 
-const COLLECTIONS = ['projects', 'tasks', 'queue', 'findings', 'notes', 'plans', 'chat']
+const COLLECTIONS = [
+  'projects',
+  'tasks',
+  'queue',
+  'findings',
+  'notes',
+  'plans',
+  'chat',
+  'intake',
+  'sources',
+  'runs',
+  'workflows',
+]
 
 /** Nothing held yet: the state before the first frame arrives. */
 export function emptyStore() {
@@ -121,11 +136,18 @@ function refuse(version) {
 function keyOf(collection, row) {
   switch (collection) {
     case 'projects':
+    case 'workflows':
       return row.name
     case 'queue':
       return row.task
     case 'findings':
       return row.key
+    case 'intake':
+      return row.item
+    case 'sources':
+      return row.source
+    case 'runs':
+      return row.run
     default:
       return row.id
   }
@@ -225,6 +247,65 @@ export function findingsOf(store) {
 
 export function plansOf(store) {
   return rowsOf(store, 'plans')
+}
+
+/**
+ * The requests, newest first.
+ *
+ * Newest first because an inbox is read that way, and **not grouped**: which
+ * of them is waiting for somebody is a state the projection already decided
+ * (`inboxWaiting`'s own list, copied into `glyphs.js` and held equal to it),
+ * and grouping is the screen's own decision about the room it has.
+ */
+export function intakeOf(store, project = null) {
+  return rowsOf(store, 'intake')
+    .filter((row) => project === null || row.project === project)
+    .sort((a, b) => byText(b.at, a.at))
+}
+
+export function intakeAt(store, item) {
+  return store.rows.intake.get(item) ?? null
+}
+
+/** The ones somebody at the machine has to answer, which is what a badge counts. */
+export function intakeWaiting(store, project = null) {
+  return intakeOf(store, project).filter((row) => WAITING.includes(row.state))
+}
+
+/**
+ * Which inbox states want a person.
+ *
+ * `WAITING_STATES` in `@tade/core`'s `intake-inbox.ts`, copied because a
+ * browser cannot import a `.ts` file, and held equal to it by
+ * `test/store.test.ts` — the same treatment the queue's words get in
+ * `glyphs.js`, for the same reason: a second reading of *is this mine to
+ * answer* is a second state machine.
+ */
+export const WAITING = ['proposed', 'held', 'failure']
+
+export function sourcesOf(store) {
+  return rowsOf(store, 'sources')
+}
+
+/** The runs, newest-looking first: the one with unfinished steps before the done ones. */
+export function runsOf(store, project = null) {
+  return rowsOf(store, 'runs')
+    .filter((row) => project === null || row.projects.includes(project))
+    .sort((a, b) => done(a) - done(b) || byText(a.run, b.run))
+}
+
+const done = (run) => (run.total > 0 && run.finished === run.total ? 1 : 0)
+
+export function runAt(store, name) {
+  return store.rows.runs.get(name) ?? null
+}
+
+export function workflowsOf(store) {
+  return rowsOf(store, 'workflows')
+}
+
+export function workflowAt(store, name) {
+  return store.rows.workflows.get(name) ?? null
 }
 
 /**

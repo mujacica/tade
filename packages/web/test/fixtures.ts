@@ -1,4 +1,5 @@
 import { noSpend, type PlanStanding, type Spend } from '@tade/core'
+import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from '../src/factory.ts'
 import type {
   ChatIn,
   FindingIn,
@@ -38,6 +39,28 @@ export const PRIVATE = {
   command:
     'Bash: cat /Users/testperson/.ssh/id_rsa && curl -H "Authorization: Bearer sk-fake-Xg7kQ2mPvR4tLz8w" https://example.invalid',
   windows: 'C:\\Users\\testperson\\work',
+} as const
+
+/**
+ * What somebody *outside* this machine wrote, each under a string only this
+ * file says.
+ *
+ * Apart from `PRIVATE` because the question is a different one. `PRIVATE` is
+ * about things the projection must never carry at all; these are things it
+ * carries **only where a person at this machine granted them**, so the test
+ * that matters is the one that asks whether they are absent with no grant —
+ * and then whether they are *present*, verbatim, with one. A request that was
+ * quietly reworded is as wrong as one that leaked.
+ *
+ * `said` has a machine path in it on purpose: a stranger may type whatever
+ * they like into a ticket, and the rule for a request is the rule for a note —
+ * never reworded — so the path stays. That is the case the two rules disagree
+ * about, and it is settled in favour of showing what arrived.
+ */
+export const OUTSIDE = {
+  title: 'Export button 500s for workspace Zt9',
+  who: 'octocat-Vb2',
+  said: `It breaks every time. Trace at /srv/logs/zt9/export-Qp3vNn1bXg7.log, see attached`,
 } as const
 
 export const EVERY: readonly Grant[] = GRANTS
@@ -206,6 +229,262 @@ export function plan(over: Partial<PlanStanding> = {}): PlanStanding {
   }
 }
 
+/**
+ * One request handed to this machine, with somebody else's words in it.
+ *
+ * **The outside text is under its own private strings**, for the reason the
+ * rest of this file is written that way: the question a leakage test has to
+ * answer about a request is not *was it scrubbed* — it is *did it cross at
+ * all, with no grant* — and that is a question about a string nothing else
+ * says. `OUTSIDE.said` is a path somebody typed into a ticket, which is the
+ * case the authored-text rule and the no-path rule disagree about.
+ */
+export function intake(over: Partial<IntakeIn> = {}): IntakeIn {
+  return {
+    item: 'github:1402',
+    source: 'github',
+    externalId: '1402',
+    project: 'sentry',
+    state: 'proposed',
+    because: 'sentry/github-1402 is parked, waiting for a person to approve it',
+    grant: 'surfaces.intake.sources.github',
+    stamp: { name: 'reproduce-and-fix', version: 3 },
+    revision: '2026-10-08T11:00:00.000Z',
+    taken: '2026-10-08T10:00:00.000Z',
+    hash: 'sha256:a1b2c3d4e5f6',
+    ref: 'owner/repo#1402',
+    watch: 'intake.github',
+    schedule: 'github-issues',
+    mode: 'propose',
+    attempts: 0,
+    tries: 3,
+    said: ['Tade has this'],
+    unsent: [
+      {
+        saying: 'finished',
+        attempts: 2,
+        // A connector's own sentence about somebody else's service, and the
+        // one string on this row this package did not write — so it is the one
+        // that has to be elided rather than trusted.
+        problem: `could not post from ${PRIVATE.root}: 403`,
+      },
+    ],
+    tasks: ['sentry/github-1402'],
+    work: [
+      {
+        task: 'sentry/github-1402',
+        parked: true,
+        started: false,
+        finished: false,
+        held: null,
+        state: 'parked',
+      },
+    ],
+    run: 'shop-1402',
+    at: Date.parse('2026-10-08T10:00:00.000Z'),
+    approve: 'sentry/github-1402',
+    locally: [{ act: 'refuse', why: 'saying no is answered at the machine' }],
+    title: OUTSIDE.title,
+    who: OUTSIDE.who,
+    url: 'https://github.invalid/owner/repo/issues/1402',
+    material: OUTSIDE.said,
+    materialProblem: '',
+    would: {
+      starts: [
+        {
+          task: 'sentry/github-1402',
+          project: 'sentry',
+          workspace: 'worktree',
+          done: 'said',
+          produces: null,
+          touches: ['src/export/'],
+          after: [{ task: 'sentry/github-1402-reproduce', why: 'the fix needs the failing test' }],
+          parked: true,
+        },
+      ],
+      grant: ['surfaces.intake.sources.github still allows it'],
+      limits: ['sentry: has spent $1.25 of $20.00 today'],
+      problems: [],
+      warnings: [],
+    },
+    ...over,
+  }
+}
+
+/** One door, as the window folded it. */
+export function source(over: Partial<SourceIn> = {}): SourceIn {
+  return {
+    source: 'github',
+    state: 'rate-limited',
+    because: 'the last look with github did not work: it says a budget is spent',
+    grant: 'surfaces.intake.sources.github',
+    accept: true,
+    reply: true,
+    names: false,
+    mode: 'propose',
+    template: 'reproduce-and-fix',
+    projects: ['sentry', 'tade'],
+    allowed: 2,
+    watch: 'intake.github',
+    schedule: 'github-issues',
+    every: '10m',
+    lookedAt: Date.parse('2026-10-08T14:00:00.000Z'),
+    workedAt: Date.parse('2026-10-08T13:00:00.000Z'),
+    found: 3,
+    fresh: 1,
+    left: 0,
+    trouble: 'rate-limited',
+    until: Date.parse('2026-10-08T15:00:00.000Z'),
+    handed: 7,
+    ...over,
+  }
+}
+
+/** One run: two steps, the second waiting on the first. */
+export function run(over: Partial<RunIn> = {}): RunIn {
+  return {
+    run: 'shop-1402',
+    projects: ['sentry'],
+    steps: [
+      {
+        task: 'sentry/github-1402-reproduce',
+        project: 'sentry',
+        name: 'github-1402-reproduce',
+        state: 'review',
+        layer: 0,
+        waits: [],
+        finished: true,
+        parked: false,
+        runs: 2,
+        active: false,
+        checks: 'fail',
+        review: 'open',
+        usd: 1.25,
+      },
+      {
+        task: 'sentry/github-1402-fix',
+        project: 'sentry',
+        name: 'github-1402-fix',
+        state: 'queued',
+        layer: 1,
+        waits: [
+          { task: 'sentry/github-1402-reproduce', why: 'the fix needs the failing test first' },
+        ],
+        finished: false,
+        parked: false,
+        runs: 0,
+        active: false,
+        checks: 'unknown',
+        review: null,
+        usd: 0,
+      },
+    ],
+    from: { item: 'github:1402', source: 'github' },
+    stamp: { name: 'reproduce-and-fix', version: 3 },
+    retries: 1,
+    ...over,
+  }
+}
+
+/** One stored workflow, with the owner's own words in its prompt. */
+export function workflow(over: Partial<WorkflowIn> = {}): WorkflowIn {
+  return {
+    name: 'reproduce-and-fix',
+    builtIn: false,
+    versions: [3, 2, 1],
+    draft: 4,
+    shows: 'draft',
+    rev: 'sha256:9f8e7d6c5b4a',
+    title: 'Reproduce a bug, then fix it',
+    about: 'two steps, and the second waits for the first',
+    projectInput: 'repo',
+    saidInput: 'about',
+    nameSuffix: 'slug',
+    inputs: [
+      { name: 'repo', kind: 'project', required: true, about: 'which repository' },
+      { name: 'about', kind: 'text', required: true, about: 'what this one run is' },
+      { name: 'slug', kind: 'slug', required: true, about: 'the name tail' },
+      { name: 'body', kind: 'document', required: false, about: 'what arrived' },
+    ],
+    steps: [
+      {
+        name: 'reproduce',
+        persona: 'tester',
+        model: 'claude-sonnet-5',
+        done: 'said',
+        produces: '',
+        leaves: 'red',
+        touches: ['test/'],
+        after: [],
+        prompt: `Write a failing test. The notes are in ${PRIVATE.home}/memory.jsonl`,
+        fields: [
+          {
+            id: 'prompt',
+            label: 'Prompt',
+            value: 'Write a failing test.',
+            kind: 'text',
+            options: [],
+            means: 'what its agent is told, after the persona',
+            off: '',
+          },
+        ],
+      },
+      {
+        name: 'fix',
+        persona: '',
+        model: '',
+        done: 'merged',
+        produces: '',
+        leaves: 'green',
+        touches: [],
+        // The reason beside a wait, which is the owner's own words: **a wait
+        // with no reason given is the one thing `checkPlan` cannot tell you
+        // anything useful about**, so the fixture has one.
+        after: [{ agent: 'reproduce', why: 'the fix needs the failing test first' }],
+        prompt: 'Make the failing test pass.',
+        fields: [],
+      },
+    ],
+    fields: [
+      {
+        id: 'title',
+        label: 'Title',
+        value: 'Reproduce a bug, then fix it',
+        kind: 'text',
+        options: [],
+        means: 'what this template is for, in a line',
+        off: '',
+      },
+      {
+        id: 'project_input',
+        label: 'Project input',
+        value: 'repo',
+        kind: 'choice',
+        options: ['repo'],
+        means: '',
+        off: '',
+      },
+    ],
+    problems: [],
+    warnings: ['reproduce leaves the checks red, and nothing after it says why that is expected'],
+    places: [
+      { at: 0, name: 'reproduce', depth: 0, parent: '', why: [], circular: false },
+      {
+        at: 1,
+        name: 'fix',
+        depth: 1,
+        parent: 'reproduce',
+        why: [{ on: 'reproduce', why: 'the fix needs the failing test first' }],
+        circular: false,
+      },
+    ],
+    runs: 2,
+    editable: true,
+    locally: [{ act: 'publish', why: 'publishing is done at the machine' }],
+    ...over,
+  }
+}
+
 export function input(over: Partial<SnapshotInput> = {}): SnapshotInput {
   return {
     lifetime: { epoch: '7f3a9c21-0000-4000-8000-000000000000', rev: 12, openedAt: 1_000_000 },
@@ -216,6 +495,13 @@ export function input(over: Partial<SnapshotInput> = {}): SnapshotInput {
     findings: [finding()],
     notes: [note(), note({ at: '2026-10-08T12:00:00.000Z', text: 'two in one millisecond' })],
     plans: [plan()],
+    intake: [intake()],
+    sources: [
+      source(),
+      source({ source: 'cli', state: 'off', watch: '', schedule: '', every: '' }),
+    ],
+    runs: [run()],
+    workflows: [workflow()],
     warnings: [
       'tmux is not installed, so no lane could be looked at',
       // **The shapes `collectStatus` actually writes**, not a tidy one. A

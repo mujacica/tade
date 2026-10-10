@@ -1,7 +1,10 @@
 import {
   describeQueueState,
+  INBOX_STATES,
   joined as joinedHere,
   type QueueState,
+  SOURCE_NEEDS_YOU,
+  SOURCE_STATES,
   saidBy,
   TaskState,
 } from '@tade/core'
@@ -13,12 +16,17 @@ import {
   FRESH_MARKS,
   findingMark,
   freshMark,
+  INTAKE_STATES,
+  intakeMark,
   joined,
   originSaid,
   queueMark,
   queueSaid,
   REVIEW_STATES,
   reviewMark,
+  SOURCE_STATES as SOURCE_STATES_HERE,
+  sourceMark,
+  stepMark,
   TASK_STATES,
   taskMark,
 } from '../src/assets/glyphs.js'
@@ -219,5 +227,105 @@ describe('how the page stands to the machine', () => {
     // The safe default: a page that cannot name its own state must not claim
     // to be live.
     expect(freshMark('invented')).toEqual(FRESH_MARKS.unreachable)
+  })
+})
+
+describe('where one request from outside stands', () => {
+  it('has a drawing for every state the domain has, and no others', () => {
+    // Both directions, like the task states: a word here the domain does not
+    // have is a page drawing a state nothing produces, and one the domain has
+    // that is missing here falls through to `?` on the row somebody is
+    // actually waiting on.
+    expect(Object.keys(INTAKE_STATES).sort()).toEqual([...INBOX_STATES].sort())
+  })
+
+  it('keeps proposed and started as far apart as wants-you and working', () => {
+    // **The pair this exists for.** One is waiting for a person to say yes and
+    // the other is an agent spending money, and the domain's own comment says
+    // that drawing them as one word is what made the first version of this
+    // unreadable.
+    const proposed = INTAKE_STATES.proposed
+    const started = INTAKE_STATES.started
+    expect(proposed?.glyph).not.toBe(started?.glyph)
+    expect(proposed?.tone).not.toBe(started?.tone)
+    expect(proposed?.tone).toBe(TASK_STATES.blocked?.tone)
+    expect(started?.tone).toBe(TASK_STATES.working?.tone)
+  })
+
+  it('gives every state a word, never a glyph alone', () => {
+    for (const [state, mark] of Object.entries(INTAKE_STATES)) {
+      expect(mark.word, state).not.toBe('')
+      expect(mark.glyph, state).not.toBe('')
+    }
+  })
+
+  it('draws a refusal quietly rather than red, because nothing went wrong', () => {
+    // Somebody said no. A red row would have people looking for a bug.
+    expect(INTAKE_STATES.refused?.tone).toBe('t-quiet')
+    expect(INTAKE_STATES.failure?.tone).toBe('t-failed')
+  })
+
+  it('draws work that is started and finished as finished, not as a spinner', () => {
+    // A spinner over work nobody is doing is the one reading of `started` that
+    // is simply untrue. The window's own INTAKE section does this
+    // (`inboxMark`), and this is the same rule rather than a second one.
+    const over = intakeMark({
+      state: 'started',
+      work: [{ finished: true }, { finished: true }],
+    })
+    expect(over.word).toBe('finished')
+    const going = intakeMark({ state: 'started', work: [{ finished: false }] })
+    expect(going.word).toBe('started')
+    // And a `started` row with no work at all is still started: *every* over
+    // nothing is vacuously true, which would draw it as finished.
+    expect(intakeMark({ state: 'started', work: [] }).word).toBe('started')
+  })
+
+  it('names a state it does not know rather than drawing nothing', () => {
+    expect(intakeMark({ state: 'invented', work: [] }).word).toBe('invented')
+    expect(intakeMark({ state: '', work: [] }).word).toBe('unknown')
+  })
+})
+
+describe('where one door stands', () => {
+  it('has a drawing for every state the domain has, and no others', () => {
+    expect(Object.keys(SOURCE_STATES_HERE).sort()).toEqual([...SOURCE_STATES].sort())
+  })
+
+  it('draws the two somebody has to fix red, and the one that clears itself amber', () => {
+    // A rate limit is over at a moment the source itself named; an outage and a
+    // refusal stay until a person does something. Three words, three tones.
+    for (const state of SOURCE_NEEDS_YOU) {
+      expect(SOURCE_STATES_HERE[state]?.tone, state).toBe('t-failed')
+    }
+    expect(SOURCE_STATES_HERE['rate-limited']?.tone).toBe('t-working')
+    // And the decisions are quiet: off, ungranted and paused are somebody
+    // having chosen, not something going wrong.
+    for (const state of ['off', 'ungranted', 'paused'] as const) {
+      expect(SOURCE_STATES_HERE[state]?.tone, state).toBe('t-quiet')
+    }
+  })
+
+  it('gives every state a word, and tells found-nothing from could-not-look', () => {
+    for (const [state, mark] of Object.entries(SOURCE_STATES_HERE)) {
+      expect(mark.word, state).not.toBe('')
+    }
+    expect(sourceMark('quiet').word).toContain('found nothing')
+    expect(sourceMark('unreachable').word).toBe('unreachable')
+    expect(sourceMark('invented').word).toBe('invented')
+  })
+})
+
+describe('one step of a run', () => {
+  it('reads the journal’s two facts over the state, and the state otherwise', () => {
+    // A step the journal says is finished wears the finished mark however its
+    // branch looks, and one with an agent on it *now* is the active step.
+    expect(stepMark({ state: 'queued', finished: true, active: false }).word).toBe('finished')
+    expect(stepMark({ state: 'queued', finished: false, active: true }).word).toBe('working')
+    // Everything else is `taskMark`, so a step and the task row it is about
+    // never disagree.
+    expect(stepMark({ state: 'blocked', finished: false, active: false })).toEqual(
+      taskMark('blocked'),
+    )
   })
 })

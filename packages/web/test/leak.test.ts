@@ -223,8 +223,14 @@ describe('what a person wrote', () => {
         findings: 9,
         notes: 9,
         plans: 9,
+        intake: 9,
+        sources: 9,
+        runs: 9,
+        workflows: 9,
+        materials: 9,
         warnings: 9,
         text: 4,
+        material: 4,
       },
     )
     expect(snapshot.tasks[0]?.title).toEqual({ words: '🔧🔧🔧🔧', more: true })

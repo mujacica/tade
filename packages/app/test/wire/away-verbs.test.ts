@@ -3,7 +3,6 @@ import {
   act,
   closeAll,
   contextIn,
-  delivered,
   KEY,
   type Machine,
   type MachineOptions,
@@ -14,6 +13,7 @@ import {
   rowOf,
   waitFor,
 } from './away-harness.ts'
+import { delivered } from './away-intake.ts'
 
 // The seven verbs beyond park, each all the way through a real listener.
 //

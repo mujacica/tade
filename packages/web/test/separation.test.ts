@@ -1,7 +1,15 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { TALKING_IS_NOT_YOU, TALKING_IS_NOT_YOU_SHORT } from '@tade/core'
+import {
+  DRAFTS_ARE_NOT_PUBLISHED,
+  DRAFTS_ARE_NOT_PUBLISHED_SHORT,
+  LOCAL_ONLY_ACTS,
+  LOCAL_ONLY_SHORT,
+  TALKING_IS_NOT_YOU,
+  TALKING_IS_NOT_YOU_SHORT,
+} from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { readDraftSave, SAVINGS } from '../src/drafted.ts'
 import {
   ACTING_IS_NOT_YOU,
   ACTING_IS_NOT_YOU_SHORT,
@@ -164,6 +172,59 @@ describe('what a verb may never reach, as the verb table grows', () => {
     )
   })
 
+  it('declares exactly the one method the saving table has, and nothing else', () => {
+    // Both directions, mechanically, exactly as `WebActing` is held to
+    // `VERBS`: a method with no saving is a door nothing opens *yet*, which is
+    // the one a route somebody adds in a hurry finds — and a saving with no
+    // method is a `404` nobody can explain.
+    const text = readFileSync(join(SRC, 'drafting.ts'), 'utf8')
+    const block = /export interface WebDrafting \{([\s\S]*?)\n\}/.exec(text)?.[1] ?? ''
+    expect(block, 'the WebDrafting block').not.toBe('')
+    const methods = [...block.matchAll(/^ {2}([a-z][A-Za-z]*)\(/gm)].map((one) => one[1])
+    expect(methods.filter((one) => one !== 'unlocked')).toEqual(Object.keys(SAVINGS))
+  })
+
+  it('has no shape in the saving half that could publish, make or remove one', () => {
+    // The absences, in code: `DRAFTS_ARE_NOT_PUBLISHED` is the sentence and
+    // these are what make it true. A `publish` on this interface would be one
+    // line away from a route, and a route is one line away from a run.
+    const text = code(readFileSync(join(SRC, 'drafting.ts'), 'utf8'))
+    for (const shape of ['publish', 'reject', 'remove', 'rename', 'create', 'version']) {
+      expect(text.toLowerCase(), `drafting.ts has ${shape}`).not.toContain(`${shape}(`)
+    }
+  })
+
+  it('takes no path and no command in a save\u2019s body either', () => {
+    // The same cross-product the verbs get. A draft is addressed by a name
+    // Tade would have written, and the one that got away would not have been
+    // a missing file: a name from outside joined onto a path reads somewhere
+    // else entirely.
+    const every = {
+      template: 'reproduce-and-fix',
+      was: 'sha256:aaaa',
+      key: 'abcdefgh12345678',
+      rev: 0,
+    }
+    for (const name of ['path', 'file', 'cwd', 'cmd', 'command', 'prompt', 'setting', 'scopes']) {
+      expect(
+        readDraftSave({
+          ...every,
+          scope: 'template',
+          field: 'title',
+          value: 'x',
+          [name]: 'anything',
+        }).ok,
+        name,
+      ).toBe(false)
+    }
+    for (const template of ['../../etc/passwd', '/etc/passwd', 'a/b', '~/x']) {
+      expect(
+        readDraftSave({ ...every, template, scope: 'template', field: 'title', value: 'x' }).ok,
+        template,
+      ).toBe(false)
+    }
+  })
+
   it('takes no path and no command in any verb\u2019s body, over the whole table', () => {
     // The same cross-product `test/verbs.test.ts` runs, asserted here too and
     // on purpose: that file is about what a body parses to, and this one is
@@ -198,6 +259,7 @@ describe('what the surface is turned on as', () => {
       trusted_hosts: ['x'],
       acting: false,
       orchestrator: false,
+      drafts: false,
     })
     // `lan` with `enabled: false` is **off**, not "on the network and
     // waiting": two decisions, and the one deciding whether anything listens
@@ -221,6 +283,7 @@ describe('what the surface is turned on as', () => {
           trusted_hosts: [],
           acting: false,
           orchestrator: false,
+          drafts: false,
         }),
       ),
     ).toEqual(['127.0.0.1', '::1'])
@@ -233,6 +296,7 @@ describe('what the surface is turned on as', () => {
           trusted_hosts: [],
           acting: false,
           orchestrator: false,
+          drafts: false,
         }),
       ),
     ).toEqual(['0.0.0.0', '::'])
@@ -274,6 +338,7 @@ describe('what a session minted on an origin may ever do', () => {
     trusted_hosts: ['studio.yak-bebop.ts.net'],
     acting: true,
     orchestrator: false,
+    drafts: false,
   })
 
   it('is everything it was granted, from this machine', () => {
@@ -423,6 +488,53 @@ describe('the sentences', () => {
     for (const word of ['secure', 'encrypted', 'private', 'safe', 'harmless']) {
       expect(TALKING_IS_NOT_YOU.toLowerCase(), word).not.toContain(word)
     }
+  })
+
+  it('say what stays an act at the machine, as a list rather than a promise', () => {
+    // **The list is the load-bearing half**, and every one of these has no
+    // route at all — `test/routes.test.ts` reads the same names against the
+    // whole of what the listener can serve. A control that quietly stopped
+    // naming one would be the comfortable version of this sentence.
+    for (const never of [
+      'Publishing a workflow',
+      'turning a source on',
+      'granting an account or a tool',
+      'changing what a device may do',
+      'no route at all',
+    ]) {
+      expect(LOCAL_ONLY_ACTS, never).toContain(never)
+    }
+    // And what a granted device *can* do, in the same breath: a page that
+    // only listed refusals would read as a surface nobody finished.
+    for (const can of ['approve a request', 'follow what the work does', 'save a draft']) {
+      expect(LOCAL_ONLY_ACTS, can).toContain(can)
+    }
+    expect(LOCAL_ONLY_SHORT.length).toBeLessThan(70)
+  })
+
+  it('say what a draft is, and name the five things saving one can never reach', () => {
+    // The sentence that must never get comfortable. The clause that would go
+    // first is the one saying what a draft *is* — a file no run reads — because
+    // without it "bounded" is the whole claim.
+    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('no run reads')
+    for (const never of [
+      'publish one',
+      'make one',
+      'rename one',
+      'delete one',
+      'published version',
+    ]) {
+      expect(DRAFTS_ARE_NOT_PUBLISHED, never).toContain(never)
+    }
+    // And the bound, named rather than described: one field at a time, through
+    // the same validator the file goes through.
+    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('one field at a time')
+    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('same validator')
+    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('an act at this machine')
+    for (const word of ['secure', 'encrypted', 'private', 'safe', 'harmless']) {
+      expect(DRAFTS_ARE_NOT_PUBLISHED.toLowerCase(), word).not.toContain(word)
+    }
+    expect(DRAFTS_ARE_NOT_PUBLISHED_SHORT.length).toBeLessThan(80)
   })
 
   it('have a short clause for the one line a control gets', () => {

@@ -159,6 +159,11 @@ const NOUNS = {
   reviews: 'offered for merge',
   findings: 'findings',
   notes: 'notes',
+  // Waiting on somebody, not handed over: a badge counting answered requests
+  // is a badge nobody looks at twice.
+  intake: 'requests waiting on you',
+  runs: 'runs',
+  workflows: 'workflows',
 }
 
 /** The counts beside the navigation, which a delta does move. */

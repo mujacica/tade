@@ -115,6 +115,51 @@ export const ACTING_IS_NOT_YOU =
 export const ACTING_IS_NOT_YOU_SHORT = 'a device acts as a request, never as your own words'
 
 /**
+ * What stays an act at this machine, however much a device is granted.
+ *
+ * The line the factory surface is read against, and it is a *list* rather
+ * than a promise about care: publishing a workflow decides what every future
+ * run of it does, granting a source decides whose words become work here,
+ * granting an account or a tool decides what an agent runs as, and changing
+ * what a device may do is the authority deciding about itself. None of them
+ * has a route, and `packages/web/test/separation.test.ts` reads this list
+ * against the route table rather than trusting the sentence.
+ *
+ * It is said with what a device *can* do in the same breath, because a page
+ * that only listed refusals would read as a surface nobody finished.
+ */
+export const LOCAL_ONLY_ACTS =
+  'Publishing a workflow or a persona, turning a source on, granting an account or a tool, and ' +
+  'changing what a device may do are acts at this machine and have no route at all. A granted ' +
+  'device can read what has been handed over, approve a request a grant here already allowed, ' +
+  'follow what the work does, and save a draft nobody has published.'
+
+/** The short clause, for the one line a control gets. */
+export const LOCAL_ONLY_SHORT = 'publishing and granting stay acts at the machine'
+
+/**
+ * What saving a draft from a device is, said where that is turned on.
+ *
+ * The same shape as the three sentences above: the fact, then what stands
+ * against it, in one breath. The fact a person has to be able to picture is
+ * that a draft is a file in Tade's home that nothing runs — and that the thing
+ * which *would* make it run is the one act this can never reach.
+ *
+ * It names the bound rather than describing it, because "bounded" is the word
+ * a comfortable version of this sentence would keep while dropping what the
+ * bound is.
+ */
+export const DRAFTS_ARE_NOT_PUBLISHED =
+  'A draft is a file in Tade’s home that no run reads. Saving one from a device fills in fields ' +
+  'of a workflow that is already drafted — one field at a time, through the same validator the ' +
+  'file goes through — and it can never publish one, make one, rename one, delete one, or touch ' +
+  'a published version, which never changes once it is out. Publishing is an act at this ' +
+  'machine, so what a device saves waits there until somebody here reads it.'
+
+/** The short clause, for the one line a control gets. */
+export const DRAFTS_ARE_NOT_PUBLISHED_SHORT = 'a draft is a file no run reads until it is published'
+
+/**
  * The away view's own config block: `surfaces.web`.
  *
  * Here rather than in `config.ts` for the reason the sentences above are here:
@@ -207,5 +252,29 @@ export const WebSurface = z
      * away is immediate.
      */
     orchestrator: z.boolean().default(false),
+    /**
+     * Whether a paired device may save a draft workflow.
+     *
+     * **A fifth decision, and the one whose bound is the thing it writes
+     * rather than the words it takes.** `acting`'s verbs are about work that
+     * exists; `orchestrator` is free text to a model. This is neither: it
+     * fills in a field of a template **draft**, which is a file in Tade's home
+     * that no run reads, through the same pure validator the file goes through
+     * (`editWorkflow`) and the one writer that cannot name a published version
+     * (`writeDraft`).
+     *
+     * What it can never do is the half worth a setting: there is no route that
+     * publishes, that makes a draft, that renames or deletes one, or that
+     * touches a published version — `DRAFTS_ARE_NOT_PUBLISHED` says so, and
+     * the route table is the enforcement. So the worst a crafted call can do
+     * is leave a draft nobody published in a state somebody at this machine
+     * reads before publishing it.
+     *
+     * Turning it **on** takes effect the next time Tade starts, for the reason
+     * `acting` does: the route table is built with the listener. Turning it
+     * **off** is read at every save, so the direction that takes authority
+     * away is immediate.
+     */
+    drafts: z.boolean().default(false),
   })
   .prefault({})

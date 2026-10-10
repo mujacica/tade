@@ -47,6 +47,24 @@ export function viewOf(path) {
     if (project === null || task === null) return { view: 'nowhere' }
     return { view: 'task', project, task }
   }
+  // One request, by the two halves of its item key. Two segments rather than
+  // one `source:id`, because a colon in a path segment is percent-encoded by
+  // some clients and not others, and a router that had to undo that would be
+  // guessing at what a link means.
+  if (first === 'i' && parts.length === 4) {
+    const source = segment(parts[2])
+    const id = segment(parts[3])
+    if (source === null || id === null) return { view: 'nowhere' }
+    return { view: 'request', source, id }
+  }
+  if (first === 'r' && parts.length === 3) {
+    const run = segment(parts[2])
+    return run === null ? { view: 'nowhere' } : { view: 'run', run }
+  }
+  if (first === 'w' && parts.length === 3) {
+    const name = segment(parts[2])
+    return name === null ? { view: 'nowhere' } : { view: 'workflow', name }
+  }
   if (parts.length !== 2) return { view: 'nowhere' }
   if (PLAIN.includes(first)) return { view: first }
   return { view: 'nowhere' }
@@ -62,6 +80,9 @@ export function viewOf(path) {
  */
 const PLAIN = [
   'queue',
+  'inbox',
+  'runs',
+  'workflows',
   'talk',
   'checks',
   'reviews',
@@ -82,6 +103,12 @@ export function pathOf(where) {
       return `/p/${encodeURIComponent(where.project)}`
     case 'task':
       return `/t/${encodeURIComponent(where.project)}/${encodeURIComponent(where.task)}`
+    case 'request':
+      return `/i/${encodeURIComponent(where.source)}/${encodeURIComponent(where.id)}`
+    case 'run':
+      return `/r/${encodeURIComponent(where.run)}`
+    case 'workflow':
+      return `/w/${encodeURIComponent(where.name)}`
     default:
       return `/${where.view}`
   }
@@ -105,6 +132,12 @@ export const TITLES = {
   project: 'Project',
   task: 'Task',
   queue: 'Queue',
+  inbox: 'Handed over',
+  request: 'Request',
+  runs: 'Runs',
+  run: 'Run',
+  workflows: 'Workflows',
+  workflow: 'Workflow',
   checks: 'Checks',
   reviews: 'Reviews',
   spend: 'Spend',
@@ -128,9 +161,14 @@ export const TITLES = {
  */
 export const NAV = [
   { view: 'now', mark: '▣', label: 'Now', counts: 'wantsYou' },
+  // **Second, and it displaced Spend**, which is the one judgement in this
+  // table. What is in the thumb row is what is read *because something
+  // happened*: a request waiting for a yes is somebody else blocked on this
+  // machine, and money is a figure that is true whenever you look. Spend and
+  // Checks are one tap away under More and keep their counts there.
+  { view: 'inbox', mark: '✉', label: 'Inbox', counts: 'intake' },
   { view: 'queue', mark: '⌸', label: 'Queue', counts: 'queue' },
-  { view: 'spend', mark: '$', label: 'Spend', counts: null },
-  { view: 'checks', mark: '✓', label: 'Checks', counts: null },
+  { view: 'runs', mark: '⑁', label: 'Runs', counts: 'runs' },
 ]
 
 /** The weekly reads, listed on every screen's rail and under More on a phone. */
@@ -139,6 +177,9 @@ export const MORE = [
   // something happened* rather than on a round: a reply arrived, or Tade is
   // answering somebody. The others are lists that are true whenever you look.
   { view: 'talk', mark: '❯', label: 'With Tade', counts: null },
+  { view: 'spend', mark: '$', label: 'Spend', counts: null },
+  { view: 'checks', mark: '✓', label: 'Checks', counts: null },
+  { view: 'workflows', mark: '⌗', label: 'Workflows', counts: 'workflows' },
   { view: 'reviews', mark: '◴', label: 'Reviews', counts: 'reviews' },
   { view: 'findings', mark: '◈', label: 'Findings', counts: 'findings' },
   { view: 'notes', mark: '✎', label: 'Notes', counts: 'notes' },
@@ -148,7 +189,19 @@ export const MORE = [
 /** Which of the navigation's entries a screen lights up. */
 export function navFor(where) {
   if (where.view === 'project' || where.view === 'task') return 'now'
+  // A screen that is one row of a list lights that list's entry, which is what
+  // makes the back arrow and the lit tab agree about where somebody is.
+  if (where.view === 'request') return 'inbox'
+  if (where.view === 'run') return 'runs'
+  if (where.view === 'workflow') return 'workflows'
   return where.view
+}
+
+/** The path of one request's own screen, from its `<source>:<externalId>` key. */
+export function requestPath(item) {
+  const cut = item.indexOf(':')
+  if (cut < 0) return '/inbox'
+  return pathOf({ view: 'request', source: item.slice(0, cut), id: item.slice(cut + 1) })
 }
 
 /**

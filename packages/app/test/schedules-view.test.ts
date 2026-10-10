@@ -76,6 +76,8 @@ const watch = (
           fresh: look.fresh ?? 2,
           left: 0,
           problem: look.problem ?? null,
+          trouble: null,
+          until: null,
           said: null,
         },
       ],

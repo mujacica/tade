@@ -1,24 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import type { TadeEvent } from '../src/events.ts'
 import {
-  describeLook,
   describeWhen,
   dueNow,
   momentOf,
-  newFindings,
   nothingToWatch,
   ON_TIME_MS,
   runsOf,
   scheduleEnded,
   standingId,
   standingSchedules,
-  type WatchLook,
   type WatchOffered,
   type When,
   wallClock,
-  watchedFrom,
   whenProblem,
 } from '../src/schedule.ts'
+import { describeLook, newFindings, type WatchLook, watchedFrom } from '../src/watch-looks.ts'
 
 const at = (iso: string) => Date.parse(iso)
 const iso = (moments: number[]) => moments.map((moment) => new Date(moment).toISOString())
@@ -308,7 +305,30 @@ describe('what a watch has done', () => {
     )
     // A look that could not look is still said as that, whatever else it said.
     expect(
-      describeLook({ at: 0, found: 0, fresh: 0, left: 0, problem: 'the radar is down', said: 'x' }),
+      describeLook({
+        at: 0,
+        found: 0,
+        fresh: 0,
+        left: 0,
+        problem: 'the radar is down',
+        trouble: 'unreachable',
+        until: null,
+        said: 'x',
+      }),
+    ).toBe('could not look (unreachable): the radar is down')
+    // And a look written down before the kind existed says the sentence alone:
+    // `unknown` reads as the line it always did, never as `other`.
+    expect(
+      describeLook({
+        at: 0,
+        found: 0,
+        fresh: 0,
+        left: 0,
+        problem: 'the radar is down',
+        trouble: null,
+        until: null,
+        said: 'x',
+      }),
     ).toBe('could not look: the radar is down')
   })
 

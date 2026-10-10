@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { LIFECYCLE, ROUTES, routeFor } from '../src/routes.ts'
+import { ACTS, ASKS, DRAFTS, LIFECYCLE, ROUTES, routeFor, routesFor } from '../src/routes.ts'
+import { OFF, type Surface } from '../src/surface.ts'
 
 // Read-only, enforced by absence, asserted in one file.
 //
@@ -95,6 +96,76 @@ describe('the shape of the table', () => {
   it('names each route once', () => {
     expect(new Set(ROUTES.map((route) => route.name)).size).toBe(ROUTES.length)
     expect(new Set(ROUTES.map((route) => `${route.method} ${route.path}`)).size).toBe(ROUTES.length)
+  })
+})
+
+describe('the three tables a setting turns on', () => {
+  it('puts nothing in the base table, so read-only stays an absence', () => {
+    // Each of the three is a second table `routesFor` adds only where its own
+    // setting says so, which is why `ROUTES` is still the list somebody checks
+    // read-only against in forty lines.
+    const paths = ROUTES.map((route) => route.path)
+    for (const route of [...ACTS, ...ASKS, ...DRAFTS]) {
+      expect(paths, route.path).not.toContain(route.path)
+    }
+  })
+
+  it('serves none of them with every setting off', () => {
+    expect(routesFor(OFF)).toEqual(ROUTES)
+  })
+
+  it('serves each of them only where its own setting is on', () => {
+    const on = (over: Partial<Surface>) =>
+      routesFor({ ...OFF, enabled: true, ...over }).map((route) => route.path)
+    expect(on({ acting: true })).toContain('/api/act/park')
+    expect(on({ acting: true })).not.toContain('/api/draft/save')
+    expect(on({ talking: true })).toContain('/api/ask/ask')
+    expect(on({ talking: true })).not.toContain('/api/draft/save')
+    // The one this slice adds, and the asymmetry worth asserting: a device
+    // granted both acting tiers still has no path to save a draft.
+    expect(on({ drafting: true })).toContain('/api/draft/save')
+    expect(on({ drafting: true })).not.toContain('/api/act/park')
+    expect(on({ acting: true, talking: true })).not.toContain('/api/draft/save')
+  })
+
+  it('gives every saving route the draft scope, which no verb and no saying has', () => {
+    for (const route of DRAFTS) expect(route.needs, route.path).toBe('draft')
+    for (const route of [...ACTS, ...ASKS]) expect(route.needs, route.path).not.toBe('draft')
+  })
+
+  it('gives every route in the three tables exactly one of the three jobs', () => {
+    // A route reaches a `WebActing` method, a `WebAsking` one or a
+    // `WebDrafting` one, and never two: two would be a handler that had to
+    // choose, which is the shape `carryOut` answers with a `404`.
+    for (const route of [...ACTS, ...ASKS, ...DRAFTS]) {
+      const jobs = [route.verb, route.says, route.saves].filter((one) => one !== undefined)
+      expect(jobs, route.path).toHaveLength(1)
+      expect(route.method, route.path).toBe('POST')
+      expect(route.mutates, route.path).toBe(true)
+      // None of them is public: a save, an act and a message each need a
+      // session, every time.
+      expect(route.public, route.path).toBeUndefined()
+    }
+  })
+
+  it('still has no route that publishes, grants or reaches a credential', () => {
+    // The list `LOCAL_ONLY_ACTS` names, asserted against the whole of what
+    // this listener can ever serve rather than trusted as a sentence.
+    const every = routesFor({ ...OFF, enabled: true, acting: true, talking: true, drafting: true })
+    const paths = every.map((route) => route.path)
+    for (const forbidden of [
+      '/api/publish',
+      '/api/draft/publish',
+      '/api/draft/new',
+      '/api/draft/remove',
+      '/api/draft/reject',
+      '/api/persona',
+      '/api/grant',
+      '/api/settings',
+      '/api/accounts',
+    ]) {
+      expect(paths, forbidden).not.toContain(forbidden)
+    }
   })
 })
 

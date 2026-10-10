@@ -15,4 +15,4 @@ export { boolean, inputProblem, list, number, object, oneOf, string } from './sc
 export { settingFrom } from './settings.ts'
 export { intakeProblem, shapeProblem } from './shape.ts'
 export type * from './watch.ts'
-export { Unreachable } from './watch.ts'
+export { troubleOf, troubleUntil, Unreachable } from './watch.ts'

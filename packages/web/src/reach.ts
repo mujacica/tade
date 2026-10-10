@@ -39,6 +39,13 @@ export const GRANTS = [
   'reviews',
   'accounts',
   'talk',
+  // The three the factory floor needs, and all three are **off** with every
+  // other grant off, which is the whole point: a phone can be told *four
+  // requests are waiting, two of them for you* without one word anybody
+  // outside this machine wrote.
+  'requests',
+  'material',
+  'workflows',
 ] as const
 export type Grant = (typeof GRANTS)[number]
 
@@ -66,6 +73,24 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
   talk:
     'the conversation with Tade — what was asked, what it answered, which tools it used; ' +
     'machine paths are taken out, and anything else said into it is not',
+  // **Outside text, and a third kind of value.** Everything above is either
+  // Tade's own words or the owner's; these two are what a stranger wrote in a
+  // system Tade does not control. So they are two grants and not one, and the
+  // split is where the volume is: a title is a line on a row and a body is
+  // every word somebody typed into a ticket, and wanting to see *what is
+  // waiting* is not wanting to read it from a phone.
+  //
+  // Neither is scrubbed, for the reason a note is not: rewording somebody's
+  // request is the same lie as rewording a note. What stands instead is the
+  // grant, the budget, the label, and the page never building markup.
+  requests: 'what each outside request calls itself, and the handle of whoever filed it',
+  material:
+    'the request itself, as it arrived — somebody else’s words, under a heading saying so. ' +
+    'An agent reads them as material and they authorise nothing; a person reading them on a ' +
+    'phone should know the same thing, which is why the heading travels with the words',
+  workflows:
+    'the stored workflows and the personas they are told from — every step’s own prompt, in ' +
+    'the words you wrote them in',
 }
 
 /**

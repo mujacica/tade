@@ -216,6 +216,10 @@ export function applyDelta(snapshot: Snapshot, delta: Delta): Snapshot {
     notes: merge(snapshot.notes, delta.set.notes, delta.del.notes, KEYED.notes),
     plans: merge(snapshot.plans, delta.set.plans, delta.del.plans, KEYED.plans),
     chat: merge(snapshot.chat, delta.set.chat, delta.del.chat, KEYED.chat),
+    intake: merge(snapshot.intake, delta.set.intake, delta.del.intake, KEYED.intake),
+    sources: merge(snapshot.sources, delta.set.sources, delta.del.sources, KEYED.sources),
+    runs: merge(snapshot.runs, delta.set.runs, delta.del.runs, KEYED.runs),
+    workflows: merge(snapshot.workflows, delta.set.workflows, delta.del.workflows, KEYED.workflows),
   }
 }
 

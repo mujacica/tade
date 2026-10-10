@@ -4,6 +4,7 @@ import {
   NAV,
   navFor,
   pathOf,
+  requestPath,
   safeHref,
   TITLES,
   taskPath,
@@ -22,10 +23,29 @@ import { ROUTES, routeFor } from '../src/routes.ts'
 /** The views the router can be on, read off the titles it has words for. */
 const VIEWS = Object.keys(TITLES).filter((view) => view !== 'nowhere')
 
+/**
+ * One value per parameter a screen's path can carry.
+ *
+ * Every one of them filled, rather than the two somebody remembered: a path
+ * built with `undefined` in a segment still matches its route and still
+ * round-trips, so a screen whose parameter nobody filled in would pass both
+ * directions of this file while `/r/undefined` was what was being checked.
+ */
+const WHERE = {
+  project: 'tade',
+  task: 'away-readonly-ui',
+  source: 'github',
+  id: '1402',
+  run: 'shop-1402',
+  name: 'reproduce-and-fix',
+} as const
+
 describe('every screen is a path the machine serves', () => {
   it('serves the shell at every view the router knows', () => {
     for (const view of VIEWS) {
-      const path = pathOf({ view, project: 'tade', task: 'away-readonly-ui' })
+      const path = pathOf({ view, ...WHERE })
+      // Nothing was left to be filled in by accident.
+      expect(path, view).not.toContain('undefined')
       const found = routeFor('GET', path)
       expect(found, `${view} → ${path}`).not.toBeNull()
       expect(found?.route.document, `${view} → ${path}`).toBe(true)
@@ -36,7 +56,11 @@ describe('every screen is a path the machine serves', () => {
     // The other direction: a path the server answers with the shell and the
     // router does not know is a page that loads and then says it knows nothing.
     for (const route of ROUTES.filter((one) => one.document === true)) {
-      const path = route.path.replace(':project', 'tade').replace(':task', 'away-readonly-ui')
+      const path = route.path
+        .split('/')
+        .map((part) => (part.startsWith(':') ? WHERE[part.slice(1) as keyof typeof WHERE] : part))
+        .join('/')
+      expect(path, route.path).not.toContain(':')
       expect(viewOf(path).view, route.path).not.toBe('nowhere')
     }
   })
@@ -91,7 +115,7 @@ describe('reading a path', () => {
 
   it('round-trips every view it can be on', () => {
     for (const view of VIEWS) {
-      const where = { view, project: 'tade', task: 'away-readonly-ui' }
+      const where = { view, ...WHERE }
       expect(viewOf(pathOf(where)), view).toMatchObject({ view })
     }
   })
@@ -109,11 +133,43 @@ describe('reading a path', () => {
     expect(navFor({ view: 'task' })).toBe('now')
     expect(navFor({ view: 'queue' })).toBe('queue')
   })
+
+  it('lights a list’s entry for the screen that is one row of it', () => {
+    // So the back arrow and the lit tab agree about where somebody is.
+    expect(navFor({ view: 'request' })).toBe('inbox')
+    expect(navFor({ view: 'run' })).toBe('runs')
+    expect(navFor({ view: 'workflow' })).toBe('workflows')
+  })
+
+  it('reads a request’s item key into its own screen’s path', () => {
+    expect(requestPath('github:1402')).toBe('/i/github/1402')
+    // An external id may itself hold a colon, so the split is at the first one
+    // and the rest is escaped — the rule `taskPath` already follows.
+    expect(requestPath('slack:C123:1699999999.000100')).toBe('/i/slack/C123%3A1699999999.000100')
+    expect(requestPath('nothing')).toBe('/inbox')
+  })
 })
 
 describe('the navigation', () => {
   it('is four entries plus More, which is what fits 360px with 44px targets', () => {
     expect(NAV).toHaveLength(4)
+  })
+
+  it('puts in the thumb row what is read because something happened', () => {
+    // **The one judgement in that table.** What a thumb reaches is what is
+    // read *because something happened* — a request waiting for a yes is
+    // somebody else blocked on this machine — and money is a figure that is
+    // true whenever you look. Spend and Checks keep their place one tap away
+    // under More, with their counts.
+    expect(NAV.map((one) => one.view)).toEqual(['now', 'inbox', 'queue', 'runs'])
+    expect(MORE.map((one) => one.view)).toContain('spend')
+    expect(MORE.map((one) => one.view)).toContain('checks')
+  })
+
+  it('counts what is waiting on somebody rather than what has arrived', () => {
+    // A badge counting forty answered requests is a badge nobody looks at
+    // twice.
+    expect(NAV.find((one) => one.view === 'inbox')?.counts).toBe('intake')
   })
 
   it('names each view once across both lists', () => {

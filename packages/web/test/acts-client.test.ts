@@ -96,13 +96,19 @@ describe('what this device may draw', () => {
       answer: false,
       steer: true,
       ask: false,
+      draft: false,
     })
     expect(actsOf({ scopes: ['read', 'answer'] })).toEqual({
       answer: true,
       steer: false,
       ask: false,
+      draft: false,
     })
-    expect(actsOf({ scopes: ['read', 'answer', 'steer'] })).toEqual({ ...BOTH, ask: false })
+    expect(actsOf({ scopes: ['read', 'answer', 'steer'] })).toEqual({
+      ...BOTH,
+      ask: false,
+      draft: false,
+    })
     // **A third scope, and neither tier implies it.** A device granted both
     // acting tiers has been granted eight bounded verbs; talking to a model
     // that holds tools is a separate grant with a separate control.
@@ -110,6 +116,18 @@ describe('what this device may draw', () => {
       answer: false,
       steer: false,
       ask: true,
+      draft: false,
+    })
+    // **And a fourth, implied by nothing and implying nothing.** Saving a
+    // field of a draft workflow writes a file every future run would be
+    // stamped from once somebody at the machine publishes it, so it is its own
+    // grant with its own control — and a device granted it has not been
+    // granted either acting tier or a word to the model.
+    expect(actsOf({ scopes: ['read', 'draft'] })).toEqual({
+      answer: false,
+      steer: false,
+      ask: false,
+      draft: true,
     })
   })
 
@@ -122,6 +140,7 @@ describe('what this device may draw', () => {
         answer: false,
         steer: false,
         ask: false,
+        draft: false,
       })
     }
   })

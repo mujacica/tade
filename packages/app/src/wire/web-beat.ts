@@ -2,7 +2,7 @@ import { uptime } from 'node:os'
 import type { PlanStanding, Queued, QueueFacts, Spend, TadeEvent, Workspace } from '@tade/core'
 import { overridesFrom, producedIn, writtenOrder } from '@tade/core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
-import type { SnapshotInput, TalkIn } from '@tade/web'
+import type { IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
 import {
   type awayCollections,
   nothingKnown,
@@ -12,6 +12,7 @@ import {
   type TaskExtra,
   talkIn,
 } from '../away.ts'
+import { type RunTask, runsIn } from '../away-factory.ts'
 import type { ActionsView, NoteShown } from '../frame.ts'
 import type { Transcript } from '../transcript.ts'
 
@@ -112,6 +113,14 @@ export function nothingYet(): AwayHeld {
     findings: [],
     notes: [],
     plans: [],
+    // The factory floor, empty for the same reason the rest is: nothing has
+    // been looked at yet. Each collection reports its own real count of
+    // nought, which the page draws as *nothing read yet* out of the freshness
+    // rather than as *no source is turned on*.
+    intake: [],
+    sources: [],
+    runs: [],
+    workflows: [],
     warnings: [],
     machineUpSince: null,
     // Nothing folded yet, so there is no period to name: `unknown`, which the
@@ -136,6 +145,17 @@ export function beatParts(
   live: Beatable,
   world: Workspace,
   steering: (task: string) => Steering,
+  /**
+   * The factory floor as the inbox subject already folded it.
+   *
+   * **Handed in rather than folded here**, for the reason the conversation is:
+   * the inbox is a fold of the journal *and the task files*, refolded when a
+   * line that could change it is written rather than on every frame, and the
+   * subject that owns that fold is the one that draws the window's own INTAKE
+   * section. A second fold here would read a task file per request per beat,
+   * which is exactly the poll this window does not do.
+   */
+  factory: FactoryHeld = nothingHandedOver(),
 ): AwayBeat {
   const spend = live.spendToday()
   const overrides = overridesFrom(live.events)
@@ -156,7 +176,7 @@ export function beatParts(
   // The page needs it so it never offers to finish what is finished, and
   // `taskRev` carries it so a second `done` from an old screen is refused.
   const finished = new Set(
-    live.events.filter((one) => one.type === 'task_done' && one.task).map((one) => one.task),
+    live.events.flatMap((one) => (one.type === 'task_done' && one.task ? [one.task] : [])),
   )
   const extras = new Map<string, TaskExtra>()
   const pending = new Map<string, number>()
@@ -195,6 +215,18 @@ export function beatParts(
     titles: live.titles,
     extras,
     pending,
+    intake: factory.intake,
+    sources: factory.sources,
+    workflows: factory.workflows,
+    // **The runs are folded here and the provenance is handed in**, because
+    // the two halves come from different places: which tasks name one effort
+    // is the world's answer (`world.projects[].tasks`, with `start.after` for
+    // the edges), and which request a run came from is the inbox's. Neither
+    // half starts anything: both are values this beat already has.
+    runs: runsIn(
+      runTasks(world, { finished, starts: startsOf(live.events), checks: live, spend }),
+      factory.runFrom,
+    ),
     queued: live.queued,
     queueFacts: live.queueFacts(),
     order: writtenOrder(live.events),
@@ -240,4 +272,101 @@ export interface Beatable {
   machineUpSince: number | null
   /** When `spendToday`'s fold starts, which is the period every figure covers. */
   spendSince: number | null
+}
+
+/**
+ * The factory floor as the inbox subject hands it over.
+ *
+ * Three already-projected collections and one map. The map is the half the
+ * runs fold cannot answer: which request an effort came from, and which
+ * published version it was stamped from.
+ */
+export interface FactoryHeld {
+  intake: readonly IntakeIn[]
+  sources: readonly SourceIn[]
+  workflows: readonly WorkflowIn[]
+  /** Effort → the request it came from. Empty for a run nobody asked for from outside. */
+  runFrom: ReadonlyMap<string, RunFrom>
+}
+
+/** Where one run came from, as the inbox knows it. */
+export interface RunFrom {
+  item: string
+  source: string
+  stamp: { name: string; version: number } | null
+  /** How many times carrying the request out failed before the run existed. */
+  retries: number
+}
+
+/** Nothing handed over yet: a window with no inbox fold still answers. */
+export function nothingHandedOver(): FactoryHeld {
+  return { intake: [], sources: [], workflows: [], runFrom: new Map() }
+}
+
+/**
+ * How many agents have been started on each task, out of `run_started`.
+ *
+ * **Two is a retry, and that is the whole of the retry history a step has.**
+ * There is no counter anywhere and there must not be one: the journal already
+ * says every time an agent started, and a tally kept beside it would be a
+ * second answer that goes wrong the first time somebody compacts the log — at
+ * which point the honest answer is "as many as the journal still remembers",
+ * which is what a fold says and a counter would hide.
+ */
+export function startsOf(events: readonly TadeEvent[]): Map<string, number> {
+  const starts = new Map<string, number>()
+  for (const event of events) {
+    if (event.type !== 'run_started' || !event.task) continue
+    starts.set(event.task, (starts.get(event.task) ?? 0) + 1)
+  }
+  return starts
+}
+
+/**
+ * Every task that names an effort, at the narrowness `runsIn` asks for.
+ *
+ * The one thing worth saying about it: **`after` comes off the task file and
+ * not off the queue**. `live.queued` holds work that has not started, so a run
+ * read from there would lose an edge the moment a step began — and a graph
+ * whose arrows disappear as the work progresses is worse than no graph. A
+ * `Task` carries `start` whether or not it is still queued.
+ */
+export function runTasks(
+  world: Workspace,
+  facts: {
+    finished: ReadonlySet<string>
+    starts: ReadonlyMap<string, number>
+    checks: { seenActions(task: string): ActionsView | null }
+    spend: { byTask: Record<string, Spend> }
+  },
+): RunTask[] {
+  const tasks: RunTask[] = []
+  for (const project of world.projects) {
+    for (const task of project.tasks) {
+      if (!task.effort) continue
+      const money = facts.spend.byTask[task.id] ?? null
+      tasks.push({
+        id: task.id,
+        project: task.project,
+        effort: task.effort,
+        state: task.state,
+        after: (task.start?.after ?? []).map((one) => ({ task: one.task, why: one.why ?? '' })),
+        parked: task.parked === true,
+        // The journal's answer, and `merged` with it: there is nothing left for
+        // anybody to do with a branch that has landed (`effortsIn`'s own rule).
+        finished: facts.finished.has(task.id) || task.state === 'merged',
+        runs: facts.starts.get(task.id) ?? 0,
+        // An agent is on it *now*, which is what makes it the active step — and
+        // it is a count of signals rather than a state, because `working` is
+        // `deriveState`'s word and covers a task whose agent has gone quiet.
+        active: task.agents.length > 0,
+        checks: facts.checks.seenActions(task.id)?.rollup ?? 'unknown',
+        review: task.git?.pr?.state ?? null,
+        // Nought where nothing was recorded is the projection's to decide, not
+        // this file's: `null` here means *this window folded no money for it*.
+        usd: money === null ? null : money.usd,
+      })
+    }
+  }
+  return tasks
 }

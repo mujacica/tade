@@ -1,5 +1,6 @@
 import type { DoneRule, PlanStanding, ReviewState, Spend, TaskState } from '@tade/core'
 import type { Can, Cannot, TaskFacts } from './acting.ts'
+import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from './factory.ts'
 import type { Reach } from './reach.ts'
 
 // What the away view is handed, and the reason it is handed this and not more.
@@ -475,6 +476,15 @@ export interface SnapshotInput {
   queue: readonly QueueIn[]
   findings: readonly FindingIn[]
   notes: readonly NoteIn[]
+  /**
+   * The factory floor, each one hand-written in `factory.ts` for the reason
+   * every type here is: a projection built by taking a domain value and
+   * leaving things out is only ever as good as the leaving-out.
+   */
+  intake: readonly IntakeIn[]
+  sources: readonly SourceIn[]
+  runs: readonly RunIn[]
+  workflows: readonly WorkflowIn[]
   /** The conversation with Tade, or null where talking is turned off. */
   talk: TalkIn | null
   /** What each account's plan standing is. Already pathless in `@tade/core`. */

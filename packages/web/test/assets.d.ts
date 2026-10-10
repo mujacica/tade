@@ -89,15 +89,37 @@ declare module '*/assets/glyphs.js' {
   export function joined(items: readonly string[]): string
   export function queueSaid(state: unknown, clock: (at: string) => string): string
   export function originSaid(origin: { kind: string; name: string }): string
+  export const INTAKE_STATES: Readonly<Record<string, Mark>>
+  export const SOURCE_STATES: Readonly<Record<string, Mark>>
+  export function intakeMark(row: { state: string; work: readonly { finished: boolean }[] }): Mark
+  export function sourceMark(state: string): Mark
+  export function stepMark(step: { state: string; finished: boolean; active: boolean }): Mark
 }
 
 declare module '*/assets/routes.js' {
   export const TITLES: Readonly<Record<string, string>>
   export const NAV: readonly { view: string; mark: string; label: string; counts: string | null }[]
   export const MORE: readonly { view: string; mark: string; label: string; counts: string | null }[]
-  export function viewOf(path: string): { view: string; project?: string; task?: string }
-  export function pathOf(where: { view: string; project?: string; task?: string }): string
+  export function viewOf(path: string): {
+    view: string
+    project?: string
+    task?: string
+    source?: string
+    id?: string
+    run?: string
+    name?: string
+  }
+  export function pathOf(where: {
+    view: string
+    project?: string
+    task?: string
+    source?: string
+    id?: string
+    run?: string
+    name?: string
+  }): string
   export function taskPath(id: string): string
+  export function requestPath(item: string): string
   export function navFor(where: { view: string }): string
   export function safeHref(url: unknown): string | null
 }
@@ -131,6 +153,15 @@ declare module '*/assets/store.js' {
   export function checksWord(fold: Record<string, any>): string
   export function reviewsOf(store: Store): { offered: readonly any[]; unoffered: readonly any[] }
   export function mayRead(store: Store, grant: string): boolean
+  export const WAITING: readonly string[]
+  export function intakeOf(store: Store, project?: string | null): readonly any[]
+  export function intakeAt(store: Store, item: string): any
+  export function intakeWaiting(store: Store, project?: string | null): readonly any[]
+  export function sourcesOf(store: Store): readonly any[]
+  export function runsOf(store: Store, project?: string | null): readonly any[]
+  export function runAt(store: Store, name: string): any
+  export function workflowsOf(store: Store): readonly any[]
+  export function workflowAt(store: Store, name: string): any
   export function omitted(store: Store, collection: string): number
   export function asOf(store: Store, kind: string, now: number): { at: number; frozen: boolean }
   export function spendSince(store: Store): string | null
@@ -228,4 +259,25 @@ declare module '*/assets/acts.js' {
   export function wordsFor(verb: string, row: unknown): string
   export function headingFor(verb: string): string
   export function howSaid(how: string): string
+}
+
+declare module '*/assets/factory.js' {
+  /**
+   * Deliberately loose, for `store.js`' reason: these declarations exist so a
+   * test can *call* the browser's own copy of a sentence, and a second typed
+   * description of a projected row here would be a second schema that nothing
+   * holds to `protocol.ts`.
+   */
+  export function emptySays(sources: readonly any[]): string
+  export function factsOf(row: any, view: any): readonly [string, string][]
+  export function materialIn(nodes: any, row: any, view: any): void
+}
+
+declare module '*/assets/runs.js' {
+  export function runSays(row: any, view: any): string
+  export function stepSays(step: any, view: any): string
+}
+
+declare module '*/assets/designer.js' {
+  export function workflowSays(row: any): string
 }

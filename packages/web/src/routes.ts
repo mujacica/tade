@@ -1,4 +1,5 @@
 import { SAYINGS } from './asked.ts'
+import { SAVINGS } from './drafted.ts'
 import type { Scope, Surface } from './surface.ts'
 import { VERBS } from './verbs.ts'
 
@@ -65,6 +66,14 @@ export interface Route {
    */
   verb?: string
   /**
+   * The draft field this route saves, where it is one of `DRAFTS`.
+   *
+   * Carried rather than read back out of the path, for the reason `verb` and
+   * `says` are. A route has exactly one of the three and never two, and
+   * `test/routes.test.ts` says so.
+   */
+  saves?: string
+  /**
    * The thing this route says to the conversation, where it is one of `ASKS`.
    *
    * Carried rather than read back out of the path, for the reason `verb` is: a
@@ -129,6 +138,16 @@ export const ROUTES: readonly Route[] = [
   shellAt('/p/:project', 'project page'),
   shellAt('/t/:project/:task', 'task page'),
   shellAt('/queue', 'queue page'),
+  // The factory floor. `:source`, `:id`, `:run` and `:name` are read and **not
+  // used**, exactly as `:project` and `:task` are: the handler serves a file
+  // out of a map, so a deep link to a request this device may not read is
+  // byte-identical to one it may.
+  shellAt('/inbox', 'inbox page'),
+  shellAt('/i/:source/:id', 'request page'),
+  shellAt('/runs', 'runs page'),
+  shellAt('/r/:run', 'run page'),
+  shellAt('/workflows', 'workflows page'),
+  shellAt('/w/:name', 'workflow page'),
   shellAt('/checks', 'checks page'),
   shellAt('/reviews', 'reviews page'),
   shellAt('/spend', 'spend page'),
@@ -244,17 +263,35 @@ export const ASKS: readonly Route[] = Object.keys(SAYINGS).map((name) => ({
   says: name,
 }))
 
+export const DRAFTS: readonly Route[] = Object.keys(SAVINGS).map((name) => ({
+  method: 'POST' as const,
+  path: `/api/draft/${name}`,
+  name: `${name} a draft`,
+  // `draft`, and implied by nothing: a device granted both acting tiers has
+  // been granted eight bounded things about work that exists, and not a file
+  // every future run of a workflow would be stamped from.
+  needs: 'draft' as Scope,
+  mutates: true,
+  saves: name,
+}))
+
 /**
  * The table this listener answers from, which is a fact about the config.
  *
- * Built once, when the server is made, which is why turning `acting` **on**
- * waits for a restart and turning it **off** does not: the table is the
- * strongest half of the gate and the live re-read (`WebActing.unlocked`) is
- * the half that can only ever take authority away. Asymmetric in the safe
- * direction, and the setting's own words say so.
+ * Built once, when the server is made, which is why turning any of the three
+ * capabilities **on** waits for a restart and turning one **off** does not:
+ * the table is the strongest half of each gate and the live re-read
+ * (`WebActing.unlocked`, `WebAsking.unlocked`, `WebDrafting.unlocked`) is the
+ * half that can only ever take authority away. Asymmetric in the safe
+ * direction, and each setting's own words say so.
  */
 export function routesFor(surface: Surface): readonly Route[] {
-  return [...ROUTES, ...(surface.acting ? ACTS : []), ...(surface.talking ? ASKS : [])]
+  return [
+    ...ROUTES,
+    ...(surface.acting ? ACTS : []),
+    ...(surface.talking ? ASKS : []),
+    ...(surface.drafting ? DRAFTS : []),
+  ]
 }
 
 /** The route for a method and a path, and the segment it matched. */

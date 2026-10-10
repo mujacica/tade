@@ -9,6 +9,7 @@ import {
   planReport,
 } from '@tade/core'
 import type { ExtensionHost } from '@tade/extensions-core'
+import type { TemplateDeps } from '@tade/workbench'
 import {
   approveIntake,
   type InboxOpen,
@@ -21,6 +22,7 @@ import {
   refuseIntake,
   retryIntake,
 } from '@tade/workbench'
+import type { WorkflowHeld } from '../away-factory.ts'
 import type { Frame, IntakeOpenView } from '../frame.ts'
 import { inboxEmptyMeans, inboxEmptySays } from '../intake-view.ts'
 import { notice, withTranscript } from '../model.ts'
@@ -29,6 +31,16 @@ import type { PanelInputs } from '../panels.ts'
 import { problem, tadeDid } from '../transcript.ts'
 import { type Actions, type Subject, type Submits, type Wiring, why } from './context.ts'
 import { sayDue } from './intake-reply.ts'
+import { type FactoryHeld, nothingHandedOver } from './web-beat.ts'
+import {
+  Bodies,
+  doorsOf,
+  factoryHeld,
+  TEMPLATES_EVERY,
+  titlesOf,
+  workflowsRead,
+  wouldOf,
+} from './web-factory.ts'
 import { Workflows } from './workflows.ts'
 
 // What has been handed to this machine from outside, in the window.
@@ -116,6 +128,23 @@ export class Intake implements Subject {
    * with it so a slow read can never land under another request's name.
    */
   private shown: InboxOpen | null = null
+
+  /**
+   * The factory floor as the away view takes it, and when it was last built.
+   *
+   * **Held here because this is what already folds the inbox.** The away view
+   * may start no work to answer a request, so everything it reads has to be a
+   * value the window keeps — and the inbox, the bodies and the workflows are
+   * three reads this subject is already the right place for. `web.ts` asks for
+   * it through one method (`AwayDeps.factory`) and knows nothing about any of
+   * the three.
+   */
+  private floor: FactoryHeld = nothingHandedOver()
+  private readonly bodies = new Bodies()
+  /** The stored workflows for away, read on a clock of their own: a file edit writes no line. */
+  private stored: readonly WorkflowHeld[] = []
+  private readAt = 0
+  private reading: Promise<void> | null = null
 
   /**
    * The stored workflows, which this subject owns rather than being a subject
@@ -218,7 +247,129 @@ export class Intake implements Subject {
     })
     this.rows = rows
     this.wire.draw()
+    await this.rebuild(rows, events)
     await this.sayDue(rows, events)
+  }
+
+  /**
+   * The away view's own fold, rebuilt whenever the inbox was.
+   *
+   * Awaited inside the fold rather than scheduled beside it, so there is one
+   * thing in flight and the collections a phone reads are never half a
+   * refold's worth of two different worlds. Nothing here throws into the
+   * fold: a read that failed leaves the sentence it failed with on the row it
+   * is about (`Bodies`), and the rest of the floor is still answered.
+   */
+  private async rebuild(
+    rows: readonly InboxRow[],
+    events: readonly { type: string }[],
+  ): Promise<void> {
+    const home = this.wire.opts.client.home
+    await this.bodies.fill(home, rows)
+    await this.readWorkflows()
+    const efforts = this.efforts()
+    this.floor = factoryHeld({
+      rows,
+      bodies: this.bodies.byItem(rows),
+      titles: titlesOf(events as never),
+      efforts,
+      would: await wouldOf(this.reads(), rows),
+      doors: doorsOf({
+        config: this.wire.opts.config,
+        events: events as never,
+        schedules: this.wire.opts.client.schedules(),
+        watches: this.wire.opts.extensions?.watches() ?? null,
+      }),
+      workflows: this.stored,
+    })
+    this.wire.draw()
+  }
+
+  /** What `intakeWouldRun` reads: a home, a config and the journal's own reader. */
+  private reads(): TemplateDeps {
+    return {
+      home: this.wire.opts.client.home,
+      config: this.wire.opts.config,
+      // The journal through its own reader, as the open page does: a filter
+      // answered by hand over the window's held fold is a second
+      // implementation of `EventFilter` that silently ignores whatever it was
+      // not written for.
+      events: (filter) => this.wire.opts.client.log.read(filter),
+    }
+  }
+
+  /** Which effort each task names, so a request can point at its run. */
+  private efforts(): Map<string, string> {
+    const out = new Map<string, string>()
+    for (const project of this.wire.live?.world?.projects ?? []) {
+      for (const task of project.tasks) if (task.effort) out.set(task.id, task.effort)
+    }
+    return out
+  }
+
+  /**
+   * The workflows, read again at most every `TEMPLATES_EVERY`.
+   *
+   * **Its own clock, because a template changes when somebody edits a file**
+   * and a file edit writes no journal line — so there is no signal to refold
+   * on. A slow clock rather than a watcher on a directory, which would be a
+   * second lifetime to get wrong for a page that is already a few seconds
+   * behind by design. `markStale` is how a save from away is seen at once.
+   */
+  private async readWorkflows(): Promise<void> {
+    const now = this.wire.now()
+    if (this.reading !== null) return this.reading
+    if (this.readAt > 0 && now - this.readAt < TEMPLATES_EVERY) return
+    this.readAt = now
+    this.reading = workflowsRead(
+      this.wire.opts.client.home,
+      this.wire.opts.config,
+      this.runsPerWorkflow(),
+      this.wire.opts.config.surfaces.web.drafts,
+    )
+      .then((held) => {
+        this.stored = held
+      })
+      .catch((err: unknown) => {
+        // Said once, like the inbox's own fold: the last answer stands, and a
+        // reason repeated every half minute is a reason nobody reads.
+        this.wire.put(
+          withTranscript(
+            this.wire.state,
+            problem(
+              this.wire.state.transcript,
+              `the stored workflows could not be read: ${why(err)}`,
+              this.wire.now(),
+            ),
+          ),
+        )
+      })
+      .finally(() => {
+        this.reading = null
+      })
+    return this.reading
+  }
+
+  /** How many runs point at each published workflow, out of the inbox's own rows. */
+  private runsPerWorkflow(): Map<string, number> {
+    const out = new Map<string, number>()
+    for (const row of this.rows) {
+      const name = row.template?.name
+      if (name === undefined) continue
+      out.set(name, (out.get(name) ?? 0) + 1)
+    }
+    return out
+  }
+
+  /** The floor, for whoever hands it to the away view. */
+  factory(): FactoryHeld {
+    return this.floor
+  }
+
+  /** A save from away: the templates are read again on the next fold. */
+  markStale(): void {
+    this.readAt = 0
+    this.folded = -1
   }
 
   /**

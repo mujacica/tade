@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebActing } from './acting.ts'
 import type { WebAsking } from './asking.ts'
+import type { WebDrafting } from './drafting.ts'
 import type { Streams } from './peers.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
@@ -104,6 +105,16 @@ export interface ServerOptions {
    * every act so that turning the setting off takes effect now.
    */
   acting?: WebActing
+  /**
+   * What a paired device may *save*, where a person turned drafting on.
+   *
+   * **Optional, and its absence is the guarantee**, exactly as `acting` and
+   * `asking` are: a window that was not given this serves no saving route, so
+   * a crafted call is the `404` of a path nobody built rather than a `403`
+   * naming a setting. `drafting.unlocked()` is read again at every save, so
+   * turning the setting off takes authority away now.
+   */
+  drafting?: WebDrafting
   /**
    * What a paired device may *say to Tade*, where a person turned talking on.
    *

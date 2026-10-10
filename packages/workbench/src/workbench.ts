@@ -18,6 +18,7 @@ import {
   type HarnessId,
   type IntakeCandidate,
   type LaneId,
+  type LookTrouble,
   loadConfig,
   modelDetail,
   modelLastRunOn,
@@ -1223,7 +1224,10 @@ export class Workbench {
           /** Why it found nothing, where the watch said: never a problem. */
           said?: string
         }
-      | { problem: string },
+      // `trouble` is classified by the `catch` that held the error
+      // (`troubleOf`): that is the only moment anything knows, and a
+      // classifier over `problem` would break when somebody reworded one.
+      | { problem: string; trouble: LookTrouble; until?: number },
   ): Promise<void> {
     await this.log.append({
       type: 'watch_checked',

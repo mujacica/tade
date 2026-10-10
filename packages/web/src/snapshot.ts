@@ -1,5 +1,15 @@
 import type { PlanStanding, Spend } from '@tade/core'
 import { taskRev } from './acting.ts'
+import {
+  type IntakeIn,
+  intakeRow,
+  type RunIn,
+  runRow,
+  type SourceIn,
+  sourceRow,
+  type WorkflowIn,
+  workflowRow,
+} from './factory.ts'
 import { withoutPaths } from './fields.ts'
 import {
   type ChatIn,
@@ -29,6 +39,7 @@ import type {
   TaskRow,
 } from './protocol.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
+import type { IntakeRow, RunRow, SourceRow, WorkflowRow } from './protocol-factory.ts'
 import { has, type Reach, readsOf, sees } from './reach.ts'
 
 // The projection. One pure function of what it is handed and the moment.
@@ -424,6 +435,45 @@ export function snapshotOf(
         cursors.notes ?? null,
       )
     : withheld<NoteRow>(allNotes.length)
+  // **The factory floor.** Every one of the four is narrowed to the projects
+  // this device may read first, exactly as the tasks are — a request filed
+  // against a project a phone cannot see is not a request that phone is told
+  // about, counted or otherwise. The exceptions are the doors, which are not
+  // per project and whose own project lists are narrowed inside the row
+  // (`sourceRow`), and the workflows, which are stored in Tade's home and
+  // belong to no project: what narrows those is the `workflows` grant.
+  const intake = mine(input.intake)
+  const runs = input.runs.filter((run) => run.steps.some((step) => sees(reach, step.project)))
+  const intakePage = pageOf(
+    [...intake].sort((a, b) => b.at - a.at),
+    budget.intake,
+    (row) => row.item,
+    cursors.intake ?? null,
+  )
+  const sourcePage = pageOf(
+    [...input.sources].sort((a, b) => byText(a.source, b.source)),
+    budget.sources,
+    (row) => row.source,
+    cursors.sources ?? null,
+  )
+  const runPage = pageOf(
+    [...runs].sort((a, b) => byText(a.run, b.run)),
+    budget.runs,
+    (row) => row.run,
+    cursors.runs ?? null,
+  )
+  // **Withheld rather than empty where the grant is off**, which is the shape
+  // every other grant has: a phone is told *there are three workflows and you
+  // may not read them from here*, never *there are no workflows* — and the
+  // second of those is what a reader would conclude from an empty list.
+  const workflowPage = has(reach, 'workflows')
+    ? pageOf(
+        [...input.workflows].sort((a, b) => byText(a.name, b.name)),
+        budget.workflows,
+        (row) => row.name,
+        cursors.workflows ?? null,
+      )
+    : withheld<WorkflowIn>(input.workflows.length)
   const planPage = has(reach, 'spend')
     ? pageOf(
         [...input.plans].sort((a, b) =>
@@ -480,6 +530,10 @@ export function snapshotOf(
       notes: info(notePage),
       plans: info(planPage),
       chat: info(chatPage),
+      intake: info(intakePage),
+      sources: info(sourcePage),
+      runs: info(runPage),
+      workflows: info(workflowPage),
     },
     projects: projectPage.rows.map((project) =>
       projectRow(project, reach, budget, tasks, shownPerProject.get(project.name) ?? 0),
@@ -493,6 +547,16 @@ export function snapshotOf(
     // and a page that drew them backwards would be a second ordering of the
     // one thing whose order is its meaning.
     chat: [...chatPage.rows].sort((a, b) => byText(a.id, b.id)),
+    // Back into id order for the wire, like every other collection: the
+    // *choosing* order is newest-first, because cutting the newest request
+    // would be absurd, and the order rows arrive in is what makes a delta a
+    // shallow merge keyed by an id and nothing cleverer.
+    intake: intakePage.rows
+      .map((one) => intakeRow(one, reach, budget))
+      .sort((a, b) => byText(a.item, b.item)),
+    sources: sourcePage.rows.map((one) => sourceRow(one, reach)),
+    runs: runPage.rows.map((one) => runRow(one, reach, budget)),
+    workflows: workflowPage.rows.map((one) => workflowRow(one, reach, budget)),
   }
 }
 

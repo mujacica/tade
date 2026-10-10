@@ -24,12 +24,16 @@ import type {
   ChatIn,
   ChecksIn,
   How,
+  IntakeIn,
   NoteIn,
   ProjectIn,
   QueueIn,
   QueueStateIn,
+  RunIn,
+  SourceIn,
   TalkIn,
   TaskIn,
+  WorkflowIn,
 } from '@tade/web'
 import { chatRev } from '@tade/web'
 import type { ActionsView, NoteShown } from './frame.ts'
@@ -436,6 +440,23 @@ export interface AwayParts {
   machineUpSince: number | null
   /** The moment `TaskExtra.spend` is folded from. The window's own midnight. */
   spendSince: number | null
+  /**
+   * The factory floor, already projected by the slices that hold it.
+   *
+   * **Already projected, unlike everything else here**, and that is the one
+   * asymmetry in this file worth explaining. Every collection above is built
+   * out of a `Workspace` this function is handed, field by field, because the
+   * domain value it comes from carries paths. These four come from folds the
+   * window keeps for its own drawing — the inbox (`wire/intake.ts`) and the
+   * runs (`wire/web-beat.ts`) — and are mapped field by field *there*, by
+   * `away-factory.ts`, which is this file's rule applied in the place that
+   * holds the fold. Folding them again here would mean reading a task file per
+   * request on the beat the window draws on.
+   */
+  intake: readonly IntakeIn[]
+  sources: readonly SourceIn[]
+  runs: readonly RunIn[]
+  workflows: readonly WorkflowIn[]
 }
 
 /** Every collection one projection is built from, as one value. */
@@ -457,6 +478,10 @@ export interface AwayCollections {
   findings: readonly never[]
   notes: NoteIn[]
   plans: readonly PlanStanding[]
+  intake: readonly IntakeIn[]
+  sources: readonly SourceIn[]
+  runs: readonly RunIn[]
+  workflows: readonly WorkflowIn[]
   warnings: readonly string[]
   machineUpSince: number | null
   spendSince: number | null
@@ -510,6 +535,13 @@ export function awayCollections(parts: AwayParts): AwayCollections {
     findings: [],
     notes: noteIn(parts.notes),
     plans: parts.plans,
+    // Carried as they were handed over. Nothing is narrowed here: a device's
+    // read scope is the projection's to apply (`snapshotOf`), and applying it
+    // twice in two places is how a rule comes to be half-applied.
+    intake: parts.intake,
+    sources: parts.sources,
+    runs: parts.runs,
+    workflows: parts.workflows,
     // Status's own words, handed over as it wrote them — and **they are not
     // all path-free**: `collectStatus` writes a project's own checkout into a
     // warning when git will not answer there. They are the one metadata field

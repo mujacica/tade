@@ -17,7 +17,7 @@ import {
   watchedFrom,
   watchNamedBy,
 } from '@tade/core'
-import type { ExtensionHost, Finding } from '@tade/extensions-core'
+import { type ExtensionHost, type Finding, troubleOf, troubleUntil } from '@tade/extensions-core'
 import { readEverMade } from '@tade/workbench/schedules'
 import type { Frame } from '../frame.ts'
 import { notice, openSchedule, type ScheduleView, withTranscript } from '../model.ts'
@@ -517,7 +517,12 @@ export class Schedules implements Subject {
         return `${one.name} did not look: this machine cannot reach a network`
       }
       const reason = why(err)
-      await client.watchChecked(one.id, { problem: reason }).catch(() => {})
+      // **The kind is written down here because here is where the error is.**
+      // `troubleOf` reads the three ways a connector can say which and never
+      // the sentence, so a look at a repository whose README mentions rate
+      // limits is not classified by its own content.
+      const trouble = { trouble: troubleOf(err), until: troubleUntil(err) }
+      await client.watchChecked(one.id, { problem: reason, ...trouble }).catch(() => {})
       const said = `${one.name} could not look: ${reason}`
       if (asked || watched.looks[0]?.problem !== reason) return say(said, true)
       return said

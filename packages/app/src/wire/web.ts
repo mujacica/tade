@@ -43,12 +43,14 @@ import {
   type AwayBeat,
   type AwayHeld,
   beatParts,
+  type FactoryHeld,
   type Held,
   nothingYet,
   steeringFor,
   talkFor,
   upSinceOf,
 } from './web-beat.ts'
+import { halvesFor } from './web-halves.ts'
 import { awayView, pairingUrl } from './web-panel.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
@@ -108,6 +110,24 @@ export interface AwayDeps {
    * said yes.
    */
   stands(row: InboxRow): Promise<string | null>
+  /**
+   * The factory floor, as the subject that folds the inbox already holds it.
+   *
+   * Handed in for `stands`' reason and one more: the away view may start no
+   * work to answer a request, so everything it reads has to be a value the
+   * window keeps — and the inbox, the request bodies and the stored workflows
+   * are three reads that belong to the subject which already does them. This
+   * file knows nothing about any of the three.
+   */
+  factory(): FactoryHeld
+  /**
+   * A draft was saved from away, so whatever folds the templates reads them
+   * again rather than waiting out its own clock.
+   *
+   * One method and no argument: the fold reads every template anyway, and a
+   * name here would be a second thing to keep in step for no gain.
+   */
+  saved(): void
 }
 
 export class Away implements Subject {
@@ -164,59 +184,23 @@ export class Away implements Subject {
       surface,
       readingFor: (reach) => this.readingFor(reach),
       confirm: (ask) => this.confirm(ask),
-      // **Handed over only where the setting says so**, so with acting off
-      // there is no `WebActing` and no acting route — a crafted call meets the
-      // same `404` as a path nobody built. `unlocked()` is read again at every
-      // act, which is what makes turning the setting off take effect now
-      // rather than at the next restart.
-      ...(surface.acting
-        ? {
-            acting: webActing({
-              tade: this.wire.opts.client,
-              acting: () => surfaceOf(this.config().surfaces.web).acting,
-              // **The facts the row carried, out of the row itself.** What a
-              // verb's `was` is compared against is built by `factsOf` from
-              // the same projected task the device tapped, so a mismatch is
-              // the world having moved and never two spellings of a
-              // revision.
-              seen: (task) => this.factsOn(task),
-              steering: (task) => steeringFor(this.wire.opts.client, task),
-              // The queue's own rule asked of work that came from outside,
-              // which needs the extension host: only a window can ask a
-              // watch whether a request still stands.
-              stands: (row) => this.deps.stands(row),
-              queue: () => ({
-                items: this.wire.live?.queued ?? [],
-                events: this.wire.live?.queueFacts().events ?? [],
-              }),
-              // The window's own config, read at the act: a grant somebody
-              // turned off a second ago has to mean something before the next
-              // restart.
-              config: () => this.config(),
-              now: () => this.wire.now(),
-            }),
-          }
-        : {}),
-      // **Handed over only where the setting says so**, like acting and for
-      // the same reason: with talking off there is no `WebAsking` and no
-      // asking route, so a crafted call is the `404` of a path nobody built.
-      // `unlocked()` is read again at every turn.
-      ...(surface.talking
-        ? {
-            asking: webAsking({
-              talking: () => this.talking(),
-              // The list as it is **now**, so a grant narrowed or a phone
-              // disconnected a second ago means something before the next
-              // restart.
-              devices: () => this.devices,
-              seen: () => this.conversation(),
-              ask: (said, arm) => this.deps.talk.askRemote(said, arm),
-              stop: () => this.deps.talk.stopTurn(),
-              said: (text, device) => this.deps.talk.remoteSaid(text, device),
-              now: () => this.wire.now(),
-            }),
-          }
-        : {}),
+      ...halvesFor(surface, {
+        tade: this.wire.opts.client,
+        home: this.wire.opts.home,
+        config: () => this.config(),
+        seen: (task) => this.factsOn(task),
+        stands: (row) => this.deps.stands(row),
+        queue: () => ({
+          items: this.wire.live?.queued ?? [],
+          events: this.wire.live?.queueFacts().events ?? [],
+        }),
+        talking: () => this.talking(),
+        devices: () => this.devices,
+        conversation: () => this.conversation(),
+        talk: this.deps.talk,
+        saved: () => this.deps.saved(),
+        now: () => this.wire.now(),
+      }),
       tickets: this.tickets,
       streams: this.streams,
       tell: (told) => void this.log(told),
@@ -346,6 +330,7 @@ export class Away implements Subject {
       },
       world,
       (task) => steeringFor(this.wire.opts.client, task),
+      this.deps.factory(),
     )
   }
 

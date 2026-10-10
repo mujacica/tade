@@ -1,4 +1,4 @@
-import type { IntakeCandidate, IntakeReceipt, IntakeSource } from '@tade/core'
+import type { IntakeCandidate, IntakeReceipt, IntakeSource, LookTrouble } from '@tade/core'
 import type { ExtensionContext, ExtensionWorkbench, JsonSchema, Link, ProjectRef } from './port.ts'
 
 // The watch half of the port: a cheap look on a clock, what it finds, and the
@@ -122,6 +122,55 @@ export class Unreachable extends Error {
     this.name = 'Unreachable'
     this.host = host
   }
+}
+
+/**
+ * What kind of trouble a look ran into, out of the error it threw.
+ *
+ * **Here, because this is where the one type that cannot be guessed lives.** A
+ * look is written down by the window's own `catch` (`wire/schedules.ts`), and
+ * what it has there is an error — so the classification happens at the only
+ * moment anything knows, and `LookTrouble` carries it into the journal. The
+ * alternative, a classifier over the `problem` sentence, is a second answer
+ * that goes wrong the first time somebody rewords an error.
+ *
+ * **Three ways a connector can say which, in widening order of trust.**
+ * `Unreachable` is this package's own type and means nothing came back at all.
+ * A `trouble` field is a connector's own answer about its own provider —
+ * `LinearError` and the Slack door both carry one, with `ratelimited` among
+ * their words — and it is read as a *word*, never as a class, so a connector
+ * that is not loaded here cannot be `instanceof`-ed and does not have to be.
+ * A `status` of `429` is HTTP's own answer and is the last resort. Everything
+ * else is `refused` where something answered and `other` where nothing says.
+ *
+ * It never reads the message. A sentence containing "rate limit" is a sentence
+ * about a rate limit, not a rate limit, and a look at a repository whose
+ * README says so would be classified by its own content.
+ */
+export function troubleOf(err: unknown): LookTrouble {
+  if (err instanceof Unreachable) return 'unreachable'
+  const said = err as { trouble?: unknown; status?: unknown; resetsAt?: unknown }
+  const trouble = typeof said?.trouble === 'string' ? said.trouble.toLowerCase() : ''
+  if (trouble === 'ratelimited' || trouble === 'rate limited' || trouble === 'rate-limited') {
+    return 'rate-limited'
+  }
+  if (trouble === 'network') return 'unreachable'
+  if (trouble === 'auth' || trouble === 'forbidden') return 'refused'
+  if (said?.status === 429) return 'rate-limited'
+  if (typeof said?.status === 'number' && said.status >= 400) return 'refused'
+  return trouble === '' ? 'other' : 'refused'
+}
+
+/**
+ * When a spent budget is clear again, as the source itself said, or 0.
+ *
+ * `0` and not null, because that is the spelling `watchChecked` already writes
+ * and `watchedFrom` already reads as *nobody said*. Read off the error for the
+ * same reason the kind is: the connector is the only thing that saw the header.
+ */
+export function troubleUntil(err: unknown): number {
+  const at = (err as { resetsAt?: unknown })?.resetsAt
+  return typeof at === 'number' && Number.isFinite(at) && at > 0 ? at : 0
 }
 
 /** What a watch looks with. */

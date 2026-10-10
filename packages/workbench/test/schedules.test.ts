@@ -187,7 +187,10 @@ describe('schedules', () => {
       { key: '4414', title: 'SHOP-1D' },
       { problem: 'rate limited' },
     )
-    await client.watchChecked('new-errors', { problem: 'Sentry is down' })
+    await client.watchChecked('new-errors', {
+      problem: 'Sentry is down',
+      trouble: 'unreachable',
+    })
 
     const watched = watchedFrom(
       await client.events({ types: ['watch_checked', 'watch_found'] }),

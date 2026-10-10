@@ -37,6 +37,7 @@ const SURFACE: Surface = {
   trustedHosts: [],
   acting: true,
   talking: false,
+  drafting: false,
 }
 
 const BODY = {

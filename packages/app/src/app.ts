@@ -249,6 +249,12 @@ export class App {
       // The queue's own rule, so a device approving work that came from
       // outside meets the same grant, plan and source checks a start does.
       stands: (row) => this.queue.standsFor(row),
+      // The factory floor, as the subject that folds the inbox already holds
+      // it: a fold the window keeps rather than work a page starts.
+      factory: () => this.intake.factory(),
+      // A file edit writes no journal line, so the fold is told rather than
+      // left to find out on its own clock.
+      saved: () => this.intake.markStale(),
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),

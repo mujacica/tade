@@ -1,3 +1,4 @@
+import { WAITING_STATES } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   applyDelta,
@@ -7,6 +8,9 @@ import {
   checksWord,
   emptyStore,
   GRANTS,
+  intakeAt,
+  intakeOf,
+  intakeWaiting,
   mayRead,
   notesOf,
   omitted,
@@ -15,13 +19,19 @@ import {
   queueIn,
   reviewsOf,
   rowsOf,
+  runAt,
+  runsOf,
   SPEAKS,
+  sourcesOf,
   spendFold,
   spendSince,
   taskAt,
   tasksIn,
+  WAITING,
   wantingIds,
   wantsYou,
+  workflowAt,
+  workflowsOf,
 } from '../src/assets/store.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { GRANTS as REACH } from '../src/reach.ts'
@@ -438,5 +448,113 @@ describe('the projects and the tasks in them', () => {
     expect(projectsOf(store).map((one: { name: string }) => one.name)).toEqual(['sentry', 'tade'])
     expect(tasksIn(store, 'tade')).toHaveLength(1)
     expect(tasksIn(store, 'nope')).toEqual([])
+  })
+})
+
+describe('the factory floor, as the page holds it', () => {
+  const held = () => {
+    const store = emptyStore()
+    applySnapshot(store, projector(input({ reach: reach(REACH) }), NOW).snapshot())
+    return store
+  }
+
+  it('keys every one of the four by the id the protocol decides', () => {
+    // A key that drifted from `KEYED` would make a delta merge one row's text
+    // into another's, which is the one failure a shallow merge has.
+    const store = held()
+    for (const [collection, id] of [
+      ['intake', 'github:1402'],
+      ['sources', 'github'],
+      ['runs', 'shop-1402'],
+      ['workflows', 'reproduce-and-fix'],
+    ] as const) {
+      expect([...store.rows[collection].keys()], collection).toContain(id)
+    }
+  })
+
+  it('reads the requests newest first, which is how an inbox is read', () => {
+    const store = held()
+    const rows = intakeOf(store)
+    expect(rows).toHaveLength(1)
+    expect(intakeAt(store, 'github:1402')?.state).toBe('proposed')
+    expect(intakeAt(store, 'nothing')).toBeNull()
+  })
+
+  it('counts what is waiting on somebody, and holds the list to the domain’s', () => {
+    // `WAITING_STATES` in `@tade/core`, copied because a browser cannot import
+    // a `.ts` file — and held equal to it, like the queue's own words, because
+    // a second reading of *is this mine to answer* is a second state machine.
+    expect([...WAITING].sort()).toEqual([...WAITING_STATES].sort())
+    expect(intakeWaiting(held())).toHaveLength(1)
+  })
+
+  it('narrows the requests to one project where a screen asks for one', () => {
+    expect(intakeOf(held(), 'sentry')).toHaveLength(1)
+    expect(intakeOf(held(), 'tade')).toHaveLength(0)
+  })
+
+  it('reads the doors in the order the wire sent them', () => {
+    expect(sourcesOf(held()).map((one) => one.source)).toEqual(['cli', 'github'])
+  })
+
+  it('reads the runs with the unfinished ones first', () => {
+    // A run every step of which has finished is a thing to look back at, not a
+    // thing to look at — so it sorts after whatever is still going.
+    const store = held()
+    expect(runsOf(store).map((one) => one.run)).toEqual(['shop-1402'])
+    expect(runAt(store, 'shop-1402')?.total).toBe(2)
+    expect(runAt(store, 'nothing')).toBeNull()
+    expect(runsOf(store, 'tade')).toHaveLength(0)
+  })
+
+  it('reads the workflows by name', () => {
+    const store = held()
+    expect(workflowsOf(store).map((one) => one.name)).toEqual(['reproduce-and-fix'])
+    expect(workflowAt(store, 'reproduce-and-fix')?.shows).toBe('draft')
+    expect(workflowAt(store, 'nothing')).toBeNull()
+  })
+
+  it('merges a delta into each of them rather than replacing the row', () => {
+    // The shallow merge the protocol describes, over the four new collections:
+    // a changed field lands and everything else on the row stays.
+    const store = held()
+    applyDelta(store, {
+      v: SPEAKS,
+      rev: 99,
+      at: '2026-10-09T15:00:00.000Z',
+      fresh: null,
+      set: {
+        intake: { 'github:1402': { state: 'accepted' } },
+        sources: { github: { state: 'quiet' } },
+        runs: { 'shop-1402': { finished: 2 } },
+        workflows: { 'reproduce-and-fix': { runs: 9 } },
+      },
+      del: {},
+    })
+    expect(intakeAt(store, 'github:1402')?.state).toBe('accepted')
+    // And the rest of the row is still there, which is what a merge means.
+    expect(intakeAt(store, 'github:1402')?.source).toBe('github')
+    expect(sourcesOf(store).find((one) => one.source === 'github')?.state).toBe('quiet')
+    expect(runAt(store, 'shop-1402')?.finished).toBe(2)
+    expect(workflowAt(store, 'reproduce-and-fix')?.runs).toBe(9)
+  })
+
+  it('drops a row a delta deleted, out of each of them', () => {
+    const store = held()
+    applyDelta(store, {
+      v: SPEAKS,
+      rev: 100,
+      at: '2026-10-09T15:00:00.000Z',
+      fresh: null,
+      set: {},
+      del: {
+        intake: ['github:1402'],
+        runs: ['shop-1402'],
+        workflows: ['reproduce-and-fix'],
+      },
+    })
+    expect(intakeOf(store)).toEqual([])
+    expect(runsOf(store)).toEqual([])
+    expect(workflowsOf(store)).toEqual([])
   })
 })

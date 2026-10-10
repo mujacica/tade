@@ -193,6 +193,84 @@ export function originSaid(origin) {
 }
 
 /**
+ * Where one request from outside stands, as `inboxStateOf` answered it.
+ *
+ * **Seven, and `proposed` against `started` is the pair this exists for.** One
+ * is waiting for a person to say yes and the other is an agent spending money,
+ * and a surface that drew them as one word is the drawing the domain's own
+ * comment says was unreadable. So they are the two furthest apart in shape and
+ * in tone — `◆` violet against `●` amber, the same pair *wants you* and
+ * *working* already are, because that is exactly what they mean here.
+ *
+ * `refused` is `⏸` and quiet rather than red: nothing went wrong, somebody
+ * said no, and a red row would have people looking for a bug.
+ */
+export const INTAKE_STATES = {
+  noticed: mark('·', 'noticed', 't-quiet'),
+  proposed: mark('◆', 'proposed', 't-wants'),
+  accepted: mark('○', 'accepted', 't-quiet'),
+  started: mark('●', 'started', 't-working'),
+  held: mark('⚠', 'held', 't-failed'),
+  refused: mark('⏸', 'refused', 't-quiet'),
+  failure: mark('▲', 'gave up', 't-failed'),
+}
+
+export function intakeMark(row) {
+  // Work that has an agent on it and has finished wears the finished mark: a
+  // spinner over work nobody is doing is the one reading of `started` that is
+  // simply untrue. The window's own INTAKE section does this (`inboxMark`) and
+  // this is the same rule, because two surfaces reading one state two ways is
+  // how one of them comes to be wrong.
+  const over =
+    row.state === 'started' && row.work.length > 0 && row.work.every((one) => one.finished)
+  if (over) return mark('✓', 'finished', 't-done')
+  return INTAKE_STATES[row.state] ?? mark('?', row.state === '' ? 'unknown' : row.state, 't-quiet')
+}
+
+/**
+ * Where one door stands, as `sourceStandingOf` answered it.
+ *
+ * **Nine, and the four this page exists to tell apart are the last four.** An
+ * empty inbox has five meanings and four of them are somebody at the machine's
+ * to fix; a page with one word for them says *nothing yet* while a connector
+ * has been answering `429` since Tuesday. So: off, ungranted and unwatched are
+ * decisions somebody made and are quiet; `unreachable` and `trouble` are red,
+ * because they are the two a person has to act on; `rate-limited` is amber,
+ * because it clears on its own and the row says when.
+ */
+export const SOURCE_STATES = {
+  off: mark('⏸', 'off', 't-quiet'),
+  ungranted: mark('⏸', 'not granted', 't-quiet'),
+  unwatched: mark('○', 'nothing looks with it', 't-quiet'),
+  paused: mark('⏸', 'paused', 't-quiet'),
+  unlooked: mark('◴', 'not looked with yet', 't-quiet'),
+  unreachable: mark('▲', 'unreachable', 't-failed'),
+  'rate-limited': mark('⚠', 'rate limited', 't-working'),
+  trouble: mark('▲', 'could not be read', 't-failed'),
+  quiet: mark('✓', 'found nothing', 't-done'),
+  found: mark('●', 'found something', 't-working'),
+}
+
+export function sourceMark(state) {
+  return SOURCE_STATES[state] ?? mark('?', state === '' ? 'unknown' : state, 't-quiet')
+}
+
+/**
+ * Where one step of a run stands.
+ *
+ * `deriveState`'s word with two facts laid over it, and both are the journal's
+ * rather than a state: a step the journal says is finished wears the finished
+ * mark however its branch looks, and a step with an agent on it *now* is the
+ * active one. Everything else is `taskMark`, so a step and the task row it is
+ * about never disagree.
+ */
+export function stepMark(step) {
+  if (step.finished) return mark('✓', 'finished', 't-done')
+  if (step.active) return mark('●', 'working', 't-working')
+  return taskMark(step.state)
+}
+
+/**
  * The six ways the page can stand to the machine, as §5.10's state machine.
  *
  * `reconnecting` and `unreachable` are the same *connection* — not open — told

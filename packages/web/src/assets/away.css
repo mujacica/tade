@@ -567,3 +567,163 @@ input {
 .held main {
   opacity: 0.6;
 }
+
+/* ── the factory floor ─────────────────────────────────────────────────────── */
+
+/*
+ * A row nothing links to.
+ *
+ * `.rows > li > div` already lays one out; this is only the hover it does not
+ * get, said as an absence so a door's row does not look tappable. A row that
+ * lit under a thumb and then did nothing is the affordance this page spends
+ * its whole design avoiding.
+ */
+.row-static {
+  cursor: default;
+}
+
+/*
+ * The sentence under a region's heading: why a request is where it is, what a
+ * door's last look came to.
+ *
+ * `--heading` at 7.88:1 rather than `--quiet`, because it is often the only
+ * statement of the fact on the screen — the glyph beside it says the state and
+ * this says what to do about it.
+ */
+.why {
+  color: var(--heading);
+  font-size: var(--step-0);
+  line-height: var(--lead);
+}
+
+/*
+ * A run's graph: one block per layer, in order.
+ *
+ * **Stacked and never side by side**, at every width. A layered graph drawn as
+ * columns needs the columns to be readable, and three steps' names at 360px in
+ * three columns is three truncations; stacked, each layer is a heading and its
+ * steps are ordinary rows, which is the shape the rest of the page already is.
+ * The window draws boxes and lines because it has eighty columns.
+ */
+.layers {
+  display: grid;
+  gap: var(--s4);
+}
+
+.layer > h3 {
+  margin-block-end: var(--s1);
+}
+
+/*
+ * What a step waits on, indented under it.
+ *
+ * Indented with a border rather than a glyph, because the connector art the
+ * window draws (`plan-graph.ts`) needs a monospace grid and this does not have
+ * one. The border is line art and the words beside it carry the fact.
+ */
+.waits {
+  display: grid;
+  margin-inline-start: var(--s5);
+  border-inline-start: 1px solid var(--chrome);
+  padding-inline-start: var(--s3);
+}
+
+.wait {
+  display: grid;
+  padding-block: var(--s1);
+  font-size: var(--step--1);
+  color: var(--heading);
+}
+
+/*
+ * The acts that stay at this machine, and what a dry run grants or is bounded
+ * by: a list of a name and a clause.
+ *
+ * One list for all three, because they are one shape — a short label and the
+ * sentence under it — and three lists of it would be three places for the
+ * sentence to stop being drawn.
+ */
+.locally {
+  display: grid;
+  gap: var(--s2);
+  margin-block-start: var(--s3);
+}
+
+.locally > li > div {
+  display: grid;
+  gap: var(--s1);
+  border-inline-start: 2px solid var(--chrome);
+  padding-inline-start: var(--s3);
+}
+
+.locally .name {
+  color: var(--heading);
+  font-size: var(--step--1);
+  text-transform: none;
+}
+
+/* ── the designer's form ───────────────────────────────────────────────────── */
+
+.form {
+  display: grid;
+  gap: var(--s4);
+}
+
+/*
+ * One field: what it is called, what it holds, what it means, and the box.
+ *
+ * The value is drawn **above** the box and not inside it, which is the one
+ * decision here. A box pre-filled with what is stored looks like an edit
+ * somebody has already made, and on a page that repaints twice a second it is
+ * also the box a delta would overwrite under their thumb. So what is stored is
+ * text and the box is empty: typing into it is unambiguously a new value.
+ */
+.field {
+  display: grid;
+  gap: var(--s2);
+  padding-block-end: var(--s3);
+  border-block-end: 1px solid var(--surface);
+}
+
+.field > label {
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+/*
+ * A request's own words, and the heading that travels with them.
+ *
+ * The heading is not styled as a heading: it is a warning about whose words
+ * follow, so it takes the border and the ground a caveat takes everywhere else
+ * on this page. `--amber-dark` is a ground and a border and never text, which
+ * is `inkOn`'s rule.
+ */
+.material-label {
+  border-inline-start: 3px solid var(--amber-dark);
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  color: var(--bright);
+  font-size: var(--step--1);
+}
+
+.material {
+  margin-block-start: var(--s2);
+}
+
+/*
+ * A control that goes somewhere rather than doing something.
+ *
+ * Quiet, because every other `.press` on this page is an act and the one thing
+ * that must never happen is a link reading as a press that changes work.
+ */
+.press.ghost {
+  background: var(--raised);
+  color: var(--bright);
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.press.ghost:hover {
+  background: var(--chosen);
+}

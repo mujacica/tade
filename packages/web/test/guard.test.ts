@@ -31,6 +31,7 @@ const LAN: Surface = {
   trustedHosts: ['studio.yak-bebop.ts.net'],
   acting: true,
   talking: false,
+  drafting: false,
 }
 
 const SESSION = {

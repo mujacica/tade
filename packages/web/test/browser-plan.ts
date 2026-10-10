@@ -44,6 +44,30 @@ export interface Look {
 }
 
 /**
+ * One parameter per name the fixtures actually use.
+ *
+ * A table rather than a chain of replacements, so a route with a parameter
+ * nobody filled in fails the test that no path still has a `:` in it — which
+ * is what stops a new screen being looked at as `/r/:run` and reported green
+ * because the page drew its *nothing here* state.
+ */
+const NAMES: Readonly<Record<string, string>> = {
+  ':project': 'sentry',
+  ':task': 'away-projection',
+  ':source': 'github',
+  ':id': '1402',
+  ':run': 'shop-1402',
+  ':name': 'reproduce-and-fix',
+}
+
+function filled(path: string): string {
+  return path
+    .split('/')
+    .map((part) => NAMES[part] ?? part)
+    .join('/')
+}
+
+/**
  * Every screen, as **the real path the server serves it at**.
  *
  * Built from the route table rather than written out, so a screen added to the
@@ -52,10 +76,7 @@ export interface Look {
  * are looked at with something on them rather than empty.
  */
 export const LOOKS: readonly Look[] = ROUTES.filter((route) => route.document === true).map(
-  (route) => ({
-    path: route.path.replace(':project', 'sentry').replace(':task', 'away-projection'),
-    name: route.name.replace(/\s+/g, '-'),
-  }),
+  (route) => ({ path: filled(route.path), name: route.name.replace(/\s+/g, '-') }),
 )
 
 /** What a check came to. `unrun` is a first-class answer and never a pass. */

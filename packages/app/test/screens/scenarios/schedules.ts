@@ -42,6 +42,8 @@ const sentryWatch: ScheduleView = {
         fresh: 3,
         left: 1,
         problem: null,
+        trouble: null,
+        until: null,
         said: null,
       },
       {
@@ -50,6 +52,8 @@ const sentryWatch: ScheduleView = {
         fresh: 0,
         left: 0,
         problem: null,
+        trouble: null,
+        until: null,
         said: null,
       },
       {
@@ -58,6 +62,8 @@ const sentryWatch: ScheduleView = {
         fresh: 0,
         left: 0,
         problem: 'Sentry is rate limiting these requests (429): try again in a minute',
+        trouble: null,
+        until: null,
         said: null,
       },
     ],
