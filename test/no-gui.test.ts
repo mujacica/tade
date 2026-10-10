@@ -1,9 +1,19 @@
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import type { AddressInfo } from 'node:net'
+import { Socket } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { audioSpawns, desktopSpawns, forgetMachineSpawns } from './no-gui.ts'
+import {
+  audioSpawns,
+  desktopSpawns,
+  forgetMachineSpawns,
+  pushConnects,
+  reachesPush,
+} from './no-gui.ts'
 
 // The guard in `no-gui.ts`, held to its word.
 //
@@ -180,5 +190,87 @@ describe('nothing spawns a desktop opener directly', () => {
       false,
     )
     expect(SPAWNS_AN_OPENER.test("case 'open':")).toBe(false)
+  })
+})
+
+describe('a test may never reach a push service', () => {
+  /** The same as the two above, for the third family. */
+  async function triesPush(what: () => unknown): Promise<readonly string[]> {
+    try {
+      await what()
+    } catch {
+      // Refused is the point.
+    }
+    const tried = pushConnects()
+    forgetMachineSpawns()
+    return tried
+  }
+
+  it('refuses a connection to each of the four, and says what was tried', async () => {
+    // **Not hypothetical.** The away harness's `refresh()` beats the window,
+    // so a test that subscribed a device and then refreshed would make the
+    // real sender post to whatever endpoint its fixture named — with a signing
+    // key on it, to Apple.
+    for (const host of [
+      'web.push.apple.com',
+      'fcm.googleapis.com',
+      'updates.push.services.mozilla.com',
+      'wns2-par02p.notify.windows.com',
+    ]) {
+      expect(await triesPush(() => new Socket().connect({ host, port: 443 })), host).toEqual([
+        `a connection to ${host}`,
+      ])
+    }
+  })
+
+  it('holds however the caller reached the socket, which is the whole of why it is there', async () => {
+    // `https.request` captured at module load, and `fetch`'s own undici
+    // connector, both end up at `net.Socket.prototype.connect` — which is why
+    // the guard stands there rather than on a module's export.
+    expect(
+      await triesPush(() => httpsRequest({ host: 'web.push.apple.com', path: '/x' }).end()),
+    ).toEqual(['a connection to web.push.apple.com'])
+    expect(await triesPush(() => fetch('https://fcm.googleapis.com/fcm/send/x'))).toEqual([
+      'a connection to fcm.googleapis.com',
+    ])
+  })
+
+  it('leaves the suite’s own listeners alone, which is every other test here', async () => {
+    // Loopback is where the away view's real server, the tool host and every
+    // fixture live: a guard that refused a connection rather than a *host*
+    // would take out the tests it is standing beside.
+    const server = createServer((_req, res) => res.end('ok'))
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', () => done()))
+    const port = (server.address() as AddressInfo).port
+    try {
+      expect((await fetch(`http://127.0.0.1:${port}/`)).status).toBe(200)
+      expect(pushConnects()).toEqual([])
+    } finally {
+      server.close()
+    }
+  })
+
+  it('reads a host the way a resolver would, and claims nothing it should not', () => {
+    for (const host of [
+      'web.push.apple.com',
+      'WEB.PUSH.APPLE.COM',
+      'web.push.apple.com.',
+      'push.apple.com',
+      'storage.googleapis.com',
+    ])
+      expect(reachesPush(host), host).toBe(true)
+    for (const host of [
+      '127.0.0.1',
+      'localhost',
+      'api.github.com',
+      // The suffix has to be a label boundary: a name that merely ends in the
+      // letters is somebody else's host.
+      'notpush.apple.com.evil.example',
+      'mygoogleapis.com',
+      '',
+      undefined,
+      42,
+    ])
+      expect(reachesPush(host), String(host)).toBe(false)
   })
 })
