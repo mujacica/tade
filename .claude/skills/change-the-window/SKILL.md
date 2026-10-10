@@ -491,6 +491,15 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   figure readable. That clause is **not** a step of the ladder: a total is drawn with it or it is not
   drawn, and short of room what a narrow window gives up is the total, since the tabs are still counting
   an inch to the left.
+- **A tab's `×` closes the project and stops nothing**, and that is the whole of the fix for a
+  button that did nothing at all. It was refused while any agent was running in the project, which
+  is every project anybody works in: four tabs, four live agents, four `×`s that looked broken, with
+  the Close in each tab's own menu greyed out beside them. Closing is about what Tade *lists*
+  (`closeProject`, `wire/projects.ts`), so the agents keep working in their lanes and the count is
+  **said** — in the notice, in the tool's answer, and as the Close item's note — rather than refused
+  on. The buttons are the first thing `LADDER` gives up for room, so in a narrow terminal there is
+  no `×` and no `≡` at all and the menu is a right-click on the tab; a `×` is therefore never drawn
+  for a project in the `⋯`, which is held over every width in `top.test.ts`.
 - **A section's heading holds a set of controls, and the main one is a button.** `Section.actions`
   (`view/rows.ts`, fitted in `view/sidebar.ts`), the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
   block two columns narrower, so they read as the same set without reading as wide as the `+`.

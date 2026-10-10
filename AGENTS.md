@@ -153,8 +153,8 @@ attached to the decision it governs. Load the matching one rather than working f
   task files, context, attachments, check runs and locks live under `<TADE_HOME>/projects/<name>/`, so
   no project needs a `.gitignore` line and none is written; `removeOwnIgnore` takes back one an older
   Tade wrote, whose `.tade/` is **not read or migrated**.
-- **Closing a project is not forgetting its work**: it leaves the folder, the branches and the journal,
-  and no tool removes a worktree, deletes a branch or deletes a folder.
+- **Closing a project is not forgetting its work**: it leaves the folder, the branches, the journal
+  and the agents working, and no tool removes a worktree, branch or folder.
 
 ### Checks
 

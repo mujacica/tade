@@ -167,8 +167,9 @@ export class Projects implements Subject {
         this.wire.draw()
       },
       // The `×` on a tab. It asks nothing first, because there is nothing to
-      // ask about: closing destroys nothing, and the notice says so. Refused
-      // while an agent is running, in its own words, where notices go.
+      // ask about: closing destroys nothing, and the notice says so — down to
+      // the agents that went on working, which is the only part of it anybody
+      // needs telling about.
       //
       // The only one of a project's acts with a button of its own — the rest
       // are in the menu beside it, which is where something that needs a name
@@ -719,8 +720,22 @@ export class Projects implements Subject {
    * brings all of it back, which is what makes this the reversible act and
    * `rm -rf` somebody else's.
    *
-   * A project with an agent still running in it is refused. Closing one is
-   * about what Tade lists, and an agent at work is not a listing.
+   * **An agent still working in it is never a reason to refuse**, and it used
+   * to be. Closing one is about what Tade lists, and an agent at work is not a
+   * listing — the same argument `detach()` is: the window closes over agents
+   * that go on working, and that is what makes closing it harmless. The one
+   * thing the refusal reliably did was make the `×` on a tab do nothing, on
+   * every project at once, because a project worth closing is a project
+   * somebody has been working in: four tabs, four live agents, four buttons
+   * that read as broken, with the menu's Close greyed out beside each of them.
+   *
+   * So nothing is stopped and nothing is forgotten. The lanes keep their pids
+   * and their specs — the registry never forgets a live one — the task files
+   * stay in Tade's home, and opening the same path again brings every one of
+   * them back under its tab. What closing costs is that until then they are
+   * not drawn anywhere, which is why the count is *said* rather than refused
+   * on: somebody who no longer sees four agents has to be told they are still
+   * there.
    */
   async closeProject(name: string, by: 'window' | 'orchestrator', said = ''): Promise<string> {
     // `hasOwn` rather than a truthy lookup: `projects.__proto__` is truthy on
@@ -730,12 +745,9 @@ export class Projects implements Subject {
       ? this.wire.opts.config.projects[name]
       : undefined
     if (!project) throw new Error(`There is no project called ${name}.`)
+    // Read before the write, because the write is what takes the project out
+    // of everything that could still answer this.
     const working = this.agentsIn(name)
-    if (working.length > 0) {
-      throw new Error(
-        `${name} still has ${working.length === 1 ? 'an agent' : 'agents'} running: ${working.join(', ')}. Stop them first if that is what they meant.`,
-      )
-    }
     const path = configPathOf(this.wire.opts)
     writeSetting(path, `projects.${name}`, undefined)
     const loaded = await loadConfig(path)
@@ -756,11 +768,15 @@ export class Projects implements Subject {
     this.wire.put(
       notice(
         elsewhere ? selectProject(state, elsewhere) : { ...state, project: null, focused: null },
-        `closed ${name}`,
+        `closed ${name}${working.length > 0 ? ` · ${working.length === 1 ? 'an agent is' : `${working.length} agents are`} still working in it` : ''}`,
       ),
     )
     await this.wire.live?.refresh()
-    return `Closed ${name}. Nothing was deleted: ${tilde(expandHome(project.root))} is untouched — its git history, its branches and every worktree — and its tasks, notes and check runs are still in Tade's home, so opening that path again brings it all back.`
+    const kept = `Nothing was deleted: ${tilde(expandHome(project.root))} is untouched — its git history, its branches and every worktree — and its tasks, notes and check runs are still in Tade's home, so opening that path again brings it all back.`
+    if (working.length === 0) return `Closed ${name}. ${kept}`
+    // Named rather than counted: whoever reads this is deciding whether to
+    // open the path again, and the answer is in which agents those are.
+    return `Closed ${name}, and stopped nothing: ${working.join(', ')} ${working.length === 1 ? 'is' : 'are'} still working, in ${working.length === 1 ? 'its' : 'their'} own lane, and nothing here can see ${working.length === 1 ? 'it' : 'them'} until that path is open again. ${kept}`
   }
 
   /**

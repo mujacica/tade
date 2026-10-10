@@ -143,7 +143,7 @@ export function configTools(
       'It needs the person to have asked for this project in their own words: pass their sentence as `said`, and Tade checks it against what they actually said. If nothing they have said names the project, do not call this — say which project it would be and ask them.',
       'Nothing on disk is touched. The folder stays, git keeps every commit, branch and worktree, its tasks and check runs stay in Tade’s home, and the journal still says what happened there — opening the same path again brings all of it back. Say that when you say it is closed.',
       'It destroys nothing and there is no tool that does: removing worktrees, deleting branches or deleting the folder are a person’s, with git in a terminal. Closing a project and forgetting its work are not the same act.',
-      'A project with an agent still running in it is refused, and says which: stop them first with tade_run_stop if that is what they meant.',
+      'An agent still working in it is not a reason to refuse: nothing is stopped, the agents go on working in their own lanes, and the answer names them — until that path is open again Tade draws none of them, which is the one thing to pass on. Stopping one is tade_run_stop, and a separate thing to be asked for.',
     ].join(' '),
     object({ project: string('the project name, as configured'), said }, ['project', 'said']),
     (p) => rpc('project/close', { project: String(p.project), said: String(p.said ?? '') }),

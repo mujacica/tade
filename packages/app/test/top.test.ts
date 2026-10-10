@@ -1,11 +1,13 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import type { Frame } from '../src/frame.ts'
+import { hitAt } from '../src/hits.ts'
 import {
   type AppState,
   initialState,
   selectProject,
   type TaskSnapshot,
+  withProjectOrder,
   withProjects,
   withTasks,
 } from '../src/model.ts'
@@ -371,5 +373,89 @@ describe('more projects than room', () => {
     expect(hidden.length).toBeGreaterThan(0)
     expect(hidden.filter((name) => tabs.includes(name))).toEqual([])
     expect([...tabs, ...hidden].sort()).toEqual([...TWELVE].sort())
+  })
+})
+
+describe('the × that closes a project', () => {
+  /** Every close button the row drew, in the order it drew them. */
+  const closers = (drawn: ReturnType<typeof renderTop>): { project: string; at: number }[] =>
+    drawn.hits
+      .filter((hit) => hit.target.kind === 'action' && hit.target.name.startsWith('close-project:'))
+      .map((hit) => ({
+        project: hit.target.kind === 'action' ? hit.target.name.slice('close-project:'.length) : '',
+        at: hit.from,
+      }))
+      .sort((a, b) => a.at - b.at)
+
+  const drawn = (state: AppState, width = 160) =>
+    renderTop(state, frame({ width }), width, COLOUR, NO_POINTER)
+
+  /** What a press on a cell would mean, which is the whole of what a click is. */
+  const pressing = (state: AppState, width: number, x: number) =>
+    hitAt(drawn(state, width).hits, x, 0)
+
+  it('belongs to the tab it was drawn beside, in the order the tabs are in', () => {
+    const state = world([working, wantsYou, finished])
+    expect(closers(drawn(state)).map((one) => one.project)).toEqual(['checkout', 'search', 'infra'])
+    // And where it was drawn is where pressing it closes that project: read off
+    // the map rather than worked out a second time, which is the whole reason
+    // the drawing declares its hits.
+    for (const { project, at } of closers(drawn(state))) {
+      expect(pressing(state, 160, at)).toEqual({
+        kind: 'action',
+        name: `close-project:${project}`,
+      })
+    }
+  })
+
+  it('goes where its tab goes when the tabs are moved', () => {
+    const moved = withProjectOrder(world([working, wantsYou, finished]), [
+      'infra',
+      'checkout',
+      'search',
+    ])
+    expect(closers(drawn(moved)).map((one) => one.project)).toEqual(['infra', 'checkout', 'search'])
+    for (const { project, at } of closers(drawn(moved))) {
+      expect(pressing(moved, 160, at)).toEqual({
+        kind: 'action',
+        name: `close-project:${project}`,
+      })
+    }
+  })
+
+  it('is never drawn for a project with no tab, at any width', () => {
+    // A button for a project in the `⋯` would be a button six columns from a
+    // tab it is not beside. The ladder already makes that impossible — the
+    // buttons are given up before a tab is put away — and this is what says
+    // so, over every width, rather than leaving it to be read off `LADDER`.
+    const crowded = selectProject(world([working, wantsYou, finished, held], TWELVE), 'webhooks')
+    for (const width of [300, 260, 200, 160, 140, 120, 100, 80, 64]) {
+      const row = drawn(crowded, width)
+      const tabbed = new Set(
+        row.hits.flatMap((hit) => (hit.target.kind === 'project' ? [hit.target.project] : [])),
+      )
+      expect(tabbed.size, `${width} columns`).toBeGreaterThan(0)
+      for (const { project } of closers(row))
+        expect(tabbed.has(project), `${project} at ${width} columns`).toBe(true)
+    }
+  })
+
+  it('is given up before a tab says less, and claims no cell once it is', () => {
+    // Six columns a tab is the most expensive thing on this row, so the
+    // buttons go before the marks do (`LADDER`). What must not happen is a
+    // button that is no longer drawn still answering for the cell it was on.
+    const state = world([working, wantsYou, finished])
+    expect(closers(drawn(state, 160)).length).toBe(3)
+    const narrow = drawn(state, 72)
+    expect(closers(narrow)).toEqual([])
+    for (let x = 0; x < 72; x++) {
+      const target = hitAt(narrow.hits, x, 0)
+      expect(target?.kind === 'action' && target.name.startsWith('close-project:')).toBe(false)
+    }
+    // And the tabs are still there to be pressed, which is what keeps the menu
+    // — where closing also lives — reachable at every width.
+    expect(
+      narrow.hits.some((hit) => hit.target.kind === 'project' && hit.target.project === 'checkout'),
+    ).toBe(true)
   })
 })

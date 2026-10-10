@@ -1,14 +1,14 @@
    T A D E      checkout ! ⠋    search ●    infra ! ◌2    docs ✓2      +       ! 2  ⠋ 1   in 2 projects      ctrl   +   k   search      ctrl   +   space   talk 
-━━━━━━━━━━━━━━╭─ checkout ──────────────────────────────╮━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2  │▌ Rename…        what it is called here ▕│   agent    actions     +                   pi ▾     claude-opus-5 ▾     high ▾   ctx ██░░░░ 41%   ×   
-              │────────────────────────────────────────▕│───────────────────────────────────────────────────────────────────────────────────────────────────────
-   ! stripe-v1│  Move left                 it is first ▕│                                                                                                       
-     wants you│  Move right                            ▕│                                                                                                       
-              │────────────────────────────────────────▕│                                                                                                       
- ▌ ⠋ refunds  │  Configure…  settings for this project ▕│                                                                                                       
- ▌   working  │────────────────────────────────────────▕│                                                                                                       
-              │  Close an agent is still running in it ▕│                                                                                                       
- ▸ SMART QUEUE╰─────────────────────────────────────────╯                                                                                                       
+━━━━━━━━━━━━━━╭─ checkout ─────────────────────────────╮━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2  │▌ Rename…       what it is called here ▕│    agent    actions     +                   pi ▾     claude-opus-5 ▾     high ▾   ctx ██░░░░ 41%   ×   
+              │───────────────────────────────────────▕│────────────────────────────────────────────────────────────────────────────────────────────────────────
+   ! stripe-v1│  Move left                it is first ▕│                                                                                                        
+     wants you│  Move right                           ▕│                                                                                                        
+              │───────────────────────────────────────▕│                                                                                                        
+ ▌ ⠋ refunds  │  Configure… settings for this project ▕│                                                                                                        
+ ▌   working  │───────────────────────────────────────▕│                                                                                                        
+              │  Close         an agent keeps working ▕│                                                                                                        
+ ▸ SMART QUEUE╰────────────────────────────────────────╯                                                                                                        
  ▸ SCHEDULES    nothing on a clock █│                                                                                                                           
  ▸ INTAKE                      off █│                                                                                                                           
  ▾ CHANGES  3              vs main █│                                                                                                                           

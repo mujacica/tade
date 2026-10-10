@@ -350,7 +350,8 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       "A project's own menu, from the `≡` on its tab: what it is called here, where its tab " +
-      'sits, its settings, and closing it — which takes it out of the config and deletes nothing.',
+      'sits, its settings, and closing it — which takes it out of the config, deletes nothing and ' +
+      'stops no agent.',
   },
   {
     file: 'projects.svg',

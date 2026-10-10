@@ -548,8 +548,9 @@ export const WINDOW_SCREENS: Scenario[] = [
     about:
       "A project's own menu, opened from the `≡` on its tab: what it is called here, where its " +
       'tab sits, its settings, and closing it — which takes it out of the config and deletes ' +
-      'nothing. Moving left is off because this is the first tab, and closing says what is ' +
-      'still running in it.',
+      'nothing. Moving left is off because this is the first tab; closing is not, and says what ' +
+      'it costs instead: the agent in there keeps working, where nothing draws it until the path ' +
+      'is open again.',
     state: {
       ...focusTask(inFourProjects(), 'checkout/refunds'),
       panel: menuPanel({ kind: 'project', project: 'checkout' }, 'checkout', { row: 1, col: 14 }),

@@ -157,7 +157,11 @@ export function terminalMenuItems(split = false): MenuItem[] {
  * ids" is the question a rename raises the moment it is offered.
  */
 export function projectMenuItems(opts: {
-  /** How many agents are running in it: closing is refused while any is. */
+  /**
+   * How many agents are running in it. Closing says so and goes ahead: it used
+   * to turn this item off, which made the one act a project's menu has that
+   * nothing else offers unreachable in exactly the projects somebody works in.
+   */
   running: number
   first: boolean
   last: boolean
@@ -176,14 +180,15 @@ export function projectMenuItems(opts: {
     {
       id: 'close',
       label: 'Close',
-      note: 'nothing is deleted',
+      // What it costs, where it differs from nothing: an agent that goes on
+      // working somewhere nothing draws it is the one thing about closing that
+      // is not guessable from the word.
+      note:
+        opts.running > 0
+          ? `${opts.running === 1 ? 'an agent keeps' : `${opts.running} agents keep`} working`
+          : 'nothing is deleted',
       danger: true,
       divider: true,
-      ...(opts.running > 0
-        ? {
-            off: `${opts.running === 1 ? 'an agent is' : `${opts.running} agents are`} still running in it`,
-          }
-        : {}),
     },
   ]
 }

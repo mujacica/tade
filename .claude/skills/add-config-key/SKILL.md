@@ -289,8 +289,16 @@ the "accepts and ignores" failure with an extra step.
 folder, every commit, branch and worktree, everything in Tade's home and the journal all stay, and
 opening the same path again brings all of it back — which is why closing is reversible and is said
 so when it happens. There is no tool that removes a worktree, deletes a branch or deletes a folder,
-and asking explicitly does not produce one: that is a person with git in a terminal. A project with
-an agent still running in it is refused, naming them.
+and asking explicitly does not produce one: that is a person with git in a terminal.
+
+**An agent still working in it is not a reason to refuse, and it used to be.** Closing is about what
+Tade lists, and an agent at work is not a listing — the same argument `detach()` is, which closes
+the whole window over agents that go on working. What the refusal reliably did was make the `×` on a
+project's tab do nothing on every project anybody was working in, because a project worth closing is
+one somebody has been working in. So nothing is stopped: the lanes keep their pids and their specs,
+the registry never forgets a live one, the task files stay, and opening the path again brings every
+agent back under its tab. What is **said** is which agents those are — in the answer, in the notice
+and in the Close item's note — because until that path is open again nothing here draws them.
 
 Opening is the same door the picker uses — `openAt` in `packages/app/src/wire/projects.ts`: a
 repository Tade has, one on disk it does not, or one that is not there yet, made and `git init`ed
