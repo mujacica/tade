@@ -57,6 +57,7 @@ export const GRANTS = [
   'material',
   'workflows',
   'lanes',
+  'settings',
 ]
 
 const COLLECTIONS = [

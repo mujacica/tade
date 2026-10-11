@@ -38,6 +38,7 @@ import { type FactoryHeld, nothingHandedOver } from '../../src/wire/web-beat.ts'
 import { capabilities } from './away-capabilities.ts'
 import { homeConfig, INTAKE } from './away-intake.ts'
 import { type AgentLanes, laneDoor, lifecycleFor } from './away-lifecycle.ts'
+import { settingsDoor, settingsOn } from './away-settings.ts'
 
 // A window with a real workbench behind it, a real listener on loopback, and a
 // phone making real requests.
@@ -195,12 +196,16 @@ export interface MachineOptions {
    * kinder than reality.
    */
   writeKey?: (key: string, value: string, was: string) => Promise<void>
+  /** Changing a setting from away on, in both configs (`settingsOn`). */
+  settings?: boolean
 }
 
 export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const repo = mkrepo()
   const home = tmp('tade-away-act-')
   writeFileSync(join(home, 'config.yaml'), homeConfig(repo.root, over.intake === true))
+  const port = await freePort()
+  if (over.settings === true) settingsOn(home, port, over.acting ?? true)
   const client = await Workbench.open({ home })
   shut.push(client)
   const first = await client.createTask({
@@ -211,7 +216,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
 
   let state: AppState = initialState()
   const news: string[] = []
-  const port = await freePort()
   const config =
     over.config?.({ root: repo.root, port }) ??
     ConfigSchema.parse({
@@ -222,6 +226,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
           port,
           acting: over.acting ?? true,
           orchestrator: over.talking === true,
+          settings: over.settings === true,
         },
         ...(over.intake === true ? { intake: INTAKE } : {}),
       },
@@ -278,6 +283,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     spendSince: null,
     talk: null,
     worktreeOf: () => repo.root,
+    useConfig: () => {},
     refresh: async () => {
       events = await client.events({})
     },
@@ -289,6 +295,10 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
       home,
       get config() {
         return held
+      },
+      // What `Settings.use` hands everything that holds a config, after a write.
+      set config(next: Config) {
+        held = next
       },
       client: new Proxy(client, {
         get(target, name) {
@@ -372,12 +382,14 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     // through the one writer a setting goes through — and deliberately does
     // **not** hand it to the window, which is the direction that makes a test
     // depending on it fail rather than pass.
-    writeKey:
+    settings: settingsDoor(
+      wire,
       over.writeKey ??
-      ((key, value) => {
-        writeSetting(join(home, 'config.yaml'), key, value)
-        return Promise.resolve()
-      }),
+        ((key, value) => {
+          writeSetting(join(home, 'config.yaml'), key, value)
+          return Promise.resolve()
+        }),
+    ),
     lifecycle: lifecycleFor(wire, {
       get: () => held,
       set: (next) => {
@@ -739,6 +751,14 @@ export async function paired(
     },
   ])
   if (scopes.length > 0) await allowDevice(home, DEVICE, scopes, new Date())
+}
+
+/** One change to a setting, as a browser would send it. */
+export function change(
+  port: number,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, '/api/settings/change', body)
 }
 
 /** One save of a draft field, as a browser would send it. */

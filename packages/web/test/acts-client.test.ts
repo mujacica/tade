@@ -5,6 +5,8 @@ import {
   actsOf,
   afterAnswer,
   bodyFor,
+  CHANGE_PATH,
+  changeBody,
   confirms,
   controlsFor,
   headingFor,
@@ -12,12 +14,18 @@ import {
   NEEDS,
   PROJECT_SHOWN,
   QUEUE_ASKS,
+  SETTINGS_PATH,
   SHOWN,
+  settingStanding,
+  settingsSaid,
+  shownOf,
   standingOf,
   wordsFor,
 } from '../src/assets/acts.js'
 import { draftStore, reasonFor, saidOn, whoSaid } from '../src/assets/talk.js'
+import { readSettingChange } from '../src/configured.ts'
 import { ERRORS } from '../src/errors.ts'
+import { ROUTES, SETTINGS } from '../src/routes.ts'
 import { VERBS, verbFor } from '../src/verbs.ts'
 import { task } from './fixtures.ts'
 
@@ -111,6 +119,7 @@ describe('what this device may draw', () => {
       draft: false,
       agents: false,
       projects: false,
+      configure: false,
     })
     expect(actsOf({ scopes: ['read', 'answer'] })).toEqual({
       answer: true,
@@ -119,6 +128,7 @@ describe('what this device may draw', () => {
       draft: false,
       agents: false,
       projects: false,
+      configure: false,
     })
     expect(actsOf({ scopes: ['read', 'answer', 'steer'] })).toEqual({
       ...BOTH,
@@ -126,6 +136,7 @@ describe('what this device may draw', () => {
       draft: false,
       agents: false,
       projects: false,
+      configure: false,
     })
     // **A third scope, and neither tier implies it.** A device granted both
     // acting tiers has been granted eight bounded verbs; talking to a model
@@ -137,6 +148,7 @@ describe('what this device may draw', () => {
       draft: false,
       agents: false,
       projects: false,
+      configure: false,
     })
     // **And a fourth, implied by nothing and implying nothing.** Saving a
     // field of a draft workflow writes a file every future run would be
@@ -150,6 +162,23 @@ describe('what this device may draw', () => {
       draft: true,
       agents: false,
       projects: false,
+      configure: false,
+    })
+    // **And the eighth, implied by nothing and implying nothing**: changing a
+    // setting. A device granted every other scope has been granted nothing
+    // about the config, and one granted this has been granted nothing else.
+    expect(
+      actsOf({ scopes: ['read', 'answer', 'steer', 'ask', 'draft', 'agents', 'projects'] })
+        .configure,
+    ).toBe(false)
+    expect(actsOf({ scopes: ['read', 'configure'] })).toEqual({
+      answer: false,
+      steer: false,
+      ask: false,
+      draft: false,
+      agents: false,
+      projects: false,
+      configure: true,
     })
   })
 
@@ -165,6 +194,7 @@ describe('what this device may draw', () => {
         draft: false,
         agents: false,
         projects: false,
+        configure: false,
       })
     }
   })
@@ -549,5 +579,92 @@ describe('the conversation screen', () => {
     // `undefined` where a string is read.
     draft.set(undefined)
     expect(draft.get()).toBe('')
+  })
+})
+
+describe('the settings, as the page draws them', () => {
+  const OPEN = {
+    path: 'surfaces.window.editor',
+    title: 'Editor',
+    scope: null,
+    means: 'what a file opens in',
+    shown: 'code',
+    fallback: 'your $EDITOR',
+    held: null,
+    kind: 'choice',
+    options: ['code', 'zed', 'vim'],
+    live: true,
+    may: 'change',
+    why: '',
+    was: 'code',
+  }
+  const KEYED = {
+    ...OPEN,
+    path: 'extensions.jev.key',
+    title: 'Jev API key',
+    shown: '',
+    held: 'set',
+    may: 'machine',
+    why: 'a key is changed at this machine, and is never shown here',
+    was: null,
+  }
+
+  it('asks the paths the machine serves', () => {
+    expect(ROUTES.some((route) => route.method === 'GET' && route.path === SETTINGS_PATH)).toBe(
+      true,
+    )
+    expect(SETTINGS.map((route) => route.path)).toEqual([CHANGE_PATH])
+  })
+
+  it('draws no control and no reason for a device not granted configure', () => {
+    expect(settingStanding(OPEN, { configure: false })).toEqual({ kind: 'off', why: '' })
+    expect(settingStanding(OPEN, null)).toEqual({ kind: 'off', why: '' })
+    expect(settingStanding(KEYED, {})).toEqual({ kind: 'off', why: '' })
+  })
+
+  it('draws the row’s own reason where it is changed at the machine', () => {
+    expect(settingStanding(KEYED, { configure: true })).toEqual({ kind: 'no', why: KEYED.why })
+    // A row that says it may be changed but echoes nothing is not one the page
+    // can send: absent, which is the safe direction.
+    expect(settingStanding({ ...OPEN, was: null }, { configure: true }).kind).toBe('no')
+    expect(settingStanding(OPEN, { configure: true })).toEqual({ kind: 'yes', why: '' })
+  })
+
+  it('sends a body the machine reads as one change, with the value it was shown', () => {
+    const body = changeBody(OPEN, 'zed', 'abcdefgh12345678', 7)
+    expect(body).toEqual({
+      path: 'surfaces.window.editor',
+      was: 'code',
+      value: 'zed',
+      confirm: true,
+      key: 'abcdefgh12345678',
+      rev: 7,
+    })
+    // **The page's copy and the machine's reader agree**, which is the only
+    // way a two-file rule stays one rule.
+    expect(readSettingChange(body).ok).toBe(true)
+  })
+
+  it('sends nothing but a clear for a row that holds a key, whatever was typed', () => {
+    expect(changeBody(KEYED, 'sk-pasted-over-the-top', 'abcdefgh12345678', 1).value).toBe('')
+  })
+
+  it('says a key as whether it is held, and nothing set with what that means', () => {
+    expect(shownOf(KEYED)).toBe('set')
+    expect(shownOf(OPEN)).toBe('code')
+    expect(shownOf({ ...OPEN, shown: '' })).toBe('nothing set — your $EDITOR')
+    expect(shownOf({ ...OPEN, shown: '', fallback: '' })).toBe('nothing set')
+  })
+
+  it('says not granted and nothing here as two different things', () => {
+    expect(settingsSaid({ granted: false, groups: [], withheld: 0 })).toBe(
+      'not granted to this device',
+    )
+    expect(settingsSaid({ granted: true, groups: [], withheld: 3 })).toBe(
+      'nothing here this device may read',
+    )
+    expect(settingsSaid({ granted: true, groups: [{ id: 'a', title: 'A', settings: [] }] })).toBe(
+      '',
+    )
   })
 })

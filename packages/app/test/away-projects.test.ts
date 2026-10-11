@@ -61,6 +61,7 @@ const SURFACE: Surface = {
   acting: false,
   talking: false,
   drafting: false,
+  configuring: false,
   installing: false,
   keepsView: false,
   pushing: false,

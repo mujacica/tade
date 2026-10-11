@@ -86,6 +86,7 @@ export function awayView(facts: PanelFacts): AwayView {
     streams: facts.streams,
     acting: facts.surface.acting,
     talking: facts.surface.talking,
+    configuring: facts.surface.configuring,
     acts: ACTING_IS_NOT_YOU,
     talks: TALKING_IS_NOT_YOU,
     lan: LAN_IS_PLAINTEXT,
@@ -121,6 +122,8 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       maySee: one.granted.includes('lanes'),
       mayStop: one.scopes.includes('agents'),
       mayClose: one.scopes.includes('projects'),
+      mayReadSettings: one.granted.includes('settings'),
+      mayConfigure: one.scopes.includes('configure'),
       live: facts.live.has(one.id),
     }))
 }

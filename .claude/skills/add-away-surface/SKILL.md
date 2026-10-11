@@ -14,6 +14,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
 | a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
+| what a device may **read of the config, or change in it** | `src/configuring.ts` (the interface, `awayReach`, `settingsFor` and `settingOut` — what a device is shown and so may echo), `src/configured.ts` (the strict body, the gate and the sequence), `SETTINGS` and `GET /api/settings` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-settings.ts`, the chips in `wire/web-grants.ts` (`letOneRead`, `letOneConfigure`), and the screen in `src/assets/settings.js` |
 | what a device may **save** | `src/drafting.ts` (the interface and the draft's revision), `src/drafted.ts` (the closed table, the gate and the sequence), `DRAFTS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-drafting.ts`, and the form in `src/assets/designer.js` |
 | what a device may ask about **being told** | `src/pushing.ts` (the interface and what the page is told), `src/pushed.ts` (the closed table, the gate and the sequence), `PUSHES` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-push.ts`, and the control in `src/assets/push.js` |
 | what is worth a notification, and what it may say | `src/noticed.ts` — pure: the five transitions, the payload, the budget, the quiet hours, the presence rule and the dedupe |
@@ -83,13 +84,14 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   lifecycle — this browser's own credential, created and destroyed — and `test/routes.test.ts`
   asserts that set is exactly those two **by name**. A third fails the test until somebody puts it
   in `LIFECYCLE` deliberately, which is the conversation the rule is for.
-- **There are four second tables, each with its own setting, and absence is
-  the enforcement for all four.** `ACTS` is `surfaces.web.acting`, `ASKS` is
+- **There are five second tables, each with its own setting, and absence is
+  the enforcement for all five.** `ACTS` is `surfaces.web.acting`, `ASKS` is
   `surfaces.web.orchestrator`, `DRAFTS` is `surfaces.web.drafts`, `PUSHES` is
-  `surfaces.web.push`. `halvesFor` hands over the matching interface and
-  nothing else, so with a setting off a crafted call is the `404` of a path
-  nobody built. Each one's `unlocked()` is re-read at every act, turn, save and
-  subscribe: on waits for a restart, off is now.
+  `surfaces.web.push`, `SETTINGS` is `surfaces.web.settings`. `halvesFor` hands
+  over the matching interface and nothing else, so with a setting off a crafted
+  call is the `404` of a path nobody built. Each one's `unlocked()` is re-read
+  at every act, turn, save, subscribe and change: on waits for a restart, off
+  is now.
 - **`PUSHES` is the one second table whose subject is not the work**, which is
   why it has no receipt and no entity revision: a subscription is *this browser
   saying where to reach it*, so a repeat meets its own row (one per device, last
@@ -433,8 +435,9 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
 `reach.ts`: each either widens who can reach the control room (`enabled`, `bind`), decides what the
 pairing code says (`port`), lets a device change something (`acting`), lets one talk to the model
 that holds the tools (`orchestrator`), lets one save a draft every future run of a workflow would
-be stamped from (`drafts`), puts Tade's own page on somebody's phone (`install`) or lets that phone
-keep a few counts (`offline`, narrowed under `install`). A tier is a property of the path, so
+be stamped from (`drafts`), lets one change a setting a request is enough for (`settings`), puts
+Tade's own page on somebody's phone (`install`) or lets that phone keep a few counts (`offline`,
+narrowed under `install`). A tier is a property of the path, so
 `packages/core/test/reach.test.ts` asserts it by subtree rather than through what Settings happens
 to list.
 
@@ -447,10 +450,40 @@ doing nothing and saying nothing is the setting Tade accepts and ignores.
 (`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is
 correct (it scrolls) and moved every settings golden.
 
+## Changing a setting from away is a fifth table, and it reaches one tier
+
+`SETTINGS` is one route, `POST /api/settings/change`, behind `surfaces.web.settings`, the `configure`
+scope (a chip, implied by nothing) **and** the `settings` reading grant (a chip, drawn always): a
+device may not change what it was not allowed to see, or its echoed value is a guess and every `409`
+an oracle for it.
+
+- **It reaches `settingReach`'s `open` tier and nothing else, and the tier is part of the parse.**
+  `readSettingChange` refuses any other path before a key is claimed, as the `404` of a path nobody
+  built — that is what *no route exists* means for a table with one route per kind of thing. The
+  window asks `settingReach` again at the write. `test/configured.test.ts` runs every path Settings
+  draws through the door.
+- **The `asked` tier is refused, and that is a decision with its argument in `configuring.ts`.** It
+  is passed by the person's own words (`namedBy`, over `said` lines), and a device has none: its
+  request as the words makes `asked` into `open` for something an agent here can pair; the person's
+  old lines let a phone ride on last week's sentence (Phase 3's hole); words typed on a phone written
+  as `said` is the one record no device may write. `SETTINGS_FROM_AWAY` says the gap where somebody
+  turns this on. Do not "fix" it without a provenance model none of those three is.
+- **The write accepts exactly what the read offered.** `settingOut` decides a row's `may` and `was`
+  for `GET /api/settings`, and `web-settings.ts` asks the same function at the write — so a value not
+  shown whole (a key pasted into it) is not changeable, and the echo is compared against the row the
+  window lists now. A choice is one of its options exactly and a flag is `true`/`false`:
+  `parseSetting` is a keyboard's reading and too lenient for a device's exact value.
+- **A key is never readable, and only ever cleared.** `set`/`not set`, no value, no revision of one,
+  every shown value cleaned of every key Tade holds (`keysOf`). No key is in the `open` tier today,
+  so from away nothing clears one; `clearOnly` is the rule for the day one is.
+- **Provenance is `byOf`'s**: `config_changed` says `by: device <id>`, and the `web_did` carries the
+  path as `setting` in its detail, never as the event's `task`.
+
 ## What is not built, and must not arrive because a route was convenient
 
-No setting is writable (a project's own line leaving and coming back with `close` and `open` is the
-one config write, a verb at its own scope), nothing grants anything, **nothing publishes a workflow or a persona,
+No setting outside `settingReach`'s `open` tier is writable (a project's own line leaving and coming
+back with `close` and `open` is the other config write, a verb at its own scope), nothing grants
+anything, **nothing publishes a workflow or a persona,
 nothing makes, renames or deletes a draft, and nothing touches a published version** — which never
 changes once it is out, so a run that points at `name@3` goes on pointing at it. Nothing turns a
 source on, nothing starts an agent (`steer` is a message into a conversation that is **already**

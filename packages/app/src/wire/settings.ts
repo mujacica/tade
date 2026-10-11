@@ -446,13 +446,12 @@ export class Settings implements Subject {
    * Throws rather than reporting, so every caller says it in its own terms —
    * the page puts it on the field, and a tool hands it to whoever asked. A
    * config that would not load is put back exactly as it was first.
+   *
+   * `by` is who asked, as the record says it: `window`, `orchestrator`, or a
+   * paired device as `byOf` words one (`device <id>`, `web-settings.ts`) —
+   * never `you` for a change from away.
    */
-  async write(
-    path: string,
-    value: string,
-    by: 'window' | 'orchestrator' = 'window',
-    said = '',
-  ): Promise<string> {
+  async write(path: string, value: string, by = 'window', said = ''): Promise<string> {
     const groups = this.rows()
     const rows = groups.flatMap((group) => group.settings)
     const setting = rows.find((one) => one.path === path)

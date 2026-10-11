@@ -106,6 +106,24 @@ export const AWAY_CONTROLS = {
    * surface draws and takes the project's own settings with it.
    */
   projects: 'away-projects:',
+  /**
+   * Let one device read the settings, or take it back: `away-settings:<id>`.
+   *
+   * **A reading grant like `lanes`, and drawn always for the same reason**:
+   * nothing it grants can change anything, and a key is never in what it lets
+   * through under any grant (`settingsFor`). It is also what changing one
+   * needs — a device may not change what it was not allowed to see.
+   */
+  settings: 'away-settings:',
+  /**
+   * Let one device change a setting, or take it back: `away-configure:<id>`.
+   *
+   * **Its own chip, and drawn only where `surfaces.web.settings` is on**, for
+   * the reason `act` is drawn only where acting is: with it off there is no
+   * route a grant could reach. What it reaches is `settingReach`'s `open` tier
+   * and nothing else (`SETTINGS_FROM_AWAY`).
+   */
+  configure: 'away-configure:',
 } as const
 
 /**

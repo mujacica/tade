@@ -125,6 +125,8 @@ export function actsOf(session) {
     // time at the machine, and neither tier implies either.
     agents: has('agents'),
     projects: has('projects'),
+    // Changing a setting: its own chip at the machine, implied by nothing.
+    configure: has('configure'),
   }
 }
 
@@ -400,5 +402,64 @@ export function headingFor(verb) {
 export function howSaid(how) {
   if (how === 'next-turn') return 'when its turn ends'
   if (how === 'restart') return 'by starting it again, keeping the conversation'
+  return ''
+}
+
+/* ── the settings (`settings.js` draws them) ───────────────────────────────── */
+
+/** Where the settings are read, and where one is changed. */
+export const SETTINGS_PATH = '/api/settings'
+export const CHANGE_PATH = '/api/settings/change'
+
+/**
+ * One row's standing for this device: whether to draw a control, and what to
+ * say where not.
+ *
+ * - `off` — this device was not granted `configure`. No control and no
+ *   reason: the value is still drawn, because reading it is what was granted.
+ * - `no` — granted, and this setting is changed at the machine; the row's own
+ *   `why` is drawn.
+ * - `yes` — a control.
+ */
+export function settingStanding(row, acts) {
+  if (acts?.configure !== true) return { kind: 'off', why: '' }
+  if (row?.may !== 'change' || row?.was === null || row?.was === undefined) {
+    return { kind: 'no', why: row?.why ?? '' }
+  }
+  return { kind: 'yes', why: '' }
+}
+
+/**
+ * What one change sends: the path, the value the screen was drawn with, the
+ * new value, and the two fields every act carries.
+ *
+ * **A row that holds a key sends nothing but a clear**, whatever was typed:
+ * the page was never shown the key, so it can never have meant to set one, and
+ * the machine refuses anything else for it too.
+ */
+export function changeBody(row, value, key, rev) {
+  return {
+    path: row?.path ?? '',
+    was: row?.was ?? '',
+    value: row?.held === null || row?.held === undefined ? value : '',
+    confirm: true,
+    key,
+    rev,
+  }
+}
+
+/** What a row's value is, in words: the value, whether a key is held, or the fallback. */
+export function shownOf(row) {
+  if (row === null || row === undefined) return '—'
+  if (row.held !== null && row.held !== undefined) return row.held
+  if (row.shown !== '') return row.shown
+  return row.fallback === '' ? 'nothing set' : `nothing set — ${row.fallback}`
+}
+
+/** What a page that was not granted the settings, or could not ask, says instead. */
+export function settingsSaid(answer) {
+  if (answer === null) return 'asking…'
+  if (answer.granted !== true) return 'not granted to this device'
+  if (answer.groups.length === 0) return 'nothing here this device may read'
   return ''
 }

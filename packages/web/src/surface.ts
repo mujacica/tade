@@ -104,6 +104,17 @@ export interface Surface {
    */
   drafting: boolean
   /**
+   * Whether a paired device may change a setting.
+   *
+   * **Read twice like the three above, and for the same two reasons**: at
+   * start-up it decides whether the changing route is in the table at all
+   * (`routesFor`), and at every change it is read again so turning it off
+   * takes authority away now. A *sixth* decision and not a reading of any of
+   * them: it writes the config, and what it may write is `settingReach`'s
+   * `open` tier and nothing else (`configuring.ts` has why).
+   */
+  configuring: boolean
+  /**
    * Whether a device may install the shell and open it with nothing to ask.
    *
    * **Read twice like the three above, and the second reading is the one that
@@ -166,6 +177,7 @@ export interface WebConfig {
   acting: boolean
   orchestrator: boolean
   drafts: boolean
+  settings: boolean
   install: boolean
   offline: boolean
   push: boolean
@@ -181,6 +193,7 @@ export const OFF: Surface = {
   acting: false,
   talking: false,
   drafting: false,
+  configuring: false,
   installing: false,
   keepsView: false,
   pushing: false,
@@ -206,6 +219,7 @@ export function surfaceOf(web: WebConfig): Surface {
     acting: web.enabled && web.acting,
     talking: web.enabled && web.orchestrator,
     drafting: web.enabled && web.drafts,
+    configuring: web.enabled && web.settings,
     installing: web.enabled && web.install,
     // Two keys deep, because a view kept on a phone's disk is read by the
     // shell on that phone and there is no shell without the first one.
@@ -307,8 +321,23 @@ export function scopesOn(
  * whether it does anything at all — a person who said yes to the first has not
  * answered the second. Neither reaches a remote turn's arm (`REMOTE_GRANTS`),
  * so a device that may close a project cannot ask Tade to close one either.
+ *
+ * `configure` is the eighth, and it is the one that writes the config: the
+ * settings `settingReach` puts in its `open` tier, and nothing else. Implied by
+ * nothing and implying nothing, its own chip at the machine, and it needs the
+ * `settings` *reading* grant beside it — a device may not change what it was
+ * not allowed to see. It does not reach a remote turn's arm either.
  */
-export const SCOPES = ['read', 'answer', 'steer', 'ask', 'draft', 'agents', 'projects'] as const
+export const SCOPES = [
+  'read',
+  'answer',
+  'steer',
+  'ask',
+  'draft',
+  'agents',
+  'projects',
+  'configure',
+] as const
 export type Scope = (typeof SCOPES)[number]
 
 /** Whether a host is this machine, in any of its three spellings. */

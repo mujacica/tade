@@ -7,8 +7,9 @@ import { type Talking, webAsking } from './web-asking.ts'
 import { steeringFor } from './web-beat.ts'
 import { webDrafting } from './web-drafting.ts'
 import { type Lifecycle, lifecycleActing, projectSeen } from './web-lifecycle.ts'
+import { type ConfiguringDeps, webConfiguring } from './web-settings.ts'
 
-// The four halves of the away view the window hands over, and the one rule
+// The five halves of the away view the window hands over, and the one rule
 // they share.
 //
 // **Each is handed over only where its own setting says so, and absence is the
@@ -57,6 +58,8 @@ export interface Halving {
    * `WebPush` in `web-push.ts` is it; what is here is which halves exist.
    */
   notifications: () => { half: WebPushing; key: () => string }
+  /** The settings and the one door they are written by, for a change from away. */
+  settings: Pick<ConfiguringDeps, 'rows' | 'known' | 'write'>
   now: () => number
 }
 
@@ -115,6 +118,19 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
     // `vapid` goes with it and never without it: a page told a public key by a
     // listener with no notifying half would draw a control with no route
     // behind it.
+    // **Handed over only where the setting says so**, like the other four: with
+    // changing off there is no `WebConfiguring` and no changing route, so a
+    // crafted call is the `404` of a path nobody built. `unlocked()` is read
+    // again at every change, and the device record again at the write.
+    ...(surface.configuring
+      ? {
+          configuring: webConfiguring({
+            ...deps.settings,
+            configuring: () => surfaceOf(deps.config().surfaces.web).configuring,
+            devices: () => deps.devices(),
+          }),
+        }
+      : {}),
     ...(surface.pushing
       ? (() => {
           const notifications = deps.notifications()

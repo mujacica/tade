@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebActing } from './acting.ts'
 import type { WebAsking } from './asking.ts'
+import type { WebConfiguring } from './configuring.ts'
 import type { WebDrafting } from './drafting.ts'
 import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
@@ -144,6 +145,17 @@ export interface ServerOptions {
    * it sends anything — so turning it off stops delivery within a beat.
    */
   pushing?: WebPushing
+  /**
+   * What a paired device may *do to a setting*, where a person turned that on.
+   *
+   * **Optional, and its absence is the guarantee**, exactly as the four above
+   * are: a window that was not given this serves no changing route, so a
+   * crafted call is the `404` of a path nobody built. `configuring.unlocked()`
+   * is read again at every change, so turning the setting off takes authority
+   * away now. Reading the settings is not this: it is `WebReading.settings`,
+   * behind a per-device grant.
+   */
+  configuring?: WebConfiguring
   /**
    * The VAPID public key, where there is one.
    *

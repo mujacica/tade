@@ -236,7 +236,22 @@ declare module '*/assets/acts.js' {
     draft: boolean
     agents: boolean
     projects: boolean
+    configure: boolean
   }
+  export const SETTINGS_PATH: string
+  export const CHANGE_PATH: string
+  export function settingStanding(
+    row: unknown,
+    acts: { configure?: boolean } | null | undefined,
+  ): { kind: 'off' | 'no' | 'yes'; why: string }
+  export function changeBody(
+    row: unknown,
+    value: string,
+    key: string,
+    rev: number,
+  ): Record<string, unknown>
+  export function shownOf(row: unknown): string
+  export function settingsSaid(answer: unknown): string
   export function askBody(
     talk: unknown,
     key: string,

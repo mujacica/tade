@@ -73,8 +73,24 @@ async function settled(one: Machine, count: number): Promise<void> {
 }
 
 /** Every `web_did` line, as the journal has them. */
-async function did(one: Machine): Promise<Record<string, unknown>[]> {
+async function did(
+  one: Machine,
+  tools: readonly string[] = [],
+): Promise<Record<string, unknown>[]> {
   await waitFor(one.client, 'web_did')
+  // **Every line a test is about, not only the first.** Each is written beside
+  // its answer rather than before it, so on a loaded machine the second act's
+  // line can land after the first is already readable — and reading the moment
+  // one appeared is a test about scheduling.
+  for (let tries = 0; tries < 50; tries++) {
+    const lines = (await one.client.events({ types: ['web_did'] })) as unknown as Record<
+      string,
+      unknown
+    >[]
+    const seen = new Set(lines.map((line) => (line.detail as { tool?: string }).tool))
+    if (tools.every((tool) => seen.has(tool))) return lines
+    await new Promise((done) => setTimeout(done, 10))
+  }
   return (await one.client.events({ types: ['web_did'] })) as unknown as Record<string, unknown>[]
 }
 
@@ -431,7 +447,7 @@ describe('the audit', () => {
       rev: 0,
       confirm: true,
     })
-    const lines = await did(one)
+    const lines = await did(one, ['stop', 'close'])
     const stop = lines.find((line) => (line.detail as { tool?: string }).tool === 'stop')
     expect(stop).toMatchObject({
       task: one.task,

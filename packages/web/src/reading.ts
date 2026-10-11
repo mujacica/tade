@@ -1,4 +1,6 @@
+import type { SettingGroup } from '@tade/core'
 import { AGENT, type AgentIn, agentOf } from './agent.ts'
+import { type SettingsOut, settingsFor } from './configuring.ts'
 import { revise, tick } from './delta.ts'
 import type { SnapshotInput } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
@@ -73,6 +75,16 @@ export interface WebReading {
    * `not read yet`.
    */
   agent(task: string): AgentOut
+  /**
+   * What Tade is set up with, as this device may read it.
+   *
+   * Its own call for the reason `notes` is: settings change when somebody
+   * changes one, and a phone is not sent forty rows of them twice a second
+   * for a page nobody has open. Behind the device's own `settings` grant —
+   * `NOT_GRANTED` without it — and a key is never in it under any grant
+   * (`settingsFor`).
+   */
+  settings(): SettingsOut
 }
 
 /**
@@ -110,6 +122,13 @@ export interface ProjectorOptions {
    * signal to go on looking at that lane, which only the window can act on.
    */
   agent?: (task: string) => AgentIn | null
+  /**
+   * The settings, as the window lists them, and every key it knows of.
+   *
+   * A function for the reason `agent` is: asked at the moment a device asks,
+   * out of what the window already holds.
+   */
+  settings?: () => { groups: readonly SettingGroup[]; known: readonly string[] }
 }
 
 /**
@@ -143,6 +162,10 @@ export function projector(
     },
     agent(task: string): AgentOut {
       return agentOf(input.reach, input.tasks, task, opts.agent?.(task) ?? null, AGENT)
+    },
+    settings(): SettingsOut {
+      const held = opts.settings?.() ?? { groups: [], known: [] }
+      return settingsFor(held.groups, input.reach, held.known)
     },
     beat(next: SnapshotInput, at: number): Delta | null {
       input = next

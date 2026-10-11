@@ -20,6 +20,7 @@ const ON: Surface = {
   acting: true,
   talking: false,
   drafting: false,
+  configuring: false,
   installing: false,
   keepsView: false,
   pushing: false,

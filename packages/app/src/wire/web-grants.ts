@@ -5,6 +5,8 @@ import { type Granted, kept, letOneAct, letOneTalk } from './web-acting.ts'
 
 // The panel's controls that widen what one device may do or read, and
 // the one rule they share: **a keypress at this machine is the only door.**
+// That holds for the settings too: what a device may change is granted here,
+// and there is no setting, route or tool that grants it.
 //
 // Out of `web.ts` because they are one subject — the window's half of a grant:
 // the file, the journal line and the sentence in the strip — and that file is
@@ -61,9 +63,18 @@ export async function widen(deps: Widening, control: string): Promise<boolean> {
     await written(deps, id, { scopes: granted.scopes.join(' ') }, granted.said)
     return true
   }
-  if (control.startsWith(AWAY_CONTROLS.see)) {
-    const id = control.slice(AWAY_CONTROLS.see.length)
-    const granted = await letOneSee(at, deps.devices(), id)
+  if (control.startsWith(AWAY_CONTROLS.configure)) {
+    const id = control.slice(AWAY_CONTROLS.configure.length)
+    const configuring = () => surfaceOf(deps.config().surfaces.web).configuring
+    const granted = await letOneConfigure({ ...at, configuring }, deps.devices(), id)
+    await written(deps, id, { scopes: granted.scopes.join(' ') }, granted.said)
+    return true
+  }
+  for (const grant of ['lanes', 'settings'] as const) {
+    const prefix = grant === 'lanes' ? AWAY_CONTROLS.see : AWAY_CONTROLS.settings
+    if (!control.startsWith(prefix)) continue
+    const id = control.slice(prefix.length)
+    const granted = await letOneRead(at, deps.devices(), id, grant)
     await written(deps, id, { reads: granted.reads.join(' ') }, granted.said)
     return true
   }
@@ -88,36 +99,76 @@ async function written(
   await deps.reread()
 }
 
+/** What each reading grant with a control lets a device see, in the strip's words. */
+const SEES = {
+  lanes: 'see agents’ screens',
+  settings: 'read the settings',
+} as const
+
 /**
- * Let one device see agents' screens, or take it back.
+ * Let one device see agents' screens or read the settings, or take it back.
  *
  * **A reading grant and not a scope**, so it is written on a `granted` line
  * rather than an `allowed` one — the two halves of a device's reach are kept
- * apart in the file as they are in the projection. And it needs no setting:
- * nothing it grants can change anything, and what it lets through is held at
- * the boundary that reads a screen (`cleanScreen`), whatever any device was
- * granted.
+ * apart in the file as they are in the projection. And neither needs a
+ * setting: nothing either grants can change anything, and what each lets
+ * through is held at the boundary that reads it (`cleanScreen` for a screen,
+ * `settingsFor` for the settings, where a key is never in it), whatever any
+ * device was granted.
  *
  * **Every other grant is kept as it was**, because `grantDevice` writes the
  * whole list, for the reason `kept` gives about scopes: two controls that each
  * enumerated would be the second silently taking back the first.
  */
-export async function letOneSee(
+export async function letOneRead(
   deps: { home: string; now(): number },
   devices: readonly Device[],
   id: string,
+  grant: keyof typeof SEES,
 ): Promise<{ reads: string[]; said: string }> {
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
-  const may = device.granted.includes('lanes')
-  const reads = may
-    ? device.granted.filter((one) => one !== 'lanes')
-    : [...device.granted.filter((one) => one !== 'lanes'), 'lanes']
+  const may = device.granted.includes(grant)
+  const others = device.granted.filter((one) => one !== grant)
+  const reads = may ? others : [...others, grant]
   await grantDevice(deps.home, id, reads, new Date(deps.now()))
   const what = device.label === '' ? 'that device' : device.label
   return {
     reads,
-    said: may ? `${what} can no longer see agents’ screens` : `${what} can see agents’ screens`,
+    said: may ? `${what} can no longer ${SEES[grant]}` : `${what} can ${SEES[grant]}`,
+  }
+}
+
+/**
+ * Let one device change a setting, or take it back. **A person at this
+ * machine, only**, through the door `letOneAct` goes through.
+ *
+ * Composed from what the device already has (`kept`), so granting it takes
+ * nothing else away. Refused while `surfaces.web.settings` is off, for
+ * `letOneAct`'s reason: a grant nothing could use is what Tade accepting and
+ * ignoring a setting would be. It does not grant reading — the `settings` chip
+ * beside it does, and a device needs both, because it may not change what it
+ * was not allowed to see.
+ */
+export async function letOneConfigure(
+  deps: { home: string; configuring: () => boolean; now: () => number },
+  devices: readonly Device[],
+  id: string,
+): Promise<Granted> {
+  if (!deps.configuring()) {
+    throw new Error('turn on “Let a paired device change a setting” in Settings → Away view first')
+  }
+  const device = devices.find((one) => one.id === id && one.revoked === null)
+  if (device === undefined) throw new Error('that device is not paired')
+  const may = device.scopes.includes('configure')
+  const scopes = kept(device, ['configure'], !may)
+  await allowDevice(deps.home, id, scopes, new Date(deps.now()))
+  const what = device.label === '' ? 'that device' : device.label
+  return {
+    scopes,
+    said: may
+      ? `${what} can no longer change a setting`
+      : `${what} can change the settings a request is enough for`,
   }
 }
 

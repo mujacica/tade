@@ -31,6 +31,7 @@ describe('nothing listens unless it is turned on', () => {
         acting: false,
         talking: false,
         drafting: false,
+        configuring: false,
         installing: false,
         keepsView: false,
         pushing: false,
@@ -109,7 +110,7 @@ describe('what an unauthenticated request can get', () => {
 
   it('is nothing else at all: every data route is a 401', async () => {
     const one = await start()
-    for (const path of ['/api/snapshot', '/api/notes', '/api/devices']) {
+    for (const path of ['/api/snapshot', '/api/notes', '/api/devices', '/api/settings']) {
       const answer = await ask(one, path)
       expect(answer.status, path).toBe(401)
       expect(said(answer).error, path).toBe('no_session')
@@ -124,7 +125,9 @@ describe('what an unauthenticated request can get', () => {
     for (const [path, method] of [
       ['/api/task/tade-web/diff', 'GET'],
       ['/api/act/approve', 'POST'],
-      ['/api/settings', 'GET'],
+      ['/api/settings', 'POST'],
+      ['/api/settings/change', 'POST'],
+      ['/api/config', 'GET'],
       ['/api/intake', 'POST'],
       ['/api/snapshot', 'POST'],
       ['/api/snapshot', 'DELETE'],

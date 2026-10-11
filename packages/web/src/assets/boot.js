@@ -48,6 +48,7 @@ import {
 import { viewOf } from './routes.js'
 import { runScreen, runsScreen } from './runs.js'
 import { nowScreen, projectScreen, taskScreen } from './screens.js'
+import { settingsScreen } from './settings.js'
 import {
   barsFor,
   barsIn,
@@ -230,6 +231,7 @@ const SCREENS = {
   talk: () => talkScreen(ctx),
   lastSeen: () => lastSeenScreen(held.lastView ?? {}, Date.now()),
   devices: () => devicesScreen(ctx),
+  settings: () => settingsScreen(ctx),
   pair: () => pairScreen(ctx),
   more: () => moreScreen(),
   nowhere: () => nowhereScreen(),

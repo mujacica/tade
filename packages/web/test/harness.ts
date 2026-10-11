@@ -2,7 +2,9 @@ import { mkdtemp } from 'node:fs/promises'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { SettingGroup } from '@tade/core'
 import { noFacts, type TaskFacts, type WebActing } from '../src/acting.ts'
+import type { WebConfiguring } from '../src/configuring.ts'
 import type { Streams } from '../src/peers.ts'
 import type { Reach } from '../src/reach.ts'
 import { type Projector, projector, type WebReading } from '../src/reading.ts'
@@ -78,6 +80,7 @@ export const BASE: Surface = {
   acting: false,
   talking: false,
   drafting: false,
+  configuring: false,
   installing: false,
   keepsView: false,
   pushing: false,
@@ -130,6 +133,12 @@ const projectors = new Map<string, Projector>()
  */
 let epoch = ''
 
+/**
+ * The settings rows the window would hand over, set by `start` — the
+ * Settings page's own, where a test needs them, and none where it does not.
+ */
+let settingRows: readonly SettingGroup[] = []
+
 export function projectorFor(reach: Reach): Projector {
   const held = projectors.get(reach.device)
   if (held !== undefined) return held
@@ -137,6 +146,7 @@ export function projectorFor(reach: Reach): Projector {
   const made = projector(
     { ...first, lifetime: { ...first.lifetime, ...(epoch === '' ? {} : { epoch }) } },
     NOW,
+    { settings: () => ({ groups: settingRows, known: [] }) },
   )
   projectors.set(reach.device, made)
   return made
@@ -170,12 +180,21 @@ export async function closeAll(): Promise<void> {
 export function forgetProjectors(): void {
   projectors.clear()
   epoch = ''
+  settingRows = []
 }
 
 export async function start(
   over: Partial<Surface> = {},
-  opts: { confirmMs?: number; streams?: Streams; acting?: WebActing; home?: string } = {},
+  opts: {
+    confirmMs?: number
+    streams?: Streams
+    acting?: WebActing
+    configuring?: WebConfiguring
+    settings?: readonly SettingGroup[]
+    home?: string
+  } = {},
 ): Promise<Running> {
+  settingRows = opts.settings ?? []
   // A home of its own unless a test wants the one a previous listener used,
   // which is how a restart is written: the devices and the receipts outlive
   // the window, and the epoch does not.
@@ -209,6 +228,7 @@ export async function start(
     // with no `acting` there is no verb to reach, whatever the route table
     // says.
     ...(opts.acting === undefined ? {} : { acting: opts.acting }),
+    ...(opts.configuring === undefined ? {} : { configuring: opts.configuring }),
     ...(opts.confirmMs === undefined ? {} : { confirmMs: opts.confirmMs }),
   })
   epoch = one.server.epoch

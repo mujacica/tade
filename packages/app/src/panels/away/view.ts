@@ -66,6 +66,11 @@ export interface AwayView {
    * rather than drawn and refused.
    */
   talking: boolean
+  /**
+   * Whether `surfaces.web.settings` is on: a third flag for a third decision,
+   * read the way the two above are — with it off the chip is not drawn.
+   */
+  configuring: boolean
   /** Said when talking is on. `TALKING_IS_NOT_YOU`, verbatim. */
   talks: string
   /** Said when acting is on. `ACTING_IS_NOT_YOU`, verbatim. */
@@ -103,6 +108,10 @@ export interface AwayDevice {
   mayStop: boolean
   /** Whether it was granted `projects`: closing a project and opening it again. */
   mayClose: boolean
+  /** Whether it was granted `settings`: reading the settings, every key said as set or not. */
+  mayReadSettings: boolean
+  /** Whether it was granted `configure`: changing a setting a request is enough for. */
+  mayConfigure: boolean
   /** Whether it has a live stream open now. */
   live: boolean
 }
@@ -375,7 +384,7 @@ function footOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
 function deviceLines(
   device: AwayDevice,
   chosen: boolean,
-  view: Pick<AwayView, 'acting' | 'talking'>,
+  view: Pick<AwayView, 'acting' | 'talking' | 'configuring'>,
   ctx: PanelContext,
   inner: number,
 ): Line[] {
@@ -392,7 +401,7 @@ function deviceLines(
 function deviceLine(
   device: AwayDevice,
   chosen: boolean,
-  view: Pick<AwayView, 'acting' | 'talking'>,
+  view: Pick<AwayView, 'acting' | 'talking' | 'configuring'>,
   ctx: PanelContext,
   inner: number,
   controls: boolean,
@@ -412,6 +421,7 @@ function deviceLine(
     acting && device.mayStop ? 'may stop agents' : '',
     acting && device.mayClose ? 'may close projects' : '',
     view.talking && device.mayTalk ? 'may talk' : '',
+    view.configuring && device.mayConfigure ? 'may change settings' : '',
   ].filter(Boolean)
   const said = can.length === 0 ? reads : `${reads} · ${can.join(' · ')}`
   const line = new Row(inner, skin, ctx.pointer)
@@ -427,7 +437,11 @@ function deviceLine(
 }
 
 /** One device's controls, the `×` last where the eye looks for it. */
-function chipsOf(r: Row, device: AwayDevice, view: Pick<AwayView, 'acting' | 'talking'>): Row {
+function chipsOf(
+  r: Row,
+  device: AwayDevice,
+  view: Pick<AwayView, 'acting' | 'talking' | 'configuring'>,
+): Row {
   // **Only where the setting is on.** With it off there is no route a grant
   // could reach, so the control is not drawn rather than drawn and refused —
   // and the row is byte-identical to what it was before any of this existed.
@@ -465,13 +479,27 @@ function chipsOf(r: Row, device: AwayDevice, view: Pick<AwayView, 'acting' | 'ta
       device.mayTalk ? 'danger' : 'go',
     ).space()
   }
-  // **Always drawn**, unlike the two above: it grants reading, not doing, so
+  if (view.configuring) {
+    // The same shape again: drawn only where the setting is on, the state in
+    // the row's own words (`may change settings`) rather than in colour alone.
+    r.chip(
+      'configure',
+      { kind: 'control', id: `${AWAY_CONTROLS.configure}${device.id}` },
+      device.mayConfigure ? 'danger' : 'go',
+    ).space()
+  }
+  // **Always drawn**, unlike the ones above: each grants reading, not doing, so
   // there is no setting that could make it a button nothing can carry out. The
-  // state is `lanes` in the row's own words, as theirs is.
+  // state is `lanes` and `settings` in the row's own words, as theirs is.
   r.chip(
     'lanes',
     { kind: 'control', id: `${AWAY_CONTROLS.see}${device.id}` },
     device.maySee ? 'danger' : 'go',
+  ).space()
+  r.chip(
+    'settings',
+    { kind: 'control', id: `${AWAY_CONTROLS.settings}${device.id}` },
+    device.mayReadSettings ? 'danger' : 'go',
   ).space()
   return r
     .chip('×', { kind: 'control', id: `${AWAY_CONTROLS.revoke}${device.id}` }, 'danger')

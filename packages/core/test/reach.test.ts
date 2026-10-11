@@ -364,6 +364,10 @@ describe('the shape of the rule', () => {
       'surfaces.web.push',
       'surfaces.web.push_details',
       'surfaces.web.push_key',
+      // Whether a device may change a setting at all is, itself, a setting no
+      // words reach: the subtree again, and the one key in it a page would most
+      // like to turn on.
+      'surfaces.web.settings',
       'surfaces.web.trusted_hosts',
       'telemetry.dsn',
     ])

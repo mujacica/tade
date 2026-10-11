@@ -251,8 +251,8 @@ export class App {
       factory: () => this.intake.factory(),
       // A file edit writes no journal line, so the fold is told.
       saved: () => this.intake.markStale(),
-      // The one door a setting is written by, for the one key nothing types.
-      writeKey: (key, value, was) => this.settings.writeKey(key, value, was),
+      // The one door a setting is written by: the key nothing types, and a change from away.
+      settings: this.settings,
       // Stopping and closing from away, through the keyboard's own two doors.
       lifecycle: { agents: () => this.agents, projects: () => this.projects },
     })

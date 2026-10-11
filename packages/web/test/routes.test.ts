@@ -8,6 +8,7 @@ import {
   ROUTES,
   routeFor,
   routesFor,
+  SETTINGS,
 } from '../src/routes.ts'
 import { OFF, type Surface } from '../src/surface.ts'
 
@@ -87,7 +88,6 @@ describe('the shape of the table', () => {
     // costs nothing.
     const paths = ROUTES.map((route) => route.path)
     for (const forbidden of [
-      '/api/settings',
       '/api/config',
       '/api/grant',
       '/api/intake',
@@ -111,6 +111,19 @@ describe('the shape of the table', () => {
       expect(paths, forbidden).not.toContain(forbidden)
   })
 
+  it('reads the settings with one GET, and writes none of them', () => {
+    // **The one read of the machine's own setup, and it used to be on the
+    // list above.** It came off it deliberately: a `GET` like every other
+    // read, the same for every device, with what it may see decided by that
+    // device's own `settings` grant in the answer (`settingsFor`) and a key
+    // never in it under any grant. Nothing in this table writes one — that is
+    // `SETTINGS`, below, behind a setting of its own.
+    const reading = ROUTES.filter((route) => route.path.startsWith('/api/settings'))
+    expect(reading.map((route) => `${route.method} ${route.path}`)).toEqual(['GET /api/settings'])
+    expect(reading[0]?.mutates).toBe(false)
+    expect(reading[0]?.needs).toBe('read')
+  })
+
   it('never lets a device revoke another: there is no route shaped to', () => {
     // The sign-out route takes an id and refuses any id but the caller's own
     // (`server.ts`), and there is no route at all for revoking by someone
@@ -126,13 +139,13 @@ describe('the shape of the table', () => {
   })
 })
 
-describe('the four tables a setting turns on', () => {
+describe('the five tables a setting turns on', () => {
   it('puts nothing in the base table, so read-only stays an absence', () => {
     // Each of the four is a second table `routesFor` adds only where its own
     // setting says so, which is why `ROUTES` is still the list somebody checks
     // read-only against in forty lines.
     const paths = ROUTES.map((route) => route.path)
-    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES]) {
+    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES, ...SETTINGS]) {
       expect(paths, route.path).not.toContain(route.path)
     }
   })
@@ -162,6 +175,28 @@ describe('the four tables a setting turns on', () => {
     expect(on({ acting: true, talking: true, drafting: true })).not.toContain(
       '/api/notify/subscribe',
     )
+    // The fifth: changing a setting is its own switch, and every other one on
+    // at once still builds no path to it.
+    expect(on({ configuring: true })).toEqual([
+      ...ROUTES.map((route) => route.path),
+      '/api/settings/change',
+    ])
+    expect(
+      on({ acting: true, talking: true, drafting: true, pushing: true, installing: true }),
+    ).not.toContain('/api/settings/change')
+  })
+
+  it('gives the changing route the configure scope, which nothing else needs', () => {
+    // `configure` is implied by nothing: a device granted every acting tier, a
+    // conversation and a draft has been granted things about work and not the
+    // config — and nothing in the other four tables can be reached with it.
+    expect(SETTINGS.map((route) => `${route.method} ${route.path}`)).toEqual([
+      'POST /api/settings/change',
+    ])
+    for (const route of SETTINGS) expect(route.needs, route.path).toBe('configure')
+    for (const route of [...ROUTES, ...ACTS, ...ASKS, ...DRAFTS, ...PUSHES]) {
+      expect(route.needs, route.path).not.toBe('configure')
+    }
   })
 
   it('needs no more than read to be told, which is the honest scope', () => {
@@ -201,12 +236,13 @@ describe('the four tables a setting turns on', () => {
     for (const route of [...ACTS, ...ASKS]) expect(route.needs, route.path).not.toBe('draft')
   })
 
-  it('gives every route in the four tables exactly one of the four jobs', () => {
+  it('gives every route in the five tables exactly one of the five jobs', () => {
     // A route reaches a `WebActing` method, a `WebAsking` one, a `WebDrafting`
-    // one or a `WebPushing` one, and never two: two would be a handler that
-    // had to choose, which is the shape `carryOut` answers with a `404`.
-    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES]) {
-      const jobs = [route.verb, route.says, route.saves, route.notifies].filter(
+    // one, a `WebPushing` one or a `WebConfiguring` one, and never two: two
+    // would be a handler that had to choose, which is the shape `carryOut`
+    // answers with a `404`.
+    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES, ...SETTINGS]) {
+      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures].filter(
         (one) => one !== undefined,
       )
       expect(jobs, route.path).toHaveLength(1)
@@ -221,7 +257,15 @@ describe('the four tables a setting turns on', () => {
   it('still has no route that publishes, grants or reaches a credential', () => {
     // The list `LOCAL_ONLY_ACTS` names, asserted against the whole of what
     // this listener can ever serve rather than trusted as a sentence.
-    const every = routesFor({ ...OFF, enabled: true, acting: true, talking: true, drafting: true })
+    const every = routesFor({
+      ...OFF,
+      enabled: true,
+      acting: true,
+      talking: true,
+      drafting: true,
+      pushing: true,
+      configuring: true,
+    })
     const paths = every.map((route) => route.path)
     for (const forbidden of [
       '/api/publish',
@@ -231,11 +275,24 @@ describe('the four tables a setting turns on', () => {
       '/api/draft/reject',
       '/api/persona',
       '/api/grant',
-      '/api/settings',
+      '/api/config',
       '/api/accounts',
+      '/api/settings/set',
+      '/api/settings/key',
+      '/api/settings/secret',
+      '/api/settings/grant',
     ]) {
       expect(paths, forbidden).not.toContain(forbidden)
     }
+    // **Everything under `/api/settings` with every capability on**: one read
+    // and one change, and the change is the one that reaches `settingReach`'s
+    // `open` tier and nothing else (`test/configured.test.ts` runs the tiers).
+    expect(
+      every
+        .filter((route) => route.path.startsWith('/api/settings'))
+        .map((route) => `${route.method} ${route.path}`)
+        .sort(),
+    ).toEqual(['GET /api/settings', 'POST /api/settings/change'])
   })
 })
 

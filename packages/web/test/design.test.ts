@@ -160,8 +160,10 @@ describe('type', () => {
   })
 
   it('sizes every field at 17px, so iOS does not zoom the page on focus', () => {
-    const field = /\binput\s*\{[^}]*\}/.exec(AWAY)?.[0] ?? ''
-    expect(field).toContain('font-size: var(--step-1)')
+    for (const one of ['input', 'select']) {
+      const field = new RegExp(`\\b${one}\\s*\\{[^}]*\\}`).exec(AWAY)?.[0] ?? ''
+      expect(field, one).toContain('font-size: var(--step-1)')
+    }
     expect(TOKENS).toContain('--step-1: 1.0625rem')
   })
 
@@ -222,7 +224,7 @@ describe('the layout', () => {
 describe('reach and motion', () => {
   it('has a 44px floor and uses it on every control', () => {
     expect(TOKENS).toContain('--tap: 44px')
-    for (const selector of ['.press', '.tab', '.back', '.more', '.tabstrip a', 'input']) {
+    for (const selector of ['.press', '.tab', '.back', '.more', '.tabstrip a', 'input', 'select']) {
       // The exact selector at the start of a rule, so `.tab` is not answered by
       // `.tabs` — which is the bar itself and has no height of its own.
       const block =

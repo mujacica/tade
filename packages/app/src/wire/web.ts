@@ -1,5 +1,4 @@
 import {
-  type Arm,
   type Arming,
   type Config,
   type InboxRow,
@@ -24,6 +23,7 @@ import {
   readDevices,
   type SnapshotInput,
   Streams,
+  settingsFor,
   surfaceOf,
   type TaskFacts,
   Tickets,
@@ -40,7 +40,8 @@ import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
-import { armingFor, type Talking, webAsking } from './web-asking.ts'
+import type { Settings } from './settings.ts'
+import { armingFor, seenFrom, type Talking } from './web-asking.ts'
 import {
   type AwayBeat,
   type AwayHeld,
@@ -135,8 +136,9 @@ export interface AwayDeps {
    * name here would be a second thing to keep in step for no gain.
    */
   saved(): void
-  /** The one door a setting is written by: the generated notification key. */
-  writeKey(key: string, value: string, was: string): Promise<void>
+  /** Three methods of `Settings`, never the subject: the generated key, what a granted device
+   * reads, and the one change it may make (`web-settings.ts`). */
+  settings: Pick<Settings, 'rows' | 'write' | 'writeKey'>
   /** The agents and projects subjects, for stopping and closing from away (`web-lifecycle.ts`). */
   lifecycle: Lifecycle
 }
@@ -185,11 +187,15 @@ export class Away implements Subject {
       now: () => wire.now(),
     })
     // Out of the collections the beat already built: no look at the world.
-    this.push = pushFor(wire, deps, {
-      tasks: () => this.collections().tasks,
-      devices: () => this.devices,
-      tell: (told) => void this.log(told),
-    })
+    this.push = pushFor(
+      wire,
+      { writeKey: (...key) => deps.settings.writeKey(...key) },
+      {
+        tasks: () => this.collections().tasks,
+        devices: () => this.devices,
+        tell: (told) => void this.log(told),
+      },
+    )
   }
 
   /**
@@ -226,6 +232,11 @@ export class Away implements Subject {
         conversation: () => this.conversation(),
         talk: this.deps.talk,
         saved: () => this.deps.saved(),
+        settings: {
+          rows: () => this.deps.settings.rows(),
+          known: () => this.known(),
+          write: (path, value, by) => this.deps.settings.write(path, value, by),
+        },
         now: () => this.wire.now(),
       }),
       tickets: this.tickets,
@@ -624,6 +635,8 @@ export class Away implements Subject {
         }
         return answer
       },
+      // **This request's reach**, like an agent's, and the rows the window already lists.
+      settings: () => settingsFor(this.deps.settings.rows(), reach, this.known()),
     }
   }
 
@@ -632,8 +645,7 @@ export class Away implements Subject {
    * already has, and the lane as last read on a beat. Never a read now.
    */
   private agentIn(reach: Reach, task: string): AgentIn {
-    const web = this.config().surfaces.web as unknown as Record<string, unknown>
-    const keys = () => knownKeys(this.wire.opts.extensions?.secrets() ?? [], web, process.env)
+    const keys = () => this.known()
     return {
       activity: activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
       lane: this.lanes.heldFor(task) ?? { kind: 'none', why: 'not read yet' },
@@ -641,6 +653,12 @@ export class Away implements Subject {
       // for its keys is not free, and an ungranted answer has no screen.
       known: has(reach, 'lanes') ? this.lanes.keys(keys) : [],
     }
+  }
+
+  /** Every key Tade knows of: the config's, their variables, the environment's credentials. */
+  private known(): string[] {
+    const web = this.config().surfaces.web as unknown as Record<string, unknown>
+    return knownKeys(this.wire.opts.extensions?.secrets() ?? [], web, process.env)
   }
 
   private catchUp(reach: Reach, held: Projector): void {
@@ -726,21 +744,6 @@ export class Away implements Subject {
   }
 
   /**
-   * What a remote turn's "where are we" is answered with: that device's own
-   * projection, which `Arming.seen` has the argument for.
-   *
-   * A device that has gone **throws** rather than answering an empty tree:
-   * *that device is no longer paired* is a true sentence a model can act on,
-   * and nought projects would read as a machine with no work on it.
-   */
-  seen(arm: Arm): Promise<unknown> {
-    if (arm.how !== 'remote') throw new Error('only a turn from away is answered this way')
-    const device = this.paired(arm.device)
-    if (device === undefined) throw new Error('that device is no longer paired')
-    return Promise.resolve(this.readingFor(reachOf(device)).snapshot())
-  }
-
-  /**
    * What the `ToolHost` asks at every call: the arm, narrowed to what that
    * device is granted now, and this device's own projection.
    *
@@ -750,10 +753,11 @@ export class Away implements Subject {
    * places deciding what a turn from away may reach.
    */
   arming(): Arming {
+    const snapshot = (one: Device) => this.readingFor(reachOf(one)).snapshot()
     return armingFor({
       arm: () => this.deps.talk.arm(),
       paired: (device) => this.paired(device) ?? null,
-      seen: (arm) => this.seen(arm),
+      seen: (arm) => seenFrom(arm, (id) => this.paired(id), snapshot),
       log: (event) => this.wire.opts.client.log.append(event),
       note: (said) => this.deps.news(said),
     })

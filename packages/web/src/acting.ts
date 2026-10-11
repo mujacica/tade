@@ -11,7 +11,9 @@ import type { Scope } from './surface.ts'
 //
 // **It is a method per verb, and that is the whole design.** There is no
 // `run(name, payload)`, no `call(tool, args)`, no path, no command and no
-// settings route — not "they are refused", but *there is nowhere to put one*.
+// setting — not "they are refused", but *there is nowhere to put one*. (A
+// setting a request is enough for is a table of its own behind a setting of
+// its own, `configuring.ts`; nothing on this interface reaches it.)
 // A verb reaches the window only by somebody adding a method here and an entry
 // to `VERBS` (`verbs.ts`), which is two lines a reviewer reads in the same
 // diff as the argument for them. DESIGN.md §9.1's `never remote` lines are

@@ -110,6 +110,11 @@ Three answers and no fourth:
   costs. The shape of that argument is the one to copy: it is reach over a *setting* and never over
   an act, the act stays behind whatever already gates it (`approvals`), and the residual risk is
   named rather than left for somebody to find. A key only belongs here on the person's own say-so.
+  **And `open` is also what a paired phone may change** where `surfaces.web.settings` is on
+  (`awayReach`, `packages/web/src/configuring.ts`): a key added to the tier is reachable from away
+  the day it is added, so `SETTINGS_FROM_AWAY`'s list moves in the same commit —
+  `packages/web/test/configuring.test.ts` holds the two together. `asked` and `never` are never
+  reachable from a device; that is argued in `configuring.ts`.
 
 Two consequences when you add a key:
 

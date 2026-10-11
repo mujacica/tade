@@ -13,6 +13,7 @@ import {
   PUSH_NEEDS_A_GESTURE,
   PUSH_SAYS_NOTHING,
   PUSH_SAYS_NOTHING_SHORT,
+  SETTINGS_FROM_AWAY,
 } from './away.ts'
 import type { Config } from './config.ts'
 import { TALKING_IS_NOT_YOU } from './origin.ts'
@@ -28,7 +29,7 @@ import type { SettingGroup } from './settings.ts'
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //
-// **Nine of the thirteen are `live: false`, honestly.** The listener comes up
+// **Ten of the thirteen are `live: false`, honestly.** The listener comes up
 // when the window starts, and the epoch a connected phone holds is per server
 // start — so turning one on mid-session would have to tear down and rebuild
 // something somebody is looking at. Saying *takes effect on restart* is the
@@ -173,6 +174,22 @@ export function awayGroup(config: Config): SettingGroup {
         // route table the listener builds, off is read at every save.
         live: false,
         keywords: ['draft', 'drafts', 'workflow', 'template', 'designer', 'edit', 'form'],
+      },
+      {
+        path: 'surfaces.web.settings',
+        // A **tenth** decision, and a row of its own rather than a clause on
+        // Acting: Acting's verbs are about work, and this writes the config.
+        // The sentence is the list of what it reaches, because *only the
+        // harmless ones* is the word a comfortable version would keep.
+        title: 'Let a paired device change a setting',
+        means: `on: a device you have granted it can change the few settings an ordinary request is enough for; off: there is no route to change one. ${SETTINGS_FROM_AWAY}`,
+        value: String(web.settings),
+        fallback: 'false',
+        type: { kind: 'flag' },
+        // `false` like the rest, and asymmetric the same way: on waits for the
+        // route table the listener builds, off is read at every change.
+        live: false,
+        keywords: ['settings', 'config', 'configure', 'setting', 'preferences'],
       },
       {
         path: 'surfaces.web.install',

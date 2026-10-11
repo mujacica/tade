@@ -508,6 +508,20 @@ input {
   font-size: var(--step-1);
 }
 
+/* A choice is a field like any other: the same floor, and the same 17px. */
+select {
+  width: 100%;
+  max-width: 22rem;
+  min-height: var(--tap);
+  padding: var(--s2) var(--s3);
+  border: var(--border);
+  border-radius: var(--r1);
+  background: var(--raised);
+  color: var(--bright);
+  font-family: var(--font-ui);
+  font-size: var(--step-1);
+}
+
 .column {
   max-width: 34rem;
   display: grid;
