@@ -302,6 +302,16 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   the repository has checked out**, which is what makes a project set to push
   (`projects.<name>.push`) actually watched: with a worktree each, the commit an agent pushed is
   never the one the project's own checkout is on.
+- **A review is what a worktree task ends with, by default.** `pushFor` answers `branch-and-review`
+  where nobody has said otherwise and the agent has a worktree and a branch of its own
+  (`pushDefault`), and `never` where they share the project's checkout — so the ordinary end of a
+  worktree task is a branch pushed and a review opened on it, and the ordinary end of a checkout task
+  is a commit and nothing else. A word anybody wrote wins over both, in either direction.
+- **A review opens published, not as a draft** (`extensions.review.draft`, off). An agent is told to
+  push only what it has seen green and to open the review once it has, so there is nothing left for a
+  draft to mean — and a draft is in nobody's list of things to look at, so finished work read as work
+  still going on. A draft is still a thing to ask for: the setting for every review, `review_open`'s
+  `draft` for one. Only a draft needs `review_ready`.
 - **A push is the project's answer, and what happens after one is this watch's.** `pushFor`
   (`core/src/project.ts`) decides whether an agent pushes at all and what it pushes; the words it is
   told are `pushTold` and `CI_AFTER_PUSH` (`core/src/compose.ts`). Nothing here pushes anything and

@@ -467,6 +467,38 @@ describe('task and run RPC', () => {
     expect(client.lane('app/refunds/agent' as never)?.alive).toBe(false)
   }, 60_000)
 
+  it('tells a worktree agent to open a review and a checkout agent nothing of the kind', async () => {
+    // What a project with nothing configured gets, which is the person's own
+    // answer: a worktree is a branch of the agent's own that nobody else is on,
+    // so finished work goes up for review, published; a shared checkout has no
+    // such branch, so pushing stays a person's and the prompt says nothing
+    // about it at all. Here rather than only over `pushFor`, because the answer
+    // has to be read off the *task's* workspace — the config says `checkout`
+    // for this project either way, and reading it here instead would tell the
+    // worktree agent the shared checkout's answer.
+    const apart = await client.createTask({
+      project: 'app',
+      slug: 'apart',
+      intent: INTENT,
+      workspace: 'worktree',
+    })
+    await client.startAgent({ task: apart.id, cwd: apart.worktree, prompt: '' })
+    const toldApart = (client.lane(`${apart.id}/agent` as never)?.spec.args ?? []).join(' ')
+    expect(toldApart).toContain('push your own branch and open a review for it')
+    expect(toldApart).toContain('not a draft')
+
+    const together = await client.createTask({
+      project: 'app',
+      slug: 'together',
+      intent: INTENT,
+      workspace: 'checkout',
+    })
+    await client.startAgent({ task: together.id, cwd: together.worktree, prompt: '' })
+    const toldTogether = (client.lane(`${together.id}/agent` as never)?.spec.args ?? []).join(' ')
+    expect(toldTogether).not.toContain('open a review')
+    expect(toldTogether).not.toContain('push')
+  }, 60_000)
+
   it('says the opening instruction once: reopening an agent says nothing to it', async () => {
     const task = await client.createTask({
       project: 'app',

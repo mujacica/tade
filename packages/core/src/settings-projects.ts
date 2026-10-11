@@ -1,5 +1,5 @@
 import { AGENT_WORKSPACES, type Config } from './config.ts'
-import { PUSH_MODES, pushFor, workspaceFor } from './project.ts'
+import { PUSH_MODES, pushDefault, pushFor, workspaceFor } from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
 
 // What one project answers for itself, as a person changes it.
@@ -95,7 +95,12 @@ export function projectGroups(config: Config): SettingGroup[] {
             pushFor(config, name, workspaceFor(config, name)).problem ??
             `never: nothing of ${name} reaches its remote; branch: agents push the branch they are on; branch-and-review: each pushes its own branch and opens a review on it, which needs a worktree each`,
           value: project.push ?? '',
-          fallback: config.agents.push,
+          // What this project gets by saying nothing: the machine's answer
+          // where there is one, and otherwise what this project's workspace
+          // answers — never the bare word `never`, which is what a row with no
+          // machine-wide setting used to read as in a worktree project that
+          // pushes by default.
+          fallback: config.agents.push ?? pushDefault(workspaceFor(config, name)),
           type: { kind: 'choice', options: ['', ...PUSH_MODES] } as const,
           live: true,
           keywords: [name, 'push', 'pushing', 'remote', 'review', 'pull request'],

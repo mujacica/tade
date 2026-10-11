@@ -531,8 +531,17 @@ export const ConfigSchema = z
         workspace: z.enum(AGENT_WORKSPACES).default('checkout'),
         /** When agents commit, and what. */
         commit: z.enum(COMMIT_RULES).default('own-files'),
-        /** What they do with it once it is green, for a project that has not said (`pushFor`). */
-        push: z.enum(PUSH_MODES).default('never'),
+        /**
+         * What they do with it once it is green, for a project that has not
+         * said (`pushFor`).
+         *
+         * **No default here, deliberately**, which is the one place this key
+         * differs from its neighbours: what "nothing set" means depends on
+         * where the agents work (`pushDefault`), and a schema default would
+         * make a person's `never` and a file that never mentioned pushing the
+         * same answer. The resolution is `pushFor`'s and nowhere else's.
+         */
+        push: z.enum(PUSH_MODES).optional(),
         /** Anything else every agent should be told, in your words. */
         instructions: z.string().optional(),
         /**

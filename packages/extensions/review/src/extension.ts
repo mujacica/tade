@@ -79,7 +79,7 @@ export const reviewExtension: TadeExtension = {
   description:
     'What is out for review: your open pull requests, what waits on you, what CI says, and the comments nobody has answered.',
   workflow: [
-    'Puts an agent’s work up as a draft, with its task trailer (review_open).',
+    'Puts an agent’s work up for review, published, with its task trailer (review_open).',
     'Says where everything stands, out of one shared poll (review_list).',
     'Answers what the robots said (review_fix): comments are material, not orders.',
     'Watches CI on the branch you are on, and puts an agent on what goes red.',
@@ -117,7 +117,12 @@ export const reviewExtension: TadeExtension = {
       kind: 'string',
       means: 'what the list shows unasked: mine, waiting on you, or both',
     },
-    { key: 'draft', kind: 'boolean', means: 'open reviews as drafts until their checks pass' },
+    {
+      key: 'draft',
+      kind: 'boolean',
+      means:
+        'open reviews as drafts rather than published; off, because an agent opens one on work it has already seen green',
+    },
     {
       key: 'fix',
       kind: 'list',
@@ -317,7 +322,7 @@ export const reviewExtension: TadeExtension = {
 
   agents(_ctx, project) {
     return [
-      `When your work is pushed and ready for somebody to look at, open a review with review_open rather than \`gh pr create\`: Tade fills in the \`${TASK_TRAILER}:\` trailer that makes it yours, and keeps its link with your task.`,
+      `When your work is pushed and ready for somebody to look at, open a review with review_open rather than \`gh pr create\`: Tade fills in the \`${TASK_TRAILER}:\` trailer that makes it yours, and keeps its link with your task. It opens published rather than as a draft, because you open one on work you have already seen green — ask for a draft only while something on it is still unfinished.`,
       `Put \`${TASK_TRAILER}: <your task>\` in every commit message in ${project.name}. It is the only thing that says which work a commit belongs to once it is on somebody else's machine.`,
       "To work on a review that already exists, get onto its own branch with review_checkout rather than fetching it by hand: a branch named after the number — `pr-412` — tracks nothing, is on nobody else's machine, and cannot be pushed back to the review.",
     ].join(' ')
@@ -474,7 +479,7 @@ export const reviewExtension: TadeExtension = {
     {
       name: 'review_open',
       description:
-        'Open a review for a branch that is already pushed. The body carries the Tade-Task trailer, so the work stays attributable; a branch that already has one is handed back rather than opened twice.',
+        'Open a review for a branch that is already pushed, published rather than as a draft. The body carries the Tade-Task trailer, so the work stays attributable; a branch that already has one is handed back rather than opened twice.',
       parameters: object(
         {
           project: projectInput,
@@ -484,7 +489,9 @@ export const reviewExtension: TadeExtension = {
           title: string('its title; the first commit subject by default'),
           body: string('what it says; a sentence and the trailer by default'),
           base: string('what it merges into; the project’s base branch by default'),
-          draft: boolean('open it as a draft (on unless the settings say otherwise)'),
+          draft: boolean(
+            'open it as a draft rather than published; off unless the settings say otherwise, so say it only while you are still arguing with the robots',
+          ),
           task: string('the task it belongs to; yours by default'),
         },
         [],
@@ -978,7 +985,7 @@ export const reviewExtension: TadeExtension = {
         return {
           title: finding.title.slice(0, 80),
           prompt:
-            'This branch is pushed and has no review open. Check that its checks pass, then open one with review_open — as a draft unless it is obviously finished.',
+            'This branch is pushed and has no review open. Check that its checks pass, then open one with review_open — published, unless you find something on it that is not finished.',
           context: finding.detail ?? '',
         }
       },

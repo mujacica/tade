@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../src/config.ts'
+import { PUSH_BY_DEFAULT } from '../src/project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from '../src/secrets.ts'
 import {
   applySetting,
@@ -454,5 +455,58 @@ describe('a project’s own answer to where its agents work', () => {
     // An empty choice parses to nothing, and `writeSetting` deletes the key.
     const one = setting()
     expect(one && parseSetting(one, '')).toBeUndefined()
+  })
+})
+
+describe('what agents do with finished work', () => {
+  const row = (over: Record<string, unknown> = {}) =>
+    settingsOf(
+      ConfigSchema.parse({
+        agents: { workspace: 'worktree', ...over },
+        projects: { shop: { root: '~/src/shop' } },
+      }),
+    )
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === 'agents.push')
+
+  it('is empty until somebody chooses, and says what the workspace answers instead', () => {
+    // Empty is a value here and not a hole: the question belongs to the
+    // workspace, which answers it differently in each, and a row that read
+    // `never` under `worktree` would have been wrong about what happens.
+    expect(row()).toMatchObject({ value: '', fallback: 'branch-and-review' })
+    expect(row({ workspace: 'checkout' })?.fallback).toBe('never')
+    // The whole rule is in the sentence beside it, which is where there is
+    // room for both halves of it.
+    expect(row()?.means).toContain(PUSH_BY_DEFAULT)
+    expect(row()?.type).toEqual({
+      kind: 'choice',
+      options: ['', 'never', 'branch', 'branch-and-review'],
+    })
+    // Which is also the only way back to it once a mode has been chosen.
+    const chosen = row({ push: 'branch' })
+    expect(chosen?.value).toBe('branch')
+    expect(chosen && parseSetting(chosen, '')).toBeUndefined()
+  })
+
+  it('tells one project what saying nothing gets it, in its own workspace', () => {
+    // The project row's fallback is what *this* project gets by staying empty,
+    // so with nothing set on the machine it is the workspace's answer and not
+    // the bare word `never`.
+    const projectRow = (
+      over: Record<string, unknown> = {},
+      machine: Record<string, unknown> = {},
+    ) =>
+      settingsOf(
+        ConfigSchema.parse({
+          agents: machine,
+          projects: { shop: { root: '~/src/shop', ...over } },
+        }),
+      )
+        .flatMap((group) => group.settings)
+        .find((one) => one.path === 'projects.shop.push')
+    expect(projectRow({ workspace: 'worktree' })?.fallback).toBe('branch-and-review')
+    expect(projectRow({ workspace: 'checkout' })?.fallback).toBe('never')
+    // And the machine's answer, where there is one, is still what it follows.
+    expect(projectRow({ workspace: 'worktree' }, { push: 'branch' })?.fallback).toBe('branch')
   })
 })

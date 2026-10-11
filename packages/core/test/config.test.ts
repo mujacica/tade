@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest'
 import { awayProblems } from '../src/away.ts'
 import { checksFor } from '../src/checks.ts'
 import { ConfigSchema, loadConfig, parseConfig, writeSetting } from '../src/config.ts'
-import { pushFor, pushNeedsABranch, pushProblems, workspaceFor } from '../src/project.ts'
+import {
+  pushDefault,
+  pushFor,
+  pushNeedsABranch,
+  pushProblems,
+  workspaceFor,
+} from '../src/project.ts'
 
 describe('parseConfig', () => {
   it('fills defaults for an empty file', () => {
@@ -381,13 +387,42 @@ describe('where a project’s agents work', () => {
 })
 
 describe('what a project pushes', () => {
-  it('means exactly what it meant before the key existed: nothing', () => {
-    // The whole of the promise about older configs. Agents committed and
-    // stopped, and a Tade nobody has told otherwise still does.
-    const before = ConfigSchema.parse({ projects: { shop: { root: '~/src/shop' } } })
-    expect(before.agents.push).toBe('never')
-    expect(before.projects.shop?.push).toBeUndefined()
-    expect(pushFor(before, 'shop', 'worktree').mode).toBe('never')
+  it('is answered by where the agents work, where nobody has said', () => {
+    // The person's own answer, in as many words: a worktree each is a branch
+    // of the agent's own that nobody else is on, so finished work goes up for
+    // review; a shared checkout has no such branch, so it is still committed
+    // and left. Nothing is written down to get either — `agents.push` carries
+    // no schema default, which is what makes "nobody said" a state at all.
+    const bare = ConfigSchema.parse({ projects: { shop: { root: '~/src/shop' } } })
+    expect(bare.agents.push).toBeUndefined()
+    expect(bare.projects.shop?.push).toBeUndefined()
+    expect(pushFor(bare, 'shop', 'worktree').mode).toBe('branch-and-review')
+    expect(pushFor(bare, 'shop', 'checkout').mode).toBe('never')
+    // Including for a project Tade does not have and for no project at all,
+    // which is the same question with nothing to read on either side of it.
+    expect(pushDefault('worktree')).toBe('branch-and-review')
+    expect(pushDefault('checkout')).toBe('never')
+    expect(pushFor(bare, 'ghost', 'worktree').mode).toBe('branch-and-review')
+    expect(pushFor(bare, null, 'checkout').mode).toBe('never')
+  })
+
+  it('keeps a `never` somebody wrote, in the workspace that would push by default', () => {
+    // The half that makes the default safe to have: a word in the file is a
+    // decision and the default never argues with it. Either level does it —
+    // one project refusing, or the machine refusing for all of them — and in
+    // the workspace whose default is the opposite of what was asked.
+    const project = ConfigSchema.parse({
+      agents: { workspace: 'worktree' },
+      projects: { shop: { root: '~/src/shop', push: 'never' } },
+    })
+    expect(pushFor(project, 'shop', 'worktree').mode).toBe('never')
+    expect(pushFor(project, 'shop', 'worktree').problem).toBeNull()
+    const machine = ConfigSchema.parse({
+      agents: { workspace: 'worktree', push: 'never' },
+      projects: { shop: { root: '~/src/shop' } },
+    })
+    expect(machine.agents.push).toBe('never')
+    expect(pushFor(machine, 'shop', 'worktree').mode).toBe('never')
   })
 
   it('is one project’s to answer, over the machine’s', () => {
@@ -399,9 +434,9 @@ describe('what a project pushes', () => {
         api: { root: '~/src/api', workspace: 'worktree', push: 'branch-and-review' },
       },
     })
-    // (c) nothing is pushed, which is what the machine says and what it says by
-    // default; (b) the branch the agents are on, in a shared checkout; (a) each
-    // agent's own branch with a review opened on it, in a worktree each.
+    // (c) nothing is pushed, which is what the machine here says; (b) the
+    // branch the agents are on, in a shared checkout; (a) each agent's own
+    // branch with a review opened on it, in a worktree each.
     expect(pushFor(config, 'shop', 'checkout').mode).toBe('never')
     expect(pushFor(config, 'docs', 'checkout').mode).toBe('branch')
     expect(pushFor(config, 'api', 'worktree').mode).toBe('branch-and-review')
@@ -449,6 +484,17 @@ describe('what a project pushes', () => {
     )
     expect(read.ok && read.warnings).toEqual([])
     expect(pushProblems(ConfigSchema.parse({ projects: { api: { root: '~/a' } } }))).toEqual([])
+    // And no default can produce the pairing that cannot hold, whichever
+    // workspace a file asks for: the one that opens reviews is only ever the
+    // answer where there is a branch of the agent's own to open one for.
+    expect(
+      pushProblems(
+        ConfigSchema.parse({
+          agents: { workspace: 'worktree' },
+          projects: { api: { root: '~/a' } },
+        }),
+      ),
+    ).toEqual([])
   })
 
   it('says an away-view key that is on and cannot mean what it says', () => {

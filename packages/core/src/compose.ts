@@ -227,12 +227,19 @@ export const COMMIT_TELLS: Record<'when-done' | 'own-files' | 'as-you-go' | 'nev
  * an act it is not to perform is an agent that has been given the idea.
  * Nothing Tade runs pushes on its own — this is words in a prompt, exactly as
  * the commit rule is, and `approvals` is what can actually hold one.
+ *
+ * **Published, not a draft**, and said here rather than left to the review
+ * extension's default alone: an agent that pushes only what it has seen green
+ * has nothing left to argue with the robots about, and a draft nobody is asked
+ * to read is work that finished and then sat there. A draft is still a thing
+ * to ask for — `review_open` takes one, and `extensions.review.draft` turns it
+ * back on for every review — it is just no longer what happens by itself.
  */
 export function pushTold(push: PushMode, workspace: AgentWorkspace): string | null {
   if (push === 'never') return null
   const what =
     push === 'branch-and-review'
-      ? 'push your own branch and open a review for it. Never merge it yourself: merging is the person’s'
+      ? 'push your own branch and open a review for it — published and ready for somebody to read, not a draft. Never merge it yourself: merging is the person’s'
       : workspace === 'checkout'
         ? 'push the branch you are on. You share that branch, so what you push is every commit on it and not only yours — push nothing you have not just seen green'
         : 'push your own branch. Nothing opens a review for it, so say in your last message that it is pushed'

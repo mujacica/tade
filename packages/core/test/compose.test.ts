@@ -293,13 +293,17 @@ describe('what an agent is told to do with finished work', () => {
     context: null,
   }
 
-  it('says nothing at all where nothing is pushed, which is the default', () => {
+  it('says nothing at all where nothing is pushed, and invents no mode of its own', () => {
     // Not "do not push": an agent told about an act it is not to perform is an
-    // agent that has been given the idea. And a Tade nobody has configured says
-    // exactly what it said before this setting existed.
+    // agent that has been given the idea. And a prompt composed without a mode
+    // says nothing either, in both workspaces: what "nothing set" means is
+    // `pushFor`'s one answer (`pushDefault`), and a second default here would
+    // be a second place for it to be decided.
     for (const told of [
       composeAgentPrompt({ ...base, workspace: 'checkout', commit: 'own-files' }),
       composeAgentPrompt({ ...base, workspace: 'checkout', commit: 'own-files', push: 'never' }),
+      composeAgentPrompt({ ...base, workspace: 'worktree', commit: 'as-you-go' }),
+      composeAgentPrompt({ ...base, workspace: 'worktree', commit: 'as-you-go', push: 'never' }),
     ]) {
       expect(told).not.toMatch(/push/i)
       expect(told).not.toContain(CI_AFTER_PUSH)
@@ -336,6 +340,10 @@ describe('what an agent is told to do with finished work', () => {
     expect(told).toContain('push your own branch and open a review for it')
     expect(told).toContain('Never merge it yourself')
     expect(told).not.toContain('You share that branch')
+    // Published, not a draft: a review opened on work the agent has already
+    // seen green has nothing left for a draft to mean, and a draft is in
+    // nobody's list of things to look at.
+    expect(told).toContain('published and ready for somebody to read, not a draft')
   })
 
   it('says the same mode differently in a worktree, because the branch is its own', () => {
