@@ -1,6 +1,7 @@
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
+import { truncateToWidth } from '@earendil-works/pi-tui'
 import { taskOrigin } from '@tade/core'
 import type { Frame } from '../frame.ts'
+import { widthOf } from '../width.ts'
 
 // Width, words, paths, moments and numbers: the small answers every region of
 // the window needs and none of them owns.
@@ -19,7 +20,7 @@ export function cutAtWord(line: string, room: number): string {
 
 /** Text that fits a width, ending in `…` when it had to be cut. */
 export function shortened(text: string, room: number): string {
-  return visibleWidth(text) <= room ? text : truncateToWidth(text, Math.max(1, room), '…')
+  return widthOf(text) <= room ? text : truncateToWidth(text, Math.max(1, room), '…')
 }
 
 /**
@@ -29,7 +30,7 @@ export function shortened(text: string, room: number): string {
  * path has no words to cut at, which is why this is only for what was said.
  */
 export function saidShort(text: string, room: number): string {
-  if (visibleWidth(text) <= room) return text
+  if (widthOf(text) <= room) return text
   const hard = truncateToWidth(text, Math.max(1, room), '…')
   const body = hard.slice(0, -1)
   const space = body.lastIndexOf(' ')
@@ -43,12 +44,12 @@ export function wrapWords(text: string, width: number): string[] {
     let line = ''
     for (const word of paragraph.split(/\s+/).filter(Boolean)) {
       if (!line) line = word
-      else if (visibleWidth(`${line} ${word}`) <= width) line = `${line} ${word}`
+      else if (widthOf(`${line} ${word}`) <= width) line = `${line} ${word}`
       else {
         lines.push(line)
         line = word
       }
-      while (visibleWidth(line) > width) {
+      while (widthOf(line) > width) {
         lines.push(truncateToWidth(line, width, ''))
         line = line.slice(truncateToWidth(line, width, '').length)
       }

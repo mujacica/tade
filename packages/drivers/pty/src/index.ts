@@ -270,11 +270,21 @@ export class PtyDriver implements WorkspaceDriver {
     // scrollback, and painting every one of them to keep the last forty was
     // most of what echoing a keystroke cost.
     const last = lastWritten(buffer, lane.term.rows)
+    // One cell object for the whole capture, loaded in place for every cell,
+    // which is what xterm's own typings ask of anybody reading a lot of them.
+    // A 200-column pane kept forty rows, several times a second, and every
+    // cell of every one of them was a short-lived object: ten thousand a
+    // frame, thrown away as fast as they were made.
+    const cell = buffer.getNullCell()
     const rows: string[] = []
     for (let i = Math.max(0, last - opts.lines + 1); i <= last; i++) {
       const row = buffer.getLine(i)
       rows.push(
-        row ? (opts.styled ? styledLine(row, lane.term.cols) : row.translateToString(true)) : '',
+        row
+          ? opts.styled
+            ? styledLine(row, lane.term.cols, cell)
+            : row.translateToString(true)
+          : '',
       )
     }
     const screen = rows.join('\n')
@@ -685,8 +695,11 @@ type BufferCell = NonNullable<ReturnType<BufferLine['getCell']>>
  * full of cursor moves and clears that would scramble whatever draws it, and
  * the cells are what the screen actually shows. A new sequence is written
  * only where the paint changes, and trailing blank cells go.
+ *
+ * `cell` is the caller's one cell object, loaded in place by every `getCell`
+ * and read before the next one overwrites it — never held on to.
  */
-function styledLine(row: BufferLine, cols: number): string {
+function styledLine(row: BufferLine, cols: number, cell: BufferCell): string {
   let out = ''
   let paint = ''
   let pending = ''
@@ -710,8 +723,9 @@ function styledLine(row: BufferLine, cols: number): string {
     pending = ''
   }
   for (let x = 0; x < cols; x++) {
-    const cell = row.getCell(x)
-    if (!cell || cell.getWidth() === 0) continue
+    // The answer is `cell` itself, so nothing is taken from the return but
+    // whether there was a cell there at all.
+    if (!row.getCell(x, cell) || cell.getWidth() === 0) continue
     const chars = cell.getChars() || ' '
     const next = sgrOf(cell)
     if (chars === ' ' && next === '') {

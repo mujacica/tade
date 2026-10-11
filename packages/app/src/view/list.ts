@@ -1,9 +1,9 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
 import { duration } from '@tade/core'
 import type { ListRowView } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type Target } from '../hits.ts'
 import type { Band, Skin } from '../skin.ts'
 import { type Pointer, Row } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { type ListItem, MENU_ICON, TAB_EDGES, tabbed, toneFor } from './rows.ts'
 import { shortened } from './text.ts'
 
@@ -109,7 +109,7 @@ export function marksInto(
   const taken: { text: string; tone?: 'quiet' | 'good' | 'warning' | 'bad' }[] = []
   let used = 0
   for (const mark of order) {
-    const wide = visibleWidth(mark.text) + (taken.length > 0 ? 3 : 0)
+    const wide = widthOf(mark.text) + (taken.length > 0 ? 3 : 0)
     if (used + wide + (taken.length === marks.length - 1 ? 0 : 1) > room) break
     taken.push(mark)
     used += wide
@@ -193,7 +193,7 @@ export function listItem(
   }
 
   const under = new Row(edge, skin, pointer).space(3)
-  const tail = pointed && link ? MENU_ICON : age ? visibleWidth(age) + 1 : 0
+  const tail = pointed && link ? MENU_ICON : age ? widthOf(age) + 1 : 0
   marksInto(under, figures, Math.max(0, under.width - under.used - tail - 1), skin, target)
   under.right((g) => {
     if (pointed && link) g.icon('↗', link).space()
@@ -253,14 +253,14 @@ export function reviewRows(
   }
 
   const under = new Row(width, skin, pointer).space(4)
-  const tail = age ? visibleWidth(age) + 3 : 0
+  const tail = age ? widthOf(age) + 3 : 0
   marksInto(under, figures, Math.max(0, under.width - under.used - tail), skin, target)
   // Where it lives, after what it adds up to, in whatever the figures left: the
   // first thing a narrower pane gives up, because a branch is one `git` away
   // and a red check is not. Measured off the row itself rather than worked out
   // a second time — the figures have already been drawn into it.
   const left = under.width - under.used - tail
-  if (one.note && left > visibleWidth(one.note) + 4) {
+  if (one.note && left > widthOf(one.note) + 4) {
     under.space(2).text(one.note, skin.hint, target)
   }
   if (age) under.right((g) => g.text(age, skin.hint, target).space(2))

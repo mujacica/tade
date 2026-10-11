@@ -1,4 +1,3 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
 import { describeLook, type WatchLook } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
@@ -7,6 +6,7 @@ import { scheduleMakes, schedulesEmptyMeans, schedulesEmptySays } from '../queue
 import { wasHushed } from '../schedules-view.ts'
 import type { Band, Skin } from '../skin.ts'
 import { blank, type Drawn, type Pointer, Row, stack } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import {
   type ListItem,
   QUEUE_ICONS,
@@ -88,7 +88,7 @@ export function schedulesSection(
   // The strip above and each rule's own card say the project too.
   const named =
     projects(state).length > 1 &&
-    here.every((one) => visibleWidth(`${one.project} · ${one.when}`) <= cadenceRoom(one, width))
+    here.every((one) => widthOf(`${one.project} · ${one.when}`) <= cadenceRoom(one, width))
   return {
     id: 'schedules',
     label: 'SCHEDULES',
@@ -145,7 +145,7 @@ export function scheduleMark(
  * and has to measure the row the same way the row will.
  */
 function cadenceRoom(one: ScheduleView, width: number): number {
-  return Math.max(1, width - TAB_EDGES - 3 - (visibleWidth(scheduleMakes(one)) + 2))
+  return Math.max(1, width - TAB_EDGES - 3 - (widthOf(scheduleMakes(one)) + 2))
 }
 
 /** What a watch's last look came to, as short as a row down the side can have it. */
@@ -201,7 +201,7 @@ export function scheduleRow(
   const edge = Math.max(0, width - TAB_EDGES)
   const inner = new Row(edge, skin, pointer).space()
   inner.text(mark.glyph, mark.tone, target).space()
-  const right = pointed ? QUEUE_ICONS : visibleWidth(when) + 1
+  const right = pointed ? QUEUE_ICONS : widthOf(when) + 1
   const room = Math.max(1, inner.width - inner.used - right - 1)
   const nameTone = selected ? skin.you : one.paused ? skin.faded : (text: string) => text
   inner.text(shortened(one.name, room), nameTone, target)
@@ -337,7 +337,7 @@ export function renderSchedule(
   header
     .text(shortened(title, Math.max(8, Math.floor((width - probe.used) / 2))), skin.you)
     .space(2)
-    .text(shortened(word, Math.max(1, width - probe.used - visibleWidth(title) - 6)), mark.tone)
+    .text(shortened(word, Math.max(1, width - probe.used - widthOf(title) - 6)), mark.tone)
   header.right(controls)
   const rows: { text: string; hits: Hit[] }[] = [
     header.build(),

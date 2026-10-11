@@ -1,4 +1,4 @@
-import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import type { Frame, LaneView } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
@@ -16,6 +16,7 @@ import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { splitShown } from '../split.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { actionRows } from './actions.ts'
 import { renderEmpty } from './empty.ts'
 import {
@@ -157,7 +158,7 @@ export function renderMain(
   // Short of room the project gives way before the agent's own name does:
   // which agent you are looking at is the one thing this line has to say.
   const full = `${shownProject(state, pane.project)} › ${shownName(pane)}`
-  const title = visibleWidth(full) <= forTitle ? full : shownName(pane)
+  const title = widthOf(full) <= forTitle ? full : shownName(pane)
   header.text(shortened(title, forTitle), skin.you).space(2)
   tabs(header)
   if (hasControls) {

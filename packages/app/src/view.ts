@@ -1,4 +1,3 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
 import type { Frame } from './frame.ts'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { resolveLayout } from './layout.ts'
@@ -13,6 +12,7 @@ import { renderSidebar } from './view/sidebar.ts'
 import { renderStrip } from './view/strip.ts'
 import { clockOf } from './view/text.ts'
 import { renderTop, toastFor } from './view/top.ts'
+import { widthOf } from './width.ts'
 
 // Drawing, as one pure function of state.
 //
@@ -95,7 +95,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
   let window: Drawn = { rows, hits, regions }
   const toast = toastFor(state, frame, width, skin, pointer)
   if (toast) {
-    const toastWidth = Math.max(0, ...toast.rows.map((row) => visibleWidth(row)))
+    const toastWidth = Math.max(0, ...toast.rows.map((row) => widthOf(row)))
     window = overlay(
       window,
       toast,
@@ -165,7 +165,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     workflow: extra.workflow ?? null,
     away: extra.away ?? null,
   })
-  const panelWidth = Math.max(0, ...drawing.panel.rows.map((row) => visibleWidth(row)))
+  const panelWidth = Math.max(0, ...drawing.panel.rows.map((row) => widthOf(row)))
   // The wheel scrolls whatever panel it is over, anywhere on it: under every
   // control, so a click still presses what it is on.
   const panel: Drawn = {
@@ -217,7 +217,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     const row = at.row + popup.row
     const col = Math.min(
       at.col + popup.col,
-      Math.max(0, width - Math.max(0, ...popup.drawn.rows.map((r) => visibleWidth(r)))),
+      Math.max(0, width - Math.max(0, ...popup.drawn.rows.map((r) => widthOf(r)))),
     )
     const room = Math.max(0, drawn.rows.length - row)
     const clipped = {

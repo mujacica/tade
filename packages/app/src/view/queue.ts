@@ -1,4 +1,4 @@
-import { sliceByColumn, visibleWidth } from '@earendil-works/pi-tui'
+import { sliceByColumn } from '@earendil-works/pi-tui'
 import { DONE_RULE_MEANS, type QueueState } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
@@ -22,6 +22,7 @@ import { queueEmptySays } from '../queue.ts'
 import { narrowing, QUEUE_SCOPES, type QueueView } from '../queue-view.ts'
 import type { Band, Skin } from '../skin.ts'
 import { blank, type Drawn, fit, type Pointer, Row, slid, stack } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { planPicture, planTone } from './plan.ts'
 import {
   doing,
@@ -87,7 +88,7 @@ export function taskRow(
   const band: Band | null = task.focused || task.dragging ? 'selected' : pointed ? 'hovered' : null
   const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
   inner.text(glyph(task, now), toneOf(task, skin), target).space()
-  const right = (cost ? visibleWidth(cost) + 1 : 0) + (buttons ? TAB_ICONS : 0)
+  const right = (cost ? widthOf(cost) + 1 : 0) + (buttons ? TAB_ICONS : 0)
   const room = Math.max(1, inner.width - inner.used - right - 1)
   inner.text(shortened(shownName(task), room), task.focused ? skin.you : (t) => t, target)
   inner.right((r) => {
@@ -354,7 +355,7 @@ export function queueSpread(
   const shown = Math.max(1, width - TAB_EDGES - 1)
   const wide = stems.reduce(
     // A leading space, the stem, the mark and a space, then room for a name.
-    (widest, one) => Math.max(widest, 4 + visibleWidth(one.stem) + QUEUE_ROOM),
+    (widest, one) => Math.max(widest, 4 + widthOf(one.stem) + QUEUE_ROOM),
     shown,
   )
   return { wide, shown }
@@ -394,9 +395,9 @@ function queueRow(
   const pointed = pointingIn(pointer.hover, [target, toggle, remove, menu])
   const band: Band | null = pane.focused ? 'selected' : pointed ? 'hovered' : null
   const look = queueLook(pane.queued, skin, frame, row.parent === null)
-  const shift = visibleWidth(stems.stem)
+  const shift = widthOf(stems.stem)
   const edge = Math.max(0, width - TAB_EDGES)
-  const right = pointed ? QUEUE_ICONS : look.when ? visibleWidth(look.when) + 1 : 0
+  const right = pointed ? QUEUE_ICONS : look.when ? widthOf(look.when) + 1 : 0
   const room = Math.max(1, edge - right - 1)
   // A tree that fits has no room of its own: every tab is laid out in the
   // room it has and cut with an `…`, exactly as it was before any of this.
@@ -644,7 +645,7 @@ export function renderQueued(
   const word = `${look.glyph} ${queueWord(queued.state)}`
   const title = `${shownProject(state, pane.project)} › ${shownName(pane)}`
   header
-    .text(shortened(title, Math.max(8, width - probe.used - visibleWidth(word) - 5)), skin.you)
+    .text(shortened(title, Math.max(8, width - probe.used - widthOf(word) - 5)), skin.you)
     .space(2)
     .text(word, look.tone)
   header.right(controls)

@@ -1,5 +1,6 @@
-import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
+import { truncateToWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import { fit as fitRow, type Pointer } from '../ui.ts'
+import { widthOf } from '../width.ts'
 
 // The cells every panel is built out of: text, fitted and cut.
 //
@@ -62,14 +63,21 @@ export function pad(text: string, width: number): string {
  */
 export function cap(text: string, width: number): string {
   if (width <= 0) return ''
-  if (visibleWidth(text) <= width) return text
+  if (widthOf(text) <= width) return text
   return `${truncateToWidth(text, Math.max(1, width - 1), '')}…`
 }
 
-/** `cap`, padded out: exactly `width` columns, so what follows starts where it should. */
+/**
+ * `cap`, padded out: exactly `width` columns, so what follows starts where it
+ * should. Measured once where it already fits, as `fit` is and for the same
+ * reason: a cell that was not cut is as wide as it was.
+ */
 export function padTo(text: string, width: number): string {
+  if (width <= 0) return ''
+  const was = widthOf(text)
+  if (was <= width) return text + ' '.repeat(width - was)
   const short = cap(text, width)
-  return short + ' '.repeat(Math.max(0, width - visibleWidth(short)))
+  return short + ' '.repeat(Math.max(0, width - widthOf(short)))
 }
 
 /**
