@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module'
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
 import {
   type AdoptHint,
@@ -11,7 +10,6 @@ import {
   type LaneOutputListener,
   type LanePointing,
   type LaneScreen,
-  type LaneScrolling,
   type LaneSpec,
   type PointerReport,
   pointerBytes,
@@ -24,19 +22,16 @@ import {
 } from '@tade/drivers-core'
 import { type IPty, spawn } from 'node-pty'
 import { helperAt, helperProblem } from './helper.ts'
-
-// @xterm/headless is CommonJS with no ESM named exports.
-const { Terminal } = createRequire(import.meta.url)(
-  '@xterm/headless',
-) as typeof import('@xterm/headless')
-
-type XTerm = InstanceType<typeof Terminal>
+import { type Frame, type Order, type Report, WATCH_MS } from './protocol.ts'
+import { EMULATORS, EmulatorThread } from './thread.ts'
 
 // The default driver: Tade owns the PTYs and your terminal is just a
 // viewer. Imposes nothing on the user's terminal setup.
 //
 // A headless xterm keeps a real screen buffer per lane, so `capture()` returns
-// rendered state instead of a soup of escape sequences.
+// rendered state instead of a soup of escape sequences — on a thread of its
+// own (`emulator.ts`), so parsing what every agent prints is never the thread
+// that draws the window. The processes stay here (`thread.ts` says why).
 
 export interface PtyDriverOptions {
   /** Lines of scrollback kept per lane. */
@@ -46,23 +41,39 @@ export interface PtyDriverOptions {
   /** How a human is told to view a lane. */
   attachCommand?: (lane: LaneId) => string
   env?: NodeJS.ProcessEnv
+  /**
+   * Where something that went wrong and was carried on through is said: the
+   * emulators stopping, which is every screen redrawn from what its lane last
+   * printed, or every screen frozen where it was. Not said is not the same as
+   * not happening.
+   */
+  trouble?: (problem: Error) => void
+  /** The file the emulators' thread runs: the real one, unless a test needs one that dies. */
+  emulators?: URL
+}
+
+/** A frame as it arrived, numbered, so a capture can wait past one it has. */
+type Pushed = Frame & { n: number }
+
+interface Asked {
+  lines: number
+  styled: boolean
+}
+
+interface Waiting {
+  ready: () => boolean
+  done: () => void
 }
 
 interface Lane {
   handle: LaneHandle
   pty: IPty
   /**
-   * The emulator, while there is one: a closed lane lets go of it.
-   *
-   * A screen buffer is the largest thing Tade holds — ten thousand lines at
-   * the window's width is thirty megabytes of typed arrays per lane — and
-   * `dispose()` does not give it back, because the buffer stays reachable
-   * from the terminal object. A lane that closed can never be captured
-   * again (`live` throws first), so the reference is what has to go — and
-   * the reference alone is not enough while the emulator still has anything
-   * queued, which is what `release` is careful about.
+   * Which screen in the emulators is this lane's. Never used twice, so a lane
+   * opened again under the same id is never shown, or answered with, the
+   * screen of the one before it.
    */
-  term: XTerm | null
+  key: number
   outputs: Set<LaneOutputListener>
   exits: Set<LaneExitListener>
   replay: Buffer[]
@@ -85,17 +96,27 @@ interface Lane {
    * into the program.
    */
   tail: string
+  /** The newest order that changed this screen: what a frame must have reached to be current. */
+  sent: number
+  /** The newest frame the emulators pushed, for the question last asked. */
+  frame: Pushed | null
+  pushes: number
+  /** The newest numbers beside the screen, from a frame or from being asked. */
+  view: { seq: number; screen: LaneScreen } | null
   /**
    * The last capture of a lane that draws its own screen that was a whole
-   * frame, and the question it answered, so a capture that caught one half
-   * drawn has something whole to give back.
+   * frame, so a capture that caught one half drawn has something whole to give
+   * back.
    *
    * Null once it has been given back: held for one capture and no more. Two
    * frames of a lane nobody can catch settled is a pane that has stopped, and
    * a pane that has stopped is worse than a torn one — that is the bug
    * `frame.probe.test.ts` exists about.
    */
-  whole: { lines: number; styled: boolean; rows: string } | null
+  whole: Pushed | null
+  /** What the emulators were last told somebody is looking at, and when. */
+  watching: (Asked & { at: number }) | null
+  waiting: Set<Waiting>
 }
 
 const DEFAULTS = {
@@ -104,6 +125,24 @@ const DEFAULTS = {
   cols: 120,
   rows: 40,
 }
+
+/**
+ * How long the emulators are waited on for a frame or an answer, at most.
+ *
+ * Past every wait they make themselves — fifty milliseconds for a frame being
+ * drawn, sixteen between two frames pushed — and well short of a pane that
+ * looks stuck. Run out, the answer is the last one known, which is what a
+ * screen nobody could read again is: not an empty one.
+ */
+const ANSWER_MS = 150
+
+/**
+ * How long a thread still being started is waited on: it loads xterm before
+ * it can say anything, which is some fifty milliseconds here and many times
+ * that on a machine with agents running. Only ever the first answer of a
+ * thread — the lanes Tade opens as the window opens.
+ */
+const STARTING_MS = 2_000
 
 export class PtyDriver implements WorkspaceDriver {
   readonly id = 'pty'
@@ -125,7 +164,16 @@ export class PtyDriver implements WorkspaceDriver {
   }
 
   private readonly lanes = new Map<string, Lane>()
-  private readonly opts: Required<Omit<PtyDriverOptions, 'env'>> & { env: NodeJS.ProcessEnv }
+  /** The lanes that still have a screen, by the key the emulators know them by. */
+  private readonly keyed = new Map<number, Lane>()
+  private keys = 0
+  private readonly asks = new Map<number, (report: Report | null) => void>()
+  private asked = 0
+  private readonly thread: EmulatorThread
+  private readonly opts: Required<Omit<PtyDriverOptions, 'env' | 'trouble' | 'emulators'>> & {
+    env: NodeJS.ProcessEnv
+    trouble: ((problem: Error) => void) | undefined
+  }
 
   constructor(opts: PtyDriverOptions = {}) {
     this.opts = {
@@ -133,7 +181,16 @@ export class PtyDriver implements WorkspaceDriver {
       replayBytes: opts.replayBytes ?? DEFAULTS.replayBytes,
       attachCommand: opts.attachCommand ?? ((lane) => `tade attach ${lane}`),
       env: opts.env ?? process.env,
+      trouble: opts.trouble,
     }
+    // Started on the first lane, never here: a driver is made just to ask it
+    // what it needs of the machine, and that is not a reason for a thread.
+    this.thread = new EmulatorThread({
+      entry: opts.emulators ?? EMULATORS,
+      heard: (report) => this.heard(report),
+      died: (problem, again) => this.died(problem, again),
+      reopen: () => this.reopen(),
+    })
   }
 
   /**
@@ -179,12 +236,6 @@ export class PtyDriver implements WorkspaceDriver {
       if (problem === null) throw error
       throw new Error(problem, { cause: error })
     }
-    const term = new Terminal({
-      cols,
-      rows,
-      scrollback: this.opts.scrollback,
-      allowProposedApi: true,
-    })
     const lane: Lane = {
       handle: {
         id: spec.id,
@@ -199,7 +250,7 @@ export class PtyDriver implements WorkspaceDriver {
         lastOutputAt: null,
       },
       pty,
-      term,
+      key: ++this.keys,
       outputs: new Set(),
       exits: new Set(),
       replay: [],
@@ -207,26 +258,43 @@ export class PtyDriver implements WorkspaceDriver {
       closed: false,
       encoding: 'legacy',
       tail: '',
+      sent: 0,
+      frame: null,
+      pushes: 0,
+      view: null,
       whole: null,
+      watching: null,
+      waiting: new Set(),
     }
     // Only once the new one is running: a launch that fails leaves the old
     // screen where it was, to be read.
     if (previous && !previous.closed) {
       previous.closed = true
-      release(previous)
+      this.release(previous)
     }
     this.lanes.set(spec.id, lane)
+    this.keyed.set(lane.key, lane)
+    this.thread.tell({
+      do: 'open',
+      key: lane.key,
+      cols,
+      rows,
+      scrollback: this.opts.scrollback,
+      seq: 0,
+      seed: '',
+    })
 
     pty.onData((data) => {
-      // Read off the lane rather than off the local: a closed lane has let
-      // its emulator go, and a closure holding the old one would keep every
-      // byte of it reachable for as long as the pty object lives.
-      if (lane.closed || !lane.term) return
-      const buf = Buffer.from(data, 'utf8')
-      lane.handle.lastOutputAt = Date.now()
+      if (lane.closed) return
+      const at = Date.now()
+      lane.handle.lastOutputAt = at
       lane.encoding = encodingAfter(lane.tail + data, lane.encoding)
       lane.tail = data.slice(-TAIL)
-      lane.term.write(data)
+      // To the emulators first, and as the string node-pty handed over: a
+      // `Buffer` made from it comes out of Node's shared pool, and posting one
+      // copies the pool rather than the chunk.
+      this.thread.tell({ do: 'data', key: lane.key, seq: ++lane.sent, at, data })
+      const buf = Buffer.from(data, 'utf8')
       lane.replay.push(buf)
       lane.replayBytes += buf.byteLength
       while (lane.replayBytes > this.opts.replayBytes && lane.replay.length > 1) {
@@ -252,90 +320,66 @@ export class PtyDriver implements WorkspaceDriver {
    * A capture is a whole frame, and where the newest one is half drawn it is
    * the one before it — a frame one beat old reads as smooth where two frames
    * mixed read as broken. The choice is made here because whether the shutter
-   * caught a whole frame is known (`settled`) and cannot be read off the rows.
+   * caught a whole frame is known (`Frame.whole`) and cannot be read off the
+   * rows.
+   *
+   * Answered from the frame the emulators pushed, without asking them, when it
+   * already holds everything the lane printed before this was asked; otherwise
+   * from the next one they push, which they do once it has settled. Either way
+   * a capture taken just after a keystroke was echoed shows the echo.
    */
   async capture(id: LaneId, opts: CaptureOptions): Promise<string> {
     const lane = this.live(id)
-    const whole = await settled(lane)
+    const asked: Asked = { lines: opts.lines, styled: opts.styled ?? false }
+    const want = lane.sent
+    // A frame the wait ran out on is waited past, as a capture always waited
+    // for its own try at a whole one.
+    const past = lane.frame?.whole === false ? lane.frame.n : 0
+    const fresh = () =>
+      lane.frame !== null &&
+      answers(lane.frame, asked) &&
+      lane.frame.seq >= want &&
+      lane.frame.n > past
+    this.watch(lane, asked, fresh())
+    await this.wait(lane, fresh)
     if (lane.closed) throw new LaneClosedError(id)
-    const styled = opts.styled ?? false
-    if (!whole && lane.whole?.lines === opts.lines && lane.whole.styled === styled) {
+    const frame = (fresh() ? lane.frame : null) ?? lastKnown(lane, asked)
+    if (!frame) throw cannotTell(id)
+    if (!frame.whole && lane.whole && answers(lane.whole, asked)) {
       const held = lane.whole.rows
       lane.whole = null
       return held
     }
-    const buffer = lane.term.buffer.active
-    // From the bottom up: past the blank rows under the last thing written,
-    // then only the rows asked for. Above them can be ten thousand lines of
-    // scrollback, and painting every one of them to keep the last forty was
-    // most of what echoing a keystroke cost.
-    const last = lastWritten(buffer, lane.term.rows)
-    // One cell object for the whole capture, loaded in place for every cell,
-    // which is what xterm's own typings ask of anybody reading a lot of them.
-    // A 200-column pane kept forty rows, several times a second, and every
-    // cell of every one of them was a short-lived object: ten thousand a
-    // frame, thrown away as fast as they were made.
-    const cell = buffer.getNullCell()
-    const rows: string[] = []
-    for (let i = Math.max(0, last - opts.lines + 1); i <= last; i++) {
-      const row = buffer.getLine(i)
-      rows.push(
-        row
-          ? opts.styled
-            ? styledLine(row, lane.term.cols, cell)
-            : row.translateToString(true)
-          : '',
-      )
-    }
-    const screen = rows.join('\n')
     // Kept only for a lane that draws its own screen: the only one whose rows
-    // can be two frames mixed, and the only one every capture of asks the same
-    // question of — one screen, no scrollback — so the frame held is one the
-    // next capture can use. The find box asks for two thousand lines, which is
-    // most of a megabyte a lane for a frame nobody will ask for again.
-    lane.whole =
-      whole && buffer.type === 'alternate' ? { lines: opts.lines, styled, rows: screen } : null
-    return screen
+    // can be two frames mixed.
+    lane.whole = frame.whole && frame.alternate ? frame : null
+    return frame.rows
   }
 
+  /**
+   * How deep the screen is, where typing lands, whose the scrolling and the
+   * pointer are — from the newest frame where nothing has been printed since,
+   * and otherwise asked, and parsed, and never waited on for a whole frame
+   * (`Emulators.look` says why).
+   */
   async screen(id: LaneId): Promise<LaneScreen> {
     const lane = this.live(id)
-    // Parsed, and never waited on for a whole frame.
-    //
-    // A capture waits for one because two frames mixed is a picture nobody
-    // drew. None of these is a picture: a frame half drawn has not moved any
-    // of them — the rows it rewrote are the rows it already had, so the depth
-    // and the cursor are where they were, and on the alternate screen the
-    // depth is the height of the screen whatever is on it.
-    //
-    // It waited anyway, and that was most of what a look cost. A lane
-    // repainting in place never goes quiet, so the wait ran to its bound every
-    // time: 22ms here and 22ms again in the capture beside it, for an answer
-    // that came back the same thirty times out of thirty. The window reads the
-    // pane and then the terminal, one after the other, and an agent's pane is
-    // a program that repaints in place — so two lanes in front of you spent 90
-    // of every 100ms being told nothing had changed, and the terminal under
-    // them redrew eleven times a second.
-    await parsed(lane)
+    // Never answered on the spot, for the reason `wait` gives.
+    if (lane.view && lane.view.seq >= lane.sent) await turn()
+    else await this.ask((ask) => ({ do: 'look', key: lane.key, ask }))
     if (lane.closed) throw new LaneClosedError(id)
-    const buffer = lane.term.buffer.active
-    // Measured exactly as `capture` measures it, from the same last row it
-    // would end on: a depth and a cursor that disagree with the text draw a
-    // scrollbar and a block in the wrong places.
-    const last = lastWritten(buffer, lane.term.rows)
-    return {
-      lines: last + 1,
-      cursor: { back: last - (buffer.baseY + buffer.cursorY), column: buffer.cursorX },
-      scrolling: scrollingOf(buffer.type, lane.term.modes.mouseTrackingMode),
-      pointing: pointingOf(lane.term.modes.mouseTrackingMode),
-    }
+    // What the emulators did not answer in time is what they said last: the
+    // last reading that could, never none.
+    const known = lane.view?.screen
+    if (!known) throw cannotTell(id)
+    return { ...known, cursor: { ...known.cursor } }
   }
 
   async wheel(id: LaneId, turn: WheelTurn): Promise<void> {
     const lane = this.live(id)
     // Nothing at all to a program that never asked for the mouse: what it
     // cannot read as a pointer it reads as somebody typing.
-    if (lane.term.modes.mouseTrackingMode === 'none') return
+    if (pointingOf(lane) === 'nobody') return
     const bytes = wheelBytes(turn, lane.encoding)
     if (bytes.length > 0) await this.write(id, bytes)
   }
@@ -346,14 +390,14 @@ export class PtyDriver implements WorkspaceDriver {
     // program asked for. `pointerBytes` is where that is decided, so a lane
     // that wants presses and no movement is answered the same way by every
     // driver rather than by whichever one remembered to check.
-    const bytes = pointerBytes(report, lane.encoding, pointingOf(lane.term.modes.mouseTrackingMode))
+    const bytes = pointerBytes(report, lane.encoding, pointingOf(lane))
     if (bytes.length > 0) await this.write(id, bytes)
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {
     const lane = this.live(id)
     lane.pty.resize(cols, rows)
-    lane.term.resize(cols, rows)
+    this.thread.tell({ do: 'resize', key: lane.key, seq: ++lane.sent, cols, rows })
     lane.handle.cols = cols
     lane.handle.rows = rows
   }
@@ -395,7 +439,7 @@ export class PtyDriver implements WorkspaceDriver {
     } catch {
       // already gone
     }
-    release(lane)
+    this.release(lane)
   }
 
   onOutput(id: LaneId, listener: LaneOutputListener, opts: { replay?: boolean } = {}): Unsubscribe {
@@ -433,175 +477,237 @@ export class PtyDriver implements WorkspaceDriver {
   async shutdown(): Promise<void> {
     for (const id of [...this.lanes.keys()]) await this.close(id as LaneId)
     this.lanes.clear()
+    this.thread.end()
   }
 
   /**
-   * The lane under an id, with the emulator it still has.
+   * Bytes of typed arrays the emulators hold — which is where a screen buffer
+   * lives, and none of it in this thread's heap — or null with no thread to
+   * ask. Collected first only where the process allows it, which nothing but
+   * a test measuring what a closed lane gives back does.
+   */
+  async held(): Promise<number | null> {
+    if (!this.thread.running) return null
+    const report = await this.ask((ask) => ({ do: 'held', ask }))
+    return report?.is === 'held' ? report.bytes : null
+  }
+
+  /**
+   * The lane under an id, still open.
    *
    * A closed lane is kept — its id stays taken until something opens it
    * again, and asking about one is `LaneClosedError` rather than a lane that
-   * was never there — but it has let go of everything heavy, so the narrowed
-   * type is what says the two facts are the same fact.
+   * was never there — but it has let go of everything heavy.
    */
-  private live(id: LaneId): Lane & { term: XTerm } {
+  private live(id: LaneId): Lane {
     const lane = this.lanes.get(id)
     if (!lane) throw new LaneNotFoundError(id)
-    if (lane.closed || !lane.term) throw new LaneClosedError(id)
-    return lane as Lane & { term: XTerm }
+    if (lane.closed) throw new LaneClosedError(id)
+    return lane
   }
-}
 
-/** How long a frame being drawn is waited for before the screen is read anyway. */
-const FRAME_WAIT_MS = 50
-
-/**
- * How long a lane has to have stopped writing before its screen is read as a
- * whole frame, where the program never said where its frames begin.
- *
- * Measured off Claude Code answering a wheel at 120x40: it rewrites every row,
- * the repaint reaches the pty as three to six writes over two to seven
- * milliseconds with gaps of 1.1ms to 3.9ms inside it, and then some twenty
- * milliseconds of quiet. Five is past every gap inside a frame and well short
- * of the gap between two, which is what makes "it has stopped writing" mean
- * "it has finished drawing" without ever having been told.
- */
-const QUIET_MS = 5
-
-/**
- * How long a screen still being written is waited on, at most.
- *
- * Its own bound rather than `FRAME_WAIT_MS`, because the two failures are not
- * the same. A synchronized update that never ends is a program misbehaving and
- * fifty milliseconds is the price of finding out. A lane that never goes quiet
- * is a program *streaming* rather than drawing frames, which is an ordinary
- * thing for one to do — and then there is no frame to wait for and being late
- * is the only thing waiting buys. Three of the longest repaints measured.
- */
-const QUIET_WAIT_MS = 20
-
-/**
- * Wait until the screen is one its program meant to show: everything that has
- * arrived parsed — the emulator parses in the background — and no redraw half
- * applied. Read in between, the screen is the last frame torn by the next: a
- * line blinking, text interleaved with what was there. Bounded both ways, so
- * neither a program that begins an update and never ends it nor one that never
- * stops printing can freeze the window.
- *
- * Where a frame begins is **declared** by a program that draws in synchronized
- * updates (DEC 2026 — pi does, every frame), and then the boundary is a fact
- * and this waits for it. One that repaints the whole screen in place and says
- * nothing (Claude Code emits no 2026 at all, checked at 2.1.267) leaves no
- * boundary to honour, and the only one left is the write itself stopping —
- * `QUIET_MS`. That is a guess, so it is made only where a tear is possible at
- * all: on the alternate screen, where rows are rewritten under each other. A
- * lane that prints and keeps what it printed cannot tear — mid-append it shows
- * a part-written last line, which its own terminal shows too — and pays none
- * of this.
- *
- * True when the screen is a whole frame, false when the wait ran out and it
- * may be two frames mixed.
- */
-async function settled(lane: Lane & { term: XTerm }, ms = FRAME_WAIT_MS): Promise<boolean> {
-  const { term } = lane
-  const deadline = Date.now() + ms
-  const quietBy = Date.now() + QUIET_WAIT_MS
-  for (;;) {
-    await parsed(lane, deadline)
-    if (Date.now() >= deadline) return false
-    if (term.modes.synchronizedOutputMode) {
-      await pause(2)
-      continue
-    }
-    if (term.buffer.active.type !== 'alternate') return true
-    const since = Date.now() - (lane.handle.lastOutputAt ?? 0)
-    if (since >= QUIET_MS) return true
-    if (Date.now() >= quietBy) return false
-    await pause(QUIET_MS - since)
+  /**
+   * Tell the emulators what is being looked at, so they push its frames.
+   *
+   * Said again only when it changed, or before it would run out — a lane on
+   * screen is captured several times a second and nothing about it is news.
+   */
+  private watch(lane: Lane, asked: Asked, have: boolean): void {
+    const now = Date.now()
+    const was = lane.watching
+    if (have && was && answers(was, asked) && now - was.at < WATCH_MS / 2) return
+    lane.watching = { ...asked, at: now }
+    this.thread.tell({ do: 'watch', key: lane.key, ...asked })
   }
-}
 
-/**
- * Everything that has arrived, parsed — the emulator parses in the background,
- * so a screen read without this is one missing whatever is still queued.
- *
- * Bounded, so a parser that never drains cannot freeze the window. This is the
- * whole of what a reading needs to be *current*; waiting for it to be a whole
- * *frame* is `settled`, and only a capture needs that.
- */
-async function parsed(lane: Lane & { term: XTerm }, until?: number): Promise<void> {
-  const deadline = until ?? Date.now() + FRAME_WAIT_MS
-  const left = Math.max(0, deadline - Date.now())
-  // The deadline is taken back the moment the parse wins the race, which is
-  // nearly every time. Left to expire on its own it is a timer and a closure
-  // per capture — and a capture is two of these per lane, several times a
-  // second, every one of them sitting in the timer list for the fifty
-  // milliseconds it takes to find out nobody needed it.
-  let late: NodeJS.Timeout | null = null
-  try {
-    // A lane closed meanwhile never answers: the wait is bounded either way.
-    await Promise.race([
-      new Promise<void>((resolve) => {
-        try {
-          lane.term.write('', resolve)
-        } catch {
+  /**
+   * Until a frame is pushed that makes `ready` true, the lane goes, or the
+   * emulators do — bounded.
+   *
+   * Never answered on the spot, even when it already is: a capture that
+   * resolves without ever reaching the event loop is one a loop of captures
+   * can call for ever while the output it is waiting to see sits unread
+   * behind it. A capture always let the lane's output in before; this keeps it.
+   */
+  private wait(lane: Lane, ready: () => boolean): Promise<void> {
+    if (ready() || lane.closed || this.thread.gone) return turn()
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout | undefined
+      const waiting: Waiting = {
+        ready,
+        done: () => {
+          clearTimeout(timer)
+          lane.waiting.delete(waiting)
           resolve()
-        }
-      }),
-      new Promise((resolve) => {
-        late = setTimeout(resolve, left)
-      }),
-    ])
-  } finally {
-    if (late) clearTimeout(late)
+        },
+      }
+      timer = setTimeout(() => {
+        this.thread.late()
+        waiting.done()
+      }, this.bound())
+      lane.waiting.add(waiting)
+    })
+  }
+
+  /** Ask the emulators something, bounded: null when they did not answer. */
+  private ask(order: (ask: number) => Order): Promise<Report | null> {
+    if (this.thread.gone) return Promise.resolve(null)
+    const ask = ++this.asked
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout | undefined
+      const answer = (report: Report | null) => {
+        clearTimeout(timer)
+        this.asks.delete(ask)
+        resolve(report)
+      }
+      timer = setTimeout(() => {
+        this.thread.late()
+        answer(null)
+      }, this.bound())
+      this.asks.set(ask, answer)
+      this.thread.tell(order(ask))
+    })
+  }
+
+  private bound(): number {
+    return this.thread.answering ? ANSWER_MS : STARTING_MS
+  }
+
+  private heard(report: Report): void {
+    if (report.is === 'held') {
+      this.asks.get(report.ask)?.(report)
+      return
+    }
+    const lane = this.keyed.get(report.key)
+    if (report.is === 'view') {
+      if (lane && report.view) saw(lane, report.seq, report.view)
+      this.asks.get(report.ask)?.(report)
+      return
+    }
+    if (!lane) return
+    lane.frame = { ...report, n: ++lane.pushes }
+    saw(lane, report.seq, report.view)
+    for (const waiting of lane.waiting) if (waiting.ready()) waiting.done()
+  }
+
+  /**
+   * The emulators died. Everything waiting on them is answered with what was
+   * known before — which is what a screen nobody can read any more is — and
+   * what happened is said, because a pane redrawn from its replay or frozen
+   * where it was looks like nothing at all went wrong.
+   */
+  private died(problem: Error, again: boolean): void {
+    for (const lane of this.keyed.values()) {
+      lane.watching = null
+      for (const waiting of lane.waiting) waiting.done()
+    }
+    for (const answer of [...this.asks.values()]) answer(null)
+    const kb = Math.round(this.opts.replayBytes / 1024)
+    const said = new Error(
+      again
+        ? `the terminal emulators failed (${problem.message}) and were started again: ` +
+            `every terminal was drawn afresh from the last ${kb}KB it printed, and anything before that is gone from it`
+        : `the terminal emulators failed (${problem.message}) and were not started again: ` +
+            'every terminal shows what it last showed, until Tade is opened again',
+      { cause: problem },
+    )
+    // Said from inside a thread's exit, where a throw would be one nobody
+    // catches: whoever listens may fail to hear it, and nothing more.
+    safely(() => this.opts.trouble?.(said))
+  }
+
+  /** Every lane with a screen, told to emulators started in place of dead ones. */
+  private reopen(): Order[] {
+    return [...this.keyed.values()].map((lane) => ({
+      do: 'open',
+      key: lane.key,
+      cols: lane.handle.cols,
+      rows: lane.handle.rows,
+      scrollback: this.opts.scrollback,
+      seq: lane.sent,
+      seed: Buffer.concat(lane.replay).toString('utf8'),
+    }))
+  }
+
+  /**
+   * Everything a closed lane can never be asked for again.
+   *
+   * The record itself stays, so the id reads as closed rather than as missing,
+   * and so `open` can tell a lane it is replacing from one that was never
+   * there. What goes is what costs: the screen — in the emulators, whose
+   * `release` is careful about what keeps one alive — and the bytes kept to
+   * replay to a subscriber that will never arrive now.
+   */
+  private release(lane: Lane): void {
+    // Told only to a thread that is there: one started just to be told to
+    // forget a screen it never had would be a thread for nothing.
+    if (this.thread.running) this.thread.tell({ do: 'release', key: lane.key })
+    this.keyed.delete(lane.key)
+    lane.frame = null
+    lane.view = null
+    lane.whole = null
+    lane.watching = null
+    lane.replay = []
+    lane.replayBytes = 0
+    lane.outputs.clear()
+    lane.exits.clear()
+    for (const waiting of lane.waiting) waiting.done()
   }
 }
 
-/** A wait with nothing racing it, so the timer goes when it fires. */
-function pause(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+/** Once round the event loop, after whatever I/O is waiting. */
+function turn(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve))
 }
 
 /**
- * The last row with anything on it, counting the scrollback: where a capture
- * ends, and what the cursor and the depth are both measured against. Read from
- * the bottom up, because under the last thing written is usually blank screen.
+ * How much of the pointer the program in a lane has asked for, as the newest
+ * numbers beside its screen say — decided on the spot, never waited for.
  *
- * Except on the alternate screen, where the blank rows are the picture. A
- * program that took the screen is drawing a rectangle exactly `rows` tall and
- * chose what to leave empty in it: the space under a short menu, the gap above
- * a status bar, the blank last line every full-screen editor keeps. Trimmed,
- * that rectangle comes back shorter than the pane it is drawn into, and
- * shorter by a different amount every frame as the content changes — so the
- * whole screen slides up and down under itself. Measured on a twelve-row
- * pane: every capture short, every one of them reporting a cursor *below* the
- * last row it returned.
- *
- * On the normal screen the rule stands as it was. Under the last line a
- * program printed is screen it has not used, drawing it would waste the rows,
- * and the cursor sitting one row into it is what `cursor.back` of -1 means.
+ * A notch or a press goes to the pty in the call that sends it, as a
+ * keystroke does, because the window sends everything one turn of input held
+ * in the order it came (`app/src/wire/outbox.ts`): a press that waited on the
+ * emulators for its answer would reach the program after the typing that
+ * followed it. What it costs is the last few milliseconds of output not yet
+ * reflected — which is what reading the emulator directly always cost, since
+ * output not yet parsed was never in it either. A lane nothing has been read
+ * of yet is taken to want nothing: a notch that goes nowhere is a notch, and
+ * one a program cannot read is something typed into it.
  */
-function lastWritten(buffer: import('@xterm/headless').IBuffer, rows: number): number {
-  const bottom = buffer.baseY + rows - 1
-  if (buffer.type === 'alternate') return bottom
-  let last = bottom
-  while (last >= 0 && (buffer.getLine(last)?.translateToString(true).trim() ?? '') === '') last--
-  return last
+function pointingOf(lane: Lane): LanePointing {
+  return lane.view?.screen.pointing ?? 'nobody'
+}
+
+function answers(frame: Asked, asked: Asked): boolean {
+  return frame.lines === asked.lines && frame.styled === asked.styled
+}
+
+function saw(lane: Lane, seq: number, screen: LaneScreen): void {
+  if (!lane.view || seq >= lane.view.seq) lane.view = { seq, screen }
 }
 
 /**
- * Whose the scrolling is, from what the program in the lane has done to its
- * terminal: took the screen for itself, and asked for the mouse or not.
- *
- * The alternate screen is what decides, because it is what says there is no
- * scrollback: a program that prints keeps every line it printed whether or
- * not it also wants the mouse, and those lines are the window's to move.
+ * The newest frame known, made to answer what was asked, for when the
+ * emulators could not say anything newer in time: the rows asked for, without
+ * paint where none was wanted. A pane drawn from what was last known is a
+ * pane a beat behind; one drawn from nothing is a pane that says the lane is
+ * empty, which it is not.
  */
-function scrollingOf(
-  buffer: 'normal' | 'alternate',
-  mouse: import('@xterm/headless').IModes['mouseTrackingMode'],
-): LaneScrolling {
-  if (buffer !== 'alternate') return 'window'
-  return mouse === 'none' ? 'nobody' : 'lane'
+function lastKnown(lane: Lane, asked: Asked): Pushed | null {
+  const frame = lane.frame
+  if (!frame || answers(frame, asked)) return frame
+  const rows = frame.rows.split('\n').slice(-asked.lines)
+  return {
+    ...frame,
+    ...asked,
+    rows: (frame.styled && !asked.styled ? rows.map((row) => row.replace(PAINT, '')) : rows).join(
+      '\n',
+    ),
+  }
+}
+
+function cannotTell(id: LaneId): Error {
+  return new Error(`cannot tell what ${id} shows: its terminal emulator has not answered`)
 }
 
 /**
@@ -613,23 +719,6 @@ function scrollingOf(
  * on, and the one thing here worth reading; a program that turns it off
  * again is back to the encoding every terminal has always understood.
  */
-/**
- * How much of the pointer the program has asked for, in the window's words
- * rather than the emulator's.
- *
- * The old `x10` asked for presses and not even releases; it is read as
- * `press` and told about both, because a program that does not want a release
- * report drops one and nothing this decade asks for that mode at all —
- * whereas a `press` that lost its release would leave a button held down for
- * ever.
- */
-function pointingOf(mouse: import('@xterm/headless').IModes['mouseTrackingMode']): LanePointing {
-  if (mouse === 'none') return 'nobody'
-  // `drag` is movement with a button held; `any` is every movement, which is
-  // more than the window ever sends and so is handed over as the same thing.
-  return mouse === 'drag' || mouse === 'any' ? 'drag' : 'press'
-}
-
 function encodingAfter(data: string, was: WheelEncoding): WheelEncoding {
   let now = was
   for (const [, params, set] of data.matchAll(PRIVATE_MODE)) {
@@ -649,33 +738,8 @@ const TAIL = 64
  */
 const PRIVATE_MODE = new RegExp(`${String.fromCharCode(27)}\\[\\?([0-9;]+)([hl])`, 'g')
 
-/**
- * Everything a closed lane can never be asked for again.
- *
- * The record itself stays, so the id reads as closed rather than as missing,
- * and so `open` can tell a lane it is replacing from one that was never
- * there. What goes is what costs: the screen buffer, and the bytes kept to
- * replay to a subscriber that will never arrive now.
- */
-function release(lane: Lane): void {
-  // `reset()` before `dispose()`, because disposing does not drop what has
-  // been written to the emulator and not yet parsed, and a queued chunk holds
-  // the whole screen behind it: xterm parses in the background off a chain of
-  // `setTimeout(() => this._innerWrite())`, and that closure reaches the write
-  // buffer, its parse action, the input handler and every `Uint32Array` of the
-  // buffer. Letting go of Tade's own reference is then not letting go of
-  // anything — 1KB still queued kept 24MB of screen alive here, until the
-  // backlog happened to drain. Resetting empties the buffers first, so what
-  // the leftover parse holds is a fresh, empty one.
-  lane.term?.reset()
-  lane.term?.dispose()
-  lane.term = null
-  lane.replay = []
-  lane.replayBytes = 0
-  lane.whole = null
-  lane.outputs.clear()
-  lane.exits.clear()
-}
+/** Paint, as a styled frame carries it: the only sequence one has in it. */
+const PAINT = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 
 function safely(fn: () => void): void {
   try {
@@ -683,80 +747,4 @@ function safely(fn: () => void): void {
   } catch {
     // A broken subscriber must never take down a lane.
   }
-}
-
-type BufferLine = NonNullable<ReturnType<import('@xterm/headless').IBuffer['getLine']>>
-type BufferCell = NonNullable<ReturnType<BufferLine['getCell']>>
-
-/**
- * One row of the screen with its paint, as SGR.
- *
- * Built from the cells rather than kept from the byte stream: the stream is
- * full of cursor moves and clears that would scramble whatever draws it, and
- * the cells are what the screen actually shows. A new sequence is written
- * only where the paint changes, and trailing blank cells go.
- *
- * `cell` is the caller's one cell object, loaded in place by every `getCell`
- * and read before the next one overwrites it — never held on to.
- */
-function styledLine(row: BufferLine, cols: number, cell: BufferCell): string {
-  let out = ''
-  let paint = ''
-  let pending = ''
-  /**
-   * The blank cells held back, now that something follows them — and the run
-   * before them closed first.
-   *
-   * A blank cell with no paint of its own is still a cell with no paint on
-   * it. Written while the run before it is open, it takes that run's ground:
-   * the gap between two buttons comes back as one band of colour with the
-   * labels sitting in it, and so does every window drawn from a capture of
-   * one. So the reset goes before the spaces, not after them.
-   */
-  const gap = () => {
-    if (pending === '') return
-    if (paint !== '') {
-      out += '\x1b[0m'
-      paint = ''
-    }
-    out += pending
-    pending = ''
-  }
-  for (let x = 0; x < cols; x++) {
-    // The answer is `cell` itself, so nothing is taken from the return but
-    // whether there was a cell there at all.
-    if (!row.getCell(x, cell) || cell.getWidth() === 0) continue
-    const chars = cell.getChars() || ' '
-    const next = sgrOf(cell)
-    if (chars === ' ' && next === '') {
-      // Held back: blank cells only count if something follows them.
-      pending += ' '
-      continue
-    }
-    gap()
-    if (next !== paint) {
-      out += `\x1b[0${next}m`
-      paint = next
-    }
-    out += chars
-  }
-  return paint === '' ? out : `${out}\x1b[0m`
-}
-
-function sgrOf(cell: BufferCell): string {
-  const codes: string[] = []
-  if (cell.isBold()) codes.push('1')
-  if (cell.isDim()) codes.push('2')
-  if (cell.isItalic()) codes.push('3')
-  if (cell.isUnderline()) codes.push('4')
-  if (cell.isInverse()) codes.push('7')
-  if (cell.isFgPalette()) codes.push(`38;5;${cell.getFgColor()}`)
-  else if (cell.isFgRGB()) codes.push(`38;2;${rgb(cell.getFgColor())}`)
-  if (cell.isBgPalette()) codes.push(`48;5;${cell.getBgColor()}`)
-  else if (cell.isBgRGB()) codes.push(`48;2;${rgb(cell.getBgColor())}`)
-  return codes.length === 0 ? '' : `;${codes.join(';')}`
-}
-
-function rgb(colour: number): string {
-  return `${(colour >> 16) & 255};${(colour >> 8) & 255};${colour & 255}`
 }

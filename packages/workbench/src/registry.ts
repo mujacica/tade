@@ -30,10 +30,18 @@ import type { EventLog } from './events.ts'
  * run beside a real one, most obviously — must not be able to see, adopt or
  * kill each other's agents.
  */
-export const drivers: Record<string, (home: string) => WorkspaceDriver> = {
-  pty: () => new PtyDriver(),
+export const drivers: Record<string, MakeDriver> = {
+  pty: (_home, trouble) => new PtyDriver({ trouble }),
   tmux: (home) => new TmuxDriver({ session: tmuxSession(home) }),
 }
+
+/**
+ * How a driver is made: for a home, and told where to say what went wrong and
+ * was carried on through — the pty driver's emulators dying, say, which leaves
+ * every lane running and every screen drawn from what was known. A driver with
+ * nothing of that kind to say takes no notice of it.
+ */
+export type MakeDriver = (home: string, trouble?: (problem: Error) => void) => WorkspaceDriver
 
 /**
  * The tmux session a home's lanes live in. Stable, so reopening finds the same

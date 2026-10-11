@@ -1,7 +1,11 @@
+import { join } from 'node:path'
 import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
+import { noReporter, type Trouble } from '@tade/telemetry'
 import { describe, expect, it } from 'vitest'
-import { chooseDriver } from '../src/workbench.ts'
+import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { chooseDriver, troubleSaid } from '../src/driver-choice.ts'
+import { EventLog } from '../src/events.ts'
 
 // Where lanes go when the driver you asked for is not on this machine.
 //
@@ -55,6 +59,58 @@ describe('choosing a driver', () => {
     })
     expect(chosen.driver.id).toBe('tmux')
     expect(chosen.warning).not.toContain('outlive')
+  })
+
+  // A driver that carried on through something — the pty driver's emulators
+  // dying and being started again — has to be able to say so, or a pane drawn
+  // afresh from its replay looks like nothing went wrong at all.
+  it('tells the driver it made where to say what went wrong, the fallback too', async () => {
+    const said: string[] = []
+    const handed: Array<((problem: Error) => void) | undefined> = []
+    const chosen = await chooseDriver({
+      wanted: 'tmux',
+      fallback: 'pty',
+      home,
+      registry: {
+        tmux: (_home, trouble) => {
+          handed.push(trouble)
+          return unavailable('tmux', 'no tmux')()
+        },
+        pty: (_home, trouble) => {
+          handed.push(trouble)
+          return new PtyDriver({ trouble })
+        },
+      },
+      trouble: (problem) => said.push(problem.message),
+    })
+    expect(chosen.driver.id).toBe('pty')
+    expect(handed).toHaveLength(2)
+    handed[1]?.(new Error('the terminal emulators stopped'))
+    expect(said).toEqual(['the terminal emulators stopped'])
+  })
+
+  // And what it says reaches the two places it has to: the journal, which is
+  // where somebody reads what went wrong, and the reporter, where it is counted.
+  it('puts what a driver says in the journal and in front of the reporter', async () => {
+    const log = await EventLog.open({ path: join(tmp('tade-driver-trouble-'), 'events.jsonl') })
+    try {
+      const reported: Trouble[] = []
+      const say = troubleSaid(log, {
+        ...noReporter(),
+        trouble: (one) => void reported.push(one),
+      })
+      const problem = new Error('the terminal emulators failed (it stopped answering)')
+      say(problem)
+      await expect
+        .poll(async () => (await log.read({ types: ['warning'] })).map((e) => e.detail))
+        .toEqual([{ message: problem.message }])
+      expect(reported).toEqual([{ error: problem, where: 'the workspace driver', level: 'error' }])
+      // With nowhere to report to, the journal still hears it.
+      troubleSaid(log)(new Error('again'))
+      await expect.poll(async () => (await log.read({ types: ['warning'] })).length).toBe(2)
+    } finally {
+      await log.close()
+    }
   })
 
   it('refuses when the fallback is the driver itself', async () => {

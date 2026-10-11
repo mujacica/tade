@@ -98,7 +98,10 @@ export const FLOOR: Record<string, number> = {
   'packages/mcp/stdio': 91,
   'packages/drivers/tmux': 92,
   'packages/voice/tts': 92,
-  'packages/drivers/pty': 93,
+  // 93 -> 94 when the emulators moved to a thread of their own and read
+  // 96.4: what a frame promises is held in place by `emulator.test.ts`, and the
+  // thread's three lines of wiring are named in UNSEEN.
+  'packages/drivers/pty': 94,
   'packages/extensions/core': 93,
   'packages/extensions/resources': 93,
   'packages/extensions/jev': 94,
@@ -225,6 +228,9 @@ export const UNSEEN: Record<string, string> = {
   // Driven for real by `forked.test.ts`, which forks it and kills it; what it
   // does with its channel is `serve.ts`, which is measured.
   'packages/status/src/child.ts': 'the process a window looks at status in',
+  // Driven for real by every pty test, on the thread the driver starts it on;
+  // what it does with an order is `emulator.ts`, which is measured in place.
+  'packages/drivers/pty/src/emulator-thread.ts': 'the thread the terminal emulators run on',
 }
 
 /**

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { LaneId } from '@tade/core'
+import { ECHO_CHILD } from '@tade/drivers-core/conformance'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PtyDriver } from '../src/index.ts'
 
@@ -51,6 +52,43 @@ describe('reading a lane', () => {
     expect(screen).toContain('line 9999')
     // Painting all ten thousand lines to keep forty took a good part of a second.
     expect(each).toBeLessThan(15)
+  }, 30_000)
+
+  // The keystroke's echo: output this thread has seen is on the next screen it
+  // reads, and in the numbers beside it, every time. The emulators are on a
+  // thread of their own and push frames when they please; a capture answered
+  // from one older than what the lane already printed would be a pane a
+  // keystroke behind, which is the one thing a terminal may never be.
+  it('shows everything the lane printed before it was asked', async () => {
+    driver = new PtyDriver()
+    const lane = 'read/echo' as LaneId
+    await driver.open({
+      id: lane,
+      cwd: process.cwd(),
+      command: process.execPath,
+      args: [ECHO_CHILD],
+      cols: 80,
+      rows: 24,
+    })
+    await until(async () => (await driver.capture(lane, { lines: 50 })).includes('ready'))
+    let depth = (await driver.screen(lane)).lines
+    for (let i = 0; i < 20; i++) {
+      const heard = new Promise<void>((resolve) => {
+        const stop = driver.onOutput(lane, (chunk) => {
+          if (!Buffer.from(chunk).toString().includes(`got:k${i}`)) return
+          stop()
+          resolve()
+        })
+      })
+      await driver.write(lane, new TextEncoder().encode(`k${i}\n`))
+      await heard
+      // The numbers first, as the window reads them, so the capture after
+      // cannot be what brought them up to date.
+      const view = await driver.screen(lane)
+      expect(view.lines).toBe(depth + 1)
+      depth = view.lines
+      expect(await driver.capture(lane, { lines: 50, styled: true })).toContain(`got:k${i}`)
+    }
   }, 30_000)
 
   it('never shows a frame half drawn', async () => {
@@ -253,9 +291,40 @@ describe('what reading a screen allocates', () => {
   // Held here rather than by timing it, because what a capture costs is a
   // number about the machine and this is a number about the code.
   it('reads every cell through one cell object', () => {
-    const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8')
+    const source = readFileSync(new URL('../src/emulator.ts', import.meta.url), 'utf8')
     const lone = [...source.matchAll(/getCell\(([^,)]*)\)/g)].map((found) => found[0])
     expect(lone).toEqual([])
     expect(source).toContain('getNullCell()')
+  })
+})
+
+describe('where the emulators run', () => {
+  // Every byte every agent prints is parsed by an emulator, in twelve
+  // millisecond slices per lane, and every lane's screen is thirty megabytes of
+  // buffer. None of it may be on the thread that draws the window and answers
+  // your keys, and the way that stays true is that nothing the driver loads
+  // there can load an emulator: `emulator.ts` is loaded only by the thread
+  // that runs it (`emulator-thread.ts`), and what both sides share is types
+  // and numbers (`protocol.ts`).
+  //
+  // Held by what is imported rather than by timing a frame, because a frame's
+  // cost is a number about the machine and this is a fact about the code.
+  it('never loads one on the thread that drives the lanes', () => {
+    const source = (file: string) =>
+      readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8')
+    // An import that is not only of types, across however many lines it takes:
+    // `[^']` cannot run past the specifier of the statement it started in.
+    const loads = (file: string, what: string) =>
+      new RegExp(`^import (?!type )[^']*from '${what.replaceAll('.', '\\.')}'`, 'm').test(
+        source(file),
+      )
+    for (const file of ['index.ts', 'thread.ts', 'protocol.ts']) {
+      // Named at all, an emulator is loaded: `emulator.ts` loads its own
+      // through `createRequire`, which no import statement would show.
+      expect(source(file), file).not.toContain("'@xterm/headless'")
+      expect(loads(file, './emulator.ts'), file).toBe(false)
+    }
+    expect(loads('emulator-thread.ts', './emulator.ts')).toBe(true)
+    expect(source('emulator.ts')).toContain("'@xterm/headless'")
   })
 })
