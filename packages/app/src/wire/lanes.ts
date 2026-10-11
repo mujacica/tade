@@ -20,7 +20,7 @@ import {
 import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
-import { cutFrom, type HeldLines, keeping, settledAbove } from '../scroll.ts'
+import { cutFrom, type HeldLines, holding, keeping, settledAbove } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import {
@@ -117,10 +117,10 @@ export class Lanes implements Subject {
   private paneView: LaneView | null = null
   private terminalView: LaneView | null = null
   /**
-   * The lines each of those two screens was last read as, and how deep the
-   * read went — what the wheel cuts a new screen out of, through `cutFrom`.
+   * The lines each of those two screens was last read as, and how deep the read
+   * went, which the wheel cuts a new screen out of: replaced, never written into.
    */
-  private readonly held = new Map<'pane' | 'terminal', HeldLines>()
+  private held: ReadonlyMap<'pane' | 'terminal', HeldLines> = new Map()
   /** The agent's pane and the terminal in front, as last captured. */
   private screen = ''
   private terminalScreen = ''
@@ -345,7 +345,7 @@ export class Lanes implements Subject {
         })
         break
       case 'clear':
-        await this.wire.opts.client.write(id as LaneId, 'clear\r').catch(() => {})
+        this.wire.outbox.write(id as LaneId, 'clear\r')
         break
       case 'split-beside':
       case 'split-below': {
@@ -466,7 +466,7 @@ export class Lanes implements Subject {
 
     const lane = pane ? typingLane(this.wire.state, pane) : null
     if (routed.toLane !== '' && lane) {
-      void this.wire.opts.client.write(lane as LaneId, routed.toLane).catch(() => {})
+      this.wire.outbox.write(lane as LaneId, routed.toLane)
     }
     if (routed.toTade !== null) this.deps.say(routed.toTade)
     this.wire.draw()
@@ -490,7 +490,7 @@ export class Lanes implements Subject {
     rows: number,
   ): Promise<string> {
     if (!lane) {
-      this.held.delete(area)
+      this.held = holding(this.held, area, null)
       return ''
     }
     const which = SCROLL_OF[area]
@@ -518,8 +518,7 @@ export class Lanes implements Subject {
     // says which lines they are. A lane with no depth of its own — half of a
     // split — has only its capture to count from.
     const read = { lane, lines, at: Math.max(at, lines.length), asked }
-    if (keeping(view)) this.held.set(area, read)
-    else this.held.delete(area)
+    this.held = holding(this.held, area, keeping(view) ? read : null)
     return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
   }
 
@@ -543,7 +542,7 @@ export class Lanes implements Subject {
     const lane =
       event.area === 'pane' ? this.paneLane() : (activeTerminal(this.wire.state)?.id ?? null)
     if (view.scrolling === 'lane' && lane) {
-      void this.wire.live?.wheel(lane, { rows: event.rows, ...event.at })
+      this.wire.outbox.wheel(lane as LaneId, { rows: event.rows, ...event.at })
       // What it drew in answer is a change to its screen, which the next look
       // reads as it reads every other: sooner, because somebody is watching.
       this.deps.soonTick()

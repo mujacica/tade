@@ -55,6 +55,22 @@ describe('the window’s own keys', () => {
     expect(appKey('\x1b[101;6u', held)).toBe('extensions')
     expect(appKey('\x1b[114;6u', held)).toBe('reload')
   })
+
+  // Laid out once per set of bindings rather than once a keystroke, so the set
+  // a key is looked up in has to be the one it was handed — never the last one
+  // somebody asked about, and never a default that a config has moved.
+  it('answer from the bindings they are handed, whatever was asked before', () => {
+    const moved = { search: 'ctrl+g' }
+    expect(appKey('\x0b', held)).toBe('search')
+    expect(appKey('\x07', { ...held, bindings: moved })).toBe('search')
+    expect(appKey('\x0b', { ...held, bindings: moved })).toBeNull()
+    // The defaults again, and a second set that only looks like the first.
+    expect(appKey('\x07', held)).toBeNull()
+    expect(appKey('\x0b', held)).toBe('search')
+    expect(appKey('\x07', { ...held, bindings: { search: 'ctrl+g' } })).toBe('search')
+    // Two meanings on one key: the first binding a key has is the one it means.
+    expect(appKey('\x14', { ...held, bindings: { new_agent: 'ctrl+t' } })).toBe('new-agent')
+  })
 })
 
 describe('keys the shell claims', () => {

@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Terminal } from '@earendil-works/pi-tui'
+import { StdinBuffer, type Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@tade/core'
 import { Speaker } from '@tade/voice-tts'
 import { Workbench } from '@tade/workbench'
@@ -44,6 +44,23 @@ export class FakeTerminal implements Terminal {
   press(data: string): void {
     this.onInput?.(data)
   }
+
+  /**
+   * What a terminal read from stdin at once — a paste it did not bracket, a
+   * flick, keys that piled up while the window was busy — split into
+   * sequences the way pi-tui's own terminal splits it, and handed over one
+   * after another before anything else runs. One `type` is one read.
+   */
+  type(chunk: string): void {
+    this.stdin.process(chunk)
+  }
+
+  private readonly stdin = (() => {
+    const buffer = new StdinBuffer()
+    buffer.on('data', (sequence) => this.press(sequence))
+    buffer.on('paste', (content) => this.press(`\x1b[200~${content}\x1b[201~`))
+    return buffer
+  })()
 
   write(data: string): void {
     this.written += data
@@ -265,6 +282,10 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         terminal,
         speaker,
         frameMs: 50,
+        // Every region kept from one frame to the next is drawn again and
+        // compared, so a subject that changes what it hands the frame in place
+        // fails whichever test happened to move it (`view/last-frame.ts`).
+        checkLastFrame: true,
         // Never the machine's own clipboard: what a developer copied is not a test's to read.
         clipboard: { state: async () => null, image: async () => null },
         // Never the machine's own desktop either: what would have opened is

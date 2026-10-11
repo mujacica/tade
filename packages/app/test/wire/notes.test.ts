@@ -99,6 +99,12 @@ describe('the window, and what it was told', () => {
     click(heading.col, heading.row)
     // Found by a word on its first line: a note that runs on breaks onto a second.
     await until('the note', () => screenOf(terminal.written).some((row) => row.includes('staging')))
+    // And only once the side above it has stopped filling in: FILES is read on
+    // a look rather than in the frame, so its rows arrive after the note's and
+    // push it a row down — under a pointer that was aimed at where it was.
+    await until('the files listed', () =>
+      screenOf(terminal.written).some((row) => row.includes('README.md')),
+    )
     const note = find('staging')
     // The pointer moving over it, with no button held.
     terminal.press(`\x1b[<35;${note.col + 1};${note.row + 1}M`)

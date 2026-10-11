@@ -5,8 +5,9 @@ import { type AppState, conversing } from './model.ts'
 import { drawPanel } from './panels/context.ts'
 import type { Regions } from './selection.ts'
 import { PLAIN } from './skin.ts'
-import { type Drawn, fit, overlay, type Pointer, shiftRegions } from './ui.ts'
+import { type Drawn, overlay, type Pointer, shiftRegions } from './ui.ts'
 import { renderFoot } from './view/foot.ts'
+import { drawnFor, fittedRows, type LastFrame, type RegionName } from './view/last-frame.ts'
 import { renderMain } from './view/main.ts'
 import { renderSidebar } from './view/sidebar.ts'
 import { renderStrip } from './view/strip.ts'
@@ -36,7 +37,17 @@ export function renderApp(state: AppState, frame: Frame): string[] {
   return draw(state, frame).rows
 }
 
-export function draw(state: AppState, frame: Frame): Drawn {
+/**
+ * The window as `state` and `frame` say it is.
+ *
+ * `last` is what a window that draws again and again holds between frames: a
+ * region whose inputs did not move is handed back as it was drawn, and what
+ * it costs to put it in place is paid once (`view/last-frame.ts`). Without one,
+ * everything is drawn, which is what a golden is.
+ */
+export function draw(state: AppState, given: Frame, last: LastFrame | null = null): Drawn {
+  // The moment, to the spinner's resolution, for every region alike: see `drawnFor`.
+  const frame = given.now === undefined ? given : { ...given, now: drawnFor(given.now) }
   const skin = frame.skin ?? PLAIN
   const pointer: Pointer = { hover: state.hover, pressed: state.pressed }
   // The config's sizes, then the ones dragged to, then the bottom folded or filling.
@@ -47,6 +58,16 @@ export function draw(state: AppState, frame: Frame): Drawn {
   // The clamped width, not the asked-for one: a terminal too narrow to hold a
   // readable sidebar and a pane still gets whole rows, just wider than itself.
   const width = sidebarWidth + mainWidth + 1
+  // Each region with what it is drawn with besides the state and the frame,
+  // which is what it is kept against as well as what it reads of those two.
+  const region = (
+    name: RegionName,
+    args: readonly unknown[],
+    paint: (state: AppState, frame: Frame) => Drawn,
+  ): Drawn =>
+    last
+      ? last.region(name, [...args, skin, pointer.hover, pointer.pressed], state, frame, paint)
+      : paint(state, frame)
 
   const rows: string[] = []
   const hits: Hit[] = []
@@ -54,43 +75,59 @@ export function draw(state: AppState, frame: Frame): Drawn {
   // hits are: a selection anchored in one is projected back through this.
   let regions: Regions = {}
   const add = (drawn: Drawn) => {
-    regions = { ...regions, ...shiftRegions(drawn.regions, rows.length) }
-    hits.push(...shift(drawn.hits, rows.length))
+    const placed = last
+      ? last.placed(drawn, rows.length)
+      : { regions: shiftRegions(drawn.regions, rows.length), hits: shift(drawn.hits, rows.length) }
+    regions = { ...regions, ...placed.regions }
+    hits.push(...placed.hits)
     rows.push(...drawn.rows)
   }
 
-  add(renderTop(state, frame, width, skin, pointer))
+  add(region('top', [width], (s, f) => renderTop(s, f, width, skin, pointer)))
 
-  const left = renderSidebar(state, frame, sidebarWidth, bodyHeight, skin, pointer)
-  const right = renderMain(state, frame, mainWidth, bodyHeight, skin, pointer)
+  const left = region('sidebar', [sidebarWidth, bodyHeight], (s, f) =>
+    renderSidebar(s, f, sidebarWidth, bodyHeight, skin, pointer),
+  )
+  const right = region('main', [mainWidth, bodyHeight], (s, f) =>
+    renderMain(s, f, mainWidth, bodyHeight, skin, pointer),
+  )
   // The line between them is a handle: it lights up under the pointer, and
   // dragging it moves it.
   const sidebarEdge: Target = { kind: 'divider', edge: 'sidebar' }
   const edgeLit = state.resizing === 'sidebar' || sameTarget(state.hover, sidebarEdge)
-  const body: Drawn = {
-    rows: [],
-    // The two are laid side by side in the same rows, so neither moves down.
-    regions: { ...left.regions, ...right.regions },
-    hits: [
-      ...left.hits,
-      ...shift(right.hits, 0, sidebarWidth + 1),
-      ...Array.from({ length: bodyHeight }, (_, i) => ({
-        row: i,
-        from: sidebarWidth,
-        to: sidebarWidth,
-        target: sidebarEdge,
-      })),
-    ],
+  const between = edgeLit ? skin.signal('┃') : skin.chrome('│')
+  const compose = (): Drawn => {
+    // Each side fitted to its columns once per drawing, so a side kept is not
+    // measured again: two widths a row, a row at a time, was most of composing.
+    const lefts =
+      last?.fitted(left, sidebarWidth, bodyHeight) ?? fittedRows(left, sidebarWidth, bodyHeight)
+    const rights =
+      last?.fitted(right, mainWidth, bodyHeight) ?? fittedRows(right, mainWidth, bodyHeight)
+    return {
+      rows: lefts.map((text, i) => `${text}${between}${rights[i]}`),
+      // The two are laid side by side in the same rows, so neither moves down.
+      regions: { ...left.regions, ...right.regions },
+      hits: [
+        ...left.hits,
+        ...(last?.placed(right, 0, sidebarWidth + 1).hits ??
+          shift(right.hits, 0, sidebarWidth + 1)),
+        ...Array.from({ length: bodyHeight }, (_, i) => ({
+          row: i,
+          from: sidebarWidth,
+          to: sidebarWidth,
+          target: sidebarEdge,
+        })),
+      ],
+    }
   }
-  for (let i = 0; i < bodyHeight; i++) {
-    body.rows.push(
-      `${fit(left.rows[i] ?? '', sidebarWidth)}${edgeLit ? skin.signal('┃') : skin.chrome('│')}${fit(right.rows[i] ?? '', mainWidth)}`,
-    )
-  }
-  add(body)
+  add(last ? last.composed(left, right, between, compose) : compose())
 
-  add(renderStrip(state, frame, width, stripHeight, skin, pointer))
-  add(renderFoot(state, frame, width, skin, pointer))
+  add(
+    region('strip', [width, stripHeight], (s, f) =>
+      renderStrip(s, f, width, stripHeight, skin, pointer),
+    ),
+  )
+  add(region('foot', [width], (s, f) => renderFoot(s, f, width, skin, pointer)))
 
   let window: Drawn = { rows, hits, regions }
   const toast = toastFor(state, frame, width, skin, pointer)

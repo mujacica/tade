@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { ProcessTerminal, type Terminal, type TuiAltScreen } from '@earendil-works/pi-tui'
+import { ProcessTerminal, type Terminal } from '@earendil-works/pi-tui'
 import { type Arming, attentionFor, taskDir, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
@@ -47,7 +47,7 @@ import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
 import { Orchestrator } from './wire/orchestrator.ts'
-import { kittyActive, Repaint, repaintScreen, screenFor } from './wire/paint.ts'
+import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Routes } from './wire/routes.ts'
@@ -76,7 +76,7 @@ export type { AppOptions, Thinker, WorkerImageFile } from './wire/context.ts'
 export class App {
   private readonly opts: AppOptions
   private readonly terminal: Terminal
-  private readonly tui: TuiAltScreen
+  private readonly tui: Screen
   private state: AppState = initialState()
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
@@ -298,6 +298,7 @@ export class App {
       interrupt: () => void this.orchestrator.interrupt(),
       quit: () => this.window.quit(),
       soonTick: () => this.soonTick(),
+      settle: () => this.mouse.settle(),
       toLane: (data) => this.lanes.toLane(data),
       act: (said) => void this.router.act(said),
       say: (said) => this.orchestrator.say(said),
@@ -524,8 +525,7 @@ export class App {
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
     if (this.soon) clearTimeout(this.soon)
-    this.mouse.stopDraggingFile()
-    this.mouse.stopDraggingRegion()
+    this.mouse.letGo()
     this.lanes.stopWatching()
     // The machine goes back to sleeping as it did, here rather than anywhere
     // later: the hold is Tade's for exactly as long as Tade is open.
@@ -599,7 +599,7 @@ export class App {
         const ended = agentEnded(event)
         if (ended) this.orchestrator.noteEnded(ended)
         if (event.type === 'run_started' && event.task) this.orchestrator.noteStarted(event.task)
-        this.draw()
+        this.tui.requestNews(event.urgency === 'blocking')
       },
       onWarning: (message) => {
         this.state = notice(this.state, message)

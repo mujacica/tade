@@ -156,6 +156,10 @@ export function rowHit(row: number, width: number, target: Target): Hit {
 /** The same thing on screen: compared by what it is, not by which object. */
 export function sameTarget(a: Target | null, b: Target | null): boolean {
   if (a === null || b === null) return a === b
+  // Two kinds are never one thing, and saying so serialises nothing: a notch
+  // of the wheel asks this of every hit on the screen, twice (`extentOf`), and
+  // two JSON strings a hit was 20µs of every notch of a flick.
+  if (a.kind !== b.kind) return false
   return JSON.stringify(a) === JSON.stringify(b)
 }
 

@@ -25,6 +25,7 @@ import {
   type Within,
 } from './selection.ts'
 import { timing } from './timing.ts'
+import { LastFrame } from './view/last-frame.ts'
 import { draw } from './view.ts'
 
 // What the terminal reported, turned into what the window means by it — and
@@ -214,6 +215,8 @@ export class Painted implements Component {
   private readonly clock: () => number
   /** The wheel, which remembers only when it last turned. */
   private readonly wheel = new Wheel()
+  /** The regions the last frame drew, so one whose inputs did not move is not drawn again. */
+  private readonly lastFrame: LastFrame
   private hits: readonly Hit[] = []
   private rows: readonly string[] = []
   /** A divider is held: every movement until it is let go is a drag. */
@@ -280,11 +283,13 @@ export class Painted implements Component {
     onPointer: (event: PointerEvent) => boolean,
     onCopy: (text: string) => void,
     clock: () => number,
+    lastFrame: LastFrame = new LastFrame(),
   ) {
     this.frame = frame
     this.onPointer = onPointer
     this.onCopy = onCopy
     this.clock = clock
+    this.lastFrame = lastFrame
   }
 
   render(width: number): string[] {
@@ -297,7 +302,7 @@ export class Painted implements Component {
     const { state, frame } = this.frame(width)
     timings.took('frameOf', asked)
     const at = timings.start()
-    const drawn = draw(state, frame)
+    const drawn = draw(state, frame, this.lastFrame)
     timings.took('draw', at)
     this.hits = drawn.hits
     this.rows = drawn.rows

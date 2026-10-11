@@ -24,13 +24,18 @@ import { writeFileSync } from 'node:fs'
 // synchronous, so the last act of every frame blocks until the terminal
 // drains it — which means a loaded machine's slow emulator is on Tade's event
 // loop, and `write`'s p99 against `draw`'s is what says whether Tade or the
-// terminal is the limit on a given machine.
+// terminal is the limit on a given machine. It is also the one the window
+// acts on: how long a frame took to be accepted sets how soon the next may
+// follow (`pace.ts`), and what that came to is a fifth figure, `pace` — the
+// least time between frames the terminal was allowed, which is no cost and so
+// not one of the four, and whose `worst` says how far the window backed off.
 //
 // **Off by default, and off costs a boolean.** `start()` reads no clock and
 // `took()` returns on the first line, so the probes can sit on the hot path
 // permanently rather than being wired in by whoever is measuring that week —
 // which is how instrumentation ends up measuring something other than what
-// shipped. `TADE_TIMING=1` prints a table when the window closes;
+// shipped. The write is the exception, timed always because the pacing needs
+// it, and handed here through `sample`, which is the same boolean. `TADE_TIMING=1` prints a table when the window closes;
 // `TADE_TIMING=<path>` writes it there as JSON, which is what
 // `packages/app/scripts/bench.ts` reads. The two pi-tui points are measured in
 // `wire/paint.ts`, where everything else about the terminal itself lives.

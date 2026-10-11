@@ -6,7 +6,15 @@ import { fileURLToPath } from 'node:url'
 import type { LaneId } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 import { type Span, Timings, table } from '../src/timing.ts'
-import { benchFrames, SIZES, type Size, sizeNamed } from '../test/bench.ts'
+import {
+  benchFrames,
+  benchSteady,
+  REGIONS,
+  SIZES,
+  type Size,
+  STEADY_FRAMES,
+  sizeNamed,
+} from '../test/bench.ts'
 import { seedHome } from './capture.ts'
 
 // What the window costs, and what it owes the person typing at it.
@@ -16,6 +24,7 @@ import { seedHome } from './capture.ts'
 //   pnpm bench window              the real window in a real terminal, idle then loaded
 //   pnpm bench --size 160x45       one size instead of all three
 //   pnpm bench --rounds 40         how many times each screen is drawn (frames)
+//   pnpm bench --steady 4          how many runs of each screen with a lane printing (frames)
 //   pnpm bench --keys 40           how many keystrokes each echo round sends (window)
 //   pnpm bench --load 12           how many busy processes "loaded" means
 //
@@ -59,7 +68,7 @@ const repo = join(here, '..', '..', '..')
 const args = process.argv.slice(2)
 
 /** Every flag that takes the word after it, so that word is not read as a mode. */
-const TAKES = ['--size', '--rounds', '--warm', '--keys', '--load']
+const TAKES = ['--size', '--rounds', '--warm', '--steady', '--keys', '--load']
 
 const modes = args.filter((arg, at) => !arg.startsWith('--') && !TAKES.includes(args[at - 1] ?? ''))
 const numberArg = (name: string, fallback: number, least = 1): number => {
@@ -99,6 +108,13 @@ const ROUNDS = numberArg('rounds', 40)
  * is usually a garbage collection, and a GC pause is a frame somebody saw.
  */
 const WARM = numberArg('warm', 3)
+
+/**
+ * Rounds of the steady run, which is `STEADY_FRAMES` frames of every screen a
+ * round, both ways: four is thirty-four thousand frames a size, and takes
+ * about as long as the forty rounds above.
+ */
+const STEADY_ROUNDS = numberArg('steady', 4)
 
 /**
  * Keystrokes per round.
@@ -180,7 +196,29 @@ function frames(sizes: readonly Size[]): void {
     )
     say('the ten dearest screens')
     say(table(dearest(spans, 'screen:', 10)))
+    steady(size)
   }
+}
+
+/**
+ * The same screens as a run of frames with only the pane moving: every region
+ * drawn from nothing, against the last frame's kept (`test/bench.ts` says why
+ * this is the case the window is in).
+ */
+function steady(size: Size): void {
+  benchSteady(size, 1)
+  const { timings, tally } = benchSteady(size, STEADY_ROUNDS)
+  const spans = timings.spans()
+  heading(
+    `a lane printing at ${size.name} — ${STEADY_FRAMES} frames a screen, each one look later with one line more`,
+  )
+  say(table(spans))
+  say(
+    REGIONS.map((region) => {
+      const { drawn, kept } = tally[region]
+      return `${region} kept ${Math.round((100 * kept) / Math.max(1, drawn + kept))}%`
+    }).join(' · '),
+  )
 }
 
 /** The `many` dearest points with this prefix, by p99. */

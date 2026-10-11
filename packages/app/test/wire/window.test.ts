@@ -4,6 +4,9 @@ import { ConfigSchema } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { initialState } from '../../src/model.ts'
+import type { Wiring } from '../../src/wire/context.ts'
+import { Window } from '../../src/wire/window.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 // What the window keeps of itself across a close — the pane you were
@@ -257,5 +260,47 @@ describe('the window, remembering itself', () => {
     await start()
     await until('the window again', () => sidebar().includes('refunds'))
     expect(headingRow('SMART QUEUE').text).toContain('▾ SMART QUEUE')
+  })
+})
+
+// How the window says a moment, which every region showing a time reads off
+// the frame. A region is kept over what it read (`view/last-frame.ts`), so a
+// clock made again every frame was a queue or a schedule drawn again every
+// frame for nothing; one made once would go on saying a time from yesterday
+// as if it were today's. Built by hand: the whole of it is what `facts` hands
+// over as the day goes by, which no screen could show without waiting a day.
+describe('how the window says a moment', () => {
+  function windowAt(now: { at: number }): Window {
+    const wire = {
+      opts: { config: ConfigSchema.parse({}), home: '/tmp/tade-home' },
+      state: initialState(),
+      now: () => now.at,
+    } as unknown as Wiring
+    return new Window(wire, { setTitle: () => {}, stop: async () => {} })
+  }
+
+  it('hands the frame one clock all day, and another one the next', () => {
+    const now = { at: new Date(2026, 8, 13, 9, 0).getTime() }
+    const window = windowAt(now)
+    const sunday = window.facts().clock
+    now.at = new Date(2026, 8, 13, 23, 59, 59).getTime()
+    expect(window.facts().clock).toBe(sunday)
+    now.at = new Date(2026, 8, 14, 0, 0).getTime()
+    const monday = window.facts().clock
+    expect(monday).not.toBe(sunday)
+    const lastThing = new Date(2026, 8, 13, 23, 30).getTime()
+    expect(sunday?.(lastThing)).toBe('23:30')
+    expect(monday?.(lastThing)).toBe('Sun 23:30')
+    // And a clock put back across midnight is the day it is put back to.
+    now.at = new Date(2026, 8, 13, 22, 0).getTime()
+    expect(window.facts().clock?.(lastThing)).toBe('23:30')
+  })
+
+  it('hands it one way of dating a moment, which reads no clock at all', () => {
+    const now = { at: new Date(2026, 8, 13, 9, 0).getTime() }
+    const window = windowAt(now)
+    const date = window.facts().date
+    now.at += 3 * 86_400_000
+    expect(window.facts().date).toBe(date)
   })
 })

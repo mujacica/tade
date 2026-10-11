@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import { NEWS_MS, RENDER_FLOOR_MS, WRITE_SHARE } from '../../src/pace.ts'
 import { POINTS, probing, Timings } from '../../src/timing.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -177,6 +178,110 @@ describe('what the frame loop costs', () => {
       // status beat and a git look ask for on their own. Thirty-three is what
       // the old gate drew here, one for every look.
       expect(frames, `${frames.toFixed(1)} frames a second`).toBeLessThan(16)
+    } finally {
+      stop()
+    }
+  })
+
+  // The terminal as the one that cannot keep up. On POSIX a write to a TTY
+  // blocks until the terminal has taken it, so a starved terminal emulator
+  // puts its slowness on the window's own thread: a frame every thirty-three
+  // milliseconds into a terminal that takes forty to accept each one is a
+  // window doing nothing but waiting to be allowed to draw.
+  //
+  // Scripted here as a write that holds the thread, which is exactly what the
+  // real one does. The ceiling is the window drawing less often than it would
+  // have — never a rate it has to reach, so a starved runner passes — and the
+  // floor under it is the lane still moving on screen while it backs off, then
+  // the pace coming all the way back down once the terminal is quick again:
+  // said once, over a wait.
+  it('draws less often into a terminal that is slow to take a frame, and recovers', async () => {
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    try {
+      let slow = 0
+      const write = terminal.write.bind(terminal)
+      terminal.write = (data: string) => {
+        const until = performance.now() + slow
+        while (performance.now() < until) {
+          // Holding the thread, as a blocking write(2) does.
+        }
+        write(data)
+      }
+      const opened = await client.openTerminal({ project: 'app' })
+      const script = join(root, 'repaint.cjs')
+      writeFileSync(script, REPAINTER)
+      await client.write(opened.id, `exec node ${script}\r`)
+      await start({ frameMs: 250 })
+      await until('the first frame', () => terminal.written.includes('refunds'))
+      const tab = find('terminal 1')
+      click(tab.col + 1, tab.row)
+      await until('the lane repainting in front of us', () => repaintShown(terminal) !== null)
+      // A terminal that keeps up is given every frame it was given before.
+      expect(timings.span('pace')?.worst).toBe(RENDER_FLOOR_MS)
+
+      slow = 40
+      await until(
+        'the window to back off',
+        () => (timings.span('pace')?.worst ?? 0) * WRITE_SHARE >= slow,
+      )
+      const was = repaintShown(terminal)
+      const from = timings.span('doRender')?.count ?? 0
+      const started = Date.now()
+      await new Promise((resolve) => setTimeout(resolve, 2_000))
+      const frames =
+        ((timings.span('doRender')?.count ?? 0) - from) / ((Date.now() - started) / 1000)
+      // Unpaced, a forty-millisecond write under a lane asking thirty times a
+      // second draws about twenty frames a second and spends four fifths of
+      // it in the write. Paced, the write gets half of each interval at most.
+      expect(frames, `${frames.toFixed(1)} frames a second`).toBeLessThan(12)
+      expect(repaintShown(terminal), 'the pane stopped moving').toBeGreaterThan(was ?? 0)
+
+      slow = 0
+      timings.clear()
+      await until(
+        'the pace back at the floor',
+        () => timings.span('pace')?.best === RENDER_FLOOR_MS,
+      )
+    } finally {
+      stop()
+    }
+  })
+
+  // An event is news, not necessarily a new picture. Every line the journal
+  // hears changes something the window may draw, and every one of them used to
+  // ask for a frame of its own: a storm of them was a frame every sixteen
+  // milliseconds, pi-tui's ceiling, which is thirteen agents working all day.
+  //
+  // So a ceiling counted against the storm itself — a frame for each spinner
+  // interval it lasted, and a few for the status beat and a look landing in
+  // it — which a starved runner meets by drawing less. And a floor that is
+  // the end of the storm on screen: spread out is not dropped.
+  it('draws a storm of events no oftener than the spinner turns, and the end of it', async () => {
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    try {
+      await start({ frameMs: 250 })
+      await until('the first frame', () => terminal.written.includes('today'))
+      const from = timings.span('doRender')?.count ?? 0
+      const started = performance.now()
+      for (let i = 0; i < 300; i++) {
+        await client.log.append({
+          type: 'usage',
+          task: 'app/refunds',
+          detail: { model: 'anthropic/claude-sonnet-5', tokens: 10, usd: 0.01 },
+        })
+        // Spread over most of a second, so the storm is long enough to say
+        // something about a rate: a storm over in ten milliseconds is one frame
+        // whatever the window does.
+        await new Promise((resolve) => setTimeout(resolve, 2))
+      }
+      const took = performance.now() - started
+      const frames = (timings.span('doRender')?.count ?? 0) - from
+      expect(frames, `${frames} frames for a storm of ${took.toFixed(0)}ms`).toBeLessThanOrEqual(
+        Math.ceil(took / NEWS_MS) + 4,
+      )
+      await until('the whole storm on screen', () => terminal.written.includes('$3.00'))
     } finally {
       stop()
     }
