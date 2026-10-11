@@ -476,6 +476,20 @@ describe('task and run RPC', () => {
     // has to be read off the *task's* workspace — the config says `checkout`
     // for this project either way, and reading it here instead would tell the
     // worktree agent the shared checkout's answer.
+    //
+    // The prompt and not the whole command line. `spec.args` carries absolute
+    // paths into this checkout, so `not.toContain('push')` over the join read
+    // the directory Tade itself lives in: it failed in a worktree called
+    // `tade-push-machinery-...` and passed in the one beside it, which is the
+    // machine answering a question about a prompt. Empty is asserted rather
+    // than tolerated, so a flag that gets renamed fails here loudly instead of
+    // making every negative below vacuously true.
+    const promptOf = (task: string): string => {
+      const args = client.lane(`${task}/agent` as never)?.spec.args ?? []
+      const at = args.indexOf('--append-system-prompt')
+      return at === -1 ? '' : (args[at + 1] ?? '')
+    }
+
     const apart = await client.createTask({
       project: 'app',
       slug: 'apart',
@@ -483,7 +497,8 @@ describe('task and run RPC', () => {
       workspace: 'worktree',
     })
     await client.startAgent({ task: apart.id, cwd: apart.worktree, prompt: '' })
-    const toldApart = (client.lane(`${apart.id}/agent` as never)?.spec.args ?? []).join(' ')
+    const toldApart = promptOf(apart.id)
+    expect(toldApart).not.toBe('')
     expect(toldApart).toContain('push your own branch and open a review for it')
     expect(toldApart).toContain('not a draft')
 
@@ -494,7 +509,8 @@ describe('task and run RPC', () => {
       workspace: 'checkout',
     })
     await client.startAgent({ task: together.id, cwd: together.worktree, prompt: '' })
-    const toldTogether = (client.lane(`${together.id}/agent` as never)?.spec.args ?? []).join(' ')
+    const toldTogether = promptOf(together.id)
+    expect(toldTogether).not.toBe('')
     expect(toldTogether).not.toContain('open a review')
     expect(toldTogether).not.toContain('push')
   }, 60_000)
