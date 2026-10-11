@@ -20,7 +20,7 @@ import {
   withTasks,
   withTerminals,
 } from './model.ts'
-import { FRAME_MS, lookWait, REPAINT_MS, SLOW_LOOK_MS } from './pace.ts'
+import { FRAME_MS, lookWait, SLOW_LOOK_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
 import { Agents } from './wire/agents.ts'
@@ -48,7 +48,7 @@ import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
 import { Orchestrator } from './wire/orchestrator.ts'
-import { kittyActive, repaintScreen } from './wire/paint.ts'
+import { kittyActive, Repaint, repaintScreen } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Routes } from './wire/routes.ts'
@@ -89,8 +89,7 @@ export class App {
   private lookedAt = 0
   private live: Live | null = null
   private timer: NodeJS.Timeout | null = null
-  /** When the whole screen was last written over itself. */
-  private repaintedAt = 0
+  private readonly repaint = new Repaint()
   private release: (() => void) | null = null
   private stopped = false
   private settle: () => void = () => {}
@@ -274,6 +273,8 @@ export class App {
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
     // clickable: events arrive at the component with coordinates local to it.
+    // It is also what asks for focus reporting, which is what `watch` reads.
+    this.repaint.watch(this.terminal)
     this.tui = new TuiAltScreen(this.terminal)
     freeViewportKeys()
     this.keyboard = new Keyboard(this.wire, {
@@ -730,10 +731,8 @@ export class App {
     this.extensions.askExtensions()
     this.images.look()
     this.intake.look()
-    if (this.now() - this.repaintedAt >= REPAINT_MS) {
-      this.repaintedAt = this.now()
-      if (!this.stopped && !this.orchestrator.borrowed()) repaintScreen(this.tui, this.terminal)
-    }
+    if (!this.stopped && !this.orchestrator.borrowed() && this.repaint.dueAt(this.now()))
+      repaintScreen(this.tui, this.terminal)
     const at = await this.lanes.fitPane()
     this.window.titleHere()
     const paneScreen = await this.lanes.readPane(at)
