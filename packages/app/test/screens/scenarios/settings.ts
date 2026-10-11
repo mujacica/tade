@@ -283,6 +283,17 @@ export const SETTINGS_SCREENS: Scenario[] = [
     frame: frame({ panel: settingsFacts() }),
   },
   {
+    name: 'settings-away',
+    about:
+      'The away view’s own group, on a machine nobody has turned it on at: a switch per ' +
+      'decision and every one of them off, the two that are not switches — who may reach it, ' +
+      'and the port — between the first and the rest, and the restart mark on the ones that are ' +
+      'read when the listener is built. The page that makes “off by default” something ' +
+      'somebody can see rather than read.',
+    state: { ...base(), panel: { ...settingsPanel('away'), row: 0 } },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
     name: 'settings-with-long-names',
     about:
       'The group with the longest names in it: one column of switches, every name whole or cut ' +

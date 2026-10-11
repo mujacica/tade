@@ -411,70 +411,67 @@ worktree. With Jev on, what no pattern names is read a second time before you ar
 a `terraform destroy` is the command read back rather than one word said to it. It can only ever
 make Tade ask for more, never less, and what you hear is Tade's own sentence, never a probability.
 
-## A page for your phone, while the window is open
+## A software factory: work that arrives on its own
 
-Off by default. Turn it on and the window will mint a code to scan; letting a device in is a
-keypress at the machine, and nothing else grants one — a typed address reaches the pairing page
-with nothing to present. What the phone then gets is **read-only**: what is working, what wants
-you, the queue, the checks, the reviews, what it has cost and your notes.
+A GitHub issue somebody labelled, an `@tade` in a Slack channel, a Linear issue with the label on
+it, a line typed at `tade intake` — each comes through a door you opened, under a grant naming whose
+requests count, and is stamped from a workflow you published. Every default is the decision: nothing
+is read until you turn a source on, nobody counts until you list them, and `propose` means a person
+approves each one.
 
-Letting one change anything is a **third** decision, and off until you make it: one setting at the
-machine, then a keypress per device. Even then it is eight bounded things — answer what an agent is
-waiting on, tell one something, hold or release queued work, mark work finished, write a note, add
-to what a task is told, set a task aside, approve a request a grant here already allowed — and each
-needs this machine or an `https` name you trusted, so a credential that crossed a network in the
-clear never buys one. A setting, a credential, a command, a new agent, a git push, a merge and a
-check overrule stay unreachable from a phone, because **no route for any of them exists**; and every act
-a device takes is in the journal under its own id, never as your words.
+One request says who asked, which key allowed it and the published version it is stamped from — and
+what approving it would start, before you do. What a stranger wrote is **material, never
+instruction**: an agent reads it as evidence about the work, under a heading that says so.
 
-Letting one **talk to Tade** is a fourth decision, with its own setting and its own keypress per
-device, because it is a different kind of thing: free text into the same conversation you type
-into, answered by a model that holds tools. So what stands against it is not an absent route — it
-is that while Tade is answering a device, its own tools are narrowed to reading *that device's* view
-of your work plus whatever that device was granted, and every other tool it has, its harness's shell
-included, is refused at the call. In code, not asked nicely: a message naming a setting is refused
-however it is worded, and a line you typed last week cannot authorise one either. A harness Tade
-cannot narrow that way answers nobody and says so, rather than running one unrestricted.
+<table>
+<tr>
+<td width="25%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake.svg" alt="INTAKE down the side: work handed to this machine from outside it, each row saying who asked, the door it came through and how far it got"></td>
+<td width="75%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake-request.svg" alt="One request in front of you: where it came from, what approving it would start, the wait between its two tasks and why, and the keys to approve or refuse"></td>
+</tr>
+</table>
 
-![The away view in the window: the addresses it is bound to, a QR code to scan a phone in with, and the sentence that an agent on this machine could pair itself](https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg)
+## A remote control, while the window is open
 
-It lives in the window and dies with it, which is the other half of closing Tade being harmless —
-a bookmark tapped with Tade closed is a connection error, not an empty control room. On your own
-network it is plain HTTP: anybody on the same wifi can read every page it serves and the session
-cookie with it, so `tailscale serve localhost:7654` is the way to give a phone HTTPS while Tade
-keeps listening on this machine alone. `tade web` says what is on, `tade web devices` who is
-paired, and `tade web revoke --all` disconnects every one of them without needing a network.
+The same floor on a phone you paired by scanning a code in the window: what is working, what wants
+you, what arrived from outside, the queue, the checks, the reviews, what it cost, your notes.
+Letting a device in is a keypress here, so a typed address reaches the pairing page with nothing to
+present. The listener dies with the window: a bookmark tapped with Tade closed is a connection
+error, not an empty control room.
 
-**Adding it to a home screen** is a sixth decision, and the first whose effect is on hardware this
-machine cannot reach — so it wants that `https` name too: a browser refuses a worker, a cache and
-an install on a plain address however local it feels, and a new name is a new pairing rather than a
-credential that moves. What goes onto the phone is the page — markup, styles, modules and two icons,
-under a version that is a hash of their own bytes — so there is no stamp to forget and an update is
-a bar with a button on it, never a reload under what you were typing. Nothing of the work is ever
-cached: the worker answers for that folder and does not so much as intercept a request to the
-machine. A seventh decision lets a phone keep a few counts and the moment they were true, so a tap
-with no signal says what it last knew rather than nothing — counts, no text of any kind. Turning
-installing off serves that phone a worker which deletes what it kept and removes itself, the next
-time it reaches you. A 404 would not, and a shell on a phone that never comes back is not yours to
-erase; what it holds is the page, which can draw nothing without a session.
+What each device may read is granted here, per device, in the words it is granted in — and what a
+granted one can never reach is said in the same panel, where you are granting it. Publishing a
+workflow, turning a source on and granting anything stay acts at this machine: **no route for any
+of them exists**, and every act a device does take is in the journal under its own id. Both pictures
+below are this end of it — the window; what a phone opens is a page, held to its look by a browser
+rather than drawn here.
 
-**Being told** is an eighth decision, under that one, and it is two switches rather than one: the
-machine has to be willing and each phone has to allow notifications itself, in its own browser's
-prompt — which nothing here can press, and which on iOS is offered only to a page you added to the
-home screen. Then a notification arrives when something actually changes: work wants your answer,
-an agent has stopped, a check has gone red, a piece of work has finished. It says **how many** and
-nothing else — no project, no task, no title, nothing you wrote and nothing an agent did. A ninth
-decision adds the name of the work, and never more than that phone was already granted to read,
-because what it goes onto is a lock screen.
+<table>
+<tr>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg" alt="The away view in the window, on this machine alone: the addresses it is bound to, a QR code to scan a phone in with, and that an agent on this machine could pair itself"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away-devices.svg" alt="The away view with acting on: what a paired device may do and what it can never reach, and every device with what it was granted"></td>
+</tr>
+</table>
 
-A phone cannot be woken by your laptop, so every notification goes through the push service its
-browser chose — Apple's, Google's, Mozilla's — which sees that *something* was sent, when, and how
-big. What it cannot see is what it says: the payload is encrypted to a key that browser generated
-and keeps, and the key Tade signs with is generated on your machine and goes nowhere else. Clearing
-it in Settings mints a new one, which makes every subscription unusable at once. And because there
-is no background service, there is nothing to catch up: a closed window and a sleeping machine send
-nothing, and a window that comes back says what is true now rather than six things about last
-night.
+Every step beyond reading is a switch of its own, and all of them are off:
+
+| Off until you turn it | What it adds |
+|---|---|
+| **Serve it** | a listener while this window is open, and nothing else |
+| **On the network** | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
+| **Act** | eight bounded things on work you already set up, and only from this machine or an `https` name you trusted |
+| **Talk to Tade** | free text into the same conversation, answered with its tools narrowed to that device's own view |
+| **Save a draft workflow** | one field at a time, into a file no run reads until you publish it here |
+| **Install · keep · be told** | the page and two icons; counts and a moment; a notification that is a count and no text |
+
+![The away view in Settings: a switch per decision and every one of them off, with the restart mark on the ones read when the listener is built](https://raw.githubusercontent.com/mujacica/tade/main/images/away-settings.svg)
+
+```sh
+tade web               # what is on, and where
+tade web devices       # who is paired, and what each may do
+tade web revoke --all  # disconnect every one of them
+```
+
+Neither of these is in the released `tade-sh` 0.1.1 — both are here, in this repository.
 
 ## Installing
 

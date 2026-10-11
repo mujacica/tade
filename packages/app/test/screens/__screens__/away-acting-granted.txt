@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2           ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮5 ▾     high ▾     ×   
+                       │                                                                        │───────────────────────
+ ▌ ! stripe-v15   880k │ ● On, on this machine alone                                            │                       
+ ▌   wants you to appro│ 127.0.0.1:7654  [::1]:7654                                             │                       
+                       │                                                                        │                       
+   ⠋ refunds         $0│                                                             New code   │                       
+     working           │                                                                        │                       
+                       │ DEVICES 1 open                                                         │                       
+ ▸ SMART QUEUE         │ A request from a paired device is never your own words. On work you    │                       
+ ▸ SCHEDULES           │ already set up it can answer what an agent is waiting on, tell one     │                       
+ ▸ INTAKE              │ something, hold or release queued work, add a note or a line to what   │                       
+ ▾ CHANGES  3        vs│ a task is told, mark work finished, and approve a request a grant      │                       
+  M package.json       │ here already allowed. It can never change a setting, read a            │                       
+  A …/webhooks.test.ts │ credential, run a command, start an agent, push, merge or overrule a   │                       
+  M src/webhooks.ts   +│ check. Acting needs this machine itself or an https origin you named   │                       
+                       │ in Trusted hostnames, so a credential that crossed a network in the    │                       
+ ▾ FILES               │ clear never buys one — and every act is in the journal under the       │                       
+   ▾ src/              │ device that took it.                                                   │                       
+       webhooks.test.ts│ › iPhone ● now Fri 11 Sep 09:12 · titles, intent · may act    act   ×  │                       
+       webhooks.ts     │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows       act   ×  │                       
+   ▸ test/             │   kitchen screen ○ Thu 10 Sep 18:02 · names and counts        act   ×  │                       
+━   orchestrator     + │                                                                        │━━━━━━━━━   ⤢     ▾   ━
+                       │ An agent on this machine could pair itself, which is why this list     │                       
+                       │ shows every device there is.                                           │                      ▕
+                       │                                                Disconnect everything   │                      ▕
+                       ╰────────────────────────────────────────────────────────────────────────╯                      ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
