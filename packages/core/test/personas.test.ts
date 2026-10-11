@@ -107,4 +107,41 @@ describe('a persona', () => {
       'triage',
     ])
   })
+
+  // The same refusal, reaching the prose. `REFUSED` holds the front matter: a
+  // persona that sets `push` is told "whether finished work goes to a remote is
+  // the project's, and nothing Tade runs pushes". `implementer` said it as a
+  // sentence instead — "Do not push and do not merge" — which no key check
+  // could see, and a body is folded into the task's intent, so under
+  // `push: branch-and-review` an agent read that and `pushTold`'s "push your
+  // own branch and open a review for it" in one prompt. It obeyed the persona,
+  // and nothing reports finished work left unpushed: `review.pushed` starts from
+  // `ls-remote`, and `review.branch-checks` reads such a commit as a quiet `not
+  // pushed`, never a finding.
+  //
+  // Literal phrases and only Tade's own words, which is what makes this a
+  // ratchet rather than a reader of English: it says nothing about a persona
+  // somebody else writes, and `parsePersona` is deliberately left alone —
+  // refusing prose would refuse "do not change the push handling code" too.
+  it('none of their bodies decides what a persona may not set, which is the push mode', () => {
+    const decided = [
+      /\bdo not push\b/i,
+      /\bdon.t push\b/i,
+      /\bnever push\b/i,
+      /\bno push\b/i,
+      /\bdo not merge\b/i,
+      /\bdon.t merge\b/i,
+      /\bnever merge\b/i,
+    ]
+    // The reason is on the refused key itself, so the two cannot drift apart.
+    expect(new Map(REFUSED).get('push')).toMatch(/goes to a remote is the project/)
+    for (const [name, text] of Object.entries(BUILT_IN_PERSONAS)) {
+      const read = parsePersona(name, text)
+      expect(read.ok).toBe(true)
+      if (!read.ok) continue
+      for (const phrase of decided) {
+        expect(read.persona.prompt, `${name} decides the push mode: ${phrase}`).not.toMatch(phrase)
+      }
+    }
+  })
 })

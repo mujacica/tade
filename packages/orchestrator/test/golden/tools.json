@@ -1008,7 +1008,7 @@
         },
         "context": {
           "type": "string",
-          "description": "what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to a file of its own in Tade’s home, and the agent is told where."
+          "description": "what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to a file of its own in Tade’s home, and the agent is told where. Say what the work is, never how an agent is to work: where it works, when it commits and whether finished work is pushed are the project’s own settings, already in what the agent is told, and a line here like “no push” contradicts them rather than changing them — set the setting (tade_project_configure) or say nothing."
         },
         "links": {
           "type": "array",

@@ -214,8 +214,9 @@ export function orchestratorTools(
 
   // What an agent should know before it starts, and where the work came from:
   // written into its worktree, so it finds them however it is started.
+  // Not how it is done: a context saying "No push/deploy." silently beat branch-and-review.
   const context = string(
-    'what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to a file of its own in Tade’s home, and the agent is told where.',
+    'what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to a file of its own in Tade’s home, and the agent is told where. Say what the work is, never how an agent is to work: where it works, when it commits and whether finished work is pushed are the project’s own settings, already in what the agent is told, and a line here like “no push” contradicts them rather than changing them — set the setting (tade_project_configure) or say nothing.',
   )
   const links = {
     type: 'array',
