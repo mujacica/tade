@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { draw } from '../src/view.ts'
-import { benchFrames, REGIONS, SIZES } from './bench.ts'
+import { benchFrames, benchSteady, REGIONS, SIZES, STEADY_FRAMES } from './bench.ts'
 import { SCENARIOS } from './screens/scenarios.ts'
 
 // The frame-cost bench, held to the three things that would make it lie.
@@ -70,6 +70,24 @@ describe('the frame-cost bench', () => {
       for (const scenario of SCENARIOS)
         expect(spans[`screen:${scenario.name}`]?.count, scenario.name).toBe(ROUNDS)
     }
+  })
+
+  it('has a figure for a run of frames both ways, and kept something in it', () => {
+    // The steady run is the one figure about keeping, so the way it lies is a
+    // run where nothing was kept: two equal numbers that look like keeping
+    // bought nothing, when it was never asked. The smallest size, once: what
+    // is held here is the instrument, not the machine.
+    const size = SIZES[0]
+    const { timings, tally } = benchSteady(size, 1)
+    const spans = timings.spans()
+    const frames = SCENARIOS.length * STEADY_FRAMES
+    expect(spans['steady:drawn']?.count).toBe(frames)
+    expect(spans['steady:kept']?.count).toBe(frames)
+    for (const region of REGIONS)
+      expect(tally[region].kept, `${region} was never kept`).toBeGreaterThan(0)
+    // And every frame of it was a frame of one region or the other, never neither.
+    for (const region of REGIONS)
+      expect(tally[region].drawn + tally[region].kept, region).toBe(frames)
   })
 
   it('draws a whole screen at every size, not only the one its golden was written for', () => {

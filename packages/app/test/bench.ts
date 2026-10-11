@@ -1,9 +1,11 @@
 import { resolveLayout } from '../src/layout.ts'
 import { conversing } from '../src/model.ts'
+import { LOOK_FLOOR_MS } from '../src/pace.ts'
 import { PLAIN } from '../src/skin.ts'
 import { Timings } from '../src/timing.ts'
 import type { Drawn } from '../src/ui.ts'
 import { renderFoot } from '../src/view/foot.ts'
+import { LastFrame, REGIONS, type RegionName, type Tally } from '../src/view/last-frame.ts'
 import { renderMain } from '../src/view/main.ts'
 import { renderSidebar } from '../src/view/sidebar.ts'
 import { renderStrip } from '../src/view/strip.ts'
@@ -63,15 +65,15 @@ export function sizeNamed(name: string): Size | null {
 }
 
 /**
- * The five regions `draw` composes, in the order it composes them.
- *
- * Named here and checked against `view.ts` itself: a sixth region added to the
- * drawing and not to this list is a region nobody is measuring, which is the
- * one way a bench stops being true without anything failing.
+ * The five regions `draw` composes, in the order it composes them — the list
+ * the drawing keeps them by, so the bench and the keeping are about the same
+ * five. Checked against `view.ts` itself: a sixth region added to the drawing
+ * and not to this list is a region nobody is measuring, which is the one way a
+ * bench stops being true without anything failing.
  */
-export const REGIONS = ['top', 'sidebar', 'main', 'strip', 'foot'] as const
+export { REGIONS }
 
-export type Region = (typeof REGIONS)[number]
+export type Region = RegionName
 
 /**
  * What a round composed, rows and clickable boxes.
@@ -144,4 +146,73 @@ export function benchFrames(
     }
   }
   return { timings, drew }
+}
+
+/**
+ * How many frames in a row each screen is drawn for, in the steady bench: a
+ * second of a lane printing at the look's floor.
+ */
+export const STEADY_FRAMES = 30
+
+/**
+ * What a frame costs when it is one of a run — the case the window is in
+ * nearly all the time it is drawing at all.
+ *
+ * Every frame above is a different screen from the one before, which is the
+ * right question for "what does this screen cost" and the wrong one for "what
+ * does the window spend": it draws the same screen again and again with one
+ * thing moving. A lane printing in front of you is the commonest and the
+ * dearest of those — a frame every `LOOK_FLOOR_MS` — so that is the run: each
+ * screen drawn `STEADY_FRAMES` times with its pane one line further on and its
+ * clock one look later, once drawing every region from nothing and once with
+ * the regions of the last frame kept (`view/last-frame.ts`).
+ *
+ * Filed under `steady:drawn` and `steady:kept`, the same frames both ways, and
+ * the tallies of what was drawn and what kept beside them — a figure for
+ * keeping with nothing kept would be a figure about nothing. A run is thirty
+ * frames of every screen, so a round is already four thousand frames a way:
+ * it wants far fewer rounds than the per-screen table does.
+ */
+export function benchSteady(
+  size: Size,
+  rounds: number,
+  scenarios: readonly Scenario[] = SCENARIOS,
+): { timings: Timings; tally: Record<Region, Tally> } {
+  const timings = new Timings(true)
+  const tally = Object.fromEntries(
+    REGIONS.map((region) => [region, { drawn: 0, kept: 0 }]),
+  ) as Record<Region, Tally>
+  for (let round = 0; round < rounds; round++) {
+    for (const scenario of scenarios) {
+      const last = new LastFrame()
+      const base = { ...scenario.frame, width: size.width, height: size.height }
+      for (let at = 0; at < STEADY_FRAMES; at++) {
+        const frame = {
+          ...base,
+          now: (base.now ?? 0) + at * LOOK_FLOOR_MS,
+          screen: `${base.screen}\nprinting ${at}`,
+        }
+        let start = performance.now()
+        draw(scenario.state, frame)
+        const drawn = performance.now() - start
+        start = performance.now()
+        draw(scenario.state, frame, last)
+        const kept = performance.now() - start
+        timings.sample('steady:drawn', drawn)
+        timings.sample('steady:kept', kept)
+        // A panel is drawn afresh in every frame either way — it is not one
+        // of the five — so the screens without one are where keeping is the
+        // whole of the difference, and are filed again on their own.
+        if (scenario.state.panel) continue
+        timings.sample('steady:drawn, no panel', drawn)
+        timings.sample('steady:kept, no panel', kept)
+      }
+      for (const [region, counted] of Object.entries(last.counts())) {
+        const into = tally[region as Region]
+        into.drawn += counted.drawn
+        into.kept += counted.kept
+      }
+    }
+  }
+  return { timings, tally }
 }

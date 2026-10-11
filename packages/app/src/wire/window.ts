@@ -58,6 +58,15 @@ export class Window implements Subject {
    * the frame, and a frame is folded exactly once per drawing.
    */
   private drawnAt = Number.NEGATIVE_INFINITY
+  /**
+   * How a moment is said, made again only when the day changes — the one thing
+   * about now that `whenShort` reads. A new one every frame was a field no
+   * region drawing a time could be kept over (`view/last-frame.ts`), and one made
+   * once would go on calling yesterday today.
+   */
+  private clock: { from: number; until: number; say: (at: number) => string } | null = null
+  /** A moment with its date, which reads no clock at all, so it is made once. */
+  private readonly date = (at: number) => this.dateOf(at)
 
   constructor(wire: Wiring, deps: WindowDeps) {
     this.wire = wire
@@ -78,9 +87,21 @@ export class Window implements Subject {
       home: tilde(this.wire.opts.home),
       bindings: this.wire.opts.config.surfaces.window.keys,
       now,
-      clock: (at: number) => whenShort(at, this.wire.now()),
-      date: (at: number) => this.dateOf(at),
+      clock: this.clockOn(now),
+      date: this.date,
     }
+  }
+
+  /** How a moment is said on the day `now` is in. */
+  private clockOn(now: number): (at: number) => string {
+    const kept = this.clock
+    if (kept && now >= kept.from && now < kept.until) return kept.say
+    const day = new Date(now)
+    const from = day.setHours(0, 0, 0, 0)
+    const until = day.setHours(24, 0, 0, 0)
+    const say = (at: number) => whenShort(at, now)
+    this.clock = { from, until, say }
+    return say
   }
 
   actions(): Actions {

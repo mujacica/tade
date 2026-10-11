@@ -14,7 +14,8 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `keys.ts` | Which keystrokes the window claims and what it calls them | a terminal |
 | `split.ts` | A pane cut in two: which lane the second half draws, which half types | a terminal |
 | `frame.ts` | `Frame`: the shape of what the window is handed to draw, and nothing else | — (types only) |
-| `view.ts` | `draw(state, frame) → { rows, hits }`, one row per line: the composition, and nothing else | a terminal |
+| `view.ts` | `draw(state, frame, last?) → { rows, hits }`, one row per line: the composition, and nothing else | a terminal |
+| `view/last-frame.ts` | `LastFrame`: the five regions the last frame drew and what each read, so one whose inputs did not move is handed back rather than drawn (`same`, `drawnFor`, `checked`) | a terminal |
 | `view/` | One file per region — `top`, `sidebar`, `main`, `queue`, `plan`, `schedule`, `actions`, `strip`, `foot` — over four shared ones: `text` (width, words, moments, numbers), `rows` (a tab, a section, a scrollbar, a mark's tone), `list` (a row an extension keeps, in two rows: the side and the ACTIONS page both draw one) and `lane`/`split`, which two regions each reach for | a terminal |
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
 | `hits.ts` | What is where on the screen, so a click can mean something (`scrollAt`, `extentOf`, `selectableText`) | a terminal |
@@ -53,7 +54,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `wire/context.ts` | What a subject may reach (`Wiring`), and what it offers back (`Subject`: `facts`, `panel`, `inputs`, `actions`, `menus`, `submits`, `prompts`) | — |
 | `wire/frame.ts` | `frameOf` — the frame, folded out of the subjects that own each piece of it; `panelInputsOf` beside it | — |
 | `wire/actions.ts` | `Router`: a button's name, a menu's kind, a panel's answer and a slash command, each looked up in the table the subjects fill in | a terminal |
-| `pace.ts` | How often the window looks, and how soon after a lane prints it looks again | — |
+| `pace.ts` | How often the window looks, how soon after a lane prints it looks again, and how far apart frames go when the terminal is slow to take them (`paced`, `renderWait`) | — |
 | `title.ts` | What the terminal window calls itself | — |
 | `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`) | — |
 | `settings.ts` | Reading and writing a setting from the window, through core's one writer | a real disk |
@@ -192,6 +193,23 @@ regions in a cycle now.
   themselves, from the Files subject's facts, so one frame every two seconds forked three or four
   `git`s on the drawing thread — 9ms at the fold's 95th percentile, 25 at its worst, idle. A reader
   you add follows the same shape: `lookSoon` from the reader, `told` when the answer changed.
+- **A region whose inputs did not move is not drawn again** (`view/last-frame.ts`). `Painted` holds a
+  `LastFrame`; each region is drawn through a proxy that records every field of `state` and `frame` it
+  read, and next frame exactly those are compared — plain data member by member, anything else by
+  identity — so a lane printing in front of you redraws the pane and keeps the rest, hits and regions
+  included. Recorded, never listed: a hand-kept list of what each region reads is right until a path no
+  screen exercises reads one more. Two rules follow, and both are yours to keep when you add a fact:
+  **nothing handed to the frame is changed in place** (replace it — `holding` in `scroll.ts` is how the
+  lanes' held lines are), and **nothing in it is made afresh every frame for nothing** — a closure, a
+  `Map` — because identity is all a region can be kept over (`Window.clockOn` makes the clock once a
+  day for that reason). The wire tests run with `checkLastFrame`, which draws every kept region again
+  and throws where they differ. The frame's moment is rounded to the spinner (`drawnFor`) in every
+  draw, kept or not, so the clock moves ten times a second and not with every look.
+- **The terminal says how fast it can take a frame, and the window listens** (`pace.ts`,
+  `TimedScreen` in `wire/paint.ts`). How long each frame's write took to be accepted moves a ratchet
+  between pi-tui's own 16ms and the beat: up at once past half the interval, down a step after a run
+  of easy frames. It only ever adds time, a held request is handed to pi-tui when the interval is up,
+  and what pi-tui draws at once for a key is never held. `pace` in `TADE_TIMING` says how far it went.
 
 ## Scrolling, and what a notch is worth
 
@@ -968,7 +986,13 @@ accepted on a story is a perf change nobody can undo later.
   *instrument* (every region covered, a figure for every screen at every size); `screens.test.ts`
   holds the loose ceiling and carries the argument for why it is loose;
   `test/wire/frame.probe.test.ts` holds that all four probes are still wired and the rate with a
-  ceiling and a floor. A number over a fixed sleep is a number about the runner.
+  ceiling and a floor — and, with a write scripted to hold the thread, that the window draws less
+  often into a slow terminal and comes back to the floor after. A number over a fixed sleep is a
+  number about the runner.
+- **A frame is usually one of a run.** `pnpm bench frames` also draws every screen thirty frames in a
+  row with a lane printing (`benchSteady`, `--steady`), once drawing everything and once keeping the
+  last frame, and says how often each region was kept — the per-screen table cannot see keeping,
+  because each of its frames is a different screen from the one before.
 
 ## Steps
 

@@ -20,7 +20,7 @@ import {
 import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
-import { cutFrom, type HeldLines, keeping, settledAbove } from '../scroll.ts'
+import { cutFrom, type HeldLines, holding, keeping, settledAbove } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import {
@@ -117,10 +117,10 @@ export class Lanes implements Subject {
   private paneView: LaneView | null = null
   private terminalView: LaneView | null = null
   /**
-   * The lines each of those two screens was last read as, and how deep the
-   * read went — what the wheel cuts a new screen out of, through `cutFrom`.
+   * The lines each of those two screens was last read as, and how deep the read
+   * went, which the wheel cuts a new screen out of: replaced, never written into.
    */
-  private readonly held = new Map<'pane' | 'terminal', HeldLines>()
+  private held: ReadonlyMap<'pane' | 'terminal', HeldLines> = new Map()
   /** The agent's pane and the terminal in front, as last captured. */
   private screen = ''
   private terminalScreen = ''
@@ -490,7 +490,7 @@ export class Lanes implements Subject {
     rows: number,
   ): Promise<string> {
     if (!lane) {
-      this.held.delete(area)
+      this.held = holding(this.held, area, null)
       return ''
     }
     const which = SCROLL_OF[area]
@@ -518,8 +518,7 @@ export class Lanes implements Subject {
     // says which lines they are. A lane with no depth of its own — half of a
     // split — has only its capture to count from.
     const read = { lane, lines, at: Math.max(at, lines.length), asked }
-    if (keeping(view)) this.held.set(area, read)
-    else this.held.delete(area)
+    this.held = holding(this.held, area, keeping(view) ? read : null)
     return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
   }
 

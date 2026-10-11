@@ -265,6 +265,10 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         terminal,
         speaker,
         frameMs: 50,
+        // Every region kept from one frame to the next is drawn again and
+        // compared, so a subject that changes what it hands the frame in place
+        // fails whichever test happened to move it (`view/last-frame.ts`).
+        checkLastFrame: true,
         // Never the machine's own clipboard: what a developer copied is not a test's to read.
         clipboard: { state: async () => null, image: async () => null },
         // Never the machine's own desktop either: what would have opened is

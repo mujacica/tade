@@ -33,6 +33,7 @@ import { noteRecent } from '../projects.ts'
 import type { Reach } from '../scroll.ts'
 import { pointerSequence } from '../skin.ts'
 import { splitRatio } from '../split.ts'
+import { LastFrame } from '../view/last-frame.ts'
 import type { Wiring } from './context.ts'
 
 // The mouse, which is a shortcut into what you could also have typed.
@@ -158,6 +159,7 @@ export class Mouse {
       (event) => this.pointer(event),
       (text) => this.deps.copySelection(text),
       clock,
+      new LastFrame({ checked: this.wire.opts.checkLastFrame === true }),
     )
   }
 

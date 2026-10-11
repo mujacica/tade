@@ -197,6 +197,24 @@ export function keeping(view: { scrolling?: LaneScrolling } | null): boolean {
 }
 
 /**
+ * `held` with `area`'s lines put in — or taken out, where `read` is null — as
+ * a new map, and the same map where there was nothing to take out.
+ *
+ * The frame is handed this map, and a region drawn from it is kept for as long
+ * as it is the same one (`view/last-frame.ts`), so it is never written into: written
+ * into, it is the same map with other lines in it, and a selection over the
+ * pane copies what the lane said before.
+ */
+export function holding<Area>(
+  held: ReadonlyMap<Area, HeldLines>,
+  area: Area,
+  read: HeldLines | null,
+): ReadonlyMap<Area, HeldLines> {
+  if (read) return new Map(held).set(area, read)
+  return held.has(area) ? new Map([...held].filter(([one]) => one !== area)) : held
+}
+
+/**
  * Whether a view `back` lines up is clear of a live screen `live` tall, and so
  * may be answered out of lines read before.
  *

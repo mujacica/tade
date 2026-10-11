@@ -220,6 +220,13 @@ export interface AppOptions {
   network?: MachineNetwork
   now?: () => number
   frameMs?: number
+  /**
+   * Draw every region the window keeps from the last frame again anyway, and
+   * throw where the two differ (`view/last-frame.ts`). What the wire tests run under:
+   * a subject that changes something in place is otherwise a region that goes
+   * stale with nothing failing.
+   */
+  checkLastFrame?: boolean
 }
 
 /**
