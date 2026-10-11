@@ -53,3 +53,105 @@ export const SLOW_LOOK_MS = 2_000
 export function lookWait(since: number): number {
   return Math.max(LOOK_SOON_MS, LOOK_FLOOR_MS - Math.max(0, since))
 }
+
+// ─── how fast the terminal lets the window draw ──────────────────────────────
+//
+// Everything above is about how often the window *looks*. What nothing said
+// was how often the terminal can *take* a frame. On POSIX a write to a TTY is
+// synchronous, so the last act of every frame waits until the terminal has
+// drained it — and on a loaded machine the terminal is starved too, drains
+// slowly, and the window sits in that write not answering keys. Pushing a
+// frame every sixteen milliseconds into a terminal that takes forty to accept
+// one is not drawing faster; it is the window spending its whole thread
+// waiting to be allowed to.
+//
+// So how long the terminal took to accept each frame is read (`wire/paint.ts`,
+// which owns the write), and the least time between two frames follows it: a
+// ratchet with a floor and a ceiling, moved here and nowhere else.
+//
+// **One way, in the sense that matters: it only ever adds time between frames.**
+// At the floor it is pi-tui's own throttle and adds nothing, so a terminal that
+// keeps up — nearly all of them, nearly always — gets the window it got before.
+// It never draws a frame sooner than it would have been drawn.
+//
+// **Up at once, down a step at a time.** A frame the terminal took more than
+// its share to accept doubles the interval on the spot, because every frame
+// after it would wait the same. Coming back down asks for evidence: a run of
+// frames each comfortably inside what the next step down would allow, and then
+// one step. Halfway rules in both directions would put the window back where
+// it started on the first quick write and hunt from then on.
+//
+// **Only what the window asks for itself is paced.** A key you press is still
+// drawn at once — pi-tui's immediate render, which this never holds — because
+// keystroke-to-echo is the one number that matters, and a terminal slow to
+// accept is no reason to show somebody their own typing later. What is paced
+// is everything else: a look, the spinner, an event, the status beat.
+
+/** The least time between two frames while the terminal keeps up: pi-tui's own throttle. */
+export const RENDER_FLOOR_MS = 16
+
+/**
+ * The most a slow terminal can stretch it to: the beat. Slower than that and
+ * a look's news waits for a frame that comes after the next look — and a
+ * terminal that cannot take four frames a second is not one fewer would help.
+ */
+export const RENDER_CEILING_MS = FRAME_MS
+
+/**
+ * How much of the time between two frames the terminal may spend accepting
+ * one. Half: the other half is the window's, for answering keys.
+ */
+export const WRITE_SHARE = 0.5
+
+/** Frames in a row comfortably inside the next step down before it is taken. */
+export const EASY_FRAMES = 8
+
+/**
+ * Where the ratchet stands: how many doublings above the floor, and how many
+ * frames in a row have been easy at the step below.
+ */
+export interface Pace {
+  step: number
+  easy: number
+}
+
+/** A terminal that has given no reason to wait. */
+export const UNHURRIED: Pace = { step: 0, easy: 0 }
+
+/** The least time between two frames at this step. */
+export function intervalOf(pace: Pace): number {
+  return Math.min(RENDER_CEILING_MS, RENDER_FLOOR_MS * 2 ** pace.step)
+}
+
+/** The step the ceiling is reached at: no doubling past it moves anything. */
+const TOP = Math.ceil(Math.log2(RENDER_CEILING_MS / RENDER_FLOOR_MS))
+
+/**
+ * Where the ratchet stands after a frame the terminal took `accepted`
+ * milliseconds to accept.
+ *
+ * Over its share of the interval, one step up, at once. Comfortably inside the
+ * share the step below would allow — half of it, so a step down is a step that
+ * stays down — counts towards `EASY_FRAMES`, and that many in a row is one
+ * step down. Anything between is neither, and starts the count again: a
+ * terminal that is only just keeping up is not yet one that has recovered.
+ */
+export function paced(was: Pace, accepted: number): Pace {
+  const interval = intervalOf(was)
+  if (accepted > interval * WRITE_SHARE) return { step: Math.min(TOP, was.step + 1), easy: 0 }
+  if (was.step === 0) return UNHURRIED
+  const below = intervalOf({ step: was.step - 1, easy: 0 })
+  if (accepted > below * WRITE_SHARE * 0.5) return { step: was.step, easy: 0 }
+  if (was.easy + 1 < EASY_FRAMES) return { step: was.step, easy: was.easy + 1 }
+  return { step: was.step - 1, easy: 0 }
+}
+
+/**
+ * How long a frame asked for now waits, `since` milliseconds after the last
+ * one was drawn. Nothing at the floor — pi-tui's own throttle is the floor —
+ * and never longer than the interval.
+ */
+export function renderWait(pace: Pace, since: number): number {
+  if (pace.step === 0) return 0
+  return Math.min(intervalOf(pace), Math.max(0, intervalOf(pace) - Math.max(0, since)))
+}

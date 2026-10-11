@@ -1,5 +1,5 @@
 import { type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
-import { REPAINT_MS } from '../pace.ts'
+import { intervalOf, type Pace, paced, REPAINT_MS, renderWait, UNHURRIED } from '../pace.ts'
 import { timing } from '../timing.ts'
 
 // Four things about the terminal itself, rather than about anything the window
@@ -11,7 +11,9 @@ import { timing } from '../timing.ts'
 // this terminal can report. All are facts about the terminal, and each has its
 // reasoning beside the code rather than beside the fortieth subject. The fourth
 // is the screen the window writes through, which is where the two pi-tui
-// timing points sit — `../timing.ts` has the argument for all four of them.
+// timing points sit — `../timing.ts` has the argument for all four of them —
+// and where how fast the terminal takes a frame paces the next one
+// (`../pace.ts` has that argument).
 
 /**
  * Write the whole screen again, over itself.
@@ -136,20 +138,79 @@ export function kittyActive(terminal: Terminal): boolean {
 }
 
 /**
- * The TUI, with its own pipeline and its write to the terminal timed.
+ * The TUI, with its own pipeline and its write to the terminal timed — and
+ * its frames paced by how fast the terminal takes them (`pace.ts`).
  *
  * Always wrapped, on or off, rather than branched on the flag at startup: a
  * second shape of the window that only exists while somebody is measuring is a
  * second shape nothing tests. What it costs when off is one method call per
  * `doRender` and one per `write` — sixty of each a second, against a pipeline
  * that makes eight passes over every row.
+ *
+ * The pacing goes in front of pi-tui's throttle rather than in place of it:
+ * that interval is a private static of the library's, so it is the same
+ * sixteen milliseconds for every screen in the process and nothing of Tade's
+ * may move it. A request this holds is handed to pi-tui when the terminal's
+ * interval is up, and pi-tui then throttles it as it always did. Only
+ * `requestRender` is held: what pi-tui draws at once for a key goes straight
+ * past, which is the half `pace.ts` argues for.
  */
 class TimedScreen extends TuiAltScreen {
+  private readonly accepting: TimedTerminal
+  /** Where the ratchet stands. */
+  private pace: Pace = UNHURRIED
+  /** When the last frame was drawn, on the clock pi-tui throttles by. */
+  private drewAt = Number.NEGATIVE_INFINITY
+  /** A frame asked for while the terminal is still owed time, waiting for it. */
+  private held: NodeJS.Timeout | null = null
+
+  constructor(terminal: TimedTerminal) {
+    super(terminal)
+    this.accepting = terminal
+  }
+
+  override requestRender(force?: boolean): void {
+    // A forced frame is a whole screen somebody needs now — a resize — and is
+    // never held; and while one is held, the frame it becomes draws whatever
+    // is true by then, so a second request has nothing to add.
+    if (force) this.release()
+    else if (this.held !== null) return
+    const wait = force ? 0 : renderWait(this.pace, performance.now() - this.drewAt)
+    if (wait <= 0) {
+      super.requestRender(force)
+      return
+    }
+    this.held = setTimeout(() => {
+      this.held = null
+      super.requestRender()
+    }, wait)
+  }
+
+  override stop(options?: Parameters<TuiAltScreen['stop']>[0]): void {
+    this.release()
+    super.stop(options)
+  }
+
   protected override doRender(): void {
     const timings = timing()
     const at = timings.start()
+    // Whatever was held is drawn by this frame, whoever asked for it.
+    this.release()
+    this.drewAt = performance.now()
+    this.accepting.begin()
     super.doRender()
     timings.took('doRender', at)
+    // A frame that wrote nothing says nothing about the terminal.
+    const accepted = this.accepting.accepted()
+    if (accepted === null) return
+    this.pace = paced(this.pace, accepted)
+    timings.sample('pace', intervalOf(this.pace))
+  }
+
+  private release(): void {
+    if (this.held === null) return
+    clearTimeout(this.held)
+    this.held = null
   }
 }
 
@@ -171,16 +232,33 @@ class TimedScreen extends TuiAltScreen {
  */
 class TimedTerminal implements Terminal {
   private readonly to: Terminal
+  /** How long this frame's writes took to be accepted, and whether there were any. */
+  private took: number | null = null
 
   constructor(to: Terminal) {
     this.to = to
   }
 
+  /**
+   * Timed whether or not anybody is measuring — the one point that is, because
+   * the pacing reads it. Two clock reads a frame.
+   */
   write(data: string): void {
-    const timings = timing()
-    const at = timings.start()
+    const at = performance.now()
     this.to.write(data)
-    timings.took('write', at)
+    const took = performance.now() - at
+    this.took = (this.took ?? 0) + took
+    timing().sample('write', took)
+  }
+
+  /** A frame starts: what it writes is counted from here. */
+  begin(): void {
+    this.took = null
+  }
+
+  /** How long the terminal took to accept what this frame wrote; null where it wrote nothing. */
+  accepted(): number | null {
+    return this.took
   }
 
   get columns(): number {
