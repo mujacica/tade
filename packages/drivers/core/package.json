@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@tade/core": "workspace:*",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.3"
   },
   "devDependencies": {
     "node-pty": "^1.1.0"
