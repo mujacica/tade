@@ -1,4 +1,5 @@
 import type { LaneId } from '@tade/core'
+import { ECHO_CHILD } from '@tade/drivers-core/conformance'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PtyDriver } from '../src/index.ts'
 
@@ -64,5 +65,32 @@ describe('how a lane asked to be told about the pointer', () => {
     // cut. The old one would have arrived as `ESC [ M` and three bytes.
     expect(said).toContain('u001b[<64;5;3M')
     expect(said).not.toContain(`${ESC}[M`)
+  })
+
+  // The window sends what one turn of input held in the order it came, without
+  // waiting on any of it (`app/src/wire/outbox.ts`): a click, then the typing
+  // that followed. So a press has to reach the program in the call that sends
+  // it, as a keystroke does. One that waited on the emulators to say whether
+  // the program wanted it would land after the typing — text typed where the
+  // cursor was, and the click moving it afterwards.
+  it('reaches the program ahead of the typing sent after it', async () => {
+    driver = new PtyDriver({ scrollback: 500 })
+    const lane = await child(driver, 'pointer/order', `import(${JSON.stringify(ECHO_CHILD)})`)
+    await until(async () => (await driver!.capture(lane.id, { lines: 24 })).includes('ready'))
+    await driver.write(lane.id, new TextEncoder().encode('screen\n'))
+    await until(async () => (await driver!.screen(lane.id)).pointing === 'drag')
+    for (let i = 0; i < 5; i++) {
+      // Not awaited between, as the outbox sends them.
+      const press = driver.point(lane.id, { did: 'press', button: 'left', column: i, row: 0 })
+      const typed = driver.write(lane.id, new TextEncoder().encode(`after${i}\n`))
+      await Promise.all([press, typed])
+      await until(async () =>
+        (await driver!.capture(lane.id, { lines: 24 })).includes(`got:after${i}`),
+      )
+      const shown = await driver.capture(lane.id, { lines: 24 })
+      const saw = shown.indexOf(`saw:<0;${i + 1};1M`)
+      expect(saw, shown).toBeGreaterThanOrEqual(0)
+      expect(saw).toBeLessThan(shown.indexOf(`got:after${i}`))
+    }
   })
 })

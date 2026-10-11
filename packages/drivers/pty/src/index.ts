@@ -8,6 +8,7 @@ import {
   type LaneHandle,
   LaneNotFoundError,
   type LaneOutputListener,
+  type LanePointing,
   type LaneScreen,
   type LaneSpec,
   type PointerReport,
@@ -378,8 +379,7 @@ export class PtyDriver implements WorkspaceDriver {
     const lane = this.live(id)
     // Nothing at all to a program that never asked for the mouse: what it
     // cannot read as a pointer it reads as somebody typing.
-    const { pointing } = await this.screen(id)
-    if (pointing === 'nobody') return
+    if (pointingOf(lane) === 'nobody') return
     const bytes = wheelBytes(turn, lane.encoding)
     if (bytes.length > 0) await this.write(id, bytes)
   }
@@ -390,8 +390,7 @@ export class PtyDriver implements WorkspaceDriver {
     // program asked for. `pointerBytes` is where that is decided, so a lane
     // that wants presses and no movement is answered the same way by every
     // driver rather than by whichever one remembered to check.
-    const { pointing } = await this.screen(id)
-    const bytes = pointerBytes(report, lane.encoding, pointing)
+    const bytes = pointerBytes(report, lane.encoding, pointingOf(lane))
     if (bytes.length > 0) await this.write(id, bytes)
   }
 
@@ -659,6 +658,24 @@ export class PtyDriver implements WorkspaceDriver {
 /** Once round the event loop, after whatever I/O is waiting. */
 function turn(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve))
+}
+
+/**
+ * How much of the pointer the program in a lane has asked for, as the newest
+ * numbers beside its screen say — decided on the spot, never waited for.
+ *
+ * A notch or a press goes to the pty in the call that sends it, as a
+ * keystroke does, because the window sends everything one turn of input held
+ * in the order it came (`app/src/wire/outbox.ts`): a press that waited on the
+ * emulators for its answer would reach the program after the typing that
+ * followed it. What it costs is the last few milliseconds of output not yet
+ * reflected — which is what reading the emulator directly always cost, since
+ * output not yet parsed was never in it either. A lane nothing has been read
+ * of yet is taken to want nothing: a notch that goes nowhere is a notch, and
+ * one a program cannot read is something typed into it.
+ */
+function pointingOf(lane: Lane): LanePointing {
+  return lane.view?.screen.pointing ?? 'nobody'
 }
 
 function answers(frame: Asked, asked: Asked): boolean {

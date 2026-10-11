@@ -80,7 +80,10 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   that dies — or leaves a question unanswered for five seconds, which is stuck, not busy — is started
   again from each lane's replay, three times, and then every screen is the last one known — never an
   empty one — and both are said through `trouble`. A cached answer still goes
-  round the event loop once, or a loop of captures starves the output it is waiting for.
+  round the event loop once, or a loop of captures starves the output it is waiting for. And
+  whether a program wants the pointer is read off the newest numbers on the spot, never waited for:
+  the window sends a turn's presses and typing in order without awaiting any (`wire/outbox.ts`),
+  so a press that waited on the emulators would land after the typing that followed it.
 - **`screen()` is what the text cannot say.** How many lines the lane holds — screen and
   scrollback together, which is the most `capture` can return — and where the cursor is, as a
   column and how many lines *back from the last line `capture` returns* it sits (negative when it is
