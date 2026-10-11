@@ -1,14 +1,17 @@
-import type { Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
+import { type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
 import { REPAINT_MS } from '../pace.ts'
+import { timing } from '../timing.ts'
 
-// Three things about the terminal itself, rather than about anything the window
+// Four things about the terminal itself, rather than about anything the window
 // draws in it.
 //
-// They were in `app.ts`, which is wiring, and none of them is: one is a
-// technique for recovering from a screen somebody else wiped, one is when that
-// technique is worth the bytes, and the third is a question about what this
-// terminal can report. All are facts about the terminal, and each has its
-// reasoning beside the code rather than beside the fortieth subject.
+// The first three were in `app.ts`, which is wiring, and none of them is: one
+// is a technique for recovering from a screen somebody else wiped, one is when
+// that technique is worth the bytes, and the third is a question about what
+// this terminal can report. All are facts about the terminal, and each has its
+// reasoning beside the code rather than beside the fortieth subject. The fourth
+// is the screen the window writes through, which is where the two pi-tui
+// timing points sit — `../timing.ts` has the argument for all four of them.
 
 /**
  * Write the whole screen again, over itself.
@@ -130,4 +133,101 @@ export class Repaint {
 /** Only some terminals report key releases, which is what holding a key needs. */
 export function kittyActive(terminal: Terminal): boolean {
   return (terminal as { kittyProtocolActive?: boolean }).kittyProtocolActive === true
+}
+
+/**
+ * The TUI, with its own pipeline and its write to the terminal timed.
+ *
+ * Always wrapped, on or off, rather than branched on the flag at startup: a
+ * second shape of the window that only exists while somebody is measuring is a
+ * second shape nothing tests. What it costs when off is one method call per
+ * `doRender` and one per `write` — sixty of each a second, against a pipeline
+ * that makes eight passes over every row.
+ */
+class TimedScreen extends TuiAltScreen {
+  protected override doRender(): void {
+    const timings = timing()
+    const at = timings.start()
+    super.doRender()
+    timings.took('doRender', at)
+  }
+}
+
+/**
+ * A terminal that says how long it took to accept what was written to it.
+ *
+ * Only what pi-tui writes goes through this: it wraps the terminal the TUI is
+ * given, not the one the window keeps, so a clipboard escape, a pointer shape
+ * or the full repaint above is not counted as a frame. The repaint is a
+ * blocking write of its own, now owed only while somebody is looking (see
+ * `Repaint`), and wants a point of its own rather than hiding inside this one.
+ *
+ * A stand-in over the terminal rather than a `write` swapped on it, which is
+ * the other way round from `Repaint.watch` and for the reason that sentence
+ * gives: `watch` wants every `start` there is, and this wants only pi-tui's
+ * writes. The window writes to the same terminal object for those three, so a
+ * patched `write` would count them all as frames. It composes with `watch`
+ * because `start` here is the terminal's own, read when the TUI calls it.
+ */
+class TimedTerminal implements Terminal {
+  private readonly to: Terminal
+
+  constructor(to: Terminal) {
+    this.to = to
+  }
+
+  write(data: string): void {
+    const timings = timing()
+    const at = timings.start()
+    this.to.write(data)
+    timings.took('write', at)
+  }
+
+  get columns(): number {
+    return this.to.columns
+  }
+  get rows(): number {
+    return this.to.rows
+  }
+  get kittyProtocolActive(): boolean {
+    return this.to.kittyProtocolActive
+  }
+  start(onInput: (data: string) => void, onResize: () => void): void {
+    this.to.start(onInput, onResize)
+  }
+  stop(): void {
+    this.to.stop()
+  }
+  drainInput(maxMs?: number, idleMs?: number): Promise<void> {
+    return this.to.drainInput(maxMs, idleMs)
+  }
+  moveBy(lines: number): void {
+    this.to.moveBy(lines)
+  }
+  hideCursor(): void {
+    this.to.hideCursor()
+  }
+  showCursor(): void {
+    this.to.showCursor()
+  }
+  clearLine(): void {
+    this.to.clearLine()
+  }
+  clearFromCursor(): void {
+    this.to.clearFromCursor()
+  }
+  clearScreen(): void {
+    this.to.clearScreen()
+  }
+  setTitle(title: string): void {
+    this.to.setTitle(title)
+  }
+  setProgress(active: boolean): void {
+    this.to.setProgress(active)
+  }
+}
+
+/** The alternate screen the window draws on, with the two pi-tui points timed. */
+export function screenFor(terminal: Terminal): TuiAltScreen {
+  return new TimedScreen(new TimedTerminal(terminal))
 }

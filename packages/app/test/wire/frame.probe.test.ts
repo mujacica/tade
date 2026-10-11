@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import { POINTS, probing, Timings } from '../../src/timing.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 // What the window costs to keep a lane on screen, and what it owes it.
@@ -102,5 +103,38 @@ describe('what the frame loop costs', () => {
     // which measured fifty-eight a second on a quiet machine — a rate that
     // depends on nothing anybody chose.
     expect(each, `${each.toFixed(1)} screen reads a second`).toBeLessThan(45)
+  })
+
+  // And what it cost, at the four points a frame passes through.
+  //
+  // The probes are off on every machine Tade is installed on, which means the
+  // thing that breaks them is a refactor nobody notices: `Painted.render` is
+  // where two of the four live, and a change that moved the fold or the
+  // drawing out of it would leave the window working perfectly and the bench
+  // reporting about a frame that no longer goes that way. So this drives the
+  // real window and asks whether all four were reached.
+  //
+  // Never how long any of them took. What a frame costs is the bench's
+  // business (`test/bench.ts`), run with the machine to itself; a number
+  // measured here would be a number about a runner with two hundred other
+  // files on it.
+  it('reports what every frame cost, at each of the four points', async () => {
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    try {
+      await start({ frameMs: 50 })
+      await until('the first frame', () => terminal.written.includes('refunds'))
+      const spans = timings.spans()
+      for (const point of POINTS) expect(spans[point], `nothing reached ${point}`).toBeDefined()
+      // And one per subject, which is what says which of the twenty-two to
+      // look at first — a single `frameOf` figure cannot.
+      const subjects = Object.keys(spans).filter((point) => point.startsWith('subject:'))
+      expect(subjects.length, 'no subject was timed inside the fold').toBeGreaterThan(10)
+      // The floor, and the reason the probes may sit on the hot path at all:
+      // the window drew exactly what it draws without them.
+      expect(screenOf(terminal.written).join('\n')).toContain('refunds')
+    } finally {
+      stop()
+    }
   })
 })
