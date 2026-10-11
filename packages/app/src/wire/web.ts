@@ -40,7 +40,6 @@ import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
-import { webActing } from './web-acting.ts'
 import { armingFor, type Talking, webAsking } from './web-asking.ts'
 import {
   type AwayBeat,
@@ -56,6 +55,7 @@ import {
 import { widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownKeys, Lanes } from './web-lanes.ts'
+import type { Lifecycle } from './web-lifecycle.ts'
 import { awayView, mintPairing } from './web-panel.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
@@ -137,6 +137,8 @@ export interface AwayDeps {
   saved(): void
   /** The one door a setting is written by: the generated notification key. */
   writeKey(key: string, value: string, was: string): Promise<void>
+  /** The agents and projects subjects, for stopping and closing from away (`web-lifecycle.ts`). */
+  lifecycle: Lifecycle
 }
 
 export class Away implements Subject {
@@ -212,6 +214,8 @@ export class Away implements Subject {
         home: this.wire.opts.home,
         config: () => this.config(),
         seen: (task) => this.factsOn(task),
+        projects: () => this.collections().projects,
+        lifecycle: this.deps.lifecycle,
         stands: (row) => this.deps.stands(row),
         queue: () => ({
           items: this.wire.live?.queued ?? [],
@@ -346,6 +350,7 @@ export class Away implements Subject {
     return beatParts(
       {
         events: live.events,
+        rootLines: live.rootLines,
         pending: live.pending,
         seenActions: (task) => live.seenActions(task),
         spendToday: () => live.spendToday(),

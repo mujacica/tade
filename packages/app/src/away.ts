@@ -19,6 +19,7 @@ import {
 } from '@tade/core'
 import type { Offer } from '@tade/harnesses-core'
 import type {
+  AgentLane,
   Can,
   Cannot,
   ChatIn,
@@ -36,6 +37,7 @@ import type {
   WorkflowIn,
 } from '@tade/web'
 import { chatRev } from '@tade/web'
+import { agentLaneOf, closedIn, type ProjectLine, projectAble } from './away-lifecycle.ts'
 import type { ActionsView, NoteShown } from './frame.ts'
 import type { Entry, Transcript } from './transcript.ts'
 
@@ -85,6 +87,8 @@ export interface TaskExtra {
   queue: string
   /** How its agent may be told something, as its harness says. */
   steering: Steering
+  /** How many times an agent was started on it, out of `run_started` (`startsOf`). */
+  starts: number
 }
 
 /**
@@ -191,8 +195,19 @@ export function ableOn(task: AbleFacts): { can: Can[]; cannot: Cannot[] } {
   else if (!task.parked) no('intake', 'it is not waiting to be approved')
   else yes('intake')
 
+  // The lifecycle, read off the agent's **own lane** and never off `agents`,
+  // which counts a stopped lane as a signal too. Nothing here may start an
+  // agent that never ran: that is said, with where it is done instead.
+  if (task.lane === 'running') yes('stop')
+  else no('stop', task.lane === 'stopped' ? 'its agent is already stopped' : NEVER_RAN)
+  if (task.lane === 'stopped') yes('reopen')
+  else no('reopen', task.lane === 'running' ? 'its agent is running' : NEVER_RAN)
+
   return { can, cannot }
 }
+
+/** Why there is no agent to stop or to open again: none ever ran. */
+const NEVER_RAN = 'no agent has run on it, and starting one is done at the machine'
 
 /** What `ableOn` reads. Named, so a test can build one without a `Task`. */
 export interface AbleFacts {
@@ -203,6 +218,8 @@ export interface AbleFacts {
   finished: boolean
   queue: string
   steering: Steering
+  /** Its agent's own lane, out of `agentLaneOf`. */
+  lane: AgentLane
 }
 
 /** What a run was on, as the journal recorded it. Never guessed from a name. */
@@ -240,9 +257,20 @@ export function ranOn(events: readonly TadeEvent[]): Map<string, RanOn> {
 }
 
 /** One project, once its root is not in it. */
-export function projectIn(project: Project, titles: Readonly<Record<string, string>>): ProjectIn {
+export function projectIn(
+  project: Project,
+  titles: Readonly<Record<string, string>>,
+  line: ProjectLine | undefined = undefined,
+): ProjectIn {
   // `root` is deliberately not read at all, rather than read and dropped.
-  return { name: project.name, title: titles[project.name] ?? '' }
+  const title = titles[project.name] ?? ''
+  return {
+    name: project.name,
+    title,
+    open: true,
+    changes: line?.changes ?? 0,
+    ...projectAble(true),
+  }
 }
 
 /**
@@ -307,6 +335,10 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
     approval: extra.approval,
     finished: extra.finished,
     queue: extra.queue,
+    // A word for the agent's own lane and a count of starts: never the lane's
+    // id, its pid or its attach line, which `task.lanes` carries.
+    lane: agentLaneOf(task),
+    starts: extra.starts,
     // What is *possible*, which is a question about a harness and a lane and
     // so one only the window can answer. Permission is asked again at the act.
     ...ableOn({
@@ -317,6 +349,7 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
       finished: extra.finished,
       queue: extra.queue,
       steering: extra.steering,
+      lane: agentLaneOf(task),
     }),
     spend: extra.spend ?? noSpendAt(),
     checks: checksIn(extra.work, extra.overridden),
@@ -457,6 +490,8 @@ export interface AwayParts {
   sources: readonly SourceIn[]
   runs: readonly RunIn[]
   workflows: readonly WorkflowIn[]
+  /** What the journal says about where each project lives (`projectLines`). */
+  projectLines: ReadonlyMap<string, ProjectLine>
 }
 
 /** Every collection one projection is built from, as one value. */
@@ -528,8 +563,17 @@ export function awayCollections(parts: AwayParts): AwayCollections {
       )
     }
   }
+  const open = new Set(parts.world.projects.map((project) => project.name))
   return {
-    projects: parts.world.projects.map((project) => projectIn(project, parts.titles)),
+    // Open ones out of the world, closed ones out of the journal — a project the
+    // last look still lists is open, whatever a line written since says, and the
+    // door re-asks the config at the act.
+    projects: [
+      ...parts.world.projects.map((project) =>
+        projectIn(project, parts.titles, parts.projectLines.get(project.name)),
+      ),
+      ...closedIn(parts.projectLines, open),
+    ],
     tasks,
     queue: queueIn(parts.queued, parts.queueFacts, parts.order),
     findings: [],
@@ -675,6 +719,7 @@ export function nothingKnown(): TaskExtra {
     // be right: a task the window has learned nothing about must not draw a
     // steer control on the strength of a default.
     steering: notSteerable('nothing here knows what its harness can do'),
+    starts: 0,
   }
 }
 

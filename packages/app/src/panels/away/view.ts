@@ -99,6 +99,10 @@ export interface AwayDevice {
   mayTalk: boolean
   /** Whether it was granted `lanes`: the last rows of agents' own screens. */
   maySee: boolean
+  /** Whether it was granted `agents`: stopping an agent and opening it again. */
+  mayStop: boolean
+  /** Whether it was granted `projects`: closing a project and opening it again. */
+  mayClose: boolean
   /** Whether it has a live stream open now. */
   live: boolean
 }
@@ -405,6 +409,8 @@ function deviceLine(
   // somebody scanning the list is least likely to have expected.
   const can = [
     acting && device.mayAct ? 'may act' : '',
+    acting && device.mayStop ? 'may stop agents' : '',
+    acting && device.mayClose ? 'may close projects' : '',
     view.talking && device.mayTalk ? 'may talk' : '',
   ].filter(Boolean)
   const said = can.length === 0 ? reads : `${reads} · ${can.join(' · ')}`
@@ -435,6 +441,18 @@ function chipsOf(r: Row, device: AwayDevice, view: Pick<AwayView, 'acting' | 'ta
       'act',
       { kind: 'control', id: `${AWAY_CONTROLS.act}${device.id}` },
       device.mayAct ? 'danger' : 'go',
+    ).space()
+    // The lifecycle, a chip each: neither is implied by `act`, and neither by
+    // the other — the same shape and the same argument as the chip above.
+    r.chip(
+      'agents',
+      { kind: 'control', id: `${AWAY_CONTROLS.agents}${device.id}` },
+      device.mayStop ? 'danger' : 'go',
+    ).space()
+    r.chip(
+      'projects',
+      { kind: 'control', id: `${AWAY_CONTROLS.projects}${device.id}` },
+      device.mayClose ? 'danger' : 'go',
     ).space()
   }
   if (view.talking) {

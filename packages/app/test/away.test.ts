@@ -14,8 +14,8 @@ import {
 } from '../src/away.ts'
 import type { ActionsView } from '../src/frame.ts'
 
-/** Every verb there is, so the two lists are held to covering all of them. */
-const VERB_NAMES = VERBS.map((verb) => verb.name)
+/** Every verb about a task, so a task's two lists are held to covering all of them. */
+const VERB_NAMES = VERBS.filter((verb) => verb.on === 'task').map((verb) => verb.name)
 
 // What the window hands the away view, and the one thing it must never hand
 // over.
@@ -113,6 +113,7 @@ function collections(over: Partial<Parameters<typeof awayCollections>[0]> = {}) 
     sources: [],
     runs: [],
     workflows: [],
+    projectLines: new Map(),
     queued: [],
     queueFacts: facts(),
     order: [],
@@ -382,6 +383,7 @@ describe('what may be asked of one task', () => {
     finished: false,
     queue: '',
     steering: steerable,
+    lane: 'none' as const,
     ...over,
   })
   const can = (over: Partial<Parameters<typeof ableOn>[0]> = {}) =>
@@ -406,6 +408,8 @@ describe('what may be asked of one task', () => {
       { queue: 'ready' },
       { queue: 'paused', parked: true },
       { origin: 'intake', parked: true, finished: true },
+      { lane: 'running', agents: 1 },
+      { lane: 'stopped', agents: 1 },
     ] as const
     for (const world of worlds) {
       const made = ableOn(facts(world))

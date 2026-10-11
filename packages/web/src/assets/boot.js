@@ -212,7 +212,7 @@ let keptAt = 0
 
 const SCREENS = {
   now: () => nowScreen(),
-  project: (at) => projectScreen(at),
+  project: (at) => projectScreen(at, ctx),
   task: (at) => taskScreen(at, ctx),
   agents: () => agentsScreen(),
   queue: () => queueScreen(),

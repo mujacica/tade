@@ -101,15 +101,25 @@ export const AWAY_IS_WHILE_OPEN =
  * conversation as the things they said at the keyboard, and the only thing
  * keeping last week's *turn the checks off* from authorising it is that the
  * refusal is in code rather than in a prompt.
+ *
+ * **The lifecycle half says what closing costs**, because it is the one act
+ * here that writes the config: a project's line leaves it, its own settings
+ * with it, and opening it again puts back the root the journal kept — never a
+ * path a device named. "Can never change a setting" with that left out would
+ * be the comfortable version of this sentence.
  */
 export const ACTING_IS_NOT_YOU =
   'A request from a paired device is never your own words. On work you already set up it can ' +
   'answer what an agent is waiting on, tell one something, hold or release queued work, add a ' +
   'note or a line to what a task is told, mark work finished, and approve a request a grant ' +
-  'here already allowed. It can never change a setting, read a credential, run a command, ' +
-  'start an agent, push, merge or overrule a check. Acting needs this machine itself or an https ' +
-  'origin you named in Trusted hostnames, so a credential that crossed a network in the clear ' +
-  'never buys one — and every act is in the journal under the device that took it.'
+  'here already allowed. Where you granted that device each of them, it can also stop an agent ' +
+  'or open a stopped one again where it left off, and close a project or open a closed one ' +
+  'again: closing deletes nothing and stops nothing, but the project’s own settings go with it ' +
+  'and opening it puts back only where it lives. Beyond that one line it can never change a ' +
+  'setting, read a credential, run a command, start an agent that has never run, push, merge ' +
+  'or overrule a check. Acting needs this machine itself or an https origin you named in ' +
+  'Trusted hostnames, so a credential that crossed a network in the clear never buys one — and ' +
+  'every act is in the journal under the device that took it.'
 
 /** The short clause, for the one line a control gets. */
 export const ACTING_IS_NOT_YOU_SHORT = 'a device acts as a request, never as your own words'
@@ -362,7 +372,7 @@ export const PUSH_KEY_IS_GENERATED =
  * decisions, never one, because conflating the first two is how a laptop in a
  * cafe serves its control room to the cafe, conflating the third with either
  * is how reading from the sofa turns into acting from anywhere, and the fourth
- * is a different kind of thing again — eight bounded verbs against free text.
+ * is a different kind of thing again — bounded verbs against free text.
  * All of them are `never` in `reach.ts` by subtree: each changes who can reach
  * Tade, or what they can do.
  */

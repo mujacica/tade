@@ -655,6 +655,42 @@ export class Agents implements Subject {
     void this.openAgent(pane.task)
   }
 
+  /**
+   * Stop one agent by its exact task, for a request from away: the same stop as
+   * `/stop`, marked stopped on purpose so nothing opens it again behind anyone's
+   * back, and said where you look so it never happens silently. Throws.
+   */
+  async stopExactly(task: string, by: string): Promise<void> {
+    this.reopened.add(task)
+    await this.wire.opts.client.stopAgent(task)
+    await this.wire.live?.refresh()
+    this.wire.put(
+      notice(this.wire.state, `${task} stopped by ${by} — its branch and worktree stay`),
+    )
+    this.wire.draw()
+  }
+
+  /**
+   * Open one stopped agent again where it left off, for a request from away:
+   * `openAgent`'s reattach, saying nothing to it, and throwing rather than
+   * putting a failure on the notice line nobody away can read.
+   */
+  async reopenExactly(task: string, by: string): Promise<'opened' | 'busy' | 'nowhere'> {
+    const worktree = this.wire.live?.worktreeOf(task)
+    if (!worktree) return 'nowhere'
+    if (this.opening.has(task)) return 'busy'
+    this.opening.add(task)
+    try {
+      await this.wire.opts.client.reopenAgent({ task: task as never, cwd: worktree })
+      await this.wire.live?.refresh()
+      this.wire.put(notice(this.wire.state, `${by} opened ${task} where it left off`))
+    } finally {
+      this.opening.delete(task)
+    }
+    this.wire.draw()
+    return 'opened'
+  }
+
   /** Stop the agent you are watching, or the one you name. Its work stays. */
   async stopAgent(said: string): Promise<void> {
     const task = this.findTask(said) ?? this.wire.state.focused

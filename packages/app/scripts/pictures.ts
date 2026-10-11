@@ -318,10 +318,12 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       'The away view with acting on: above the list, the whole of what a paired device may do — ' +
-      'and what it can never reach, which is a setting, a credential, a command, a new agent, a ' +
+      'stopping an agent or closing a project only where it was granted each — and what it can ' +
+      'never reach, which is a setting beyond that, a credential, a command, a new agent, a ' +
       'push, a merge and a check overruled. Under it every device there is, each with what it ' +
-      'was granted to read in the words it was granted, may act on the one that has it, and a ' +
-      'chip beside each to take either back. Nothing to scan, because claiming a code burns it.',
+      'was granted to read in the words it was granted, may act and may stop agents on the one ' +
+      'that has them, and a chip beside each to grant or take back acting, stopping agents and ' +
+      'closing projects. Nothing to scan, because claiming a code burns it.',
   },
   {
     file: 'away-settings.svg',

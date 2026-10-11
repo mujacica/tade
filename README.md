@@ -464,7 +464,7 @@ Every step beyond reading is a switch of its own, and all of them are off:
 |---|---|
 | **Serve it** | a listener while this window is open, and nothing else |
 | **On the network** | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
-| **Act** | eight bounded things on work you already set up, and only from this machine or an `https` name you trusted |
+| **Act** | eight bounded things on work you already set up — plus stopping or reopening an agent and closing or reopening a project, each only on a device you granted it — and only from this machine or an `https` name you trusted |
 | **Talk to Tade** | free text into the same conversation, answered with its tools narrowed to that device's own view |
 | **Save a draft workflow** | one field at a time, into a file no run reads until you publish it here |
 | **Install · keep · be told** | the page and two icons; counts and a moment; a notification that is a count and no text |

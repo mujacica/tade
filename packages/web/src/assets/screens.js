@@ -18,6 +18,7 @@ import {
   controlsFor,
   headingFor,
   howSaid,
+  PROJECT_SHOWN,
   QUEUE_ASKS,
   SHOWN,
   wordsFor,
@@ -53,8 +54,10 @@ import {
   section,
 } from './rows.js'
 import {
+  closedOf,
   omitted,
   projectAt,
+  projectsOf,
   queueIn,
   spendFold,
   spendSince,
@@ -73,7 +76,13 @@ export function nowScreen() {
   into(wants.body, cards, none)
   const projects = el('div')
   const left = el('p', { class: 'unknown' })
-  into(node, wants.node, projects, left)
+  // **Closed, and nothing in them deleted**: each a link to its own page,
+  // where it can be opened again. Absent where nothing is closed, because an
+  // empty heading reads as broken.
+  const closed = section('CLOSED')
+  const closedList = el('ul', { class: 'rows' })
+  into(closed.body, closedList)
+  into(node, wants.node, projects, left, closed.node)
 
   return {
     node,
@@ -99,8 +108,29 @@ export function nowScreen() {
       )
       textIn(left, leftOut(view.store))
       left.hidden = leftOut(view.store) === ''
+      const shut = closedOf(view.store)
+      closed.node.hidden = shut.length === 0
+      textIn(closed.figure, count(shut.length))
+      keyed(
+        closedList,
+        shut,
+        (row) => row.name,
+        closedRow,
+        (one, row) => {
+          const link = one.firstChild
+          link.setAttribute('href', pathOf({ view: 'project', project: row.name }))
+          textIn(link, row.name)
+        },
+      )
     },
   }
+}
+
+/** One closed project's row: a link to its page, where it can be opened again. */
+function closedRow() {
+  const row = el('li')
+  into(row, el('a', { attrs: { href: '/' } }))
+  return row
 }
 
 /**
@@ -111,7 +141,7 @@ export function nowScreen() {
  * the one repository that needs somebody under three that do not.
  */
 function projectsHere(view) {
-  return [...view.store.rows.projects.values()].sort(
+  return projectsOf(view.store).sort(
     (a, b) =>
       b.counts.wantsYou - a.counts.wantsYou ||
       b.counts.working - a.counts.working ||
@@ -172,7 +202,7 @@ function fillProjectBlock(node, project, view) {
 
 /* ── one project ───────────────────────────────────────────────────────────── */
 
-export function projectScreen(where) {
+export function projectScreen(where, ctx) {
   const node = el('div')
   const head = el('div', { class: 'page-head' })
   const back = el('a', { class: 'back', text: '‹ Now', attrs: { href: '/' } })
@@ -206,20 +236,37 @@ export function projectScreen(where) {
 
   into(node, back, head, strip, gone, agents.node, queue.node, checks.node, spend.node)
   const folds = foldsOf(checks, spend)
+  // Closing it, or opening it again: the same blocks a task's page builds, over
+  // the two verbs about the whole project, at the foot where a reach for the
+  // ordinary controls does not land on it.
+  const acts = ctx === undefined || ctx === null ? null : actsIn(node, ctx, PROJECT_SHOWN)
 
   return {
     node,
     update(view) {
       const project = projectAt(view.store, where.project)
-      gone.hidden = project !== null
+      const shut = project?.open === false
+      gone.hidden = project !== null && !shut
       // A project that is not in this device's reach, or is not there any more.
       // Said rather than drawn as an empty project, which would read as a
-      // repository where nothing is happening.
-      textIn(gone, project === null ? 'This project is not on this device, or is not there.' : '')
+      // repository where nothing is happening — and a closed one says what
+      // closing did and did not do, because its tasks are not drawn here.
+      textIn(
+        gone,
+        project === null
+          ? 'This project is not on this device, or is not there.'
+          : shut
+            ? 'Closed. Nothing in it was deleted, and any agent working in it is still working.'
+            : '',
+      )
       for (const one of [agents.node, queue.node, checks.node, spend.node]) {
-        one.hidden = project === null
+        one.hidden = project === null || shut
       }
-      if (project === null) return
+      if (project !== null) acts?.update(project, view)
+      // A closed project has no tasks here, so a figure left from when it was
+      // open would be one nothing could refresh.
+      if (shut) textIn(figure, '')
+      if (project === null || shut) return
       const tasks = tasksIn(view.store, where.project)
       const paid = money(spendFold(tasks, omitted(view.store, 'tasks') > 0), view.may.spend)
       textIn(figure, paid.said === '—' ? `— ${paid.why}` : paid.said)
@@ -453,18 +500,18 @@ export function taskScreen(where, ctx) {
  *
  * What is typed stays typed until the act actually happened (`afterAnswer`).
  */
-function actsIn(node, ctx) {
+function actsIn(node, ctx, verbs = SHOWN) {
   const blocks = new Map()
-  for (const verb of SHOWN) {
+  for (const verb of verbs) {
     const block = blockFor(verb, ctx)
     blocks.set(verb, block)
     into(node, block.node)
   }
   return {
-    update(task, view) {
+    update(row, view) {
       const acts = view.may.acts ?? { answer: false, steer: false }
-      for (const one of controlsFor(task, acts)) {
-        blocks.get(one.verb)?.update(task, one)
+      for (const one of controlsFor(row, acts, verbs)) {
+        blocks.get(one.verb)?.update(row, one)
       }
     },
   }

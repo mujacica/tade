@@ -296,8 +296,19 @@ export function scopesOn(
  * it. It is also the one scope with a reading requirement of its own: a
  * workflow can name any repository, so `admitDraft` refuses a device whose
  * reading is a list rather than every project.
+ *
+ * `agents` and `projects` are the sixth and seventh, and they are the
+ * lifecycle: stopping an agent or opening a stopped one again where it left
+ * off, and closing a project or opening a closed one again. **Implied by
+ * nothing and implying nothing**, each its own chip at the machine and off for
+ * every device until somebody presses it. They sit beside the acting tiers
+ * rather than inside one because a device that may answer and steer has been
+ * granted things that change what an agent *does*, and stopping one changes
+ * whether it does anything at all — a person who said yes to the first has not
+ * answered the second. Neither reaches a remote turn's arm (`REMOTE_GRANTS`),
+ * so a device that may close a project cannot ask Tade to close one either.
  */
-export const SCOPES = ['read', 'answer', 'steer', 'ask', 'draft'] as const
+export const SCOPES = ['read', 'answer', 'steer', 'ask', 'draft', 'agents', 'projects'] as const
 export type Scope = (typeof SCOPES)[number]
 
 /** Whether a host is this machine, in any of its three spellings. */

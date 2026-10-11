@@ -1,6 +1,6 @@
 import { DONE_RULES, ReviewState, TaskState } from '@tade/core'
 import { z } from 'zod'
-import { HOWS } from './acting.ts'
+import { AGENT_LANES, HOWS } from './acting.ts'
 import {
   type IntakeRow,
   IntakeRowSchema,
@@ -188,6 +188,11 @@ export const TaskRowSchema = z.strictObject({
    */
   can: z.array(z.strictObject({ verb: z.string(), how: z.enum(HOWS) })),
   cannot: z.array(z.strictObject({ verb: z.string(), why: z.string() })),
+  /**
+   * Where its own agent's lane stands, in one word: `running`, `stopped` with
+   * its spec kept so it can be opened again, or `none`. Never a lane id.
+   */
+  lane: z.enum(AGENT_LANES),
   createdAt: z.string(),
   /** A moment, never an elapsed figure: see `tick` in `delta.ts`. */
   movedAt: z.string().nullable(),
@@ -227,6 +232,16 @@ export const ProjectRowSchema = z.strictObject({
   /** The stable id. There is no `root` and there never will be. */
   name: z.string(),
   title: SaidSchema.nullable(),
+  /**
+   * Whether it is on Tade's list. A closed one is a row so it can be opened
+   * again from here, with nothing but its name: no tasks, and no root.
+   */
+  open: z.boolean(),
+  /** What an act about the whole project must still find true of it. Opaque, like a task's. */
+  rev: z.string(),
+  /** What may be asked of the whole project, and what may not with the reason: a task's rule. */
+  can: z.array(z.strictObject({ verb: z.string(), how: z.enum(HOWS) })),
+  cannot: z.array(z.strictObject({ verb: z.string(), why: z.string() })),
   counts: z.strictObject({
     tasks: z.int().nonnegative(),
     /** How many of them are in this snapshot. The budget, said out loud. */

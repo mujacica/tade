@@ -385,3 +385,65 @@ describe('what the window says back', () => {
     expect((await carryOut(ROUTE, BODY, ctx)).refusal?.error).toBe('unsure')
   })
 })
+
+describe('an act about a whole project', () => {
+  const CLOSE = ACTS.find((route) => route.verb === 'close') as Route
+  const BODY_CLOSE = {
+    project: 'tade',
+    was: 'o1.c0',
+    key: 'closekey12345678',
+    rev: 4,
+    confirm: true,
+  }
+
+  it('writes the project into the line, and never onto the event as a task', async () => {
+    // A project is not a task, and a `web_did` carrying one as its task would
+    // make every fold keyed by task read a task by that name.
+    const acting = actingStub({
+      close: () => Promise.resolve<Outcome>({ did: true, rev: 'o0.c1', said: 'closed it' }),
+    })
+    const ctx = await context(acting, { scopes: ['read', 'projects'] }, 'acted-project')
+    const answered = await carryOut(CLOSE, BODY_CLOSE, ctx)
+    expect(answered.refusal).toBeNull()
+    expect(answered.did).toEqual({
+      device: '00112233445566aa',
+      tool: 'close',
+      task: '',
+      project: 'tade',
+      state: 'closed the project',
+      why: 'done',
+    })
+  })
+
+  it('writes the project into a refusal too, which is the line audit matters most on', async () => {
+    const ctx = await context(actingStub(), { scopes: ['read', 'steer'] }, 'acted-project-no')
+    const answered = await carryOut(CLOSE, BODY_CLOSE, ctx)
+    expect(answered.refusal?.error).toBe('out_of_scope')
+    expect(answered.did).toMatchObject({
+      tool: 'close',
+      task: '',
+      project: 'tade',
+      state: 'refused',
+    })
+  })
+
+  it('answers a repeat of the same key with the first answer, and runs the close once', async () => {
+    let closes = 0
+    const acting = actingStub({
+      close: () => {
+        closes++
+        return Promise.resolve<Outcome>({ did: true, rev: 'o0.c1', said: 'closed it' })
+      },
+    })
+    const ctx = await context(acting, { scopes: ['read', 'projects'] }, 'acted-project-again')
+    await carryOut(CLOSE, BODY_CLOSE, ctx)
+    const again = await carryOut(CLOSE, BODY_CLOSE, ctx)
+    expect(again.body).toEqual({ did: true, rev: 'o0.c1', said: 'closed it' })
+    expect(again.did.why).toBe('already done')
+    expect(closes).toBe(1)
+    // And the same key bound to another project is reused, never obeyed.
+    const other = await carryOut(CLOSE, { ...BODY_CLOSE, project: 'shop' }, ctx)
+    expect(other.refusal?.error).toBe('reused')
+    expect(closes).toBe(1)
+  })
+})

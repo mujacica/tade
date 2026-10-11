@@ -53,6 +53,10 @@ export function actingStub(over: Partial<WebActing> = {}): WebActing {
     note: no('note'),
     context: no('context'),
     intake: no('intake'),
+    stop: no('stop'),
+    reopen: no('reopen'),
+    close: no('close'),
+    open: no('open'),
     ...over,
   }
 }

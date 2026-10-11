@@ -166,6 +166,7 @@ function readingFor(
           sources: [],
           runs: [],
           workflows: [],
+          projectLines: new Map(),
           queued: [],
           queueFacts: { tasks: new Map(), finished: new Map(), events: [], now: NOW },
           order: [],

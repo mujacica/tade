@@ -67,6 +67,10 @@ function heldState(over: { tasks?: number } = {}) {
       reads.push('events')
       return []
     },
+    get rootLines() {
+      reads.push('rootLines')
+      return []
+    },
     get pending() {
       reads.push('pending')
       return []
@@ -164,6 +168,17 @@ async function wiring(
     factory: () => nothingHandedOver(),
     saved: () => {},
     writeKey: () => Promise.resolve(),
+    // No subjects: this harness is for the panel and the beat, and nothing
+    // here stops an agent or closes a project. A call that reached one would
+    // throw, which is the direction that makes such a test fail.
+    lifecycle: {
+      agents: () => {
+        throw new Error('this harness has no agents subject')
+      },
+      projects: () => {
+        throw new Error('this harness has no projects subject')
+      },
+    },
   })
   open.push(away)
   return { away, home, news, decided, logged, at: () => state, drawn: () => draws }

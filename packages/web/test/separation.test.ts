@@ -619,6 +619,10 @@ describe('the sentences', () => {
       note: 'a note',
       context: 'what a task is told',
       intake: 'approve a request',
+      stop: 'stop an agent',
+      reopen: 'open a stopped one again',
+      close: 'close a project',
+      open: 'open a closed one again',
     }
     expect(Object.keys(names).sort()).toEqual(VERBS.map((verb) => verb.name).sort())
     for (const [verb, clause] of Object.entries(names)) {

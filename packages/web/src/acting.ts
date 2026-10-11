@@ -19,7 +19,10 @@ import type { Scope } from './surface.ts'
 //
 // - no `startAgent`, which is the one verb that turns text into execution.
 //   `steer` is a message into a conversation that is **already** running and
-//   the window refuses it where no agent is;
+//   the window refuses it where no agent is; `reopen` brings back an agent
+//   that already has a conversation, saying nothing to it, and is refused
+//   where no agent has ever run — so neither carries an opening instruction
+//   and neither can make an agent that was not there;
 // - no file path. The one verb that writes a file (`context`) names a **task
 //   id** and the window works out where that task's own files are, so there
 //   is no path on the wire to contain, no `..` to refuse and no symlink to
@@ -127,7 +130,9 @@ export interface QueueCall extends Target {
  * What is **not** here: pausing or resuming a whole project. Those name no
  * task, and every verb is a target plus the state it expects — a
  * project-wide hold has no entity revision to echo back, so a replay of one
- * could not be told from a fresh ask. Outstanding, not decided against.
+ * could not be told from a fresh ask. `projectRev` is a project's revision for
+ * whether it is open at all and says nothing about its queue, so it is not
+ * that one. Outstanding, not decided against.
  */
 export const QUEUE_ASKS = ['pause', 'resume', 'start', 'wait', 'first'] as const
 export type QueueAsk = (typeof QUEUE_ASKS)[number]
@@ -176,6 +181,103 @@ export interface IntakeCall extends Target {
    * by a mis-tap, and asking again does not undo it.
    */
   confirm: true
+}
+
+/**
+ * Stop a task's agent: its lane ends, and the lane's spec, the conversation,
+ * the branch and the worktree all stay.
+ *
+ * **What it assumes is named twice, and both are in `was`.** That an agent is
+ * running (`TaskFacts.lane`), and *which* one — the number of times an agent
+ * has been started on this task (`TaskFacts.starts`). The second is what makes
+ * a replay safe: stop, open it again, and a captured stop sent after its
+ * receipt is gone meets a count that has moved, rather than stopping the agent
+ * somebody opened since.
+ */
+export interface StopAgentCall extends Target {
+  /**
+   * That somebody meant it, for the reason `DoneCall` carries one. Stopping is
+   * undone by `reopen`, but what the agent was in the middle of is not — a
+   * turn cut off is a turn somebody has to ask for again.
+   */
+  confirm: true
+}
+
+/**
+ * Open a stopped agent again where it left off, and say nothing to it.
+ *
+ * **Never a new agent.** The window refuses it where no agent has ever run on
+ * the task, and what it does is reattach the lane it kept to the conversation
+ * its harness kept — no opening instruction, because an agent told its first
+ * instruction a second time does the work twice.
+ */
+export type ReopenAgentCall = Target
+
+/** What a project-wide act was about, and what the caller had seen. */
+export interface ProjectTarget {
+  /** The project's name, which is the per-project scope boundary itself. */
+  project: string
+  /** The project's own revision, as the screen was drawn (`projectRev`). */
+  was: string
+}
+
+/**
+ * Take a project off Tade's list. **Nothing is deleted and nothing stops.**
+ *
+ * The window's own close, from away: the folder, its history, every branch and
+ * worktree, the task files and the journal all stay, and an agent working in
+ * it goes on working. What goes with the project's line is its own settings,
+ * and opening it again puts back where it lives and nothing else of them —
+ * which is said where somebody decides, not left to be found.
+ */
+export interface CloseProjectCall extends ProjectTarget {
+  /** That somebody meant it: what it costs is that nothing here draws its work until it is back. */
+  confirm: true
+}
+
+/**
+ * Put a closed project back, where the journal says it was.
+ *
+ * **There is no path in it, and that is the design.** The window reads where
+ * the project lived out of the line its closing wrote, so a device can open a
+ * project Tade has had and nothing else — never a folder it names.
+ */
+export type OpenProjectCall = ProjectTarget
+
+/**
+ * Where one task's agent stands, as its lane says.
+ *
+ * `stopped` is a lane the registry kept with its spec — closed on purpose,
+ * ended by itself, or lost with a window — and is what `reopen` brings back.
+ * `none` is a task no agent has run on, which nothing here may start.
+ */
+export const AGENT_LANES = ['none', 'running', 'stopped'] as const
+export type AgentLane = (typeof AGENT_LANES)[number]
+
+/**
+ * What a project's own revision is made of: one field per thing a verb
+ * assumes, for `TaskFacts`' reason.
+ */
+export interface ProjectFacts {
+  /** Whether it is on Tade's list. `close` needs it there and `open` needs it gone. */
+  open: boolean
+  /**
+   * How many times where it lives has been written, out of the journal.
+   *
+   * The project's generation, and the one thing that tells a replay from a
+   * fresh ask: close it, open it again, and a captured close meets a count
+   * that has moved. A fold, never a tally — it is as many as the journal still
+   * remembers.
+   */
+  changes: number
+}
+
+/** A project's revision: the same rule on the row and at the act, like `taskRev`. */
+export function projectRev(facts: ProjectFacts): string {
+  return [
+    `o${facts.open ? 1 : 0}`,
+    `c${Math.min(Math.max(Math.trunc(facts.changes), 0), 99_999)}`,
+  ].join('.')
 }
 
 /**
@@ -236,6 +338,10 @@ export interface WebActing {
   note(call: NoteCall, from: From): Promise<Outcome>
   context(call: ContextCall, from: From): Promise<Outcome>
   intake(call: IntakeCall, from: From): Promise<Outcome>
+  stop(call: StopAgentCall, from: From): Promise<Outcome>
+  reopen(call: ReopenAgentCall, from: From): Promise<Outcome>
+  close(call: CloseProjectCall, from: From): Promise<Outcome>
+  open(call: OpenProjectCall, from: From): Promise<Outcome>
 }
 
 /** That the thing moved on since the caller looked. Thrown by a verb. */
@@ -398,6 +504,17 @@ export interface TaskFacts {
   finished: boolean
   /** `QueueState`'s own word, or the empty string where it is not queued. `queue`. */
   queue: string
+  /**
+   * Its agent's own lane, never the count above. `stop` needs one running and
+   * `reopen` one stopped.
+   *
+   * Not `agents`, because that counts *signals* — a stopped lane is one, and a
+   * session somebody started outside Tade is another — so a task whose agent
+   * was stopped an hour ago still has a count of one.
+   */
+  lane: AgentLane
+  /** How many times an agent was started on it, out of `run_started`. `stop`, `reopen`. */
+  starts: number
 }
 
 /** Nothing is waiting, nothing is running, and it is not queued work. */
@@ -409,6 +526,8 @@ export function noFacts(): TaskFacts {
     agents: 0,
     finished: false,
     queue: '',
+    lane: 'none',
+    starts: 0,
   }
 }
 
@@ -436,6 +555,8 @@ export function taskRev(facts: TaskFacts): string {
     `g${Math.min(Math.max(Math.trunc(facts.agents), 0), 9)}`,
     `f${facts.finished ? 1 : 0}`,
     `k${facts.queue || 'none'}`,
+    `l${facts.lane}`,
+    `r${Math.min(Math.max(Math.trunc(facts.starts), 0), 99_999)}`,
   ].join('.')
 }
 

@@ -35,7 +35,7 @@
 import { el, into } from './dom.js'
 import { clockOf, count, duration } from './figures.js'
 import { CACHE_PREFIX } from './install.js'
-import { intakeWaiting, omitted, rowsOf } from './store.js'
+import { intakeWaiting, omitted, projectsOf, rowsOf } from './store.js'
 
 /**
  * The whole of what may be on that disk.
@@ -79,7 +79,8 @@ export function countsOf(store, savedAt) {
     // it anywhere, which is a claim a test can make in one line and nothing
     // can quietly weaken.
     at: store.fresh === null ? null : Date.parse(store.fresh.at),
-    projects: store.rows.projects.size,
+    // Open ones: a closed project is a row only so it can be opened again.
+    projects: projectsOf(store).length,
     tasks: tasks.length,
     working: tasks.filter((task) => task.state === 'working').length,
     wantsYou: tasks.filter((task) => task.wantsYou === true).length,

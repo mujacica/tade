@@ -187,8 +187,17 @@ export function wantingIds(store) {
   return new Set(wantsYou(store).map((task) => task.id))
 }
 
+/**
+ * The projects on Tade's list. A closed one is a row only so it can be opened
+ * again from its own page (`closedOf`), and is never a tab or a block.
+ */
 export function projectsOf(store) {
-  return rowsOf(store, 'projects')
+  return rowsOf(store, 'projects').filter((row) => row.open !== false)
+}
+
+/** The projects that were closed and may be opened again from here, by name. */
+export function closedOf(store) {
+  return rowsOf(store, 'projects').filter((row) => row.open === false)
 }
 
 export function tasksIn(store, project) {

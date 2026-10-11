@@ -90,6 +90,22 @@ export const AWAY_CONTROLS = {
    * needs no setting, because nothing it grants can change anything.
    */
   see: 'away-see:',
+  /**
+   * Let one device stop an agent and open it again, or take it back:
+   * `away-agents:<id>`.
+   *
+   * **A chip of its own and not a wider `act`**, for the reason `talk` is one:
+   * a device that may say something to an agent has not been granted a say in
+   * whether it runs at all. Drawn only where acting is on, because these verbs
+   * are acting routes and there is no route to reach with it off.
+   */
+  agents: 'away-agents:',
+  /**
+   * Let one device close a project and open it again, or take it back:
+   * `away-projects:<id>`. Its own chip again: closing changes what every
+   * surface draws and takes the project's own settings with it.
+   */
+  projects: 'away-projects:',
 } as const
 
 /**

@@ -224,10 +224,19 @@ declare module '*/assets/talk.js' {
 
 declare module '*/assets/acts.js' {
   export const SHOWN: readonly string[]
+  export const PROJECT_SHOWN: readonly string[]
+  export const PAIRS: Readonly<Record<string, string>>
   export const NEEDS: Readonly<Record<string, string>>
   export const QUEUE_ASKS: readonly { change: string; said: string; starts?: boolean }[]
   export function asksFor(row: unknown): readonly { change: string; said: string }[]
-  export function actsOf(session: unknown): { answer: boolean; steer: boolean; ask: boolean }
+  export function actsOf(session: unknown): {
+    answer: boolean
+    steer: boolean
+    ask: boolean
+    draft: boolean
+    agents: boolean
+    projects: boolean
+  }
   export function askBody(
     talk: unknown,
     key: string,
@@ -242,7 +251,8 @@ declare module '*/assets/acts.js' {
   ): { kind: 'off' | 'no' | 'yes'; how?: string; why: string }
   export function controlsFor(
     row: unknown,
-    acts: { answer: boolean; steer: boolean },
+    acts: { answer: boolean; steer: boolean; agents?: boolean; projects?: boolean },
+    verbs?: readonly string[],
   ): { verb: string; kind: string; how?: string; why: string }[]
   export function bodyFor(
     verb: string,

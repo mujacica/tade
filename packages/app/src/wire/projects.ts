@@ -538,8 +538,8 @@ export class Projects implements Subject {
     path: string
     name?: string
     create: boolean
-    /** Who asked, for the journal: the window, or the orchestrator on somebody's word. */
-    by: 'window' | 'orchestrator'
+    /** Who asked, for the journal: the window, the orchestrator, or `device <id>` from away. */
+    by: string
     /** Their words, where it was the orchestrator that was asked. */
     said?: string
   }): Promise<string> {
@@ -737,7 +737,7 @@ export class Projects implements Subject {
    * on: somebody who no longer sees four agents has to be told they are still
    * there.
    */
-  async closeProject(name: string, by: 'window' | 'orchestrator', said = ''): Promise<string> {
+  async closeProject(name: string, by: string, said = ''): Promise<string> {
     // `hasOwn` rather than a truthy lookup: `projects.__proto__` is truthy on
     // any plain object, and a name that reached here as text should never be
     // able to be one of those.

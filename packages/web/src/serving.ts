@@ -128,7 +128,7 @@ export interface ServerOptions {
    * off takes effect now.
    *
    * It is a **second** optional and not a field on `acting`, because the two
-   * are different decisions with different settings: eight bounded verbs, and
+   * are different decisions with different settings: bounded verbs, and
    * free text to a model that holds tools.
    */
   asking?: WebAsking

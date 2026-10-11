@@ -42,6 +42,7 @@ import {
   ParkMovedOn,
 } from '@tade/workbench'
 import type { Steering } from '../away.ts'
+import type { LifecycleActing, LifecycleDeps } from './web-lifecycle.ts'
 
 // The window's end of acting: what a verb actually does, and the one door a
 // device's scope widens through.
@@ -82,6 +83,8 @@ import type { Steering } from '../away.ts'
 // | `done` | the journal, read here: a second `task_done` is refused rather than appended |
 // | `note`, `context` | an append, which cannot lose what somebody else wrote |
 // | `intake` | `whyNotAct` on the row, plus the grant and the source, all at the act |
+// | `stop`, `reopen` | the registry's own lane and the journal's count of starts, read at the act, one at a time per task (`web-lifecycle.ts`) |
+// | `close`, `open` | the window's config and the journal's lines about where the project lives, read at the act, one at a time per project |
 //
 // A verb whose answer to that column is "nothing" and whose effect is not
 // idempotent does not belong in this file.
@@ -143,6 +146,12 @@ export interface ActingDeps {
   config: () => Config
   /** The moment, so nothing here reads a clock of its own. */
   now: () => number
+  /**
+   * The agents and projects subjects, and what the projection last said about
+   * a project: what the four lifecycle verbs need, and only that
+   * (`web-lifecycle.ts`).
+   */
+  lifecycle: LifecycleDeps
 }
 
 /** The workbench doors one verb or another needs. Nothing else of it. */
@@ -154,6 +163,8 @@ export interface ActingDoors extends IntakeDoors {
   /** A note, verbatim, with who wrote it. Never a `said` line. */
   remember(text: string, scope: string | null, by: string, summary: string | null): unknown
   steerAgent(task: string, message: string): Promise<void>
+  /** The lanes the registry holds, dead ones with their specs included: lane truth at the act. */
+  lanes(task?: string): readonly { id: string; alive: boolean }[]
   pendingApprovals(task?: string): readonly { run: string; requestId: string; tool: string }[]
   decideApproval(
     run: string,
@@ -176,7 +187,7 @@ export interface GrantDeps {
  * there is no shape here a path, a command, a setting, a credential or a new
  * agent could arrive in (`acting.ts` has the list and the argument).
  */
-export function webActing(deps: ActingDeps): WebActing {
+export function webActing(deps: ActingDeps): Omit<WebActing, keyof LifecycleActing> {
   return {
     // Read out of the live config at every act. **This is the half of the
     // setting that can only ever take authority away**, which is why it is a
@@ -209,8 +220,8 @@ export function webActing(deps: ActingDeps): WebActing {
  * outside this device's reach, or it is gone, and neither is a thing to redraw
  * from.
  */
-function onTask<T>(
-  deps: ActingDeps,
+export function onTask<T>(
+  deps: Pick<ActingDeps, 'seen'>,
   call: { task: string; was: string },
   work: (facts: TaskFacts) => Promise<T>,
 ): Promise<T> {
@@ -224,7 +235,7 @@ function onTask<T>(
 }
 
 /** The revision to answer with: the facts that were checked, with what moved. */
-function after(facts: TaskFacts, moved: Partial<TaskFacts> = {}): string {
+export function after(facts: TaskFacts, moved: Partial<TaskFacts> = {}): string {
   return taskRev({ ...facts, ...moved })
 }
 
@@ -697,7 +708,7 @@ export async function letOneTalk(
  * the second one silently revokes the first. `read` is in the kept half by
  * construction: no control here decides it.
  */
-function kept(device: Device, decides: readonly string[], on: boolean): string[] {
+export function kept(device: Device, decides: readonly string[], on: boolean): string[] {
   const rest = device.scopes.filter((scope) => !decides.includes(scope))
   const scopes = new Set<string>(['read', ...rest])
   if (on) for (const scope of decides) scopes.add(scope)

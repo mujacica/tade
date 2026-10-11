@@ -247,14 +247,14 @@ export class App {
       // The queue's own rule, so a device approving work that came from
       // outside meets the same grant, plan and source checks a start does.
       stands: (row) => this.queue.standsFor(row),
-      // The factory floor, as the subject that folds the inbox already holds
-      // it: a fold the window keeps rather than work a page starts.
+      // The factory floor, as the inbox subject already folds it: no page starts work.
       factory: () => this.intake.factory(),
-      // A file edit writes no journal line, so the fold is told rather than
-      // left to find out on its own clock.
+      // A file edit writes no journal line, so the fold is told.
       saved: () => this.intake.markStale(),
       // The one door a setting is written by, for the one key nothing types.
       writeKey: (key, value, was) => this.settings.writeKey(key, value, was),
+      // Stopping and closing from away, through the keyboard's own two doors.
+      lifecycle: { agents: () => this.agents, projects: () => this.projects },
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),

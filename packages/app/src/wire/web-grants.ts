@@ -1,9 +1,9 @@
 import type { Config } from '@tade/core'
-import { type Device, grantDevice, surfaceOf, type Told } from '@tade/web'
+import { allowDevice, type Device, grantDevice, surfaceOf, type Told } from '@tade/web'
 import { AWAY_CONTROLS } from '../panels/away/state.ts'
-import { letOneAct, letOneTalk } from './web-acting.ts'
+import { type Granted, kept, letOneAct, letOneTalk } from './web-acting.ts'
 
-// The panel's three controls that widen what one device may do or read, and
+// The panel's controls that widen what one device may do or read, and
 // the one rule they share: **a keypress at this machine is the only door.**
 //
 // Out of `web.ts` because they are one subject — the window's half of a grant:
@@ -50,6 +50,14 @@ export async function widen(deps: Widening, control: string): Promise<boolean> {
     const id = control.slice(AWAY_CONTROLS.act.length)
     const acting = () => surfaceOf(deps.config().surfaces.web).acting
     const granted = await letOneAct({ ...at, acting }, deps.devices(), id)
+    await written(deps, id, { scopes: granted.scopes.join(' ') }, granted.said)
+    return true
+  }
+  for (const scope of ['agents', 'projects'] as const) {
+    if (!control.startsWith(AWAY_CONTROLS[scope])) continue
+    const id = control.slice(AWAY_CONTROLS[scope].length)
+    const acting = () => surfaceOf(deps.config().surfaces.web).acting
+    const granted = await letOneRun({ ...at, acting }, deps.devices(), id, scope)
     await written(deps, id, { scopes: granted.scopes.join(' ') }, granted.said)
     return true
   }
@@ -110,5 +118,42 @@ export async function letOneSee(
   return {
     reads,
     said: may ? `${what} can no longer see agents’ screens` : `${what} can see agents’ screens`,
+  }
+}
+
+/** What each lifecycle scope lets a device do, in the strip's words. */
+const RUNS = {
+  agents: 'stop an agent or open it again',
+  projects: 'close a project or open it again',
+} as const
+
+/**
+ * Let one device stop and reopen agents, or close and reopen projects — or
+ * take it back. **A person at this machine, only**, through the door
+ * `letOneAct` goes through.
+ *
+ * A scope each, and each composed from what the device already has (`kept`),
+ * so granting one takes nothing else away. Refused while acting is off, for
+ * `letOneAct`'s reason: these are acting routes, and a grant nothing could use
+ * is what Tade accepting and ignoring a setting would be.
+ */
+export async function letOneRun(
+  deps: { home: string; acting: () => boolean; now: () => number },
+  devices: readonly Device[],
+  id: string,
+  scope: keyof typeof RUNS,
+): Promise<Granted> {
+  if (!deps.acting()) {
+    throw new Error('turn on “Let a paired device act” in Settings → Away view first')
+  }
+  const device = devices.find((one) => one.id === id && one.revoked === null)
+  if (device === undefined) throw new Error('that device is not paired')
+  const may = device.scopes.includes(scope)
+  const scopes = kept(device, [scope], !may)
+  await allowDevice(deps.home, id, scopes, new Date(deps.now()))
+  const what = device.label === '' ? 'that device' : device.label
+  return {
+    scopes,
+    said: may ? `${what} can no longer ${RUNS[scope]}` : `${what} can ${RUNS[scope]}`,
   }
 }

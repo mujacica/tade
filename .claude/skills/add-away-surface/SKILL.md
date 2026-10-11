@@ -32,6 +32,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | what kind of trouble a look ran into | `watch-looks.ts` in `@tade/core`, `troubleOf` in `@tade/extensions-core`, written down by `wire/schedules.ts` |
 | a request's own words, as a device reads them | `IntakeIn.material` in `src/factory.ts`, `Bodies` in `wire/web-factory.ts`, `MATERIAL_LABEL` in `@tade/core` |
 | what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
+| stopping or reopening an agent, closing or reopening a project | `STOP`/`REOPEN`/`CLOSE`/`OPEN` in `src/verbs.ts`, the window's door in `packages/app/src/wire/web-lifecycle.ts`, the pure reading (`agentLaneOf`, `projectLines`, `projectAble`) in `packages/app/src/away-lifecycle.ts`, the chips in `wire/web-grants.ts` (`letOneRun`) |
 | one agent looked into: the answer, its activity's words | `src/agent.ts` (`agentOf`, `activitySaid`), `AgentOutSchema` in `src/protocol.ts`, `GET /api/agent/:project/:task` in `src/routes.ts` |
 | what of an agent's screen may leave the machine | `src/screen.ts` — pure: the bounds, the wrap, the keys, the shapes, the paths |
 | when the window reads an agent's screen, and which keys it knows | `packages/app/src/wire/web-lanes.ts` (`Lanes`, `knownKeys`) |
@@ -326,8 +327,9 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   is a drawing hint read off its own session.
 - **Only a `200` clears a box.** A `409` is the world having moved, and throwing away a paragraph
   somebody typed on a phone because of it is the one failure they cannot undo (`afterAnswer`).
-- **Two presses for the two acts asking again does not undo** — `done` and `intake` — and the body's
-  own `confirm: true` literal is the other half. Neither stands in for the other: the tap stops a
+- **Two presses for the two acts asking again does not undo** — `done` and `intake` — **and the two
+  that are destructive-adjacent** — `stop` and `close` — and the body's own `confirm: true` literal
+  is the other half. Neither stands in for the other: the tap stops a
   mis-tap, and the literal means there is no shape of the body that says *do not*.
 - **The shell's version is a hash of its own bytes, and there is no stamp anywhere.**
   `shellOf` hashes every file's path and etag; `/sw.js` answers with that as a line of JSON in
@@ -447,11 +449,14 @@ correct (it scrolls) and moved every settings golden.
 
 ## What is not built, and must not arrive because a route was convenient
 
-No setting is writable, nothing grants anything, **nothing publishes a workflow or a persona,
+No setting is writable (a project's own line leaving and coming back with `close` and `open` is the
+one config write, a verb at its own scope), nothing grants anything, **nothing publishes a workflow or a persona,
 nothing makes, renames or deletes a draft, and nothing touches a published version** — which never
 changes once it is out, so a run that points at `name@3` goes on pointing at it. Nothing turns a
 source on, nothing starts an agent (`steer` is a message into a conversation that is **already**
-running, refused where no agent is), nothing runs a command, nothing pushes, merges, answers a
+running, refused where no agent is; `reopen` reattaches a lane the registry kept, saying nothing, and
+is refused where no agent ever ran; `open` puts back the root the journal kept and never a path a
+device named), nothing runs a command, nothing pushes, merges, answers a
 review or overrules a check, nothing reaches a credential and nothing reaches the `ToolHost` — which is a Unix
 socket in `@tade/orchestrator` for the window's own children, and is **not this**
 (`test/separation.test.ts`). Each of those is a `never remote` line with an argument behind it; if a
@@ -516,17 +521,38 @@ own table (`ASKS`), its own interface (`WebAsking`), its own event type
   `transcript`, `args`, `payload` and `output` are all still names that fail
   `NEVER_A_FIELD`.
 
-**There are eight verbs and they are the whole of what a device may ever do**: `park`, `answer`,
-`steer`, `queue`, `done`, `note`, `context` and `intake`. Park went first because it is the smallest
-act that proves the whole path; the rest are §9.1's matrix filled in, each a line in `VERBS`, a
-method on `WebActing`, and a control in `acts.js`.
+**There are twelve verbs and they are the whole of what a device may ever do**: `park`, `answer`,
+`steer`, `queue`, `done`, `note`, `context` and `intake` — and the lifecycle, `stop`, `reopen`,
+`close` and `open`. Park went first because it is the smallest act that proves the whole path; the
+next seven are §9.1's matrix filled in, each a line in `VERBS`, a method on `WebActing`, and a
+control in `acts.js`.
 
-**Three in the matrix are deliberately not verbs**, and `verbs.ts` carries the argument beside the
-table: a whole project's queue (it names no task, so it has no entity revision to echo and no replay
-could be told from a fresh ask), a diff, a review's text or a lane's output (each ships source or an
-agent's bytes to a phone and a browser cache — a *reading* grant with its own threat model, and a
-name `NEVER_A_FIELD` already refuses; the third is now that grant, `lanes`, and still no verb), and
-stopping an agent (not a hold, not undone by the same verb).
+**The lifecycle is two pairs at two scopes nothing implies** — `agents` and `projects`, a chip each
+in the panel, off for every device, refused while acting is off. What each pair adds to the shape:
+
+- **A verb's target may be a whole project** (`Verb.on`). Its `task` is empty, the project is the
+  target `boundTo` binds a key to, the gate's per-project boundary asks the name itself, and the
+  journal line carries `project` in its detail — never on the event, where every fold keyed by task
+  would read a task by that name. A row's `can`/`cannot` cover exactly its own kind's verbs.
+- **A toggle names its generation**, or a replay after the round trip is not refused: `taskRev`
+  carries the agent's own lane (`lane`, never the `agents` count, which counts a stopped lane as a
+  signal) and how many times one was started (`starts`, from `run_started`); `projectRev` carries
+  whether the project is open and how many lines wrote where it lives (`changes`). Both folds come
+  from the **whole** journal on both sides — `Live`'s 500-event window would count differently from
+  the door that re-reads it at the act.
+- **The door is the keyboard's**: `Agents.stopExactly` (marked stopped on purpose, so the window
+  never reopens it behind anyone's back) and `reopenExactly`; `Projects.closeProject` and `openAt`
+  with the root out of the journal's close line. Lane truth is asked of the registry at the act, and
+  one act per target runs at a time (`busy`), because the keyboard's doors await between check and
+  write. The answers say what happens to the lane's spec and to the project's own settings, with no
+  path in them.
+
+**Two in the matrix are deliberately not verbs**, and `verbs.ts` carries the argument beside the
+table: a whole project's queue (it names no task and `projectRev` says nothing about a queue, so no
+replay could be told from a fresh ask), and a diff, a review's text or a lane's output (each ships
+source or an agent's bytes to a phone and a browser cache — a *reading* grant with its own threat
+model, and a name `NEVER_A_FIELD` already refuses; the third is now that grant, `lanes`, and still
+no verb). Stopping an agent used to be a third and is now half of a pair, for the reasons above.
 
 **Every verb makes two checks and they answer different questions.** `onTask` compares the revision
 the device echoed (`was`) against the one the projection would put on that row now — that one is
@@ -555,6 +581,9 @@ implied away.
 would mean a phone that can allow a command and cannot set the work aside. A control per tier is the
 thing to build if somebody wants the narrower grant; until then `ACTING_IS_NOT_YOU` is held to naming
 all of it (`test/separation.test.ts`).
+
+**The lifecycle chips are two more beside it** (`agents`, `projects`), drawn only where acting is
+on, and composed the same way.
 
 **Talking is a second control beside it**, and the two **compose**: `allowDevice` writes the whole
 scope list, so every control over it builds from what the device already has (`kept`). Two controls

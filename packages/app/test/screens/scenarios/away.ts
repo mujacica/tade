@@ -42,6 +42,8 @@ function view(over: Partial<AwayView> = {}): AwayView {
         mayAct: false,
         mayTalk: false,
         maySee: false,
+        mayStop: false,
+        mayClose: false,
         live: true,
       },
       {
@@ -52,6 +54,8 @@ function view(over: Partial<AwayView> = {}): AwayView {
         mayAct: false,
         mayTalk: false,
         maySee: false,
+        mayStop: false,
+        mayClose: false,
         live: false,
       },
     ],
@@ -151,9 +155,13 @@ export const AWAY_SCREENS: Scenario[] = [
       'words it was granted, ‘may act’ on the one row that has it, and above the list the ' +
       'whole of what acting can never reach — said where somebody is granting it rather than ' +
       'in a document. No code outstanding, because the panel somebody opens to read their own ' +
-      'devices is not the one they opened to add a phone.',
+      'devices is not the one they opened to add a phone. One device may also stop agents, and ' +
+      'each row has a chip for that and one for closing projects, neither implied by `act`. ' +
+      'Taller than the rest, because the sentence above the list is the whole of what acting ' +
+      'is and the list under it is what the picture is for.',
     state: { ...base(), panel: awayPanel() },
     frame: frame({
+      height: 42,
       date: utcDate,
       panel: {
         away: view({
@@ -169,10 +177,12 @@ export const AWAY_SCREENS: Scenario[] = [
               id: '00112233445566aa',
               label: 'iPhone',
               pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-              reads: ['titles', 'intent'],
+              reads: ['titles'],
               mayAct: true,
               mayTalk: false,
               maySee: false,
+              mayStop: true,
+              mayClose: false,
               live: true,
             },
             {
@@ -183,6 +193,8 @@ export const AWAY_SCREENS: Scenario[] = [
               mayAct: false,
               mayTalk: false,
               maySee: false,
+              mayStop: false,
+              mayClose: false,
               live: false,
             },
             {
@@ -193,6 +205,8 @@ export const AWAY_SCREENS: Scenario[] = [
               mayAct: false,
               mayTalk: false,
               maySee: false,
+              mayStop: false,
+              mayClose: false,
               live: false,
             },
           ],
