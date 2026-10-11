@@ -89,13 +89,38 @@ async function host(
   })
 }
 
-function look(extensions: ExtensionHost, input: Record<string, unknown> = {}) {
+function look(
+  extensions: ExtensionHost,
+  input: Record<string, unknown> = {},
+  tade: Parameters<ExtensionHost['look']>[1]['tade'] = null,
+) {
   return extensions.look('deps.updates', {
     project: 'shop',
     input,
     since: null,
     turnedOn: '2026-09-01T00:00:00.000Z',
+    tade,
   })
+}
+
+/** An open window with these tasks' agents at work in it, as a watch sees one. */
+function windowWith(
+  tasks: readonly string[] = [],
+): NonNullable<Parameters<ExtensionHost['look']>[1]['tade']> {
+  return {
+    pid: process.pid,
+    lanes: () => [],
+    agents: () =>
+      tasks.map((task) => ({
+        task,
+        project: task.split('/')[0] ?? '',
+        startedAt: 0,
+        turn: 'running' as const,
+        did: [],
+        ends: [],
+      })),
+    startAgent: async () => ({ task: '', worktree: '' }),
+  }
 }
 
 /** A schedule of this watch, so what it once found can be read back under its id. */
@@ -255,21 +280,6 @@ describe('when it cannot look', () => {
     expect(looked.found[0]?.detail).toContain(
       '5 of this project’s dependencies could not be checked at all (not found in its registry)',
     )
-  })
-
-  it('refuses a project whose agents share its own checkout, and names both ways out', async () => {
-    const { repo, home } = place('checkout')
-    await expect(look(await host(repo.root, home))).rejects.toThrow(
-      /set projects\.shop\.workspace to worktree, or turn this watch on with in_checkout true/,
-    )
-    // A home with no config at all is read as the checkout, which is the
-    // machine's own default: guessing the other way would let a clock rewrite
-    // a tree three other agents are working in.
-    const { repo: other, home: bare } = place(null)
-    await expect(look(await host(other.root, bare))).rejects.toThrow(/in its own checkout/)
-    // And it is a refusal somebody can lift where they mean to.
-    const said = await look(await host(repo.root, home), { in_checkout: true })
-    expect(said.found.length).toBe(3)
   })
 
   it('is not a look that went wrong when the folder is no repository', async () => {
@@ -448,5 +458,124 @@ describe('the bound on one commit', () => {
       ),
     )
     expect(looked.found[0]?.detail).toContain('- left-pad → 2.0.0\n- react → 19.1.0')
+  })
+})
+
+describe('where the work goes', () => {
+  it('asks for a tree of its own, whatever the project says about where its agents work', async () => {
+    // A project set up the ordinary way — every agent in its own checkout,
+    // which is also the machine's default — is looked at exactly like one that
+    // gives each agent a worktree, and was refused outright before this.
+    for (const where of ['checkout', 'worktree', null] as const) {
+      const { repo, home } = place(where)
+      const looked = await look(await host(repo.root, home))
+      expect(looked.found.map((one) => one.key)).toEqual([
+        'patch:@types/node@22.1.3,left-pad@1.3.1,lodash@4.17.21',
+        'minor:requests@2.32.3',
+        'minor:vitest@4.1.0',
+      ])
+      const batch = looked.found[0]
+      if (!batch) throw new Error('nothing was found to bump')
+      const agent = await looked.agent(batch)
+      // The one thing that makes it safe where agents share a checkout: this
+      // work is not put in the tree they are standing in.
+      expect(agent.alone).toBe(true)
+      expect(agent.prompt).toContain('in your own worktree and nothing else')
+      expect(agent.prompt).not.toContain('every other agent here shares')
+      expect(repo.git('status', '--porcelain')).toBe('')
+    }
+  })
+
+  it('bumps in the shared checkout where somebody asked for that, one at a time', async () => {
+    const { repo, home } = place('checkout')
+    const looked = await look(await host(repo.root, home), { in_checkout: true }, windowWith())
+    // One bump per look, because two agents installing in one tree is two
+    // installs racing one lockfile. The minors wait for the next look.
+    expect(looked.found.map((one) => one.key)).toEqual([
+      'patch:@types/node@22.1.3,left-pad@1.3.1,lodash@4.17.21',
+    ])
+    // And what it held back is said on the one it kept, rather than being
+    // quietly dropped: a watch that looks every day as though one thing were
+    // behind is a watch nobody can read.
+    expect(looked.found[0]?.detail).toContain(
+      '2 other bumps wait for the next look: each is an install in this project’s own checkout',
+    )
+    // And the majors still ride on it, since it is the first finding of the look.
+    expect(looked.found[0]?.detail).toContain('- react → 19.1.0')
+    const agent = await looked.agent(looked.found[0] ?? { key: '', title: '' })
+    expect(agent.alone).toBeUndefined()
+    expect(agent.prompt).toContain('it moves those requirements where you work and nothing else')
+    expect(agent.prompt).toContain('shop’s own checkout, which every other agent here shares')
+    expect(agent.prompt).toContain('each added by its path — never `git add -A`')
+    expect(agent.prompt).toContain('leave it exactly as it is and say so')
+  })
+
+  it('says nothing about a project that already gives every agent a tree', async () => {
+    // `in_checkout` is about a shared checkout. Where there is none to share,
+    // the work goes where it would have gone anyway and nothing is held.
+    const { repo, home } = place('worktree')
+    const looked = await look(await host(repo.root, home), { in_checkout: true }, windowWith())
+    expect(looked.found.length).toBe(3)
+    const agent = await looked.agent(looked.found[0] ?? { key: '', title: '' })
+    expect(agent.alone).toBe(true)
+  })
+
+  it('holds while that checkout has work in it nobody has committed', async () => {
+    const { repo, home } = place('checkout')
+    writeFileSync(join(repo.root, 'package.json'), '{\n  "name": "shop-mid-edit"\n}\n', 'utf8')
+    const looked = await look(await host(repo.root, home), { in_checkout: true }, windowWith())
+    expect(looked.found).toEqual([])
+    expect(looked.said).toBe(
+      'shop’s own checkout has work in it nobody has committed, and a bump there would be mixed into it',
+    )
+    // Held, not failed: nothing is drawn as trouble and the releases are still
+    // there for the next look.
+    expect(repo.git('status', '--porcelain')).toContain('package.json')
+  })
+
+  it('holds while an agent is at work in it, and where nothing can see who is', async () => {
+    const { repo, home } = place('checkout')
+    const extensions = await host(repo.root, home)
+    const busy = await look(extensions, { in_checkout: true }, windowWith(['shop/refunds']))
+    expect(busy.found).toEqual([])
+    expect(busy.said).toBe(
+      'an agent is at work in shop’s own checkout, and a bump there would rewrite the tree under it',
+    )
+    // Somebody else's project is somebody else's tree.
+    const elsewhere = await look(extensions, { in_checkout: true }, windowWith(['api/refunds']))
+    expect(elsewhere.found.length).toBe(1)
+    // A look with no window cannot tell, and a look that cannot tell holds.
+    const blind = await look(extensions, { in_checkout: true })
+    expect(blind.found).toEqual([])
+    expect(blind.said).toBe(
+      'nothing here can see who is at work in shop’s own checkout, so nothing is bumped in it',
+    )
+  })
+
+  it('holds where git cannot say whether the checkout is clean', async () => {
+    const home = tmp('tade-deps-notrepo-')
+    const root = tmp('tade-deps-notgit-')
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `projects:\n  shop:\n    root: ${root}\n    workspace: checkout\n`,
+      'utf8',
+    )
+    const looked = await look(await host(root, home), { in_checkout: true }, windowWith())
+    expect(looked.said).toBe(
+      'git cannot say whether shop’s own checkout is clean, so nothing is bumped in it',
+    )
+  })
+
+  it('still reports a package it has tried its allowance of times, one bump or not', async () => {
+    const { repo, home } = place('checkout')
+    schedule(home)
+    alreadyBumped(home, ['patch:lodash@4.17.21', 'patch:left-pad@1.3.0,lodash@4.17.21'])
+    const looked = await look(await host(repo.root, home), { in_checkout: true }, windowWith())
+    // One bump, and everything that is only *said* — nothing is in anybody's
+    // tree to be held back.
+    expect(looked.found.map((one) => one.key)).toEqual([
+      'patch:@types/node@22.1.3,left-pad@1.3.1',
+      'held:lodash@4.17.21',
+    ])
   })
 })

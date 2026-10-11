@@ -26,8 +26,13 @@ cannot.
 5. **One bad release must not hold up the others.** Where several packages moved together and one of
    them is what the checks are failing on, put that one back to the version it was, keep the rest,
    and say which you left behind and what it broke.
-6. **Commit only what is green, and never a red tree.** If you cannot make the checks pass, put
+6. **In a project's own checkout, commit the manifests and lockfiles you moved and nothing else**,
+   each added by its path — never `git add -A`, `git add .` or `git commit -a`. A bump normally gets
+   a worktree of its own, where everything in the tree is yours; where your task's prompt says you
+   are in the project's own checkout, every other change in it is somebody else's, and uncommitted
+   work that was there before you is theirs to finish: leave it exactly as it is and say so.
+7. **Commit only what is green, and never a red tree.** If you cannot make the checks pass, put
    every manifest and lockfile back the way you found it, commit nothing, and say what broke and how
    far you got. A dependency update that lands broken code is worse than no update at all.
-7. `deps_check` shows what is still behind or vulnerable after your changes. Run it before you
+8. `deps_check` shows what is still behind or vulnerable after your changes. Run it before you
    finish.

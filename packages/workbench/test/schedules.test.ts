@@ -230,4 +230,42 @@ describe('schedules', () => {
       problem: expect.stringContaining('no commit to work from'),
     })
   })
+
+  it('gives work that cannot share a tree one of its own, in a project whose agents share theirs', async () => {
+    await client.setSchedule(
+      deps({
+        id: 'dependency-updates',
+        name: 'Dependency updates',
+        when: { every: '1d' },
+        does: { kind: 'watch', watch: 'deps.updates', input: {}, found: 'agent', most: 2 },
+      }),
+      'you',
+    )
+    const bump = { title: 'bump 3 patch releases', prompt: 'Bump them.' }
+    // This home says nothing about where agents work, so they share the
+    // project's own checkout — the machine's own default.
+    const beside = await client.watchFound(
+      'dependency-updates',
+      { key: 'a', title: 'a' },
+      {
+        agent: bump,
+      },
+    )
+    expect(beside.task).toBe('app/bump-3-patch-releases')
+    const fileOf = (task: string) => readFileSync(join(taskDir(home, task), 'task.yaml'), 'utf8')
+    expect(fileOf(beside.task ?? '')).toContain('workspace: checkout')
+
+    // The same work, saying it cannot share one: a worktree and a branch of
+    // its own, in the same project, without anybody changing a setting.
+    const apart = await client.watchFound(
+      'dependency-updates',
+      { key: 'b', title: 'b' },
+      {
+        agent: { ...bump, title: 'bump vitest', alone: true },
+      },
+    )
+    // Nothing says `checkout` on it, which is how a worktree task's file reads.
+    expect(fileOf(apart.task ?? '')).not.toContain('workspace:')
+    expect(repo.git('branch', '--list', 'tade/bump-vitest')).toContain('tade/bump-vitest')
+  })
 })

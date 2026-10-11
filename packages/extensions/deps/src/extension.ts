@@ -24,8 +24,10 @@ import { dependencyUpdates } from './updates.ts'
 //
 // Checking is a question and can be asked by anyone, anywhere. Updating is
 // work, so it happens where work happens: with an agent that installs, runs
-// the tests and fixes what the new versions broke, wherever Tade has its
-// agents work — the checkout, or a worktree of its own.
+// the tests and fixes what the new versions broke — in a worktree and branch
+// of its own, whatever the project says about where its agents work. A bump
+// rewrites every manifest and one lockfile, which is the one shape of work
+// that cannot be shared with whoever else is in a tree (`WatchAgent.alone`).
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -156,6 +158,12 @@ export const depsExtension: TadeExtension = {
         const started = await ctx.tade.startAgent({
           project: at.project.name,
           title: `update dependencies ${level}`,
+          // Manifests, an install and a lockfile are the one shape of work that
+          // cannot be shared, so it gets a tree nobody else is in even in a
+          // project whose agents all work in its own checkout — where
+          // `prepare` would otherwise write this update into the tree they are
+          // all standing in.
+          alone: true,
           prompt: [
             `The dependencies in this worktree were just updated to their newest ${level} releases (${changes.length} change${changes.length === 1 ? '' : 's'}, listed in your task’s context file).`,
             `Run ${install.map((command) => `\`${command}\``).join(' and ') || 'the install'} so the lockfiles match,`,
@@ -252,6 +260,9 @@ export const depsExtension: TadeExtension = {
         const level = typeof ctx.input.level === 'string' ? ctx.input.level : 'minor'
         return {
           title: `update ${name}`,
+          // A bump is one install and one lockfile wherever it happens: a tree
+          // of its own, whatever the project says about where its agents work.
+          alone: true,
           prompt: [
             `${name} has a known vulnerability, in your task’s context file with its advisories.`,
             `Read them first, then call deps_update with packages ["${name}"] and level ${level} to move it forward in this worktree.`,
@@ -300,8 +311,8 @@ export const depsExtension: TadeExtension = {
   orchestrator: () =>
     [
       'When asked to check, verify or update the dependencies of a project, call deps_check first and say what it found briefly — how many are behind, the majors, anything vulnerable.',
-      'To update, call deps_update with the level the human asked for (minor unless they said everything or major): it starts an agent that installs, tests and fixes, so tell them which agent is on it. Never update in the project’s own checkout.',
-      'To keep them current without being asked each time, turn on the watch deps.updates with tade_schedule: it looks once a day, bumps patch and minor releases in an agent’s own worktree — the patches in one commit, each minor on its own — and commits only what the project’s checks pass. It never bumps a major and never commits a red tree, so a major it reports is a decision for you and the person, not for it.',
+      'To update, call deps_update with the level the human asked for (minor unless they said everything or major): it starts an agent that installs, tests and fixes, in a worktree of its own whatever the project says, so tell them which agent is on it.',
+      'To keep them current without being asked each time, turn on the watch deps.updates with tade_schedule: it looks once a day, bumps patch and minor releases in an agent’s own worktree whatever the project says — the patches in one commit, each minor on its own — and commits only what the project’s checks pass. It never bumps a major and never commits a red tree, so a major it reports is a decision for you and the person, not for it.',
     ].join(' '),
   agents: () =>
     'deps_check lists which dependencies of your worktree are out of date, vulnerable or deprecated; deps_update moves them forward in your worktree, after which you install, run the project’s own checks with checks_run, and commit only what is green — put the manifests back rather than committing a red tree.',

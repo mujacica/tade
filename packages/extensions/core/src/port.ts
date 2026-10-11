@@ -268,6 +268,8 @@ export interface ExtensionWorkbench {
     prepare?: (worktree: string) => Promise<void>
     /** Who asked for it. Filled in by Tade with the extension's name; an extension's own is replaced. */
     by?: string
+    /** A tree nobody else is in, whatever the project says. See `WatchAgent.alone`. */
+    alone?: boolean
   }): Promise<{ task: string; worktree: string }>
   /** Tade's own process: the window. */
   readonly pid: number

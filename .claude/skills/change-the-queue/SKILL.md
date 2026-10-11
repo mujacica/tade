@@ -242,10 +242,17 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   never tried again — the review watches' rule, over a window long enough for a daily look to see
   yesterday. **Nothing red is committed**: the value is not the bump, it is the evidence that the
   project still works on it, so the agent runs the project's own checks through `checks_run` and
-  where it cannot make them green it puts the manifests back and says so. And **never in a checkout
-  other agents share**: `sharesTheCheckout` reads `workspaceFor` before anything else is read, said
-  once rather than at every look, and names both ways out — set the project's `workspace` to
-  `worktree`, or turn the watch on with `in_checkout` to say it may. A config nobody could read
+  where it cannot make them green it puts the manifests back and says so. And **a tree of its own,
+  whatever the project says**: a bump is one set of manifests, one install and one lockfile, so the
+  work says it cannot share a tree (`WatchAgent.alone`) and `watchFound` gives it a worktree and a
+  branch even where every agent in that project works in the project's own checkout. That is what
+  the watch used to *refuse* instead, and the refusal was the whole of why it did nothing at all in
+  a project set up the ordinary way. `alone` may only ever **narrow** where work goes — there is
+  no value on it that moves work into a tree the project did not already name. A project that can
+  only be installed where it is checked out says `in_checkout`, and then the look **holds** rather
+  than failing: `busyCheckout` finds nothing and says why while that tree has uncommitted work in it
+  or an agent at work there, nothing can see which (no window is a hold, never permission), and it
+  offers **one bump per look** so two agents never install in one tree. A config nobody could read
   counts as the checkout, because that is the machine's own default and guessing the safe-looking
   answer here would be guessing the one that lets a clock rewrite a shared tree.
 - **Every word for the orchestrator is in one place**: `app/src/queue.ts` and core's `describe*`.
