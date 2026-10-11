@@ -209,7 +209,18 @@ regions in a cycle now.
   `TimedScreen` in `wire/paint.ts`). How long each frame's write took to be accepted moves a ratchet
   between pi-tui's own 16ms and the beat: up at once past half the interval, down a step after a run
   of easy frames. It only ever adds time, a held request is handed to pi-tui when the interval is up,
-  and what pi-tui draws at once for a key is never held. `pace` in `TADE_TIMING` says how far it went.
+  and a frame asked for while a key is being answered is never held (`TimedTerminal.start` knows when
+  that is) — not pi-tui's immediate render, which is only for a component with the focus, and the
+  window gives none of them the focus. `pace` in `TADE_TIMING` says how far it went.
+- **One read of the terminal is one turn, and what it sends is sent once.** pi-tui splits a stdin
+  event into sequences and dispatches every one before anything else runs, and renders once after.
+  What was per sequence was Tade's: a lane write a character (`wire.outbox`, joined per lane and sent
+  at the end of the turn, a click or a notch to a lane queued in the same order) and the bindings laid
+  out again every key (`boundBy` in `keys.ts`). Anything sent to a lane in answer to a key or the
+  pointer goes through the outbox, or it can land before what was typed ahead of it.
+- **An event is news, not necessarily a new picture** (`requestNews`, `NEWS_MS`): drawn with the next
+  frame anything asks for, and on its own no oftener than the spinner turns. Only `blocking` news —
+  somebody waiting — is asked for like a frame. A storm of four hundred was 115 frames; it is twenty.
 
 ## Scrolling, and what a notch is worth
 
@@ -237,6 +248,11 @@ regions in a cycle now.
   rounding leaves over is carried to the next notch (`Wheel`), so a run of them is even and adds up to
   exactly what the hand asked for. A terminal grid moves by whole cells and that is the ceiling: even,
   in step and predictable, never sub-cell.
+- **A flick that arrives in one read is one move** (`Mouse.turn`, settled by `settle`). Notches add up
+  while they are one run — one region, one way round, shift alike — because a clamped move summed
+  lands where the notches would have; a turn back starts a run of its own. Each notch is still worth
+  what the ramp says as it arrives. Anything else — another pointer event, any key — settles the run
+  first, since typing takes a lane back to its newest line and a notch answered after that undoes it.
 - **The wheel is swallowed wherever it lands, scrollable or not.** Tade draws exactly one screen and
   never scrolls one, so a notch handed back is the terminal library moving a viewport of its own,
   which is the window sliding under you.

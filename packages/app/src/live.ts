@@ -34,7 +34,7 @@ import {
   workedFrom,
   workspaceFor,
 } from '@tade/core'
-import type { LaneScreen, PointerReport, WheelTurn } from '@tade/drivers-core'
+import type { LaneScreen } from '@tade/drivers-core'
 import { git, makeCollector, type StatusCollector } from '@tade/status'
 import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
@@ -935,36 +935,6 @@ export class Live {
       return await this.opts.client.screen(lane as never)
     } catch {
       return null
-    }
-  }
-
-  /**
-   * Turn the wheel over a lane that scrolls itself: a program that took the
-   * whole screen and asked for the mouse, whose transcript is its own to
-   * move. Nothing happens for a lane that never asked, and a lane that went
-   * away while we turned is not an error worth showing.
-   */
-  async wheel(lane: string | null, turn: WheelTurn): Promise<void> {
-    if (!lane) return
-    try {
-      await this.opts.client.wheel(lane as never, turn)
-    } catch {
-      // As `capture` does: a lane that just exited is not news.
-    }
-  }
-
-  /**
-   * Tell a lane what the pointer did, for a program that answers it itself.
-   * How much of it that program actually hears is the driver's, from what it
-   * asked for; a lane that went away while we pressed is not an error worth
-   * showing.
-   */
-  async point(lane: string | null, report: PointerReport): Promise<void> {
-    if (!lane) return
-    try {
-      await this.opts.client.point(lane as never, report)
-    } catch {
-      // As `capture` does: a lane that just exited is not news.
     }
   }
 

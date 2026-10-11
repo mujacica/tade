@@ -22,6 +22,7 @@ import type { Panel, PanelInputs } from '../panels.ts'
 import type { ThinkerEvent } from '../transcript.ts'
 import type { Hold } from './awake.ts'
 import type { MachineNetwork } from './network.ts'
+import { Outbox } from './outbox.ts'
 
 // What a subject of the window may reach, and nothing more.
 //
@@ -107,6 +108,7 @@ export function wiringFor(
     draw: () => void
   },
 ): Wiring {
+  const outbox = new Outbox(opts.client)
   return {
     get opts() {
       return opts
@@ -123,6 +125,7 @@ export function wiringFor(
     openedAt: opts.now?.() ?? Date.now(),
     draw: () => window.draw(),
     note: (err) => window.put(notice(window.state(), why(err))),
+    outbox,
   }
 }
 
@@ -338,6 +341,12 @@ export interface Wiring {
    * end — so a caller that is finished asks for the frame itself.
    */
   note(err: unknown): void
+  /**
+   * How a key or the pointer reaches a lane — typed, pressed or turned — in
+   * the order it was sent, and a write a turn rather than one per sequence
+   * (`outbox.ts`). One for every subject, because two queues are two orders.
+   */
+  readonly outbox: Outbox
 }
 
 /**

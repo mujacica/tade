@@ -1,4 +1,5 @@
 import type { Component } from '@earendil-works/pi-tui'
+import type { LaneId } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { pressable, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { textOf } from '../input.ts'
@@ -82,6 +83,16 @@ function subjectOf(target: Target): MenuSubject | null {
   }
 }
 
+/** A notch of the wheel, as the component that read it says it. */
+type Wheeled = Extract<PointerEvent, { kind: 'wheel' }>
+
+/** Two notches of one movement of the hand: one region, one way round, shift alike. */
+function sameRun(was: Wheeled, now: Wheeled): boolean {
+  return (
+    was.area === now.area && was.shift === now.shift && Math.sign(was.rows) === Math.sign(now.rows)
+  )
+}
+
 /** What this subject needs from the rest of the window. */
 export interface MouseDeps {
   /** The window is closing, or has closed. */
@@ -139,6 +150,8 @@ export class Mouse {
   private draggingFile: NodeJS.Timeout | null = null
   /** The same for a region — the conversation, a screen — with a selection being dragged in it. */
   private draggingRegion: NodeJS.Timeout | null = null
+  /** Notches turned this turn and not answered yet, added up (`turn`). */
+  private turning: Wheeled | null = null
 
   constructor(wire: Wiring, deps: MouseDeps) {
     this.wire = wire
@@ -164,67 +177,117 @@ export class Mouse {
   }
 
   /**
+   * A notch of the wheel, added to the notches turned before it this turn and
+   * answered with them once the turn is over (`settle`): one move however many
+   * of them a flick put into one read of the terminal.
+   *
+   * Answered one at a time, every notch was a move, a cut of the lines a lane
+   * holds and a frame asked for — forty of them in a flick that arrives as one
+   * event, every one of them the same arithmetic over the same map, because
+   * nothing is drawn between two notches of one event. Added up, it is one.
+   * Only a run adds up: the same region, the same way round, shift held or not
+   * — the same move, which is the case where answering it once or forty times
+   * comes to the same place. A move clamped at the end it is going towards
+   * stays clamped there, so the sum of a run lands exactly where the run would
+   * have; a turn back the other way does not, so it starts a run of its own.
+   * What a notch is worth is still each notch's own (`Wheel`), worked out as it
+   * arrives, so the ramp and what it carries are as they were.
+   */
+  private turn(event: Wheeled): boolean {
+    const was = this.turning
+    if (was && sameRun(was, event)) {
+      this.turning = { ...event, rows: was.rows + event.rows }
+      return false
+    }
+    this.settle()
+    this.turning = event
+    queueMicrotask(() => this.settle())
+    return false
+  }
+
+  /**
+   * Answer the notches turned so far, as the one move they add up to. At the
+   * end of the turn, and before anything that has to come after them: any
+   * other pointer event, and any key — typing at a lane takes it back to its
+   * newest line, and a notch answered after that would take it away again.
+   */
+  settle(): void {
+    const turning = this.turning
+    if (!turning) return
+    this.turning = null
+    if (this.deps.stopped() || this.deps.borrowed()) return
+    if (this.scrolled(turning)) this.wire.draw()
+  }
+
+  /** The wheel, answered. Whether anything visible changed. */
+  private scrolled(event: Wheeled): boolean {
+    const panel = this.wire.state.panel
+    // The picture of a chain only ever moves sideways, so the wheel over
+    // it does, shift or no shift: there is nothing above or below it.
+    // Somewhere with nowhere to go sideways hands the wheel back rather
+    // than swallowing it, and it scrolls as it would without shift.
+    if (!panel && (event.shift || event.area === 'plan')) {
+      const moved = scrollBy(this.wire.state, event.area, event.rows, event.sideways, true)
+      if (moved !== this.wire.state) {
+        this.wire.put(moved)
+        return true
+      }
+    }
+    // A panel is scrolled the way everything else is: through the one
+    // move, clamped to what the bar beside it said the body actually is.
+    // It used to be answered by pressing the panel's own down key, which
+    // moved *what is chosen* rather than what is shown — so scrolling
+    // Settings jumped a setting at a time and skipped the ones between,
+    // and the bar that would have said how far there was to go was never
+    // drawn at all. Both were the same bug: nothing knew how long the
+    // body was.
+    // An open panel is in front of everything: the wheel beside it moves
+    // nothing behind it, however much of the window is still drawn there.
+    if (panel && event.area !== 'panel' && event.area !== 'panel-side') return false
+    // A lane whose program took the whole screen keeps no scrollback for
+    // the window to move, and the ones that do it ask for the mouse so
+    // they can answer the wheel themselves. So it gets the wheel, and
+    // scrolls its own conversation. Nothing here changes: what it does
+    // with it is read back on the next look, like everything else it draws.
+    if (this.deps.turnedInLane(event)) return false
+    // Everywhere else: the one move, clamped to what the last frame said
+    // the region actually is. Nothing is laid out again to find that out.
+    const moved = scrollBy(this.wire.state, event.area, event.rows, event.reach)
+    if (moved === this.wire.state) return false
+    this.wire.put(moved)
+    if (event.area === 'pane' || event.area === 'terminal') {
+      // A lane's screen is read from the driver, so the wheel would leave
+      // the text where it was until the next look while the bar beside it
+      // had already moved. Cut the lines we hold to where it now is, and
+      // ask for more only when it has gone past them — which is what the
+      // cut says, and the only reason to go to the driver at all. Asking
+      // anyway cost a screen read a notch in two lanes, 81 ms of a 735 ms
+      // flick spent finding out that nothing had changed.
+      if (!this.deps.reslice(event.area)) this.deps.soonTick()
+    }
+    return true
+  }
+
+  /**
    * The pointer moved, pressed, let go or clicked. Returns whether anything
    * visible changed, so moving across empty space costs no redraw.
    */
   private pointer(event: PointerEvent): boolean {
     if (this.deps.stopped() || this.deps.borrowed()) return false
+    // A notch waits for the rest of its turn; anything else comes after the
+    // notches turned before it, so those are answered first.
+    if (event.kind === 'wheel') return this.turn(event)
+    this.settle()
     switch (event.kind) {
-      case 'wheel': {
-        const panel = this.wire.state.panel
-        // The picture of a chain only ever moves sideways, so the wheel over
-        // it does, shift or no shift: there is nothing above or below it.
-        // Somewhere with nowhere to go sideways hands the wheel back rather
-        // than swallowing it, and it scrolls as it would without shift.
-        if (!panel && (event.shift || event.area === 'plan')) {
-          const moved = scrollBy(this.wire.state, event.area, event.rows, event.sideways, true)
-          if (moved !== this.wire.state) {
-            this.wire.put(moved)
-            return true
-          }
-        }
-        // A panel is scrolled the way everything else is: through the one
-        // move, clamped to what the bar beside it said the body actually is.
-        // It used to be answered by pressing the panel's own down key, which
-        // moved *what is chosen* rather than what is shown — so scrolling
-        // Settings jumped a setting at a time and skipped the ones between,
-        // and the bar that would have said how far there was to go was never
-        // drawn at all. Both were the same bug: nothing knew how long the
-        // body was.
-        // An open panel is in front of everything: the wheel beside it moves
-        // nothing behind it, however much of the window is still drawn there.
-        if (panel && event.area !== 'panel' && event.area !== 'panel-side') return false
-        // A lane whose program took the whole screen keeps no scrollback for
-        // the window to move, and the ones that do it ask for the mouse so
-        // they can answer the wheel themselves. So it gets the wheel, and
-        // scrolls its own conversation. Nothing here changes: what it does
-        // with it is read back on the next look, like everything else it draws.
-        if (this.deps.turnedInLane(event)) return false
-        // Everywhere else: the one move, clamped to what the last frame said
-        // the region actually is. Nothing is laid out again to find that out.
-        const moved = scrollBy(this.wire.state, event.area, event.rows, event.reach)
-        if (moved === this.wire.state) return false
-        this.wire.put(moved)
-        if (event.area === 'pane' || event.area === 'terminal') {
-          // A lane's screen is read from the driver, so the wheel would leave
-          // the text where it was until the next look while the bar beside it
-          // had already moved. Cut the lines we hold to where it now is, and
-          // ask for more only when it has gone past them — which is what the
-          // cut says, and the only reason to go to the driver at all. Asking
-          // anyway cost a screen read a notch in two lanes, 81 ms of a 735 ms
-          // flick spent finding out that nothing had changed.
-          if (!this.deps.reslice(event.area)) this.deps.soonTick()
-        }
-        return true
-      }
       case 'point':
-        // Straight to the lane, and nothing here changes: the window keeps no
-        // idea of what it did with it, which would be a second description of
-        // somebody else's screen. How much of it the program hears is the
-        // driver's, from what it asked for at the moment of the call. Not
-        // through a dep as the wheel is, because nothing is decided here —
-        // which lane and which of its cells was the drawing's to say.
-        void this.wire.live?.point(event.lane, event.report)
+        // To the lane, behind whatever was typed at it this turn (`outbox.ts`),
+        // and nothing here changes: the window keeps no idea of what it did
+        // with it, which would be a second description of somebody else's
+        // screen. How much of it the program hears is the driver's, from what
+        // it asked for at the moment of the call. Not through a dep as the
+        // wheel is, because nothing is decided here — which lane and which of
+        // its cells was the drawing's to say.
+        this.wire.outbox.point(event.lane as LaneId, event.report)
         this.deps.soonTick()
         return false
       case 'grab':
@@ -372,7 +435,7 @@ export class Mouse {
     this.dragFile(rows, cell)
   }
 
-  stopDraggingFile(): void {
+  private stopDraggingFile(): void {
     if (this.draggingFile) clearInterval(this.draggingFile)
     this.draggingFile = null
   }
@@ -393,9 +456,16 @@ export class Mouse {
     this.dragRegion(area, rows, reach)
   }
 
-  stopDraggingRegion(): void {
+  private stopDraggingRegion(): void {
     if (this.draggingRegion) clearInterval(this.draggingRegion)
     this.draggingRegion = null
+  }
+
+  /** The window is closing: every drag let go of, and notches nobody will see answered dropped. */
+  letGo(): void {
+    this.stopDraggingFile()
+    this.stopDraggingRegion()
+    this.turning = null
   }
 
   /** One step of that: the region scrolled, and the selection reaching the new edge. */
