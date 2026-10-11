@@ -16,6 +16,18 @@ import { type Grid, toGrid } from './terminal.ts'
 // window where the point is the window, and the panel alone where the point is
 // the panel — the same crop a person would make with a screenshot tool, except
 // that this one is written down.
+//
+// **The away view's own page is not in here, and that is the rule holding
+// rather than an omission.** The README's section about it shows the window's
+// end of it — the panel that pairs a device, the switches, the device list —
+// because everything here is drawn by the window's renderer over fixed state,
+// and the page a phone opens is HTML. The one thing that can photograph that is
+// `packages/web/scripts/browser.ts`, whose browser is deliberately not in this
+// repository's lockfile, so nothing it takes could be redrawn by `pnpm screens
+// --assets` or held to its bytes by `pictures.test.ts` — which is the whole of
+// what keeps these pictures true. What holds the page to its look instead is
+// `packages/web`'s own tests and that harness, where a browser is on the
+// machine.
 
 export interface Picture {
   /** File name under the pictures folder. */
@@ -299,6 +311,51 @@ export const PICTURES: readonly Picture[] = [
       'The away view in the window, on and on this machine alone: the two addresses it is bound ' +
       'to, a QR code to scan a phone in with, and — under it, where somebody is deciding — that ' +
       'an agent on this machine could pair itself, with Disconnect everything beside it.',
+  },
+  {
+    file: 'away-devices.svg',
+    scenario: 'away-acting-granted',
+    crop: 'panel',
+    about:
+      'The away view with acting on: above the list, the whole of what a paired device may do — ' +
+      'and what it can never reach, which is a setting, a credential, a command, a new agent, a ' +
+      'push, a merge and a check overruled. Under it every device there is, each with what it ' +
+      'was granted to read in the words it was granted, may act on the one that has it, and a ' +
+      'chip beside each to take either back. Nothing to scan, because claiming a code burns it.',
+  },
+  {
+    file: 'away-settings.svg',
+    scenario: 'settings-away',
+    crop: 'panel',
+    about:
+      'The away view in Settings on a machine nobody has turned it on at: a switch per decision ' +
+      'and every one of them off — serve it at all, let a paired device act, let one talk to ' +
+      'Tade, let one save a draft workflow, let one install the page, let one keep what it last ' +
+      'saw, let one be sent notifications and let a notification name the work — with who may ' +
+      'reach it and the port between the first and the rest, and the restart mark on the ones ' +
+      'that are read when the listener is built.',
+  },
+  {
+    file: 'intake.svg',
+    scenario: 'intake-handed-over',
+    crop: { top: 2, width: 29, height: 20 },
+    about:
+      'INTAKE down the side: work handed to this machine from outside it, newest first, each row ' +
+      'saying who asked, the door it came through and what it is stamped from, with how far it ' +
+      'got beside its name — one waiting for a person to approve it, one with an agent on it, ' +
+      'and one the grant refused. The heading counts them, and counts the ones waiting.',
+  },
+  {
+    file: 'intake-request.svg',
+    scenario: 'intake-one-request',
+    crop: 'panel',
+    about:
+      'One request in front of you: where it came from — the source, their own id, the ' +
+      'revision, who asked, the key that allowed it, the mode, the published template version ' +
+      'it is stamped from, the raw material and its hash — then what approving it would ' +
+      'start, the wait between the two tasks with the reason for it, a warning that one of them ' +
+      'and an agent already working both change the same file, and the keys to approve, approve ' +
+      'and start, or refuse.',
   },
   {
     file: 'sentry.svg',

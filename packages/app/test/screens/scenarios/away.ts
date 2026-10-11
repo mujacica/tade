@@ -11,10 +11,11 @@ import { base, frame, type Scenario, utcDate } from './fixtures.ts'
 
 // The away view, as the window shows it.
 //
-// Four states worth a golden, because each is a different thing a person is
+// Five states worth a golden, because each is a different thing a person is
 // deciding: it is off; it is on and there is a code to scan; it is on the
-// network and that has to be said before anybody holds a phone up; and a
-// device is at the door.
+// network and that has to be said before anybody holds a phone up; a device is
+// at the door; and acting is on, which is the list read to answer whether any
+// of these can change the work.
 
 const URL = 'http://studio.local:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
 
@@ -137,6 +138,59 @@ export const AWAY_SCREENS: Scenario[] = [
             host: 'studio.local:7654',
             secondsLeft: 47,
           },
+        }),
+      },
+    }),
+  },
+  {
+    name: 'away-acting-granted',
+    about:
+      'Acting on, which is the state the list exists for: what each device may read in the ' +
+      'words it was granted, ‘may act’ on the one row that has it, and above the list the ' +
+      'whole of what acting can never reach — said where somebody is granting it rather than ' +
+      'in a document. No code outstanding, because the panel somebody opens to read their own ' +
+      'devices is not the one they opened to add a phone.',
+    state: { ...base(), panel: awayPanel() },
+    frame: frame({
+      date: utcDate,
+      panel: {
+        away: view({
+          // Nothing to scan: a claim burns the ticket, and a person who came
+          // here to read the list rather than to add a phone has none
+          // outstanding either. It is also what keeps this picture about the
+          // list — the code is `away-pairing`'s subject and is twenty rows.
+          ticket: null,
+          code: [],
+          acting: true,
+          devices: [
+            {
+              id: '00112233445566aa',
+              label: 'iPhone',
+              pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
+              reads: ['titles', 'intent'],
+              mayAct: true,
+              mayTalk: false,
+              live: true,
+            },
+            {
+              id: '00112233445566bb',
+              label: 'iPad',
+              pairedAt: Date.parse('2026-09-11T09:40:00.000Z'),
+              reads: ['titles', 'requests', 'workflows'],
+              mayAct: false,
+              mayTalk: false,
+              live: false,
+            },
+            {
+              id: '00112233445566cc',
+              label: 'kitchen screen',
+              pairedAt: Date.parse('2026-09-10T18:02:00.000Z'),
+              reads: [],
+              mayAct: false,
+              mayTalk: false,
+              live: false,
+            },
+          ],
         }),
       },
     }),
