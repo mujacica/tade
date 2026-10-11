@@ -127,6 +127,30 @@ export function scheduleMakes(view: ScheduleView): 'agents' | 'tells' {
   return view.kind === 'agent' ? 'agents' : 'tells'
 }
 
+/** What the journal says each schedule did: its runs, and a watch's looks. */
+export interface ScheduleJournal {
+  runsOf(
+    schedule: string,
+  ): readonly { due: number; ran: boolean; missed: number; task: string | null }[]
+  watchedOf(schedule: string): Watched
+}
+
+/** Every schedule as SCHEDULES shows it, at one moment. */
+export function scheduleViews(
+  schedules: readonly (Schedule & { paused: boolean })[],
+  journal: ScheduleJournal | null,
+  now: number,
+): ScheduleView[] {
+  return schedules.map((one) =>
+    scheduleView(
+      one,
+      journal?.runsOf(one.id) ?? [],
+      now,
+      one.does.kind === 'watch' ? journal?.watchedOf(one.id) : undefined,
+    ),
+  )
+}
+
 /** A schedule as SCHEDULES shows it, from what was set and what the journal says it did. */
 export function scheduleView(
   schedule: Schedule & { paused: boolean },

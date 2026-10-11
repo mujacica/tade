@@ -23,7 +23,7 @@ import type { Frame } from '../frame.ts'
 import { notice, openSchedule, type ScheduleView, withTranscript } from '../model.ts'
 import { scheduleMenuItems } from '../panels/menu/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
-import { foundMessage, scheduleView, watchesListed } from '../queue.ts'
+import { foundMessage, scheduleView, scheduleViews, watchesListed } from '../queue.ts'
 import { hush, unhush } from '../schedules-view.ts'
 import { problem, tadeDid } from '../transcript.ts'
 import {
@@ -36,6 +36,7 @@ import {
   whenShort,
   why,
 } from './context.ts'
+import { Kept } from './kept.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 
 /** What a schedule's row and its menu offer to do to it. */
@@ -110,6 +111,8 @@ export class Schedules implements Subject {
   private readonly lookingWith = new Map<string, Promise<string>>()
   /** Whether this machine can reach a network: one answer, for every watch. */
   private readonly network: Network
+  /** What `views` last made, kept: the fold asks for it every frame. */
+  private readonly shown = new Kept<readonly ScheduleView[]>()
 
   constructor(wire: Wiring, deps: SchedulesDeps) {
     this.wire = wire
@@ -176,19 +179,13 @@ export class Schedules implements Subject {
     }
   }
 
-  /** Every schedule, as the SMART QUEUE shows it. */
-  views(): ScheduleView[] {
+  /** Every schedule, as the SMART QUEUE shows it: kept until the journal moves or one comes due. */
+  views(): readonly ScheduleView[] {
     const now = this.wire.now()
-    return this.wire.opts.client
-      .schedules()
-      .map((one) =>
-        scheduleView(
-          one,
-          this.wire.live?.runsOf(one.id) ?? [],
-          now,
-          one.does.kind === 'watch' ? this.wire.live?.watchedOf(one.id) : undefined,
-        ),
-      )
+    const live = this.wire.live
+    const due = (all: readonly ScheduleView[]) => all.some((one) => now >= (one.next[0] ?? now + 1))
+    const made = () => scheduleViews(this.wire.opts.client.schedules(), live, now)
+    return this.shown.of([live, live?.revision], made, due)
   }
 
   /** What is done to a schedule from the window: yours, and at once. */

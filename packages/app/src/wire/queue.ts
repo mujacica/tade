@@ -64,7 +64,7 @@ export interface QueueDeps {
   tell(text: string): Promise<void>
   /** The schedules, which the queue's tools answer for as well. */
   schedules: {
-    views(): ScheduleView[]
+    views(): readonly ScheduleView[]
     set(req: ScheduleRequest): Promise<string>
     runNow(id: string, asked: boolean): Promise<string>
   }
