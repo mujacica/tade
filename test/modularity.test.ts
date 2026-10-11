@@ -53,7 +53,7 @@ const BUDGET: Record<string, number> = {
   // were being tested as two halves that could disagree.
   // Was 1,000. The typed-command tests went with their subject to
   // `test/commands.test.ts` when `commands.ts` came out of `model.ts`.
-  'packages/app/test/model.test.ts': 995,
+  'packages/app/test/model.test.ts': 950,
   'packages/app/test/panels.test.ts': 1_400,
   'packages/app/test/view.test.ts': 1_150,
   // `settingsOf` is one long table. Split by category into

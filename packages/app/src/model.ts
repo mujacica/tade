@@ -1366,18 +1366,30 @@ export function doneTasks(state: AppState): AgentPane[] {
 }
 
 /**
- * Whether anything is working, which is what makes a frame news.
- *
- * A spinner turns, so while the orchestrator is thinking, one of its tools is
- * running or an agent in this project is working, every look is worth drawing
- * even though no lane printed anything. A rule rather than a reading of the
- * screen: the window asks it four times a second.
+ * Whether anything on screen turns: the orchestrator on a turn, one of its
+ * tools running, or an agent working in any project — every project's tab
+ * wears its agents' marks, and the right of the top row counts all of them.
  */
-export function anythingWorking(state: AppState): boolean {
+export function turning(state: AppState): boolean {
   if (onATurn(state.transcript)) return true
   if (state.transcript.entries.some((one) => one.kind === 'tool' && one.state === 'running'))
     return true
-  return state.panes.some((pane) => pane.project === state.project && markOf(pane) === 'working')
+  return state.panes.some((pane) => markOf(pane) === 'working')
+}
+
+/**
+ * Whether a look that read nothing new in either lane is still worth a frame:
+ * something turns, and the spinner shows another frame at `now` than it did
+ * on the frame drawn at `drawn`.
+ *
+ * What a frame is news about, rather than whether anything is working. Asked
+ * that way it passed every look while any agent worked, and a lane printing in
+ * front of you asks for a look up to thirty times a second — thirty frames to
+ * show a spinner that moves ten. A rule of the moments, never of a clock read
+ * here, so the window asks it with the moment its last frame was drawn for.
+ */
+export function turnedSince(state: AppState, drawn: number, now: number): boolean {
+  return turning(state) && Math.floor(now / SPIN_MS) !== Math.floor(drawn / SPIN_MS)
 }
 
 /** Show or hide the agents that have finished. */
@@ -1716,9 +1728,12 @@ export const MARK_TONES: Readonly<Record<AgentMark, 'busy' | 'hint' | 'waiting' 
 
 const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
 
-/** Which spinner frame to show at a moment: a tenth of a second each. */
+/** How long each frame of the spinner is shown: ten a second, and so ten frames a second while one turns. */
+export const SPIN_MS = 100
+
+/** Which spinner frame to show at a moment. */
 export function spinner(now: number): string {
-  return SPINNER[Math.floor(now / 100) % SPINNER.length] ?? '⠋'
+  return SPINNER[Math.floor(now / SPIN_MS) % SPINNER.length] ?? '⠋'
 }
 
 /**

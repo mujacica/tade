@@ -147,9 +147,15 @@ regions in a cycle now.
   something and has not gone idle again, which is the whole of its turn: it runs headlessly in
   another process and has no lane to read, and a tool line left running is something *you* started
   (`ran`). The window's own title (`titleMark`), its tab at the foot (`bottomTabs`), the room the
-  conversation is given (`conversing`), whether a frame is news (`anythingWorking`) and what escape
+  conversation is given (`conversing`), whether anything on screen turns (`turning`) and what escape
   means all read it, and the tab wears the agents' own turning mark (`markGlyph`) rather than a
   second vocabulary for working.
+- **A look is a frame only when something in it moved** (`App.look`): a lane drew something new, the
+  microphone's clock runs, or the spinner shows another frame than the one on screen
+  (`turnedSince`, asked through `Window.turned` with the moment the last frame was drawn for). Never
+  "anything is working" — that passed every look, thirty a second with a lane printing in front of
+  you, to move a spinner that moves ten. `frame.probe.test.ts` holds both ends: a ceiling on frames,
+  and a floor of the spinner turning through all ten of its frames while nothing else changed.
 - **Work you start for someone is shown in the conversation.** An extension's action, the brief, a
   failure of the orchestrator: add it to `state.transcript` (`ran`, `said`, `suggest`, `problem` in
   `transcript.ts`) rather than as a `notice`, which the next notice overwrites and which has no room

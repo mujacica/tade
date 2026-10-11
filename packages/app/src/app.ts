@@ -10,7 +10,6 @@ import { knownTasks, Live } from './live.ts'
 import {
   type AppState,
   addTurn,
-  anythingWorking,
   focusTask,
   initialState,
   notice,
@@ -737,8 +736,10 @@ export class App {
     this.window.titleHere()
     const paneScreen = await this.lanes.readPane(at)
     const terminal = await this.lanes.captureTerminal()
-    // While the orchestrator or an agent down the side works, its spinner is news every frame.
-    if (paneScreen || terminal || this.state.talkingSince !== null || anythingWorking(this.state))
+    // A frame is news when something in it moved: a lane drew something new,
+    // the microphone's clock is running, or a spinner turned since the frame
+    // on screen — ten a second, where every look while anything worked was one.
+    if (paneScreen || terminal || this.state.talkingSince !== null || this.window.turned())
       this.draw()
   }
 

@@ -16,6 +16,7 @@ import {
   markOf,
   shownName,
   toggleDone,
+  turnedSince,
 } from '../model.ts'
 import { narrowing } from '../queue-view.ts'
 import { windowTitle } from '../title.ts'
@@ -51,6 +52,12 @@ export class Window implements Subject {
   private titled = ''
   /** When the title was last written, so a stolen one is taken back. */
   private titledAt = 0
+  /**
+   * The moment the frame on screen was drawn for: which of the spinner's
+   * frames it shows. Kept here because the moment is this subject's to hand
+   * the frame, and a frame is folded exactly once per drawing.
+   */
+  private drawnAt = Number.NEGATIVE_INFINITY
 
   constructor(wire: Wiring, deps: WindowDeps) {
     this.wire = wire
@@ -64,11 +71,13 @@ export class Window implements Subject {
    * different time in the same frame.
    */
   facts(): Partial<Frame> {
+    const now = this.wire.now()
+    this.drawnAt = now
     return {
       layout: this.layout(),
       home: tilde(this.wire.opts.home),
       bindings: this.wire.opts.config.surfaces.window.keys,
-      now: this.wire.now(),
+      now,
       clock: (at: number) => whenShort(at, this.wire.now()),
       date: (at: number) => this.dateOf(at),
     }
@@ -270,6 +279,15 @@ export class Window implements Subject {
   }
 
   /** Where you are, as the title says it: the project and the agent in front. */
+  /**
+   * Whether a look that read nothing new is still worth a frame: something on
+   * screen turns, and has turned since the frame on screen was drawn
+   * (`turnedSince`). Ten frames a second at most, which is what a spinner moves.
+   */
+  turned(): boolean {
+    return turnedSince(this.wire.state, this.drawnAt, this.wire.now())
+  }
+
   titleHere(): void {
     const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
     this.title(pane ? `${pane.project} › ${shownName(pane)}` : this.wire.state.project)

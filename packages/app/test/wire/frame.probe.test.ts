@@ -39,6 +39,27 @@ setInterval(() => {
 }, 8)
 `
 
+/**
+ * A lane that writes the same screen over itself as fast as it can: printing
+ * flat out, so the window looks as often as it ever does, and drawing nothing
+ * new — every look reads exactly the screen the last one did.
+ */
+const STANDING_STILL = `
+const ROWS = 24
+setInterval(() => {
+  let out = ''
+  for (let r = 0; r < ROWS; r++) out += '\\x1b[' + (r + 1) + ';1HSTANDING STILL row ' + r
+  process.stdout.write(out)
+}, 8)
+`
+
+/** Every spinner frame the orchestrator's tab was drawn with in `written`. */
+function turnsIn(written: string): Set<string> {
+  return new Set(
+    Array.from(written.matchAll(/orchestrator ([⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏])/g), (one) => one[1] ?? ''),
+  )
+}
+
 /** What the lane has repainted, as the window has drawn it. Null while nothing is. */
 function repaintShown(terminal: FakeTerminal): number | null {
   for (const row of screenOf(terminal.written)) {
@@ -103,6 +124,62 @@ describe('what the frame loop costs', () => {
     // which measured fifty-eight a second on a quiet machine — a rate that
     // depends on nothing anybody chose.
     expect(each, `${each.toFixed(1)} screen reads a second`).toBeLessThan(45)
+  })
+
+  // The other half of the same hazard, from the drawing's side. A look that
+  // read nothing new used to be drawn anyway while anything worked — and with
+  // a lane printing in front of you that was a frame every 33ms to move a
+  // spinner that moves every 100. Asked instead whether the spinner on screen
+  // is the one it would draw now, the window draws ten a second.
+  //
+  // So a ceiling, and a floor under it that fails loudly where a frame is
+  // missed: the spinner has to have *turned* on screen while nothing else did.
+  // The ceiling is a rate, never a rate the machine has to reach: a starved
+  // runner looks less often and draws fewer frames, which passes, and the floor
+  // is the spinner having moved at all over the wait, never how many times.
+  it('draws a turning spinner as often as it turns, over a lane that prints nothing new', async () => {
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    try {
+      const opened = await client.openTerminal({ project: 'app' })
+      const script = join(root, 'still.cjs')
+      writeFileSync(script, STANDING_STILL)
+      await client.write(opened.id, `exec node ${script}\r`)
+      // A turn that never ends until the test is over: the spinner on the
+      // orchestrator's tab turns for as long as this waits.
+      await start({ frameMs: 250, thinker: { ask: () => new Promise<string>(() => {}) } })
+      await until('the first frame', () => terminal.written.includes('refunds'))
+      terminal.press('\x00')
+      for (const char of 'what is going on') terminal.press(char)
+      terminal.press('\r')
+      await until('the orchestrator to be on a turn', () => turnsIn(terminal.written).size > 0)
+      const tab = find('terminal 1')
+      click(tab.col + 1, tab.row)
+      await until('the lane standing still in front of us', () =>
+        screenOf(terminal.written).some((row) => row.includes('STANDING STILL row 0')),
+      )
+
+      const from = timings.spans().draw?.count ?? 0
+      const mark = terminal.written.length
+      const started = Date.now()
+      // The floor: it turns, on screen, while the lane in front says nothing
+      // new — through every one of its ten frames. Not "it changed once": the
+      // status beat redraws every two seconds on its own, and a frame drawn
+      // only by that lands on the same glyph each time, twenty spinner frames
+      // later. So a gate that never passes for the spinner waits here until
+      // the deadline, and says what for.
+      await until('the spinner to turn through all ten of its frames', () => {
+        return turnsIn(terminal.written.slice(mark)).size === 10
+      })
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, started + 2_000 - Date.now())))
+      const frames = ((timings.spans().draw?.count ?? 0) - from) / ((Date.now() - started) / 1000)
+      // The ceiling: ten a second for the spinner, and room for the frames a
+      // status beat and a git look ask for on their own. Thirty-three is what
+      // the old gate drew here, one for every look.
+      expect(frames, `${frames.toFixed(1)} frames a second`).toBeLessThan(16)
+    } finally {
+      stop()
+    }
   })
 
   // And what it cost, at the four points a frame passes through.
