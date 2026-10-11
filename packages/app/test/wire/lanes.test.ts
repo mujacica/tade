@@ -184,6 +184,102 @@ describe('the window, and the lanes in it', () => {
     })
   })
 
+  // A flick arrives as one read of the terminal: a run of notches, every one
+  // of them answered in turn before anything is drawn. To a program that
+  // scrolls itself each notch was a call to the driver — a process each under
+  // `tmux` — so the run is handed over as what it adds up to: one turn of the
+  // wheel, worth every notch in it.
+  it('hands a flick to a lane that scrolls itself as one turn of the wheel', async () => {
+    const opened = await client.openTerminal({ project: 'app' })
+    await client.write(opened.id, `${process.execPath} ${ECHO_CHILD}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until('the child running', () =>
+      screenOf(terminal.written).some((row) => row.includes('ready')),
+    )
+    await client.write(opened.id, 'screen\r')
+    await until('it to take the screen', () =>
+      screenOf(terminal.written).some((row) => row.includes('own screen')),
+    )
+    const where = screenOf(terminal.written).findIndex((row) => row.includes('own screen'))
+    const up = `\x1b[<64;10;${where + 1}M`
+    // Until it is listening: see the test above for why this cannot be once.
+    await until('the program told about the wheel', () => {
+      terminal.press(up)
+      return screenOf(terminal.written).some((row) => row.includes('saw:<64;'))
+    })
+
+    const turns: number[] = []
+    const wheel = client.wheel.bind(client)
+    client.wheel = (lane, turn) => {
+      turns.push(turn.rows)
+      return wheel(lane, turn)
+    }
+    terminal.type(up.repeat(12))
+    await until('the flick handed over', () => turns.length > 0)
+    // Long enough for a second call to have been made, were there one: the
+    // turn is sent at the end of the read, and the read is long over.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(turns).toHaveLength(1)
+    // Up, and every notch of it: a notch is never worth less than a row.
+    expect(turns[0]).toBeLessThanOrEqual(-12)
+  })
+
+  // The same run over a terminal the window scrolls, where adding it up must
+  // come to exactly what answering every notch would have: the same place,
+  // a turn back the other way still a turn back, and a key that came after
+  // the notches still coming after them.
+  it('answers a flick in one read where its notches would have, and a key after it', async () => {
+    const opened = await client.openTerminal({ project: 'app' })
+    const printing = 'i=1; while [ $i -le 400 ]; do echo "printed line $i"; i=$((i+1)); done'
+    await client.write(opened.id, `${printing}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until(
+      'the terminal in front',
+      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
+      20_000,
+    )
+    const shell = screenOf(terminal.written).findIndex((row) => row.includes('printed line 400'))
+    const up = `\x1b[<64;10;${shell + 1}M`
+    const down = `\x1b[<65;10;${shell + 1}M`
+    const newest = () => newestPrinted(terminal)
+    /** Where the screen came to rest, rather than a frame it was passing through. */
+    const rested = async (what: string, there: (line: number) => boolean) => {
+      let was = -1
+      let quiet = 0
+      await until(
+        what,
+        () => {
+          const now = newest()
+          quiet = now === was ? quiet + 1 : 0
+          was = now
+          return quiet >= 20 && there(now)
+        },
+        20_000,
+      )
+      return was
+    }
+
+    // At the newest line, down and then back up, in one read. Down goes
+    // nowhere — it is already there — and up is a move of its own: added to
+    // the notches down before it, the two would come to nothing at all.
+    terminal.type(down.repeat(5) + up.repeat(5))
+    await rested('the turn back up answered', (line) => line < 400)
+
+    // Back up a run, then a key, in one read: typing at a terminal takes it
+    // back to its newest line, and the key came after the notches.
+    terminal.type(`${up.repeat(20)}x`)
+    await rested('the key answered after the flick', (line) => line === 400)
+    await until('the key typed into the shell', async () =>
+      (await client.readTerminal('1', 5, 'app')).includes('x'),
+    )
+  })
+
   // And what it draws in answer has to be read back, which is the other half
   // of handing it the wheel. A lane that paints its own screen was read once
   // and never again: the lines held are keyed by how deep the lane is, and a

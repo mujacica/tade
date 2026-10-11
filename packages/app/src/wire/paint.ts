@@ -1,5 +1,13 @@
 import { type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
-import { intervalOf, type Pace, paced, REPAINT_MS, renderWait, UNHURRIED } from '../pace.ts'
+import {
+  intervalOf,
+  newsWait,
+  type Pace,
+  paced,
+  REPAINT_MS,
+  renderWait,
+  UNHURRIED,
+} from '../pace.ts'
 import { timing } from '../timing.ts'
 
 // Four things about the terminal itself, rather than about anything the window
@@ -151,9 +159,11 @@ export function kittyActive(terminal: Terminal): boolean {
  * that interval is a private static of the library's, so it is the same
  * sixteen milliseconds for every screen in the process and nothing of Tade's
  * may move it. A request this holds is handed to pi-tui when the terminal's
- * interval is up, and pi-tui then throttles it as it always did. Only
- * `requestRender` is held: what pi-tui draws at once for a key goes straight
- * past, which is the half `pace.ts` argues for.
+ * interval is up, and pi-tui then throttles it as it always did. A key being
+ * answered is never held — the half `pace.ts` argues for, which pi-tui's own
+ * immediate render never did here, because no component of the window holds
+ * the focus: a key reached the screen as a `requestRender` like any other, and
+ * a terminal slow to take a frame made somebody wait to see what they typed.
  */
 class TimedScreen extends TuiAltScreen {
   private readonly accepting: TimedTerminal
@@ -163,6 +173,8 @@ class TimedScreen extends TuiAltScreen {
   private drewAt = Number.NEGATIVE_INFINITY
   /** A frame asked for while the terminal is still owed time, waiting for it. */
   private held: NodeJS.Timeout | null = null
+  /** A frame owed to news, waiting for its interval (`newsWait`). */
+  private news: NodeJS.Timeout | null = null
 
   constructor(terminal: TimedTerminal) {
     super(terminal)
@@ -170,12 +182,15 @@ class TimedScreen extends TuiAltScreen {
   }
 
   override requestRender(force?: boolean): void {
-    // A forced frame is a whole screen somebody needs now — a resize — and is
-    // never held; and while one is held, the frame it becomes draws whatever
-    // is true by then, so a second request has nothing to add.
-    if (force) this.release()
+    // A forced frame is a whole screen somebody needs now — a resize — and a
+    // key being answered is somebody waiting to see what they typed: neither
+    // is ever held, and either draws whatever was. While one is held, the
+    // frame it becomes draws whatever is true by then, so a second request
+    // has nothing to add.
+    const now = force === true || this.accepting.answeringKey()
+    if (now) this.release()
     else if (this.held !== null) return
-    const wait = force ? 0 : renderWait(this.pace, performance.now() - this.drewAt)
+    const wait = now ? 0 : renderWait(this.pace, performance.now() - this.drewAt)
     if (wait <= 0) {
       super.requestRender(force)
       return
@@ -183,6 +198,36 @@ class TimedScreen extends TuiAltScreen {
     this.held = setTimeout(() => {
       this.held = null
       super.requestRender()
+    }, wait)
+  }
+
+  /**
+   * A frame for news: something changed that somebody may see, which is not a
+   * key waiting for its echo (`../pace.ts` has the argument). Drawn with the
+   * next frame anything else asks for, and on its own no sooner than
+   * `NEWS_MS` after the last one. `blocking` is news somebody is waiting on —
+   * an agent asking — and is asked for like any other frame.
+   *
+   * Never while another screen has the terminal: a request that reaches
+   * pi-tui while it is stopped is one it keeps, and the `start` that puts the
+   * window back then finds a frame already asked for and asks for none.
+   */
+  requestNews(blocking = false): void {
+    if (this.stopped) return
+    if (blocking) {
+      this.requestRender()
+      return
+    }
+    // A frame is on its way already, and draws whatever is true by then.
+    if (this.news !== null || this.held !== null) return
+    const wait = newsWait(performance.now() - this.drewAt)
+    if (wait <= 0) {
+      this.requestRender()
+      return
+    }
+    this.news = setTimeout(() => {
+      this.news = null
+      this.requestRender()
     }, wait)
   }
 
@@ -207,10 +252,12 @@ class TimedScreen extends TuiAltScreen {
     timings.sample('pace', intervalOf(this.pace))
   }
 
+  /** Whatever was waiting for its interval is drawn by the frame on its way, or by none. */
   private release(): void {
-    if (this.held === null) return
-    clearTimeout(this.held)
+    if (this.held !== null) clearTimeout(this.held)
+    if (this.news !== null) clearTimeout(this.news)
     this.held = null
+    this.news = null
   }
 }
 
@@ -234,6 +281,8 @@ class TimedTerminal implements Terminal {
   private readonly to: Terminal
   /** How long this frame's writes took to be accepted, and whether there were any. */
   private took: number | null = null
+  /** A key is being answered: a frame it asks for is drawn at once (`TimedScreen`). */
+  private answering = false
 
   constructor(to: Terminal) {
     this.to = to
@@ -270,8 +319,26 @@ class TimedTerminal implements Terminal {
   get kittyProtocolActive(): boolean {
     return this.to.kittyProtocolActive
   }
+  /**
+   * Every sequence the terminal hands the TUI passes here on its way, one at a
+   * time and answered before the next — so whether a key is being answered is
+   * known for exactly as long as it is. A pointer report is not a key: the
+   * frames a flick asks for are paced like any others, forty of them at a time.
+   */
   start(onInput: (data: string) => void, onResize: () => void): void {
-    this.to.start(onInput, onResize)
+    this.to.start((data) => {
+      this.answering = !data.startsWith('\x1b[<') && !data.startsWith('\x1b[M')
+      try {
+        onInput(data)
+      } finally {
+        this.answering = false
+      }
+    }, onResize)
+  }
+
+  /** Whether a key is being answered right now. */
+  answeringKey(): boolean {
+    return this.answering
   }
   stop(): void {
     this.to.stop()
@@ -305,7 +372,10 @@ class TimedTerminal implements Terminal {
   }
 }
 
+/** What the window draws on: pi-tui's alternate screen, timed, paced, and told what is only news. */
+export type Screen = TuiAltScreen & Pick<TimedScreen, 'requestNews'>
+
 /** The alternate screen the window draws on, with the two pi-tui points timed. */
-export function screenFor(terminal: Terminal): TuiAltScreen {
+export function screenFor(terminal: Terminal): Screen {
   return new TimedScreen(new TimedTerminal(terminal))
 }

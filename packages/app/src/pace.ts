@@ -82,10 +82,12 @@ export function lookWait(since: number): number {
 // it started on the first quick write and hunt from then on.
 //
 // **Only what the window asks for itself is paced.** A key you press is still
-// drawn at once — pi-tui's immediate render, which this never holds — because
-// keystroke-to-echo is the one number that matters, and a terminal slow to
-// accept is no reason to show somebody their own typing later. What is paced
-// is everything else: a look, the spinner, an event, the status beat.
+// drawn at once, because keystroke-to-echo is the one number that matters and a
+// terminal slow to accept is no reason to show somebody their own typing later.
+// Not by pi-tui's immediate render, which is only for a component that holds
+// the focus and the window gives none of them the focus: whatever a key asks
+// for while it is being answered is never held (`wire/paint.ts`). What is paced
+// is everything else: a look, the spinner, the wheel, an event, the status beat.
 
 /** The least time between two frames while the terminal keeps up: pi-tui's own throttle. */
 export const RENDER_FLOOR_MS = 16
@@ -154,4 +156,32 @@ export function paced(was: Pace, accepted: number): Pace {
 export function renderWait(pace: Pace, since: number): number {
   if (pace.step === 0) return 0
   return Math.min(intervalOf(pace), Math.max(0, intervalOf(pace) - Math.max(0, since)))
+}
+
+// ─── what an event is worth ──────────────────────────────────────────────────
+//
+// An event is news; it is not necessarily a new picture. Every line the journal
+// hears — a tool call, a usage line, a turn ending — changes something the
+// window may draw, and every one of them asked for a frame: a storm of four
+// hundred over a second and three quarters was 115 frames, pi-tui's ceiling,
+// which is what thirteen agents working looks like all day. Nobody reads an
+// agent's mark changing sixty times a second, and the frames were the most
+// expensive kind there is, drawing a whole window to move a figure.
+//
+// So news waits for a frame: drawn with the next one anything else asks for —
+// a key, a look, the spinner — and on its own no oftener than the spinner
+// turns. A single event in a quiet window is drawn at once, because the last
+// frame was long enough ago; only a run of them is spread out. News somebody
+// is waiting on — an agent asking — is not spread out at all
+// (`TimedScreen.requestNews`).
+
+/** The least time between two frames drawn for news alone: what the spinner moves. */
+export const NEWS_MS = 100
+
+/**
+ * How long a frame for news waits, `since` milliseconds after the last frame
+ * was drawn. A clock that went backwards is read as no time at all.
+ */
+export function newsWait(since: number): number {
+  return Math.max(0, NEWS_MS - Math.max(0, since))
 }

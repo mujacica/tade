@@ -345,7 +345,7 @@ export class Lanes implements Subject {
         })
         break
       case 'clear':
-        await this.wire.opts.client.write(id as LaneId, 'clear\r').catch(() => {})
+        this.wire.outbox.write(id as LaneId, 'clear\r')
         break
       case 'split-beside':
       case 'split-below': {
@@ -466,7 +466,7 @@ export class Lanes implements Subject {
 
     const lane = pane ? typingLane(this.wire.state, pane) : null
     if (routed.toLane !== '' && lane) {
-      void this.wire.opts.client.write(lane as LaneId, routed.toLane).catch(() => {})
+      this.wire.outbox.write(lane as LaneId, routed.toLane)
     }
     if (routed.toTade !== null) this.deps.say(routed.toTade)
     this.wire.draw()
@@ -542,7 +542,7 @@ export class Lanes implements Subject {
     const lane =
       event.area === 'pane' ? this.paneLane() : (activeTerminal(this.wire.state)?.id ?? null)
     if (view.scrolling === 'lane' && lane) {
-      void this.wire.live?.wheel(lane, { rows: event.rows, ...event.at })
+      this.wire.outbox.wheel(lane as LaneId, { rows: event.rows, ...event.at })
       // What it drew in answer is a change to its screen, which the next look
       // reads as it reads every other: sooner, because somebody is watching.
       this.deps.soonTick()

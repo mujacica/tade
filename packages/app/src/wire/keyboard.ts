@@ -114,6 +114,8 @@ export interface KeyboardDeps {
   quit(): void
   /** A lane was typed into: look at it sooner than the next beat. */
   soonTick(): void
+  /** The notches turned before this key, answered first: the key comes after them. */
+  settle(): void
   /** Everything the window did not keep goes to the agent you are watching. */
   toLane(data: string): void
   /** A slash command, carried out. */
@@ -171,6 +173,7 @@ export class Keyboard implements Subject {
    */
   onInput(data: string): TuiInputListenerResult {
     if (this.deps.stopped()) return undefined
+    this.deps.settle()
     // A panel has the keyboard while it is open: nothing typed into a form
     // should reach an agent. ctrl+c still closes Tade, as it does everywhere.
     if (this.wire.state.panel) {
@@ -200,7 +203,7 @@ export class Keyboard implements Subject {
         const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
         const lane = pane ? typingLane(this.wire.state, pane) : null
         if (this.wire.state.dictation !== null || !lane) this.deps.attachFromClipboard()
-        else void this.wire.opts.client.write(lane as LaneId, '\x16').catch(() => {})
+        else this.wire.outbox.write(lane as LaneId, '\x16')
         return { consume: true }
       }
       const paths = imagePaths(paste)
@@ -333,7 +336,7 @@ export class Keyboard implements Subject {
       this.wire.put({ ...this.wire.state, terminalScroll: 0 })
       const split = terminalSplitShown(this.wire.state)
       const into = split && this.wire.state.splitFocus ? split.lane : terminal.id
-      void this.wire.opts.client.write(into as LaneId, data).catch(() => {})
+      this.wire.outbox.write(into as LaneId, data)
       this.deps.soonTick()
       return { consume: true }
     }

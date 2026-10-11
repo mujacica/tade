@@ -115,27 +115,55 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   // key at all; Terminal.app and most others keep Cmd for themselves.
   if (key === 'super+k') return 'search'
   const pressed = normalKey(key)
-  const bindings = { ...DEFAULT_BINDINGS, ...ctx.bindings }
+  const bound = boundBy(ctx.bindings)
   // A number held with its modifiers: that agent, or that project.
   const number = /^(.*)\+([1-9])$/.exec(pressed)
   if (number) {
-    if (
-      bindings.agent_by_number !== 'off' &&
-      number[1] === normalKey(`${bindings.agent_by_number}+x`).slice(0, -2)
-    )
-      return `agent-${number[2]}`
-    if (
-      bindings.project_by_number !== 'off' &&
-      number[1] === normalKey(`${bindings.project_by_number}+x`).slice(0, -2)
-    )
-      return `project-${number[2]}`
+    if (number[1] === bound.agent) return `agent-${number[2]}`
+    if (number[1] === bound.project) return `project-${number[2]}`
   }
-  for (const [what, bound] of Object.entries(bindings)) {
+  // Letters are only ever claimed while they mean something, which the model knows.
+  return bound.pressed.get(pressed) ?? null
+}
+
+/** The window's keys as `appKey` looks a keystroke up in them. */
+interface Bound {
+  /** What each binding means, by the key it is pressed with: the first binding a key has wins. */
+  pressed: ReadonlyMap<string, string>
+  /** The modifiers a number is held with to mean an agent, or a project; null where that is off. */
+  agent: string | null
+  project: string | null
+}
+
+/** Worked out once per set of bindings, which is once per config (`boundBy`). */
+const BOUND = new WeakMap<object, Bound>()
+
+/**
+ * The bindings, laid out for looking a key up in — once per set of them
+ * rather than once per keystroke.
+ *
+ * Asked every key, it was a copy of every binding and a `normalKey` of each,
+ * about twenty splits, sorts and joins to decide that `x` is not one of the
+ * window's keys — 4.4µs a keystroke, which is two thirds of what a 2 KB paste
+ * cost the window to hand to a lane. Keyed by the bindings object itself, so a
+ * config read again is laid out again and nothing is kept past it.
+ */
+function boundBy(bindings: Readonly<Record<string, string>> | undefined): Bound {
+  const owner = bindings ?? DEFAULT_BINDINGS
+  const kept = BOUND.get(owner)
+  if (kept) return kept
+  const all = { ...DEFAULT_BINDINGS, ...bindings }
+  const pressed = new Map<string, string>()
+  for (const [what, key] of Object.entries(all)) {
     const meaning = PRESSED[what]
-    // Letters are only ever claimed while they mean something, which the model knows.
-    if (meaning && normalKey(bound) === pressed) return meaning
+    if (!meaning) continue
+    const name = normalKey(key)
+    if (!pressed.has(name)) pressed.set(name, meaning)
   }
-  return null
+  const held = (to: string | undefined) => (to === 'off' ? null : normalKey(`${to}+x`).slice(0, -2))
+  const made = { pressed, agent: held(all.agent_by_number), project: held(all.project_by_number) }
+  BOUND.set(owner, made)
+  return made
 }
 
 /** Keys that belong to something you would lose by giving them to Tade. */

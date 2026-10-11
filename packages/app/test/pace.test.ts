@@ -6,6 +6,8 @@ import {
   LOOK_FLOOR_MS,
   LOOK_SOON_MS,
   lookWait,
+  NEWS_MS,
+  newsWait,
   type Pace,
   paced,
   RENDER_CEILING_MS,
@@ -128,5 +130,29 @@ describe('pacing frames to the terminal', () => {
     expect(renderWait(slow, interval * 9)).toBe(0)
     // A clock that went backwards is no reason to wait longer than the interval.
     expect(renderWait(slow, -500)).toBe(interval)
+  })
+})
+
+// What an event is worth: news, drawn with the next frame anything asks for and
+// on its own no oftener than the spinner turns.
+describe('waiting before a frame for news', () => {
+  it('draws news at once when the window has been still for longer than that', () => {
+    expect(newsWait(NEWS_MS)).toBe(0)
+    expect(newsWait(60_000)).toBe(0)
+    expect(newsWait(Number.POSITIVE_INFINITY)).toBe(0)
+  })
+
+  it('waits out what is left of the interval just after a frame', () => {
+    expect(newsWait(0)).toBe(NEWS_MS)
+    expect(newsWait(NEWS_MS / 4)).toBe(NEWS_MS * 0.75)
+  })
+
+  it('reads a clock that went backwards as no time at all, never as longer', () => {
+    expect(newsWait(-500)).toBe(NEWS_MS)
+  })
+
+  it('draws news no oftener than the spinner, and oftener than the beat', () => {
+    expect(NEWS_MS).toBeGreaterThan(RENDER_FLOOR_MS)
+    expect(NEWS_MS).toBeLessThan(FRAME_MS)
   })
 })
