@@ -1,3 +1,4 @@
+import { LaneClosedError, LaneNotFoundError } from '@tade/drivers-core'
 import { describe, expect, it } from 'vitest'
 import { knownKeys, Lanes, MOST_PER_DEVICE, WATCH_MS } from '../../src/wire/web-lanes.ts'
 
@@ -124,12 +125,37 @@ describe('with somebody looking', () => {
 })
 
 describe('when the driver does not answer as asked', () => {
-  it('says there is no agent where the lane is not there', async () => {
-    const one = driver(() => Promise.reject(new Error('no such lane')))
+  it('says there is no agent where the driver says the lane is not there', async () => {
+    for (const gone of [new LaneNotFoundError('app/migration/agent'), new LaneClosedError('x')]) {
+      const one = driver(() => Promise.reject(gone))
+      one.lanes.watch('dev', 'app/migration', one.at())
+      one.lanes.beat(one.at())
+      await tick()
+      expect(one.lanes.heldFor('app/migration')).toEqual({ kind: 'none', why: 'no agent' })
+    }
+  })
+
+  it('never says there is no agent because the reading failed', async () => {
+    // **The other answer.** A driver that threw for any other reason has not
+    // said the agent is gone, and a page that drew *no agent is running*
+    // over one that is would be telling somebody their work stopped.
+    let failing = false
+    const one = driver(() =>
+      failing ? Promise.reject(new Error('the emulator thread died')) : Promise.resolve('$ ok'),
+    )
     one.lanes.watch('dev', 'app/migration', one.at())
     one.lanes.beat(one.at())
     await tick()
-    expect(one.lanes.heldFor('app/migration')).toEqual({ kind: 'none', why: 'no agent' })
+    failing = true
+    one.lanes.beat(one.at())
+    await tick()
+    // The last screen stays, with the moment it was read.
+    expect(one.lanes.heldFor('app/migration')).toMatchObject({ kind: 'read', text: '$ ok' })
+    const fresh = driver(() => Promise.reject(new Error('the emulator thread died')))
+    fresh.lanes.watch('dev', 'app/migration', fresh.at())
+    fresh.lanes.beat(fresh.at())
+    await tick()
+    expect(fresh.lanes.heldFor('app/migration')).toEqual({ kind: 'none', why: 'could not read' })
   })
 
   it('keeps the last screen it had when a read is late, and starts no second one', async () => {

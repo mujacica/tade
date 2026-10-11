@@ -1,4 +1,5 @@
 import { findSecret } from '@tade/core'
+import { LaneClosedError, LaneNotFoundError } from '@tade/drivers-core'
 import { inTime, KNOWN_FLOOR, type LaneIn, SCREEN } from '@tade/web'
 
 // What the away view holds of agents' screens, and the one rule that decides
@@ -145,6 +146,18 @@ export class Lanes {
     }
   }
 
+  /**
+   * A read that did not come back as a screen. **Late or failed is not gone**:
+   * the last screen known stays, with the moment it was read on it, and only
+   * an agent nothing was ever read of says it could not be read.
+   */
+  private couldNot(task: string): void {
+    const was = this.held.get(task)
+    if (was === undefined || was.kind === 'none') {
+      this.held.set(task, { kind: 'none', why: 'could not read' })
+    }
+  }
+
   private drop(task: string): void {
     this.watching.delete(task)
     // **What nobody is looking at is not kept**, so a screen read an hour ago
@@ -168,16 +181,21 @@ export class Lanes {
       // any more, and keeping it would be keeping a screen nobody is looking at.
       if (!this.watching.has(task)) return
       if (text === LATE) {
-        // Late is not gone: the last screen known stays, and only an agent
-        // nothing was ever read of says it could not be read.
-        if (!this.held.has(task)) this.held.set(task, { kind: 'none', why: 'could not read' })
+        this.couldNot(task)
         return
       }
       this.held.set(task, { kind: 'read', text, at: this.reading.now() })
-    } catch {
-      // A lane that is not there: the driver's own answer for an agent that is
-      // not running, which is a fact about the work and not a failure.
-      if (this.watching.has(task)) this.held.set(task, { kind: 'none', why: 'no agent' })
+    } catch (problem) {
+      if (!this.watching.has(task)) return
+      // **Two answers, never one.** A lane the driver says is not there — or
+      // is closed — is an agent that is not running, which is a fact about the
+      // work. Anything else is the *reading* going wrong, and a page told *no
+      // agent is running* about an agent that is would be the one lie this
+      // pane must not tell: it says it could not read the screen instead, and
+      // the driver's own trouble is the driver's to report.
+      const gone = problem instanceof LaneNotFoundError || problem instanceof LaneClosedError
+      if (gone) this.held.set(task, { kind: 'none', why: 'no agent' })
+      else this.couldNot(task)
     } finally {
       this.flying.delete(task)
     }
