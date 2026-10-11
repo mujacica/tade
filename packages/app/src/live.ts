@@ -35,9 +35,9 @@ import {
   workspaceFor,
 } from '@tade/core'
 import type { LaneScreen } from '@tade/drivers-core'
-import { collectStatus, git, newProbeGate } from '@tade/status'
+import { git, makeCollector, type StatusCollector } from '@tade/status'
 import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
-import { livenessFrom } from '@tade/workbench/lane-liveness'
+import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { ActionsView, Change, NoteShown } from './frame.ts'
@@ -131,6 +131,8 @@ export interface LiveOptions {
   tadeHome: string
   cwd?: string
   pollMs?: number
+  /** Where status is looked at: a window's own child, closed by whoever made it; else here. */
+  status?: StatusCollector
   now?: () => number
   onTasks?: (tasks: TaskSnapshot[]) => void
   onEvent?: (event: TadeEvent) => void
@@ -254,15 +256,12 @@ export class Live {
   private realities = new Map<string, Reality>()
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
-  /**
-   * What lets a beat skip a worktree nothing has happened in. The window's
-   * own, for as long as it is open: a gate belongs to whoever polls, and a
-   * one-shot `tade status` is given none because it has nothing to reuse.
-   */
-  private readonly gate = newProbeGate()
+  /** Where status is looked at, and the gate that lets a quiet worktree cost a `stat` (`collector.ts`). */
+  private readonly looker: StatusCollector
 
   private constructor(opts: LiveOptions) {
     this.opts = opts
+    this.looker = opts.status ?? makeCollector('here')
   }
 
   static async start(opts: LiveOptions): Promise<Live> {
@@ -950,25 +949,32 @@ export class Live {
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
+    if (!this.opts.status) await this.looker.close()
   }
 
   private async doRefresh(): Promise<void> {
     void this.lookAtWhatLanded()
     try {
-      const [workspace, pending, lanes] = await Promise.all([
-        collectStatus({
-          config: this.opts.config,
-          now: this.now(),
-          home: this.opts.home,
-          tadeHome: this.opts.tadeHome,
-          pr: false,
-          gate: this.gate,
-          ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
-          liveness: livenessFrom(this.opts.client),
-        }),
+      const [answer, pending, lanes] = await Promise.all([
+        livenessTableFrom(this.opts.client).then((table) =>
+          this.looker.collect({
+            config: this.opts.config,
+            now: this.now(),
+            home: this.opts.home,
+            tadeHome: this.opts.tadeHome,
+            pr: false,
+            cwd: this.opts.cwd,
+            lanes: table,
+          }),
+        ),
         this.opts.client.pendingApprovals(),
         this.opts.client.lanes(),
       ])
+      // Unknown is said, and the last look that could stands in, with this window's own
+      // approvals and lanes: never an empty world. Before any look, `unknown` stays.
+      if (!answer.known) this.opts.onWarning?.(answer.why)
+      const workspace = answer.known ? answer.workspace : this.seen
+      if (!workspace) return
       this.revisions++
       this.servers = workspace.toolServers
       this.seen = workspace

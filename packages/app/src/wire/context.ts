@@ -4,6 +4,7 @@ import type { Terminal } from '@earendil-works/pi-tui'
 import type { Arm, Config } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
 import type { HarnessModels } from '@tade/harnesses-core'
+import type { StatusCollector } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
@@ -160,6 +161,12 @@ export interface AppOptions {
   /** Tade's state directory, where generated earcons are kept. */
   home: string
   cwd?: string
+  /**
+   * Where the window looks at status: a child process of its own, made and
+   * closed by whoever opens the window, so the fork storm and the garbage of a
+   * look are never on the thread that draws. In this process unless given.
+   */
+  status?: StatusCollector
   terminal?: Terminal
   speaker?: Speaker
   /** Push-to-talk becomes speech when both of these are given. */

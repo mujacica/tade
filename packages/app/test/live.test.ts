@@ -1,7 +1,7 @@
 import { renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, type Task, type Workspace } from '@tade/core'
-import { git, gitLoad } from '@tade/status'
+import { git, gitLoad, makeCollector, type StatusAnswer, type StatusCollector } from '@tade/status'
 import { Workbench } from '@tade/workbench'
 import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
@@ -424,5 +424,109 @@ describe('the last look at a task, read without starting one', () => {
     // Nothing is waiting on anybody, which is a list and not a null: `pending`
     // is what the supervisor found, and finding none is an answer.
     expect(live.pending).toEqual([])
+  }, 30_000)
+
+  it('keeps the last look that could when status cannot look, and says why', async () => {
+    // A child that died, or a machine too busy to answer in time, is
+    // `unknown`: the window says so and goes on drawing the last world it
+    // saw — never an empty one, which reads as every agent having gone.
+    const repo = mkrepo()
+    const home = tmp('tade-live-unknown-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    const seen = workspace([task('checkout/refunds', 'working')])
+    const answers: StatusAnswer[] = [
+      { known: true, workspace: seen, spent: { spawns: 0, rss: 0, pid: 0 } },
+      { known: false, why: "status's process exited 1" },
+    ]
+    const asked: string[] = []
+    const status: StatusCollector = {
+      id: 'scripted',
+      collect: async (ask) => {
+        asked.push(Object.keys(ask.lanes).join(','))
+        return answers.shift() ?? { known: false, why: 'nothing left' }
+      },
+      close: async () => {},
+    }
+    const warnings: string[] = []
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+      status,
+      onWarning: (warning) => warnings.push(warning),
+    })
+    opened.push({ live, client })
+    expect(live.world).toBe(seen)
+    await live.refresh()
+    expect(warnings).toContain("status's process exited 1")
+    expect(live.world).toBe(seen)
+    expect(live.tasks.map((one) => one.task)).toEqual(['checkout/refunds'])
+    // The lanes went with each ask, read by the window; there are none here.
+    expect(asked).toEqual(['', ''])
+  }, 30_000)
+
+  it('stays unknown, not empty, when status has never been able to look', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-live-never-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    const warnings: string[] = []
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+      status: {
+        id: 'scripted',
+        collect: async () => ({ known: false, why: 'busy' }),
+        close: async () => {},
+      },
+      onWarning: (warning) => warnings.push(warning),
+    })
+    opened.push({ live, client })
+    expect(live.world).toBeNull()
+    expect(live.tasks).toEqual([])
+    expect(warnings).toEqual(['busy'])
+  }, 30_000)
+
+  it('looks in a child it was given, which starts every git of the look and leaves the window none', async () => {
+    const repo = mkrepo()
+    repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge' })
+    const home = tmp('tade-live-child-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    const status = makeCollector('child')
+    const before = gitLoad().started
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+      status,
+    })
+    opened.push({ live, client })
+    try {
+      expect(live.world?.projects[0]?.tasks.map((one) => one.id)).toEqual(['app/refunds'])
+      expect(gitLoad().started - before).toBe(0)
+      // Stopping the window's look is not closing a child it was handed:
+      // that is whoever made it's, on the way out.
+      await live.stop()
+      const after = await status.collect({
+        config: ConfigSchema.parse({ workspace: { adopt: false } }),
+        now: Date.now(),
+        home,
+        tadeHome: repo.home,
+        pr: false,
+        lanes: {},
+      })
+      expect(after.known).toBe(true)
+    } finally {
+      await status.close()
+    }
   }, 30_000)
 })
