@@ -19,8 +19,18 @@ import {
 } from '@tade/core'
 import { parse as parseYaml } from 'yaml'
 import { type AdoptedSession, scanTranscripts } from './adoption.ts'
-import { git, listWorktrees, probeGit, resolveBaseRef, type WorktreeEntry } from './git.ts'
+import type { ProbeGate } from './gate.ts'
+import {
+  type BaseRef,
+  type GitProbeResult,
+  git,
+  listWorktrees,
+  probeGit,
+  resolveBase,
+  type WorktreeEntry,
+} from './git.ts'
 import { type LivenessProbe, noLanes } from './liveness.ts'
+import { pooled } from './pool.ts'
 import { type AgentProcess, listAgentProcesses } from './processes.ts'
 import { verifiedAt } from './tests.ts'
 
@@ -30,6 +40,21 @@ import { verifiedAt } from './tests.ts'
 
 export const TASK_BRANCH_PREFIX = 'tade/'
 const TRANSCRIPT_WINDOW_MS = 24 * 60 * 60_000
+
+/**
+ * How many git probes run at once.
+ *
+ * Bounded, and never unbounded. Each worktree's probe is three or four spawns
+ * and they used to be awaited one worktree at a time, which on thirteen
+ * worktrees is fifty serial spawns a beat — the beat is missed and the view
+ * goes stale. Four at a time turns that into rounds; forty at a time would be
+ * worse than serial, because a spawn on a machine that now has forty more
+ * things to schedule is the slowest thing status does.
+ *
+ * Projects are still read one at a time, so this is the whole of what status
+ * asks of the machine at once rather than four of them per project.
+ */
+const GIT_POOL = 4
 
 export interface StatusOptions {
   config: Config
@@ -42,6 +67,12 @@ export interface StatusOptions {
   cwd?: string
   /** Query `gh` for PR state (network). */
   pr: boolean
+  /**
+   * Reuse a worktree's snapshot while nothing a `stat` can see has changed.
+   * Belongs to whoever polls — the window makes one and keeps it for as long
+   * as it is open. A one-shot `tade status` is given none and asks everything.
+   */
+  gate?: ProbeGate | undefined
   liveness?: LivenessProbe
   processes?: () => Promise<{
     processes: AgentProcess[]
@@ -102,23 +133,29 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
       out.push({ ...ref, tasks, untracked: [] })
       continue
     }
-    const baseRef = await resolveBaseRef(ref.root)
-    if (baseRef === null) warnings.push(`${ref.name}: no base branch (main/master) found`)
+    const base = await resolveBase(ref.root)
+    if (base === null) warnings.push(`${ref.name}: no base branch (main/master) found`)
 
     // Every task file this project has, read once: they are all in Tade's own
     // home now, whether the task works in a worktree of its own or beside the
     // others in the checkout, so there is one place to look rather than two.
     const files = await taskFilesOf(opts.tadeHome, ref, warnings)
     const used = new Set<string>()
+    const candidates: Candidate[] = []
     for (const wt of list) {
       // A `tade/*` branch, or a worktree with no branch at all: an agent that
       // has not changed anything yet has nothing to name one after.
       if (wt.branch ? !wt.branch.startsWith(TASK_BRANCH_PREFIX) : wt.bare) continue
-      const task = await buildTask(ref, wt, baseRef, opts, liveness, sessions, claimed, warnings, {
-        files,
-        used,
-      })
-      if (task) tasks.push(task)
+      const one = candidateOf(ref, wt, warnings, { files, used })
+      if (one) candidates.push(one)
+    }
+    // Looking is what takes the time, and no worktree's look depends on
+    // another's, so they go several at a time — bounded by `GIT_POOL`.
+    // Everything after them is in order again, because claiming a session and
+    // taking a task folder are first-come.
+    const looks = await pooled(candidates, GIT_POOL, (one) => probeOf(one, base, opts))
+    for (const [i, one] of candidates.entries()) {
+      tasks.push(await buildTask(ref, one, looks[i]!, opts, liveness, sessions, claimed, warnings))
     }
     tasks.push(...(await sharedTasks(ref, opts, liveness, warnings, { files, used })))
     for (const [folder, file] of files) {
@@ -151,17 +188,27 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
   }
 }
 
-async function buildTask(
+/** A worktree that is a task, and the task file that said so. */
+interface Candidate {
+  wt: WorktreeEntry
+  id: string
+  tf: TaskFile | null
+}
+
+/**
+ * Which task a worktree is, read off the task files already in hand.
+ *
+ * No I/O, and deliberately before any: working out which task a worktree is
+ * has to happen in order, because two worktrees can guess at the same folder
+ * and the first one has it — while looking at them wants to happen several at
+ * a time. Separating the two is what makes the bounded pool safe.
+ */
+function candidateOf(
   ref: ProjectRef,
   wt: WorktreeEntry,
-  baseRef: string | null,
-  opts: StatusOptions,
-  liveness: LivenessProbe,
-  sessions: Located[],
-  claimed: Set<Located>,
   warnings: string[],
   own: { files: Map<string, TaskFile | null>; used: Set<string> },
-): Promise<Task | null> {
+): Candidate | null {
   const branch = wt.branch ?? ''
   // Two ways to the task file, because a worktree is found by git and the file
   // is filed under the task's id. The branch says which task it is; where the
@@ -195,8 +242,49 @@ async function buildTask(
 
   if (!found && !wt.prunable) return null // a tade/* branch without a task
   if (wt.prunable) warnings.push(`${id}: worktree directory is missing`)
+  return { wt, id, tf }
+}
 
-  const g = await probeGit(wt.path, { baseRef, taskBase: tf?.base, pr: opts.pr })
+/**
+ * One worktree's git facts.
+ *
+ * Never throws, which the pool makes worth saying: a rejection here would
+ * take the whole fan-out with it, and `collectStatus`'s last-resort catch
+ * answers with an empty world — thirteen tasks reported as none because one
+ * worktree misbehaved.
+ */
+async function probeOf(
+  one: Candidate,
+  base: BaseRef | null,
+  opts: StatusOptions,
+): Promise<GitProbeResult> {
+  try {
+    return await probeGit(one.wt.path, {
+      baseRef: base?.ref ?? null,
+      baseOid: base?.oid ?? null,
+      taskBase: one.tf?.base,
+      pr: opts.pr,
+      gate: opts.gate,
+      now: opts.now,
+    })
+  } catch (err) {
+    const why = err instanceof Error ? err.message : String(err)
+    return { snapshot: null, warnings: [`${one.id}: git probe failed: ${why.split('\n')[0]}`] }
+  }
+}
+
+async function buildTask(
+  ref: ProjectRef,
+  one: Candidate,
+  g: GitProbeResult,
+  opts: StatusOptions,
+  liveness: LivenessProbe,
+  sessions: Located[],
+  claimed: Set<Located>,
+  warnings: string[],
+): Promise<Task> {
+  const { wt, id, tf } = one
+  const branch = wt.branch ?? ''
   warnings.push(...g.warnings)
 
   const mine = sessions.filter((s) => within(s.cwd, wt.path))
@@ -268,7 +356,12 @@ async function sharedTasks(
     .filter(([folder, file]) => !own.used.has(folder) && file?.workspace === 'checkout')
     .map(([folder]) => folder)
   if (folders.length === 0) return []
-  const g = await probeGit(ref.root, { baseRef: null, pr: opts.pr })
+  const g = await probeGit(ref.root, {
+    baseRef: null,
+    pr: opts.pr,
+    gate: opts.gate,
+    now: opts.now,
+  })
   warnings.push(...g.warnings)
   const out: Task[] = []
   for (const folder of folders) {
