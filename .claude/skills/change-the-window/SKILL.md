@@ -930,6 +930,34 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    `pnpm screens --live`, which runs the real binary in a real terminal and photographs it — the one
    check the goldens cannot make, because they never go through a terminal.
 
+## Measuring it
+
+Tade stays light and proves it, and the proof is two instruments plus four probe points. Read them
+before changing anything about the frame loop, the drawing or what a look costs: a perf change
+accepted on a story is a perf change nobody can undo later.
+
+- **`pnpm bench`** is both of them. `pnpm bench frames` is pure — `draw` over every scenario at
+  80×24, 160×45 and 260×60, timed per region and per screen, no terminal and no agent, so the same
+  change measures the same twice (`packages/app/test/bench.ts`). `pnpm bench window` is the whole
+  program: it opens the real `tade app` in a real pty, types at it, and reports keystroke-to-echo
+  from outside and the four frame points from inside, idle and then with the machine loaded
+  (`--load`, `--keys`, `--rounds`, `--size`).
+- **`TADE_TIMING`** turns the four probes on in any window: `frameOf` (plus one per subject), `draw`,
+  `doRender` and `write`. `TADE_TIMING=1` prints a table when the window closes; a path writes it
+  there as JSON. Off, they cost a boolean (`packages/app/src/timing.ts`, `wire/paint.ts`).
+- **They nest** — `doRender` contains `write` and the component render, which is `frameOf` and
+  `draw` — so reading them is subtraction, never a total.
+- **Read `best`, not only the quantiles.** Everything above the median on a loaded machine is the
+  scheduler: the same pure draw measured a 0.67ms p50 and a 119ms p99 at load 78 on 14 cores. `best`
+  is the round where the process got the machine, which is the argument `screens.test.ts` already
+  makes for taking the fastest of several. Every table prints the load it was taken under for the
+  same reason.
+- **Hold a change to a number, never to a rate.** `test/frame-cost.probe.test.ts` holds the
+  *instrument* (every region covered, a figure for every screen at every size); `screens.test.ts`
+  holds the loose ceiling and carries the argument for why it is loose;
+  `test/wire/frame.probe.test.ts` holds that all four probes are still wired and the rate with a
+  ceiling and a floor. A number over a fixed sleep is a number about the runner.
+
 ## Steps
 
 1. Add the state and its rules to `model.ts` as pure functions, with tests in `test/model.test.ts`.
@@ -973,7 +1001,8 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    draw their own screen**).
 10. `pnpm screens --assets`, so the README shows the window you just changed — see
     **redraw-the-pictures**.
-11. `pnpm check`.
+11. If it is drawn every frame or sits on a timer, measure it — **Measuring it** above.
+12. `pnpm check`.
 
 ## Gotchas
 

@@ -1,6 +1,7 @@
 import type { Frame } from '../frame.ts'
 import type { MenuItem } from '../panels/menu/state.ts'
 import type { Panel, PanelInputs } from '../panels.ts'
+import { timing } from '../timing.ts'
 import { menuOf, type Subject } from './context.ts'
 
 // The frame, folded out of the subjects that own each piece of it.
@@ -35,9 +36,17 @@ export function frameOf(
   // you has, which is also what it had before anything was ever captured.
   let frame: Frame = { ...base, screen: '' }
   let panel: NonNullable<Frame['panel']> = {}
+  // Each subject timed separately while anybody is measuring, because "which
+  // of the twenty-two is dear" is the question that orders memoising them, and
+  // a single `frameOf` figure cannot answer it. Nothing is recorded otherwise,
+  // and the name is built inside the guard: a template string per subject per
+  // frame is thirteen hundred allocations a second to throw away.
+  const timings = timing()
   for (const subject of subjects) {
+    const at = timings.start()
     if (subject.facts) frame = { ...frame, ...subject.facts(base.width) }
     if (subject.panel) panel = { ...panel, ...subject.panel(base.width) }
+    if (timings.on) timings.took(`subject:${subject.constructor.name}`, at)
   }
   // A menu's items belong to no one subject: they are the menus fold, which
   // is why they are put in here rather than by whoever owns that menu.

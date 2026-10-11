@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { ProcessTerminal, type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
+import { ProcessTerminal, type Terminal, type TuiAltScreen } from '@earendil-works/pi-tui'
 import { type Arming, attentionFor, taskDir, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
@@ -48,7 +48,7 @@ import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
 import { Orchestrator } from './wire/orchestrator.ts'
-import { kittyActive, Repaint, repaintScreen } from './wire/paint.ts'
+import { kittyActive, Repaint, repaintScreen, screenFor } from './wire/paint.ts'
 import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Routes } from './wire/routes.ts'
@@ -275,7 +275,7 @@ export class App {
     // clickable: events arrive at the component with coordinates local to it.
     // It is also what asks for focus reporting, which is what `watch` reads.
     this.repaint.watch(this.terminal)
-    this.tui = new TuiAltScreen(this.terminal)
+    this.tui = screenFor(this.terminal)
     freeViewportKeys()
     this.keyboard = new Keyboard(this.wire, {
       tui: this.tui,

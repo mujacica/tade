@@ -91,7 +91,7 @@ const MODEL = 'anthropic/claude-opus-5'
  * character still works and is what a terminal without the protocol would
  * send, so those are written the short way.
  */
-function keystroke(name: string): string {
+export function keystroke(name: string): string {
   const named: Record<string, string> = {
     enter: '\r',
     tab: '\t',
@@ -150,8 +150,11 @@ function seedRepo(root: string, name: string): void {
  * Deliberately no cleverness — no pre-written journal, no lanes invented on
  * disk. A picture taken of a home somebody made up is the made-up picture
  * again, with more moving parts.
+ *
+ * Exported because `bench.ts` opens the real window too, and a second answer
+ * to "a home to open on" is a second thing to keep true.
  */
-function seedHome(): { home: string; base: string } {
+export function seedHome(): { home: string; base: string } {
   const base = realpathSync(mkdtempSync(join(tmpdir(), 'tade-capture-')))
   const home = join(base, 'home')
   mkdirSync(home, { recursive: true })

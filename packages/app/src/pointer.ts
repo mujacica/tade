@@ -24,6 +24,7 @@ import {
   spanText,
   type Within,
 } from './selection.ts'
+import { timing } from './timing.ts'
 import { draw } from './view.ts'
 
 // What the terminal reported, turned into what the window means by it — and
@@ -287,8 +288,17 @@ export class Painted implements Component {
   }
 
   render(width: number): string[] {
+    // The two halves of a frame, timed here because this is where they really
+    // happen: the window hands this component a callback that folds the
+    // subjects (`frameOf`), and the drawing follows it. `view.ts` is pure and
+    // reads no clock, so the probe goes around it rather than inside it.
+    const timings = timing()
+    const asked = timings.start()
     const { state, frame } = this.frame(width)
+    timings.took('frameOf', asked)
+    const at = timings.start()
     const drawn = draw(state, frame)
+    timings.took('draw', at)
     this.hits = drawn.hits
     this.rows = drawn.rows
     this.regions = drawn.regions ?? {}

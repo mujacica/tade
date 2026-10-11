@@ -32,6 +32,7 @@
     "test:smoke": "vitest run packages/core/test packages/app/test/pictures.test.ts test/checks-read.test.ts test/coverage-floors.test.ts test/guide.test.ts test/lint-rules.test.ts test/modularity.test.ts test/notices.test.ts test/own-files.test.ts",
     "coverage": "node scripts/coverage.ts",
     "screens": "node packages/app/scripts/screens.ts",
+    "bench": "node packages/app/scripts/bench.ts",
     "notices": "node scripts/notices.ts",
     "changelog": "node scripts/release/changelog.ts",
     "stage": "node scripts/release/stage.ts",
