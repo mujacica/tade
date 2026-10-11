@@ -20,7 +20,12 @@ export interface Width {
   name: string
   width: number
   height: number
-  /** The one width where sideways scrolling is a failure rather than a table. */
+  /**
+   * The phone: reduced motion, and the device the controls are tapped on.
+   *
+   * Sideways scrolling is a failure at **every** width, not only this one — a
+   * desk that scrolled sideways under three columns is as broken as a phone.
+   */
   narrow?: true
 }
 
@@ -28,8 +33,9 @@ export interface Width {
  * Three widths, content-driven like the breakpoints themselves.
  *
  * 360 is the floor the brief names and the one a phone in a case actually has;
- * 834 is a tablet in portrait, which is where the glyph rail has to work; 1440
- * is a laptop, where the rail gains its names.
+ * 834 is a tablet in portrait, where the glyph rail and the projects along the
+ * top have to work; 1440 is a laptop, where the page is the window's own shape
+ * — agents down the side and Tade at the foot (`desk.js`).
  */
 export const WIDTHS: readonly Width[] = [
   { name: 'phone', width: 360, height: 780, narrow: true },
@@ -104,6 +110,12 @@ export const CHECKS = [
   'granted',
   'quiet',
   'delta',
+  // The desk and an agent looked into (`browser-desk.ts`): which of the
+  // frame's parts each width draws, and that an agent's screen is withheld
+  // from a device not granted it, drawn scrubbed for one that is, and no
+  // longer asked for once its page is left.
+  'desk',
+  'lanes',
   // The three a control owns, and none of them is answerable offline. A tap is
   // a real pointer on a real target; a keyboard is a real Tab order and a real
   // Enter on a `<button>`; and what somebody typed surviving a refusal is a

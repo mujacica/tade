@@ -21,7 +21,8 @@ import {
   WIDTHS,
   worstOf,
 } from '../test/browser-plan.ts'
-import { input, NOW } from '../test/fixtures.ts'
+import { agentHeld, input, NOW } from '../test/fixtures.ts'
+import { deskAt, lanesSeen } from './browser-desk.ts'
 import { asPwa } from './browser-pwa.ts'
 import {
   AXE,
@@ -34,6 +35,7 @@ import {
   SHAPE,
   STATUS,
 } from './browser-snippets.ts'
+import { until } from './browser-until.ts'
 
 // The away view, in a real browser, against the real server and the real files.
 //
@@ -131,7 +133,7 @@ async function serve() {
     readingFor: (reach: Reach) => {
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
-      const made = projector(input({ reach }), NOW)
+      const made = projector(input({ reach }), NOW, { agent: () => agentHeld() })
       held.set(reach.device, made)
       return made
     },
@@ -312,6 +314,7 @@ async function run() {
           found('quiet', `${look.name} @ ${width.name}`, 'pass', 'nothing thrown, nothing logged')
         }
       }
+      await deskAt(page, origin, width, found)
       await deltaUnder(page, origin, server, held, width.name)
       await context.close()
     }
@@ -363,6 +366,7 @@ async function asGranted(made: Engine, origin: string, tickets: Tickets, axe: st
       found('quiet', `${look.name} @ ${at}`, 'pass', 'nothing thrown, nothing logged')
     }
   }
+  await lanesSeen(page, origin, axe, shots, found)
   await context.close()
   granting = []
 }
@@ -563,26 +567,6 @@ async function nudge(
   server.streams.push(device, delta as never, Date.now())
 }
 
-/**
- * Poll until a snippet says yes, because `waitForFunction` cannot run here.
- *
- * The content policy has no `unsafe-eval`, and Playwright's `waitForFunction`
- * polls by compiling a string in the page — which that policy refuses, as it
- * refuses every other `eval` an injected script could try. `evaluate` goes
- * through the debugger protocol instead and needs no `eval` at all, so the
- * waiting happens here. **That the policy refuses it is the point**: a harness
- * that worked around it by loosening the header would be testing a page nobody
- * is served.
- */
-async function until(page: Page, body: string, ms = 10_000): Promise<void> {
-  const stop = Date.now() + ms
-  for (;;) {
-    if ((await page.evaluate(body)) === true) return
-    if (Date.now() > stop) throw new Error(`nothing answered yes in ${ms}ms`)
-    await page.waitForTimeout(100)
-  }
-}
-
 /** Which device this page is signed in as, out of the devices screen. */
 async function deviceIn(page: Page): Promise<string | null> {
   const got = await page.evaluate(`fetch('/api/devices').then((r) => r.json())`)
@@ -667,11 +651,10 @@ async function lookAt(
     found('landmarks', where, 'pass', 'header, nav, one main, one live region, skip link first')
   }
 
-  if (width.narrow === true) {
-    const over = shape.sideways - shape.room
-    if (over > 1) found('sideways', where, 'fail', `the page is ${over}px wider than the screen`)
-    else found('sideways', where, 'pass', 'nothing scrolls sideways')
-  }
+  // At every width: a desk that scrolled sideways is as broken as a phone.
+  const over = shape.sideways - shape.room
+  if (over > 1) found('sideways', where, 'fail', `the page is ${over}px wider than the screen`)
+  else found('sideways', where, 'pass', 'nothing scrolls sideways')
 
   if (shape.small.length > 0) {
     found('targets', where, 'fail', `too small to hit: ${shape.small.slice(0, 3).join('; ')}`)

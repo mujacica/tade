@@ -1,7 +1,8 @@
+import { AGENT, type AgentIn, agentOf } from './agent.ts'
 import { revise, tick } from './delta.ts'
 import type { SnapshotInput } from './input.ts'
 import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
-import type { Delta, NoteRow, Snapshot } from './protocol.ts'
+import type { AgentOut, Delta, NoteRow, Snapshot } from './protocol.ts'
 import { has } from './reach.ts'
 import { type Cursors, noteRows, noteSeen } from './snapshot.ts'
 
@@ -59,6 +60,19 @@ export interface WebReading {
    * somebody opening the notes page is asking.
    */
   notes(scope: string | null): Page<NoteRow>
+  /**
+   * One agent, for a device that has its page open: what it has been doing,
+   * and — where this device was granted `lanes` — the last rows of its screen.
+   *
+   * Its own call for the reason `notes` is, and one more: **asking is what
+   * makes the window look.** A lane is read on the beat only while some device
+   * granted it keeps asking about it (`web-lanes.ts`), so an agent nobody has
+   * open costs nothing, and a page that stops asking stops the reading within
+   * a beat or two. Synchronous like the rest: the answer is what the window
+   * already holds, and the first one for an agent nobody was watching says
+   * `not read yet`.
+   */
+  agent(task: string): AgentOut
 }
 
 /**
@@ -88,6 +102,14 @@ export interface ProjectorOptions {
   budget?: Budget
   /** Where each collection carries on from, for a client paging one. */
   cursors?: Cursors
+  /**
+   * What the window holds about one agent, or null for nothing.
+   *
+   * A function and not a field of the input, because it is asked about one
+   * task at the moment a device asks — and because asking is the window's
+   * signal to go on looking at that lane, which only the window can act on.
+   */
+  agent?: (task: string) => AgentIn | null
 }
 
 /**
@@ -118,6 +140,9 @@ export function projector(
     },
     notes(scope: string | null): Page<NoteRow> {
       return notesOf(input, scope, budget)
+    },
+    agent(task: string): AgentOut {
+      return agentOf(input.reach, input.tasks, task, opts.agent?.(task) ?? null, AGENT)
     },
     beat(next: SnapshotInput, at: number): Delta | null {
       input = next

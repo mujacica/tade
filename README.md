@@ -438,6 +438,12 @@ Letting a device in is a keypress here, so a typed address reaches the pairing p
 present. The listener dies with the window: a bookmark tapped with Tade closed is a connection
 error, not an empty control room.
 
+On a laptop it takes the window's shape — projects along the top, the agents running down the
+side, Tade in a strip at the foot — and an agent's page says what it has been doing. What its
+screen shows is a grant of its own, per device and off for every one: the last rows, read only
+while that page is open, with machine paths and every key Tade knows of taken out. Nothing on the
+page types into an agent; what you say goes through Tade.
+
 What each device may read is granted here, per device, in the words it is granted in — and what a
 granted one can never reach is said in the same panel, where you are granting it. Publishing a
 workflow, turning a source on and granting anything stay acts at this machine: **no route for any

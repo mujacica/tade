@@ -22,6 +22,7 @@ import {
   SHOWN,
   wordsFor,
 } from './acts.js'
+import { agentPane } from './agents.js'
 import {
   classOn,
   el,
@@ -356,14 +357,22 @@ function spendIn(section_, made, tasks, partial, may, since = null) {
 /* ── one task ──────────────────────────────────────────────────────────────── */
 
 /**
- * A task: what it is, and what may be asked of it.
+ * A task, and the agent on it: what it is, what it has been doing, what its
+ * screen shows, and what may be asked of it.
  *
- * **What is absent is still the point.** There is no diff, no lane output and
- * no transcript — each ships source or an agent's bytes to a phone and to a
- * browser cache, which is a *reading* grant with its own threat model and not
- * a control. And a control that nothing could carry out is absent too, with
- * the reason beside it: not greyed out and not behind a toast, because a
- * disabled button invites a tap and then says nothing.
+ * **What is absent is still the point.** There is no diff and no transcript —
+ * each ships source to a phone and to a browser cache. An agent's screen is
+ * here only as the `lanes` grant has it (`agents.js`, `screen.ts`): the last
+ * rows, read while this page is open, with paths and keys taken out, and
+ * nothing on this page can type into it. And a control that nothing could
+ * carry out is absent too, with the reason beside it: not greyed out and not
+ * behind a toast, because a disabled button invites a tap and then says
+ * nothing.
+ *
+ * **Two columns at a desk** (`.task-grid`): the state and the agent's own
+ * screen where the eye lands, and the facts and the controls beside them. One
+ * column everywhere else, in the same order — so a phone reads the state, then
+ * the screen, then everything else.
  */
 export function taskScreen(where, ctx) {
   const node = el('div')
@@ -384,25 +393,23 @@ export function taskScreen(where, ctx) {
   const work = section('WORK')
   const checks = section('CHECKS')
   const rest = section('ABOUT')
-  into(
-    node,
-    back,
-    head,
-    gone,
-    state.node,
-    asked.node,
-    agent.node,
-    work.node,
-    checks.node,
-    rest.node,
-  )
   const parts = [state, asked, agent, work, checks, rest]
   const made = partsOf(state, agent, work, checks, rest)
+  // The agent's own: what it has been doing and what its screen shows, asked
+  // for while this page is open and not a moment after (`leave`).
+  const pane = ctx === undefined || ctx === null ? null : agentPane(where, ctx)
+  const grid = el('div', { class: 'task-grid' })
+  const lead = el('div', { class: 'task-lead' })
+  const facts = el('div', { class: 'task-facts' })
+  into(lead, state.node, ...(pane?.nodes ?? []))
+  into(facts, asked.node, agent.node, work.node, checks.node, rest.node)
+  into(grid, lead, facts)
+  into(node, back, head, gone, grid)
   // **Every control the page has, built once** — one block per verb, in the
   // order `SHOWN` gives, each hidden until the row says it may be asked for.
   // Built here rather than per update, so what somebody has typed into one
   // survives every delta (`keyed`'s rule, one layer up).
-  const acts = ctx === undefined || ctx === null ? null : actsIn(node, ctx)
+  const acts = ctx === undefined || ctx === null ? null : actsIn(facts, ctx)
 
   return {
     node,
@@ -411,7 +418,9 @@ export function taskScreen(where, ctx) {
       gone.hidden = task !== null
       textIn(gone, task === null ? 'This task is not on this device, or is not there.' : '')
       for (const one of parts) one.node.hidden = task === null
+      for (const one of pane?.nodes ?? []) one.hidden = task === null
       if (task === null) return
+      pane?.update(view)
       markIn(glyph, taskMark(task.state))
       stateIn(made, task, view)
       askedIn(asked, task, view.may)
@@ -420,6 +429,9 @@ export function taskScreen(where, ctx) {
       taskChecksIn(made, task)
       restIn(made, task, view)
       acts?.update(task, view)
+    },
+    leave() {
+      pane?.leave()
     },
   }
 }

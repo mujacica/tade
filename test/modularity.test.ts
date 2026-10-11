@@ -379,6 +379,13 @@ const PURE = [
   'packages/web/src/acts.ts',
   'packages/web/src/routes.ts',
   'packages/web/src/snapshot.ts',
+  // One agent looked into: what of its screen may leave the machine
+  // (`screen.ts` — the scrubbing and the bounds) and the answer it is part of
+  // (`agent.ts`). The screen is the least trustworthy string in the package,
+  // which is exactly why what is done to it is a table over fixtures and not
+  // a request somebody remembered to make.
+  'packages/web/src/agent.ts',
+  'packages/web/src/screen.ts',
   'packages/web/src/verbs.ts',
   'packages/web/src/stream.ts',
   'packages/web/src/surface.ts',
@@ -393,6 +400,7 @@ const PURE = [
   // The away view's own two: what the window hands the projection, and the
   // panel's state. Both a function of what they are handed.
   'packages/app/src/away.ts',
+  'packages/app/src/away-activity.ts',
   'packages/app/src/panels.ts',
   'packages/app/src/plan-graph.ts',
   'packages/app/src/scroll.ts',

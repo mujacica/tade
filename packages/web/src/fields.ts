@@ -150,9 +150,13 @@ export function outside(at: string): boolean {
  * sentence that says they are material and grant no permission.
  *
  * The same applies to things that are not an intake and never were: a diff
- * body, a lane's bytes, a tool call's arguments, a transcript. Each is behind
- * its own `never`-tier setting in a later phase, and none of them is a field on
- * this projection.
+ * body, a lane's bytes, a tool call's arguments, a transcript. None of them is
+ * a field on this projection. One of them is read at all — what an agent's
+ * screen shows, under a device's own `lanes` grant, on its own answer and
+ * never on a snapshot, as `lines` after `screen.ts` has taken the machine's
+ * paths and keys out — and it is still never a field called `output`: that
+ * name is a lane's raw bytes arriving by the name a driver reaches for. The
+ * others are each behind their own `never`-tier setting in a later phase.
  *
  * **These are field *names*, and nothing here is a word list over values.** A
  * leakage test that searched values for `token` would pass on every credential
@@ -235,11 +239,26 @@ export function withoutPaths(said: string): string {
 
 /** One word as it goes out, or null where it was not a path at all. */
 function elide(word: string): string | null {
+  const at = pathIn(word)
+  if (at === null) return null
+  return `${word.slice(0, at.from)}${ELIDED}${word.slice(at.to)}`
+}
+
+/**
+ * Where in one whitespace-free word a machine path is, or null.
+ *
+ * `withoutPaths`' own rule as offsets, for the one caller that has to mark
+ * what it takes out rather than rewrite a sentence: a lane's screen
+ * (`screen.ts`), where a path the terminal wrapped onto two rows is one word
+ * only once the rows are joined again — so the decision is this one and the
+ * cutting is that file's.
+ */
+export function pathIn(word: string): { from: number; to: number } | null {
   const head = /^[([<"'`«]*/.exec(word)?.[0] ?? ''
   const tail = /[)\]>"'`»,;:.]*$/.exec(word)?.[0] ?? ''
   const bare = word.slice(head.length, word.length - tail.length)
   if (bare === '' || !absolute(bare)) return null
-  return `${head}${ELIDED}${tail}`
+  return { from: head.length, to: word.length - tail.length }
 }
 
 /**
@@ -253,5 +272,9 @@ function elide(word: string): string | null {
 function absolute(word: string): boolean {
   if (/^~[/\\]/.test(word) || /^[A-Za-z]:[/\\]/.test(word)) return true
   if (!/^[/\\]/.test(word)) return false
+  // Separators and nothing else name nowhere: `//` is a comment on an agent's
+  // screen and a rule in somebody's sentence, and taking it out says nothing
+  // was there when something was.
+  if (/^[/\\]+$/.test(word)) return false
   return (word.match(/[/\\]/g) ?? []).length >= 2
 }

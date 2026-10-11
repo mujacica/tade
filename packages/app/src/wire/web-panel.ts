@@ -118,6 +118,7 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       reads: readsOf(reachOf(one)),
       mayAct: one.scopes.some((scope) => scope === 'answer' || scope === 'steer'),
       mayTalk: one.scopes.includes('ask'),
+      maySee: one.granted.includes('lanes'),
       live: facts.live.has(one.id),
     }))
 }

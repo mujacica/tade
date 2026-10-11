@@ -240,6 +240,11 @@
 
 .queue .waits {
   grid-column: 3 / -1;
+  /* A grid item is as wide as its longest word unless told otherwise, and a
+     task id is one long word: at 360px, with the reason beside it, the row
+     pushed the page 18px wider than the screen. */
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--heading);
   font-size: var(--step--1);
 }
@@ -726,4 +731,57 @@ input {
 
 .press.ghost:hover {
   background: var(--chosen);
+}
+
+/* ── an agent, looked into ─────────────────────────────────────────────────── */
+
+/* One column until a desk gives it two (`frame.css`). */
+.task-grid {
+  display: grid;
+}
+
+.task-lead,
+.task-facts {
+  min-width: 0;
+}
+
+/*
+  What its screen shows: an agent's bytes as text, in the window's own mono,
+  on the card ground. Wider than the page is allowed here and only here — it
+  is a `.scrolls` — because a terminal row cut to a phone's width is a row
+  that says something else; taller than the pane is its own scroll.
+*/
+.screen {
+  max-height: 34rem;
+  overflow-y: auto;
+  padding: var(--s3);
+  border: var(--border);
+  border-radius: var(--r2);
+  background: var(--surface);
+}
+
+.screen pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: var(--lead-tight);
+  color: var(--bright);
+  white-space: pre;
+}
+
+/* What it runs on, under its name: a harness and a model are mono, as in the window. */
+.runs {
+  font-family: var(--font-mono);
+}
+
+/*
+  A line of the conversation is a heading and somebody's words, not a row of
+  three columns: its words are a block under the line that says who, at the
+  width of the screen. Without this the row grid put a reply in the glyph's
+  column, one word to a line.
+*/
+.rows.chat > li > div {
+  display: block;
+  min-height: 0;
+  padding-block: 0 var(--s2);
 }

@@ -74,30 +74,73 @@ const draft = draftStore()
 export function talkScreen(ctx) {
   const node = el('div')
   const made = section('WITH TADE', { top: true })
-  const list = el('ul', { class: 'rows' })
+  const list = el('ul', { class: 'rows chat' })
   const none = empty('nothing said yet')
   into(made.body, list, none)
   const older = el('p', { class: 'unknown' })
 
   const composer = section('SAY SOMETHING')
+  const typing = composerOf(ctx, {
+    label: 'what to say to Tade',
+    placeholder: 'ask Tade something',
+    send: 'Send',
+    rows: '3',
+  })
+  into(composer.body, ...typing.nodes)
+  into(node, made.node, older, composer.node)
+
+  return {
+    node,
+    update(view) {
+      const lines = chatOf(view.store)
+      textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
+      none.hidden = lines.length > 0
+      textIn(none, nothingSaid(view.may.talk, omitted(view.store, 'chat'), 'nothing said yet'))
+      keyed(
+        list,
+        lines,
+        (line) => line.id,
+        createChatLine,
+        (one, line) => fillChatLine(one, line, view),
+      )
+      const left = omitted(view.store, 'chat')
+      const more = left > 0 && view.may.talk === true
+      textIn(older, more ? `${left} earlier lines are not on this page` : '')
+      older.hidden = !more
+      typing.update(talkOf(view.store))
+    },
+  }
+}
+
+/**
+ * A box, a press to send it and a press to stop the turn — **the one way this
+ * page says anything to Tade**, used by this screen and by the strip at the
+ * foot of a desk (`desk.js`).
+ *
+ * One function for both, so there is one draft, one `afterAnswer` and one
+ * three-sentence absence rather than a second copy of each that drifts: the
+ * strip is a smaller box over the same ask flow, not a second door. Nothing
+ * here can reach an agent — a message goes to Tade, which is narrowed to what
+ * this device was granted at the machine (`origin.ts`) and written down under
+ * its id.
+ */
+export function composerOf(ctx, words) {
   const why = el('p', { class: 'empty' })
   const box = el('textarea', {
     attrs: {
-      rows: '3',
+      rows: words.rows,
       maxlength: String(BOUND),
-      placeholder: 'ask Tade something',
-      'aria-label': 'what to say to Tade',
+      placeholder: words.placeholder,
+      'aria-label': words.label,
     },
   })
   box.value = draft.get()
   box.addEventListener('input', () => draft.set(box.value))
-  const press = el('button', { class: 'press quietly', text: 'Send' })
+  const press = el('button', { class: 'press quietly', text: words.send })
   const stop = el('button', { class: 'press quietly', text: 'Stop it' })
   const presses = el('div', { class: 'presses' })
   const said = el('p', { attrs: { role: 'status' } })
   into(presses, press, stop)
-  into(composer.body, why, box, presses, said)
-  into(node, made.node, older, composer.node)
 
   let talk = null
   let going = false
@@ -147,24 +190,13 @@ export function talkScreen(ctx) {
   })
 
   return {
-    node,
-    update(view) {
-      talk = talkOf(view.store)
-      const lines = chatOf(view.store)
-      textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
-      none.hidden = lines.length > 0
-      textIn(none, nothingSaid(view.may.talk, omitted(view.store, 'chat'), 'nothing said yet'))
-      keyed(
-        list,
-        lines,
-        (line) => line.id,
-        createChatLine,
-        (one, line) => fillChatLine(one, line, view),
-      )
-      const left = omitted(view.store, 'chat')
-      const more = left > 0 && view.may.talk === true
-      textIn(older, more ? `${left} earlier lines are not on this page` : '')
-      older.hidden = !more
+    nodes: [why, box, presses, said],
+    update(next) {
+      talk = next
+      // **The draft is the page's and the box is this one's view of it**: the
+      // other composer may have been typed into since this one last drew, and
+      // a box somebody is typing in is never written under them.
+      if (document.activeElement !== box && box.value !== draft.get()) box.value = draft.get()
       settle()
     },
   }

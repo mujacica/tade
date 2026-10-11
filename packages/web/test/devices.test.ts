@@ -7,6 +7,7 @@ import {
   DEVICES_FILE,
   devicesIn,
   devicesPath,
+  grantDevice,
   readDevices,
   revokeAll,
   writeDevices,
@@ -218,6 +219,57 @@ describe('read scopes, as a reach', () => {
   it('refuses a grant word in the file itself, which is the stronger guard', () => {
     const { skipped } = devicesIn(`${JSON.stringify(pairedLine({ granted: ['everything'] }))}\n`)
     expect(skipped).toBe(1)
+  })
+})
+
+describe('a reading grant made after pairing', () => {
+  it('replaces what a device may read, in full, and touches nothing else', () => {
+    const one = pairedLine({ granted: ['titles'], scopes: ['read', 'answer'] })
+    const text = [
+      JSON.stringify(one),
+      JSON.stringify({
+        kind: 'granted',
+        device: one.device,
+        at: new Date(NOW + 1).toISOString(),
+        granted: ['titles', 'lanes'],
+      }),
+    ].join('\n')
+    const found = devicesIn(text).devices[0]
+    expect(found?.granted).toEqual(['titles', 'lanes'])
+    // What it may *do* is the other half of its reach, and a reading grant
+    // never moves it.
+    expect(found?.scopes).toEqual(['read', 'answer'])
+    expect(found?.digest).toBe(one.digest)
+  })
+
+  it('takes a grant back with the same line and less in it', () => {
+    const one = pairedLine({ granted: ['lanes'] })
+    const text = [
+      JSON.stringify(one),
+      JSON.stringify({ kind: 'granted', device: one.device, at: 'x', granted: [] }),
+    ].join('\n')
+    expect(devicesIn(text).devices[0]?.granted).toEqual([])
+  })
+
+  it('refuses a word nothing reads, on the way in and in the file', async () => {
+    const where = await home()
+    const one = pairedLine()
+    await writeDevices(where, [one as never])
+    await expect(
+      grantDevice(where, String(one.device), ['everything'], new Date(NOW)),
+    ).rejects.toThrow()
+    const { skipped } = devicesIn(
+      JSON.stringify({ kind: 'granted', device: one.device, at: 'x', granted: ['everything'] }),
+    )
+    expect(skipped).toBe(1)
+  })
+
+  it('writes the line the fold reads', async () => {
+    const where = await home()
+    const one = pairedLine()
+    await writeDevices(where, [one as never])
+    await grantDevice(where, String(one.device), ['lanes'], new Date(NOW))
+    expect((await readDevices(where)).devices[0]?.granted).toEqual(['lanes'])
   })
 })
 
