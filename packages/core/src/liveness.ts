@@ -18,3 +18,29 @@ export const noLanes: LivenessProbe = {
     return []
   },
 }
+
+/**
+ * What a probe would answer about every task it knows, read once and written
+ * down as plain data.
+ *
+ * Status is collected in a process of its own, and the lanes are the window's:
+ * the child cannot ask the registry, so the window asks it before the look and
+ * sends the answers along. A task with no entry has no lanes, which is what
+ * the probe would have said about it.
+ */
+export type LivenessTable = Record<string, { lanes: AgentSignal[]; records: Lane[] }>
+
+/** A probe that answers out of a table: the same answers, asked again. */
+export function livenessOf(table: LivenessTable): LivenessProbe {
+  // Own keys only: a task id is never `constructor`, but a table read off a
+  // pipe is not the place to find out.
+  const of = (task: TaskId) => (Object.hasOwn(table, task) ? table[task] : undefined)
+  return {
+    async lanes(task) {
+      return of(task)?.lanes ?? []
+    },
+    async records(task) {
+      return of(task)?.records ?? []
+    },
+  }
+}

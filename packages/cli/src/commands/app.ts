@@ -36,11 +36,11 @@ import {
   workbenchExtensions,
   writtenTools,
 } from '@tade/orchestrator'
-import { collectStatus } from '@tade/status'
+import { makeCollector } from '@tade/status'
 import { watchProcess } from '@tade/telemetry'
 import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
 import { HomeBusyError, Workbench } from '@tade/workbench'
-import { livenessFrom } from '@tade/workbench/lane-liveness'
+import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { reporterFor, reportJournal } from '../telemetry.ts'
@@ -211,18 +211,27 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // the listener is the window's too.
       let away: ReturnType<App['awayTools']> | null = null
       const opening = () => new Error('Tade is still opening: ask again in a moment')
-      // Where everything stands, derived fresh. What `tade_status` answers
-      // with, and what the efforts in the briefing are folded out of.
-      const status = () =>
-        collectStatus({
+      // Where everything stands, looked at in a process of the window's own
+      // (`lookInChild`), so the fork storm and the garbage of a look are never
+      // on the thread that draws. One for the window: its beat asks it, and so
+      // does `tade_status`, which the efforts in the briefing are folded out
+      // of. It ends with the window, however the window ends.
+      const looking = makeCollector('child')
+      const status = async () => {
+        const answer = await looking.collect({
           config: client.config,
           now: Date.now(),
           home: homedir(),
           tadeHome: tadeHome(),
           cwd: process.cwd(),
           pr: false,
-          liveness: livenessFrom(client),
+          lanes: await livenessTableFrom(client),
         })
+        // A tool fails by throwing: a look that could not be had is said,
+        // never answered with a workspace that has nothing in it.
+        if (!answer.known) throw new Error(answer.why)
+        return answer.workspace
+      }
       const tools = await ToolHost.listen({
         tade: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
@@ -333,6 +342,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           config: cfg.config,
           home,
           cwd: process.cwd(),
+          status: looking,
           ...(canHear ? { recorder, transcriber } : {}),
           report,
           // What an agent can be started on is its harness's to say, and the
@@ -540,6 +550,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // with no MCP client in it.
         await mcp.close().catch(() => {})
         await tools.close().catch(() => {})
+        await looking.close()
         stopWatching()
         stopReporting()
         // What is queued has a moment to be sent, and never more than that.

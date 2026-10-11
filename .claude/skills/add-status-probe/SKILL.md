@@ -52,12 +52,25 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   and `collectStatus`'s last-resort catch answers with an empty world — thirteen tasks reported as
   none. `probeOf` catches for exactly this reason.
 
+- **A window's look happens in a child process, not in the window.** `Live` and `tade_status` ask
+  one `StatusCollector` (`src/collector.ts`; registry `src/collectors.ts`; both implementations held
+  to `test/conformance.ts`), and the window's is `child` (`src/forked.ts`): the fork storm, the
+  porcelain parsing and the transcript scan — measured at 140 MB of garbage a beat against one
+  laptop's transcripts (`scripts/look-cost.ts --adopt`) — are the child's, and so is the gate. So **whatever a probe is
+  given must cross a pipe as plain data** (`StatusAsk`): a function in `StatusOptions` is for tests
+  and one-shots only, and anything only the window holds goes as data read just before the ask, the
+  way its lanes go as a `LivenessTable` (`livenessTableFrom`). A look that could not be had —
+  past its deadline, a child that died, an answer that is not one — is `unknown` with why, never an
+  empty world, and the window keeps the last look that could. The child dies with the window when
+  its channel closes, and one that keeps dying is waited on (`restartWait`), never forked per beat.
+
 ## Steps
 
 1. Add the fact's schema to `packages/core/src/model.ts` (e.g. a field on `GitSnapshot` or
    `AgentSignal`, or a new top-level signal).
 2. Implement the probe in `packages/status/src/<name>.ts`, exported from `src/index.ts`. Make
-   external dependencies injectable through `StatusOptions` (see `processes`) so tests control them.
+   external dependencies injectable through `StatusOptions` (see `processes`) so tests control them,
+   and anything the window must supply a field of `StatusAsk`, as data.
 3. Test it against **real** inputs: `test/fixtures/mkrepo.ts` for git (never mock git), checked-in
    fixtures for file formats.
 4. Feed it into `ProbeBundle` in `collectStatus`, then follow the `change-task-state` skill if it
