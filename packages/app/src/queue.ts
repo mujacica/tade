@@ -263,11 +263,27 @@ export function heldMessage(task: string, because: string, changed?: readonly st
       'jev_plan_check and jev_queue_order will read the plan and the queue again beside what has changed, if you want a second reading before you ask — say what you think in your own words, not theirs.',
     ].join(' ')
   }
+  // The call is spelled out with its arguments rather than named: told only
+  // "tade_queue_change does each of those", a model sent `{"change":"wait"}`
+  // twelve times running, sure each time that it had written the task.
   return [
     `${task} is held, and will not start by itself: ${because}.`,
     'Tell the person, and ask what they want: wait for a retry, start it anyway, change the plan, or remove it.',
-    'tade_queue_change does each of those.',
+    `tade_queue_change does each of those, with task: ${task} and change: wait, start or remove.`,
   ].join(' ')
+}
+
+/**
+ * Why a change meant for one piece of queued work was refused when the call
+ * named none: the argument it was missing, and what there is to name.
+ *
+ * "Say which" is an answer to a person. A model that believes it already said
+ * which — and blames the harness for losing it — needs to be told that this
+ * call had no `task`, and handed the ids it can copy.
+ */
+export function unnamedSays(change: string, queued: readonly string[]): string {
+  const now = queued.length > 0 ? ` — queued now: ${joined(queued)}` : ''
+  return `${change} is for one piece of queued work, and this call named none: say which as task${now}`
 }
 
 /** Queued work and where each stands, in lines, oldest first. */

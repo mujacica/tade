@@ -5,6 +5,7 @@ import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter, HOOK_PATH, MCP_PATH, runSocket } from '../src/adapter.ts'
+import { BACKGROUNDED } from '../src/background.ts'
 import { sessionIdFor } from '../src/transcript.ts'
 
 // The adapter without Claude Code: its hooks, status line and tool server are
@@ -140,7 +141,24 @@ describe('ClaudeAdapter', () => {
       const mcp = JSON.parse(readFileSync(given('--mcp-config'), 'utf8'))
       expect(mcp.mcpServers.tade.args).toEqual([MCP_PATH])
       expect(mcp.mcpServers.tade.env.TADE_EXTENSION_TOOLS).toBe('/tools.json')
-      expect(readFileSync(given('--append-system-prompt-file'), 'utf8')).toBe('You run in Tade.')
+      expect(readFileSync(given('--append-system-prompt-file'), 'utf8')).toBe(
+        `You run in Tade.\n\n${BACKGROUNDED}`,
+      )
+    })
+
+    it('tells a lane how a long call of Tade’s comes back, with or without anything else to say', () => {
+      // Claude Code backgrounds a call still running after two minutes, which
+      // `checks_run` nearly always is. Five agents reopened on a newer Claude
+      // Code reached for TaskOutput, which it had retired, because nothing
+      // they were told said how the answer comes now.
+      const one = new ClaudeAdapter({ runDir: tmp('tcc-'), configDir: tmp('tade-claude-a-') })
+      const launch = one.launchSpec({ run: 'app/t/agent', task: 'app/t', cwd: '/wt/t', prompt: '' })
+      const told = readFileSync(
+        launch.args[launch.args.indexOf('--append-system-prompt-file') + 1] ?? '',
+        'utf8',
+      )
+      expect(told).toBe(BACKGROUNDED)
+      expect(told).toContain('task notification')
     })
   })
 

@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { type Arm, LOCAL, type Plan } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { ToolHost, type ToolHostOptions } from '../src/tool-host.ts'
 import { call } from './host-harness.ts'
@@ -308,6 +308,51 @@ describe('a plan that spans repositories, as it reaches the window', () => {
       agents: [{ name: 'a', said: 'a', prompt: 'a' }],
     })
     expect(made[1]).not.toHaveProperty('effort')
+  })
+})
+
+describe('changing queued work, from the tool to the window', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+    delete process.env.TADE_SOCKET
+    vi.resetModules()
+  })
+
+  // The orchestrator once called `tade_queue_change` twelve times and was told
+  // "say which" every time; its session shows it sent `{"change":"wait"}` and
+  // nothing else. This is the other half of that finding: the tool the model
+  // is given, the socket and the host carry a `task` that was sent, whole.
+  it('hands the window the task the tool was called with', async () => {
+    const path = join(tmp('tade-queue-'), 'tools.sock')
+    const asked: Record<string, unknown>[] = []
+    host = await ToolHost.listen({
+      tade: {} as Workbench,
+      path,
+      queue: {
+        describe: async () => '',
+        change: async (req) => {
+          asked.push(req)
+          return 'done'
+        },
+        schedule: async () => '',
+        plan: async () => '',
+      },
+    })
+    vi.resetModules()
+    process.env.TADE_SOCKET = path
+    const { orchestratorTools } = await import('../src/tools-extension.ts')
+    const tool = orchestratorTools().find((one) => one.name === 'tade_queue_change')
+    const schema = tool?.parameters as { properties: Record<string, unknown>; required: string[] }
+    expect(Object.keys(schema.properties)).toContain('task')
+    expect(schema.required).toEqual(['change'])
+
+    expect(
+      await tool?.run({ change: 'wait', task: 'tade/perf-draw-gate-subjects' }, 'c1', { cwd: '/' }),
+    ).toBe('done')
+    expect(asked).toEqual([{ change: 'wait', task: 'tade/perf-draw-gate-subjects' }])
   })
 })
 

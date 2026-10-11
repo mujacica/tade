@@ -30,6 +30,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/view/queue.ts`, `view/plan.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
 | `packages/app/src/view/schedule.ts` | SCHEDULES: the section, a rule's row, a watch's card |
 | `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_queue`, `tade_queue_change`, `tade_schedule` |
+| `packages/cli/src/commands/queue.ts` | `tade queue` start, wait, pause, resume, order: `changeQueued` as yours, refused while a window holds the home |
 | `packages/extensions/core/src/port.ts`, `host.ts` | `ExtensionWatch`, and the host that looks with one |
 | `packages/extensions/deps/src/updates.ts` | the worked example of a watch that edits a project |
 

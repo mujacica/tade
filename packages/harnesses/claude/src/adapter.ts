@@ -32,6 +32,7 @@ import {
   type WorkerSignalListener,
   type WorkerSpec,
 } from '@tade/harnesses-core'
+import { BACKGROUNDED } from './background.ts'
 import { type ChannelRequest, ClaudeChannel } from './channel.ts'
 import {
   defaultConfigDir,
@@ -1466,10 +1467,15 @@ export class ClaudeAdapter implements WorkerAdapter {
         },
       },
     })
+    // A lane is told how a long call of Tade's comes back (`background.ts`); a
+    // headless run waits for its answers, so it is not.
+    const told = [spec.extras?.instructions ?? '', opts.hooks === false ? '' : BACKGROUNDED]
+      .filter((part) => part.trim() !== '')
+      .join('\n\n')
     let instructions: string | null = null
-    if (spec.extras?.instructions) {
+    if (told) {
       instructions = join(dir, 'instructions.md')
-      writeFileSync(instructions, spec.extras.instructions, { mode: 0o600 })
+      writeFileSync(instructions, told, { mode: 0o600 })
     }
     let plugin: string | null = null
     const skills = spec.extras?.skills ?? []

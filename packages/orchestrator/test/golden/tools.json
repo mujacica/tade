@@ -652,7 +652,7 @@
         },
         "task": {
           "type": "string",
-          "description": "the queued task, like checkout/add-refunds"
+          "description": "the queued task, like checkout/add-refunds; start, wait and remove need it"
         },
         "schedule": {
           "type": "string",

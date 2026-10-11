@@ -194,6 +194,7 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/mcp.ts': 'a command of the binary',
   'packages/cli/src/commands/notes.ts': 'a command of the binary',
   'packages/cli/src/commands/proposals.ts': 'a command of the binary',
+  'packages/cli/src/commands/queue.ts': 'a command of the binary',
   'packages/cli/src/commands/schedules.ts': 'a command of the binary',
   'packages/cli/src/commands/setup.ts': 'a command of the binary',
   'packages/cli/src/commands/setup-facts.ts': 'a command of the binary',

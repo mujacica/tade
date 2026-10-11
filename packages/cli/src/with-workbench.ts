@@ -14,6 +14,8 @@ export async function withWorkbench(
   io: Io,
   setExit: (code: number) => void,
   fn: (tade: Workbench) => Promise<void>,
+  /** Where to ask instead while a window holds the home, when "there" is not enough to go on. */
+  there = 'Ask it there',
 ): Promise<void> {
   let tade: Workbench
   try {
@@ -21,7 +23,7 @@ export async function withWorkbench(
   } catch (err) {
     io.err(
       err instanceof HomeBusyError
-        ? `${err.message}. Ask it there, or close it first.`
+        ? `${err.message}. ${there}, or close it first.`
         : err instanceof Error
           ? err.message
           : String(err),

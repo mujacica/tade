@@ -20,7 +20,14 @@ import {
 } from '@tade/core'
 import { intakeStands } from '@tade/workbench'
 import { notice, type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
-import { describeQueue, describeSchedule, heldMessage, planAnswer, whyStarting } from '../queue.ts'
+import {
+  describeQueue,
+  describeSchedule,
+  heldMessage,
+  planAnswer,
+  unnamedSays,
+  whyStarting,
+} from '../queue.ts'
 import { QUEUE_SCOPES } from '../queue-view.ts'
 import { tadeDid } from '../transcript.ts'
 import { type Actions, clockOf, type Subject, type Wiring, whenShort, why } from './context.ts'
@@ -45,6 +52,9 @@ import type { ScheduleRequest } from './schedules.ts'
  * `remove` are the window's words for an order written and a piece dropped.
  */
 const CHANGES = ['start', 'first', 'pause', 'resume', 'wait', 'remove'] as const
+
+/** What is done to one piece of queued work and never to a whole project's queue. */
+const ONE_PIECE: ReadonlySet<string> = new Set(['start', 'wait', 'remove'])
 
 /** What this subject needs from the rest of the window. */
 export interface QueueDeps {
@@ -322,6 +332,16 @@ export class Queue implements Subject {
       change: async (req) => {
         if (req.schedule) return this.changeSchedule(req)
         const change = QUEUE_CHANGES.find((one) => one === req.change)
+        // The workbench refuses these too; the window is what can say what
+        // there is to name.
+        if (!req.task && ONE_PIECE.has(req.change)) {
+          throw new Error(
+            unnamedSays(
+              req.change,
+              (this.wire.live?.queued ?? []).map((one) => one.task),
+            ),
+          )
+        }
         if (req.change === 'remove') return this.remove(req.task)
         if (!change) {
           throw new Error(

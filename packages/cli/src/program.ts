@@ -17,6 +17,7 @@ import { registerLanes } from './commands/lanes.ts'
 import { registerMcp } from './commands/mcp.ts'
 import { registerNotes } from './commands/notes.ts'
 import { registerExtensions, registerSkills } from './commands/proposals.ts'
+import { registerQueue } from './commands/queue.ts'
 import { registerSchedules } from './commands/schedules.ts'
 import { registerSetup } from './commands/setup.ts'
 import { registerSpend } from './commands/spend.ts'
@@ -92,6 +93,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerNotes(program, io, setExit)
   registerDocuments(program, io, setExit)
   registerSpend(program, io)
+  registerQueue(program, io, setExit)
   registerSchedules(program, io)
   registerSummary(program, io, setExit)
   registerVoice(program, io, setExit)

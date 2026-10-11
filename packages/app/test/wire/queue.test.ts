@@ -374,6 +374,15 @@ describe('the window, and the work waiting in it', () => {
     expect(await tools.describe()).toContain(
       'app/second — held: app/first was stopped before it finished',
     )
+    // The call to make, spelled out: a model told only "tade_queue_change does
+    // each of those" sent `{"change":"wait"}` twelve times running and blamed
+    // the harness for losing a `task` it never wrote.
+    expect(told.find((text) => text.includes('app/second is held'))).toContain('task: app/second')
+    // And a call without one says what it was missing and what there is to
+    // name, rather than "say which" to a model that believes it already did.
+    await expect(tools.change({ change: 'wait' })).rejects.toThrow(
+      'wait is for one piece of queued work, and this call named none: say which as task — queued now: app/second',
+    )
 
     expect(await tools.change({ task: 'app/second', change: 'start' })).toBe(
       'Done. Started app/second.',
