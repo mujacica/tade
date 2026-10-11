@@ -304,6 +304,28 @@ describe('closing a project and opening it again', () => {
   })
 })
 
+describe('a journal line nobody at this machine wrote', () => {
+  it('cannot make a device open a folder the close never named', async () => {
+    // The journal is a file anything running as you can append to. A line
+    // claiming a project closed from a relative path is not one the close
+    // wrote — it writes the config's own root — so opening it is refused, and
+    // nothing is resolved against wherever the window happens to be.
+    const one = await ready(['read', 'projects'])
+    await one.client.log.append({
+      type: 'config_changed',
+      // `.` is this process's own folder — a git checkout, here — which is
+      // exactly what a check that resolved it would find and accept.
+      detail: { path: 'projects.ghost.root', was: '.', now: '', by: 'window' },
+    })
+    await one.refresh()
+    const ghost = projectRow(one, 'ghost')
+    expect(ghost.open).toBe(false)
+    const no = await act(one.port, 'open', { project: 'ghost', was: ghost.rev, key: KEY, rev: 0 })
+    expect(no.status).toBe(404)
+    expect(projectsIn(one).ghost).toBeUndefined()
+  })
+})
+
 describe('who may', () => {
   it('refuses a device granted both acting tiers and neither lifecycle scope', async () => {
     const one = await ready(['read', 'answer', 'steer'])

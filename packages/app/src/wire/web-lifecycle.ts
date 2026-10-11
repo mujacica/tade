@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path'
 import { expandHome } from '@tade/core'
 import {
   type AgentLane,
@@ -291,6 +292,14 @@ async function open(
   }
   const root = line.closedFrom
   const full = expandHome(root)
+  // **Only a root the close itself could have written.** The journal is a file
+  // anything running as you can append to, so a line naming a relative path
+  // is not one `closeProject` wrote — it writes the config's own root, which
+  // is absolute or under `~`. Refused rather than resolved against wherever
+  // this process happens to be.
+  if (!isAbsolute(full)) {
+    throw new NotThere(`nothing says where ${call.project} was in a form it could be put back`)
+  }
   // **Somebody else's now**: the folder was opened under another name since,
   // and the keyboard's door would quietly go to that one instead.
   const other = Object.entries(config.projects).find(([, one]) => expandHome(one.root) === full)
