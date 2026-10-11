@@ -10,7 +10,6 @@ import { knownTasks, Live } from './live.ts'
 import {
   type AppState,
   addTurn,
-  anythingWorking,
   focusTask,
   initialState,
   notice,
@@ -607,6 +606,7 @@ export class App {
         this.draw()
       },
       onChange: () => this.draw(),
+      onDue: () => this.soonTick(),
       onWork: (task) => void this.agents.nameAgent(task),
       onTerminals: (terminals) => {
         this.state = withTerminals(this.state, terminals)
@@ -731,14 +731,15 @@ export class App {
     this.extensions.askExtensions()
     this.images.look()
     this.intake.look()
+    this.live?.lookAgain()
     if (!this.stopped && !this.orchestrator.borrowed() && this.repaint.dueAt(this.now()))
       repaintScreen(this.tui, this.terminal)
     const at = await this.lanes.fitPane()
     this.window.titleHere()
     const paneScreen = await this.lanes.readPane(at)
     const terminal = await this.lanes.captureTerminal()
-    // While the orchestrator or an agent down the side works, its spinner is news every frame.
-    if (paneScreen || terminal || this.state.talkingSince !== null || anythingWorking(this.state))
+    // News: a lane drew something new, the microphone's clock, or a spinner turned.
+    if (paneScreen || terminal || this.state.talkingSince !== null || this.window.turned())
       this.draw()
   }
 

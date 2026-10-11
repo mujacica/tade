@@ -47,13 +47,13 @@ const BUDGET: Record<string, number> = {
   // subject from what the window should *show*, and the one the next command
   // added to.
   'packages/app/src/model.ts': 1_950,
-  'packages/app/src/wire/extensions.ts': 900,
+  'packages/app/src/wire/extensions.ts': 885,
   // Both lost their SMART QUEUE corner to `packages/app/test/queue-view.test.ts`:
   // what the queue shows and how the side draws it are one subject, and they
   // were being tested as two halves that could disagree.
   // Was 1,000. The typed-command tests went with their subject to
   // `test/commands.test.ts` when `commands.ts` came out of `model.ts`.
-  'packages/app/test/model.test.ts': 995,
+  'packages/app/test/model.test.ts': 950,
   'packages/app/test/panels.test.ts': 1_400,
   'packages/app/test/view.test.ts': 1_150,
   // `settingsOf` is one long table. Split by category into

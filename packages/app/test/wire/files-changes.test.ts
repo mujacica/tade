@@ -121,11 +121,15 @@ async function world(root: string, home: string, focused: string | null) {
   return {
     live,
     /**
-     * What the section would draw now. The first read starts the look and
-     * answers from the last one — the window draws four times a second and
-     * never waits on git — so a test asks until the answer arrives, not once.
+     * What the section would draw now, and then the window's next look. A
+     * read answers from the last look and only says one is due — a frame
+     * never starts git — so a test asks until the answer arrives, not once.
      */
-    changed: () => (files.facts().changes ?? []).map((change) => change.path),
+    changed: () => {
+      const changes = files.facts().changes ?? []
+      live.lookAgain()
+      return changes.map((change) => change.path)
+    },
     /** Where the view says it is looking, which is what the changes are about. */
     where: () => files.facts().where,
   }

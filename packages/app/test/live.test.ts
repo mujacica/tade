@@ -1,7 +1,7 @@
 import { renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, type Task, type Workspace } from '@tade/core'
-import { git } from '@tade/status'
+import { git, gitLoad } from '@tade/status'
 import { Workbench } from '@tade/workbench'
 import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
@@ -331,11 +331,68 @@ describe('the last look at a task, read without starting one', () => {
     expect(live.seenActions('app/refunds')).toBeNull()
     expect(changed).toBe(settled)
 
-    // `actions` is the one that looks, and what it finds is what this reads.
+    // `actions` is the one that finds a look due, the window's next look
+    // starts it, and what it finds is what this reads.
     live.actions('app/refunds')
+    live.lookAgain()
     await new Promise((resolve) => setTimeout(resolve, 2_000))
     expect(live.seenActions('app/refunds')).toEqual(live.actions('app/refunds'))
     expect(live.seenActions('app/refunds')?.task).toBe('app/refunds')
+  }, 30_000)
+
+  it('starts no git while it answers, and starts what it found due on the next look', async () => {
+    // The readers are read inside a frame — the FILES tree, its marks, the
+    // branch, CHANGES, the ACTIONS tab — and a fork is synchronous on the
+    // thread that draws. They used to start their own looks, so every couple
+    // of seconds one frame paid for three or four `git`s on its way to the
+    // screen. Now a read only says a look is due, and the window's next look
+    // starts it.
+    const repo = mkrepo()
+    repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge' })
+    const home = tmp('tade-live-due-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    let due = 0
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+      onDue: () => {
+        due++
+      },
+    })
+    opened.push({ live, client })
+    await live.refresh()
+
+    // Thirty frames' worth of reading, and nothing started.
+    const before = gitLoad().started
+    const read = () => {
+      live.files(repo.root, [])
+      live.marksAt(repo.root)
+      live.changesAt(repo.root, null)
+      live.branchAt(repo.root)
+      live.actions('app/refunds')
+    }
+    for (let frame = 0; frame < 30; frame++) read()
+    expect(gitLoad().started - before, 'a read started git').toBe(0)
+    expect(live.files(repo.root, []), 'a read went to the disk').toEqual([])
+    // Asked for once, however often it was read: one look soon, not thirty.
+    expect(due).toBe(1)
+
+    // The look starts all of it, and the listing is there at once.
+    const revision = live.revision
+    live.lookAgain()
+    expect(gitLoad().started - before).toBeGreaterThan(0)
+    expect(live.files(repo.root, []).length).toBeGreaterThan(0)
+    expect(live.revision, 'what changed was not counted').toBeGreaterThan(revision)
+    // And nothing more is due until something goes stale: reading again
+    // straight after a look starts nothing on the look after it.
+    const looked = gitLoad().started
+    read()
+    live.lookAgain()
+    expect(gitLoad().started).toBe(looked)
   }, 30_000)
 
   it('keeps the whole of the last look, and says unknown before there has been one', async () => {

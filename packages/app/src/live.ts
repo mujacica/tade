@@ -1,6 +1,5 @@
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { readOutcome, settled } from '@tade/checks-core'
 import {
   type Config,
   type DoneRule,
@@ -38,21 +37,14 @@ import {
 import type { LaneScreen, PointerReport, WheelTurn } from '@tade/drivers-core'
 import { collectStatus, git, newProbeGate } from '@tade/status'
 import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
-import { checksAt } from '@tade/workbench/checks'
 import { livenessFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
-import type { ActionsView, Change, CheckView, NoteShown } from './frame.ts'
+import type { ActionsView, Change, NoteShown } from './frame.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
-import {
-  CHANGED_FORMAT,
-  changedFrom,
-  changesFrom,
-  commitsFrom,
-  plainly,
-  snapshotsFrom,
-} from './reality.ts'
+import { CHANGED_FORMAT, changedFrom, changesFrom, snapshotsFrom } from './reality.ts'
+import { lookAtWork } from './work-look.ts'
 
 // Reached for alongside `Live` by everyone who reaches for either, so it is
 // still here to be imported from: what moved to `reality.ts` was where these
@@ -127,9 +119,6 @@ const WORK_MS = 10_000
  */
 const WORK_RUNNING_MS = 1_000
 
-/** How many lines of a failing check's output the page keeps to show you. */
-const TAIL_LINES = 40
-
 /** How long a look stays quick after somebody starts a run. */
 const HURRY_MS = 30_000
 
@@ -148,6 +137,11 @@ export interface LiveOptions {
   onWarning?: (message: string) => void
   /** Something drawn from a background look has changed. */
   onChange?: () => void
+  /**
+   * A reader found something due to be looked at again, and nothing else was
+   * waiting: look soon (`lookAgain`), so a first answer is not a whole beat away.
+   */
+  onDue?: () => void
   /**
    * An agent that started without a branch has changed something, so its work
    * now needs one. Said on every look until it has one; acting once is the
@@ -195,6 +189,14 @@ export class Live {
    */
   private readonly changed = new Map<string, { at: number; changes: Change[] }>()
   private readonly looking = new Set<string>()
+  /**
+   * Looks a reader found due, waiting for the window's next look to start
+   * them (`lookAgain`). Keyed by what is looked at, so a reader asked thirty
+   * times between two looks queues one.
+   */
+  private readonly due = new Map<string, () => void>()
+  /** How many times anything this answers has changed: see `revision`. */
+  private revisions = 0
   /** The branch each task was started from, as status last saw it. */
   private readonly bases = new Map<string, string>()
   /** The last look at each task's commits and checks, for the ACTIONS tab. */
@@ -221,6 +223,8 @@ export class Live {
   private usage: TadeEvent[] = []
   /** The last spend fold, and the day and the event count it was of. */
   private spent: { since: number; of: number; report: SpendReport } | null = null
+  /** The last runtime fold: the day, the run events and the moment it was of. */
+  private ran: { since: number; of: number; at: number; report: RuntimeReport } | null = null
   /**
    * When commits and check runs were last picked up. Opening the workbench
    * has just done it, so the window's own first look is a minute away.
@@ -296,6 +300,7 @@ export class Live {
 
   /** Read the config again: a project opened from the window is status's to see at once. */
   useConfig(config: Config): void {
+    this.revisions++
     this.opts.config = config
     void this.refresh()
   }
@@ -483,10 +488,60 @@ export class Live {
   }
 
   /**
+   * How many times anything this answers has changed: an event recorded, a
+   * refresh, the config, a look that came back different.
+   *
+   * What a subject keys a kept answer on (`wire/kept.ts`), beside what it
+   * read of the window's own state — the same revision is the same answers,
+   * which is what makes keeping one safe. Never a clock: a kept answer that
+   * expired on a timer would be a stale one between the change and the timer.
+   */
+  get revision(): number {
+    return this.revisions
+  }
+
+  /**
+   * Start every look a reader found due since the last call. The window's
+   * look calls it, which is the one place git and the disk are asked for what
+   * these readers answer.
+   *
+   * The readers used to start the look themselves, and a reader is read in the
+   * frame: `files`, `marksAt`, `changesAt` and `branchAt` all from the Files
+   * subject's facts, so every couple of seconds one frame forked three or four
+   * `git`s on its way to the screen. A fork is synchronous on the thread that
+   * draws — 9ms at the 95th percentile of the fold, 25 at the worst, on an idle
+   * window. Now a frame only ever answers, and what it found due is started a
+   * look later: the same looks, as often, and none of them inside a frame.
+   */
+  lookAgain(): void {
+    if (this.due.size === 0) return
+    const due = [...this.due.values()]
+    this.due.clear()
+    for (const look of due) look()
+  }
+
+  /**
+   * Queue a look for the next `lookAgain`, once however often it is asked,
+   * and ask for that look soon when nothing else was waiting.
+   */
+  private lookSoon(key: string, look: () => void): void {
+    if (this.due.has(key)) return
+    this.due.set(key, look)
+    if (this.due.size === 1) this.opts.onDue?.()
+  }
+
+  /** Something this answers is not what it was: counted (`revision`), and said, so it is drawn. */
+  private told(): void {
+    this.revisions++
+    this.opts.onChange?.()
+  }
+
+  /**
    * The files under a folder — an agent's worktree, or the project itself when
    * no agent is in front of you — with the folders you opened listed under
-   * themselves. Each folder is read at most once per `LISTING_MS`: the window
-   * draws four times a second, and must not read the disk every time it does.
+   * themselves. Each folder is read at most once per `LISTING_MS`, and never
+   * from here: the window draws up to thirty times a second, and the disk is
+   * read on its next look (`lookAgain`), like everything else these answer.
    */
   files(root: string | null, expanded: readonly string[]): FileEntry[] {
     if (!root) return []
@@ -495,7 +550,15 @@ export class Live {
 
   private listing(dir: string): Listed[] {
     const seen = this.listings.get(dir)
-    if (seen && this.now() - seen.at < LISTING_MS) return seen.entries
+    if (!seen || this.now() - seen.at >= LISTING_MS) {
+      this.lookSoon(`listing\0${dir}`, () => this.list(dir))
+    }
+    return seen?.entries ?? []
+  }
+
+  /** Read a folder, and say so where it is not what it was. */
+  private list(dir: string): void {
+    const was = this.listings.get(dir)?.entries
     let entries: Listed[] = []
     try {
       entries = readdirSync(dir, { withFileTypes: true }).map((entry) => ({
@@ -507,7 +570,10 @@ export class Live {
       // pass stops listing its agent at all.
     }
     this.listings.set(dir, { at: this.now(), entries })
-    return entries
+    const same =
+      was?.length === entries.length &&
+      was.every((one, at) => one.name === entries[at]?.name && one.folder === entries[at]?.folder)
+    if (!same) this.told()
   }
 
   /**
@@ -519,18 +585,23 @@ export class Live {
     if (!root) return {}
     const seen = this.marks.get(root)
     if (!seen || this.now() - seen.at >= LISTING_MS) {
-      this.marks.set(root, { at: this.now(), marks: seen?.marks ?? {} })
-      void git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all'])
-        .then((out) => {
-          if (!out.ok) return
-          const marks = marksFrom(out.stdout)
-          const was = JSON.stringify(seen?.marks ?? {})
-          this.marks.set(root, { at: this.now(), marks })
-          if (JSON.stringify(marks) !== was) this.opts.onChange?.()
-        })
-        .catch(() => {})
+      this.lookSoon(`marks\0${root}`, () => this.lookAtMarks(root))
     }
     return seen?.marks ?? {}
+  }
+
+  private lookAtMarks(root: string): void {
+    const seen = this.marks.get(root)
+    this.marks.set(root, { at: this.now(), marks: seen?.marks ?? {} })
+    void git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all'])
+      .then((out) => {
+        if (!out.ok) return
+        const marks = marksFrom(out.stdout)
+        const was = JSON.stringify(seen?.marks ?? {})
+        this.marks.set(root, { at: this.now(), marks })
+        if (JSON.stringify(marks) !== was) this.told()
+      })
+      .catch(() => {})
   }
 
   /** The project checkout's branches, newest first, and the one it is on. */
@@ -559,15 +630,20 @@ export class Live {
   branchAt(root: string): string | null {
     const seen = this.branches.get(root)
     if (!seen || this.now() - seen.at >= BRANCH_MS) {
-      this.branches.set(root, { at: this.now(), branch: seen?.branch ?? null })
-      void branchOf(root)
-        .then((branch) => {
-          this.branches.set(root, { at: this.now(), branch })
-          if (branch !== seen?.branch) this.opts.onChange?.()
-        })
-        .catch(() => {})
+      this.lookSoon(`branch\0${root}`, () => this.lookAtBranch(root))
     }
     return seen?.branch ?? null
+  }
+
+  private lookAtBranch(root: string): void {
+    const seen = this.branches.get(root)
+    this.branches.set(root, { at: this.now(), branch: seen?.branch ?? null })
+    void branchOf(root)
+      .then((branch) => {
+        this.branches.set(root, { at: this.now(), branch })
+        if (branch !== seen?.branch) this.told()
+      })
+      .catch(() => {})
   }
 
   /**
@@ -589,15 +665,26 @@ export class Live {
     const expecting = (this.hurry.get(task) ?? 0) > this.now()
     const every = seen?.work.running || expecting ? WORK_RUNNING_MS : WORK_MS
     if ((!seen || this.now() - seen.at >= every) && !this.workLooking.has(task)) {
-      this.workLooking.add(task)
-      void this.lookAtActions(task, root)
-        .then((work) => {
-          if (!work) return
-          this.works.set(task, { at: this.now(), work })
-          this.opts.onChange?.()
+      this.lookSoon(`actions\0${task}`, () => {
+        if (this.workLooking.has(task)) return
+        this.workLooking.add(task)
+        void lookAtWork({
+          task,
+          root,
+          base: this.bases.get(task) ?? null,
+          facts: this.facts.get(task) ?? null,
+          config: this.opts.config,
+          tadeHome: this.opts.tadeHome,
+          now: this.now(),
         })
-        .catch(() => {})
-        .finally(() => this.workLooking.delete(task))
+          .then((work) => {
+            if (!work) return
+            this.works.set(task, { at: this.now(), work })
+            this.told()
+          })
+          .catch(() => {})
+          .finally(() => this.workLooking.delete(task))
+      })
     }
     if (!seen) return null
     // What status already knows is taken from it rather than looked up again:
@@ -631,115 +718,6 @@ export class Live {
    */
   hurryUp(task: string): void {
     this.hurry.set(task, this.now() + HURRY_MS)
-  }
-
-  private async lookAtActions(task: string, root: string): Promise<ActionsView | null> {
-    const project = task.split('/')[0] ?? task
-    const base = this.bases.get(task) ?? null
-    const head = await git(root, ['rev-parse', 'HEAD'])
-    const commit = head.ok ? head.stdout.trim() : null
-    const since = base ? await git(root, ['merge-base', 'HEAD', base]) : null
-    const from = since?.ok ? since.stdout.trim() : null
-    // Trailers, so a commit says which task it belongs to wherever it ends
-    // up: git's own mechanism, readable in a year by somebody with no Tade.
-    // `--shortstat` for what each touched, which is what makes a commit on
-    // this page worth more than its subject.
-    const log = await git(root, [
-      'log',
-      '--no-color',
-      '-n',
-      '30',
-      '--format=%x01%H%x00%ct%x00%s%x00%(trailers:key=Tade-Task,valueonly,separator=%x2C)%x00',
-      '--shortstat',
-      ...(from ? [`${from}..HEAD`] : []),
-    ])
-    const commits = log.ok ? commitsFrom(log.stdout) : []
-    const stood = await checksAt({
-      config: this.opts.config,
-      project,
-      worktree: root,
-      tadeHome: this.opts.tadeHome,
-      commit,
-    })
-    const going = stood.running
-    const checks: CheckView[] = stood.plan.map((check) => {
-      const run = stood.at.find((one) => one.check === check.id)
-      const inFlight = going?.checks.find((one) => one.check === check.id)
-      // A run in flight is the truth about now; the record is the truth about
-      // what finished. Neither is guessed from the other.
-      const live = inFlight && !settled(inFlight.state) ? inFlight : null
-      const log = run ? stood.runs.find((one) => one.id === run.id) : undefined
-      const seconds =
-        run?.startedAt && run.finishedAt
-          ? (Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 1000
-          : null
-      const outcome = readOutcome(log?.tail ?? '')
-      return {
-        id: check.id,
-        title: check.title,
-        run: check.run,
-        state: live ? live.state : (run?.state ?? 'not run'),
-        required: check.required,
-        skip: check.skip ?? null,
-        chosen: stood.rule.run_here[check.id] ?? null,
-        needs: check.needs ?? [],
-        summary: run?.summary ?? null,
-        seconds: live ? null : seconds,
-        startedAt: live?.startedAt ? Date.parse(live.startedAt) : null,
-        at: run?.finishedAt ? Date.parse(run.finishedAt) : null,
-        commit: run?.commit ?? null,
-        carried: run ? stood.carried.has(run.id) : false,
-        counts: outcome.counts,
-        places: outcome.places,
-        more: outcome.more,
-        // Only what failed keeps its tail on the page: nobody opens a green
-        // check to read what it printed, and every row here is a row the
-        // failure below it does not get.
-        tail:
-          log && (log.state === 'failed' || log.state === 'timed out')
-            ? log.tail.split('\n').slice(-TAIL_LINES).map(plainly)
-            : [],
-      }
-    })
-    const notes: string[] = []
-    if (stood.plan.length > 0) {
-      // A tick here means less than a tick in CI. Six words of it rather than
-      // a sentence: the caveat is true under every check on every page, and
-      // one that is read four hundred times is one nobody reads.
-      notes.push('on this machine, not CI’s matrix')
-    }
-    const workspace = this.facts.get(task)?.workspace ?? 'checkout'
-    return {
-      task,
-      branch: this.facts.get(task)?.branch ?? null,
-      base,
-      ahead: this.facts.get(task)?.ahead ?? null,
-      behind: null,
-      dirty: 0,
-      shared: workspace === 'checkout',
-      commit,
-      mine: commits.filter((one) => one.task === task),
-      others: commits.filter((one) => one.task !== task),
-      review: null,
-      checks,
-      rollup: stood.rollup.state,
-      unread: stood.read.problems,
-      // Read, not configured: so it says which file said so, and where nothing
-      // did, that nothing did — which is the answer, not a gap in the page.
-      source:
-        stood.plan.length > 0
-          ? `read from ${stood.read.from ?? stood.read.source}`
-          : 'Nothing here says what checking this project means — no workflow that runs on a change, no commit hook.',
-      running: going
-        ? {
-            since: Date.parse(going.at) || this.now(),
-            by: going.by,
-            done: going.checks.filter((one) => settled(one.state)).length,
-            total: going.checks.length,
-          }
-        : null,
-      notes,
-    }
   }
 
   /**
@@ -776,16 +754,19 @@ export class Live {
     const key = JSON.stringify([root, base])
     const seen = this.changed.get(key)
     if ((!seen || this.now() - seen.at >= LISTING_MS) && !this.looking.has(key)) {
-      this.looking.add(key)
-      void this.lookAtChanges(root, base)
-        .then((changes) => {
-          if (!changes) return
-          const was = JSON.stringify(seen?.changes ?? [])
-          this.changed.set(key, { at: this.now(), changes })
-          if (JSON.stringify(changes) !== was) this.opts.onChange?.()
-        })
-        .catch(() => {})
-        .finally(() => this.looking.delete(key))
+      this.lookSoon(`changes\0${key}`, () => {
+        if (this.looking.has(key)) return
+        this.looking.add(key)
+        void this.lookAtChanges(root, base)
+          .then((changes) => {
+            if (!changes) return
+            const was = JSON.stringify(this.changed.get(key)?.changes ?? [])
+            this.changed.set(key, { at: this.now(), changes })
+            if (JSON.stringify(changes) !== was) this.told()
+          })
+          .catch(() => {})
+          .finally(() => this.looking.delete(key))
+      })
     }
     return seen?.changes ?? []
   }
@@ -911,9 +892,26 @@ export class Live {
     return report
   }
 
-  /** How long the agents have run since midnight, in total and by task. */
+  /**
+   * How long the agents have run since midnight, in total and by task.
+   *
+   * Kept as `spendToday` is, over every run event there has ever been: the
+   * same events over the same day are the same answer — except that a run
+   * still going counts up with the clock. It is drawn to the second, so while
+   * one runs it is folded again each second, and never while none does.
+   */
   runtimeToday(): RuntimeReport {
-    return runtimeFrom(this.runEvents, { since: startOfToday(this.now()), now: this.now() })
+    const now = this.now()
+    const since = startOfToday(now)
+    const ran = this.ran
+    const still =
+      ran?.since === since &&
+      ran.of === this.runEvents.length &&
+      (!ran.report.total.running || Math.floor(ran.at / 1000) === Math.floor(now / 1000))
+    if (ran && still) return ran.report
+    const report = runtimeFrom(this.runEvents, { since, now })
+    this.ran = { since, of: this.runEvents.length, at: now, report }
+    return report
   }
 
   /** A rendered snapshot of a lane's screen, or nothing if it has none. */
@@ -1001,6 +999,7 @@ export class Live {
         this.opts.client.pendingApprovals(),
         this.opts.client.lanes(),
       ])
+      this.revisions++
       this.servers = workspace.toolServers
       this.seen = workspace
       this.approvals = pending
@@ -1122,6 +1121,7 @@ export class Live {
   }
 
   private record(event: TadeEvent): void {
+    this.revisions++
     this.journal.push(event)
     if (event.type === 'usage') this.usage.push(event)
     if ((RUNTIME_READS as readonly string[]).includes(event.type)) this.runEvents.push(event)

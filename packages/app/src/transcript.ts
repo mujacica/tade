@@ -98,7 +98,7 @@ export const TRANSCRIPT_MAX = 300
  * One rule because five surfaces draw it — the window's own title
  * (`titleMark`), its tab at the foot (`bottomTabs`), the room the
  * conversation is given (`conversing`), whether a frame is worth drawing
- * (`anythingWorking`) and what escape means (`escapeMeans`) — and five
+ * (`turning`) and what escape means (`escapeMeans`) — and five
  * readings of one fact drift apart.
  */
 export function onATurn(transcript: Transcript): boolean {

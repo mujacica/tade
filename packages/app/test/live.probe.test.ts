@@ -258,3 +258,47 @@ describe('what a frame costs to draw the Spend page', () => {
     expect(pageOver(live, () => now, 'all').facts().spendView?.tokens ?? 0).toBeGreaterThan(0)
   })
 })
+
+describe('what a frame costs to say how long the agents ran', () => {
+  // The same fold as spend, over the run events instead — with the one
+  // difference that a run still going counts up with the clock. It is drawn
+  // to the second, so it is folded again each second something runs, and not
+  // otherwise.
+  const noon = Date.parse('2026-09-20T12:00:00Z')
+  const started = (task: string, at: number): Partial<TadeEvent> => ({
+    type: 'run_started',
+    ts: new Date(at).toISOString(),
+    task,
+    lane: `${task}/agent`,
+    run: `${task}/agent`,
+    detail: { harness: 'pi', model: 'claude-opus-5' },
+  })
+
+  it('is folded once while nothing runs, however much time goes by', async () => {
+    let now = noon
+    const { live, spend } = await liveOver(1, () => now)
+    spend(started('app/one', noon - 600_000))
+    spend({ type: 'run_exited', task: 'app/one', lane: 'app/one/agent', run: 'app/one/agent' })
+    const first = live.runtimeToday()
+    expect(first.total.running).toBe(false)
+    expect(first.total.ms).toBe(600_000)
+    now += 3_600_000
+    expect(live.runtimeToday()).toBe(first)
+  })
+
+  it('counts up a second at a time while a run goes on, and at once when one starts', async () => {
+    let now = noon
+    const { live, spend } = await liveOver(1, () => now)
+    spend(started('app/one', noon - 60_000))
+    const first = live.runtimeToday()
+    expect(first.total).toMatchObject({ running: true, ms: 60_000 })
+    // Inside the same second there is nothing new to draw.
+    now += 999
+    expect(live.runtimeToday()).toBe(first)
+    now += 1
+    expect(live.runtimeToday().total.ms).toBe(61_000)
+    // A second run counts from the moment it is heard of, not the next second.
+    spend(started('app/two', now - 5_000))
+    expect(live.runtimeToday().total.ms).toBe(66_000)
+  })
+})

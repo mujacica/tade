@@ -43,7 +43,8 @@ import {
   type Wiring,
   why,
 } from './context.ts'
-import { Rows } from './rows.ts'
+import { Kept } from './kept.ts'
+import { listsShown, Rows } from './rows.ts'
 
 // Extensions, the servers brokered as extensions, and the page that says what
 // each is for.
@@ -122,8 +123,9 @@ export class Extensions implements Subject {
   private harnessPieces: { name: string; where: string }[] = []
   /** What the extensions keep in the status bar, as they last answered. */
   private statuses: NonNullable<Frame['statuses']> = []
-  /** The sections extensions keep in the sidebar, as they last answered. */
+  /** The sections extensions keep in the sidebar, as they last answered, and as the side has them. */
   private sections: ListSection[] = []
+  private readonly listed = new Kept<NonNullable<Frame['lists']>>()
   /** The extension page being read: what it said, what it declared, and when. */
   private extensionShown: ExtensionPageShown | null = null
   /**
@@ -152,31 +154,16 @@ export class Extensions implements Subject {
     })
   }
 
-  /** What extensions keep in the window: the status bar, the side, and the text they open. */
+  /**
+   * What extensions keep in the window: the status bar, the side, and the text
+   * they open. The side's rows are made again only when the extensions answer
+   * again, which is a new list every few seconds rather than every frame.
+   */
   facts(): Partial<Frame> {
     return {
       linkers: this.knownLinks(),
       statuses: this.strip(),
-      lists: this.lists().map((section) => ({
-        id: section.id,
-        title: section.title,
-        problem: section.problem,
-        summarises: section.summarises,
-        rows: section.rows.map((row) => ({
-          section: section.id,
-          id: row.id,
-          title: row.title,
-          ...(row.label ? { label: row.label } : {}),
-          ...(row.note ? { note: row.note } : {}),
-          ...(row.marks ? { marks: row.marks } : {}),
-          ...(row.figures ? { figures: row.figures } : {}),
-          ...(row.age ? { age: row.age } : {}),
-          ...(row.links ? { links: row.links } : {}),
-          ...(row.opens ? { opens: row.opens } : {}),
-          ...(row.task ? { task: row.task } : {}),
-          ...(row.project ? { project: row.project } : {}),
-        })),
-      })),
+      lists: this.listed.of([this.sections], () => listsShown(this.sections)),
       extensionsNeedYou: (this.wire.opts.extensions?.list() ?? []).filter(
         (one) => one.state === 'needs setup' || one.state === 'broken',
       ).length,
