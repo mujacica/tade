@@ -23,6 +23,30 @@ import { type Wiring, why } from './context.ts'
 // entry in `app.ts` for something that only ever answers about them would be
 // wiring with nothing of its own to wire.
 
+/** The sections extensions keep, as the frame carries them to the side. */
+export function listsShown(sections: readonly ListSection[]): NonNullable<Frame['lists']> {
+  return sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    problem: section.problem,
+    summarises: section.summarises,
+    rows: section.rows.map((row) => ({
+      section: section.id,
+      id: row.id,
+      title: row.title,
+      ...(row.label ? { label: row.label } : {}),
+      ...(row.note ? { note: row.note } : {}),
+      ...(row.marks ? { marks: row.marks } : {}),
+      ...(row.figures ? { figures: row.figures } : {}),
+      ...(row.age ? { age: row.age } : {}),
+      ...(row.links ? { links: row.links } : {}),
+      ...(row.opens ? { opens: row.opens } : {}),
+      ...(row.task ? { task: row.task } : {}),
+      ...(row.project ? { project: row.project } : {}),
+    })),
+  }))
+}
+
 /** What this subject needs of the rest of the window. */
 export interface RowsDeps {
   /** The sections extensions keep, as they last answered: whose row was clicked. */

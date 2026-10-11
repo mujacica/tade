@@ -1,6 +1,8 @@
+import type { ListSection } from '@tade/extensions-core'
 import type { KeptSchedule } from '@tade/workbench/schedules'
 import { describe, expect, it } from 'vitest'
 import { initialState } from '../../src/model.ts'
+import { Extensions } from '../../src/wire/extensions.ts'
 import { Kept } from '../../src/wire/kept.ts'
 import { Schedules } from '../../src/wire/schedules.ts'
 
@@ -132,5 +134,57 @@ describe('the schedules the SMART QUEUE shows', () => {
     one.at(next)
     expect(one.subject.views()[0]?.next[0]).toBe(next + 60 * 60_000)
     expect(one.asked()).toBe(2)
+  })
+})
+
+describe('the lists extensions keep down the side', () => {
+  const section = (titles: string[]): ListSection => ({
+    id: 'review.mine',
+    extension: 'review',
+    title: 'REVIEWS',
+    filters: [],
+    filter: '',
+    rows: titles.map((title, at) => ({ id: String(at), title })),
+    problem: null,
+    summarises: false,
+    at: 0,
+  })
+
+  it('are made once an answer, and again the moment the extensions answer again', async () => {
+    let now = 0
+    let answer = [section(['#418 fix the double charge'])]
+    let drawn = 0
+    const host = {
+      statuses: async () => [],
+      lists: async () => answer,
+      list: () => [],
+    }
+    const wire = {
+      opts: { extensions: host, extensionWorkbench: {} },
+      state: initialState(),
+      now: () => now,
+      draw: () => {
+        drawn++
+      },
+    }
+    const subject = new Extensions(wire as never, {} as never)
+    const asked = async () => {
+      const was = drawn
+      subject.askExtensions()
+      while (drawn === was) await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+    await asked()
+    const first = subject.facts().lists
+    expect(first?.[0]?.rows.map((row) => row.title)).toEqual(['#418 fix the double charge'])
+    // Every row of every section, made again per frame, was the cost.
+    for (let frame = 0; frame < 30; frame++) expect(subject.facts().lists).toBe(first)
+
+    answer = [section(['#418 fix the double charge', '#419 a second review'])]
+    now += 5_000
+    await asked()
+    expect(subject.facts().lists?.[0]?.rows.map((row) => row.title)).toEqual([
+      '#418 fix the double charge',
+      '#419 a second review',
+    ])
   })
 })
