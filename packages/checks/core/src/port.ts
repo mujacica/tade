@@ -256,5 +256,17 @@ export interface RunnerOptions {
   home?: string
   /** This machine's name, for `where`. */
   host?: string
+  /**
+   * How much the commands should give way to whatever a person is looking at,
+   * where this runner can make them: 0 is "not at all", and higher is further
+   * down. A runner with no way of lowering what it starts ignores it, like
+   * every other option here it cannot keep.
+   *
+   * Asked for in a number rather than a mode because how far is a fact about
+   * one machine, and a check suite is the work that benefits most and suffers
+   * most: it is minutes long, so a few percent is nothing, and it has a
+   * timeout, so enough of them turns a slow green run into a `timed out` one.
+   */
+  giveWay?: number
   now?: () => number
 }

@@ -513,6 +513,52 @@ const ITS_OWN_PROCESS = ['packages/harnesses/claude/src/statusline.ts']
 
 const BLOCKING = /\b(execFileSync|execSync|spawnSync|readlineSync)\s*\(/
 
+/**
+ * The only places a launch is started below the window's own priority, and the
+ * one that matters is the one that is not here.
+ *
+ * Giving way is for batch work — an agent's turn, a check suite — and never
+ * for the orchestrator, which is the thing you are talking to and whose every
+ * word is latency somebody sits through (`GIVES_WAY`, `core/src/priority.ts`).
+ * That rule is pure and tested, and a pure rule only holds where it is asked:
+ * what would get round it is a `niced()` on the headless launch path inside a
+ * harness adapter, which nothing would fail. So the call sites are the list,
+ * and adding one is a conversation.
+ */
+const MAY_LOWER = [
+  'packages/core/src/priority.ts',
+  'packages/workbench/src/registry.ts',
+  'packages/checks/local/src/index.ts',
+  // The probe, which is the measurement and not the feature: what it lowers
+  // is the *load* it induces, never the lane it is timing — because the lane
+  // stands in for what a person is typing into, and that never gives way.
+  'packages/app/scripts/echo-latency.ts',
+]
+
+const LOWERS = /\bniced(Line)?\s*\(/
+
+describe('only batch work gives way to the window', () => {
+  it('lowers a launch in the two places that start batch work, and nowhere else', () => {
+    const problems: string[] = []
+    for (const path of tracked()) {
+      if (path.includes('/test/') || MAY_LOWER.includes(path)) continue
+      const text = textOf(path)
+      if (text === null) continue
+      const lines = text.split('\n')
+      const at = lines.findIndex((line) => LOWERS.test(line))
+      if (at >= 0)
+        problems.push(
+          `${path}:${at + 1} starts something below the window's own priority.\n` +
+            `Only ${MAY_LOWER.join(', ')} may.\n` +
+            'Instead: ask `givesWay` what the work is, and let it answer. What this list is\n' +
+            'really holding is that the orchestrator is never lowered — it is the thing you\n' +
+            'are talking to, and nothing on its launch path takes a priority at all.',
+        )
+    }
+    report(problems)
+  })
+})
+
 describe('nothing the window runs blocks it', () => {
   it('spawns no child process synchronously', () => {
     const problems: string[] = []

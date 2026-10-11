@@ -7,6 +7,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from './config.ts'
+import { GIVE_WAY_MAX, GIVE_WAY_MEANS } from './priority.ts'
 import { PUSH_BY_DEFAULT, PUSH_MODES, pushDefault } from './project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
@@ -49,6 +50,12 @@ export type SettingKind =
       unit?: string
       /** A share of something, 0 to 1, rather than a whole number above zero. */
       fraction?: boolean
+      /**
+       * The lowest the arrows go, which is 1 unless said: for most counts
+       * nought is not a value. Where it is the default and means "off" —
+       * `agents.give_way` — the arrows have to be able to get back to it.
+       */
+      from?: number
     }
   /** A span of the day, `22:00-07:00`, shown as two times. */
   | { kind: 'hours' }
@@ -256,6 +263,33 @@ export function settingsOf(
           // What somebody would actually say for it, which is the half of
           // `asked` that decides whether a legitimate request is refused.
           keywords: ['caffeinate', 'awake', 'sleep', 'sleeping', 'asleep', 'anti-sleep'],
+        },
+        {
+          path: 'agents.give_way',
+          title: 'How much agents give way',
+          means: GIVE_WAY_MEANS,
+          value: String(config.agents.give_way),
+          fallback: '0',
+          // A number rather than a switch, because how far to go is a fact
+          // about one machine: 5 is where the measurements started and 19 is
+          // "only when nothing else wants the machine", which is a real answer
+          // for a long suite and the wrong one for an agent you are waiting on.
+          // From nought, which is off and the default: written, it takes the
+          // key away rather than writing a 0 (`parseSetting`).
+          type: { kind: 'number', unit: `steps below the window, up to ${GIVE_WAY_MAX}`, from: 0 },
+          live: true,
+          // `wordsFor` would only ever find this as `give_way`, which is not
+          // how anybody says it — and this is a setting people reach for while
+          // complaining about the symptom rather than by its name.
+          keywords: [
+            'give way',
+            'niceness',
+            'priority',
+            'scheduling',
+            'background',
+            'slow',
+            'laggy',
+          ],
         },
         {
           path: 'workspace.driver',
@@ -1076,7 +1110,7 @@ export function pairsFrom(text: string): Record<string, string | string[]> {
 export function stepped(setting: Setting, delta: number): string {
   if (setting.type.kind !== 'number') return setting.value
   const now = Number(setting.value || setting.fallback) || 0
-  if (!setting.type.fraction) return String(Math.max(1, now + delta))
+  if (!setting.type.fraction) return String(Math.max(setting.type.from ?? 1, now + delta))
   // A tenth at a time, rounded: 0.1 + 0.1 is 0.30000000000000004 otherwise.
   return String(Math.min(1, Math.max(0, Math.round((now + delta * 0.1) * 10) / 10)))
 }

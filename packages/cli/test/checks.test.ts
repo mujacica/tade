@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { getPriority } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -63,6 +64,35 @@ describe('tade checks', () => {
     // Written in Tade's home, under the project — never in the repository.
     const written = await readFile(join(where.home, 'projects', 'demo', 'checks.jsonl'), 'utf8')
     expect(written).toContain('"check":"hello"')
+  })
+
+  it('runs them below the window where the config says to, and at full speed where it does not', async () => {
+    // The setting reaching the commands, end to end: `runProjectChecks` is the
+    // one door a check run goes through — from here, from the window and from
+    // an agent's `checks_run` — so proving it here proves it for all three.
+    // Asked of the check itself rather than of the code that started it.
+    const says = `${process.execPath} -e "require('node:fs').writeFileSync(process.env.OUT, String(require('node:os').getPriority()))"`
+    const of = async (giveWay: number | null): Promise<number> => {
+      const where = await project(ciWorkflow([{ id: 'nice', run: `true && ${says}` }]))
+      const out = join(where.home, 'said')
+      if (giveWay !== null) {
+        await writeFile(
+          where.config,
+          `agents:\n  give_way: ${giveWay}\nprojects:\n  demo:\n    root: ${where.repo.root}\n`,
+        )
+      }
+      const ran = await tade(['checks', 'run', '--config', where.config, '-p', 'demo'], {
+        ...where.env,
+        OUT: out,
+      })
+      expect(ran.stdout).toContain('nice passed')
+      return Number.parseInt(await readFile(out, 'utf8'), 10)
+    }
+    // Against this process rather than against nought: a suite may itself be
+    // running niced, and what is under test is the step down. Clamped at 19,
+    // where the kernel clamps it.
+    expect(await of(3)).toBe(Math.min(19, getPriority() + 3))
+    expect(await of(null)).toBe(getPriority())
   })
 
   it('exits non-zero on a red check, and says which', async () => {

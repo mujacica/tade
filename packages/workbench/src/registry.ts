@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type LaneId, LaneKind, taskDir } from '@tade/core'
+import { givesWay, type LaneId, LaneKind, niced, taskDir } from '@tade/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
@@ -122,6 +122,13 @@ export interface SpawnRequest {
   harness?: string
   /** For an agent: the account it runs as, when not its harness's own. */
   account?: string
+  /**
+   * How far the config asks this lane to give way to the window, in nice
+   * steps. Whether it may at all is the *kind*'s answer and not the caller's
+   * (`givesWay`): a shell is a person's own command line and never gives way,
+   * however high anybody sets the setting.
+   */
+  giveWay?: number
 }
 
 export interface LaneRegistryOptions {
@@ -145,6 +152,8 @@ export class LaneRegistry {
   private readonly path: string
   private readonly outputSampleMs: number
   private saving: Promise<unknown> = Promise.resolve()
+  /** Whether this window has already said that nothing here can give way. */
+  private saidNoNice = false
 
   private constructor(opts: LaneRegistryOptions) {
     this.driver = opts.driver
@@ -255,13 +264,39 @@ export class LaneRegistry {
       : 'gone: lanes do not outlive Tade under this driver'
   }
 
+  /**
+   * How far this lane gives way to the window, and a word when it cannot.
+   *
+   * Said once a window, because a machine with no `nice` has no `nice` all
+   * day and a line per agent would be noise rather than news — and said at
+   * all, because the alternative is a setting somebody turned on that does
+   * nothing and never says so.
+   */
+  private lowerBy(req: SpawnRequest): number {
+    const { by, problem } = givesWay(req.kind, req.giveWay ?? 0)
+    if (problem && !this.saidNoNice) {
+      this.saidNoNice = true
+      void this.log.append({ type: 'warning', detail: { message: problem } }).catch(() => {})
+    }
+    return by
+  }
+
   async spawn(req: SpawnRequest): Promise<LaneRecord> {
     if (this.lanes.get(req.id)?.alive) throw new Error(`lane already running: ${req.id}`)
+    // Lowered here and written down nowhere, for the reason an opening
+    // instruction is: what is stored has to be the line that says what is
+    // running — `lane.spec.command` is read as the harness's name where a
+    // lane has none (`laneSignal`) — and the setting can change under a lane
+    // that is already up. So the wrapper is re-decided at every launch and
+    // the kind is what decides, not the caller.
+    const lowered = niced(
+      { command: req.command, args: [...(req.args ?? []), ...(req.opening ?? [])] },
+      this.lowerBy(req),
+    )
     const spec: LaneSpec = {
       id: req.id,
       cwd: req.cwd,
-      command: req.command,
-      args: [...(req.args ?? []), ...(req.opening ?? [])],
+      ...lowered,
       ...(req.env ? { env: req.env } : {}),
       ...(req.cols ? { cols: req.cols } : {}),
       ...(req.rows ? { rows: req.rows } : {}),
@@ -275,7 +310,7 @@ export class LaneRegistry {
       // Without what was said once: the spec is how to come back to this
       // lane, and a relaunch that repeated the opening instruction would set
       // an agent off on work it has already done.
-      spec: { ...handle.spec, args: req.args ?? [] },
+      spec: { ...handle.spec, command: req.command, args: req.args ?? [] },
       pid: handle.pid,
       startedAt: handle.startedAt,
       title: handle.title,
@@ -302,6 +337,12 @@ export class LaneRegistry {
    * to it: the stored spec is the line that reattaches, so an agent comes
    * back to its conversation rather than being told its first instruction
    * again.
+   *
+   * It is put back at full priority, and that is the safe direction rather
+   * than an oversight: how much a lane gives way is not written down
+   * (`spawn`), and nothing that gives way comes back this way — an agent is
+   * put back through `reopenAgent`, which starts it again with whatever the
+   * setting says now.
    */
   async relaunch(id: LaneId): Promise<LaneRecord> {
     const record = this.require(id)

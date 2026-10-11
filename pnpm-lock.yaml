@@ -114,6 +114,9 @@ importers:
       '@tade/checks-core':
         specifier: workspace:*
         version: link:../core
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
 
   packages/checks/scripted:
     dependencies:
