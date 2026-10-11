@@ -438,11 +438,28 @@ export function settingsOf(
         {
           path: 'checks.parallel',
           title: 'At once',
-          means: 'how many checks may run at once here',
+          means:
+            'how many of one run\u2019s checks may go side by side; one that needs the machine to itself still goes alone',
           value: String(config.checks.parallel),
           fallback: '2',
           type: { kind: 'number' },
           live: true,
+        },
+        {
+          // The machine's, across every project and worktree, which is why no
+          // project has a row for it: six worktrees each allowed one suite was
+          // six suites. A full test suite typed into a shell takes the same
+          // turn (`test/one-suite.ts`), so this is the whole machine's bound
+          // and not only the bound on what Tade starts.
+          path: 'checks.suites',
+          title: 'Suites on this machine',
+          means:
+            'how many runs of checks may go at once across every project and worktree; the rest wait their turn, and so does a full suite started from a shell',
+          value: String(config.checks.suites),
+          fallback: '1',
+          type: { kind: 'number' },
+          live: true,
+          keywords: ['suite', 'suites', 'machine', 'tests', 'test runs', 'one at a time', 'queue'],
         },
         {
           path: 'checks.ci',

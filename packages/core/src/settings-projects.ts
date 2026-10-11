@@ -107,6 +107,29 @@ export function projectGroups(config: Config): SettingGroup[] {
           scope: name,
         },
         {
+          // Read by the queue before it starts anything (`wire/queue.ts`) and by
+          // the workbench before it starts an agent at all, so this is how a
+          // project's work goes one agent at a time. It was read and offered to
+          // the orchestrator long before it had a row, which made it a key
+          // nobody could set.
+          path: `projects.${name}.max_parallel`,
+          title: 'Agents at once',
+          means: `the most of ${name}'s agents working at the same time; queued work waits for room, and starting one past it is refused`,
+          value: project.max_parallel === undefined ? '' : String(project.max_parallel),
+          fallback: 'as many as are started',
+          type: { kind: 'number' } as const,
+          live: true,
+          keywords: [
+            'max parallel',
+            'parallel',
+            'agents at a time',
+            'agent at a time',
+            'one at a time',
+            'concurrency',
+          ],
+          scope: name,
+        },
+        {
           // `budget` rather than the project's name, which the page says once
           // at the top: a title is what a refusal tells somebody to say back,
           // and a project's own name no longer names anything inside that

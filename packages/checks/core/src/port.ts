@@ -218,6 +218,13 @@ export interface RunContext {
   onRun(run: CheckRun): void
   /** Output as it arrives, so a run can be watched while it runs. */
   onOutput(check: string, chunk: string): void
+  /**
+   * What the commands are told on top of the machine's own environment: the
+   * machine slot this run holds (`SLOT_ENV`), so a suite that takes one for
+   * itself sees it already has one rather than queueing behind its own run. A
+   * runner whose commands do not run here has nothing to hand it to.
+   */
+  env?: Readonly<Record<string, string>>
 }
 
 export interface Runner {

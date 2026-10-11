@@ -126,6 +126,23 @@ describe('the local runner', () => {
     expect(overlaps('a', 'b')).toBe(true)
   })
 
+  it('hands its commands what the run tells them, so a suite knows the slot it is under', async () => {
+    const root = tmp('tade-local-')
+    const [run] = await makeLocalRunner().run(
+      { name: 'demo', root },
+      [check('says', 'echo "slot=$TADE_CHECKS_SLOT"')],
+      {
+        commit: 'a1b2c3d4',
+        by: 'the test',
+        signal: new AbortController().signal,
+        onRun: () => {},
+        onOutput: () => {},
+        env: { TADE_CHECKS_SLOT: '/home/checks/slot-0.lock' },
+      },
+    )
+    expect(run?.tail).toContain('slot=/home/checks/slot-0.lock')
+  })
+
   it('does not run a check whose need did not pass, and says why', async () => {
     const root = tmp('tade-local-')
     const runs = await runIn(

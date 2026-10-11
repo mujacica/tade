@@ -129,8 +129,14 @@ export const ChecksConfigSchema = z.strictObject({
    * machine.
    */
   run_here: z.record(z.string(), z.boolean()).default({}),
-  /** How many may run at once here. One marked `alone` still runs by itself. */
+  /** How many of one run's checks may go side by side. One marked `alone` still runs by itself. */
   parallel: z.int().positive().default(2),
+  /**
+   * How many runs may hold this machine at once, across every project and
+   * worktree — and a suite started from a shell waits for the same turn. The
+   * machine's, so no project answers it (`ProjectConfigSchema.checks`).
+   */
+  suites: z.int().positive().default(1),
   /** How many finished runs a worktree keeps a record of. */
   keep: z.int().positive().default(200),
   /** Show what CI says about the same commit beside the local run. Inert without a forge. */
@@ -190,8 +196,8 @@ export const ProjectConfigSchema = z.strictObject({
       tokens_per_day: z.int().positive().optional(),
     })
     .optional(),
-  /** This project's own answer to any of the `checks` settings. */
-  checks: ChecksConfigSchema.partial().optional(),
+  /** This project's own answer to any of the `checks` settings but `suites`, which is the machine's. */
+  checks: ChecksConfigSchema.omit({ suites: true }).partial().optional(),
 })
 
 /**

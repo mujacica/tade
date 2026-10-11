@@ -19,8 +19,19 @@ export default defineConfig({
     // the spawn, and reported against the test that tried. `test/no-gui.ts`
     // says why this is loaded for every file rather than asked for per package.
     setupFiles: ['./test/no-gui.ts'],
+    // A full suite waits for this machine's turn, however it was started —
+    // `test/one-suite.ts` says why it is here rather than in a script.
+    globalSetup: ['./test/one-suite.ts'],
     // Tests build real git repos in tmp dirs; keep them isolated per file.
     pool: 'forks',
+    // Half the cores, where vitest's default is all of them but one: a worker
+    // per core is one suite taking the whole machine, with the window, the
+    // agents and every git and PTY process the tests themselves spawn left to
+    // fight over what is left — which is what makes a short timeout fire and
+    // read like a regression. `VITEST_MAX_WORKERS` or `--maxWorkers` overrides
+    // it for one run. On CI the runner is the step's own, three or four cores,
+    // and halving those would only make the gate slower.
+    maxWorkers: process.env.CI ? undefined : '50%',
     coverage: {
       // Off unless asked for, because a partial run measured against whole-repo
       // floors is red for reasons that have nothing to do with the change.

@@ -1,18 +1,20 @@
 import { coverageOf } from './coverage.ts'
 import { waitForRunLock } from './lock.ts'
+import { type Holders, holdersSaid, SLOT_ENV, waitForMachineSlot } from './machine.ts'
 import type { Check, CheckLog, CheckRun, Covered, ProjectRef, Runner } from './port.ts'
 import { RunnerError, settled } from './port.ts'
 import { writeRun } from './records.ts'
 import { clearRunning, type RunningCheck, type RunningNow, writeRunning } from './running.ts'
 
 // Running a project's checks the way Tade runs them: one run at a time in a
-// worktree, what is skipped said rather than dropped, and every finished run
-// written down against the commit it was about.
+// worktree and `checks.suites` on the machine, what is skipped said rather
+// than dropped, and every finished run written down against the commit it was
+// about.
 //
 // Every caller goes through here — the CLI, the tool an agent calls, the
-// window's button, the gate before a push — so the lock, the record and the
-// row in the window come free, and four agents in one checkout do not start
-// four suites.
+// window's button, the gate before a push — so the locks, the record and the
+// row in the window come free, and four agents in one checkout, or in four
+// worktrees, do not start four suites.
 
 export interface RunRequest {
   runner: Runner
@@ -33,8 +35,17 @@ export interface RunRequest {
   /** Tade's home, so a tail says `~` rather than where you live. */
   home?: string
   keep?: number
-  /** How long to wait for another run in this worktree to finish before giving up. */
+  /** How long to wait for another run — in this worktree, or holding the machine — before giving up. */
   waitMs?: number
+  /**
+   * The machine's own bound, over every worktree and project: Tade's home,
+   * where its slots are, and how many runs may hold one at once
+   * (`checks.suites`). Without it a run is bounded by its worktree alone,
+   * which is six suites for six worktrees.
+   */
+  machine?: { home: string; most: number }
+  /** Told who has the machine, each time that changes while this run waits for it. */
+  onWait?: (ahead: Holders) => void
   onRun?: (run: CheckRun) => void
   onOutput?: (check: string, chunk: string) => void
   now?: () => number
@@ -42,8 +53,8 @@ export interface RunRequest {
 
 /**
  * Run them here and write down what happened. Throws `busy` when another run
- * has the worktree and did not finish in time — never "they passed" because
- * somebody else's run did.
+ * has the worktree, or the machine, and did not finish in time — never "they
+ * passed" because somebody else's run did.
  */
 export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   const { runner, project, records, commit, by } = request
@@ -76,20 +87,50 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     return all
   }
 
-  // The lock is taken when the machine is what is being asked for: a check
-  // that needs it to itself, or a runner told to do one thing at a time.
+  // The locks are taken when the machine is what is being asked for: a check
+  // that needs it to itself, or a runner told to do one thing at a time. The
+  // worktree first, so a second run here is told about this one rather than
+  // queueing behind it for the machine; then a slot of the machine's, under
+  // the same deadline, because `alone` means nothing else of ours beside it
+  // and a worktree is not the machine.
   const needsMachine = toRun.some((check) => check.alone)
+  const what = toRun.map((check) => check.id).join(', ')
+  const deadline = now() + (request.waitMs ?? 0)
   const lock = needsMachine
-    ? await waitForRunLock(records, toRun.map((check) => check.id).join(', '), {
-        waitMs: request.waitMs ?? 0,
-        now,
-      })
+    ? await waitForRunLock(records, what, { waitMs: request.waitMs ?? 0, now })
     : null
   if (lock && 'held' in lock) {
     const since = lock.held.at ? ` (since ${lock.held.at})` : ''
     throw new RunnerError(
       'busy',
       `checks are already running in ${project.root}: ${lock.held.what || 'something'}${since}. Wait for them rather than starting a second run.`,
+    )
+  }
+  const slot =
+    lock && request.machine
+      ? await waitForMachineSlot(
+          request.machine.home,
+          request.machine.most,
+          { what, where: project.root },
+          {
+            waitMs: Math.max(0, deadline - now()),
+            now,
+            ...(request.onWait ? { onWait: request.onWait } : {}),
+            ...(request.signal ? { signal: request.signal } : {}),
+          },
+        ).catch(async (err: unknown) => {
+          // The worktree is let go before the trouble is passed on, or a home
+          // that cannot be written would leave this checkout busy for ever.
+          await lock.release()
+          throw err
+        })
+      : null
+  if (slot && 'held' in slot) {
+    await lock?.release()
+    const most = request.machine?.most ?? 1
+    throw new RunnerError(
+      'busy',
+      `this machine runs ${most === 1 ? 'one suite' : `${most} suites`} at a time (checks.suites), and ${holdersSaid(slot.held, request.home)} ${slot.held.length === 1 ? 'has' : 'have'} it. Wait for them rather than starting a second run.`,
     )
   }
 
@@ -102,6 +143,9 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
 
   const controller = new AbortController()
   request.signal?.addEventListener('abort', () => controller.abort(), { once: true })
+  // Cancelled while it waited for a turn: a signal already aborted never
+  // fires its listener, and the run would start for nobody.
+  if (request.signal?.aborted) controller.abort()
   // What is going on, for anybody watching: written as it changes, and taken
   // back when the run ends. The record in `checks.jsonl` is still only ever
   // what finished — this is the minutes in between, which used to be silence.
@@ -140,6 +184,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
         request.onRun?.(run)
       },
       onOutput: (check, chunk) => request.onOutput?.(check, chunk),
+      ...(slot ? { env: { [SLOT_ENV]: slot.path } } : {}),
     })
     const all = covering([...skipped, ...ran], covered, plan)
     await record(records, all, request)
@@ -147,6 +192,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   } finally {
     await told.catch(() => {})
     await clearRunning(records, watching)
+    if (slot && !('held' in slot)) await slot.release()
     if (lock && !('held' in lock)) await lock.release()
   }
 }

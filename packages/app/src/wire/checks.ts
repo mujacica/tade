@@ -16,8 +16,8 @@ import type { Actions, Subject, Wiring } from './context.ts'
 // not, and a button could not change which.
 //
 // Nothing here decides anything about a check. The run goes through the same
-// `checks_run` the orchestrator and `tade check` use, so the worktree's lock,
-// the record and the row come free — four agents in one checkout must never
+// `checks_run` the orchestrator and `tade check` use, so the locks, the record
+// and the row come free — four agents, in one checkout or four, must never
 // start four suites.
 //
 // What this does decide is nothing about a check either: which of them Tade
@@ -25,6 +25,9 @@ import type { Actions, Subject, Wiring } from './context.ts'
 // kept where every other preference is — Tade's own config, under the project.
 // Never a file in the repository, which is the duplication that taking
 // `.tade/checks.yaml` away was for.
+
+/** How long a press waits for the machine's turn: the most `checks_run` takes. */
+const WAIT_FOR_THE_MACHINE_S = 600
 
 /** What this subject needs from the rest of the window. */
 export interface ChecksDeps {
@@ -117,8 +120,8 @@ export class Checks implements Subject {
 
   /**
    * Run a task's checks, in its own worktree, through the same path
-   * everything else uses: one run at a time per checkout, written down
-   * against the commit, and shown here as it goes.
+   * everything else uses: one run at a time per checkout and per machine,
+   * written down against the commit, and shown here as it goes.
    */
   async run(task: string): Promise<void> {
     if (this.running.has(task)) {
@@ -143,9 +146,12 @@ export class Checks implements Subject {
     this.wire.draw()
     try {
       const worktree = this.wire.live?.worktreeOf(task) ?? null
+      // Pressed by a person, so it queues for the machine's turn rather than
+      // being told the machine is busy: another worktree's suite is the
+      // ordinary case now that one suite runs at a time machine-wide.
       await host.call(
         'checks_run',
-        { project },
+        { project, wait: WAIT_FOR_THE_MACHINE_S },
         {
           caller: worktree ? { kind: 'agent', task, project, cwd: worktree } : { kind: 'you' },
           id: this.deps.callId(),

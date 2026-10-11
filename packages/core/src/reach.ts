@@ -179,7 +179,9 @@ const NEVER: readonly (readonly [string, string])[] = [
  * `workspace` is here because it is the machine-wide `agents.workspace` asked
  * of one project, and that is `asked`: it decides where the next agent works,
  * which widens nothing an agent may do. `root` stays refused — moving it moves
- * every agent already in the project.
+ * every agent already in the project. `max_parallel` is the same shape: how
+ * many of its agents work at once, which says when the next one starts and
+ * nothing about what any of them may do.
  *
  * A route is the same shape: its model, how hard it thinks and which harness
  * it opens are ordinary settings, and `provider` is the one left that a
@@ -202,6 +204,7 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.budget\./,
   /^projects\.[a-z0-9-]+\.checks\./,
   /^projects\.[a-z0-9-]+\.workspace$/,
+  /^projects\.[a-z0-9-]+\.max_parallel$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,
 ]
 

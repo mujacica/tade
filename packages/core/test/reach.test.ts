@@ -64,6 +64,10 @@ describe('what no words reach', () => {
     // project, and that is `asked`: it decides where the next agent works and
     // widens nothing any agent may do. `root` above stays refused.
     expect(settingReach('projects.checkout.workspace').reach).toBe('asked')
+    // How many of its agents work at once says when the next one starts, and
+    // nothing about what any of them may do.
+    expect(settingReach('projects.checkout.max_parallel').reach).toBe('asked')
+    expect(settingReach('checks.suites').reach).toBe('asked')
   })
 
   it('says why, in a clause somebody can be told', () => {

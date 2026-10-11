@@ -168,7 +168,7 @@ attached to the decision it governs. Load the matching one rather than working f
   what a run *here* adds up to. Where a project says **nothing**, Tade invents no gate: `unknown` stands
   and the agent works out what checking means, runs it, and says what it ran (`CHECK_IT_YOURSELF`).
 - **A run is about a tree, not a commit id**, and **runs go through Tade** so the lock and the record
-  come free: four agents in one checkout must never start four suites.
+  come free: four agents, one checkout or four, never start four suites.
 - Overruling `checks.before` is an act, not a setting — `checks_override`, with a reason — and a red
   run that was overruled is still recorded red.
 

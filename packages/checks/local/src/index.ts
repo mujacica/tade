@@ -192,7 +192,7 @@ async function one(
     cwd: project.root,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, CI: process.env.CI ?? '', TADE_CHECK: check.id },
+    env: { ...process.env, ...ctx.env, CI: process.env.CI ?? '', TADE_CHECK: check.id },
   })
   let tail = ''
   const keep = (chunk: string) => {

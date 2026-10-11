@@ -469,7 +469,7 @@ export const dependencyUpdates: ExtensionWatch = {
           ? `You are working in ${ctx.watching.name}’s own checkout, which every other agent here shares: commit the manifests and lockfiles you moved and nothing else, each added by its path — never \`git add -A\`, \`git add .\` or \`git commit -a\`. If somebody else’s uncommitted work is in the tree when you get there, leave it exactly as it is and say so rather than bumping around it.`
           : '',
         installing(install),
-        'Then run this project’s own checks with `checks_run` — never by typing the command in a shell: Tade runs one suite per checkout, waits for anybody else’s rather than starting a second, and records what ran against the tree it ran on.',
+        'Then run this project’s own checks with `checks_run` — never by typing the command in a shell: Tade runs one suite at a time on this machine, waits for anybody else’s rather than starting a second, and records what ran against the tree it ran on.',
         ctx.watching.test
           ? `If Tade has no checks recorded for this project, run \`${ctx.watching.test}\` instead.`
           : 'If this project has no checks at all, say so plainly rather than committing on no evidence.',

@@ -5,10 +5,13 @@ description: How to run a project's own checks through Tade before committing or
 
 # Running the checks
 
-1. **Ask Tade to run them, not your shell.** `checks_run` takes the worktree's lock, so several
-   agents in one checkout never start several suites at once — which is what makes the suite time
-   out and look like a regression it is not. It records what ran against the commit it ran on, and
-   the person watching sees the same rows you do.
+1. **Ask Tade to run them, not your shell.** `checks_run` takes the worktree's lock and one of the
+   machine's turns (`checks.suites`, one unless somebody changed it), so several agents — in one
+   checkout or in many worktrees — never start several suites at once, which is what makes a suite
+   time out and look like a regression it is not. Pass `wait` and it queues for its turn rather than
+   failing as busy. It records what ran against the commit it ran on, and the person watching sees
+   the same rows you do. A project may make a full suite typed into a shell wait for the same turn
+   (Tade's own does); one test file never waits.
 2. **`checks_list` first if you only want to know.** It reads files: what this project checks, and
    how each one stands at the commit that is checked out. No run, no network, no waiting.
    It also says *where each check came from*, because nothing here is configured: they are read out
@@ -41,5 +44,6 @@ description: How to run a project's own checks through Tade before committing or
    in a shared checkout — call `checks_override` with the scope and the reason in your own words,
    then push. It is written down with your name on it, the person is told what you said, and the
    red run stays red. Never use it because a check is slow.
-10. **Never edit `checks.jsonl` or `checks.lock` in Tade's home.** They are its record of what ran;
-   changing them is claiming something ran when it did not.
+10. **Never edit `checks.jsonl`, `checks.lock` or the machine's slots in Tade's home.** They are its
+   record of what ran and who is running; changing them is claiming something ran when it did not,
+   or that nobody is running when somebody is.

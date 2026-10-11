@@ -10,6 +10,11 @@ import { dirname, join } from 'node:path'
 // rather than an agent typing the command in a shell: the dedup, the record
 // and the row in the window all come with it.
 //
+// It is only half of the bound. Six worktrees are six of these locks, and that
+// was sixty-seven vitest processes on one laptop, so a run that needs the
+// machine also takes one of the machine's own slots (`machine.ts`), which are
+// claimed exactly the way this is.
+//
 // The rule is `lockHome`'s: a lock whose process is gone is not a lock, so a
 // stale one is taken over rather than reported. Nobody is locked out by a
 // crash, and nobody is ever told the checks passed because somebody else's run
@@ -26,6 +31,8 @@ export interface LockHolder {
   what: string
   /** When it started, as an ISO time. */
   at: string
+  /** Where it is running, for a lock that is not about one worktree: the checkout. */
+  where?: string
 }
 
 export function lockPath(records: string): string {
@@ -36,34 +43,50 @@ export function lockPath(records: string): string {
  * Claim this worktree for a run. Null when somebody else has it, with who and
  * since when, so the caller can wait or say so — never pretend.
  */
-export async function takeRunLock(
+export function takeRunLock(
   records: string,
   what: string,
   now: () => number = Date.now,
 ): Promise<RunLock | { held: LockHolder }> {
-  const path = lockPath(records)
+  return claim(lockPath(records), { what }, now)
+}
+
+/** Who is running checks in this worktree, or null. A dead pid is nobody. */
+export function heldBy(records: string): Promise<LockHolder | null> {
+  return holderAt(lockPath(records))
+}
+
+/**
+ * Claim one lock file: made exclusively, with this process as its holder. One
+ * whose holder is gone is taken over; one whose holder is alive is answered
+ * with who it is.
+ */
+export async function claim(
+  path: string,
+  holder: { what: string; where?: string },
+  now: () => number = Date.now,
+): Promise<RunLock | { held: LockHolder }> {
   await mkdir(dirname(path), { recursive: true })
+  const at = new Date(now()).toISOString()
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const fh = await open(path, 'wx', 0o600)
-      await fh.write(
-        `${JSON.stringify({ pid: process.pid, what, at: new Date(now()).toISOString() })}\n`,
-      )
+      await fh.write(`${JSON.stringify({ pid: process.pid, ...holder, at })}\n`)
       await fh.close()
       return { release: () => rm(path, { force: true }) }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
-      const holder = await heldBy(records)
-      if (holder) return { held: holder }
+      const held = await holderAt(path)
+      if (held) return { held }
       await rm(path, { force: true })
     }
   }
-  return { held: { pid: 0, what, at: new Date(now()).toISOString() } }
+  return { held: { pid: 0, ...holder, at } }
 }
 
-/** Who is running checks in this worktree, or null. A dead pid is nobody. */
-export async function heldBy(records: string): Promise<LockHolder | null> {
-  const text = await readFile(lockPath(records), 'utf8').catch(() => '')
+/** Who holds one lock file, or null. A dead pid is nobody, and so is a file nobody can read. */
+export async function holderAt(path: string): Promise<LockHolder | null> {
+  const text = await readFile(path, 'utf8').catch(() => '')
   if (!text.trim()) return null
   let raw: Record<string, unknown>
   try {
@@ -83,6 +106,7 @@ export async function heldBy(records: string): Promise<LockHolder | null> {
     pid,
     what: typeof raw.what === 'string' ? raw.what : '',
     at: typeof raw.at === 'string' ? raw.at : '',
+    ...(typeof raw.where === 'string' ? { where: raw.where } : {}),
   }
 }
 
@@ -102,9 +126,14 @@ export async function waitForRunLock(
     const got = await takeRunLock(records, what, opts.now)
     if (!('held' in got)) return got
     if ((opts.now ?? Date.now)() >= deadline) return got
-    await new Promise((done) => {
-      const timer = setTimeout(done, every)
-      timer.unref?.()
-    })
+    await pause(every)
   }
+}
+
+/** A wait that never holds the process open by itself. */
+export function pause(ms: number): Promise<void> {
+  return new Promise((done) => {
+    const timer = setTimeout(done, ms)
+    timer.unref?.()
+  })
 }

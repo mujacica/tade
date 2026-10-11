@@ -121,7 +121,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
 
   checks
     .command('run [ids...]')
-    .description('Run them here, one set at a time per checkout, and record each against HEAD')
+    .description('Run them here, one suite at a time on this machine, and record each against HEAD')
     .option('-p, --project <name>', 'project name, as configured')
     .option('--wait <seconds>', 'wait this long for another run in this checkout to finish', '0')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())

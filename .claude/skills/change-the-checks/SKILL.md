@@ -23,7 +23,9 @@ and that record.
 | `packages/checks/core/src/identity.ts` | `idFor`, `slug`, `calledAfter`, `normaliseCommand`, `sameCommand`, `followRenames` |
 | `packages/checks/core/src/plan.ts` | `planFor`, `inOrder`, `matches`: what applies to a commit, and in what order |
 | `packages/checks/core/src/run.ts` | `runChecks`: the one way a run happens — the lock, the record, the row |
-| `packages/checks/core/src/lock.ts` | `takeRunLock`, `waitForRunLock`, `heldBy`: one run at a time per worktree |
+| `packages/checks/core/src/lock.ts` | `takeRunLock`, `waitForRunLock`, `heldBy`, `claim`: one run at a time per worktree |
+| `packages/checks/core/src/machine.ts` | `takeMachineSlot`, `waitForMachineSlot`, `SLOT_ENV`, `insideHeldSlot`: `checks.suites` runs at a time on the machine |
+| `test/one-suite.ts` | the suite's `globalSetup`: a full vitest run from a shell takes the same machine slot |
 | `packages/checks/core/src/running.ts` | `writeRunning`, `clearRunning`, `runningIn`: what is going on *now*, in `checks.running.json` |
 | `packages/checks/core/src/records.ts` | `checks.jsonl`: `writeRun`, `readRuns`, `latestAt`, `rollup`, `At` |
 | `packages/checks/core/src/coverage.ts` | `coverageOf`, `coversCommit`, `carryOver`: a run is about a tree |
@@ -116,6 +118,15 @@ and that record.
   `lockHome`'s: **a lock whose process is gone is not a lock**, so a stale one is taken over rather
   than reported, and nobody is ever told the checks passed because somebody else's run did
   (`RunnerError('busy')`). Waiting is the polite half of the same rule.
+- **A worktree is not the machine.** The worktree lock alone let six worktrees run six suites —
+  sixty-seven vitest processes on one laptop — so a run with an `alone` check also takes one of the
+  machine's slots (`machine.ts`, under Tade's home, `checks.suites` of them, the same stale-pid
+  rule), worktree first and then the machine, under one `waitMs`. `checks.suites` is the machine's
+  and no project's: `ProjectConfigSchema.checks` omits it, because a bound each project sets for
+  itself is one suite per project. The run hands its commands the slot it holds (`SLOT_ENV`), which
+  is what lets a project's own runner take the same turn without queueing behind itself — Tade's
+  does, in `test/one-suite.ts`, so `pnpm test` typed into a shell waits like `checks_run` does. That
+  is the enforceable half; the sentence in the prompt (`checksTold`) is only the polite one.
 - **A suite takes minutes, so a run says what it is doing while it is doing it.** `checks.jsonl`
   holds only what finished; what is going on now is a small file beside it
   (`checks.running.json`) that `runChecks` writes at every state change and takes back when

@@ -209,6 +209,22 @@ projects:
     expect(r.issues[0]?.path).toBe('projects.checkout.max_parallel')
   })
 
+  it('runs one suite at a time on the machine unless somebody says more', () => {
+    const r = parseConfig('')
+    expect(r.ok && r.config.checks.suites).toBe(1)
+    const two = parseConfig('checks:\n  suites: 2\n')
+    expect(two.ok && two.config.checks.suites).toBe(2)
+    const none = parseConfig('checks:\n  suites: 0\n')
+    expect(!none.ok && none.issues[0]?.path).toBe('checks.suites')
+  })
+
+  it('has no project answer how many suites the machine runs', () => {
+    // A bound each project set for itself is one per project, which is six
+    // suites for six projects — the thing this setting exists to stop.
+    const r = parseConfig('projects:\n  checkout:\n    root: ~/x\n    checks:\n      suites: 3\n')
+    expect(!r.ok && r.issues[0]?.path).toBe('projects.checkout.checks.suites')
+  })
+
   it('has no MCP server in it until somebody writes one', () => {
     const r = parseConfig('')
     expect(r.ok && r.config.mcp.servers).toEqual({})

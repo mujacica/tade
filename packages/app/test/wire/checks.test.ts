@@ -203,7 +203,7 @@ describe('running a task’s checks', () => {
     expect(world.calls).toEqual([
       {
         tool: 'checks_run',
-        input: { project: 'shop' },
+        input: { project: 'shop', wait: 600 },
         caller: { kind: 'agent', task: 'shop/refunds', project: 'shop', cwd: '/tmp/wt/refunds' },
       },
     ])

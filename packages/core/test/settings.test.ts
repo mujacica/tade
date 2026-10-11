@@ -484,6 +484,41 @@ describe('a project’s own answer to where its agents work', () => {
   })
 })
 
+describe('how many of a project\u2019s agents work at once', () => {
+  const setting = (over: Record<string, unknown> = {}) =>
+    settingsOf(ConfigSchema.parse({ projects: { shop: { root: '~/src/shop', ...over } } }))
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === 'projects.shop.max_parallel')
+
+  it('is a setting somebody can find and change, not only a key the queue reads', () => {
+    expect(setting()).toMatchObject({ value: '', scope: 'shop', type: { kind: 'number' } })
+    expect(setting({ max_parallel: 1 })?.value).toBe('1')
+  })
+
+  it('takes a count, and empty gives it back to as many as are started', () => {
+    const one = setting()
+    expect(one && parseSetting(one, '1')).toBe(1)
+    expect(one && parseSetting(one, '0')).toBeUndefined()
+    expect(one && parseSetting(one, '')).toBeUndefined()
+  })
+
+  it('writes back where the queue and the workbench read it', () => {
+    const file: Record<string, unknown> = { projects: { shop: { root: '~/src/shop' } } }
+    applySetting(file, 'projects.shop.max_parallel', 1)
+    expect(config(file).projects.shop?.max_parallel).toBe(1)
+  })
+})
+
+describe('how many suites the machine runs', () => {
+  it('is the machine\u2019s, with no row for any one project', () => {
+    expect(find('checks.suites')).toMatchObject({ value: '1', type: { kind: 'number' } })
+    const paths = settingsOf(config({ projects: { shop: { root: '~/src/shop' } } }))
+      .flatMap((group) => group.settings)
+      .map((one) => one.path)
+    expect(paths).not.toContain('projects.shop.checks.suites')
+  })
+})
+
 describe('what agents do with finished work', () => {
   const row = (over: Record<string, unknown> = {}) =>
     settingsOf(

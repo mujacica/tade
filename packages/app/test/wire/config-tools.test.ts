@@ -412,6 +412,28 @@ describe('the orchestrator, configuring Tade', () => {
     expect(client.config.projects.app?.budget?.usd_per_day).toBe(20)
   })
 
+  it('sets how many of a project\u2019s agents work at once, when they ask for it', async () => {
+    const config = await tools()
+    // It was offered by name and read by the queue long before it had a row,
+    // so asking for it used to be told there was no such setting.
+    await theySaid('make the app project run one agent at a time')
+    await config.configureProject({
+      project: 'app',
+      setting: 'max_parallel',
+      value: '1',
+      said: 'make the app project run one agent at a time',
+    })
+    expect(client.config.projects.app?.max_parallel).toBe(1)
+    // And empty gives it back to as many as are started.
+    await config.configureProject({
+      project: 'app',
+      setting: 'max_parallel',
+      value: '',
+      said: 'make the app project run one agent at a time',
+    })
+    expect(client.config.projects.app?.max_parallel).toBeUndefined()
+  })
+
   it('keeps the config to its owner alone after writing one', async () => {
     const config = await tools()
     // Said the way this conversation actually goes: it says the setting back

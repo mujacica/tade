@@ -19,11 +19,11 @@
  ▾ F│                            █│▌                         never: nothing of search reaches its remote; branch: █│    
    ▾│  Intake                    █│▌                         agents push the branch they are on; branch-and-revi… █│    
     │                            █│▌                                                                              █│    
-    │▌ Projects              ● 1 █│ Budget a day               ‹   no budget   ›                     ↻ on restart █│    
+    │▌ Projects              ● 1 █│ Agents at once             ‹   as many as are started   ›                     █│    
    ▸│▌                           █│                                                                               █│    
-━   │  Journal                   █│ Checks needed before      push                                 ▾              █│   ━
-    │                            █│                                                                               █│    
-    │  Telemetry                 █│ When a check is red       hold                                 ▾              ▕│   ▕
+━   │  Journal                   █│ Budget a day               ‹   no budget   ›                     ↻ on restart █│   ━
+    │                            █│                                                                               ▕│    
+    │  Telemetry                 █│ Checks needed before      push                                 ▾              ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕

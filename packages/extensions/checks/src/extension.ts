@@ -5,6 +5,7 @@ import {
   type CheckRun,
   carriedNote,
   checkLine,
+  holdersSaid,
   latestAt,
   RunnerError,
 } from '@tade/checks-core'
@@ -66,7 +67,7 @@ export const checksExtension: TadeExtension = {
   orchestrator() {
     return [
       'For "is this green" and "what is red", call checks_list — it reads files and asks nothing of the network.',
-      'To have them run, checks_run: it takes minutes, runs one at a time per checkout, and answers with what failed.',
+      'To have them run, checks_run: it takes minutes, runs one suite at a time on this machine, and answers with what failed.',
       'A red check is not a reason to start an agent on your own: tell the person, or hand it to the agent whose commit it is.',
       'What a project checks is read from its own CI workflows and its commit hook, so there is nothing to configure and no file to write. Where checks_list says a project says nothing, the answer is not a gate Tade invents: say what CI it is missing, and that its agents are told to work out what checking it means and run that themselves.',
     ].join(' ')
@@ -143,11 +144,13 @@ export const checksExtension: TadeExtension = {
     {
       name: 'checks_run',
       description:
-        'Run this project’s checks here, now, and answer with what passed, what failed and the failing tail. Takes minutes. Tade runs one set at a time per checkout, so this waits rather than starting a second suite beside somebody else’s.',
+        'Run this project’s checks here, now, and answer with what passed, what failed and the failing tail. Takes minutes. Tade runs one set at a time per checkout and as many suites as checks.suites allows on the whole machine (one unless somebody changed it), so pass `wait` and this queues for its turn rather than starting a second suite beside somebody else’s. Use this rather than typing the suite into a shell: a full suite from a shell waits for the same turn, and nothing records what it found.',
       parameters: object({
         project: projectInput,
         only: list(string('a check id'), 'run only these checks; all of them when empty'),
-        wait: number('seconds to wait for another run in this checkout to finish (0)'),
+        wait: number(
+          'seconds to wait for a run in this checkout, or another suite on this machine, to finish (0, at most 600)',
+        ),
       }),
       for: ['orchestrator', 'agent'],
       async run(input, ctx) {
@@ -171,6 +174,8 @@ export const checksExtension: TadeExtension = {
             only,
             signal: ctx.signal,
             waitMs: wait,
+            onWait: (ahead) =>
+              ctx.progress(`waiting for the machine: ${holdersSaid(ahead)} ahead of this run`),
             onRun: (run) => {
               if (run.state === 'running') ctx.progress(`${run.check} is running`)
               if (run.state === 'passed' || run.state === 'failed') {

@@ -1,5 +1,18 @@
-import type { Check } from '@tade/checks-core'
-import { carryOver, RunnerError, readRuns, runChecks, takeRunLock } from '@tade/checks-core'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { Check, Runner } from '@tade/checks-core'
+import {
+  carryOver,
+  heldBy,
+  insideHeldSlot,
+  RunnerError,
+  readRuns,
+  runChecks,
+  SLOT_ENV,
+  slotHolders,
+  takeMachineSlot,
+  takeRunLock,
+} from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { makeScriptedRunner } from '../src/index.ts'
@@ -106,5 +119,117 @@ describe('running a project\u2019s checks', () => {
     await runChecks(args)
     await runChecks(args)
     expect((await readRuns(root)).length).toBe(2)
+  })
+})
+
+describe('one suite on the machine, from any worktree', () => {
+  it('refuses a suite in a second worktree while the first holds the machine', async () => {
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const held = await takeMachineSlot(home, 1, { what: 'tests', where: '/work/other' })
+    try {
+      await runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('tests', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by: 'you',
+        machine: { home, most: 1 },
+      })
+      expect.unreachable('a second suite must not start on this machine')
+    } catch (err) {
+      expect((err as RunnerError).trouble).toBe('busy')
+      expect((err as RunnerError).message).toContain('tests in /work/other')
+      expect((err as RunnerError).message).toContain('checks.suites')
+    } finally {
+      if (!('held' in held)) await held.release()
+    }
+    // Its own worktree is let go again, so the next run here is not told it is busy.
+    expect(await heldBy(root)).toBeNull()
+    expect(await readRuns(root)).toEqual([])
+  })
+
+  it('waits for the machine when asked to, and says who it is waiting for', async () => {
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const held = await takeMachineSlot(home, 1, { what: 'tests', where: '/work/other' })
+    setTimeout(() => {
+      if (!('held' in held)) void held.release()
+    }, 100)
+    const told: string[] = []
+    const ran = await runChecks({
+      runner: makeScriptedRunner({}),
+      project: { name: 'demo', root },
+      records: root,
+      checks: [check('tests', { alone: true })],
+      commit: 'a1b2c3d4e5',
+      by: 'you',
+      waitMs: 10_000,
+      machine: { home, most: 1 },
+      onWait: (ahead) => told.push(ahead.map((one) => one.where).join()),
+    })
+    expect(ran.map((one) => one.state)).toEqual(['passed'])
+    expect(told).toEqual(['/work/other'])
+  })
+
+  it('tells its commands which slot they are under, and gives it back after', async () => {
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const scripted = makeScriptedRunner({})
+    let inside = false
+    const runner: Runner = {
+      ...scripted,
+      run: async (project, checks, ctx) => {
+        // What the suite's own guard asks: is the slot I was handed held?
+        inside = await insideHeldSlot(home, { [SLOT_ENV]: ctx.env?.[SLOT_ENV] ?? '' })
+        return scripted.run(project, checks, ctx)
+      },
+    }
+    await runChecks({
+      runner,
+      project: { name: 'demo', root },
+      records: root,
+      checks: [check('tests', { alone: true })],
+      commit: 'a1b2c3d4e5',
+      by: 'you',
+      machine: { home, most: 1 },
+    })
+    expect(inside).toBe(true)
+    expect(await slotHolders(home)).toEqual([])
+  })
+
+  it('lets its worktree go when the machine cannot be asked at all', async () => {
+    const home = join(tmp('tade-run-home-'), 'not-a-folder')
+    writeFileSync(home, '')
+    const root = tmp('tade-run-')
+    await expect(
+      runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('tests', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by: 'you',
+        machine: { home, most: 1 },
+      }),
+    ).rejects.toThrow()
+    expect(await heldBy(root)).toBeNull()
+  })
+
+  it('takes nothing of the machine for checks that do not need it to themselves', async () => {
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    await takeMachineSlot(home, 1, { what: 'tests', where: '/work/other' })
+    const ran = await runChecks({
+      runner: makeScriptedRunner({}),
+      project: { name: 'demo', root },
+      records: root,
+      checks: [check('lint')],
+      commit: 'a1b2c3d4e5',
+      by: 'you',
+      machine: { home, most: 1 },
+    })
+    expect(ran.map((one) => one.state)).toEqual(['passed'])
   })
 })

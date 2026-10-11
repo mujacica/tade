@@ -107,6 +107,7 @@ describe('what a chat is told', () => {
         only: [],
         run_here: {},
         parallel: 1,
+        suites: 1,
         keep: 20,
         ci: true,
       },

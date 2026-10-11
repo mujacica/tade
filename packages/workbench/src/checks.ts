@@ -6,6 +6,7 @@ import {
   type ChecksRead,
   carryOver,
   followRenames,
+  type Holders,
   latestAt,
   planFor,
   type Runner,
@@ -151,6 +152,8 @@ export async function runProjectChecks(opts: {
   runner?: Runner
   signal?: AbortSignal
   waitMs?: number
+  /** Told who has the machine, while this run waits for its turn. */
+  onWait?: (ahead: Holders) => void
   onRun?: (run: CheckRun) => void
   onOutput?: (check: string, chunk: string) => void
 }): Promise<CheckLog[]> {
@@ -182,6 +185,10 @@ export async function runProjectChecks(opts: {
     home: opts.home,
     keep: rule.keep,
     waitMs: opts.waitMs ?? 0,
+    // The machine's answer and never a project's: a bound each project set for
+    // itself would be one per project, which is the bug this is.
+    machine: { home: opts.tadeHome, most: opts.config.checks.suites },
+    ...(opts.onWait ? { onWait: opts.onWait } : {}),
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.onRun ? { onRun: opts.onRun } : {}),
     ...(opts.onOutput ? { onOutput: opts.onOutput } : {}),

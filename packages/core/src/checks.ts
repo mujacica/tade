@@ -187,7 +187,7 @@ export function checksTold(
         ? 'before you commit and before you push'
         : `before you ${checks.before}`
   const said = [
-    `This project's checks are ${ids.map((id) => `\`${id}\``).join(', ')}. Run them with checks_run ${when} — not in a shell: Tade runs them one at a time, so several agents in one checkout do not start several suites, and what ran is shown to the person.`,
+    `This project's checks are ${ids.map((id) => `\`${id}\``).join(', ')}. Run them with checks_run ${when} — not in a shell: Tade runs one suite at a time on this machine, so several agents — in one checkout or in many — do not start several suites, and what ran is shown to the person. A full suite typed into a shell waits for the same turn and records nothing.`,
     'A red check is something to fix, not something to mention.',
   ]
   said.push(
