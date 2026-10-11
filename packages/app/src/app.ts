@@ -606,6 +606,7 @@ export class App {
         this.draw()
       },
       onChange: () => this.draw(),
+      onDue: () => this.soonTick(),
       onWork: (task) => void this.agents.nameAgent(task),
       onTerminals: (terminals) => {
         this.state = withTerminals(this.state, terminals)
@@ -730,15 +731,14 @@ export class App {
     this.extensions.askExtensions()
     this.images.look()
     this.intake.look()
+    this.live?.lookAgain()
     if (!this.stopped && !this.orchestrator.borrowed() && this.repaint.dueAt(this.now()))
       repaintScreen(this.tui, this.terminal)
     const at = await this.lanes.fitPane()
     this.window.titleHere()
     const paneScreen = await this.lanes.readPane(at)
     const terminal = await this.lanes.captureTerminal()
-    // A frame is news when something in it moved: a lane drew something new,
-    // the microphone's clock is running, or a spinner turned since the frame
-    // on screen — ten a second, where every look while anything worked was one.
+    // News: a lane drew something new, the microphone's clock, or a spinner turned.
     if (paneScreen || terminal || this.state.talkingSince !== null || this.window.turned())
       this.draw()
   }

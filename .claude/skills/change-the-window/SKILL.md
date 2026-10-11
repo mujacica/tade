@@ -186,6 +186,12 @@ regions in a cycle now.
   askers; anything on a timer or drawn every frame has a performance test. If a change makes a frame
   slow, cache what it formats (as the transcript and the file viewer do) rather than raising the
   number the test holds.
+- **A frame only ever answers; the look asks.** `Live`'s readers — `files`, `marksAt`, `changesAt`,
+  `branchAt`, `actions` — answer from the last look and only *queue* one that is due; `lookAgain`,
+  on the window's look, starts it (`onDue` asks for that look soon). They used to start it
+  themselves, from the Files subject's facts, so one frame every two seconds forked three or four
+  `git`s on the drawing thread — 9ms at the fold's 95th percentile, 25 at its worst, idle. A reader
+  you add follows the same shape: `lookSoon` from the reader, `told` when the answer changed.
 
 ## Scrolling, and what a notch is worth
 
