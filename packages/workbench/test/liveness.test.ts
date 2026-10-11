@@ -1,10 +1,10 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { deriveState } from '@tade/core'
+import { deriveState, livenessOf } from '@tade/core'
 import type { WorkerHandle } from '@tade/harnesses-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { livenessFrom, runSignal } from '../src/lane-liveness.ts'
+import { livenessFrom, livenessTableFrom, runSignal } from '../src/lane-liveness.ts'
 import { Workbench } from '../src/workbench.ts'
 import type { PendingApproval } from '../src/workers.ts'
 
@@ -143,5 +143,63 @@ describe('livenessFrom', () => {
     const probe = livenessFrom(client)
     await client.close()
     expect(await probe.lanes('app/refunds')).toEqual([])
+  })
+})
+
+describe('livenessTableFrom', () => {
+  // What crosses into the process status is collected in: every answer the
+  // window's probe would have given, written down once, for every task that
+  // has a lane or a run.
+  const record = (id: string, task: string, kind: string, alive = true) => ({
+    id,
+    task,
+    kind,
+    alive,
+    spec: { id, cwd: '/src/app', command: 'pi', args: [] },
+    pid: 1,
+    title: null,
+    startedAt: 1,
+    exitCode: null,
+    lastOutputAt: 2,
+  })
+  const work = {
+    lanes: (task?: string) =>
+      [
+        record('app/refunds/agent', 'app/refunds', 'agent'),
+        record('app/refunds/shell', 'app/refunds', 'shell'),
+        record('app/old/agent', 'app/old', 'agent', false),
+      ].filter((lane) => task === undefined || lane.task === task),
+    runs: () => [handle({ run: 'r1', task: 'app/queued' })],
+    pendingApprovals: (task?: string) =>
+      [approval({ task: 'app/queued' })].filter((one) => task === undefined || one.task === task),
+    turnOf: () => 'running' as const,
+  }
+
+  it('answers every task exactly as the probe would, and a task it does not name with nothing', async () => {
+    const table = await livenessTableFrom(work as never)
+    expect(Object.keys(table).sort()).toEqual(['app/old', 'app/queued', 'app/refunds'])
+    const probe = livenessFrom(work as never)
+    // Through a pipe and back, which is the trip it is made for.
+    const read = livenessOf(JSON.parse(JSON.stringify(table)))
+    for (const task of ['app/old', 'app/queued', 'app/refunds', 'app/nobody']) {
+      expect(await read.lanes(task)).toEqual(await probe.lanes(task))
+      expect(await read.records?.(task)).toEqual(await probe.records?.(task))
+    }
+    expect((await read.lanes('app/queued'))[0]?.pendingPermissions).toEqual([
+      'bash: git push --force origin main',
+    ])
+  })
+
+  it('is an empty table, never a throw, when the workbench cannot answer', async () => {
+    const broken = {
+      lanes: () => {
+        throw new Error('closed')
+      },
+      runs: () => {
+        throw new Error('closed')
+      },
+      pendingApprovals: () => [],
+    }
+    expect(await livenessTableFrom(broken as never)).toEqual({})
   })
 })

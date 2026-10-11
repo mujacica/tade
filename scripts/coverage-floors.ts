@@ -222,6 +222,9 @@ export const UNSEEN: Record<string, string> = {
   'packages/harnesses/codex/src/hook.ts': 'run by Codex, once per hook',
   'packages/harnesses/codex/src/mcp.ts': 'run by Codex for the life of a session',
   'packages/harnesses/core/src/reaper.ts': 'runs between Tade and a headless harness',
+  // Driven for real by `forked.test.ts`, which forks it and kills it; what it
+  // does with its channel is `serve.ts`, which is measured.
+  'packages/status/src/child.ts': 'the process a window looks at status in',
 }
 
 /**

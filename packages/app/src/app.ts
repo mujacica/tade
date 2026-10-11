@@ -568,8 +568,7 @@ export class App {
     // tab you can be standing in when you start work.
     const config = this.opts.config
     this.state = withProjects(this.state, Object.keys(config.projects), titlesOf(config))
-    // Held as a local as well as a field: the surface below closes over it, so
-    // it never has to wonder whether there is one.
+    // A local as well as a field: what the surface below closes over is never a maybe.
     const live = await Live.start({
       client: this.opts.client,
       config: this.opts.config,
@@ -577,6 +576,7 @@ export class App {
       tadeHome: this.opts.home,
       ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
       ...(this.opts.now ? { now: this.opts.now } : {}),
+      status: this.opts.status,
       onTasks: (tasks) => {
         this.state = withTasks(this.state, tasks)
         // Focus can only be restored once there are panes to restore it to,

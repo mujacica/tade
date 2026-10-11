@@ -107,6 +107,15 @@ export async function collectStatus(opts: StatusOptions): Promise<Workspace> {
   }
 }
 
+/**
+ * The same look, for whoever keeps the last one that could: a look that went
+ * wrong throws rather than answering with a workspace that has nothing in it,
+ * so it can be answered with what was seen before instead of with nothing.
+ */
+export async function lookAtStatus(opts: StatusOptions): Promise<Workspace> {
+  return collect(opts, [])
+}
+
 async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspace> {
   const { now } = opts
   const liveness = opts.liveness ?? noLanes

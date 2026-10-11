@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import type { AgentSignal, Lane, LivenessProbe, TaskId, TurnState } from '@tade/core'
+import type { AgentSignal, Lane, LivenessProbe, LivenessTable, TaskId, TurnState } from '@tade/core'
 import type { WorkerHandle } from '@tade/harnesses-core'
 import { LaneRecord } from './registry.ts'
 import type { PendingApproval } from './workers.ts'
@@ -76,6 +76,25 @@ export function livenessFrom(work: RunningWork): LivenessProbe {
       return safely(() => work.lanes(task), [] as LaneRecord[]).map(asLane)
     },
   }
+}
+
+/**
+ * Everything `livenessFrom` would answer, for every task that has a lane or a
+ * run, asked once: what the window sends with a look at status, which runs in
+ * a process that cannot ask the registry itself. Asked through the probe
+ * rather than beside it, so the two can never answer differently.
+ */
+export async function livenessTableFrom(work: RunningWork): Promise<LivenessTable> {
+  const probe = livenessFrom(work)
+  const tasks = new Set([
+    ...safely(() => work.lanes(), [] as LaneRecord[]).map((lane) => lane.task),
+    ...safely(() => work.runs(), [] as WorkerHandle[]).map((run) => run.task),
+  ])
+  const table: LivenessTable = {}
+  for (const task of tasks) {
+    table[task] = { lanes: await probe.lanes(task), records: (await probe.records?.(task)) ?? [] }
+  }
+  return table
 }
 
 /**
