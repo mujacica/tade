@@ -128,14 +128,13 @@ async function changeOne(deps: ConfiguringDeps, call: SettingCall, from: From): 
   if (call.value === setting.value) {
     return { did: false, rev: row.was, said: `${setting.title} was already that` }
   }
-  let told: string
-  try {
-    told = await deps.write(call.path, call.value, byOf(from))
-  } catch (error) {
-    // Put back as it was by the door itself; the reason is the config's, and
-    // a refusal rather than something that broke.
-    throw new NotOffered(error instanceof Error ? error.message : String(error))
-  }
+  // **A write that fails now is not a refusal.** Every reason a value could be
+  // refused was asked above, so a throw here is the machine — a file that
+  // would not load, a disk — and it goes up as it is: the door puts the file
+  // back, the device is told something went wrong here, and the detail is a
+  // `warning` the person at the machine can read rather than a `404` saying
+  // there was nothing by that name.
+  const told = await deps.write(call.path, call.value, byOf(from))
   const after = findIn(deps.rows(), call.path)
   const now =
     after === null

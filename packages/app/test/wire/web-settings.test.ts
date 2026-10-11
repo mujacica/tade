@@ -172,11 +172,13 @@ describe('the value, against the row the window lists now', () => {
     expect(one.wrote).toEqual([])
   })
 
-  it('turns a write the door refused into a refusal, not a break', async () => {
-    const one = setup({
-      write: () => Promise.reject(new Error('the config would not load with that')),
-    })
-    await expect(one.half.change(EDITOR, REMOTE)).rejects.toBeInstanceOf(NotOffered)
+  it('lets a write that failed after every check say so, rather than calling it a refusal', async () => {
+    // Every reason a value could be refused is asked before the write, so a
+    // throw from the door is the machine, and it is not dressed up as a `404`:
+    // `carryChange` turns it into `broke` with the detail in a warning.
+    const broke = new Error('the config would not load with that')
+    const one = setup({ write: () => Promise.reject(broke) })
+    await expect(one.half.change(EDITOR, REMOTE)).rejects.toBe(broke)
   })
 
   it('carries one change at a time, so two from away cannot both read the old value', async () => {
