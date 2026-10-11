@@ -30,6 +30,19 @@ export const EMULATORS = new URL('./emulator-thread.ts', import.meta.url)
  */
 const LIVES = 3
 
+/**
+ * How long the emulators may leave a question unanswered before they are taken
+ * for stuck — alive, and never going to say anything again — and ended, which
+ * is a death like any other: started again, and said.
+ *
+ * A thread that is only busy answers within its own bound on a parse, fifty
+ * milliseconds after it gets to the question, and gets to it within a slice
+ * per lane. Seconds is not busy. Without this a thread caught in a loop is
+ * every pane frozen where it was with nothing anywhere saying why, which is
+ * the one way of failing a dead thread does not have.
+ */
+const STUCK_MS = 5_000
+
 export interface ThreadOptions {
   entry: URL
   heard: (report: Report) => void
@@ -46,6 +59,10 @@ export class EmulatorThread {
   private worker: Worker | null = null
   private deaths = 0
   private heard = false
+  /** Why the thread running now is going: what it threw, or that it stopped answering. */
+  private cause: unknown = null
+  /** Since when a question it was asked has gone unanswered, if one has. */
+  private unanswered: number | null = null
   private readonly opts: ThreadOptions
 
   constructor(opts: ThreadOptions) {
@@ -75,6 +92,27 @@ export class EmulatorThread {
   }
 
   /**
+   * Something waited on the emulators and nothing came. Asks them a question
+   * they always answer, and when one has gone unanswered for `STUCK_MS`, ends
+   * them as stuck.
+   */
+  late(): void {
+    const worker = this.worker
+    if (!worker || !this.heard) return
+    const now = Date.now()
+    if (this.unanswered === null) {
+      this.unanswered = now
+      // A look at a lane that is not there: answered at once by any thread
+      // that is still taking orders, and by nothing about any lane.
+      worker.postMessage({ do: 'look', key: 0, ask: 0 } satisfies Order)
+      return
+    }
+    if (now - this.unanswered < STUCK_MS) return
+    this.cause = new Error(`they stopped answering for ${STUCK_MS / 1_000}s`)
+    void worker.terminate()
+  }
+
+  /**
    * Stop the thread, which is every screen gone.
    *
    * Not waited on: it holds nothing native, so it stops when it is told to,
@@ -100,21 +138,24 @@ export class EmulatorThread {
       return null
     }
     this.heard = false
+    this.cause = null
+    this.unanswered = null
     // Dies with this process, as the lanes do (`detach: false`): it is never
     // a reason for the process to stay.
     worker.unref()
-    let cause: unknown = null
     worker.on('message', (report: Report) => {
       if (this.worker !== worker) return
       this.heard = true
+      this.unanswered = null
       this.opts.heard(report)
     })
     worker.on('error', (error) => {
-      cause = error
+      if (this.worker === worker) this.cause = error
     })
     worker.on('exit', (code) => {
       // Ended on purpose, or already replaced: nothing died.
       if (this.worker !== worker) return
+      const cause = this.cause
       this.worker = null
       this.deaths++
       const reason = cause instanceof Error ? cause.message : `it exited with ${code}`

@@ -77,8 +77,9 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   answered from that frame when it already holds everything the lane printed before the capture was
   asked, and from the next one otherwise — so an echo is never a frame behind. The process stays on
   the main thread: node-pty in a worker deadlocks on teardown (measured, in `thread.ts`). A thread
-  that dies is started again from each lane's replay, three times, and then every screen is the last
-  one known — never an empty one — and both are said through `trouble`. A cached answer still goes
+  that dies — or leaves a question unanswered for five seconds, which is stuck, not busy — is started
+  again from each lane's replay, three times, and then every screen is the last one known — never an
+  empty one — and both are said through `trouble`. A cached answer still goes
   round the event loop once, or a loop of captures starves the output it is waiting for.
 - **`screen()` is what the text cannot say.** How many lines the lane holds — screen and
   scrollback together, which is the most `capture` can return — and where the cursor is, as a

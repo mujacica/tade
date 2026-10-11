@@ -58,6 +58,36 @@ describe('when the emulators die', () => {
     expect((await driver.screen(id)).lines).toBeGreaterThan(3)
   }, 30_000)
 
+  // Alive and never answering is worse than dead, because nothing ends: every
+  // capture would be the last screen known, a beat late, for ever, and nothing
+  // would say why. So a thread that leaves a question unanswered for seconds is
+  // ended as stuck, and that is a death like any other.
+  it('ends them when they stop answering, and says that rather than nothing', async () => {
+    const troubles: Error[] = []
+    const id = await opened(troubles)
+    await shows(id, 'ready')
+    await driver.write(id, line('before'))
+    await shows(id, 'got:before')
+
+    await driver.write(id, line('emulators, hang'))
+    // Looked at the whole time, as a window looks: what is drawn meanwhile is
+    // what was last known, never an empty screen.
+    const drawn: string[] = []
+    await until(
+      async () => {
+        drawn.push(await driver.capture(id, { lines: 50 }))
+        return troubles.length > 0
+      },
+      { timeout: 20_000 },
+    )
+    expect(drawn.every((shown) => shown.includes('got:before'))).toBe(true)
+    expect(troubles[0]?.message).toContain('they stopped answering for 5s')
+    expect(troubles[0]?.message).toContain('and were started again')
+    await shows(id, 'got:emulators, hang')
+    await driver.write(id, line('after'))
+    await shows(id, 'got:after')
+  }, 40_000)
+
   it('stops starting them once they keep dying, and every pane keeps what it last showed', async () => {
     const troubles: Error[] = []
     const id = await opened(troubles)

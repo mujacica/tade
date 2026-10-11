@@ -542,7 +542,10 @@ export class PtyDriver implements WorkspaceDriver {
           resolve()
         },
       }
-      timer = setTimeout(waiting.done, this.bound())
+      timer = setTimeout(() => {
+        this.thread.late()
+        waiting.done()
+      }, this.bound())
       lane.waiting.add(waiting)
     })
   }
@@ -558,7 +561,10 @@ export class PtyDriver implements WorkspaceDriver {
         this.asks.delete(ask)
         resolve(report)
       }
-      timer = setTimeout(() => answer(null), this.bound())
+      timer = setTimeout(() => {
+        this.thread.late()
+        answer(null)
+      }, this.bound())
       this.asks.set(ask, answer)
       this.thread.tell(order(ask))
     })
