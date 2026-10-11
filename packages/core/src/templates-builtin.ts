@@ -32,7 +32,24 @@
 //   somebody then decides on. Neither writes code, and neither queues work:
 //   a plan goes through `tade_plan`, which refuses what cannot be kept.
 
-/** `<name>.md` as the file would be written, by persona name. */
+/**
+ * `<name>.md` as the file would be written, by persona name.
+ *
+ * **None of these bodies says what its agent is allowed** — `PERSONA_RULE`,
+ * which the front matter is held to and the prose was not. `REFUSED` catches a
+ * persona that *sets* `push`, with the reason that whether finished work goes
+ * to a remote is the project's; `implementer` said the same thing as prose —
+ * "Do not push and do not merge" — where no refusal could see it. A persona's
+ * body is folded into the task's intent (`resolveAgent`), so under
+ * `push: branch-and-review` that reached an agent in the same prompt as
+ * `pushTold`'s "push your own branch and open a review for it". An agent given
+ * both obeys one of them, and nothing reports finished work left unpushed:
+ * `review.pushed` starts from `ls-remote`, and `review.branch-checks`, which
+ * does walk every worktree's branch, reads an unpushed commit as a quiet `not
+ * pushed` rather than a finding. `pushTold` is the one place this is decided,
+ * and `never` is deliberately no sentence at all, so anything said here either
+ * contradicts it or hands an agent the idea. Held by `personas.test.ts`.
+ */
 export const BUILT_IN_PERSONAS: Readonly<Record<string, string>> = {
   triage: `---
 persona: triage
@@ -93,8 +110,7 @@ fail for the reason you think it does before you fix anything — a test that
 was green all along proves nothing. Change the cause, not the test.
 
 Run the project's own checks through Tade before you say you are finished, and
-read what failed rather than re-running it. Do not push and do not merge:
-whether finished work goes anywhere is the project's answer and a person's act.
+read what failed rather than re-running it.
 `,
   tester: `---
 persona: tester
