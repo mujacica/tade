@@ -223,6 +223,8 @@ export class Live {
   private usage: TadeEvent[] = []
   /** The last spend fold, and the day and the event count it was of. */
   private spent: { since: number; of: number; report: SpendReport } | null = null
+  /** The last runtime fold: the day, the run events and the moment it was of. */
+  private ran: { since: number; of: number; at: number; report: RuntimeReport } | null = null
   /**
    * When commits and check runs were last picked up. Opening the workbench
    * has just done it, so the window's own first look is a minute away.
@@ -890,9 +892,26 @@ export class Live {
     return report
   }
 
-  /** How long the agents have run since midnight, in total and by task. */
+  /**
+   * How long the agents have run since midnight, in total and by task.
+   *
+   * Kept as `spendToday` is, over every run event there has ever been: the
+   * same events over the same day are the same answer — except that a run
+   * still going counts up with the clock. It is drawn to the second, so while
+   * one runs it is folded again each second, and never while none does.
+   */
   runtimeToday(): RuntimeReport {
-    return runtimeFrom(this.runEvents, { since: startOfToday(this.now()), now: this.now() })
+    const now = this.now()
+    const since = startOfToday(now)
+    const ran = this.ran
+    const still =
+      ran?.since === since &&
+      ran.of === this.runEvents.length &&
+      (!ran.report.total.running || Math.floor(ran.at / 1000) === Math.floor(now / 1000))
+    if (ran && still) return ran.report
+    const report = runtimeFrom(this.runEvents, { since, now })
+    this.ran = { since, of: this.runEvents.length, at: now, report }
+    return report
   }
 
   /** A rendered snapshot of a lane's screen, or nothing if it has none. */
