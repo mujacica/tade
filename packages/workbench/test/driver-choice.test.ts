@@ -1,7 +1,7 @@
 import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
 import { describe, expect, it } from 'vitest'
-import { chooseDriver } from '../src/workbench.ts'
+import { chooseDriver } from '../src/driver-choice.ts'
 
 // Where lanes go when the driver you asked for is not on this machine.
 //
@@ -55,6 +55,34 @@ describe('choosing a driver', () => {
     })
     expect(chosen.driver.id).toBe('tmux')
     expect(chosen.warning).not.toContain('outlive')
+  })
+
+  // A driver that carried on through something — the pty driver's emulators
+  // dying and being started again — has to be able to say so, or a pane drawn
+  // afresh from its replay looks like nothing went wrong at all.
+  it('tells the driver it made where to say what went wrong, the fallback too', async () => {
+    const said: string[] = []
+    const handed: Array<((problem: Error) => void) | undefined> = []
+    const chosen = await chooseDriver({
+      wanted: 'tmux',
+      fallback: 'pty',
+      home,
+      registry: {
+        tmux: (_home, trouble) => {
+          handed.push(trouble)
+          return unavailable('tmux', 'no tmux')()
+        },
+        pty: (_home, trouble) => {
+          handed.push(trouble)
+          return new PtyDriver({ trouble })
+        },
+      },
+      trouble: (problem) => said.push(problem.message),
+    })
+    expect(chosen.driver.id).toBe('pty')
+    expect(handed).toHaveLength(2)
+    handed[1]?.(new Error('the terminal emulators stopped'))
+    expect(said).toEqual(['the terminal emulators stopped'])
   })
 
   it('refuses when the fallback is the driver itself', async () => {

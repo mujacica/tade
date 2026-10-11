@@ -112,7 +112,7 @@ const BUDGET: Record<string, number> = {
   // reconciliation in each (~300 lines), to `workbench/src/reconcile.ts`, where
   // they can be tested as folds over a journal instead of through an open
   // workbench.
-  'packages/workbench/src/workbench.ts': 2_495,
+  'packages/workbench/src/workbench.ts': 2_459,
   'packages/workbench/src/workers.ts': 1_100,
   // Its harness — a fake adapter, a supervisor and a log — is now
   // `workers-harness.ts`, which is the half of the file that was not about any

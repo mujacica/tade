@@ -16,18 +16,20 @@ import { PtyDriver } from '../src/index.ts'
 // Measured rather than asserted about the code, because what went wrong was
 // invisible in the code: `dispose()` is called, and it reads as enough.
 
-/** Collect, so what is only *reachable* is not counted as what is *held*. */
-function collect(): void {
+/**
+ * The typed arrays the emulators hold now, in megabytes: where a screen buffer
+ * lives. On their own thread, so this thread's `process.memoryUsage()` never
+ * sees a byte of one — which is the point of the thread, and also why this
+ * asks the driver rather than looking here.
+ *
+ * Collected first, so what is only *reachable* is not counted as what is
+ * *held*: the flag is the process's, and the emulators collect where it is set.
+ */
+async function heldMb(driver: PtyDriver): Promise<number> {
   setFlagsFromString('--expose_gc')
-  const gc = runInNewContext('gc') as () => void
-  gc()
-  gc()
-}
-
-/** The typed arrays alive now, in megabytes: where a screen buffer lives. */
-function heldMb(): number {
-  collect()
-  return process.memoryUsage().arrayBuffers / 1e6
+  const bytes = await driver.held()
+  if (bytes === null) throw new Error('the emulators did not say what they hold')
+  return bytes / 1e6
 }
 
 async function until(check: () => Promise<boolean>, ms = 20_000): Promise<void> {
@@ -72,14 +74,20 @@ describe('what a lane holds', () => {
     })
     await until(async () => (await driver.screen(lane)).lines > 9_000)
 
-    const full = heldMb()
+    const full = await heldMb(driver)
     // A full buffer at this size is tens of megabytes. If it is not, the lane
     // never filled and the rest of this test would pass while proving nothing.
     expect(full).toBeGreaterThan(10)
+    // And none of it is here, on the thread that draws the window: what this
+    // one holds is the replay and Node's own, whatever the screen is.
+    const here = runInNewContext('gc') as () => void
+    here()
+    expect(process.memoryUsage().arrayBuffers / 1e6).toBeLessThan(full / 4)
 
     // Closed on a chunk the emulator has been handed and has not parsed: the
-    // driver writes to it before it tells anybody, so inside a listener there
-    // is always one queued, on any machine. That is the case that broke —
+    // driver hands each one to the emulators before it tells anybody, and the
+    // close follows it down the same queue, so inside a listener there is
+    // always one queued, on any machine. That is the case that broke —
     // `dispose()` leaves the backlog, and the backlog holds the screen — and
     // waiting for the lane to go quiet instead would only reach it on a runner
     // slow enough to still be behind, which is how this arrived as a flake.
@@ -90,7 +98,7 @@ describe('what a lane holds', () => {
       })
     })
     await driver.close(lane)
-    const after = heldMb()
+    const after = await heldMb(driver)
 
     // Nothing can ever read a closed lane's screen again — `capture` and
     // `screen` both refuse one — so every byte of it should be back.

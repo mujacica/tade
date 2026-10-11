@@ -81,6 +81,7 @@ import { type AccountView, harnessAccount, listAccounts, planSources } from './a
 import { recordAuthored } from './authored.ts'
 import { checksAt, checksGate, sharesCheckout } from './checks.ts'
 import { removedDocument } from './documents.ts'
+import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { takeBackOwnIgnore } from './ignore.ts'
@@ -89,7 +90,7 @@ import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { notStartable, type ParkedBy, park, refuseParked } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
-import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
+import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import { continueRun as continueAgent } from './sleep.ts'
 import {
@@ -258,44 +259,6 @@ interface TaskSaid {
   workspace: 'checkout' | 'worktree'
 }
 
-/**
- * The driver lanes will live in.
- *
- * A driver the machine cannot provide is not a dead end — `workspace.fallback`
- * says where to go instead — but it is never silent: agents quietly losing the
- * ability to outlive the window is the kind of thing you would discover at the
- * worst possible moment. Set `fallback` to the same driver to refuse instead.
- */
-export async function chooseDriver(opts: {
-  wanted: string
-  fallback: string
-  home: string
-  /** Injectable so the choice can be tested without uninstalling anything. */
-  registry?: Record<string, (home: string) => WorkspaceDriver>
-}): Promise<{ driver: WorkspaceDriver; warning: string }> {
-  const registry = opts.registry ?? drivers
-  const make = registry[opts.wanted]
-  if (!make) throw new Error(`unknown workspace driver: ${opts.wanted}`)
-  const driver = make(opts.home)
-  const availability = await driver.available()
-  if (availability.ok) return { driver, warning: '' }
-
-  const makeFallback = opts.fallback === opts.wanted ? undefined : registry[opts.fallback]
-  if (!makeFallback) {
-    throw new Error(`workspace.driver is ${opts.wanted}, and ${availability.reason}`)
-  }
-  const fallback = makeFallback(opts.home)
-  const second = await fallback.available()
-  if (!second.ok) throw new Error(`neither ${opts.wanted} nor ${opts.fallback} can run here`)
-  return {
-    driver: fallback,
-    warning:
-      `workspace.driver is ${opts.wanted}, and ${availability.reason}. ` +
-      `Using ${opts.fallback} instead` +
-      (fallback.capabilities.detach ? '.' : ', so agents will not outlive this window.'),
-  }
-}
-
 export class Workbench {
   readonly home: string
   readonly log: EventLog
@@ -367,6 +330,7 @@ export class Workbench {
         wanted: opts.driver ?? config.workspace.driver,
         fallback: config.workspace.fallback,
         home: opts.home,
+        trouble: troubleSaid(log, opts.report),
       })
       if (warning) await log.append({ type: 'warning', detail: { message: warning } })
       const lanes = join(opts.home, 'lanes.json')
