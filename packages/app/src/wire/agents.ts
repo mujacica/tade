@@ -410,6 +410,11 @@ export class Agents implements Subject {
     const root = facts ? this.wire.opts.config.projects[facts.project]?.root : undefined
     if (!facts || !worktree || !root) return 'I cannot find where this agent works.'
     try {
+      // Stopped on purpose, as `stopAgent` says. A look taken while git takes
+      // the worktree away lists the task once more — failed, "worktree
+      // missing", with no lane — which is what `reopenStopped` reopens, and
+      // it did: in a folder that was gone (TADE-2).
+      this.reopened.add(task)
       // Its agent first: a worktree cannot go out from under a process using it.
       await this.wire.opts.client.stopAgent(task).catch(() => {})
       const result = await this.wire.opts.client.removeTask({
