@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@tade/checks-core": "workspace:*"
+    "@tade/checks-core": "workspace:*",
+    "@tade/core": "workspace:*"
   }
 }

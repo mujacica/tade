@@ -1593,6 +1593,7 @@ export class Workbench {
         env: launch.env,
         title: req.task,
         harness,
+        giveWay: this.config.agents.give_way,
         ...(account ? { account } : {}),
       })
       this.followExit(lane)

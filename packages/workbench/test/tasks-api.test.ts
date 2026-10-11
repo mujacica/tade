@@ -515,6 +515,37 @@ describe('task and run RPC', () => {
     expect(toldTogether).not.toContain('push')
   }, 60_000)
 
+  it('starts an agent below the window where the config says to, and writes down the plain line', async () => {
+    // The config reaching the spawn, which is the half the registry's own
+    // tests cannot see: `startAgent` reads `agents.give_way` at the moment it
+    // launches, so turning it on applies to the next agent started and not to
+    // the next window.
+    await client.close()
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `agents:\n  give_way: 3\nprojects:\n  app:\n    root: ${repo.root}\n    max_parallel: 2\n`,
+    )
+    client = await Workbench.open({ home, version: '9.9.9' })
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: INTENT,
+      workspace: 'worktree',
+    })
+    const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+
+    // What was actually launched: the wrapper, with the agent's own line
+    // behind it, so the whole process tree under it gives way too.
+    const launched = (await client.driver.list()).find((one) => one.id === lane.id)
+    expect(launched?.spec.command).toBe('nice')
+    expect(launched?.spec.args.slice(0, 3)).toEqual(['-n', '3', process.execPath])
+    // And what is written down: the line that says what is running. A stored
+    // `nice` would be read as the harness's name by anything that has none
+    // (`laneSignal`), and would survive the setting being turned off.
+    expect(lane.spec.command).toBe(process.execPath)
+    expect(readFileSync(join(home, 'lanes.json'), 'utf8')).not.toContain('"command":"nice"')
+  }, 60_000)
+
   it('says the opening instruction once: reopening an agent says nothing to it', async () => {
     const task = await client.createTask({
       project: 'app',

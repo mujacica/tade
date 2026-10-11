@@ -102,6 +102,32 @@ describe('what there is to change', () => {
     expect(bare).toEqual([])
   })
 
+  it('is found by the symptom, not only by the name of the setting', () => {
+    // People reach for this one while complaining that the window is slow,
+    // which is not a word in its title or its path. A setting nobody can find
+    // is a setting nobody has — and here it is also the words `namedBy` reads,
+    // so a legitimate request that uses them is not refused.
+    const groups = settingsOf(config())
+    const group = groups.find((one) => one.settings.some((s) => s.path === 'agents.give_way'))
+    expect(group).toBeDefined()
+    if (!group) return
+    const setting = group.settings.find((one) => one.path === 'agents.give_way')!
+    for (const words of [['slow'], ['priority'], ['give', 'way'], ['laggy']]) {
+      expect(settingFound(group, setting, words)).toBe(true)
+    }
+    // Off is nought, which is what a config that says nothing reads as.
+    expect(setting.value).toBe('0')
+    expect(parseSetting(setting, '5')).toBe(5)
+    // Nought is not written: it is the default, and a preference that stops
+    // being one stops being written down.
+    expect(parseSetting(setting, '0')).toBeUndefined()
+    // And the arrows can get back to it, which a count that floors at one
+    // could not: from 1, left is off, and that is what gets written.
+    const one = find('agents.give_way', { agents: { give_way: 1 } })
+    expect(stepped(one, -1)).toBe('0')
+    expect(stepped(setting, 1)).toBe('1')
+  })
+
   it('offers only values the schema would accept', () => {
     const driver = find('workspace.driver')
     expect(driver.type).toEqual({ kind: 'choice', options: ['pty', 'tmux'] })

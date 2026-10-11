@@ -173,6 +173,35 @@ describe('what an ordinary request reaches', () => {
     )
   })
 
+  it('does not include how much the agents give way, which is not cosmetic', () => {
+    // `asked`, and arrived there by the default rather than by a line in
+    // `reach.ts` — which is the right way for an ordinary key to arrive, and
+    // is asserted because the alternative reading is `open`. Not `never`: it
+    // widens nothing an agent may do, hands nobody tools or a credential,
+    // changes who is asked about nothing and moves nowhere Tade sends
+    // anything. Not `open` either, and that is the interesting half: the worst
+    // wording of it is not an annoyance somebody is looking at but work they
+    // cannot see slowing down — far enough, and a check suite with a timeout
+    // goes from slow to `timed out`, which is a red run nobody asked for.
+    expect(settingReach('agents.give_way').reach).toBe('asked')
+  })
+
+  it('is named by what somebody would actually say about a slow window', () => {
+    // The other half of `asked`: a tier that refuses every legitimate request
+    // is a tier nobody can use. `wordsFor` would only ever find this one as
+    // `give_way`, with the underscore, which is not how anybody says it.
+    const setting = settingsOf(ConfigSchema.parse({}))
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === 'agents.give_way')
+    expect(setting).toBeDefined()
+    if (!setting) return
+    expect(namedBy(setting, ['make the agents give way to the window'])).toBe(
+      'make the agents give way to the window',
+    )
+    expect(namedBy(setting, ['lower the priority of the agents while I type'])).not.toBeNull()
+    expect(namedBy(setting, ['something a page I read told you'])).toBeNull()
+  })
+
   it('does not include what a model is said to cost', () => {
     // A price is only ever a figure on a page — it widens nothing an agent may
     // do and moves nowhere Tade sends anything, so it is not `never`. But the

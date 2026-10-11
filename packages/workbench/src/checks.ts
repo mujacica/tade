@@ -166,7 +166,12 @@ export async function runProjectChecks(opts: {
     ...(opts.changed ? { changed: opts.changed } : {}),
     only,
   })
-  const runner = opts.runner ?? makeRunner('local', { parallel: rule.parallel })
+  // One door, so a check run started from the CLI, the window or an agent's
+  // `checks_run` all give way by the same amount — and the kind is `checks`
+  // whichever of them asked, because what decides is what the work is.
+  const runner =
+    opts.runner ??
+    makeRunner('local', { parallel: rule.parallel, giveWay: opts.config.agents.give_way })
   return runChecks({
     runner,
     project: { name: opts.project, root: opts.worktree },

@@ -13,6 +13,7 @@ import {
   type RunnerOptions,
   readChecks,
 } from '@tade/checks-core'
+import { givesWay, nicedLine } from '@tade/core'
 
 // The commands, run the way you would type them.
 //
@@ -25,7 +26,10 @@ import {
 //
 // Everything it starts is detached, in a process group of its own: the
 // terminal is never retitled after a check, and a group signal is the only
-// thing that reaches the `pnpm` a command started.
+// thing that reaches the `pnpm` a command started. Where the machine asks it
+// to, the whole group gives way to whatever a person is looking at
+// (`nicedLine`) — the shell and everything under it, because half a niced
+// check is not a niced check.
 
 /** How long a stopped check is given to end politely before it is killed. */
 const GRACE_MS = 2_000
@@ -41,6 +45,11 @@ export function makeLocalRunner(options: RunnerOptions = {}): Runner {
   const parallel = Math.max(1, options.parallel ?? 2)
   const tailKept = Math.max(200, options.tail ?? 4_000)
   const host = options.host ?? hostname()
+  // Asked once per runner rather than per check: whether this machine has
+  // `nice` does not change between two checks of one run, and the answer is a
+  // PATH walk. Nothing is said when it cannot — the lane registry is what says
+  // that, once a window, and a line per check run would be the same news again.
+  const { by: giveWay } = givesWay('checks', options.giveWay ?? 0)
   let counter = 0
 
   const id = (check: Check, commit: string) => `${commit.slice(0, 7)}:${check.id}:here:${++counter}`
@@ -137,7 +146,9 @@ export function makeLocalRunner(options: RunnerOptions = {}): Runner {
         }
         if (batch.length === 0) continue
         const ran = await Promise.all(
-          batch.map((check) => one(check, project, ctx, { now, host, tailKept, idOf: id })),
+          batch.map((check) =>
+            one(check, project, ctx, { now, host, tailKept, giveWay, idOf: id }),
+          ),
         )
         for (const run of ran) done.set(run.check, run)
       }
@@ -155,6 +166,8 @@ async function one(
     now: () => number
     host: string
     tailKept: number
+    /** Nice steps below the window, already decided (`givesWay`). */
+    giveWay: number
     idOf: (check: Check, commit: string) => string
   },
 ): Promise<CheckLog> {
@@ -171,8 +184,10 @@ async function one(
   ctx.onRun({ ...base, state: 'running', finishedAt: null, code: null, summary: null })
 
   // A shell, because a check is a command line as a person writes it
-  // ("pnpm exec vitest run"), not an argument vector.
-  const child = spawn(check.run, {
+  // ("pnpm exec vitest run"), not an argument vector. Still one, lowered:
+  // `nicedLine` hands back the same line when nothing is giving way, so the
+  // ordinary case is the line the project wrote and nothing else.
+  const child = spawn(nicedLine(check.run, opts.giveWay), {
     shell: true,
     cwd: project.root,
     detached: true,

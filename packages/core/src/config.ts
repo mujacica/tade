@@ -7,6 +7,7 @@ import { dropGone } from './gone.ts'
 import { defaultConfigPath } from './home.ts'
 import { IntakeSurface } from './intake.ts'
 import { ModelPriceSchema } from './prices.ts'
+import { GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES, pushProblems } from './project.ts'
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
@@ -555,6 +556,14 @@ export const ConfigSchema = z
          * to carry on when the machine wakes.
          */
         keep_awake: z.boolean().default(false),
+        /**
+         * Start agents and check runs this many steps below the window's own
+         * OS priority (POSIX `nice`), so a keystroke does not wait behind a
+         * `tsc`. 0 is off. Off by default because lowering a check suite is
+         * not free: a check with a timeout can go from slow to `timed out`.
+         * `priority.ts` carries the rest of the argument.
+         */
+        give_way: z.number().int().min(0).max(GIVE_WAY_MAX).default(0),
       })
       .prefault({}),
     /**

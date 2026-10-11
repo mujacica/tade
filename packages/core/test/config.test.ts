@@ -165,6 +165,23 @@ projects:
     expect(bad.issues[0]?.path).toBe('agents.keep_awake')
   })
 
+  it('lowers the agents only by as much as somebody asked for', () => {
+    // Off is the decision again, and for a sharper reason than keep_awake's:
+    // a lowered check suite takes longer under load, and a check with a
+    // timeout can go from slow to `timed out`, which is a worse answer than a
+    // slow green one.
+    const none = parseConfig('')
+    expect(none.ok && none.config.agents.give_way).toBe(0)
+    const five = parseConfig('agents:\n  give_way: 5\n')
+    expect(five.ok && five.config.agents.give_way).toBe(5)
+    // Past what nice itself can do, and refused by the dotted path rather
+    // than clamped silently into something nobody wrote.
+    const far = parseConfig('agents:\n  give_way: 25\n')
+    expect(far.ok).toBe(false)
+    if (far.ok) return
+    expect(far.issues[0]?.path).toBe('agents.give_way')
+  })
+
   it('puts what is happening in front of a reader unless somebody says not to', () => {
     // On, because without it a sentence is answered out of names — and said
     // out loud where the key that would read it is pasted, not only here.
