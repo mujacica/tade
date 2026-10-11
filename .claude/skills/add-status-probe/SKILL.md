@@ -10,8 +10,17 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
 
 ## Invariants
 
-- **Status is a query, not a memory.** Probes run fresh on every call. No caching beyond a few
-  seconds, and never persist derived state.
+- **Status is a query, not a memory.** Nothing derived is ever persisted, and no answer is kept
+  because it is *recent*. The one thing kept is kept because it is still *current*: `newProbeGate`
+  (`src/gate.ts`) hands back a worktree's last snapshot while the `stat` of `.git/index`,
+  `.git/HEAD` and the worktree — and the commit the base is on — all read exactly as they did when
+  it was made. That is the same rule as "a failed look degrades to the last scan that could", asked
+  one question earlier, which is why it is allowed at all. Three things it must keep being:
+  **owned by whoever polls** (the window makes one; a one-shot `tade status` is given none, and so
+  pays in full), **never in front of a failed look** (only a snapshot is kept, so what is wrong with
+  a worktree is said again every beat), and **bounded in time** — a `stat` cannot see an edit in
+  place to a file git already tracks, so a reuse has a ceiling (`REUSE_MS`) or a window left open
+  would report a worktree clean for as long as you watched it.
 - **Never throw.** A probe returns `{ ..., warnings: string[] }`; failure means a partial result
   (`null` fields) plus a warning that names the project/task. `collectStatus` has a last-resort
   catch, but reaching it is a bug.
@@ -32,6 +41,16 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   byte-identical (the idempotence test in `packages/status/test/status.test.ts` guards this).
 - Probes gather facts; they don't decide state. If you catch yourself writing
   `if (...) state = 'blocked'` in a probe, the rule belongs in `deriveState`.
+- **A probe that spawns runs in the bounded pool and is counted.** `collectStatus` fans the git
+  probes out through `pooled` (`src/pool.ts`) at `GIT_POOL` at a time — bounded, because forty
+  `fork`s at once on a loaded machine are worse than forty in a row — and `gitLoad()` is the
+  instrument the probe test holds that to (`test/scan.probe.test.ts`: spawns and how many at once,
+  never a stretch of wall clock). Work out an answer from output already in hand rather than
+  spawning for it: `ahead`/`behind` come off `git status --branch` where the upstream is the base,
+  and contained-in-the-base is `ahead === 0` rather than another `merge-base`.
+- **Anything the pool runs must not throw**, because one rejection takes the whole fan-out with it
+  and `collectStatus`'s last-resort catch answers with an empty world — thirteen tasks reported as
+  none. `probeOf` catches for exactly this reason.
 
 ## Steps
 

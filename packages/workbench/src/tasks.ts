@@ -10,7 +10,7 @@ import {
   TaskId,
   taskDir,
 } from '@tade/core'
-import { git, parseStatusV2, resolveBaseRef } from '@tade/status'
+import { git, parseStatusV2, resolveBase } from '@tade/status'
 import { parse as parseYaml, stringify } from 'yaml'
 
 // Task lifecycle: where the work happens, and the sentence you said when you
@@ -162,7 +162,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     if (exists.ok) throw new Error(`branch already exists: ${branch}`)
   }
 
-  const baseRef = opts.base ?? (await resolveBaseRef(opts.root))
+  const baseRef = opts.base ?? (await resolveBase(opts.root))?.ref
   if (!baseRef) throw new Error(`no base branch found in ${opts.root}`)
   const baseSha = await git(opts.root, ['rev-parse', `${baseRef}^{commit}`])
   if (!baseSha.ok) throw new Error(`cannot resolve ${baseRef} in ${opts.root}`)
@@ -332,7 +332,7 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
         return { removed: false, reason: `${dirty.length} uncommitted file(s) in ${opts.worktree}` }
       }
     }
-    const baseRef = await resolveBaseRef(opts.root)
+    const baseRef = (await resolveBase(opts.root))?.ref
     // No branch means nothing was ever committed to one: only the worktree to check.
     if (baseRef && opts.branch) {
       const merged = await git(opts.root, ['merge-base', '--is-ancestor', opts.branch, baseRef])

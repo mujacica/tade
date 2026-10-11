@@ -2,6 +2,7 @@ import type { GitSnapshot } from '@tade/core'
 import { ForgeError, repoOf } from '@tade/forges-core'
 import { execa } from 'execa'
 import { type ForgeChoice, forgeExec, forgeFor } from './forges.ts'
+import type { GateKey, ProbeGate } from './gate.ts'
 
 // Git is invoked directly. `--porcelain=v2` and `-z` are stable contracts;
 // everything is NUL-delimited because paths contain spaces and newlines.
@@ -19,7 +20,41 @@ export interface CmdResult {
   stderr: string
 }
 
+/**
+ * How many git processes have been started, and how many ever ran at once.
+ *
+ * Two numbers and no behaviour: they are the instrument the probe test holds
+ * the gate and the pool to, and the one thing that cannot be measured from
+ * outside a window. A spawn is the most load-sensitive thing status does, so
+ * "how many" is the figure to hold it to — never a stretch of wall clock,
+ * which is a number about the machine the suite happened to run on.
+ */
+let started = 0
+let running = 0
+let peak = 0
+
+export function gitLoad(): { started: number; peak: number } {
+  return { started, peak }
+}
+
+export function resetGitLoad(): void {
+  started = 0
+  running = 0
+  peak = 0
+}
+
 export async function git(dir: string, args: string[], timeoutMs = 5_000): Promise<CmdResult> {
+  started++
+  running++
+  if (running > peak) peak = running
+  try {
+    return await run(dir, args, timeoutMs)
+  } finally {
+    running--
+  }
+}
+
+async function run(dir: string, args: string[], timeoutMs: number): Promise<CmdResult> {
   const r = await execa('git', ['-C', dir, ...args], {
     reject: false,
     env: GIT_ENV,
@@ -141,8 +176,19 @@ export function parseStatusV2(stdout: string): StatusV2 {
 
 // --- base branch -------------------------------------------------------------
 
-/** The branch tasks merge into: local default branch if present, else the remote's. */
-export async function resolveBaseRef(root: string): Promise<string | null> {
+/** The base branch, and the commit it is on: `rev-parse` was already asked. */
+export interface BaseRef {
+  ref: string
+  oid: string
+}
+
+/**
+ * The branch tasks merge into: local default branch if present, else the
+ * remote's — and what it points at, which `rev-parse --verify` prints and this
+ * used to throw away. The gate needs it: a base that has moved is a different
+ * answer about every worktree in the project, and it is free to know.
+ */
+export async function resolveBase(root: string): Promise<BaseRef | null> {
   const candidates: string[] = []
   const originHead = await git(root, [
     'symbolic-ref',
@@ -157,7 +203,7 @@ export async function resolveBaseRef(root: string): Promise<string | null> {
   candidates.push('main', 'master', 'origin/main', 'origin/master')
   for (const ref of candidates) {
     const r = await git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
-    if (r.ok) return ref
+    if (r.ok) return { ref, oid: r.stdout.trim() }
   }
   return null
 }
@@ -166,12 +212,26 @@ export async function resolveBaseRef(root: string): Promise<string | null> {
 
 export interface GitProbeOptions {
   baseRef: string | null
+  /**
+   * What the base points at, from `resolveBase`. Only the gate reads it, and
+   * without it a look at a worktree with a base is never gated: a base that
+   * has moved is a different answer, and a gate that could not tell would go
+   * on calling a branch unmerged after it was merged.
+   */
+  baseOid?: string | null | undefined
   /** Commit the task branched from (from task.yaml). */
   taskBase?: string | undefined
   /** Ask the forge what review this branch has. Off in tests: it is a network call. */
   pr: boolean
   /** How to reach a forge: which one serves which host, and which account. Defaults suffice. */
   forge?: Partial<ForgeChoice>
+  /**
+   * Reuse the last snapshot while nothing a `stat` can see has changed.
+   * Whoever polls owns one; a one-shot look is given none (`gate.ts`).
+   */
+  gate?: ProbeGate | undefined
+  /** The clock the caller keeps, which bounds how long a reuse may stand. */
+  now?: number | undefined
 }
 
 export interface GitProbeResult {
@@ -210,7 +270,43 @@ async function givesNothing(worktree: string, baseRef: string, head: string): Pr
   return answer
 }
 
+/**
+ * The key this look would be kept under, or null when it must not be gated at
+ * all: no gate, a review being asked for — a forge answers differently without
+ * the worktree moving at all — a base whose commit the caller did not say, or
+ * a worktree whose signature could not be read, which is a worktree to look
+ * at rather than one to answer from memory.
+ */
+async function gateKey(worktree: string, opts: GitProbeOptions): Promise<GateKey | null> {
+  if (!opts.gate || opts.pr) return null
+  if (opts.baseRef !== null && !opts.baseOid) return null
+  const seen = await opts.gate.seen(worktree)
+  if (seen === null) return null
+  return {
+    worktree,
+    asked: `${opts.baseRef ?? ''}\u0000${opts.baseOid ?? ''}\u0000${opts.taskBase ?? ''}`,
+    seen,
+    now: opts.now ?? Date.now(),
+  }
+}
+
 export async function probeGit(worktree: string, opts: GitProbeOptions): Promise<GitProbeResult> {
+  const key = await gateKey(worktree, opts)
+  const kept = key && opts.gate ? opts.gate.reuse(key) : null
+  // A copy of the warnings, because what it said is kept and a caller that
+  // pushed into the list would be editing the next answer as well as its own.
+  if (kept) return { snapshot: kept.snapshot, warnings: [...kept.warnings] }
+  const looked = await lookAtGit(worktree, opts)
+  // Only an answer is kept, never a failed look: a probe that could not look
+  // says what is wrong with the worktree, and the gate must never stand in
+  // front of that. It says it again next beat, for one spawn.
+  if (key && opts.gate && looked.snapshot) {
+    opts.gate.keep(key, { snapshot: looked.snapshot, warnings: looked.warnings })
+  }
+  return looked
+}
+
+async function lookAtGit(worktree: string, opts: GitProbeOptions): Promise<GitProbeResult> {
   const warnings: string[] = []
   const st = await git(worktree, [
     'status',
@@ -240,22 +336,38 @@ export async function probeGit(worktree: string, opts: GitProbeOptions): Promise
   let mergedIntoBase = false
   const onBase = opts.baseRef !== null && status.head === opts.baseRef.replace(/^origin\//, '')
   if (opts.baseRef && status.oid && !onBase) {
-    const rl = await git(worktree, [
-      'rev-list',
-      '--left-right',
-      '--count',
-      `HEAD...${opts.baseRef}`,
-    ])
-    const m = /^(\d+)\s+(\d+)/.exec(rl.stdout)
-    if (m) {
-      ahead = Number(m[1])
-      behind = Number(m[2])
+    // `git status --branch` has already counted this when the branch's
+    // upstream *is* the base: `branch.ab` is ahead and behind of the upstream,
+    // which is the same pair of numbers rev-list would print. One spawn fewer,
+    // for free, and only where the answer is already in hand — a branch
+    // tracking its own remote is a different question and still asks it.
+    if (status.upstream === opts.baseRef && status.ahead !== null) {
+      ahead = status.ahead
+      behind = status.behind
     } else {
-      warnings.push(`${worktree}: could not compare with ${opts.baseRef}`)
+      const rl = await git(worktree, [
+        'rev-list',
+        '--left-right',
+        '--count',
+        `HEAD...${opts.baseRef}`,
+      ])
+      const m = /^(\d+)\s+(\d+)/.exec(rl.stdout)
+      if (m) {
+        ahead = Number(m[1])
+        behind = Number(m[2])
+      } else {
+        warnings.push(`${worktree}: could not compare with ${opts.baseRef}`)
+      }
     }
     if (opts.taskBase && !status.oid.startsWith(opts.taskBase)) {
-      const anc = await git(worktree, ['merge-base', '--is-ancestor', 'HEAD', opts.baseRef])
-      mergedIntoBase = anc.ok
+      // Contained in the base is the count: HEAD is an ancestor of the base
+      // exactly when the base has every commit HEAD has, which is `ahead` of
+      // nought. `merge-base --is-ancestor` asks the same question and costs
+      // another spawn, so it is only asked when the count could not be had.
+      mergedIntoBase =
+        ahead !== null
+          ? ahead === 0
+          : (await git(worktree, ['merge-base', '--is-ancestor', 'HEAD', opts.baseRef])).ok
       // A squash merge puts the work in the base under a commit of its own, so
       // there is no ancestry to follow: ask whether anything is left to merge.
       if (!mergedIntoBase && (ahead ?? 0) > 0 && status.paths.length === 0) {

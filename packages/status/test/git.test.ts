@@ -3,11 +3,12 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, runGit } from '../../../test/fixtures/mkrepo.ts'
 import {
+  gitLoad,
   listWorktrees,
   parseStatusV2,
   parseWorktreeList,
   probeGit,
-  resolveBaseRef,
+  resolveBase,
 } from '../src/git.ts'
 
 const noPr = { pr: false } as const
@@ -131,6 +132,47 @@ describe('probeGit on real repos', () => {
     expect(res.snapshot?.mergedIntoBase).toBe(false)
   })
 
+  it('counts ahead and behind out of `git status --branch` when the base is the upstream', async () => {
+    const r = mkrepo({ remote: true })
+    const wt = r.addTask('tracking', { project: 'p' })
+    r.commit('work', undefined, wt)
+    // A branch whose upstream *is* the base: `branch.ab` is already the pair
+    // of numbers `rev-list --left-right --count` would print, so asking is a
+    // spawn for an answer in hand.
+    runGit(wt, 'branch', '-q', '--set-upstream-to=origin/main')
+
+    const before = gitLoad().started
+    const folded = await probeGit(wt, { baseRef: 'origin/main', ...noPr })
+    const foldedCost = gitLoad().started - before
+    expect(folded.snapshot).toMatchObject({ ahead: 1, behind: 0 })
+    expect(folded.warnings).toEqual([])
+
+    // The same facts the long way round, because `main` is not what this
+    // branch tracks: one more spawn for a pair of numbers already in hand.
+    const at = gitLoad().started
+    const asked = await probeGit(wt, { baseRef: 'main', ...noPr })
+    expect(asked.snapshot).toMatchObject({ ahead: 1, behind: 0 })
+    expect(gitLoad().started - at).toBe(foldedCost + 1)
+  })
+
+  it('reads contained-in-the-base off the counts rather than asking again', async () => {
+    const r = mkrepo()
+    const wt = r.addTask('contained', { project: 'p' })
+    const taskBase = r.head()
+    r.commit('feature', undefined, wt)
+    r.git('merge', '-q', '--ff-only', 'tade/contained')
+
+    // HEAD is an ancestor of the base exactly when the base has every commit
+    // HEAD has, which is `ahead` of nought — so `merge-base --is-ancestor` is
+    // never spawned while the counts could be had. Three spawns: status, log
+    // and rev-list — and not the squash check either, which a branch already
+    // contained in the base never reaches.
+    const before = gitLoad().started
+    const res = await probeGit(wt, { baseRef: 'main', taskBase, ...noPr })
+    expect(res.snapshot).toMatchObject({ ahead: 0, mergedIntoBase: true })
+    expect(gitLoad().started - before).toBe(3)
+  })
+
   it('a missing worktree degrades to null with a warning', async () => {
     const r = mkrepo()
     const wt = r.addTask('gone', { project: 'p' })
@@ -142,14 +184,16 @@ describe('probeGit on real repos', () => {
     expect(Array.isArray(list) && list.find((w) => w.path === wt)?.prunable).toBe(true)
   })
 
-  it('resolveBaseRef prefers local main, falls back to master, then null', async () => {
+  it('resolveBase prefers local main, falls back to master, then null', async () => {
     const r = mkrepo()
-    expect(await resolveBaseRef(r.root)).toBe('main')
+    // The commit it is on comes back with it: `rev-parse --verify` printed it
+    // anyway, and the gate cannot tell a base has moved without it.
+    expect(await resolveBase(r.root)).toEqual({ ref: 'main', oid: r.head() })
     r.git('branch', '-m', 'main', 'master')
-    expect(await resolveBaseRef(r.root)).toBe('master')
+    expect((await resolveBase(r.root))?.ref).toBe('master')
     r.git('checkout', '-q', '--orphan', 'other')
     r.git('branch', '-D', 'master')
-    expect(await resolveBaseRef(r.root)).toBeNull()
+    expect(await resolveBase(r.root)).toBeNull()
   })
 
   it('listWorktrees on a corrupt .git reports an error rather than throwing', async () => {

@@ -36,7 +36,7 @@ import {
   workspaceFor,
 } from '@tade/core'
 import type { LaneScreen, PointerReport, WheelTurn } from '@tade/drivers-core'
-import { collectStatus, git } from '@tade/status'
+import { collectStatus, git, newProbeGate } from '@tade/status'
 import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
 import { checksAt } from '@tade/workbench/checks'
 import { livenessFrom } from '@tade/workbench/lane-liveness'
@@ -250,6 +250,12 @@ export class Live {
   private realities = new Map<string, Reality>()
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
+  /**
+   * What lets a beat skip a worktree nothing has happened in. The window's
+   * own, for as long as it is open: a gate belongs to whoever polls, and a
+   * one-shot `tade status` is given none because it has nothing to reuse.
+   */
+  private readonly gate = newProbeGate()
 
   private constructor(opts: LiveOptions) {
     this.opts = opts
@@ -988,6 +994,7 @@ export class Live {
           home: this.opts.home,
           tadeHome: this.opts.tadeHome,
           pr: false,
+          gate: this.gate,
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
           liveness: livenessFrom(this.opts.client),
         }),
