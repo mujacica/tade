@@ -410,6 +410,7 @@ const PURE = [
   'packages/app/src/spend.ts',
   'packages/app/src/ui.ts',
   'packages/app/src/view.ts',
+  'packages/app/src/width.ts',
 ]
 
 const PURE_UNDER = ['packages/app/src/view/', 'packages/app/src/panels/']

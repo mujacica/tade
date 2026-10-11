@@ -87,8 +87,10 @@ regions in a cycle now.
 - **The geometry contract.** `draw` returns exactly `height` rows, each exactly `width` visible
   columns. A row that is off by one corrupts the whole screen, so every view test asserts it with
   `visibleWidth` at several window sizes, tiny ones included.
-- **Measure with `visibleWidth` / `truncateToWidth`** from pi-tui, never `String.length`: lane
-  screens carry ANSI, and `length` counts escape bytes as characters.
+- **Measure with `widthOf` (`width.ts`) / `truncateToWidth`**, never `String.length`: lane screens
+  carry ANSI, and `length` counts escape bytes as characters. `widthOf` is pi-tui's `visibleWidth`,
+  reached without segmenting the glyphs Tade's own chrome is made of — the trade it makes, and the
+  table it makes it from, are in `width.ts`. Call `visibleWidth` directly only outside the drawing.
 - **Tail, don't clip.** A pi-tui stack allocates height and then cuts children off *at the bottom*,
   which would show the top of an agent's screen and hide its newest output. The window composes its
   own rows and keeps the last N itself. Do the same for anything that grows.

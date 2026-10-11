@@ -3,11 +3,11 @@ import {
   sliceByColumn,
   stripTerminalSequences,
   truncateToWidth,
-  visibleWidth,
 } from '@earendil-works/pi-tui'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import type { Regions } from './selection.ts'
 import { type IconState, type Look, markLabel, type Skin, type SwitchState } from './skin.ts'
+import { widthOf } from './width.ts'
 
 // The controls, and the two things every region is made of: rows that know
 // what is clickable in them, and boxes that float over other rows.
@@ -37,8 +37,7 @@ const KEY_GAP = ' '
  */
 export function keysWidth(names: readonly string[]): number {
   return names.reduce(
-    (sum, name, i) =>
-      sum + visibleWidth(name) + 4 + KEY_GAP.length + (i > 0 ? KEY_GAP.length + 1 : 0),
+    (sum, name, i) => sum + widthOf(name) + 4 + KEY_GAP.length + (i > 0 ? KEY_GAP.length + 1 : 0),
     0,
   )
 }
@@ -86,12 +85,12 @@ export class Row {
   }
 
   text(text: string, paint: (text: string) => string = (t) => t, target?: Target): this {
-    return this.put(paint(text), visibleWidth(text), target)
+    return this.put(paint(text), widthOf(text), target)
   }
 
   /** The wordmark as a block: the spelt-out label + 4 columns, like a button but not one. */
   mark(label: string): this {
-    return this.put(this.skin.mark(label), visibleWidth(markLabel(label)) + 4)
+    return this.put(this.skin.mark(label), widthOf(markLabel(label)) + 4)
   }
 
   space(n = 1): this {
@@ -101,7 +100,7 @@ export class Row {
   button(label: string, target: Target, look: Look = 'rest'): this {
     return this.put(
       this.skin.button(label, this.lookOf(target, look), this.litBy(target, look)),
-      visibleWidth(label) + 4,
+      widthOf(label) + 4,
       target,
     )
   }
@@ -114,7 +113,7 @@ export class Row {
   chip(label: string, target: Target, look: Look = 'rest'): this {
     return this.put(
       this.skin.chip(label, this.lookOf(target, look), this.litBy(target, look)),
-      visibleWidth(label) + 2,
+      widthOf(label) + 2,
       target,
     )
   }
@@ -133,7 +132,7 @@ export class Row {
           ? 'danger'
           : 'hover'
         : rest
-    return this.put(this.skin.icon(label, state), visibleWidth(label) + 2, target)
+    return this.put(this.skin.icon(label, state), widthOf(label) + 2, target)
   }
 
   /**
@@ -144,7 +143,7 @@ export class Row {
    */
   tab(label: string, target: Target, on: boolean, within = false): this {
     const hover = within || sameTarget(this.pointer.hover, target)
-    return this.put(this.skin.tabbed(label, on, hover), visibleWidth(label) + 4, target)
+    return this.put(this.skin.tabbed(label, on, hover), widthOf(label) + 4, target)
   }
 
   /**
@@ -164,7 +163,7 @@ export class Row {
     names.forEach((name, i) => {
       if (i > 0) this.put(KEY_GAP, KEY_GAP.length, target).text('+', this.skin.hint, target)
       this.put(KEY_GAP, KEY_GAP.length, target)
-      this.put(this.skin.keycap(` ${name} `, lit), visibleWidth(name) + 4, target)
+      this.put(this.skin.keycap(` ${name} `, lit), widthOf(name) + 4, target)
     })
     return this
   }
@@ -202,7 +201,7 @@ export class Row {
     const tail = opts.arrow ? ' ▾' : ''
     let body = value + (opts.caret ? '▏' : '')
     const room = inner - tail.length
-    if (visibleWidth(body) > room)
+    if (widthOf(body) > room)
       body =
         // Typed text keeps its end; what a field says for itself — a
         // placeholder, a default — keeps its beginning, which is the part
@@ -211,8 +210,8 @@ export class Row {
           ? `${truncateToWidth(body, Math.max(1, room - 1), '')}…`
           : `…${[...body].slice(-(room - 1)).join('')}`
     // What tab would complete to, said quietly after the caret, where it fits.
-    const ghost = [...(opts.ghost ?? '')].slice(0, Math.max(0, room - visibleWidth(body))).join('')
-    const pad = ' '.repeat(Math.max(0, room - visibleWidth(body) - visibleWidth(ghost))) + tail
+    const ghost = [...(opts.ghost ?? '')].slice(0, Math.max(0, room - widthOf(body))).join('')
+    const pad = ' '.repeat(Math.max(0, room - widthOf(body) - widthOf(ghost))) + tail
     if (!this.skin.colour) return this.put(`[${body}${ghost}${pad}]`, inner + 2, opts.target)
     const drawn = ghost
       ? `${this.skin.field(` ${body}`, opts.hint === true, lit)}${this.skin.field(ghost, true, lit)}${this.skin.field(`${pad} `, false, lit)}`
@@ -237,7 +236,7 @@ export class Row {
     const lit = sameTarget(this.pointer.hover, target)
     const mark = on ? this.skin.busy('■') : lit ? this.skin.signal('□') : this.skin.hint('□')
     const said = lit ? this.skin.link(label) : label
-    return this.put(`${mark} ${said}`, 2 + visibleWidth(label), target)
+    return this.put(`${mark} ${said}`, 2 + widthOf(label), target)
   }
 
   /**
@@ -257,7 +256,7 @@ export class Row {
     const look: Look = on ? 'primary' : 'rest'
     return this.put(
       this.skin.button(said, this.lookOf(target, look), this.litBy(target, look)),
-      visibleWidth(said) + 4,
+      widthOf(said) + 4,
       target,
     )
   }
@@ -306,7 +305,7 @@ export class Row {
       hits = hits
         .filter((hit) => hit.from < this.width)
         .map((hit) => ({ ...hit, to: Math.min(hit.to, this.width - 1) }))
-      used = visibleWidth(text)
+      used = widthOf(text)
     }
     return { text: text + ' '.repeat(Math.max(0, this.width - used)), hits }
   }
@@ -419,7 +418,7 @@ export function box(
   const room = width - 2
   const head = ` ${title} `
   const corner = opts.corner ? ` ${opts.corner} ` : ''
-  const run = Math.max(0, room - 1 - visibleWidth(head) - visibleWidth(corner) - 1)
+  const run = Math.max(0, room - 1 - widthOf(head) - widthOf(corner) - 1)
   const titled = opts.title ?? skin.you
   const lay = opts.surface === false ? (row: string) => row : skin.surface
   const top = `${edge('╭─')}${titled(head)}${edge('─'.repeat(run))}${skin.hint(corner)}${edge('─╮')}`
@@ -452,7 +451,7 @@ export function overlay(
   const rows = modal
     ? base.rows.map((row) => skin.faded(stripTerminalSequences(row)))
     : [...base.rows]
-  const topWidth = Math.max(0, ...top.rows.map((row) => visibleWidth(row)))
+  const topWidth = Math.max(0, ...top.rows.map((row) => widthOf(row)))
   top.rows.forEach((row, i) => {
     const r = at.row + i
     if (r < 0 || r >= rows.length) return
@@ -494,10 +493,21 @@ function uncovered(
   return out
 }
 
-/** Exactly `width` visible columns: cut if longer, padded if shorter. */
+/**
+ * Exactly `width` visible columns: cut if longer, padded if shorter.
+ *
+ * Measured once where the row already fits, which is nearly every row of
+ * nearly every frame — a row that was not cut is still as wide as it was, and
+ * asking again was asking the dearest question in the frame twice. Only a row
+ * that lost its tail is measured a second time, because only then is the
+ * answer a different string's.
+ */
 export function fit(text: string, width: number): string {
-  const short = visibleWidth(text) > width ? cut(text, width) : text
-  return short + ' '.repeat(Math.max(0, width - visibleWidth(short)))
+  const was = widthOf(text)
+  if (was === width) return text
+  if (was < width) return text + ' '.repeat(width - was)
+  const short = cut(text, width)
+  return short + ' '.repeat(Math.max(0, width - widthOf(short)))
 }
 
 /**

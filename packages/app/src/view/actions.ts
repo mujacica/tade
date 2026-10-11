@@ -1,10 +1,10 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
 import { duration } from '@tade/core'
 import type { ActionsView, CheckView, CommitView, Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, type Target } from '../hits.ts'
 import { type AgentPane, type AppState, sectionOpen, spinner } from '../model.ts'
 import type { Skin } from '../skin.ts'
 import { blank, type Pointer, Row } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { reviewRows } from './list.ts'
 import { shortened, shortPath, spell, tailOf } from './text.ts'
 
@@ -91,7 +91,7 @@ export function actionRows(
   ) => {
     const shown = fold ? `${fold.open ? '▾' : '▸'} ${label}` : label
     const badge = fold ? ` ${fold.count} ` : ''
-    const left = 2 + visibleWidth(shown) + visibleWidth(badge) + (badge ? 1 : 0) + 1
+    const left = 2 + widthOf(shown) + widthOf(badge) + (badge ? 1 : 0) + 1
     const group = (many: number) => (r: Row) => {
       notes.slice(0, many).forEach((note, i) => {
         if (i > 0) r.text(' · ', skin.chrome)
@@ -227,8 +227,7 @@ export function actionRows(
   // picture goes and the word it is a picture of stays.
   const strip =
     here.length > 0 &&
-    here.length + 2 <=
-      width - (2 + visibleWidth('CHECKS') + 1) - measure(words) - measure(button) - 5
+    here.length + 2 <= width - (2 + widthOf('CHECKS') + 1) - measure(words) - measure(button) - 5
   const rollup = (g: Row) => {
     if (strip) {
       for (const check of here) {
@@ -265,7 +264,7 @@ export function actionRows(
   // `integration-tests` is as ordinary as `types`, and a fixed width shoves
   // every column after it out of line on exactly the row that is longest. Both
   // categories share it, so the two read as one list folded in half.
-  const pad = Math.max(8, ...view.checks.map((check) => visibleWidth(check.id)))
+  const pad = Math.max(8, ...view.checks.map((check) => widthOf(check.id)))
   for (const check of here) {
     rows.push(...checkRows(check, pane.task, state, now, width, skin, pointer, pad, longest))
   }
@@ -432,7 +431,7 @@ export function checkRows(
     line((r) => {
       r.text('$', skin.chrome)
         .space()
-        .text(shortened(check.run ?? '', Math.max(8, width - 12 - visibleWidth(after))), skin.you)
+        .text(shortened(check.run ?? '', Math.max(8, width - 12 - widthOf(after))), skin.you)
       if (after) r.right((g) => g.text(after, skin.hint).space(2))
     })
   }

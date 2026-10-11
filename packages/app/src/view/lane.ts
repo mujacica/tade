@@ -1,9 +1,4 @@
-import {
-  compositeTuiLine,
-  sliceByColumn,
-  stripTerminalSequences,
-  visibleWidth,
-} from '@earendil-works/pi-tui'
+import { compositeTuiLine, sliceByColumn, stripTerminalSequences } from '@earendil-works/pi-tui'
 import type { LaneView } from '../frame.ts'
 import type { Hit } from '../hits.ts'
 import type { AgentPane, AppState } from '../model.ts'
@@ -11,6 +6,7 @@ import { cutAt, type HeldLines } from '../scroll.ts'
 import type { Region } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { type Pointer, Row } from '../ui.ts'
+import { widthOf } from '../width.ts'
 
 // A lane's screen, wherever it is drawn.
 //
@@ -40,7 +36,7 @@ export function blockAt(
   if (!on || row < 0 || column < 0 || column >= width) return
   const under = stripTerminalSequences(sliceByColumn(on.text, column, 1, true))
   // A cell holding half of a wide character is not a cell a block fits in.
-  if (visibleWidth(under) > 1) return
+  if (widthOf(under) > 1) return
   rows[row] = {
     ...on,
     text: compositeTuiLine(on.text, skin.cursor(under === '' ? ' ' : under), column, 1, width),

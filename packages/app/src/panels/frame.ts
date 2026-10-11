@@ -1,8 +1,8 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
 import type { Hit, Target } from '../hits.ts'
 import { BAR, barRows, type Scrolled } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { blank, Row } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { fitTo, pad } from './cells.ts'
 import type { PanelContext } from './context.ts'
 
@@ -363,7 +363,7 @@ export function tabRow(
   const lines: Line[] = []
   let line = make().space().text(pad(word, LEAD_WORD), skin.hint)
   for (const option of options) {
-    if (line.used + visibleWidth(option.label) + 4 > inner) {
+    if (line.used + widthOf(option.label) + 4 > inner) {
       lines.push(line.build())
       line = make().space(1 + LEAD_WORD)
     }

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import type { LaneId } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PtyDriver } from '../src/index.ts'
@@ -231,4 +232,30 @@ describe('a program that repaints in place and says nothing', () => {
     // same thing — but nowhere near the 20ms of quiet this used to sit out.
     expect(each, `${each.toFixed(1)}ms a read`).toBeLessThan(10)
   }, 30_000)
+})
+
+describe('what reading a screen allocates', () => {
+  // A capture reads every cell on the screen, and xterm hands a cell back as
+  // an object. Asked for one without being given somewhere to put it, it makes
+  // a fresh object every time — which its own typings say not to do:
+  //
+  // > Creates an empty cell object suitable as a cell reference in
+  // > `line.getCell(x, cell)`. Use this to avoid costly recreation of cell
+  // > objects when dealing with tons of cells.
+  //
+  // A 200-column lane keeping fifty rows is ten thousand of them a capture, at
+  // several captures a second per lane, every one thrown away immediately.
+  // Measured over one such screen with the two read interleaved, so the
+  // machine's drift fell on both: 1.21ms a capture became 0.87ms, and the 95th
+  // came down with it in every round — the tail is the collector, which is the
+  // whole of what this buys, and is also why no number of it is quoted here.
+  //
+  // Held here rather than by timing it, because what a capture costs is a
+  // number about the machine and this is a number about the code.
+  it('reads every cell through one cell object', () => {
+    const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8')
+    const lone = [...source.matchAll(/getCell\(([^,)]*)\)/g)].map((found) => found[0])
+    expect(lone).toEqual([])
+    expect(source).toContain('getNullCell()')
+  })
 })

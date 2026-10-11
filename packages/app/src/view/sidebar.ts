@@ -1,4 +1,3 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
 import { inboxWaiting } from '@tade/core'
 import { type FileEntry, folderMark } from '../files.ts'
 import type { Change, Frame, ListSectionView, NoteShown } from '../frame.ts'
@@ -17,6 +16,7 @@ import {
 import { BAR, barAcross } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, type Drawn, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { intakeSection } from './intake.ts'
 import { listItem, rowsHere } from './list.ts'
 import { type QueueTree, queueSection, queueSpread, queueStems, taskRow } from './queue.ts'
@@ -335,7 +335,7 @@ export function renderSidebar(
  */
 function noteFitting(section: Section, room: number): string | null {
   for (const said of [section.note, section.brief]) {
-    if (said !== undefined && visibleWidth(said) <= room) return said
+    if (said !== undefined && widthOf(said) <= room) return said
   }
   return null
 }
@@ -617,7 +617,7 @@ function noteRow(
   // whole note under it either way, so its room is its own.
   const kept = headline && !pointed ? 0 : TAB_ICONS
   const room = Math.max(1, inner.width - inner.used - kept - 1)
-  const first = headline || (visibleWidth(said) > room ? cutAtWord(said, room) : said)
+  const first = headline || (widthOf(said) > room ? cutAtWord(said, room) : said)
   // The headline carries the weight; the words themselves are said quietly
   // under it, which is the whole of what the two lines are for.
   inner.text(saidShort(first, room), headline || pointed ? (t) => t : skin.hint, target)
@@ -653,7 +653,7 @@ function noteWordsRow(
   // above it rather than as what that sentence is about.
   const about = taskTag(note.scope ?? null, project)
   const tag = about ? `· ${about}` : ''
-  const corner = tag ? visibleWidth(tag) + 2 : 0
+  const corner = tag ? widthOf(tag) + 2 : 0
   const room = Math.max(1, inner.width - inner.used - 1)
   const shown = tag && room - corner >= NOTE_WORDS ? tag : ''
   inner.text(saidShort(said, room - (shown ? corner : 0)), skin.hint, target)

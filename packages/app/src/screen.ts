@@ -7,7 +7,6 @@ import {
   type TuiMouseEvent,
   type TuiMouseEventResult,
   truncateToWidth,
-  visibleWidth,
 } from '@earendil-works/pi-tui'
 import type { LaneId } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
@@ -20,6 +19,7 @@ import {
   WORDMARK_SHADES,
 } from './skin.ts'
 import { blank, box, type Drawn, Row, stack } from './ui.ts'
+import { widthOf } from './width.ts'
 
 // A screen for the things Tade asks you: setting up, and changing settings.
 //
@@ -369,7 +369,7 @@ function drawQuestion(
     const first = Math.max(0, Math.min(menu.index - Math.floor(space / 2), found.length - space))
     // Descriptions line up in a column, so the names read down the left.
     const labelWidth = Math.max(
-      ...found.map(({ option }) => visibleWidth(option.split(' — ')[0] ?? option)),
+      ...found.map(({ option }) => widthOf(option.split(' — ')[0] ?? option)),
       0,
     )
     found.slice(first, first + space).forEach(({ option }, i) => {
@@ -382,8 +382,7 @@ function drawQuestion(
         .space()
       const name = label ?? option
       r.text(name, here ? skin.you : (t: string) => t)
-      if (more.length > 0)
-        r.space(labelWidth - visibleWidth(name) + 3).text(more.join(' — '), skin.hint)
+      if (more.length > 0) r.space(labelWidth - widthOf(name) + 3).text(more.join(' — '), skin.hint)
       const built = r.build()
       body.push({ text: built.text, hits: [{ row: 0, from: 0, to: inner - 1, target }] })
     })
@@ -446,8 +445,10 @@ function shorten(text: string, size: number): string {
 }
 
 function fitScreen(text: string, width: number): string {
-  const clipped = visibleWidth(text) > width ? truncateToWidth(text, width, '') : text
-  return clipped + ' '.repeat(Math.max(0, width - visibleWidth(clipped)))
+  const was = widthOf(text)
+  if (was <= width) return text + ' '.repeat(width - was)
+  const clipped = truncateToWidth(text, width, '')
+  return clipped + ' '.repeat(Math.max(0, width - widthOf(clipped)))
 }
 
 function keys(state: ScreenState): string {
