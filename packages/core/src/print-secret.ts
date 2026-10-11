@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { loadConfig } from './config.ts'
+import { loadConfig } from './config-file.ts'
 
 // Print one credential out of the config, for a program that asks for its key
 // by running a command — Claude Code's `apiKeyHelper`. It is read at the moment

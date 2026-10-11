@@ -13,7 +13,8 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 
 | Path | What |
 |---|---|
-| `packages/core/src/config.ts` | `ConfigSchema`, `loadConfig`, `writeSetting`, `ownerOnly` |
+| `packages/core/src/config.ts` | `ConfigSchema` and the schemas it is made of: the half that grows with every key |
+| `packages/core/src/config-file.ts` | the file it is read from and written to: `parseConfig`, `loadConfig`, `writeSetting`, `ownerOnly` |
 | `packages/core/src/settings.ts` | `settingsOf`, `parseSetting`, `findableBy`, `settingLabel`, `SettingKind`, the Keys and tokens group |
 | `packages/core/src/settings-projects.ts` | the one `projects` group: every row of it one project's, by `scope` |
 | `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `OPEN`, `OPEN_UNDER`, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |

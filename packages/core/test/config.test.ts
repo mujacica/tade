@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { awayProblems } from '../src/away.ts'
 import { checksFor } from '../src/checks.ts'
-import { ConfigSchema, loadConfig, parseConfig, writeSetting } from '../src/config.ts'
+import { ConfigSchema } from '../src/config.ts'
+import { loadConfig, parseConfig, writeSetting } from '../src/config-file.ts'
 import {
   pushDefault,
   pushFor,

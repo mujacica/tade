@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { loadConfig, writeSetting } from '../src/config.ts'
+import { loadConfig, writeSetting } from '../src/config-file.ts'
 import { findSecret, secretCommand, secretPath } from '../src/secrets.ts'
 
 // A key pasted into Tade goes in the config, as itself: it can be read back,

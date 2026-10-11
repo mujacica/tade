@@ -54,7 +54,7 @@ export async function takeTurn(opts: {
   // Only once it is decided to matter: a one-file run should not pay for
   // reading the config.
   const { defaultConfigPath, tadeHome } = await import('../packages/core/src/home.ts')
-  const { loadConfig } = await import('../packages/core/src/config.ts')
+  const { loadConfig } = await import('../packages/core/src/config-file.ts')
   const home = tadeHome(opts.env)
   if (await insideHeldSlot(home, opts.env)) return free
   const loaded = await loadConfig(defaultConfigPath(opts.env))
