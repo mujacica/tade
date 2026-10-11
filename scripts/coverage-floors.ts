@@ -76,7 +76,9 @@ export const FLOOR: Record<string, number> = {
   'packages/forges/scripted': 89,
   'packages/workbench': 86,
   'packages/harnesses/pi': 89,
-  'packages/status': 89,
+  // 89 -> 91 when macOS runners read 93.0. Not 92: `askCwds` reads `/proc` on
+  // Linux and `lsof` everywhere else, so ubuntu covers three lines fewer.
+  'packages/status': 91,
   // Up with the issues half: the filtering GitHub's own documentation warns
   // about, who applied a label as against who wrote the words, and the
   // conditional request a poll lives on are each exercised against recorded
