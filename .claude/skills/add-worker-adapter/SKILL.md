@@ -205,6 +205,11 @@ everything said to it is typed into its lane. Each of these was found the hard w
 - **Subscriptions are the user's own, through the harness's own sign-in.** Tade runs the unmodified
   binary, never reads or stores a subscription token, and an API key it keeps is read by the harness
   through a command, so it is never written into a launch line.
+- **A reopened conversation keeps the habits of the version it was recorded on.** Claude Code
+  backgrounds an MCP call still running after two minutes — `checks_run` nearly always — and once
+  the answer was fetched with a tool 2.1.287 retired (`RETIRED_TOOLS`). Agents reopened on it called
+  it anyway, from their own history. A lane is told how the answer comes now (`background.ts`), and
+  `RETIRED_TOOLS` is held by a test: nothing Tade ships may name one.
 
 ## What Codex taught (`packages/harnesses/codex`)
 

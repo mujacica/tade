@@ -353,7 +353,7 @@ export function orchestratorTools(
           enum: ['start', 'pause', 'resume', 'wait', 'order', 'rename', 'remove'],
           description: 'what to do',
         },
-        task: string('the queued task, like checkout/add-refunds'),
+        task: string('the queued task, like checkout/add-refunds; start, wait and remove need it'),
         schedule: string('the schedule, by the id tade_queue lists it with'),
         name: string('the new name, when renaming a schedule'),
         project: string('the project, when pausing or resuming all of its queue'),

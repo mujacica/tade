@@ -1335,7 +1335,7 @@ export class Workbench {
     by: Asker
   }): Promise<void> {
     if (!req.task && (req.change === 'start' || req.change === 'wait')) {
-      throw new Error(`${req.change} is for one piece of work: say which`)
+      throw new Error(`${req.change} is for one piece of queued work: say which as task`)
     }
     if (req.change === 'start' && req.task) await refuseParked(this.home, req.task)
     const order = (req.order ?? []).map((task) => task.trim()).filter((task) => task !== '')
