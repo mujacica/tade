@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { awayProblems } from '../src/away.ts'
 import { checksFor } from '../src/checks.ts'
-import { ConfigSchema } from '../src/config.ts'
+import { ConfigSchema, updateCheckEvery } from '../src/config.ts'
 import { loadConfig, parseConfig, writeSetting } from '../src/config-file.ts'
 import {
   pushDefault,
@@ -150,6 +150,19 @@ projects:
     expect(notepad.ok).toBe(false)
     if (notepad.ok) return
     expect(notepad.issues[0]?.path).toBe('surfaces.window.editor')
+  })
+
+  it('asks what is current once a day unless told otherwise, and only on a clock it knows', () => {
+    const none = parseConfig('')
+    expect(none.ok && none.config.surfaces.window.check_updates).toBe('daily')
+    expect(updateCheckEvery('daily')).toBe(24 * 60 * 60 * 1000)
+    expect(updateCheckEvery('weekly')).toBe(7 * 24 * 60 * 60 * 1000)
+    // Never is an answer, and not a very long interval.
+    expect(updateCheckEvery('never')).toBeNull()
+    const hourly = parseConfig('surfaces:\n  window:\n    check_updates: hourly\n')
+    expect(hourly.ok).toBe(false)
+    if (hourly.ok) return
+    expect(hourly.issues[0]?.path).toBe('surfaces.window.check_updates')
   })
 
   it('holds the machine awake only when somebody has said so', () => {

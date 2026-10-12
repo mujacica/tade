@@ -56,6 +56,7 @@ import { Schedules, type WatchTools } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
 import { Settings, type SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
+import { Updates, type UpdateTools } from './wire/updates.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 import { Away } from './wire/web.ts'
 import { talkingThrough } from './wire/web-asking.ts'
@@ -110,8 +111,10 @@ export class App {
   private readonly images: Images
   /** The Settings page, and the one path a setting is written by. */
   private readonly settings: Settings
-  /** What is installed here, what is current, and who the agents run as. */
+  /** Who the agents run as, and the terminal a command is watched in. */
   private readonly machine: Machine
+  /** What Tade runs and whether it is current: the Updates page, the check, the chip, the run. */
+  private readonly updates: Updates
   /** Where you were, how big it all is, and what the title says. */
   private readonly window: Window
   /** What `ctrl+k` finds, inside files and out, and where a result goes. */
@@ -228,10 +231,16 @@ export class App {
       onScreenWith: (flow) => this.orchestrator.onScreenWith(flow),
       refreshModels: () => this.routes.refreshModels(),
     })
+    this.updates = new Updates(this.wire, {
+      reload: () => this.window.reload(),
+      reloadStops: () => this.window.reloadStops(),
+      terminal: (name) => this.machine.watched(name),
+      news: (said) => this.orchestrator.note(said),
+    })
     this.settings = new Settings(this.wire, {
       loadAccounts: () => void this.machine.loadAccountViews(),
       refreshModels: () => this.routes.refreshModels(),
-      lookAtWhatIsInstalled: () => void this.machine.lookAtWhatIsInstalled(),
+      lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
       tellThinking: (level) => this.orchestrator.tellThinking(level),
       setupChanged: () => this.extensions.forgetSetup(),
       silence: () => {
@@ -239,7 +248,7 @@ export class App {
         void this.voice.silence()
       },
       accountAction: (choice) => this.machine.accountAction(choice),
-      updateAction: (choice) => this.machine.updateAction(choice),
+      updateAction: (choice) => this.updates.action(choice),
       testMicrophone: () => this.voice.testMicrophone(),
       openFile: (path) => this.files.openPlace({ path }),
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
@@ -443,6 +452,7 @@ export class App {
       this.search,
       this.settings,
       this.machine,
+      this.updates,
       this.projects,
       this.voice,
       this.awake,
@@ -458,7 +468,7 @@ export class App {
       loadFileDiff: (path) => this.files.loadFileDiff(null, path),
       loadExtensionView: (panel) => this.extensions.refreshExtensionView(panel.extension, panel),
       searchOpened: () => this.search.opened(),
-      lookAtWhatIsInstalled: () => void this.machine.lookAtWhatIsInstalled(),
+      lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
     })
     this.closed = new Promise((resolve) => {
       this.settle = resolve
@@ -582,6 +592,8 @@ export class App {
     }
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.machine.loadAccounts()
+    // What the last window found about updates, so the strip says it at once.
+    void this.updates.recall()
     // Every project, before any of them has a task: an empty one is still a
     // tab you can be standing in when you start work.
     const config = this.opts.config
@@ -607,6 +619,7 @@ export class App {
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
         this.away.beat()
+        this.updates.beat()
         if (moved) this.draw() // a beat that found what the last did is not news
       },
       onEvent: (event) => {
@@ -739,6 +752,11 @@ export class App {
   /** What the orchestrator's watch tools do, answered from this window. */
   watchTools(): WatchTools {
     return this.schedules.tools()
+  }
+
+  /** What the orchestrator's update and reload tools do, from this window. */
+  updateTools(): UpdateTools {
+    return this.updates.tools()
   }
 
   /** What the `ToolHost` asks at every call. `Away.arming` has the argument. */

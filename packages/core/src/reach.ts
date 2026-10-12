@@ -338,6 +338,53 @@ export const PROJECT_ORDER_REACH: Reaches = {
 }
 
 /**
+ * How far the orchestrator reaches into updating what Tade runs.
+ *
+ * Not a config key, and decided here for `WATCH_REACH`'s reason. An update
+ * installs software on this machine, and the rule for that is that nothing
+ * installs anything unasked — so it is `asked`, and what is asked for is the
+ * act: a line of theirs saying update, upgrade or updates (`updateNamedBy`).
+ *
+ * **What the model chooses is only which, never what.** The command each step
+ * runs is the one Tade read off how that program got here (`updateWith`), the
+ * same one Settings › Updates draws before it is pressed, typed into a
+ * terminal somebody can watch. So the worst an injected sentence buys, past a
+ * loose word — "give me an update on the agents" names `update` — is a program
+ * Tade already runs moved to its newest release, in plain sight.
+ */
+export const UPDATE_REACH: Reaches = {
+  reach: 'asked',
+  because: 'an update installs software on this machine, so it runs when the person asks for one',
+}
+
+/**
+ * How far the orchestrator reaches into reloading the window.
+ *
+ * `asked`, because a reload ends the orchestrator's own turn and starts the
+ * window again — and under a driver whose lanes do not survive it, stops the
+ * agents inside it too, which the reload panel still asks about first. What
+ * survives either way is everything on disk, and the orchestrator picks its
+ * conversation back up, so it is not `never`.
+ */
+export const RELOAD_REACH: Reaches = {
+  reach: 'asked',
+  because: 'a reload starts the window again and ends my own turn, so it happens when they ask',
+}
+
+/** The line of theirs that asks for an update, or null when none does. */
+export function updateNamedBy(lines: readonly string[]): string | null {
+  return namedBy({ path: 'update', title: 'upgrade', keywords: ['updates', 'updating'] }, lines)
+}
+
+/** The line of theirs that asks for the window to reload, or null when none does. */
+export function reloadNamedBy(lines: readonly string[]): string | null {
+  return namedBy(
+    { path: 'reload', title: 'reloading', keywords: ['relaunch', 'restart tade'] },
+    lines,
+  )
+}
+
+/**
  * The words that identify one watch: what a person would have to say for a
  * line of theirs to be about it.
  *

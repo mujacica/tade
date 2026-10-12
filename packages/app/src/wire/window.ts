@@ -164,7 +164,7 @@ export class Window implements Subject {
    * which a close leaves running and a reload does not.
    */
   reload(): void {
-    if (this.wouldStop(this.wire.state.terminals.length)) {
+    if (this.reloadStops() > 0) {
       this.wire.put({ ...this.wire.state, panel: { kind: 'reload', field: 'cancel', busy: false } })
       this.wire.draw()
       return
@@ -172,10 +172,20 @@ export class Window implements Subject {
     void this.wire.opts.reloadWindow?.()
   }
 
+  /** How many lanes a reload would end: none where the driver's lanes outlive the window. */
+  reloadStops(): number {
+    return this.stopping(this.wire.state.terminals.length)
+  }
+
   /** Whether going now would end work nobody could find again. */
   private wouldStop(besides: number): boolean {
-    const running = this.wire.state.panes.reduce((n, pane) => n + pane.lanes.length, 0) + besides
-    return running > 0 && !this.wire.opts.client.driver.capabilities.detach
+    return this.stopping(besides) > 0
+  }
+
+  /** The lanes going now would end, counting `besides` beside the agents' own. */
+  private stopping(besides: number): number {
+    if (this.wire.opts.client.driver.capabilities.detach) return 0
+    return this.wire.state.panes.reduce((n, pane) => n + pane.lanes.length, 0) + besides
   }
 
   /** The bottom panel at that size, or back to the size it was. */

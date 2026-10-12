@@ -31,6 +31,7 @@ export const context = (over: Partial<PanelContext> = {}): PanelContext =>
     skin: COLOUR,
     pointer: { hover: null, pressed: null },
     home: '~/.tade',
+    date: (at: number) => new Date(at).toISOString().slice(0, 16).replace('T', ' '),
     route: null,
     spend: null,
     panes: [],

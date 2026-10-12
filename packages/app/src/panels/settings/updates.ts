@@ -70,7 +70,15 @@ export function drawUpdates(
   // Whether the network has been asked, in as many words as that takes. That
   // it is only ever asked on a press is the button's own promise, and belongs
   // in `tade update --help` rather than under every visit to this page.
-  say(look === null ? 'reading this machine…' : look.asked ? 'checked just now' : 'not asked yet')
+  // When, rather than "just now": the answer is kept, and the window asks again
+  // on a clock, so the one on the page may be from yesterday.
+  say(
+    look === null
+      ? 'reading this machine…'
+      : look.asked
+        ? `checked ${ctx.date(look.at)}`
+        : 'not asked yet',
+  )
   body.push(blank(form))
   if (look === null) return
 

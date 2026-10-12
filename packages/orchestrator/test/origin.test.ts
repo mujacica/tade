@@ -35,12 +35,18 @@ function methodNames(): string[] {
   // at a known depth. Read rather than exported, because the record is built
   // inside `listen` out of closures over its options — and a second exported
   // list of the same names is the thing this test exists to prevent. The
-  // document methods are spread into it from their own file, one level up.
+  // document, template and update methods are spread into it from their own
+  // files, one level up.
   const keys = (source: string, depth: number): string[] =>
     [...source.matchAll(new RegExp(`^ {${depth}}'([a-z]+\\/[a-z-]+)':`, 'gm'))].map(
       (found) => found[1] ?? '',
     )
-  return [...keys(read('tool-host.ts'), 6), ...keys(read('host-documents.ts'), 4)]
+  return [
+    ...keys(read('tool-host.ts'), 6),
+    ...['host-documents.ts', 'host-templates.ts', 'host-machine.ts'].flatMap((file) =>
+      keys(read(file), 4),
+    ),
+  ]
 }
 
 describe('what a remote turn may reach', () => {

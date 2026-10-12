@@ -299,6 +299,17 @@ export const EDITORS = [
 
 export type EditorName = (typeof EDITORS)[number]
 
+/** How often the window asks what is current, and how long each answer stands. */
+export const UPDATE_CHECKS = ['daily', 'weekly', 'never'] as const
+
+export type UpdateCheck = (typeof UPDATE_CHECKS)[number]
+
+/** How long an answer about what is current stands before the window asks again. Null is never. */
+export function updateCheckEvery(check: UpdateCheck): number | null {
+  if (check === 'never') return null
+  return (check === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000
+}
+
 export const ConfigSchema = z
   .strictObject({
     workspace: z
@@ -502,6 +513,13 @@ export const ConfigSchema = z
              * then whatever the system opens that kind of file with.
              */
             editor: z.enum(EDITORS).optional(),
+            /**
+             * How often the window asks what is current — the npm registry,
+             * Homebrew, Tade's own git remote — and puts a chip in the strip
+             * when something can move forward. `never` asks nothing on a
+             * clock; Settings › Updates still asks when its button is pressed.
+             */
+            check_updates: z.enum(UPDATE_CHECKS).default('daily'),
             /**
              * The keys the window keeps for itself, by what they do. Anything
              * not here goes to the agent or terminal you are typing at. A key

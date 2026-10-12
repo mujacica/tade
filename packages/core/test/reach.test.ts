@@ -1,4 +1,12 @@
-import { ConfigSchema, namedBy, settingReach, settingsOf, wordsFor } from '@tade/core'
+import {
+  ConfigSchema,
+  namedBy,
+  reloadNamedBy,
+  settingReach,
+  settingsOf,
+  updateNamedBy,
+  wordsFor,
+} from '@tade/core'
 import { describe, expect, it } from 'vitest'
 
 // How far the orchestrator's arm reaches into the config.
@@ -487,6 +495,30 @@ describe('what the person’s own words reach under intake and the away view', (
     // Still named by what somebody would say, under the shorter titles.
     expect(namedBy(row('surfaces.web.install'), ['install the page on my phone'])).not.toBeNull()
     expect(namedBy(row('surfaces.web.offline'), ['keep its last view offline'])).not.toBeNull()
+  })
+})
+
+describe('whether the person asked for an update or a reload', () => {
+  // Not settings, decided here for a watch's reason: installing software and
+  // ending the window are acts, and the person's own words have to ask for them.
+  it('finds an update asked for in their own words', () => {
+    expect(updateNamedBy(['please update tade'])).toBe('please update tade')
+    expect(updateNamedBy(['upgrade gh and claude'])).toBe('upgrade gh and claude')
+    expect(updateNamedBy(['install the updates'])).toBe('install the updates')
+  })
+
+  it('finds nothing in a line about something else', () => {
+    expect(updateNamedBy(['how are the agents doing?', 'open the shop project'])).toBeNull()
+    // A word inside another one is not the word.
+    expect(updateNamedBy(['the updater agent is stuck'])).toBeNull()
+  })
+
+  it('reloads only when they asked for that, and not for an update', () => {
+    expect(reloadNamedBy(['ok, reload it'])).toBe('ok, reload it')
+    expect(reloadNamedBy(['restart tade please'])).toBe('restart tade please')
+    expect(reloadNamedBy(['update tade'])).toBeNull()
+    // Restarting an agent is not restarting the window.
+    expect(reloadNamedBy(['restart the refunds agent'])).toBeNull()
   })
 })
 

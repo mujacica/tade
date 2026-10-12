@@ -168,34 +168,64 @@ export function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
     : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
   const row = () => new Row(inner, skin, pointer)
   const running = ctx.running
-  const rows: { text: string; hits: Hit[] }[] = [
-    blank(inner),
-    row()
-      .space()
-      .text(
-        `${running} agent${running === 1 ? ' is' : 's are'} running inside this window.`,
-        skin.you,
-      )
-      .build(),
-    blank(inner),
-    row()
-      .space()
-      .text('Reload stops them under ')
-      .text('pty', skin.busy)
-      .text('; they reopen where they were.')
-      .build(),
+  const updated = panel.updated
+  // Asked because it would stop something, or offered because Tade moved: the
+  // second says what to, and says what it costs only where it costs something.
+  const stops = updated ? running > 0 && !updated.survives : true
+  const rows: { text: string; hits: Hit[] }[] = [blank(inner)]
+  if (updated) {
+    for (const line of wrapTo(
+      `Tade was updated to ${updated.to}. This window runs the one it opened on until it reloads.`,
+      inner - 2,
+      3,
+    )) {
+      rows.push(row().space().text(line, skin.you).build())
+    }
+    rows.push(blank(inner))
+  }
+  if (stops) {
+    rows.push(
+      row()
+        .space()
+        .text(
+          `${running} agent${running === 1 ? ' is' : 's are'} running inside this window.`,
+          updated ? skin.hint : skin.you,
+        )
+        .build(),
+      ...(updated ? [] : [blank(inner)]),
+      row()
+        .space()
+        .text('Reload stops them under ', updated ? skin.hint : undefined)
+        .text('pty', skin.busy)
+        .text('; they reopen where they were.', updated ? skin.hint : undefined)
+        .build(),
+    )
+  } else {
+    // Nothing that is an agent's stops; under pty the shells still close.
+    const said = updated?.survives
+      ? 'Agents keep working, and the conversation carries on.'
+      : 'Terminals close under pty; the conversation carries on.'
+    rows.push(row().space().text(said, skin.hint).build())
+  }
+  rows.push(
     blank(inner),
     row()
       .right((r) =>
         r
-          .button('Cancel', { kind: 'control', id: 'cancel' })
+          .button(updated ? 'Later' : 'Cancel', { kind: 'control', id: 'cancel' })
           .space()
-          .button('Reload anyway', { kind: 'control', id: 'reload' }, 'attention')
+          .button(
+            updated && !stops ? 'Reload' : 'Reload anyway',
+            { kind: 'control', id: 'reload' },
+            updated && !stops ? 'primary' : 'attention',
+          )
           .space(),
       )
       .build(),
-  ]
-  return box('Reload Tade?', rows, width, skin, { corner: 'esc' })
+  )
+  return box(updated ? 'Reload into the new Tade?' : 'Reload Tade?', rows, width, skin, {
+    corner: 'esc',
+  })
 }
 
 /** One line asked for: a note, with whether it is about everything, or a branch name. */

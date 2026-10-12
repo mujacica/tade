@@ -17,10 +17,9 @@ import { Machine } from '../../src/wire/machine.ts'
 // it: what these methods do is ask the client for a terminal and ask the deps
 // to show it, and a real window would answer that with a real PTY.
 //
-// `lookAtWhatIsInstalled` is deliberately not here: it runs a `--version` per
-// program against this machine, so what it answers is a fact about the laptop
-// it runs on. It is `programs.test.ts`'s, where the machine is the thing being
-// read and every seam is handed in.
+// What the programs Tade runs are, and running an update, is `updates.test.ts`
+// beside this one: the Updates subject, which runs one in a terminal opened
+// here.
 
 interface Did {
   what: string
@@ -180,24 +179,6 @@ describe('running something where somebody can watch it', () => {
     const world = wiring({ project: 'shop', fails: 'no room for another terminal' })
     await machine(world).watchCommand('updates', 'brew upgrade tmux')
     expect(world.at().notice).toBe('no room for another terminal')
-  })
-})
-
-describe('the Updates page’s buttons', () => {
-  it('reloads through the one path every reload goes', async () => {
-    const world = wiring({ project: 'shop' })
-    world.wire.put({ ...world.at(), panel: { kind: 'settings' } } as AppState)
-    await machine(world).updateAction('updates:reload')
-    // Asking first when it would stop agents living inside this window is the
-    // reload's own business; what this must not do is a second way of doing it.
-    expect(world.did.map((one) => one.what)).toEqual(['reload'])
-    expect(world.at().panel).toBeNull()
-  })
-
-  it('does nothing for a button that is not on the page', async () => {
-    const world = wiring({ project: 'shop' })
-    await machine(world).updateAction('updates:something-else')
-    expect(world.did).toEqual([])
   })
 })
 

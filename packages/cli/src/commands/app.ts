@@ -41,6 +41,7 @@ import { watchProcess } from '@tade/telemetry'
 import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
 import { HomeBusyError, Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
+import { lookAtUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { unsayOpening } from '../opening.ts'
@@ -223,6 +224,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // orchestrator may touch is checked there rather than in its own process.
       let settings: ReturnType<App['configTools']> | null = null
       let watches: ReturnType<App['watchTools']> | null = null
+      // Updating and reloading are the window's: the run is in a terminal it
+      // puts in front, and the person's words are checked there.
+      let updates: ReturnType<App['updateTools']> | null = null
       // How far the turn in flight reaches, and what a narrowed one is
       // answered with. Null until the window is up, and **a remote arm is
       // impossible until then**: the host reads `LOCAL` for every call, which
@@ -308,6 +312,20 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             return watches.change(req)
           },
         },
+        updates: {
+          read: async (check) => {
+            if (!updates) throw opening()
+            return updates.read(check)
+          },
+          run: async (req) => {
+            if (!updates) throw opening()
+            return updates.run(req)
+          },
+          reload: async (req) => {
+            if (!updates) throw opening()
+            return updates.reload(req)
+          },
+        },
         status,
         remote: {
           arm: () => away?.arm() ?? LOCAL,
@@ -384,6 +402,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             shouldReload = true
             await app.stop()
           },
+          // Asked on a clock too, which only a real window is handed: a test's
+          // never reaches the network it runs on.
+          updates: (config, at, ask) => lookAtUpdates(config, at, { ask }),
           written: () => writtenTools(extensionsRoot),
           extensions,
           // What each harness loads by itself, listed and nothing more: pi's
@@ -424,6 +445,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         queue = app.queueTools()
         settings = app.configTools()
         watches = app.watchTools()
+        updates = app.updateTools()
         away = app.awayTools()
 
         // The orchestrator is a model in another process and takes a few

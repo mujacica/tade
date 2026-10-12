@@ -28,7 +28,11 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/drivers/{core,pty,tmux}` | `WorkspaceDriver.programs`; the pty driver's `helperAt`/`helperProblem` |
 | `packages/harnesses/{core,pi,claude,codex}` | `WorkerAdapter.programs` |
 | `packages/forges/{core,github}` | `Forge.programs` |
-| `packages/app/src/wire/machine.ts` | the Updates page's actions: check, run a command in a terminal, reload |
+| `packages/app/src/wire/machine.ts` | the accounts, and `watched`: the terminal a command runs in, put in front first |
+| `packages/app/src/wire/updates.ts` | the Updates subject: the page's buttons, the check on a clock, the strip's chip, `run` (the one way an update runs), the reload offer, and `tools()` for the orchestrator |
+| `packages/app/src/updates.ts` | pure: `behindIn`, `stepsNamed`, `typedFor`, `endedIn`, `failureLines`, `outcomeSays` |
+| `packages/workbench/src/programs.ts` (`rememberUpdates`, `lastUpdates`) | the last answer that asked, kept in `<home>/updates.json` |
+| `packages/orchestrator/src/{tools,host}-machine.ts` | `tade_updates`, `tade_updates_run`, `tade_reload`, and the `ToolHost` methods behind them |
 
 ## Declaring that something needs a program
 
@@ -54,12 +58,21 @@ having no `programs`. What Tade itself needs whichever implementations are in us
 
 - **Pure and impure are two files, and the network is a third thing.** `core/src/programs.ts` is the
   vocabulary and the folds: no PATH walk, no clock, no fetch. Looking a program up, asking it its
-  version and asking a registry what is current are I/O and live in the workbench. Nothing here is
-  ever on a timer.
+  version and asking a registry what is current are I/O and live in the workbench, and none of it
+  is on a timer of its own.
 - **Reading the machine is free and asking the world is not.** `lookAtPrograms` is a PATH lookup and
   one `--version` per program — that is what somebody opening the Updates page or running `tade
-  setup` pays for. `askWhatIsCurrent` reaches the network and runs **only** because somebody pressed
-  the button or passed `tade update --check`. `lookAtUpdates` is both, behind `ask`.
+  setup` pays for. `askWhatIsCurrent` reaches the network, and runs when somebody presses the button,
+  passes `tade update --check`, asks the orchestrator, or when the **window's clock** says the last
+  answer is older than `surfaces.window.check_updates` (daily by default; `never` is off). `lookAtUpdates`
+  is both, behind `ask`.
+- **The clock is the window's, and only a real window has one.** `Updates.beat` asks on the status
+  beat, never in a window's first minute, never while a look or a run is going, and an hour after a
+  try that failed rather than every beat — and only where the window was handed `AppOptions.updates`,
+  which the CLI's window is and a test's is not: a suite may never reach the network it runs on.
+  Every answer that asked is kept in `<home>/updates.json` (`rememberUpdates`; one that never asked
+  is not, because it would stand in for one that did), so a window that opens draws the chip at once
+  from what the last one found.
 - **`cannot tell` is a first-class answer, and a guess never is.** A binary somebody dropped on their
   PATH has no manager to ask, so `cannotTell` says so; before anybody has asked, the answer is not
   unknown but *unasked*, and the page says that once at the foot rather than on every line.
@@ -93,6 +106,18 @@ having no `programs`. What Tade itself needs whichever implementations are in us
   (`watchCommand`, `offerInstall` → `ui.run`). An installer handed the terminal is an installer whose
   output you cannot see and whose questions you cannot answer, because Tade is still holding the
   keyboard. A command that fails says so and the answer is no, never a failure.
+- **An update runs one way** (`Updates.run`): the strip's chip, a button on the Updates page and
+  `tade_updates_run` all come through it. Each step is the page's exact command typed into the
+  `updates` terminal, put in front first, followed by an ending it prints under a tag of its own
+  (`typedFor`: `&&`/`||` and a `printf` that assembles the tag, so the line the shell echoes is never
+  read as the ending — `proveALane`'s rule). How it ended is read off what that terminal printed
+  (`endedIn`), with a deadline per step, a closed terminal read as stopped, and a failure said in the
+  conversation with its command and the last of what it printed (`failureLines`). What is current is
+  then asked again, and what came of it is told to the orchestrator as news.
+- **The chip pressed is the person asking; the orchestrator needs their words.** `UPDATE_REACH` and
+  `RELOAD_REACH` (`core/src/reach.ts`) are `asked`: `updateNamedBy` / `reloadNamedBy` over the
+  journal's `said` lines, checked in the window, never in the tool. What the model chooses is only
+  *which* step, never *what* runs — the command is always the one `updateWith` read off the install.
 - **Only an install this machine could actually run is offered.** `installWith` takes the machine's
   own package manager before a global npm install, and only a manager that is on PATH —
   `installersHere` does one lookup per manager for exactly that. A `brew install` on a machine with
@@ -110,6 +135,13 @@ having no `programs`. What Tade itself needs whichever implementations are in us
   as the agents, because a close leaves those running and a reload does not. What survives it either
   way is the work itself: worktrees, branches, the journal, queued work and schedules are all on
   disk, which is what makes the question answerable at all.
+- **A run that moved Tade itself offers the reload, and only one that moved it.** Moved is the
+  commit or version on disk differing from before the run — a pull that found nothing to pull owes
+  no reload. The offer is the reload panel with `updated` (what it moved to, and whether the driver's
+  lanes survive), opened only where no other panel is, and the chip says `reload Tade` until it is
+  taken. `tade_reload` answers first and reloads half a second later, because the reload ends the
+  turn its answer goes to; the orchestrator picks its conversation back up in the new window, by the
+  session id that never changes.
 
 ## Setting up ends with a lane
 

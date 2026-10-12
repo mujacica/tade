@@ -128,6 +128,32 @@ const SLOT = {
   // The away view's chip, the wider of its two words: `remote 2` keeps the
   // columns `remote off` took, so the line beside it holds still either way.
   remote: widthOf('remote off'),
+  // The updates chip, the widest of its three: `updates 2` and `reload Tade`
+  // keep the columns a run going takes, so nothing beside it moves as it runs.
+  updates: widthOf('updating 9/9'),
+}
+
+/**
+ * What the strip's updates chip says, which press it is, and its tone — or
+ * null where there is nothing to say. One thing at a time, the most pressing
+ * first: a run going, then the reload a Tade that moved is owed, then how many
+ * could move. Each is what pressing it does: the run's terminal put in front,
+ * the reload, the updates run. Amber for the two that want somebody, the
+ * colour of work for the one that is going.
+ */
+export function updatesChip(
+  updates: NonNullable<Frame['updates']>,
+): { said: string; action: string; tone: 'busy' | 'waiting' } | null {
+  const going = updates.running
+  if (going) {
+    const at = Math.min(going.of, going.done + 1)
+    return { said: `updating ${at}/${going.of}`, action: 'updates-show', tone: 'busy' }
+  }
+  if (updates.reload) return { said: 'reload Tade', action: 'updates-reload', tone: 'waiting' }
+  if (updates.behind > 0) {
+    return { said: `updates ${updates.behind}`, action: 'updates-run', tone: 'waiting' }
+  }
+  return null
 }
 
 /** The conversation's tab has something in it nobody has seen: a shape no agent's mark has. */
@@ -499,6 +525,7 @@ export function renderFoot(
     reset: true,
     listed: true,
     remote: true,
+    updates: true,
   }
   // `listed` goes after the plan's own trimmings and before the controls: it is
   // a dollar figure, so it outlasts the tokens and the reset times, and it is
@@ -510,6 +537,8 @@ export function renderFoot(
   // first thing given up: it is the default, about a feature most windows never
   // turn on, and a figure is worth more than a column saying nothing listens.
   // A device reading this machine is the other thing, and outlasts the figures.
+  // So does the updates chip, which is only ever drawn when it wants somebody,
+  // and goes just before a device reading would.
   const on = frame.remote?.on === true
   const shed: Array<keyof typeof full> = [
     ...(on ? [] : (['remote'] as const)),
@@ -519,6 +548,7 @@ export function renderFoot(
     'both',
     'listed',
     'thinking',
+    'updates',
     ...(on ? (['remote'] as const) : []),
     'model',
     'runtime',
@@ -539,6 +569,15 @@ export function renderFoot(
         r.text(one.text, lit(view, tone), one.viewable ? view : undefined)
         r.text(' │ ', skin.chrome)
       }
+    }
+    // What could move forward, the run moving it, or the reload it is owed:
+    // `updatesChip` says which, and pressing it does what it says.
+    const chip = show.updates && frame.updates ? updatesChip(frame.updates) : null
+    if (chip) {
+      const press: Target = { kind: 'action', name: chip.action }
+      r.text(chip.said, lit(press, chip.tone === 'busy' ? skin.busy : skin.waiting), press)
+      r.text(' '.repeat(Math.max(0, SLOT.updates - widthOf(chip.said))), undefined, press)
+      r.text(' │ ', skin.chrome)
     }
     // The away view, as the listener has it and not as the config wishes:
     // `remote off` in the grey of a quiet status, or the devices with a page

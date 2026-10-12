@@ -451,6 +451,14 @@ export const PICTURES: readonly Picture[] = [
       'Updates: every program Tade runs with how it got here and what is current, the exact ' +
       'command before anything runs it, and what reloading into a new Tade would cost.',
   },
+  {
+    file: 'reload.svg',
+    scenario: 'reload-into-a-new-tade',
+    crop: 'panel',
+    about:
+      'Tade was updated from the strip: the window offers to reload into the new one, and says ' +
+      'what that would stop where the agents run inside it.',
+  },
 ]
 
 function scenarioNamed(name: string): Scenario {

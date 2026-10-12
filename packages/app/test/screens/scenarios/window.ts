@@ -529,6 +529,30 @@ export const WINDOW_SCREENS: Scenario[] = [
     frame: frame({ panel: { running: 2 } }),
   },
   {
+    name: 'updates-in-the-strip',
+    about:
+      'Two of the programs Tade runs could move forward: a chip in the strip says so, and ' +
+      'pressing it runs their exact commands in a terminal in front of you.',
+    state: base(),
+    frame: frame({ updates: { behind: 2, running: null, reload: false } }),
+  },
+  {
+    name: 'reload-into-a-new-tade',
+    about:
+      'Tade itself was updated: the window offers to reload into it, and says what that costs ' +
+      'where the driver’s lanes would not survive it.',
+    state: {
+      ...base(),
+      panel: {
+        kind: 'reload',
+        field: 'cancel',
+        busy: false,
+        updated: { to: '1a2b3c4', survives: false },
+      },
+    },
+    frame: frame({ panel: { running: 2 }, updates: { behind: 0, running: null, reload: true } }),
+  },
+  {
     name: 'another-project-needs-you',
     about:
       'An agent in a project you are not looking at wants approval: a toast, answerable where it is.',

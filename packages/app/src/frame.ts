@@ -539,6 +539,14 @@ export interface Frame {
    * Undefined is a frame nothing looked for it in and draws no chip at all.
    */
   remote?: { on: boolean; devices: number }
+  /**
+   * Updates, for the strip's chip: how many of the programs Tade runs, Tade
+   * among them, the last check said could move forward with a command Tade
+   * knows; the run going now, as steps ended of steps; and whether Tade itself
+   * moved in this window and runs the old one until it reloads. Undefined is
+   * nothing to say, and draws no chip.
+   */
+  updates?: { behind: number; running: { done: number; of: number } | null; reload: boolean }
   /** A picture is on the clipboard, and has not been taken or turned down. */
   clipboardImage?: boolean
   /** Extensions that need setting up, or are broken: a badge beside the Extensions button. */

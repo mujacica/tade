@@ -188,6 +188,10 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_task_create: { kind: 'local', because: EXECUTES },
   tade_template_use: { kind: 'local', because: EXECUTES },
   tade_schedule: { kind: 'local', because: EXECUTES },
+  // Installs software on this machine, and ends the window: both are acts the
+  // person at it asks for in their own words (`UPDATE_REACH`, `RELOAD_REACH`).
+  tade_updates_run: { kind: 'local', because: EXECUTES },
+  tade_reload: { kind: 'local', because: EXECUTES },
 
   // Grants, credentials, and who is asked.
   tade_setting_change: { kind: 'local', because: GRANTS },
@@ -417,6 +421,9 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'worker/harness': never(GRANTS),
   'orchestrator/model': never(GRANTS),
   'worker/start': never(EXECUTES),
+  'updates/read': never(PUBLISHES),
+  'updates/run': never(EXECUTES),
+  'window/reload': never(EXECUTES),
   'worker/list': never(READS_WIDE),
   'worker/stop': never(CONFIRMS),
   'events/read': never(READS_WIDE),

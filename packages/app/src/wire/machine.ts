@@ -1,21 +1,19 @@
 import { HARNESS_CHOICES } from '@tade/core'
 import type { AccountView } from '@tade/workbench'
-import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
 import type { Frame } from '../frame.ts'
 import { accountActions } from '../panels/settings/accounts.ts'
-import { ACCOUNTS, settingsPanel, updateActions } from '../panels/settings/state.ts'
+import { ACCOUNTS, settingsPanel } from '../panels/settings/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import type { Ui } from '../screen.ts'
 import { type Actions, notify, type Prompts, type Subject, type Wiring, why } from './context.ts'
 
-// What Tade needs of the machine, and who it runs as: the programs installed
-// here, what is current, and each harness's own accounts.
+// Who Tade runs as — each harness's own accounts, and how each provider is paid
+// for — and the terminal a command is run in where somebody can watch it.
 //
-// Reading the machine is free and asking the world is not. What is installed
-// is read when somebody opens the page; what is *current* reaches the network
-// and only when they press the button. Nothing here installs anything — the
-// exact command is on the page before it runs, and running it types that
-// command into a terminal you are looking at.
+// What the programs Tade runs are and whether they are current is the Updates
+// subject's (`updates.ts`), which runs an update in a terminal opened here.
+// Nothing here installs anything: a command is typed into a terminal you are
+// looking at, put in front before a key of it is typed.
 
 /** What this subject needs from the rest of the window. */
 export interface MachineDeps {
@@ -43,14 +41,6 @@ export class Machine implements Subject {
   private readonly wire: Wiring
   private readonly deps: MachineDeps
   /**
-   * What the Updates page last read: which of the programs Tade runs are
-   * here, and — once somebody pressed the button — what is current. Null
-   * until the page is opened, because none of it is worth reading before.
-   */
-  private look: UpdateLook | null = null
-  /** A check is going. The only thing on that page that touches the network. */
-  private busy = false
-  /**
    * Every account agents can run as, as each harness last said: asked in the
    * background, and again after anything is done to one.
    */
@@ -67,17 +57,14 @@ export class Machine implements Subject {
     this.deps = deps
   }
 
-  /** What the Accounts and Updates pages say, when one of them is open. */
+  /** What the Accounts page says, when Settings is open. */
   panel(): Frame['panel'] {
     if (this.wire.state.panel?.kind !== 'settings') return {}
-    return { accounts: this.views, updates: this.look, updatesBusy: this.busy }
+    return { accounts: this.views }
   }
 
   inputs() {
-    return {
-      accountActions: accountActions(this.views),
-      updateActions: updateActions(this.look, this.busy),
-    }
+    return { accountActions: accountActions(this.views) }
   }
 
   actions(): Actions {
@@ -124,16 +111,6 @@ export class Machine implements Subject {
         await this.loadAccountViews()
       },
     }
-  }
-
-  /** What the Updates page has read, for the page to draw. */
-  get updates(): UpdateLook | null {
-    return this.look
-  }
-
-  /** Whether a check of what is current is going. */
-  get updatesBusy(): boolean {
-    return this.busy
   }
 
   /** Every account agents can run as, as each harness last said. */
@@ -185,107 +162,50 @@ export class Machine implements Subject {
   }
 
   /**
-   * What is installed on this machine, for the Updates page: where each
-   * program Tade runs is, how it got there and what it says its version is.
-   *
-   * Never on a timer and never on the draw path — it runs a `--version` per
-   * program, which belongs to somebody opening the page. It touches nothing
-   * but this machine; what is *current* is asked separately, and only when
-   * the button is pressed.
-   */
-  async lookAtWhatIsInstalled(): Promise<void> {
-    if (this.look || this.busy) return
-    this.busy = true
-    this.wire.draw()
-    try {
-      this.look = await lookAtUpdates(this.wire.opts.config, this.wire.opts.home)
-    } catch (err) {
-      this.wire.note(err)
-    } finally {
-      this.busy = false
-      this.wire.draw()
-    }
-  }
-
-  /**
-   * Do something about updates: ask what is current, run an update in a
-   * terminal, or reload.
-   *
-   * Nothing installs anything here — the exact command is on the page before
-   * it is pressed, and pressing it types that command into a terminal you are
-   * looking at. Reloading goes the way every reload goes, which asks first
-   * when it would stop agents living inside this window.
-   */
-  async updateAction(id: string): Promise<void> {
-    if (id === 'updates:check') {
-      if (this.busy) return
-      this.busy = true
-      this.onPage('Asking what is current…')
-      try {
-        this.look = await lookAtUpdates(this.wire.opts.config, this.wire.opts.home, { ask: true })
-        const behind = this.look.programs.filter((one) => one.behind).length
-        const newer = this.look.tade.newer ? 1 : 0
-        this.onPage(
-          behind + newer === 0
-            ? 'Everything Tade could ask about is current.'
-            : `${behind + newer} could move forward.`,
-        )
-      } catch (err) {
-        this.onPage(null, why(err))
-      } finally {
-        this.busy = false
-        this.wire.draw()
-      }
-      return
-    }
-    if (id === 'updates:reload') {
-      this.wire.put({ ...this.wire.state, panel: null })
-      this.deps.reload()
-      return
-    }
-    const action = updateActions(this.look, this.busy).find((one) => one.id === id)
-    if (!action?.command) return
-    await this.watchCommand('updates', action.command)
-  }
-
-  /**
    * Run a command in a terminal somebody is looking at, rather than behind
    * their back: the same terminal each time, opened if it is not there, and
    * put in front before a key of it is typed.
    */
   async watchCommand(name: string, command: string): Promise<void> {
-    const project =
-      this.wire.state.project ?? Object.keys(this.wire.opts.config.projects)[0] ?? null
-    if (!project) {
-      // No project, no folder to open a shell in. The command is the answer.
-      notify(this.wire, `Run it yourself: ${command}`)
-      this.wire.draw()
-      return
-    }
     try {
-      let id: string | null = null
-      try {
-        id = this.wire.opts.client.terminal(name, project).id
-      } catch {
-        // None open under that name yet.
-      }
-      if (!id) {
-        const size = this.deps.terminalSize()
-        const opened = await this.wire.opts.client.openTerminal({
-          project,
-          name,
-          cols: size.cols,
-          rows: size.rows,
-        })
-        id = opened.id
-      }
-      this.wire.put({ ...this.wire.state, panel: null })
-      await this.deps.showTerminal(id)
-      await this.wire.opts.client.runInTerminal(id, command)
+      const id = await this.watched(name)
+      if (id) await this.wire.opts.client.runInTerminal(id, command)
+      else notify(this.wire, `Run it yourself: ${command}`)
     } catch (err) {
       this.wire.note(err)
-      this.wire.draw()
     }
+    this.wire.draw()
+  }
+
+  /**
+   * The terminal of that name in the project you are in, opened the size of the
+   * pane it will be drawn in if it is not there, and put in front. Null where
+   * there is no project, and so no folder to open a shell in: what was going
+   * to run there is then the caller's to say.
+   */
+  async watched(name: string): Promise<string | null> {
+    const project =
+      this.wire.state.project ?? Object.keys(this.wire.opts.config.projects)[0] ?? null
+    if (!project) return null
+    let id: string | null = null
+    try {
+      id = this.wire.opts.client.terminal(name, project).id
+    } catch {
+      // None open under that name yet.
+    }
+    if (!id) {
+      const size = this.deps.terminalSize()
+      const opened = await this.wire.opts.client.openTerminal({
+        project,
+        name,
+        cols: size.cols,
+        rows: size.rows,
+      })
+      id = opened.id
+    }
+    this.wire.put({ ...this.wire.state, panel: null })
+    await this.deps.showTerminal(id)
+    return id
   }
 
   /** Ask every harness who its accounts are signed in as, and draw what they say. */

@@ -9,6 +9,7 @@ import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
+import type { UpdateLook } from '@tade/workbench/programs'
 import type { Open } from '../editor.ts'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
@@ -209,6 +210,14 @@ export interface AppOptions {
   restartThinker?: () => Promise<void>
   /** What the orchestrator could run on, as its own harness offers them, and nobody else's. */
   orchestratorModels?: () => Promise<HarnessModels>
+  /**
+   * How what is installed here, and — asked — what is current, are read. Given,
+   * the window also asks on a clock (`surfaces.window.check_updates`); without
+   * it nothing is asked on one, which is what a test suite is: it may never
+   * reach the network it runs on. Settings › Updates reads the workbench's own
+   * where this is not given.
+   */
+  updates?: (config: Config, home: string, ask: boolean) => Promise<UpdateLook>
   /**
    * Restart the window with the same arguments so changes can be tried live.
    * The callback should stop the app, release the home lock, and re-exec.

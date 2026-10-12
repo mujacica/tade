@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -533,4 +534,45 @@ export async function lookAtUpdates(
     lookAtTade(options),
   ])
   return { at: Date.now(), tade, programs, asked: options.ask === true }
+}
+
+/**
+ * Where the last answer about what is current is kept: in Tade's home, so a
+ * window that opens knows what the last one found without asking again, and a
+ * check is something done once a day rather than once a window.
+ */
+export const UPDATES_FILE = 'updates.json'
+
+/**
+ * Keep an answer that asked what is current. Only one that asked: what is
+ * installed is read again for nothing, and a look that never asked would
+ * stand in for one that did.
+ */
+export async function rememberUpdates(home: string, look: UpdateLook): Promise<void> {
+  if (!look.asked) return
+  const path = join(home, UPDATES_FILE)
+  // Written aside and moved over, so a window reading it never reads half.
+  await writeFile(`${path}.tmp`, JSON.stringify(look))
+  await rename(`${path}.tmp`, path)
+}
+
+/**
+ * The last answer that asked what is current, or null where there is none —
+ * never written, unreadable, or in a shape an older Tade wrote, any of which
+ * is the same as nobody having asked.
+ */
+export async function lastUpdates(home: string): Promise<UpdateLook | null> {
+  try {
+    const read = JSON.parse(await readFile(join(home, UPDATES_FILE), 'utf8')) as Partial<UpdateLook>
+    const ok =
+      typeof read.at === 'number' &&
+      read.asked === true &&
+      typeof read.tade?.version === 'string' &&
+      typeof read.tade.update === 'object' &&
+      Array.isArray(read.programs) &&
+      read.programs.every((one) => typeof one?.need?.command === 'string' && one.update)
+    return ok ? (read as UpdateLook) : null
+  } catch {
+    return null
+  }
 }

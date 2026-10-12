@@ -283,11 +283,17 @@ export interface QuitPanel {
   busy: false
 }
 
-/** Reloading, when reloading would stop something. */
+/**
+ * Reloading: when reloading would stop something, and when Tade itself was
+ * updated in this window — `updated` says what it moved to, since the window
+ * runs the one it opened on until it reloads, and whether the driver's lanes
+ * outlive a reload, which is a fact about the driver and not about the moment.
+ */
 export interface ReloadPanel {
   kind: 'reload'
   field: 'cancel' | 'reload'
   busy: false
+  updated?: { to: string; survives: boolean }
 }
 
 /** What `X` in the AGENTS heading asks first, with the agents it would close in it. */

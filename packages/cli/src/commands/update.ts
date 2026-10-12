@@ -1,5 +1,10 @@
 import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
-import { lookAtUpdates, type ProgramLook, type UpdateLook } from '@tade/workbench/programs'
+import {
+  lookAtUpdates,
+  type ProgramLook,
+  rememberUpdates,
+  type UpdateLook,
+} from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -11,7 +16,9 @@ import { Exit, type Io } from '../io.ts'
 // for a person to run or not.
 //
 // Asking what is current reaches the network, and does so only when `--check`
-// says to. Without it this says what is installed here and nothing else.
+// says to. Without it this says what is installed here and nothing else. An
+// answer that asked is kept in Tade's home, like the window's own check, so
+// the next window to open says what it found without asking again.
 
 function line(look: ProgramLook, asked: boolean): string {
   // Before anything has been asked, what is current is not unknown — it is
@@ -71,7 +78,10 @@ export function registerUpdate(program: Command, io: Io, setExit: (code: number)
         setExit(Exit.invalidInput)
         return
       }
-      const look = await lookAtUpdates(cfg.config, tadeHome(), { ask: opts.check === true })
+      const home = tadeHome()
+      const look = await lookAtUpdates(cfg.config, home, { ask: opts.check === true })
+      // Kept for the window's chip; one that could not be written is asked again there.
+      await rememberUpdates(home, look).catch(() => {})
       if (opts.json) {
         io.out(JSON.stringify(look, null, 2))
         return

@@ -728,6 +728,23 @@
     }
   },
   {
+    "name": "tade_reload",
+    "description": "Start the window again, on the Tade that is on disk now — after Tade itself was updated, when they ask for it (\"reload\", \"restart Tade\"). Agents keep working where the driver’s lanes outlive the window; where they would stop, the reload panel asks them instead and the press is theirs. Your conversation carries on in the new window: it is the same conversation, and you are not introduced again, but the turn this is called in ends with the window. Refused unless they asked for a reload in their own words — pass their sentence in `said`. Say what you are doing before you call it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "said": {
+          "type": "string",
+          "description": "what the person said that asked for this, word for word. Tade checks it against what they actually said, so pass their sentence and never your own summary of it"
+        }
+      },
+      "required": [
+        "said"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_remember",
     "description": "Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything.",
     "parameters": {
@@ -1326,16 +1343,40 @@
   },
   {
     "name": "tade_updates",
-    "description": "What Tade runs and whether it is current: every program it shells out to — the harnesses, the driver, git, gh — with which version is installed, how it was installed, and what to run to move it forward, plus whether there is a newer Tade. Use it when asked whether anything is out of date. `check` asks the registries, which reaches the network and takes a few seconds; without it this is only what is installed here. It installs nothing: say the command back and let the person run it, or tell them Settings › Updates has a button for it.",
+    "description": "What Tade runs and whether it is current: every program it shells out to — the harnesses, the driver, git, gh — with which version is installed, how it was installed, and what to run to move it forward, plus whether there is a newer Tade. From the window it also says the run going now, what the last run updated (`lastRun`), and whether Tade itself moved and the window is owed a reload (`reloadOwed`). Use it when asked whether anything is out of date, or what an update did. `check` asks the registries, which reaches the network and takes a few seconds; without it this is the last answer the window kept, or only what is installed here. It installs nothing: tade_updates_run does, when they ask.",
     "parameters": {
       "type": "object",
       "properties": {
         "check": {
           "type": "boolean",
-          "description": "also ask what is current (reaches the network; a few seconds)"
+          "description": "also ask what is current (reaches the network)"
         }
       },
       "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "tade_updates_run",
+    "description": "Update what Tade runs, when the person asks you to — \"update Tade\", \"upgrade gh\", \"install the updates\". It is the same run as the strip’s updates chip and Settings › Updates: each exact command Tade read off how that program got here is typed into the `updates` terminal, put in front of them, and how it ended is read back. You choose which, never what: `which` names programs by their command or title, or `tade`, and nothing named is everything the last check said is behind. Refused unless they asked for an update in their own words — pass their sentence in `said` — and refused while a run is going. It waits up to a minute; a longer run says it is still going: what it comes to is said in the conversation when it ends, and reaches you with the next thing they say, or ask tade_updates (`lastRun`). Never type an install command into a terminal yourself. Where Tade itself moved, the window runs the old one until it reloads, and offers to: tade_reload does it once they say so.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "which": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "what to update: `tade`, or a program by its command (`gh`, `claude`) or title. Empty or left out: everything behind"
+        },
+        "said": {
+          "type": "string",
+          "description": "what the person said that asked for this, word for word. Tade checks it against what they actually said, so pass their sentence and never your own summary of it"
+        }
+      },
+      "required": [
+        "said"
+      ],
       "additionalProperties": false
     }
   },

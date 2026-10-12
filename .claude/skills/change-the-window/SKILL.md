@@ -53,7 +53,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal. `world` and `pending` are the last look kept **whole**, for the away view, which may not go and ask | a workbench (the fold is pure) |
 | `away.ts` | Pure: a `Workspace` and the window's held folds in, the away view's collections out. The one place that decides what may leave the machine | — |
 | `wire/paint.ts` | Writing the whole screen again over itself (⌘K), when that is worth the bytes — `Repaint`, which skips a terminal that reported losing focus and owes one the moment it comes back — and whether this terminal reports key releases | a terminal |
-| `wire/` | One file per subject the window wires up — `agents`, `routes`, `lanes`, `keyboard`, `mouse`, `files`, `orchestrator`, `extensions`, `queue`, `schedules`, `search`, `settings`, `machine`, `projects`, `spend`, `checks`, `voice`, `images`, `notes`, `window`, `web` (the away view's listener, its beat and its pairing panel) — each a small class over `context.ts`'s `Wiring` (the options, the state, `live`, the clock, the repaint), owning its own fields and taking what it needs of other subjects as named dependencies | a terminal, mostly |
+| `wire/` | One file per subject the window wires up — `agents`, `routes`, `lanes`, `keyboard`, `mouse`, `files`, `orchestrator`, `extensions`, `queue`, `schedules`, `search`, `settings`, `machine`, `updates` (the Updates page, the check on a clock, the strip's chip and the one way an update runs), `projects`, `spend`, `checks`, `voice`, `images`, `notes`, `window`, `web` (the away view's listener, its beat and its pairing panel) — each a small class over `context.ts`'s `Wiring` (the options, the state, `live`, the clock, the repaint), owning its own fields and taking what it needs of other subjects as named dependencies | a terminal, mostly |
 | `wire/context.ts` | What a subject may reach (`Wiring`), and what it offers back (`Subject`: `facts`, `panel`, `inputs`, `actions`, `menus`, `submits`, `prompts`) | — |
 | `wire/frame.ts` | `frameOf` — the frame, folded out of the subjects that own each piece of it; `panelInputsOf` beside it | — |
 | `wire/actions.ts` | `Router`: a button's name, a menu's kind, a panel's answer and a slash command, each looked up in the table the subjects fill in | a terminal |
@@ -470,7 +470,10 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   pair, is the press the window would *like* next: mute's way back is one, and an anti-sleep hold
   is not, so it sits grey until it is held and red while it is. Starting an agent and opening a
   project have their `+` where agents and projects are; search's key sits by the talk key. Don't
-  colour a button for identity.
+  colour a button for identity. The strip's chips follow the same rule from the other side: one is
+  drawn only while it has something to say, each in a `SLOT` so a word changing slides nothing, and
+  its colour is what pressing it does — `updatesChip` says one thing at a time, a run going first,
+  then the reload a moved Tade is owed, then how many could move.
 - **A voice says words, and only the front of them.** Everything the window speaks goes through
   `speakable` (`core/src/speech.ts`) first: a code fence waits for its other half and is then dropped, a
   path is said as its file, and no ear ever hears a backtick. An answer from the model is summarised

@@ -86,9 +86,9 @@ an unnamed one is refused.
   method that reads a task id resolves to the **empty string** where there is no project half, never
   `null`: `null` means *deliberately about no project* (a note about everything), and those two being
   one value is a hole a bare name walks through.
-- **A tool that shells out to the CLI reaches no method at all** (`tade_notes`, `tade_updates`), so
-  the tool table is the only gate for it — which is why reads whose answer is wider than a read grant
-  are `local` even though they change nothing.
+- **A tool that shells out to the CLI reaches no method at all** (`tade_notes`, and `tade_updates`
+  where no window answers `updates/read`), so the tool table is the only gate for it — which is
+  why reads whose answer is wider than a read grant are `local` even though they change nothing.
 - Only where a turn runs under a remote arm does any of this apply. A local turn is checked against
   nothing, which is the type saying it rather than a comment promising it (`Arm`).
 

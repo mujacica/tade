@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { configTools } from './tools-config.ts'
 import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
+import { machineTools } from './tools-machine.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -100,8 +101,6 @@ const object = (
 
 const string = (description: string) => ({ type: 'string', description })
 
-const boolean = (description: string) => ({ type: 'boolean', description })
-
 /**
  * How a task counts as finished, as core's `DONE_RULES` says. Spelled out here
  * because pi loads this file on its own; the golden tool list is what notices
@@ -164,15 +163,6 @@ export function orchestratorTools(
       const seen = await rpc('status/read', {}).catch(() => null)
       return seen === null ? runCli(['status', '--json']) : JSON.stringify(seen, null, 2)
     },
-  )
-
-  tool(
-    'tade_updates',
-    'What Tade runs and whether it is current: every program it shells out to — the harnesses, the driver, git, gh — with which version is installed, how it was installed, and what to run to move it forward, plus whether there is a newer Tade. Use it when asked whether anything is out of date. `check` asks the registries, which reaches the network and takes a few seconds; without it this is only what is installed here. It installs nothing: say the command back and let the person run it, or tell them Settings › Updates has a button for it.',
-    object({
-      check: boolean('also ask what is current (reaches the network; a few seconds)'),
-    }),
-    async (p) => runTade(['update', '--json', ...(p.check === true ? ['--check'] : [])]),
   )
 
   tool(
@@ -844,6 +834,7 @@ export function orchestratorTools(
   for (const spec of documentTools(rpc)) tools.push(spec)
   for (const spec of templateTools(rpc)) tools.push(spec)
   for (const spec of intakeTools(rpc)) tools.push(spec)
+  for (const spec of machineTools(rpc, runTade)) tools.push(spec)
 
   tool(
     'tade_deny',

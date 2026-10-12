@@ -381,13 +381,26 @@ and every setting has what it means beside it.
 
 Which of the programs Tade runs are here, how each one got here — Homebrew, a global npm package, a
 binary somebody dropped on their PATH — and what is current. Nothing is written down at a call site:
-every driver, harness and forge declares what it needs and how to ask it its version. Checking is the
-one thing here that reaches the network and it happens when you press it, nothing installs anything
-behind your back, the exact command is on the page before it runs, and what nobody can be asked about
-comes back as *cannot tell* rather than a guess. Tade itself is a row like any other, with what
-reloading into the new one would cost said before you choose it.
+every driver, harness and forge declares what it needs and how to ask it its version. What nobody can
+be asked about comes back as *cannot tell* rather than a guess, and Tade itself is a row like any
+other.
 
-![Updates: every program Tade runs with how it got here and what is current, the exact command before anything runs it, and what reloading would cost](https://raw.githubusercontent.com/mujacica/tade/main/images/updates.svg)
+The window asks what is current once a day (Settings › Window › *Check for updates*: daily, weekly or
+never) and keeps the answer, so the next window knows it without asking again. When something can
+move forward, a chip in the strip says `updates 2`. Pressing it runs the exact commands Settings ›
+Updates shows, one after another, in an `updates` terminal put in front of you — `updating 1/2` while
+it goes — and says what came of it in the conversation: what moved and to what, and for anything that
+failed, its command and the last of what it printed. Nothing installs anything behind your back.
+When Tade itself moved, the window offers to reload into it, says what that would stop, and the chip
+turns into `reload Tade` until you do. The orchestrator can do both when you ask it to — "update
+Tade", then "reload" — and it is the same run, checked against what you actually said.
+
+<table>
+<tr>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/updates.svg" alt="Updates: every program Tade runs with how it got here and what is current, the exact command before anything runs it, and what reloading would cost"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/reload.svg" alt="Tade was updated from the strip: the window offers to reload into the new one, and says what that would stop"></td>
+</tr>
+</table>
 
 ## The brief, and where everything stands
 

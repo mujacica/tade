@@ -57,6 +57,7 @@ export const RESERVED: readonly string[] = [
   'project',
   'propose',
   'queue',
+  'reload',
   'remember',
   'resume',
   'run',

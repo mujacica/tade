@@ -4,7 +4,7 @@
     │  search settings            │ Updates                                                                        │────
  ▌ !│                             │                                                                                │    
  ▌  │  Orchestrator              ▕│     Check for updates                                                         █│    
-    │                            ▕│   checked just now                                                            █│    
+    │                            ▕│   checked Thu 1 Jan 00:00                                                     █│    
    ⠋│  Checks                    ▕│                                                                               █│    
     │                            █│ Tade                                                                          █│    
     │  Voice                     █│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                       █│    
