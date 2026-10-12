@@ -182,7 +182,7 @@ export function skeleton(rows = 3) {
 }
 
 export function empty(said) {
-  return el('p', { class: 'empty', text: said })
+  return el('p', { class: 'empty nothing', text: said })
 }
 
 /**

@@ -61,10 +61,10 @@ export function inboxScreen() {
   const made = section('HANDED OVER', { top: true })
   const doors = section('THE DOORS')
   const list = el('ul', { class: 'rows' })
-  const none = el('p', { class: 'empty' })
+  const none = el('p', { class: 'empty nothing' })
   into(made.body, list, none)
   const doorList = el('ul', { class: 'rows' })
-  const doorNone = el('p', { class: 'empty', text: 'no source is implemented here' })
+  const doorNone = el('p', { class: 'empty nothing', text: 'no source is implemented here' })
   into(doors.body, doorList, doorNone)
   const left = el('p', { class: 'unknown' })
   into(node, made.node, left, doors.node)
@@ -196,7 +196,7 @@ export function requestScreen(where, ctx) {
   const glyph = glyphOf(intakeMark({ state: 'noticed', work: [] }))
   const title = el('h1', { text: where.id })
   into(head, glyph, title)
-  const gone = el('p', { class: 'empty' })
+  const gone = el('p', { class: 'empty nothing' })
 
   const stands = section('WHERE IT STANDS')
   const standing = el('p', { class: 'why' })
@@ -210,7 +210,7 @@ export function requestScreen(where, ctx) {
 
   const work = section('WHAT IT MADE')
   const workList = el('ul', { class: 'rows' })
-  const workNone = el('p', { class: 'empty' })
+  const workNone = el('p', { class: 'empty nothing' })
   const runLink = el('a', { class: 'press ghost', text: 'The whole run' })
   into(work.body, workList, workNone, runLink)
 

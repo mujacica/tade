@@ -21,6 +21,7 @@ import { afterAnswer, draftBody, savingOf } from './acts.js'
 import { el, glyphOf, into, keyed, markIn, proseOf, textIn } from './dom.js'
 import { count } from './figures.js'
 import { checkMark } from './glyphs.js'
+import { icon } from './icons.js'
 import { nothingSaid } from './pages.js'
 import { pathOf } from './routes.js'
 import {
@@ -43,7 +44,7 @@ export function workflowsScreen() {
   const node = el('div')
   const made = section('WORKFLOWS', { top: true })
   const list = el('ul', { class: 'rows' })
-  const none = el('p', { class: 'empty' })
+  const none = el('p', { class: 'empty nothing' })
   into(made.body, list, none)
   into(node, made.node)
 
@@ -73,16 +74,19 @@ export function workflowsScreen() {
 function createWorkflowRow() {
   const node = el('li')
   const link = el('a', { attrs: { href: '/workflows' } })
+  // The row's first column is its mark, as every row's is: a workflow's own.
+  const mark = el('span', { class: 'glyph t-quiet', attrs: { 'aria-hidden': 'true' } })
+  into(mark, icon('workflows'))
   const name = el('span', { class: 'name' })
   const aside = el('span', { class: 'aside' })
   const under = el('span', { class: 'under' })
-  into(link, name, aside, under)
+  into(link, mark, name, aside, under)
   return into(node, link)
 }
 
 function fillWorkflowRow(node, row) {
   const [link] = node.children
-  const [name, aside, under] = link.children
+  const [, name, aside, under] = link.children
   link.setAttribute('href', pathOf({ view: 'workflow', name: row.name }))
   textIn(name, row.name)
   textIn(aside, row.published === null ? 'not published' : `v${row.published}`)
@@ -135,7 +139,7 @@ export function workflowScreen(where, ctx) {
   const head = el('div', { class: 'page-head' })
   const title = el('h1', { text: where.name })
   into(head, title)
-  const gone = el('p', { class: 'empty' })
+  const gone = el('p', { class: 'empty nothing' })
 
   const about = section('THE WORKFLOW')
   const facts = dl()
@@ -144,12 +148,15 @@ export function workflowScreen(where, ctx) {
 
   const problems = section('WHAT WOULD STOP IT PUBLISHING')
   const problemList = el('ul', { class: 'rows' })
-  const problemNone = el('p', { class: 'empty', text: 'nothing: it would publish as it stands' })
+  const problemNone = el('p', {
+    class: 'empty nothing',
+    text: 'nothing: it would publish as it stands',
+  })
   into(problems.body, problemList, problemNone)
 
   const steps = section('THE STEPS')
   const stepList = el('div')
-  const stepNone = el('p', { class: 'empty' })
+  const stepNone = el('p', { class: 'empty nothing' })
   into(steps.body, stepList, stepNone)
 
   const form = section('THE TEMPLATE’S OWN FIELDS')
@@ -297,7 +304,7 @@ function fillStepBlock(node, step, row, ctx, view) {
 function formIn(parent, ctx) {
   const node = el('div', { class: 'form' })
   const list = el('div')
-  const none = el('p', { class: 'empty' })
+  const none = el('p', { class: 'empty nothing' })
   const said = el('p', { class: 'said' })
   into(node, list, none, said)
   into(parent, node)
@@ -418,7 +425,7 @@ const SHOWS = {
  */
 function shapeIn(parent) {
   const columns = el('div', { class: 'layers' })
-  const none = el('p', { class: 'empty' })
+  const none = el('p', { class: 'empty nothing' })
   const says = el('p', { class: 'unknown' })
   into(parent, columns, none, says)
   return {

@@ -161,9 +161,9 @@
   max-width: 40%;
   padding: 2px var(--s2);
   border-radius: var(--r3);
-  background: color-mix(in srgb, var(--cyan) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent);
-  color: var(--cyan);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  color: var(--amber);
   font-size: var(--step--1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -355,7 +355,7 @@ a.pal-whole:hover {
   }
 }
 
-/* A person's lines on the right, in the one colour that means *you*; Tade's on the left. */
+/* A person's lines on the right, one step lighter; Tade's on the left. */
 .rows.chat > li.is-asked {
   justify-items: end;
   text-align: end;
@@ -363,7 +363,7 @@ a.pal-whole:hover {
 
 .rows.chat > li.is-asked > div {
   max-width: 85%;
-  background: color-mix(in srgb, var(--violet) 14%, var(--surface));
+  background: var(--raised);
   border-end-end-radius: var(--r1);
 }
 

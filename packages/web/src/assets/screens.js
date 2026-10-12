@@ -63,7 +63,7 @@ export function projectScreen(where, ctx) {
   const figure = el('span', { class: 'figure' })
   into(head, title, figure)
   const strip = el('nav', { class: 'tabstrip', attrs: { 'aria-label': 'This project' } })
-  const gone = el('p', { class: 'empty' })
+  const gone = el('p', { class: 'empty nothing' })
 
   const agents = section('AGENTS')
   const agentList = el('ul', { class: 'rows' })
@@ -302,7 +302,7 @@ export function taskScreen(where, ctx) {
   // on a phone the full controls are a long scroll down, and the answer to an
   // agent that is waiting is the reason somebody opened this page.
   const quick = ctx === undefined || ctx === null ? null : quickActs(ctx, { tell: false })
-  const gone = el('p', { class: 'empty' })
+  const gone = el('p', { class: 'empty nothing' })
 
   const state = section('STATE')
   const asked = section('ASKED FOR')

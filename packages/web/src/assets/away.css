@@ -63,6 +63,24 @@
   background: var(--surface);
 }
 
+/*
+  A row with no mark of its own still lines up: its name takes the mark's
+  column with its own, and the line under it starts where the name does.
+*/
+.rows > li > a > .name:first-child {
+  grid-column: 1 / 3;
+}
+
+.rows > li > a > .name:first-child ~ .under {
+  grid-column: 1 / -1;
+}
+
+.glyph .ic {
+  width: 1rem;
+  height: 1rem;
+  vertical-align: -0.15em;
+}
+
 /* The row the keyboard is on, and the one `j`/`k` moves. */
 .rows > li.on > a,
 .rows > li.on > div {
@@ -125,7 +143,7 @@
 }
 
 .t-here {
-  color: var(--cyan);
+  color: var(--amber);
 }
 
 .t-quiet {
@@ -199,7 +217,7 @@ main a.chip-link.t-wants {
 
 .tabstrip a[aria-current="page"] {
   background: var(--raised);
-  color: var(--cyan);
+  color: var(--amber);
 }
 
 .tabstrip a:hover {
@@ -680,167 +698,88 @@ select {
   opacity: 0.6;
 }
 
-/* ── the factory floor ─────────────────────────────────────────────────────── */
+/* ── empty, unknown, error, loading ────────────────────────────────────────── */
 
-/*
- * A row nothing links to: the hover it does not get, said as an absence so a
- * door's row does not look tappable.
- */
-.row-static {
-  cursor: default;
-}
-
-/*
- * The sentence under a region's heading: why a request is where it is, what a
- * door's last look came to. `--heading`, because it is often the only
- * statement of the fact on the screen.
- */
-.why {
+/* A reason, a status, a word under a control: quiet, never a blank. */
+.empty {
   color: var(--heading);
-  font-size: var(--step-0);
-  line-height: var(--lead);
+  padding-block: var(--s3);
 }
 
 /*
- * A run's graph: one block per layer, in order — **stacked and never side by
- * side**, at every width. The window draws boxes and lines because it has
- * eighty columns.
- */
-.layers {
-  display: grid;
-  gap: var(--s4);
-}
-
-.layer > h3 {
-  margin-block-end: var(--s2);
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-/* What a step waits on, indented under it, with a border for line art. */
-.waits {
-  display: grid;
-  margin-inline-start: var(--s5);
-  border-inline-start: 1px solid var(--chrome);
-  padding-inline-start: var(--s3);
-}
-
-.wait {
-  display: grid;
-  padding-block: var(--s1);
-  font-size: var(--step--1);
-  color: var(--heading);
-}
-
-/* The acts that stay at this machine, and what a dry run grants: a name and a clause. */
-.locally {
-  display: grid;
-  gap: var(--s2);
-  margin-block-start: var(--s3);
-}
-
-.locally > li > div {
-  display: grid;
-  gap: var(--s1);
-  border-inline-start: 2px solid var(--chrome);
-  padding-inline-start: var(--s3);
-}
-
-.locally .name {
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-/* ── the designer's form ───────────────────────────────────────────────────── */
-
-.form {
-  display: grid;
-  gap: var(--s4);
-}
-
-/*
- * One field: what it is called, what it holds, what it means, and the box. The
- * value is drawn **above** the box and not inside it: a box pre-filled with
- * what is stored looks like an edit somebody has already made.
- */
-.field {
-  display: grid;
-  gap: var(--s2);
-  padding-block-end: var(--s3);
-  border-block-end: var(--border);
-}
-
-.field > label {
-  color: var(--bright);
-  font-size: var(--step-0);
-  font-weight: 600;
-}
-
-/*
- * A request's own words, and the heading that travels with them: a warning
- * about whose words follow, so it takes the border and the ground a caveat
- * takes. `--amber-dark` is a ground and a border and never text.
- */
-.material-label {
-  border-inline-start: 3px solid var(--amber-dark);
-  padding: var(--s2) var(--s3);
-  background: var(--panel);
-  color: var(--bright);
-  font-size: var(--step--1);
-}
-
-.material {
-  margin-block-start: var(--s2);
-}
-
-/* A control that goes somewhere rather than doing something: never read as an act. */
-.press.ghost {
-  background: var(--raised);
-  color: var(--bright);
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.press.ghost:hover {
-  background: var(--chosen);
-}
-
-/* ── an agent, looked into ─────────────────────────────────────────────────── */
-
-/* One column until a desk gives it two (`frame.css`). */
-.task-grid {
-  display: grid;
-}
-
-.task-lead,
-.task-facts {
-  min-width: 0;
-}
-
-/*
-  What its screen shows: an agent's bytes as text, in the window's own mono, on
-  the page's deepest ground, like the terminal it came from. Taller than the
-  pane is its own scroll.
+  **Nothing here, drawn one way everywhere** (`empty()` and every `nothing`):
+  where the rows would be, a quiet word centred in a hairline box with a small
+  open ring before it — an empty list reads as empty rather than as a list
+  that failed to draw, and it looks the same on every screen and in the dock.
 */
-.screen {
-  max-height: 34rem;
-  overflow-y: auto;
-  padding: var(--s3);
-  border: var(--border);
+.nothing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: 3.5rem;
+  padding: var(--s3) var(--s4);
   border-radius: var(--r2);
-  background: var(--ground);
+  border: 1px dashed var(--chrome);
+  color: var(--heading);
+  text-align: center;
 }
 
-.screen pre {
-  margin: 0;
+.nothing::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--r3);
+  border: 1.5px solid var(--chrome);
+}
+
+.nothing:empty {
+  display: none;
+}
+
+/*
+  `unknown` is never drawn as nought: a dash, and a word for which of the three
+  it was — not run here, not recorded, could not look.
+*/
+.unknown {
+  color: var(--quiet);
+  font-size: var(--s4); /* --quiet is AA on a card at 16px; nothing smaller */
+}
+
+.unknown .dash {
   font-family: var(--font-mono);
+  margin-inline-end: var(--s2);
+}
+
+/*
+  A region that could not be read keeps its last good content and says so. It
+  must not take the page with it, and must not replace a true answer with
+  nothing.
+*/
+.failed {
+  opacity: 0.6;
+}
+
+.failed-said {
+  display: flex;
+  gap: var(--s3);
+  align-items: baseline;
+  padding-block: var(--s2);
+  color: var(--red);
   font-size: var(--step--1);
-  line-height: var(--lead-tight);
-  color: var(--bright);
-  white-space: pre;
+  opacity: 1;
 }
 
-/* What it runs on, under its name: a harness and a model are mono, as in the window. */
-.runs {
-  font-family: var(--font-mono);
+/* A skeleton says *this many rows are coming*; a spinner says only *something*. */
+.skeleton {
+  display: grid;
+  gap: var(--s2);
+}
+
+.skeleton span {
+  display: block;
+  height: 1.25rem;
+  border-radius: var(--r1);
+  background: var(--surface);
 }

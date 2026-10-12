@@ -30,6 +30,7 @@ const SHEETS = [
   'frame.css',
   'rail.css',
   'away.css',
+  'pages.css',
   'dash.css',
   'palette.css',
   'dock.css',
@@ -64,6 +65,36 @@ describe('the palette is the window’s own', () => {
 
   it('names a tone for every colour, and there are enough of them to be the palette', () => {
     expect(declared.length).toBeGreaterThanOrEqual(20)
+  })
+
+  it('is two colours — amber and the dark — and three that only inform', () => {
+    // **Every colour that is not a grey is named here.** Amber is Tade, the
+    // primary press and where you are; violet, green and red only ever say
+    // something — waiting on you, finished, wrong. A sixth hue is a page that
+    // has started decorating, and has to argue for itself on this line.
+    const hued = declared
+      .filter((one) => {
+        const [r, g, b] = [1, 3, 5].map((at) => one.hex.slice(at, at + 2))
+        return !(r === g && g === b)
+      })
+      .map((one) => one.token)
+      .sort()
+    expect(hued).toEqual([
+      '--amber',
+      '--amber-dark',
+      '--amber-light',
+      '--green',
+      '--red',
+      '--violet',
+    ])
+    // And no hex of a hue anywhere else: a tint is `color-mix` of a token.
+    for (const found of AWAY.matchAll(/#([0-9a-f]{6})\b/gi)) {
+      const hex = found[1] ?? ''
+      expect(
+        hex.slice(0, 2) === hex.slice(2, 4) && hex.slice(2, 4) === hex.slice(4, 6),
+        found[0],
+      ).toBe(true)
+    }
   })
 
   it('writes the hex the tone actually is, for every one', () => {
@@ -111,7 +142,7 @@ describe('what can be read, with the arithmetic', () => {
   })
 
   it('keeps every state colour above AA as text', () => {
-    for (const token of ['--amber', '--violet', '--green', '--cyan', '--red']) {
+    for (const token of ['--amber', '--violet', '--green', '--red']) {
       expect(contrast(hex(token), GROUND), token).toBeGreaterThanOrEqual(4.5)
     }
   })
@@ -153,7 +184,7 @@ describe('what can be read, with the arithmetic', () => {
 
   it('keeps the focus ring readable against every ground it lands on', () => {
     for (const ground of ['--ground', '--surface', '--raised', '--chosen', '--control']) {
-      expect(contrast(hex('--cyan'), hex(ground)), ground).toBeGreaterThanOrEqual(3)
+      expect(contrast(hex('--amber'), hex(ground)), ground).toBeGreaterThanOrEqual(3)
     }
   })
 })
@@ -257,7 +288,7 @@ describe('reach and motion', () => {
 
   it('never removes a focus ring but from the one place it is not a control', () => {
     expect(TOKENS).toContain(':focus-visible')
-    expect(TOKENS).toContain('outline: 2px solid var(--cyan)')
+    expect(TOKENS).toContain('outline: 2px solid var(--amber)')
     // **One exception, named.** A navigation moves focus to the `main`
     // landmark so a screen reader starts at the screen somebody asked for; that
     // is a reading position, not a keyboard landing on a control, and a box

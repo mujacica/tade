@@ -30,8 +30,8 @@ export function runsScreen() {
   const made = section('RUNS', { top: true })
   const list = el('ul', { class: 'rows' })
   const none = el('p', {
-    class: 'empty',
-    text: 'nothing is running as a workflow: a run is the tasks that name one effort',
+    class: 'empty nothing',
+    text: 'no runs yet',
   })
   into(made.body, list, none)
   const left = el('p', { class: 'unknown' })
@@ -129,7 +129,7 @@ export function runScreen(where) {
   const glyph = glyphOf(checkMark('unknown'))
   const title = el('h1', { text: where.run })
   into(head, glyph, title)
-  const gone = el('p', { class: 'empty' })
+  const gone = el('p', { class: 'empty nothing' })
 
   const about = section('THE RUN')
   const facts = dl()
@@ -138,7 +138,7 @@ export function runScreen(where) {
 
   const steps = section('THE STEPS')
   const layers = el('div', { class: 'layers' })
-  const none = el('p', { class: 'empty' })
+  const none = el('p', { class: 'empty nothing' })
   into(steps.body, layers, none)
 
   const parts = [about, steps]

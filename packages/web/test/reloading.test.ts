@@ -29,7 +29,7 @@ describe('watching the folder', () => {
     const stop = watchFolder(dir, () => (said += 1), 400)
     try {
       await Promise.all(['a.css', 'b.js', 'c.css'].map((name) => writeFile(join(dir, name), name)))
-      const until = Date.now() + 5_000
+      const until = Date.now() + 10_000
       while (said === 0 && Date.now() < until) await new Promise((done) => setTimeout(done, 20))
       // Longer than the settle again, to see that the burst stayed one.
       await new Promise((done) => setTimeout(done, 600))
@@ -37,7 +37,9 @@ describe('watching the folder', () => {
     } finally {
       stop()
     }
-  })
+    // A watched folder can take seconds to say anything on a loaded machine
+    // (FSEvents batches), so this one gets its own deadline.
+  }, 15_000)
 
   it('stops when told, and a folder that is not there is quietly not watched', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-reload-'))

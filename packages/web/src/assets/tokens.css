@@ -17,9 +17,10 @@
   cards one more, and anything raised above a card one more again. Each step is
   one xterm grey, so the whole ladder is seven tones and nothing in between.
 
-  **One accent, one meaning** (`skin.ts`'s rule, in type): amber is Tade and work
-  in progress, violet is *waiting on you*, green is finished, cyan is where you
-  are, red is wrong. A colour that means two things means nothing — and none of
+  **Two colours, and three that only inform** (`skin.ts`'s rule, in type):
+  the page is the dark ladder and amber — Tade itself, the primary press, and
+  where you are — and violet, green and red appear only to say something:
+  *waiting on you*, finished, wrong. A colour that means two things means nothing — and none of
   them is ever the only statement of a state: every one is carried by a glyph and
   a word as well (`glyphs.js`), which is 1.4.1 and also what makes the page
   readable to somebody who does not see the hue.
@@ -44,7 +45,6 @@
   --amber-dark: #875f00; /* 94 · 3.50 · A GROUND AND A BORDER, never text */
   --violet: #d787d7; /* 176 · 7.95 · waiting on you. The one colour that means act */
   --green: #87d787; /* 114 · 11.54 · finished; checks green */
-  --cyan: #5fd7d7; /* 80 · 11.62 · where you are; the current selection */
   --red: #ff5f5f; /* 203 · 6.73 · gone wrong, or about to */
   --ink: #080808; /* 232 · ink on any light ground */
   --ink-light: #ffffff; /* 231 · 20.03 · ink on a mid ground */
@@ -142,9 +142,20 @@
   box-sizing: border-box;
 }
 
+/* Not inherited, so said for every scroller: thin, like the page's own. */
+* {
+  scrollbar-width: thin;
+}
+
 html {
   /* Sizing in rem against the browser's own size, so 200% zoom works. */
   font-size: 100%;
+  /*
+    Every scrollbar the same: thin, a control's grey on nothing — the rail,
+    the dock, the command bar, a table, an agent's screen and the page alike.
+  */
+  scrollbar-width: thin;
+  scrollbar-color: var(--control) transparent;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -288,9 +299,9 @@ button {
   display: none !important;
 }
 
-/* Never removed, never only a colour change: 2px of cyan, offset so it reads. */
+/* Never removed, never only a colour change: 2px of amber, offset so it reads. */
 :focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--amber);
   outline-offset: 2px;
 }
 

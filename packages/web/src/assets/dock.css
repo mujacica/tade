@@ -95,7 +95,7 @@
 
   .side a[aria-current="page"] {
     background: var(--chosen);
-    color: var(--cyan);
+    color: var(--amber);
   }
 
   /*

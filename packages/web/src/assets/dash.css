@@ -584,17 +584,6 @@ main {
   margin-block-start: var(--s3);
 }
 
-/*
-  Nothing here: a quiet word in a dashed box where the rows would be, so an
-  empty list reads as empty rather than as a list that failed to draw.
-*/
-.section .empty {
-  padding: var(--s4);
-  border-radius: var(--r2);
-  border: 1px dashed var(--line);
-  text-align: center;
-}
-
 /* A state as a pill: its tone's own tint, the tone as its text. */
 .pill {
   display: inline-flex;
@@ -875,9 +864,9 @@ main a.check-card:hover {
 }
 
 .filter-chip[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--cyan) 10%, var(--panel));
-  border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
-  color: var(--cyan);
+  background: color-mix(in srgb, var(--amber) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+  color: var(--amber);
 }
 
 .filter-chip .num {

@@ -12,7 +12,8 @@
   page that drew `0 working` because it could not ask would be lying about
   somebody's morning.
 
-  **The four drawings every region has** (`dom.js` builds each): a skeleton
+  **The four drawings every region has** (`dom.js` builds each, `away.css`
+  draws them): a skeleton
   while it is coming, a word when it is empty, `—` plus a word when it is
   unknown, and — when a read failed — its last good content at 60% with one line
   saying so. The default for all four is a blank area that reads as broken,
@@ -494,9 +495,9 @@ kbd {
   line-height: 1.1;
 }
 
-/* Where you are, in cyan, and said to a screen reader as well. */
+/* Where you are, in amber, and said to a screen reader as well. */
 .tab[aria-current="page"] {
-  color: var(--cyan);
+  color: var(--amber);
 }
 
 /* A count is a badge on the icon's shoulder, and nothing at nought. */
@@ -659,60 +660,6 @@ main[tabindex="-1"]:focus {
   color: var(--bright);
 }
 
-/* ── empty, unknown, error, loading ────────────────────────────────────────── */
-
-/* Never a blank box, and never an illustration: a word, quiet. */
-.empty {
-  color: var(--heading);
-  padding-block: var(--s3);
-}
-
-/*
-  `unknown` is never drawn as nought: a dash, and a word for which of the three
-  it was — not run here, not recorded, could not look.
-*/
-.unknown {
-  color: var(--quiet);
-  font-size: var(--s4); /* --quiet is AA on a card at 16px; nothing smaller */
-}
-
-.unknown .dash {
-  font-family: var(--font-mono);
-  margin-inline-end: var(--s2);
-}
-
-/*
-  A region that could not be read keeps its last good content and says so. It
-  must not take the page with it, and must not replace a true answer with
-  nothing.
-*/
-.failed {
-  opacity: 0.6;
-}
-
-.failed-said {
-  display: flex;
-  gap: var(--s3);
-  align-items: baseline;
-  padding-block: var(--s2);
-  color: var(--red);
-  font-size: var(--step--1);
-  opacity: 1;
-}
-
-/* A skeleton says *this many rows are coming*; a spinner says only *something*. */
-.skeleton {
-  display: grid;
-  gap: var(--s2);
-}
-
-.skeleton span {
-  display: block;
-  height: 1.25rem;
-  border-radius: var(--r1);
-  background: var(--surface);
-}
-
 /* ── tablet: an icon rail, the projects along the top, and no tab bar ──────── */
 
 @media (min-width: 768px) {
@@ -833,10 +780,10 @@ main[tabindex="-1"]:focus {
 
   .rail-items > a[aria-current="page"] {
     background: var(--surface);
-    color: var(--cyan);
+    color: var(--amber);
   }
 
-  /* `▌` — the window's own marker for where you are, 3px of cyan. */
+  /* `▌` — the window's own marker for where you are, 3px of amber. */
   .rail-items > a[aria-current="page"]::before {
     content: "";
     position: absolute;
@@ -844,7 +791,7 @@ main[tabindex="-1"]:focus {
     inset-block: 10px;
     width: 3px;
     border-radius: var(--r3);
-    background: var(--cyan);
+    background: var(--amber);
   }
 
   /*
@@ -919,11 +866,11 @@ main[tabindex="-1"]:focus {
     border-color: var(--control);
   }
 
-  /* Where you are, in cyan, as the rail says it — and said to a screen reader. */
+  /* Where you are, in amber, as the rail says it — and said to a screen reader. */
   .projects a[aria-current="page"] {
-    color: var(--cyan);
-    border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
-    background: color-mix(in srgb, var(--cyan) 8%, var(--panel));
+    color: var(--amber);
+    border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+    background: color-mix(in srgb, var(--amber) 8%, var(--panel));
   }
 
   .projects .count {

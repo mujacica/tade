@@ -61,7 +61,7 @@ export function deskParts(ctx) {
   into(whole, icon('arrow'))
   into(stripHead, stripTitle, whole)
   const lines = el('ul', { class: 'lines' })
-  const quiet = el('p', { class: 'empty' })
+  const quiet = el('p', { class: 'empty nothing' })
   const typing = composerOf(ctx, {
     label: 'what to ask Tade',
     placeholder: 'Ask Tade…',

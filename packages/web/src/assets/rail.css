@@ -30,7 +30,6 @@
     max-height: calc(100vh - var(--tap) - var(--s6));
     overflow-y: auto;
     overscroll-behavior: contain;
-    scrollbar-width: thin;
     padding-block-end: var(--s3);
   }
 
@@ -163,7 +162,7 @@
   .tree-link[aria-current="page"],
   .tree-task[aria-current="page"] {
     background: var(--surface);
-    color: var(--cyan);
+    color: var(--amber);
   }
 
   .tree-name {

@@ -47,7 +47,7 @@ import { keyOf } from './screens.js'
 export function settingsScreen(ctx) {
   const node = el('div')
   const top = section('SETTINGS', { top: true })
-  const said = el('p', { class: 'empty' })
+  const said = el('p', { class: 'empty nothing' })
   const withheld = el('p', { class: 'unknown' })
   const keys = el('p', {
     class: 'caveat',
