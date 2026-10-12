@@ -19,12 +19,13 @@
 //   and **an update never moves it**: the tab you are on changes when you
 //   navigate and at no other time.
 
-import { classOn, el, hintOf, into, textIn, toneOn } from './dom.js'
+import { classOn, el, glyphOf, hintOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
 import { clockOf, duration, shortClockOf } from './figures.js'
-import { freshMark } from './glyphs.js'
+import { freshMark, taskMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { backoffAt, partsOf } from './live.js'
-import { MORE, MORE_TAB, NAV, navFor, pathOf, TITLES } from './routes.js'
+import { GROUPS, MORE_TAB, NAV, navFor, pathOf, placeOf, TITLES, taskPath } from './routes.js'
+import { projectsOf, tasksIn } from './store.js'
 
 /**
  * The whole frame, built once for the life of the page.
@@ -115,7 +116,20 @@ export function shell(desk = null) {
     attrs: { 'aria-live': 'polite', 'aria-atomic': 'false' },
   })
 
-  const links = navLinks(rail, tabs, talk)
+  const { made: links, tree } = navLinks(rail, tabs, talk)
+  // The whole rail folds to its icons at a desk, and back: a press at its foot.
+  const fold = el('button', {
+    class: 'rail-fold',
+    attrs: { type: 'button', 'aria-label': 'Fold the sidebar', 'aria-pressed': 'false' },
+  })
+  into(fold, icon('back'))
+  fold.addEventListener('click', () => {
+    const mini = !frame.classList.contains('rail-mini')
+    frame.classList.toggle('rail-mini', mini)
+    fold.setAttribute('aria-pressed', mini ? 'true' : 'false')
+    fold.setAttribute('aria-label', mini ? 'Unfold the sidebar' : 'Fold the sidebar')
+  })
+  rail.append(fold)
 
   return {
     parts: [skip, top, bars, frame, tabs, sheet, announce].filter(
@@ -134,6 +148,7 @@ export function shell(desk = null) {
     again,
     keys,
     links,
+    tree,
     // The two presses that open the command bar; `boot.js` wires both.
     asks: [ask, talk],
   }
@@ -155,10 +170,136 @@ function navLinks(rail, tabs, talk) {
   for (const one of [first, second]) made.push(entry(tabs, one, 'tab'))
   tabs.append(talk)
   for (const one of [...rest, MORE_TAB]) made.push(entry(tabs, one, 'tab'))
-  for (const one of NAV) made.push(entry(rail, one, 'rail'))
-  rail.append(el('span', { class: 'rail-rule', attrs: { 'aria-hidden': 'true' } }))
-  for (const one of MORE) made.push(entry(rail, one, 'rail'))
-  return made
+  // **The rail, in its categories.** A group with a title has a header that
+  // folds it — a press, with `aria-expanded`, never a hover — and the
+  // projects' group is the project tree, filled from the store (`railIn`).
+  let tree = null
+  for (const group of GROUPS) {
+    const node = el('div', { class: `rail-group rail-${group.key}` })
+    const items = el('div', { class: 'rail-items', attrs: { id: `rail-${group.key}` } })
+    if (group.title !== '') {
+      const head = el('button', {
+        class: 'rail-head',
+        attrs: { type: 'button', 'aria-expanded': 'true', 'aria-controls': `rail-${group.key}` },
+      })
+      into(head, el('span', { text: group.title }), icon('chevron', 'twist'))
+      head.addEventListener('click', () => {
+        items.hidden = !items.hidden
+        head.setAttribute('aria-expanded', items.hidden ? 'false' : 'true')
+      })
+      into(node, head)
+    }
+    for (const view of group.views) {
+      const one = placeOf(view)
+      if (one !== null) made.push(entry(items, one, 'rail'))
+    }
+    if (group.key === 'projects') {
+      tree = el('ul', { class: 'rail-tree', attrs: { 'aria-label': 'Projects' } })
+      into(items, tree)
+    }
+    into(node, items)
+    rail.append(node)
+  }
+  return { made, tree }
+}
+
+/* ── the project tree in the rail ──────────────────────────────────────────── */
+
+/** Which projects somebody opened or closed in the tree, for as long as the page is. */
+const opened = new Map()
+
+/**
+ * The projects in the rail, each a link with its counts and a press that
+ * opens it onto its work: every task in it, the ones that want somebody first,
+ * each with its state's glyph and a link to its page.
+ *
+ * **The project you are in opens on its own**, and one somebody closed stays
+ * closed; nothing else moves on a delta. Built once per project and patched,
+ * as every list here is.
+ */
+export function railIn(shown, view) {
+  if (shown.tree === null) return
+  const here =
+    view.where.view === 'project' || view.where.view === 'task' ? view.where.project : null
+  const on = view.where.view === 'task' ? `${view.where.project}/${view.where.task}` : null
+  keyed(
+    shown.tree,
+    projectsOf(view.store),
+    (row) => row.name,
+    createTreeProject,
+    (one, row) => fillTreeProject(one, row, view, here, on),
+  )
+}
+
+function createTreeProject() {
+  const node = el('li', { class: 'tree-project' })
+  const row = el('div', { class: 'tree-row' })
+  const twist = el('button', {
+    class: 'tree-twist',
+    attrs: { type: 'button', 'aria-expanded': 'false' },
+  })
+  into(twist, icon('chevron', 'twist'))
+  const link = el('a', { class: 'tree-link', attrs: { href: '/' } })
+  const wants = el('span', { class: 'tree-count is-wants' })
+  const working = el('span', { class: 'tree-count is-working' })
+  into(link, el('span', { class: 'tree-name' }), wants, working)
+  into(row, twist, link)
+  const tasks = el('ul', { class: 'tree-tasks' })
+  tasks.hidden = true
+  into(node, row, tasks)
+  twist.addEventListener('click', () => {
+    const name = node.getAttribute('data-key') ?? ''
+    opened.set(name, tasks.hidden)
+    tasks.hidden = !tasks.hidden
+    twist.setAttribute('aria-expanded', tasks.hidden ? 'false' : 'true')
+  })
+  return node
+}
+
+/** The order a project's tasks are listed in: what wants somebody, then what works. */
+const RANK = { blocked: 0, failed: 1, review: 2, working: 3, queued: 4, parked: 5, merged: 6 }
+
+function fillTreeProject(node, project, view, here, on) {
+  const [row, tasks] = node.children
+  const [twist, link] = row.children
+  const [name, wants, working] = link.children
+  link.setAttribute('href', pathOf({ view: 'project', project: project.name }))
+  if (project.name === here) link.setAttribute('aria-current', 'page')
+  else link.removeAttribute('aria-current')
+  textIn(name, project.name)
+  const counts = project.counts
+  textIn(wants, counts.wantsYou === 0 ? '' : String(counts.wantsYou))
+  wants.setAttribute('aria-label', `${counts.wantsYou} wanting you`)
+  textIn(working, counts.working === 0 ? '' : String(counts.working))
+  working.setAttribute('aria-label', `${counts.working} working`)
+  const open = opened.get(project.name) ?? project.name === here
+  tasks.hidden = !open
+  twist.setAttribute('aria-expanded', open ? 'true' : 'false')
+  twist.setAttribute('aria-label', `${open ? 'Close' : 'Open'} ${project.name}`)
+  if (!open) return
+  const rows = tasksIn(view.store, project.name)
+    .filter((task) => task.state !== 'merged')
+    .sort((a, b) => (RANK[a.state] ?? 9) - (RANK[b.state] ?? 9) || (a.name < b.name ? -1 : 1))
+  keyed(
+    tasks,
+    rows,
+    (task) => task.id,
+    () => {
+      const item = el('li')
+      const to = el('a', { class: 'tree-task', attrs: { href: '/' } })
+      into(to, glyphOf(taskMark('queued')), el('span', { class: 'tree-name' }))
+      into(item, to)
+      return item
+    },
+    (item, task) => {
+      const to = item.firstChild
+      to.setAttribute('href', taskPath(task.id))
+      if (task.id === on) to.setAttribute('aria-current', 'page')
+      else to.removeAttribute('aria-current')
+      markIn(to.firstChild, taskMark(task.state))
+      textIn(to.lastChild, task.name)
+    },
+  )
 }
 
 function entry(parent, one, where) {

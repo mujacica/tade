@@ -20,8 +20,9 @@
 
   Four breakpoints, content-driven and not device-driven: one column with a
   floating tab bar and Tade in its middle, then an icon rail with the projects
-  along the top, then a rail with names, then the desk — the work in the middle
-  and a dock beside it with the running agents and Tade (`dock.css`). `away.css`
+  along the top, then a rail with names, categories and the project tree
+  (`rail.css`), then the desk — the work in the middle and a dock beside it
+  with the running agents and Tade (`dock.css`). `away.css`
   has the screens drawn inside this, and `dash.css` the overview.
 */
 
@@ -210,6 +211,7 @@ kbd {
 @media (min-width: 768px) {
   .fresh {
     flex: 0 1 auto;
+    margin-inline-start: auto;
     min-height: 2rem;
     padding-inline: var(--s3);
     border-radius: var(--r3);
@@ -723,7 +725,7 @@ main[tabindex="-1"]:focus {
   }
 
   /* An icon, centred, with its word a label beside it under the pointer. */
-  .rail a {
+  .rail-items > a {
     position: relative;
     display: grid;
     place-items: center;
@@ -737,7 +739,7 @@ main[tabindex="-1"]:focus {
       color var(--ease);
   }
 
-  .rail .label {
+  .rail-items .label {
     position: absolute;
     inset-inline-start: calc(100% + var(--s2));
     z-index: 7;
@@ -755,13 +757,13 @@ main[tabindex="-1"]:focus {
       transform var(--ease);
   }
 
-  .rail a:hover .label,
-  .rail a:focus-visible .label {
+  .rail-items > a:hover .label,
+  .rail-items > a:focus-visible .label {
     opacity: 1;
     transform: none;
   }
 
-  .rail .count {
+  .rail-items .count {
     position: absolute;
     top: 3px;
     inset-inline-end: 4px;
@@ -777,22 +779,22 @@ main[tabindex="-1"]:focus {
     text-align: center;
   }
 
-  .rail .count:empty {
+  .rail-items .count:empty {
     display: none;
   }
 
-  .rail a:hover {
+  .rail-items > a:hover {
     background: var(--raised);
     color: var(--bright);
   }
 
-  .rail a[aria-current="page"] {
+  .rail-items > a[aria-current="page"] {
     background: var(--surface);
     color: var(--cyan);
   }
 
   /* `▌` — the window's own marker for where you are, 3px of cyan. */
-  .rail a[aria-current="page"]::before {
+  .rail-items > a[aria-current="page"]::before {
     content: "";
     position: absolute;
     inset-inline-start: calc(-1 * var(--s2));
@@ -802,10 +804,25 @@ main[tabindex="-1"]:focus {
     background: var(--cyan);
   }
 
-  .rail-rule {
-    height: 1px;
-    margin: var(--s2) var(--s2);
-    background: var(--raised);
+  /*
+    An icon rail has no room for words: its categories are a hairline between
+    them, the projects are along the top instead, and folding is the desk's.
+  */
+  .rail-head,
+  .rail-projects,
+  .rail-fold {
+    display: none;
+  }
+
+  .rail-group + .rail-group {
+    margin-block-start: var(--s1);
+    padding-block-start: var(--s1);
+    border-block-start: var(--border);
+  }
+
+  .rail-items {
+    display: grid;
+    gap: 2px;
   }
 
   .tabs {
@@ -870,40 +887,5 @@ main[tabindex="-1"]:focus {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-size: var(--step--1);
-  }
-}
-
-/* ── a wider desk: the rail gains its words ────────────────────────────────── */
-
-@media (min-width: 1100px) {
-  .frame {
-    grid-template-columns: 13rem minmax(0, 1fr);
-  }
-
-  .rail a {
-    grid-template-columns: 1.25rem 1fr auto;
-    justify-items: start;
-    gap: var(--s3);
-    padding-inline: var(--s3);
-  }
-
-  .rail .label {
-    position: static;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: inherit;
-    opacity: 1;
-    transform: none;
-  }
-
-  .rail .count {
-    position: static;
-    background: none;
-    color: var(--heading);
-  }
-
-  .rail a[aria-current="page"] .count {
-    color: var(--bright);
   }
 }

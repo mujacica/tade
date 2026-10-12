@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { promisify } from 'node:util'
+import { brotliCompress, constants, gzip } from 'node:zlib'
 import { type Asset, assetFor, matchesEtag, readAssets } from './assets.ts'
 import { headersFor } from './headers.ts'
 import { type Served, servedWorker } from './installable.ts'
@@ -38,13 +40,34 @@ export interface Files {
  */
 export function filesFor(opts: { serving: boolean }): Files {
   let assets: Map<string, Asset> | null = null
+  const packed = packing()
   let worker: Served | null = null
   return {
     async asset(req, res, path) {
       assets ??= await readAssets()
-      const file = assetFor(path, assets)
-      if (file === null) return false
-      const headers = headersFor('asset', file.type, file.etag)
+      const found = assetFor(path, assets)
+      if (found === null) return false
+      // **Compressed for whoever can take it**: the page is a few hundred
+      // kilobytes of text a phone on a mobile network pays for once per
+      // version, and brotli makes it a third of that. Static files with no
+      // secret in them, so there is nothing for a compression oracle to
+      // find; each encoding is its own entity with its own etag, and `Vary`
+      // tells any cache between here and the phone to keep them apart.
+      let how = encodingFor(header(req, 'accept-encoding'), found)
+      let file = found
+      if (how !== null) {
+        try {
+          file = await packed.of(found, how)
+        } catch {
+          // A file that would not compress is served as it is, never not at all.
+          how = null
+        }
+      }
+      const headers = {
+        ...headersFor('asset', file.type, file.etag),
+        vary: 'accept-encoding',
+        ...(how === null ? {} : { 'content-encoding': how }),
+      }
       if (matchesEtag(header(req, 'if-none-match'), file.etag)) {
         res.writeHead(304, headers)
         res.end()
@@ -81,6 +104,67 @@ export function filesFor(opts: { serving: boolean }): Files {
       res.writeHead(200, { ...headers, 'content-length': String(worker.bytes.length) })
       res.end(worker.bytes)
       return true
+    },
+  }
+}
+
+/** The two encodings served, best first. */
+export type Encoding = 'br' | 'gzip'
+
+/**
+ * Which encoding to answer a request in, or null for the bytes as they are.
+ *
+ * Text only — an image is compressed already — and only an encoding the
+ * request named with a weight above nought. Pure, so the reading of the
+ * header is a test and not a guess.
+ */
+export function encodingFor(accepts: string | null, file: Pick<Asset, 'type'>): Encoding | null {
+  if (accepts === null || file.type.startsWith('image/')) return null
+  const named = new Map<string, number>()
+  for (const part of accepts.split(',')) {
+    const [name, ...rest] = part.trim().toLowerCase().split(';')
+    const q = rest.map((one) => one.trim()).find((one) => one.startsWith('q='))
+    named.set(name ?? '', q === undefined ? 1 : Number(q.slice(2)) || 0)
+  }
+  for (const one of ['br', 'gzip'] as const) {
+    if ((named.get(one) ?? named.get('*') ?? 0) > 0) return one
+  }
+  return null
+}
+
+const brotli = promisify(brotliCompress)
+const gzipped = promisify(gzip)
+
+/**
+ * Each file in each encoding, made the first time it is asked for and kept
+ * for the life of the listener — the files never change under one, so this is
+ * once per file per encoding, and off the thread (`zlib`'s pool), so the
+ * window that draws on this thread never waits on it.
+ */
+function packing() {
+  const held = new Map<string, Promise<Asset>>()
+  return {
+    of(file: Asset, how: Encoding): Promise<Asset> {
+      const key = `${file.path}|${how}`
+      let made = held.get(key)
+      if (made === undefined) {
+        made = (
+          how === 'br'
+            ? brotli(file.bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 9 } })
+            : gzipped(file.bytes, { level: 9 })
+        ).then((bytes) => ({
+          ...file,
+          bytes,
+          // The same entity in another encoding is another entity: its own
+          // validator, so a `304` is never answered for bytes it did not send.
+          etag: `${file.etag.slice(0, -1)}-${how}"`,
+        }))
+        held.set(key, made)
+        // A failure is not kept: the next ask tries again rather than
+        // inheriting a rejection for the life of the listener.
+        made.catch(() => held.delete(key))
+      }
+      return made
     },
   }
 }

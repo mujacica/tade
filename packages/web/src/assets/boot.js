@@ -41,10 +41,10 @@ import {
   moreScreen,
   notesScreen,
   nowhereScreen,
-  pairScreen,
   queueScreen,
   reviewsScreen,
 } from './pages.js'
+import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
 import { viewOf } from './routes.js'
 import { runScreen, runsScreen } from './runs.js'
@@ -59,6 +59,7 @@ import {
   insideIn,
   navCounts,
   navOn,
+  railIn,
   shell,
   titleFor,
 } from './shell.js'
@@ -159,6 +160,8 @@ const ctx = {
    * notifications on at the machine and `freshen` is what tells this page.
    */
   shell: () => held.shell,
+  /** How a page with no session stands — `unreachable` or `unpaired` — or null with one. */
+  outside: () => outside?.standing ?? null,
   /**
    * The projection revision the screen being looked at is of.
    *
@@ -392,6 +395,7 @@ function paint() {
   if (outside === null) {
     desk.update(view)
     bar.update(view)
+    railIn(shown, view)
   }
 }
 

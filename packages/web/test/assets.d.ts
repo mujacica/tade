@@ -489,3 +489,10 @@ declare module '*/assets/toasts.js' {
     changes: readonly { id: string; kind: string }[],
   ): { id: string; kind: string; word: string; icon: string; tone: string }[]
 }
+
+declare module '*/assets/pair.js' {
+  export const STEPS: readonly { key: string; title: string; sub: string; icon: string }[]
+  export const IN_AFTER_MS: number
+  export function stepOf(ticket: boolean, phase: string): number
+  export function deviceWord(agent: string | undefined): string
+}

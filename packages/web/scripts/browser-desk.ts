@@ -17,7 +17,8 @@ import { until } from './browser-until.ts'
 // What only a browser can answer, and nothing offline can:
 //
 // - `desk` — that the frame is the window's shape where there is room for it
-//   and a phone's where there is not: projects along the top from a tablet up,
+//   and a phone's where there is not: projects along the top on a tablet and
+//   as a tree in the rail from a desk up,
 //   the running agents and Tade in a dock beside the work from a desk up, and
 //   none of the three on a phone. The stylesheet decides all of it, so only a
 //   laid-out page can say it.
@@ -55,6 +56,7 @@ const DESK = `(() => {
   }
   return {
     projects: shown('nav.projects'),
+    tree: shown('.rail-tree') && document.querySelectorAll('.rail-tree .tree-project').length > 0,
     side: shown('nav.side'),
     strip: shown('section.strip'),
     tabs: shown('nav.tabs'),
@@ -85,8 +87,11 @@ export async function deskAt(
     await page.waitForSelector('main .section', { timeout: 10_000 })
     const shape = (await page.evaluate(DESK)) as Record<string, boolean | number>
     const desk = width.width >= 1280
+    // The projects are chips along the top while the rail is icons, and a
+    // tree in the rail once it has its words (`rail.css`).
     const wanted = {
-      projects: width.width >= 768,
+      projects: width.width >= 768 && width.width < 1100,
+      tree: width.width >= 1100,
       side: desk,
       strip: desk,
       tabs: width.width < 768,
@@ -104,7 +109,9 @@ export async function deskAt(
         'desk',
         where,
         'pass',
-        desk ? 'projects, agents and Tade around the work' : 'the shape this width has room for',
+        desk
+          ? 'the project tree, agents and Tade around the work'
+          : 'the shape this width has room for',
       )
   } catch (problem) {
     found('desk', where, 'fail', said(problem))

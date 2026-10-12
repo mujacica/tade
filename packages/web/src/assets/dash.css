@@ -814,3 +814,32 @@ main a.check-card:hover {
     border-color: var(--control);
   }
 }
+
+/*
+  A project's counts, in the rail's tree and on the More screen: what wants
+  you in violet, what works in amber, nought not at all.
+*/
+.tree-count {
+  min-width: 1.25rem;
+  padding-inline: 5px;
+  border-radius: var(--r3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step--1);
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.tree-count:empty {
+  display: none;
+}
+
+.tree-count.is-wants {
+  background: color-mix(in srgb, var(--violet) 18%, transparent);
+  color: var(--violet);
+}
+
+.tree-count.is-working {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber);
+}

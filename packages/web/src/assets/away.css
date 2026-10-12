@@ -680,48 +680,6 @@ select {
   opacity: 0.6;
 }
 
-/* ── pairing ───────────────────────────────────────────────────────────────── */
-
-.pair {
-  display: grid;
-  place-items: center;
-  min-height: 70vh;
-}
-
-.pair-card {
-  display: grid;
-  gap: var(--s3);
-  width: min(100%, 26rem);
-  padding: var(--s5);
-  border-radius: var(--r4);
-  background: var(--panel);
-  border: var(--border);
-}
-
-.pair-mark .ic {
-  width: 2.5rem;
-  height: 2.5rem;
-  fill: var(--amber);
-  stroke: none;
-}
-
-.pair-card h1 {
-  font-size: var(--step-2);
-  letter-spacing: var(--tight);
-}
-
-.pair-card input {
-  max-width: none;
-}
-
-.pair-away {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
 /* ── the factory floor ─────────────────────────────────────────────────────── */
 
 /*

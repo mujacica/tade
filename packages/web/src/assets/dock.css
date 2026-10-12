@@ -7,9 +7,13 @@
 /* ── the desk: the work in the middle, the agents and Tade docked beside it ── */
 
 @media (min-width: 1280px) {
-  .frame {
-    grid-template-columns: 13rem minmax(0, 1fr) 21rem;
+  .frame:not(.rail-mini) {
+    grid-template-columns: 13.5rem minmax(0, 1fr) 21rem;
     grid-template-rows: auto 1fr;
+  }
+
+  .frame.rail-mini {
+    grid-template-columns: 3.5rem minmax(0, 1fr) 21rem;
   }
 
   /*
@@ -186,7 +190,11 @@
 /* ── wide: the dock widens ────────────────────────────────────────────── */
 
 @media (min-width: 1600px) {
-  .frame {
+  .frame:not(.rail-mini) {
     grid-template-columns: 14rem minmax(0, 1fr) 24rem;
+  }
+
+  .frame.rail-mini {
+    grid-template-columns: 3.5rem minmax(0, 1fr) 24rem;
   }
 }

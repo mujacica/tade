@@ -26,7 +26,16 @@ const TOKENS = read('tokens.css')
 // five files for length and one stylesheet for every rule here: a selector is
 // in whichever of them it belongs to, and nothing in this file cares which —
 // except the breakpoints, which are in order within each file.
-const SHEETS = ['frame.css', 'away.css', 'dash.css', 'palette.css', 'dock.css', 'motion.css']
+const SHEETS = [
+  'frame.css',
+  'rail.css',
+  'away.css',
+  'dash.css',
+  'palette.css',
+  'dock.css',
+  'pair.css',
+  'motion.css',
+]
 const AWAY = SHEETS.map(read).join('\n')
 const CSS = `${TOKENS}\n${AWAY}`
 const HTML = read('index.html')

@@ -150,6 +150,16 @@ main a.proj,
   animation: pulse 3s cubic-bezier(0.2, 0, 0, 1) infinite;
 }
 
+/* The wait at the machine while a device is paired: the same breath. */
+.pair-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r3);
+  background: var(--amber);
+  animation: pulse 2s cubic-bezier(0.2, 0, 0, 1) infinite;
+}
+
 /* ── not read yet ──────────────────────────────────────────────────────────── */
 
 /*

@@ -1,5 +1,7 @@
+import { brotliCompressSync, constants } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { type Asset, etagOf, readAssets, WORKER_FILE } from '../src/assets.ts'
+import { encodingFor } from '../src/files.ts'
 import {
   CACHE_PREFIX,
   cacheName,
@@ -225,15 +227,24 @@ describe('the real folder', () => {
 
   it('is small enough to precache on a phone’s data', async () => {
     const assets = await readAssets()
-    const bytes = [...assets.values()].reduce((sum, one) => sum + one.bytes.length, 0)
-    // The whole away view, every module, every icon. A megabyte here would be
-    // a first visit somebody notices on a train, and would mean the folder had
-    // grown something that does not belong in it.
-    //
-    // 512KB, up from 400 when the overview, the command bar, the dock and the
-    // icon sprite arrived (~60KB of them, most of it the comments every module
-    // here carries). Still half the megabyte that would be noticed, and still
-    // fetched once per version, not per visit.
-    expect(bytes).toBeLessThan(512 * 1024)
+    // **What a phone pays, which is the compressed bytes** (`files.ts` serves
+    // brotli to whoever takes it, and every browser this page claims does).
+    // The whole away view, every module, every icon: a few hundred kilobytes
+    // over the wire would be a first visit somebody notices on a train, and
+    // would mean the folder had grown something that does not belong in it.
+    let wire = 0
+    let raw = 0
+    for (const one of assets.values()) {
+      raw += one.bytes.length
+      wire +=
+        encodingFor('br', one) === null
+          ? one.bytes.length
+          : brotliCompressSync(one.bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 9 } })
+              .length
+    }
+    expect(wire).toBeLessThan(224 * 1024)
+    // And the files as they sit, which is what a browser holds once it has
+    // them: still under a megabyte, with the comments every module carries.
+    expect(raw).toBeLessThan(768 * 1024)
   })
 })

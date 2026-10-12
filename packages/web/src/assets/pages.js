@@ -1,5 +1,5 @@
 // The screens that are a list or a table: the queue, the checks, the reviews,
-// the findings, the notes, this device, and pairing one. The money is
+// the findings, the notes and this device. Pairing one is `pair.js`. The money is
 // `spend.js`.
 //
 // **The checks.** A rollup is what a run *here* adds up to, so `unknown` is
@@ -25,7 +25,7 @@ import {
 import { checkMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { NOT_OFFERED, OFF, ON, PUSH_SAID, pushState, subscribe, unsubscribe } from './push.js'
-import { MORE, pathOf } from './routes.js'
+import { GROUPS, MORE, pathOf, placeOf } from './routes.js'
 import {
   createFindingRow,
   createNoteRow,
@@ -620,79 +620,6 @@ function fillDeviceRow(node, device, view) {
   textIn(aside, age === null ? '' : `paired ${age} ago`)
 }
 
-/* ── pairing ───────────────────────────────────────────────────────────────── */
-
-/**
- * The four states a phone goes through: scanned, asking, paired, refused.
- *
- * **A typed address cannot pair.** The ticket is in the QR's fragment, which a
- * browser never sends to a server, so somebody who typed the address arrives
- * here with nothing to present — and is told to scan the code in the window
- * rather than left pressing a button that cannot work.
- *
- * The sentence under the name field is where somebody is deciding, so it says
- * what letting a device in actually means: everything, read-only, including
- * what they typed as they typed it.
- */
-export function pairScreen(ctx) {
-  const node = el('div', { class: 'pair' })
-  const card = el('section', { class: 'pair-card', attrs: { 'aria-labelledby': 'pair-head' } })
-  const mark = el('span', { class: 'pair-mark' })
-  into(mark, icon('mark'))
-  const title = el('h1', { text: 'Pair this device', attrs: { id: 'pair-head' } })
-  // **Said where somebody is deciding**, and so kept on the page rather than
-  // behind a `?`: what letting this device in will let it read is the one
-  // sentence this screen exists to put in front of somebody.
-  const why = el('p', {
-    class: 'caveat',
-    text: 'Tade will ask at the machine before this device is let in. It will be able to read every project, task, note, check and figure — including what you have typed into Tade, as you typed it — and to change nothing.',
-  })
-  const label = el('label', { text: 'Name it, so you can revoke it', attrs: { for: 'label' } })
-  const field = el('input', {
-    attrs: {
-      id: 'label',
-      type: 'text',
-      maxlength: '40',
-      autocomplete: 'off',
-      placeholder: 'My phone',
-    },
-  })
-  const press = el('button', { class: 'press', text: 'Pair', attrs: { type: 'button' } })
-  const said = el('p', { attrs: { role: 'status' } })
-  // Off this wifi, the link lives at the machine: one line, where somebody who
-  // typed an address and has no code is standing.
-  const away = el('p', { class: 'pair-away' })
-  into(away, icon('devices'), el('span', { text: 'On the go: Settings › Away, on the machine' }))
-  into(card, mark, title, label, field, press, said, why, away)
-  into(node, card)
-
-  const ticket = ctx.ticket()
-  if (ticket === null) {
-    press.disabled = true
-    field.disabled = true
-    textIn(said, 'Scan the code in Tade’s window.')
-    label.hidden = true
-    field.hidden = true
-    press.hidden = true
-  } else {
-    away.hidden = true
-    press.addEventListener('click', async () => {
-      press.disabled = true
-      textIn(said, 'Asking at the machine. Press the key in the window to let this device in.')
-      const answer = await ctx.ask('POST', '/api/pair', { ticket, label: field.value })
-      if (answer.status === 201) {
-        ctx.go('/', { replace: true, reload: true })
-        return
-      }
-      // One try per ticket, whatever the answer: it was burned the moment it
-      // was presented, so there is nothing here to press again.
-      textIn(said, `${ctx.sentence(answer)} Scan a new code in the window.`)
-    })
-  }
-
-  return { node, update() {} }
-}
-
 /* ── More, and nowhere ─────────────────────────────────────────────────────── */
 
 /**
@@ -702,18 +629,33 @@ export function pairScreen(ctx) {
 export function moreScreen() {
   const node = el('div')
   const made = section('MORE', { top: true })
-  const list = el('ul', { class: 'places' })
-  into(made.body, list)
-  const figures = []
-  for (const one of MORE) {
-    const row = el('li')
-    const link = el('a', { attrs: { href: `/${one.view}` } })
-    const figure = el('span', { class: 'count' })
-    into(link, icon(one.icon), el('span', { class: 'label', text: one.label }), figure)
-    into(list, into(row, link))
-    figures.push({ figure, counts: one.counts })
-  }
   into(node, made.node)
+  const figures = []
+  // **The sidebar's own categories**, so a place is in one group on a phone
+  // and at a desk alike — and the projects as a group of their own, each a
+  // link with what wants you and what works in it, as the rail has them.
+  let projects = null
+  for (const group of GROUPS) {
+    const views = group.views.filter((view) => MORE.some((one) => one.view === view))
+    if (group.key !== 'projects' && views.length === 0) continue
+    const list = el('ul', { class: 'places' })
+    if (group.title === '') into(made.body, list)
+    else {
+      const part = section(group.title.toUpperCase())
+      into(part.body, list)
+      into(node, part.node)
+    }
+    if (group.key === 'projects') projects = list
+    for (const view of views) {
+      const one = placeOf(view)
+      const row = el('li')
+      const link = el('a', { attrs: { href: `/${one.view}` } })
+      const figure = el('span', { class: 'count' })
+      into(link, icon(one.icon), el('span', { class: 'label', text: one.label }), figure)
+      into(list, into(row, link))
+      figures.push({ figure, counts: one.counts })
+    }
+  }
   return {
     node,
     update(view) {
@@ -721,6 +663,31 @@ export function moreScreen() {
         const n = one.counts === null ? 0 : (view.counts?.[one.counts] ?? 0)
         textIn(one.figure, n === 0 ? '' : String(n))
       }
+      if (projects === null) return
+      keyed(
+        projects,
+        projectsOf(view.store),
+        (row) => row.name,
+        () => {
+          const row = el('li')
+          const link = el('a', { attrs: { href: '/' } })
+          into(
+            link,
+            icon('folder'),
+            el('span', { class: 'label' }),
+            el('span', { class: 'tree-count is-wants' }),
+          )
+          return into(row, link)
+        },
+        (row, project) => {
+          const link = row.firstChild
+          link.setAttribute('href', pathOf({ view: 'project', project: project.name }))
+          textIn(link.children[1], project.name)
+          const n = project.counts.wantsYou
+          textIn(link.children[2], n === 0 ? '' : String(n))
+          link.children[2].setAttribute('aria-label', `${n} wanting you`)
+        },
+      )
     },
   }
 }

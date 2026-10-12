@@ -46,6 +46,8 @@ export const ICONS = [
   'clock',
   'flag',
   'arrow',
+  'laptop',
+  'scan',
   'mark',
 ]
 

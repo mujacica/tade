@@ -207,6 +207,29 @@ export const MORE = [
   { view: 'settings', icon: 'settings', mark: '⚙', label: 'Settings', counts: null },
 ]
 
+/**
+ * The sidebar, in categories: the four places read because something is
+ * happening, then the projects themselves (filled from the store, each one
+ * opening onto its work), then the rest by what they are about. The phone's
+ * More screen is the same groups, so a place is in one category everywhere.
+ *
+ * Every place in `NAV` and `MORE` is in exactly one group
+ * (`test/routes-client.test.ts`), and `projects` names none: it is data.
+ */
+export const GROUPS = [
+  { key: 'main', title: '', views: ['now', 'agents', 'queue', 'inbox'] },
+  { key: 'projects', title: 'Projects', views: [] },
+  { key: 'work', title: 'Work', views: ['runs', 'reviews', 'findings', 'workflows'] },
+  { key: 'insight', title: 'Insight', views: ['spend', 'checks'] },
+  { key: 'tade', title: 'Tade', views: ['talk', 'notes'] },
+  { key: 'system', title: 'System', views: ['devices', 'settings'] },
+]
+
+/** One place's entry, out of either list, by its view. */
+export function placeOf(view) {
+  return [...NAV, ...MORE].find((one) => one.view === view) ?? null
+}
+
 /** Which of the navigation's entries a screen lights up. */
 export function navFor(where) {
   if (where.view === 'project' || where.view === 'task') return 'now'
