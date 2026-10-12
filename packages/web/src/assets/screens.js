@@ -35,6 +35,7 @@ import {
 } from './dom.js'
 import { count, money, onPlan, sinceSaid, tokensSaid } from './figures.js'
 import { checkMark, taskMark } from './glyphs.js'
+import { glanceOf, glanceTiles, tilesIn } from './overview.js'
 import { quickActs } from './quick.js'
 import { pathOf } from './routes.js'
 import {
@@ -86,7 +87,16 @@ export function projectScreen(where, ctx) {
     into(strip, el('a', { text: name, attrs: { href: `#${at.heading.id}` } }))
   }
 
-  into(node, back, head, strip, gone, agents.node, queue.node, checks.node, spend.node)
+  // The project at a glance: the overview's own tiles, folded over this
+  // project's work, each going to its own section below.
+  const tiles = el('div', { class: 'tiles tiles-4' })
+  const glance = glanceTiles(tiles, ['wants', 'working', 'queue', 'checks'], {
+    wants: `#${agents.heading.id}`,
+    working: `#${agents.heading.id}`,
+    queue: `#${queue.heading.id}`,
+    checks: `#${checks.heading.id}`,
+  })
+  into(node, back, head, tiles, strip, gone, agents.node, queue.node, checks.node, spend.node)
   const folds = foldsOf(checks, spend)
   // Closing it, or opening it again: the same blocks a task's page builds, over
   // the two verbs about the whole project, at the foot where a reach for the
@@ -111,7 +121,7 @@ export function projectScreen(where, ctx) {
             ? 'Closed. Nothing in it was deleted, and any agent working in it is still working.'
             : '',
       )
-      for (const one of [agents.node, queue.node, checks.node, spend.node]) {
+      for (const one of [agents.node, queue.node, checks.node, spend.node, tiles, strip]) {
         one.hidden = project === null || shut
       }
       if (project !== null) acts?.update(project, view)
@@ -119,6 +129,7 @@ export function projectScreen(where, ctx) {
       // open would be one nothing could refresh.
       if (shut) textIn(figure, '')
       if (project === null || shut) return
+      tilesIn(glance, glanceOf(view.store, where.project), view)
       const tasks = tasksIn(view.store, where.project)
       const paid = money(spendFold(tasks, omitted(view.store, 'tasks') > 0), view.may.spend)
       textIn(figure, paid.said === '—' ? `— ${paid.why}` : paid.said)

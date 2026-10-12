@@ -126,7 +126,8 @@ export function byProject(agents) {
 
 function createGroup() {
   const made = section('project')
-  const list = el('ul', { class: 'rows' })
+  // A list on a phone and a grid of cards where the work has room for two.
+  const list = el('ul', { class: 'rows agent-list' })
   into(made.body, list)
   return made.node
 }

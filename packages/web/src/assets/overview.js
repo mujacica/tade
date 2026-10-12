@@ -66,15 +66,17 @@ import {
  * any harness reported, because the plan that runs out first is the one that
  * stops the work.
  */
-export function glanceOf(store) {
-  const tasks = rowsOf(store, 'tasks')
-  const wants = wantsYou(store)
+export function glanceOf(store, project = null) {
+  const mine = (task) => project === null || task.project === project
+  const tasks = rowsOf(store, 'tasks').filter(mine)
+  const wants = wantsYou(store).filter(mine)
   const by = (state) => wants.filter((task) => task.state === state).length
-  const agents = agentsOf(store)
-  const queue = queueIn(store, null)
+  const agents = agentsOf(store).filter(mine)
+  const queue = queueIn(store, project)
   const checks = checksFold(tasks)
   let plan = null
-  for (const row of plansOf(store)) {
+  // A plan is a harness's, not a project's: one project's page has no plan.
+  for (const row of project === null ? plansOf(store) : []) {
     for (const window of row.windows ?? []) {
       if (plan === null || window.used > plan.used) {
         plan = { used: window.used, label: window.label, harness: row.harness }
@@ -93,11 +95,12 @@ export function glanceOf(store) {
       stalled: agents.filter((task) => task.stalled).length,
     },
     queue: {
-      n: queue.length + omitted(store, 'queue'),
+      n: queue.length + (project === null ? omitted(store, 'queue') : 0),
       ready: queue.filter((row) => row.state?.kind === 'ready').length,
     },
     checks,
     spend: spendFold(tasks, omitted(store, 'tasks') > 0),
+    tasks: tasks.length,
     plan,
   }
 }
@@ -126,15 +129,7 @@ export function nowScreen(ctx = null) {
   top.node.classList.add('ov-top')
   const tiles = el('div', { class: 'tiles' })
   into(top.body, tiles)
-  const made = {
-    wants: tileOf({ icon: 'flag', label: 'Wants you', href: '#wants', tone: 'wants', bar: true }),
-    working: tileOf({ icon: 'bolt', label: 'Working', href: '/agents', tone: 'working' }),
-    queue: tileOf({ icon: 'queue', label: 'Queued', href: '/queue', tone: 'quiet' }),
-    checks: tileOf({ icon: 'checks', label: 'Checks', href: '/checks', ring: 'checks' }),
-    spend: tileOf({ icon: 'spend', label: 'Spend', href: '/spend', tone: 'quiet' }),
-    plan: tileOf({ icon: 'clock', label: 'Plan', href: '/spend', ring: 'plan' }),
-  }
-  into(tiles, ...Object.values(made).map((one) => one.node))
+  const made = glanceTiles(tiles)
 
   const wants = section('WANTS YOU')
   wants.node.setAttribute('id', 'wants')
@@ -259,6 +254,32 @@ function leftOut(store) {
   return parts.length === 0 ? '' : `${parts.join(' and ')} not on this page`
 }
 
+/**
+ * The tiles, into a `.tiles` grid: all six, or the ones named, each a link to
+ * where the whole of it is (`to` names another place for any of them — a
+ * project's page sends each to its own section).
+ */
+export function glanceTiles(into_, names = TILES, to = {}) {
+  const made = {}
+  for (const name of names) {
+    const spec = TILE_SPECS[name]
+    made[name] = tileOf({ ...spec, href: to[name] ?? spec.href })
+    into_.append(made[name].node)
+  }
+  return made
+}
+
+const TILE_SPECS = {
+  wants: { icon: 'flag', label: 'Wants you', href: '#wants', tone: 'wants', bar: true },
+  working: { icon: 'bolt', label: 'Working', href: '/agents', tone: 'working' },
+  queue: { icon: 'queue', label: 'Queued', href: '/queue', tone: 'quiet' },
+  checks: { icon: 'checks', label: 'Checks', href: '/checks', ring: 'checks' },
+  spend: { icon: 'spend', label: 'Spend', href: '/spend', tone: 'quiet' },
+  plan: { icon: 'clock', label: 'Plan', href: '/spend', ring: 'plan' },
+}
+
+const TILES = Object.keys(TILE_SPECS)
+
 /* ── a tile ────────────────────────────────────────────────────────────────── */
 
 /**
@@ -286,12 +307,14 @@ function tileOf(spec) {
   return { node, figure, under, chart }
 }
 
-function tilesIn(made, glance, view) {
+export function tilesIn(made, glance, view) {
   const had = view.store.had
   // Nothing read yet is a shimmer where the figure will be (`motion.css`),
   // never a dash that reads as *nobody recorded it* and never a nought; a
   // figure that moves afterwards flashes once (`figureIn`).
+  // A tile not drawn on this page (a project's has no plan) is skipped.
   const said = (one, figure, under, label) => {
+    if (one === undefined) return
     figureIn(one.figure, had ? figure : '')
     textIn(one.under, had ? under : '')
     one.node.setAttribute('aria-label', had ? label : `${label}: not read yet`)
@@ -306,8 +329,10 @@ function tilesIn(made, glance, view) {
       : partsSaid([w.blocked, 'blocked'], [w.failed, 'failed'], [w.review, 'review']),
     `${w.n} wanting you`,
   )
-  barIn(made.wants.chart, [w.blocked, w.failed, w.review])
-  classOn(made.wants.node, 'is-hot', w.n > 0)
+  if (made.wants !== undefined) {
+    barIn(made.wants.chart, [w.blocked, w.failed, w.review])
+    classOn(made.wants.node, 'is-hot', w.n > 0)
+  }
 
   const k = glance.working
   said(
@@ -316,7 +341,7 @@ function tilesIn(made, glance, view) {
     k.stalled > 0 ? `${k.stalled} stalled` : k.n === 0 ? 'idle' : 'running',
     `${k.n} agents working`,
   )
-  classOn(made.working.node, 'is-hot', k.n > 0)
+  if (made.working !== undefined) classOn(made.working.node, 'is-hot', k.n > 0)
 
   const q = glance.queue
   said(
@@ -340,8 +365,10 @@ function tilesIn(made, glance, view) {
           : 'green',
     `checks: ${c.pass} green, ${c.fail} red, ${c.unknown} not run here`,
   )
-  ringIn(made.checks.chart, [c.pass, c.fail, c.unknown])
-  classOn(made.checks.node, 'is-bad', c.fail > 0)
+  if (made.checks !== undefined) {
+    ringIn(made.checks.chart, [c.pass, c.fail, c.unknown])
+    classOn(made.checks.node, 'is-bad', c.fail > 0)
+  }
 
   const paid = money(glance.spend, view.may.spend)
   const figure = paid.said === '—' ? '—' : `${glance.spend.partial ? '≥' : ''}${paid.said}`
@@ -360,7 +387,9 @@ function tilesIn(made, glance, view) {
     p === null ? 'none reported' : `${p.label} · ${p.harness}`,
     p === null ? 'plan: none reported' : `${p.harness} ${p.label} plan ${Math.round(p.used)}% used`,
   )
-  shareIn(made.plan.chart, p?.used ?? null, p === null ? '' : planPressure(p.used))
+  if (made.plan !== undefined) {
+    shareIn(made.plan.chart, p?.used ?? null, p === null ? '' : planPressure(p.used))
+  }
 }
 
 /** `2 blocked · 1 failed`, leaving out what is nought. */

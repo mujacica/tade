@@ -343,8 +343,8 @@ describe('the shell’s own semantics', () => {
 
   it('claims no key it does not answer', () => {
     // A key that looks like it works and does not is worse than one that was
-    // never offered. There is no search on this page in this phase, so there
-    // is no `/` in the sheet and none in the handler.
+    // never offered. `/` opens the command bar, which is the page's search,
+    // so the sheet may offer it only where the handler answers it.
     const entry = read('boot.js')
     const sheet = read('shell.js')
     const offered = [...sheet.matchAll(/\['(g [a-z]|[jk?] \/ [jk?]|\w+)',/g)].map((one) => one[1])
@@ -354,7 +354,7 @@ describe('the shell’s own semantics', () => {
       const letter = key.startsWith('g ') ? key.slice(2) : key
       expect(entry, `the sheet offers ${key}`).toContain(letter.split(' ')[0] ?? letter)
     }
-    expect(sheet).not.toContain("['/',")
+    if (sheet.includes("['/',")) expect(entry).toContain("case '/':")
   })
 })
 

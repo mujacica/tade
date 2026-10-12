@@ -74,7 +74,7 @@ export function spendScreen() {
     attrs: { tabindex: '0', role: 'region', 'aria-label': 'Spend by project, scrollable' },
   })
   const table = el('table')
-  const caption = el('caption', { text: 'Folded over the tasks on this page.' })
+  const caption = el('caption', { class: 'sr-only', text: 'Folded over the tasks on this page.' })
   const headRow = el('tr')
   for (const [name, klass] of [
     ['Project', ''],

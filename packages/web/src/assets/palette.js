@@ -27,7 +27,7 @@
 
 import { afterAnswer, askBody, bodyFor, confirms, controlsFor } from './acts.js'
 import { commandsFor, litOf, movedTo, rememberedWith } from './commands.js'
-import { el, hintOf, into, keyed, textIn, toneOn } from './dom.js'
+import { el, felt, hintOf, into, keyed, textIn, toneOn } from './dom.js'
 import { CHAT_KINDS, taskMark } from './glyphs.js'
 import { icon, iconIn } from './icons.js'
 import { MORE, NAV, pathOf, taskPath } from './routes.js'
@@ -318,6 +318,7 @@ export function palette(ctx) {
     const answer = await ctx.ask('POST', path, body)
     going = false
     const came = afterAnswer(answer, ctx.sentence(answer))
+    if (came.ok) felt()
     textIn(status, came.said)
     return came
   }

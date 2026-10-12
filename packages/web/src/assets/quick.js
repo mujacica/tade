@@ -17,7 +17,7 @@
 // write one.
 
 import { bodyFor, confirms, controlsFor } from './acts.js'
-import { classOn, el, into, textIn } from './dom.js'
+import { classOn, el, felt, into, textIn } from './dom.js'
 import { icon } from './icons.js'
 import { taskPath } from './routes.js'
 import { keyOf } from './screens.js'
@@ -65,6 +65,7 @@ export function quickActs(ctx, opts = {}) {
     )
     going = false
     press.disabled = false
+    if (answer.status === 200) felt()
     textIn(said, answer.status === 200 ? (answer.body?.said ?? 'done') : ctx.sentence(answer))
   }
 

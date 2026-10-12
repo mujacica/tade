@@ -738,3 +738,79 @@ main {
 .page-head + .quick {
   margin-block-end: var(--s5);
 }
+
+/* A project's page: four tiles, two across on a phone and four from there up. */
+@container (min-width: 32rem) {
+  .tiles.tiles-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.tiles.tiles-4 {
+  margin-block-end: var(--s4);
+}
+
+/* Every project's checks: a ring, its name, and three counts. */
+.check-cards {
+  display: grid;
+  gap: var(--s2);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  margin-block-end: var(--s4);
+}
+
+main a.check-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--s3);
+  align-items: center;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+
+main a.check-card:hover {
+  border-color: var(--control);
+}
+
+.check-card .ring {
+  grid-row: 1 / span 2;
+}
+
+.check-counts {
+  display: flex;
+  gap: var(--s3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step--1);
+}
+
+/*
+  The agents at work, as cards where the work has room for two across: each
+  its own surface with the state's dot breathing in its corner, rather than a
+  long list of rows on a wide screen.
+*/
+@container (min-width: 40rem) {
+  .rows.agent-list {
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: var(--s3);
+    background: none;
+    border: 0;
+    overflow: visible;
+  }
+
+  .rows.agent-list > li > a,
+  .rows.agent-list > li + li > a {
+    height: 100%;
+    border-radius: var(--r2);
+    background: var(--surface);
+    border: var(--border);
+    transition: border-color var(--ease);
+  }
+
+  .rows.agent-list > li > a:hover {
+    border-color: var(--control);
+  }
+}

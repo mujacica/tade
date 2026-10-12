@@ -643,8 +643,8 @@ function wireBeat() {
  * `g` then a letter to go somewhere, `j`/`k` through the rows, `Enter` to open
  * one, `Escape` to go back, `?` for the list.
  *
- * Nothing is claimed that does nothing: there is no search on this page in this
- * phase, so there is no `/`. A key that looks like it works and does not is
+ * `/` and `⌘K` open the command bar, which is the page's search. Nothing is
+ * claimed that does nothing: a key that looks like it works and does not is
  * worse than one that was never offered.
  */
 const GOES = {
@@ -687,6 +687,12 @@ function wireKeys() {
     switch (event.key) {
       case 'g':
         going = true
+        return
+      // The command bar, from the key every search box on the web answers to.
+      case '/':
+        if (outside !== null) return
+        event.preventDefault()
+        bar.open()
         return
       case '?':
         event.preventDefault()

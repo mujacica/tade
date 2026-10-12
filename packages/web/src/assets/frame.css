@@ -203,6 +203,38 @@ kbd {
 }
 
 /*
+  From a tablet up the clock is a pill, tinted by how the page stands: green
+  while live, amber while asking again, red when nothing answers. The dot and
+  the words say it; the tint is where the eye finds it.
+*/
+@media (min-width: 768px) {
+  .fresh {
+    flex: 0 1 auto;
+    min-height: 2rem;
+    padding-inline: var(--s3);
+    border-radius: var(--r3);
+    background: var(--panel);
+    border: var(--border);
+  }
+
+  .fresh:has(.dot.is-live) {
+    background: color-mix(in srgb, var(--green) 7%, var(--panel));
+    border-color: color-mix(in srgb, var(--green) 22%, transparent);
+  }
+
+  .fresh:has(.dot.is-stale),
+  .fresh:has(.dot.is-reconnecting) {
+    background: color-mix(in srgb, var(--amber) 8%, var(--panel));
+    border-color: var(--amber-dark);
+  }
+
+  .fresh:has(.dot.is-gone) {
+    background: color-mix(in srgb, var(--red) 8%, var(--panel));
+    border-color: color-mix(in srgb, var(--red) 35%, transparent);
+  }
+}
+
+/*
   The dot's colour, and it is never the only thing that says this: the glyph
   itself differs per state (● ◴ ○ ⏸ ▣) and the words follow it.
 */

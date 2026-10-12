@@ -10,8 +10,8 @@
 // viewport, each in its own `overflow-x` container, and each is a real `<table>`
 // with a `<caption>` and `<th scope>`.
 
-import { ringOf, shareIn } from './charts.js'
-import { classOn, el, empty, foldOf, into, keyed, textIn } from './dom.js'
+import { ringIn, ringOf } from './charts.js'
+import { classOn, el, empty, into, keyed, textIn, toneOn } from './dom.js'
 import {
   ageSaid,
   count,
@@ -25,7 +25,7 @@ import {
 import { checkMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { NOT_OFFERED, OFF, ON, PUSH_SAID, pushState, subscribe, unsubscribe } from './push.js'
-import { MORE } from './routes.js'
+import { MORE, pathOf } from './routes.js'
 import {
   createFindingRow,
   createNoteRow,
@@ -153,7 +153,10 @@ export function checksScreen() {
     attrs: { tabindex: '0', role: 'region', 'aria-label': 'Checks, scrollable' },
   })
   const table = el('table')
+  // Read aloud, not drawn: the table's own marks (`—` and *not run here*)
+  // already say on every row what the sentence says once.
   const caption = el('caption', {
+    class: 'sr-only',
     text: 'What a run on this machine added up to, per task. A check nobody ran here is not a check that passed.',
   })
   const head = el('thead')
@@ -172,7 +175,10 @@ export function checksScreen() {
   into(table, caption, head, body)
   into(wrap, table)
   const none = empty('no tasks to check')
-  into(made.body, wrap, none)
+  // Every project's checks as a ring and three counts, above the table of
+  // every task: the shape first, the rows for whoever needs them.
+  const cards = el('div', { class: 'check-cards' })
+  into(made.body, cards, wrap, none)
   into(node, made.node)
 
   return {
@@ -182,11 +188,48 @@ export function checksScreen() {
       const fold = checksFold(tasks)
       const mark = checkMark(checksWord(fold))
       textIn(made.figure, mark.word)
+      // The word as a pill in its own tone: the one figure this heading has.
+      classOn(made.figure, 'pill', true)
+      toneOn(made.figure, mark.tone)
       none.hidden = tasks.length > 0
       wrap.hidden = tasks.length === 0
       keyed(body, tasks, (task) => task.id, createCheckRow, fillCheckRow)
+      keyed(
+        cards,
+        projectsOf(view.store),
+        (row) => row.name,
+        createCheckCard,
+        (one, row) => fillCheckCard(one, row, view),
+      )
     },
   }
+}
+
+function createCheckCard() {
+  const node = el('a', { class: 'check-card', attrs: { href: '/' } })
+  const counts = el('span', { class: 'check-counts' })
+  for (const tone of ['t-done', 't-failed', 't-quiet']) {
+    into(counts, el('span', { class: `stat ${tone}` }))
+  }
+  into(node, ringOf('checks'), el('span', { class: 'proj-name' }), counts)
+  return node
+}
+
+const CHECK_NOUNS = ['green', 'red', 'not run here']
+
+function fillCheckCard(node, project, view) {
+  const [ring, name, counts] = node.children
+  const fold = checksFold(tasksIn(view.store, project.name))
+  node.setAttribute('href', pathOf({ view: 'project', project: project.name }))
+  textIn(name, project.name)
+  ringIn(ring, [fold.pass, fold.fail, fold.unknown])
+  const figures = [fold.pass, fold.fail, fold.unknown]
+  ;[...counts.children].forEach((one, at) => {
+    const n = figures[at] ?? 0
+    textIn(one, `${checkMark(['pass', 'fail', 'unknown'][at]).glyph} ${n}`)
+    one.setAttribute('aria-label', `${n} ${CHECK_NOUNS[at]}`)
+    classOn(one, 'is-zero', n === 0)
+  })
 }
 
 function createCheckRow() {

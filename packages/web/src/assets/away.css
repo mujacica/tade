@@ -173,12 +173,14 @@ main a.chip-link.t-wants {
 
 .tabstrip {
   display: flex;
-  gap: var(--s2);
-  margin-block-end: var(--s4);
-  padding-block-end: var(--s2);
+  gap: var(--s1);
+  margin-block-end: var(--s5);
+  padding: var(--s1);
   overflow-x: auto;
   scroll-snap-type: x proximity;
-  border-block-end: var(--border);
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
 }
 
 .tabstrip a {
@@ -200,6 +202,11 @@ main a.chip-link.t-wants {
   color: var(--cyan);
 }
 
+.tabstrip a:hover {
+  background: var(--surface);
+  color: var(--bright);
+}
+
 /* ── the queue, as an indented list with connectors ────────────────────────── */
 
 /*
@@ -209,7 +216,7 @@ main a.chip-link.t-wants {
 */
 .queue > li {
   display: grid;
-  grid-template-columns: 1.75rem 1.5rem 1fr auto;
+  grid-template-columns: auto 1.5rem 1fr auto;
   gap: var(--s2);
   align-items: center;
   padding: var(--s2) var(--s4);

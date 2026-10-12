@@ -356,6 +356,7 @@ function keySheet() {
   const list = el('dl')
   for (const [key, what] of [
     ['⌘ K', 'ask Tade, or go anywhere'],
+    ['/', 'the same, from anywhere but a box'],
     ['g n', 'Overview'],
     ['g a', 'Agents'],
     ['g q', 'Queue'],

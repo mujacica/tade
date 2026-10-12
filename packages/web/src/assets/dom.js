@@ -307,3 +307,15 @@ export function foldOf(label) {
   })
   return { press, body }
 }
+
+/**
+ * A press that did something, felt: one short tick where the device can give
+ * one (Android's vibration; iOS gives none to a page, and that is fine).
+ */
+export function felt() {
+  try {
+    navigator.vibrate?.(8)
+  } catch {
+    // A browser that has the method and refuses it has nothing to feel.
+  }
+}
