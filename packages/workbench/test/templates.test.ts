@@ -264,7 +264,7 @@ agents:
       events: (filter: Parameters<typeof client.events>[0]) => client.events(filter),
     }
     expect(await busyFrom(deps, ['app'])).toEqual([
-      { task: 'app/tidy', said: 'queued', touches: ['src/export.ts'] },
+      { task: 'app/tidy', said: 'queued', touches: ['src/export.ts'], after: [] },
     ])
     const dry = await dryRunTemplate(deps, { template: 'mine', inputs })
     expect('problem' in dry).toBe(false)

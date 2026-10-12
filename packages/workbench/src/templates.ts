@@ -23,6 +23,7 @@ import {
   type TadeEvent,
   workspaceFor,
 } from '@tade/core'
+import { packagesOf } from './packages.ts'
 import type { PlanMade } from './plans.ts'
 import { readTaskFile } from './tasks.ts'
 import type { Workbench } from './workbench.ts'
@@ -132,8 +133,10 @@ export async function busyFrom(
       const file = await readTaskFile(deps.home, id)
       if (!file || file.parked) continue
       const touches = file.start?.touches ?? []
-      if (touches.length === 0 || done.has(id)) continue
-      busy.push({ task: id, said: file.start ? 'queued' : 'working', touches })
+      const after = (file.start?.after ?? []).map((dep) => dep.task)
+      // One with nothing to touch is still a link in a chain somebody waits on.
+      if ((touches.length === 0 && after.length === 0) || done.has(id)) continue
+      busy.push({ task: id, said: file.start ? 'queued' : 'working', touches, after })
     }
   }
   return busy
@@ -247,6 +250,7 @@ export async function dryRunTemplate(
         workspace: (project) => workspaceFor(deps.config, project),
         tasks: await tasksFrom(deps, unread),
         busy: await busyFrom(deps, reaches, unread),
+        packages: await packagesOf(deps.config, fill.plan),
       })
     : null
   return dryRunOf({

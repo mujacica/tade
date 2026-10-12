@@ -11,6 +11,7 @@ import {
   type TadeEvent,
   workspaceFor,
 } from '@tade/core'
+import { packagesOf } from './packages.ts'
 import { sameConversation, type TaskWorktree } from './tasks.ts'
 import type { CreateTaskRequest } from './workbench.ts'
 
@@ -97,6 +98,7 @@ export async function makePlan(
     workspace: (project) => workspaceFor(deps.config, project),
     tasks,
     busy,
+    packages: await packagesOf(deps.config, plan),
   })
   // Every reason in one answer, names included: asked one task at a time as
   // each was made, a plan made its first task and then threw on its second,

@@ -14,7 +14,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 |---|---|
 | `packages/core/src/done.ts` | when a task is finished: `finishedFrom`, `ruleMet`, `workedFrom` |
 | `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `inWrittenOrder`, `startFrom`, `collidesNow`, `checkWaits`, `QUEUE_CHANGES` |
-| `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps` |
+| `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps`, `wholePackage` |
+| `packages/workbench/src/packages.ts` | which folders a plan names are packages, looked up in the tree: `packagesOf` |
 | `packages/core/src/produces.ts` | what a task produces instead of code: `producesProblem`, `producesPath`, `documentsIn`, `documentsToCompact`, `producedClause` |
 | `packages/workbench/src/documents.ts` | triage, `deleteDocument`, `cleanupDocuments`, `settleDocuments` on open, `removedDocument` |
 | `packages/core/src/effort.ts` | one change across repositories: `effortsIn`, `effortSays` |
@@ -190,6 +191,19 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   a plan made its first task, threw on its second, and the next attempt was refused over the task
   it had left behind. What still fails after the checks (a disk, git) is named, not removed:
   removing never gives a name back, and what was made is a prefix that waits only on what exists.
+- **A plan's warnings are only collisions somebody could act on.** What it is checked against is
+  work still going or waiting to go (`planBusyOf` in the window, `busyFrom` for a dry run): never
+  finished work, whose agent sits at its prompt and which status calls `blocked`, and "waiting on
+  you" only where an approval is pending or an agent stopped without saying it was done. Each
+  `PlanBusy` carries its `after`, so the walk follows existing waits and an agent is never warned
+  about what it already waits on through a queued chain. There is one line per task run into, with
+  how many more of the plan's agents run into it and which; a folder named whole is said once, as
+  whose; and an agent whose `touches` is a whole package — the repository, a folder a manifest is
+  in, its `src`, or a folder holding packages, looked up by `packagesOf` and never guessed from a
+  path's shape — is warned about on its own. On 2026-10-11 one plan came back with 44 warnings and
+  none of them were real: 28 named finished work, 11 named work the agent already waited on, and 5
+  named an orphan that names checked first no longer leaves. `packages/app/test/plan-warnings.test.ts`
+  holds that plan to none.
 - **A plan is changed by writing on the work it made, never by removing it and planning it again.**
   `after` adds to what queued work waits on, or with `replace` swaps it; `retell` changes what its
   agent is told or what it says it will touch. Both write the task file's `start` — the one place

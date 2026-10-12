@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkPlan, type PlannedAgent } from '../src/plan.ts'
+import { checkPlan, type PlannedAgent, wholePackage } from '../src/plan.ts'
 
 // Whether the shape of a plan holds together before any of it is made: cycles
 // named rather than deadlocked, a plan that spans repositories made to say
@@ -230,7 +230,8 @@ describe('a plan', () => {
       context,
     )
     expect(check.ok && check.warnings).toEqual([
-      'bump-mailer and refund-emails can run at the same time and both change src/mail/, in one checkout',
+      // A folder said whole is said once, as a folder, and as whose.
+      'bump-mailer and refund-emails can run at the same time and both change src/mail/ (bump-mailer said it touches all of it), in one checkout',
     ])
   })
 
@@ -264,6 +265,130 @@ describe('a plan', () => {
     )
     expect(worktrees.ok && worktrees.warnings).toEqual([
       'add-refunds and shop/fix-charge, which is working, both change src/charge.ts: merging both may conflict',
+    ])
+  })
+
+  it('follows the waits of work already there, so a chain of queued work is never a collision', () => {
+    // Running now, then two queued after it: the planned agent waits on the
+    // last, so it can never be running at the same time as any of the three.
+    const busy = [
+      { task: 'shop/first', said: 'working', touches: ['src/charge.ts'] },
+      { task: 'shop/second', said: 'queued', touches: ['src/charge.ts'], after: ['shop/first'] },
+      // Touches nothing, and is still the link the chain goes through.
+      { task: 'shop/link', said: 'queued', touches: [], after: ['shop/second'] },
+    ]
+    const tasks = new Set(busy.map((one) => one.task))
+    const plan = (after: string[]) => ({
+      project: 'shop',
+      said: '',
+      agents: [
+        agent('after-all', {
+          touches: ['src/charge.ts'],
+          after: after.map((one) => ({ agent: one, why: '' })),
+        }),
+      ],
+    })
+    const chained = checkPlan(plan(['shop/link']), { ...context, tasks, busy })
+    expect(chained.ok && chained.warnings).toEqual([])
+    // Waiting only on the middle one still leaves nothing to run beside.
+    const middle = checkPlan(plan(['shop/second']), { ...context, tasks, busy })
+    expect(middle.ok && middle.warnings).toEqual([])
+    const none = checkPlan(plan([]), { ...context, tasks, busy })
+    expect(none.ok && none.warnings).toEqual([
+      'after-all and shop/first, which is working, both change src/charge.ts, in one checkout',
+      'after-all and shop/second, which is queued, both change src/charge.ts, in one checkout',
+    ])
+  })
+
+  it('says one line for each task run into, then how many more agents run into it and which', () => {
+    const busy = [{ task: 'shop/fix-charge', said: 'working', touches: ['src/charge.ts'] }]
+    const check = checkPlan(
+      {
+        project: 'shop',
+        said: '',
+        agents: [
+          agent('one', { touches: ['src/charge.ts'] }),
+          agent('two', { touches: ['src/charge.ts'], after: [{ agent: 'one', why: '' }] }),
+          agent('three', { touches: ['src/charge.ts'], after: [{ agent: 'two', why: '' }] }),
+          agent('four', { touches: ['src/charge.ts'], after: [{ agent: 'three', why: '' }] }),
+          agent('apart', { touches: ['src/refund.ts'] }),
+          agent('beside', { touches: ['src/refund.ts'] }),
+        ],
+      },
+      { ...context, tasks: new Set(['shop/fix-charge']), busy },
+    )
+    expect(check.ok && check.warnings).toEqual([
+      "one and shop/fix-charge, which is working, both change src/charge.ts, in one checkout; 3 more of this plan's agents run into shop/fix-charge too: two, three and four",
+      'apart and beside can run at the same time and both change src/refund.ts, in one checkout',
+    ])
+  })
+
+  it('says a folder is a folder once, rather than every file of the other agent it swallows', () => {
+    const busy = [{ task: 'shop/redo-ui', said: 'waiting on you', touches: ['packages/app'] }]
+    const check = checkPlan(
+      {
+        project: 'shop',
+        said: '',
+        agents: [
+          agent('buttons', {
+            touches: ['packages/app/src/button.ts', 'packages/app/src/view/menu.ts', 'README.md'],
+          }),
+        ],
+      },
+      { ...context, tasks: new Set(['shop/redo-ui']), busy },
+    )
+    expect(check.ok && check.warnings).toEqual([
+      'buttons and shop/redo-ui, which is waiting on you, both change packages/app (shop/redo-ui said it touches all of it), in one checkout',
+    ])
+  })
+
+  it('warns about an agent that says it touches a whole package', () => {
+    const packages = ['', 'packages/app', 'packages/drivers/pty']
+    for (const path of [
+      '.',
+      './',
+      'src',
+      'packages/app',
+      'packages/app/',
+      'packages/app/src',
+      'packages/drivers/pty/lib',
+      // Not a package: every package there is, which is worse.
+      'packages',
+      'packages/drivers',
+    ]) {
+      expect([path, wholePackage(path, packages)]).toEqual([path, true])
+    }
+    // A folder inside a package, a package's file, and a folder that only
+    // looks like one: `src/mail` is the mail code in a repository of one package.
+    for (const path of ['packages/app/src/view', 'packages/app/package.json', 'src/mail']) {
+      expect([path, wholePackage(path, packages)]).toEqual([path, false])
+    }
+    // With nothing found but the repository, only the repository is whole.
+    expect(wholePackage('packages/app', [])).toBe(false)
+    expect(wholePackage('.', [])).toBe(true)
+
+    const plan = {
+      project: 'shop',
+      said: '',
+      agents: [
+        agent('everything', { touches: ['packages/app/src', 'packages/drivers/pty'] }),
+        agent('precise', {
+          touches: ['packages/app/src/view/menu.ts'],
+          after: [{ agent: 'everything', why: '' }],
+        }),
+      ],
+    }
+    const shared = checkPlan(plan, { ...context, packages: () => packages })
+    expect(shared.ok && shared.warnings).toEqual([
+      'everything says it touches all of packages/app/src and packages/drivers/pty, whole packages: anything uncommitted in them holds its start, and every agent in them collides with it. Name the files it will change instead',
+    ])
+    const apart = checkPlan(plan, {
+      ...context,
+      workspace: () => 'worktree',
+      packages: () => packages,
+    })
+    expect(apart.ok && apart.warnings).toEqual([
+      'everything says it touches all of packages/app/src and packages/drivers/pty, whole packages: every agent in them collides with it. Name the files it will change instead',
     ])
   })
 })

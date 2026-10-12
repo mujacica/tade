@@ -10,7 +10,6 @@ import {
   joined,
   orderFirst,
   type Plan,
-  type PlanBusy,
   planStandings,
   projectsIn,
   QUEUE_CHANGES,
@@ -29,6 +28,7 @@ import {
   heldMessage,
   nowSays,
   planAnswer,
+  planBusyOf,
   unnamedSays,
   whyStarting,
 } from '../queue.ts'
@@ -434,20 +434,7 @@ export class Queue implements Subject {
         // see: agents working now, and work an earlier plan left to start.
         // Every repository the plan reaches into, since it may reach several.
         const reaches = projectsIn(plan)
-        const busy: PlanBusy[] = []
-        for (const task of this.wire.live?.tasks ?? []) {
-          if (!reaches.some((project) => task.task.startsWith(`${project}/`))) continue
-          const touches = task.queued ? task.queued.touches : (task.touches ?? [])
-          if (touches.length === 0) continue
-          const said = task.queued
-            ? 'queued'
-            : task.state === 'working'
-              ? 'working'
-              : task.state === 'blocked'
-                ? 'waiting on you'
-                : ''
-          if (said) busy.push({ task: task.task, said, touches })
-        }
+        const busy = planBusyOf(this.wire.live?.tasks ?? [], reaches)
         const made = await this.wire.opts.client.planTasks(plan, 'orchestrator', busy)
         await this.wire.live?.refresh()
         const started = await this.advance()

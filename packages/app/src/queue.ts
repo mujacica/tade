@@ -4,6 +4,7 @@ import {
   describeWhen,
   joined,
   ONLY_TELLS,
+  type PlanBusy,
   type Queued,
   type QueueFacts,
   type QueueState,
@@ -16,7 +17,14 @@ import {
   type Watched,
 } from '@tade/core'
 import type { WatchOffer } from '@tade/extensions-core'
-import { type AppState, type QueueRow, queueTree, queueViewOf, type ScheduleView } from './model.ts'
+import {
+  type AppState,
+  type QueueRow,
+  queueTree,
+  queueViewOf,
+  type ScheduleView,
+  type TaskSnapshot,
+} from './model.ts'
 import { shownBy } from './queue-view.ts'
 import { NEVER_RAN, type ScheduleRuns } from './schedule-fold.ts'
 
@@ -375,6 +383,47 @@ export function describeQueue(
     )
   }
   return lines.join('\n')
+}
+
+/**
+ * The work already in the projects a plan reaches, which the plan is checked
+ * against: what each says it will change, what it waits on, and what it is
+ * doing in a few words.
+ *
+ * Never work that has finished: what it did is committed and the base, or an
+ * uncommitted file of nobody's, which the look before starting holds on. A
+ * checkout agent that has said it is done sits at its prompt, and status calls
+ * that `blocked` — on 2026-10-11 four of those were 28 of one plan's 44
+ * warnings, each called "waiting on you". One running again is working.
+ */
+export function planBusyOf(
+  tasks: readonly TaskSnapshot[],
+  projects: readonly string[],
+): PlanBusy[] {
+  const busy: PlanBusy[] = []
+  for (const task of tasks) {
+    if (!projects.some((project) => task.task.startsWith(`${project}/`))) continue
+    if (task.finished && task.state !== 'working') continue
+    const said = task.queued
+      ? 'queued'
+      : task.state === 'working'
+        ? 'working'
+        : task.state !== 'blocked'
+          ? null
+          : task.waiting
+            ? 'waiting on your approval'
+            : // It stopped without saying it was done, which is how a question looks.
+              'waiting on you'
+    if (!said) continue
+    busy.push({
+      task: task.task,
+      said,
+      touches: task.queued ? task.queued.touches : (task.touches ?? []),
+      // Carried even with nothing to touch: it is a link in somebody's chain.
+      after: (task.queued ? task.queued.after : (task.waitsOn ?? [])).map((dep) => dep.task),
+    })
+  }
+  return busy
 }
 
 /** What a plan made and did, for the orchestrator to say back. */

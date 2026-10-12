@@ -56,6 +56,23 @@ describe('making a plan', () => {
 
   const efforts = async () => (await client.events({ types: ['effort_named'] })).length
 
+  it('says so of an agent that touches a whole package, as the tree has it', async () => {
+    repo.commit('two packages', { 'package.json': '{}', 'packages/ui/package.json': '{}' })
+    const made = await client.planTasks({
+      project: 'app',
+      said: '',
+      agents: [
+        agent('everything', { touches: ['packages/ui/src'] }),
+        // A folder that is not a package is a folder, and fine to name.
+        agent('precise', { touches: ['packages/ui/src/menu'] }),
+      ],
+    })
+    expect(made.warnings[0]).toBe(
+      'everything says it touches all of packages/ui/src, a whole package: anything uncommitted in it holds its start, and every agent in it collides with it. Name the files it will change instead',
+    )
+    expect(made.warnings.slice(1).join('\n')).not.toContain('precise says')
+  })
+
   it('makes nothing, and names no effort, when a later agent’s name was used before', async () => {
     await usedUp('key-echo-not-paced')
     await expect(
