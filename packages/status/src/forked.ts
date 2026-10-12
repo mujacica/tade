@@ -62,6 +62,21 @@ export const RESTART_MS = 1_000
 /** And the most it doubles to, so a child that came back is found within a minute. */
 export const RESTART_MAX_MS = 60_000
 
+/**
+ * How the child's heap is sized: a young generation of two 2 MiB semi-spaces
+ * rather than V8's default, which grows to tens of megabytes of headroom for
+ * garbage a look no longer makes, and then holds it for the life of the window.
+ *
+ * Measured against one laptop's transcripts with the reads kept
+ * (`TranscriptReads`): the child ended ten beats at 101–140 MB without it and
+ * 65–87 MB with it, and its beat times were inside the noise of a machine at
+ * load 10–25, which is all a spawn-bound look can say. Only a flag Node documents
+ * as its own, because a flag Node does not take is a child that never starts;
+ * the conformance suite forks the real child with it, so a Node that stops
+ * taking it fails the suite rather than leaving status `unknown`.
+ */
+export const CHILD_FLAGS: readonly string[] = ['--max-semi-space-size=2']
+
 /** How much of what a child wrote to stderr is kept, to say why it went. */
 const TAIL = 4_096
 
@@ -216,7 +231,7 @@ class InChild implements StatusCollector {
         detached: true,
         // None of the window's own flags: an inspector port it is holding
         // is not one a second process can open.
-        execArgv: [],
+        execArgv: [...CHILD_FLAGS],
         serialization: 'json',
       })
     } catch (err) {

@@ -1,9 +1,27 @@
-import { cpSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { claudeCode, codex, parseTranscript, scanTranscripts } from '../src/adoption.ts'
+import {
+  claudeCode,
+  codex,
+  newTranscriptReads,
+  parseTranscript,
+  scanTranscripts,
+  type TranscriptParser,
+  type TranscriptReads,
+  transcriptLoad,
+} from '../src/adoption.ts'
 
 const fx = (p: string) =>
   fileURLToPath(new URL(`../../../test/fixtures/transcripts/${p}`, import.meta.url))
@@ -134,5 +152,201 @@ describe('scanTranscripts', () => {
   it('is quiet when no provider directories exist', async () => {
     const r = await scanTranscripts({ home: tmp('tade-home-'), now: Date.now(), windowMs: 1e9 })
     expect(r).toEqual({ sessions: [], warnings: [] })
+  })
+})
+
+// A window's status child scans every two seconds, so what was read of each
+// transcript is kept between scans: a file that has not changed is not opened,
+// and one that grew is read from where the last scan stopped. Counted in files
+// opened and bytes read, never in wall clock.
+describe('a scan asked again with what it read before', () => {
+  const SESSION = '11111111-1111-4111-8111-111111111111'
+  const line = (entry: object) => `${JSON.stringify(entry)}\n`
+  const said = (at: string, extra: object = {}) =>
+    line({ type: 'user', sessionId: SESSION, cwd: '/work/checkout', timestamp: at, ...extra })
+  const replied = (at: string, stop: string) =>
+    line({
+      type: 'assistant',
+      sessionId: SESSION,
+      cwd: '/work/checkout',
+      timestamp: at,
+      message: { stop_reason: stop },
+    })
+  const failed = (at: string) => line({ type: 'system', subtype: 'api_error', timestamp: at })
+
+  function claudeHome(): { home: string; dir: string; file: string } {
+    const home = tmp('tade-home-')
+    const dir = join(home, '.claude/projects/-work-checkout')
+    mkdirSync(dir, { recursive: true })
+    return { home, dir, file: join(dir, `${SESSION}.jsonl`) }
+  }
+
+  const scan = (home: string, reads: TranscriptReads, parsers?: TranscriptParser[]) =>
+    scanTranscripts({ home, now: Date.now(), windowMs: 86_400_000, reads, parsers })
+
+  async function cost<T>(work: () => Promise<T>) {
+    const before = transcriptLoad()
+    const value = await work()
+    const after = transcriptLoad()
+    return { value, opened: after.opened - before.opened, bytes: after.bytes - before.bytes }
+  }
+
+  it('opens nothing on a scan where no transcript changed, and answers the same', async () => {
+    const { home, file } = claudeHome()
+    writeFileSync(file, said('2026-09-11T09:00:00Z') + replied('2026-09-11T09:00:05Z', 'end_turn'))
+    const reads = newTranscriptReads()
+    const cold = await cost(() => scan(home, reads))
+    const warm = await cost(() => scan(home, reads))
+    // The floor as well as the ceiling: the cold scan really did read it.
+    expect(cold.opened).toBe(1)
+    expect(cold.bytes).toBeGreaterThan(0)
+    expect(warm).toMatchObject({ opened: 0, bytes: 0 })
+    expect(warm.value).toEqual(cold.value)
+    expect(warm.value.sessions[0]?.turn).toBe('idle')
+  })
+
+  it('reads only what was appended to a transcript that grew', async () => {
+    const { home, file } = claudeHome()
+    let text = ''
+    for (let i = 0; i < 200; i++) text += said(`2026-09-11T09:00:00Z`, { pad: 'x'.repeat(500) })
+    writeFileSync(file, text)
+    const reads = newTranscriptReads()
+    await scan(home, reads)
+    const more = replied('2026-09-11T09:05:00Z', 'end_turn')
+    appendFileSync(file, more)
+    const warm = await cost(() => scan(home, reads))
+    expect(warm.opened).toBe(1)
+    // What was appended, and a few bytes before it to be sure it was appended
+    // to rather than rewritten: never the hundred kilobytes before that.
+    expect(warm.bytes).toBeGreaterThanOrEqual(more.length)
+    expect(warm.bytes).toBeLessThan(more.length + 1024)
+    expect(warm.value.sessions[0]).toMatchObject({
+      turn: 'idle',
+      lastActivityAt: Date.parse('2026-09-11T09:05:00Z'),
+    })
+  })
+
+  it('reads a line written in two halves once, whole', async () => {
+    const { home, file } = claudeHome()
+    writeFileSync(file, said('2026-09-11T09:00:00Z'))
+    const reads = newTranscriptReads()
+    await scan(home, reads)
+
+    // A last line with no newline yet is read for this answer, and not kept.
+    appendFileSync(file, failed('2026-09-11T09:00:01Z').trimEnd())
+    expect((await scan(home, reads)).sessions[0]?.consecutiveFailures).toBe(1)
+    appendFileSync(file, '\n')
+    expect((await scan(home, reads)).sessions[0]?.consecutiveFailures).toBe(1)
+
+    // Half a line is no line at all, until the rest of it arrives.
+    const next = failed('2026-09-11T09:00:02Z')
+    appendFileSync(file, next.slice(0, 20))
+    expect((await scan(home, reads)).sessions[0]?.consecutiveFailures).toBe(1)
+    appendFileSync(file, next.slice(20))
+    expect((await scan(home, reads)).sessions[0]?.consecutiveFailures).toBe(2)
+  })
+
+  it('reads a transcript rewritten rather than appended to from the start', async () => {
+    const { home, file } = claudeHome()
+    writeFileSync(file, failed('2026-09-11T09:00:00Z') + said('2026-09-11T09:00:01Z'))
+    const reads = newTranscriptReads()
+    expect((await scan(home, reads)).sessions[0]?.turn).toBe('running')
+
+    // Longer than before, and what was before is not there any more.
+    writeFileSync(
+      file,
+      said('2026-09-11T10:00:00Z', { cwd: '/work/elsewhere' }) +
+        replied('2026-09-11T10:00:01Z', 'end_turn'),
+    )
+    const after = (await scan(home, reads)).sessions[0]
+    expect(after).toMatchObject({ turn: 'idle', cwd: '/work/checkout', consecutiveFailures: 0 })
+
+    // And shorter than before.
+    writeFileSync(file, said('2026-09-11T11:00:00Z', { cwd: '/w' }))
+    expect((await scan(home, reads)).sessions[0]).toMatchObject({ turn: 'running', cwd: '/w' })
+  })
+
+  it('answers what reading from the start answers, however the writes fall', async () => {
+    const home = tmp('tade-home-')
+    const claudeDir = join(home, '.claude/projects/-work-checkout')
+    const codexDir = join(home, '.codex/sessions/2026/09/11')
+    mkdirSync(claudeDir, { recursive: true })
+    mkdirSync(codexDir, { recursive: true })
+    const cases = [
+      ['claude-code/2.1/api-errors.jsonl', join(claudeDir, `${SESSION}.jsonl`)],
+      [CODEX_APPROVAL, join(codexDir, CODEX_APPROVAL.split('/').at(-1)!)],
+      [CODEX_NEWER, join(codexDir, CODEX_NEWER.split('/').at(-1)!)],
+    ] as const
+    for (const [fixture, file] of cases) {
+      const whole = readFileSync(fx(fixture))
+      const parser = fixture.startsWith('codex') ? codex : claudeCode
+      const reads = newTranscriptReads()
+      writeFileSync(file, '')
+      // Cuts that fall mid-line, on a newline, and past several lines at once.
+      const steps = [1, 7, 40, 333, 2]
+      for (let at = 0, i = 0; at < whole.length; i++) {
+        const to = Math.min(whole.length, at + steps[i % steps.length]!)
+        appendFileSync(file, whole.subarray(at, to))
+        at = to
+        const kept = (await scan(home, reads, [parser])).sessions.find((s) => s.file === file)
+        expect(kept ?? null).toEqual(await parseTranscript(parser, file))
+      }
+      expect(await parseTranscript(parser, file)).toEqual(
+        await parseTranscript(parser, fx(fixture)).then((s) => s && { ...s, file }),
+      )
+    }
+  })
+
+  it('forgets a transcript that has gone', async () => {
+    const { home, file } = claudeHome()
+    writeFileSync(file, said('2026-09-11T09:00:00Z'))
+    const reads = newTranscriptReads()
+    expect((await scan(home, reads)).sessions).toHaveLength(1)
+    rmSync(file)
+    expect(await scan(home, reads)).toEqual({ sessions: [], warnings: [] })
+  })
+
+  it.skipIf(process.getuid?.() === 0)(
+    'keeps what it last read of a folder it cannot look in, and says it could not look',
+    async () => {
+      const { home, dir, file } = claudeHome()
+      writeFileSync(file, said('2026-09-11T09:00:00Z'))
+      const reads = newTranscriptReads()
+      const before = await scan(home, reads)
+      chmodSync(dir, 0o000)
+      try {
+        const after = await scan(home, reads)
+        // Not a session that has gone, which is what an empty list would say.
+        expect(after.sessions).toEqual(before.sessions)
+        expect(after.warnings).toEqual([
+          expect.stringMatching(/^claude-code: some transcripts could not be read \(EACCES\)$/),
+        ])
+        // And a scan with nothing to fall back on says the same, with nothing.
+        const fresh = await scanTranscripts({ home, now: Date.now(), windowMs: 86_400_000 })
+        expect(fresh).toEqual({ sessions: [], warnings: after.warnings })
+      } finally {
+        chmodSync(dir, 0o755)
+      }
+    },
+  )
+
+  it('reads a transcript whose parser threw as unrecognised, and from the start once it changes', async () => {
+    const { home, file } = claudeHome()
+    const fussy: TranscriptParser = {
+      ...(claudeCode as TranscriptParser),
+      read(known, lines) {
+        const all = [...lines]
+        if (all.some((e) => e.boom === true)) throw new Error('a bug in a parser')
+        return claudeCode.read(known as Parameters<typeof claudeCode.read>[0], all)
+      },
+    }
+    writeFileSync(file, said('2026-09-11T09:00:00Z', { boom: true }))
+    const reads = newTranscriptReads()
+    expect(await scan(home, reads, [fussy])).toEqual({
+      sessions: [],
+      warnings: ['claude-code: 1 transcript(s) in an unrecognised format (parser v1)'],
+    })
+    writeFileSync(file, said('2026-09-11T09:00:00Z') + replied('2026-09-11T09:00:01Z', 'end_turn'))
+    expect((await scan(home, reads, [fussy])).sessions[0]?.turn).toBe('idle')
   })
 })

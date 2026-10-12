@@ -18,7 +18,7 @@ import {
   type Workspace,
 } from '@tade/core'
 import { parse as parseYaml } from 'yaml'
-import { type AdoptedSession, scanTranscripts } from './adoption.ts'
+import { type AdoptedSession, scanTranscripts, type TranscriptReads } from './adoption.ts'
 import type { ProbeGate } from './gate.ts'
 import {
   type BaseRef,
@@ -73,6 +73,12 @@ export interface StatusOptions {
    * as it is open. A one-shot `tade status` is given none and asks everything.
    */
   gate?: ProbeGate | undefined
+  /**
+   * What earlier looks read of each transcript, so a file that has not changed
+   * is not read again and one that grew is read from where the last look
+   * stopped. Belongs to whoever polls, as the gate does.
+   */
+  transcripts?: TranscriptReads | undefined
   liveness?: LivenessProbe
   processes?: () => Promise<{
     processes: AgentProcess[]
@@ -508,6 +514,7 @@ async function adoptSessions(
     home: opts.home,
     now: opts.now,
     windowMs: TRANSCRIPT_WINDOW_MS,
+    reads: opts.transcripts,
   })
   warnings.push(...scan.warnings)
   return toSignals(scan.sessions, processes)

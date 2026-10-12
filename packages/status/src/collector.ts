@@ -1,4 +1,5 @@
 import { type Config, type LivenessTable, livenessOf, type Workspace } from '@tade/core'
+import { newTranscriptReads, type TranscriptReads } from './adoption.ts'
 import { newProbeGate, type ProbeGate } from './gate.ts'
 import { gitLoad } from './git.ts'
 import { lookAtStatus, type StatusOptions } from './status.ts'
@@ -67,22 +68,28 @@ export interface StatusCollector {
 /** What a look after `close()` is answered with. */
 export const CLOSED = 'status is no longer being looked at: the window that asked has closed'
 
-/** The options a look is asked with here, out of an ask and the gate that will answer it. */
-export function optionsOf(ask: StatusAsk, gate: ProbeGate): StatusOptions {
+/** What whoever polls holds between looks: the gate, and what was read of each transcript. */
+export interface Held {
+  gate: ProbeGate
+  transcripts: TranscriptReads
+}
+
+/** The options a look is asked with here, out of an ask and what will answer it. */
+export function optionsOf(ask: StatusAsk, held: Held): StatusOptions {
   const { lanes, cwd, ...rest } = ask
-  return { ...rest, ...(cwd ? { cwd } : {}), gate, liveness: livenessOf(lanes) }
+  return { ...rest, ...(cwd ? { cwd } : {}), ...held, liveness: livenessOf(lanes) }
 }
 
 /**
- * The look in this process, with a gate of its own for as long as it is held:
- * a gate belongs to whoever polls.
+ * The look in this process, with a gate and transcript reads of its own for as
+ * long as it is held: both belong to whoever polls.
  *
  * In a window this puts the whole look on the drawing thread, which is why the
  * window is given `child` instead. It is also what the child runs, so the two
  * are the same look by construction rather than by two copies agreeing.
  */
 export function lookHere(): StatusCollector {
-  const gate = newProbeGate()
+  const held: Held = { gate: newProbeGate(), transcripts: newTranscriptReads() }
   let closed = false
   return {
     id: 'here',
@@ -90,7 +97,7 @@ export function lookHere(): StatusCollector {
       if (closed) return { known: false, why: CLOSED }
       const before = gitLoad().started
       try {
-        const workspace = await lookAtStatus(optionsOf(ask, gate))
+        const workspace = await lookAtStatus(optionsOf(ask, held))
         return {
           known: true,
           workspace,

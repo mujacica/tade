@@ -11,7 +11,7 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
 ## Invariants
 
 - **Status is a query, not a memory.** Nothing derived is ever persisted, and no answer is kept
-  because it is *recent*. The one thing kept is kept because it is still *current*: `newProbeGate`
+  because it is *recent*. What is kept is kept because it is still *current*: `newProbeGate`
   (`src/gate.ts`) hands back a worktree's last snapshot while the `stat` of `.git/index`,
   `.git/HEAD` and the worktree — and the commit the base is on — all read exactly as they did when
   it was made. That is the same rule as "a failed look degrades to the last scan that could", asked
@@ -20,7 +20,11 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   pays in full), **never in front of a failed look** (only a snapshot is kept, so what is wrong with
   a worktree is said again every beat), and **bounded in time** — a `stat` cannot see an edit in
   place to a file git already tracks, so a reuse has a ceiling (`REUSE_MS`) or a window left open
-  would report a worktree clean for as long as you watched it.
+  would report a worktree clean for as long as you watched it. `TranscriptReads`
+  (`src/adoption.ts`) is held beside it, owned the same way: a transcript is not opened while its
+  own inode, size and mtime read the same — a write always moves the file's own mtime, so it needs
+  no ceiling — and one that only grew is read on from its last whole line, provided the bytes
+  before that are still there.
 - **Never throw.** A probe returns `{ ..., warnings: string[] }`; failure means a partial result
   (`null` fields) plus a warning that names the project/task. `collectStatus` has a last-resort
   catch, but reaching it is a bug.
@@ -56,7 +60,8 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   one `StatusCollector` (`src/collector.ts`; registry `src/collectors.ts`; both implementations held
   to `test/conformance.ts`), and the window's is `child` (`src/forked.ts`): the fork storm, the
   porcelain parsing and the transcript scan — measured at 140 MB of garbage a beat against one
-  laptop's transcripts (`scripts/look-cost.ts --adopt`) — are the child's, and so is the gate. So **whatever a probe is
+  laptop's transcripts (`scripts/look-cost.ts --adopt`) before `TranscriptReads` — are the
+  child's, and so are the gate and the reads. So **whatever a probe is
   given must cross a pipe as plain data** (`StatusAsk`): a function in `StatusOptions` is for tests
   and one-shots only, and anything only the window holds goes as data read just before the ask, the
   way its lanes go as a `LivenessTable` (`livenessTableFrom`). A look that could not be had —
