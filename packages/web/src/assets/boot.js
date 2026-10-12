@@ -323,7 +323,10 @@ function wireLinks() {
 function paint() {
   const now = Date.now()
   const connection = connectionOf(seen, now)
-  const standing = outside?.standing ?? standingOf(connection, tries)
+  // The very first ask is *connecting*: nothing was ever read, so there is
+  // nothing to be behind on and no bar to put up about it.
+  const first = !held.store.had && tries === 0 && !seen.open && seen.ended === null
+  const standing = outside?.standing ?? (first ? 'connecting' : standingOf(connection, tries))
   const clock = asOf(held.store, standing, now)
   freshIn(shown, standing, connection, held.store, now)
   barsIn(shown, barsFor(standing, connection, held.store, now, tries, [...broke, ...offered()]))
@@ -354,7 +357,11 @@ function paint() {
   // shimmer where figures will be before anything was read, and a line
   // sweeping under the header while the machine is asked again.
   classOn(document.body, 'is-loading', outside === null && !held.store.had)
-  classOn(document.body, 'is-reconnecting', standing === 'reconnecting')
+  classOn(
+    document.body,
+    'is-reconnecting',
+    standing === 'reconnecting' || standing === 'connecting',
+  )
   badgeIn(outside === null ? (counts?.wantsYou ?? 0) : 0)
   keep(now)
   const view = {

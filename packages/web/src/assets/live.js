@@ -99,10 +99,13 @@ export function partsOf(standing, connection, at, now, tight = false) {
       return { glyph: '●', words: `live · ${of}${at}` }
     case 'stale':
       return { glyph: '●', words: `live · ${of}${at} (${age}s)` }
+    case 'connecting':
+      return { glyph: '◴', words: 'connecting' }
     case 'reconnecting':
       return { glyph: '◴', words: `reconnecting · ${of}${at}` }
     case 'closed':
-      return { glyph: '⏸', words: connection.why }
+      // At a phone's width the why is the bar's, under the header, whole.
+      return { glyph: '⏸', words: tight ? 'closed' : connection.why }
     case 'unpaired':
       return { glyph: '○', words: 'not paired' }
     default:

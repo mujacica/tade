@@ -1,5 +1,5 @@
 import { afterAnswer, askBody, stopBody } from './acts.js'
-import { el, empty, hintOf, into, keyed, proseOf, textIn, toneOn } from './dom.js'
+import { classOn, el, empty, hintOf, into, keyed, proseOf, textIn, toneOn } from './dom.js'
 import { ageSaid } from './figures.js'
 import { CHAT_KINDS } from './glyphs.js'
 import { nothingSaid } from './pages.js'
@@ -80,19 +80,31 @@ export function talkScreen(ctx) {
   const older = el('p', { class: 'unknown' })
 
   const composer = section('SAY SOMETHING')
+  // Held at the foot of the screen as a chat's box is, over the tab bar on a
+  // phone, so the newest line and the box are on screen together.
+  composer.node.classList.add('composer-dock')
   const typing = composerOf(ctx, {
     label: 'what to say to Tade',
-    placeholder: 'ask Tade something',
+    placeholder: 'Ask Tade…',
     send: 'Send',
-    rows: '3',
+    rows: '1',
   })
   into(composer.body, ...typing.nodes)
   into(node, made.node, older, composer.node)
+
+  let opened = false
 
   return {
     node,
     update(view) {
       const lines = chatOf(view.store)
+      // Opened at the newest line, once — after that the scroll is the
+      // reader's, and a reply arriving never pulls them down from what they
+      // were reading.
+      if (!opened && lines.length > 0) {
+        opened = true
+        requestAnimationFrame(() => node.lastElementChild?.scrollIntoView?.({ block: 'end' }))
+      }
       textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
       none.hidden = lines.length > 0
       textIn(none, nothingSaid(view.may.talk, omitted(view.store, 'chat'), 'nothing said yet'))
@@ -141,7 +153,24 @@ export function composerOf(ctx, words) {
     },
   })
   box.value = draft.get()
-  box.addEventListener('input', () => draft.set(box.value))
+  // The box grows with what is typed, up to a few lines, and then scrolls:
+  // a one-line box a paragraph is typed into hides the paragraph.
+  const grow = () => {
+    box.style.setProperty('height', 'auto')
+    box.style.setProperty('height', `${Math.min(box.scrollHeight + 2, 200)}px`)
+  }
+  box.addEventListener('input', () => {
+    draft.set(box.value)
+    grow()
+  })
+  // **Enter sends at a keyboard, and never on a phone**, where Enter is the
+  // only way to start a new line. Shift+Enter is a new line everywhere.
+  box.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+    if (globalThis.matchMedia?.('(pointer: fine)').matches !== true) return
+    event.preventDefault()
+    press.click()
+  })
   const press = el('button', { class: 'press quietly', text: words.send })
   const stop = el('button', { class: 'press quietly', text: 'Stop' })
   const presses = el('div', { class: 'presses' })
@@ -275,7 +304,16 @@ export function fillChatLine(node, line, view) {
   toneOn(head, kind.tone)
   if (node.children.length === 1) into(node, proseOf(''))
   const body = node.children[1]
-  if (body !== undefined) textIn(body, saidOn(line))
+  const words = saidOn(line)
+  if (body !== undefined) {
+    textIn(body, words)
+    body.hidden = words === ''
+  }
+  // Whose line it is, for the drawing: a person's on the right as in any
+  // conversation, Tade's on the left, a tool's as a quiet line between them.
+  for (const kind of ['asked', 'reply', 'tool', 'tade', 'problem']) {
+    classOn(node, `is-${kind}`, line.kind === kind)
+  }
 }
 
 /**

@@ -420,6 +420,12 @@ th.figure {
   border: var(--border);
 }
 
+.dl + .press,
+.dl + .presses,
+.dl + a.press {
+  margin-block-start: var(--s3);
+}
+
 .dl dt {
   color: var(--heading);
   font-size: var(--step--1);
@@ -879,37 +885,4 @@ select {
 /* What it runs on, under its name: a harness and a model are mono, as in the window. */
 .runs {
   font-family: var(--font-mono);
-}
-
-/*
-  The conversation: who, small, and their words in a bubble under it — a list
-  of things said rather than a table of rows, with no hairline between them.
-*/
-.rows.chat {
-  gap: var(--s3);
-  background: none;
-  border: 0;
-  overflow: visible;
-}
-
-.rows.chat > li {
-  display: grid;
-  gap: var(--s1);
-}
-
-.rows.chat > li > div,
-.rows.chat > li + li > div {
-  display: block;
-  min-height: 0;
-  padding: var(--s3) var(--s4);
-  border: 0;
-  border-radius: var(--r2);
-  background: var(--surface);
-  color: var(--body);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.rows.chat > li > div:empty {
-  display: none;
 }

@@ -284,6 +284,9 @@ export function stepMark(step) {
 export const FRESH_MARKS = {
   live: mark('●', 'live', 'is-live'),
   stale: mark('●', 'live, quiet for a while', 'is-stale'),
+  // The first ask, before anything was ever read: not *re*connecting, and
+  // nothing to have fallen behind — so no bar, a word and the sweep.
+  connecting: mark('◴', 'connecting', 'is-reconnecting'),
   reconnecting: mark('◴', 'reconnecting', 'is-reconnecting'),
   unreachable: mark('○', 'unreachable', 'is-gone'),
   closed: mark('⏸', 'closed', 'is-closed'),

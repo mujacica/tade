@@ -13,9 +13,11 @@ import {
   scoreOf,
 } from '../src/assets/commands.js'
 import { ICONS } from '../src/assets/icons.js'
+import { partsOf } from '../src/assets/live.js'
 import { glanceOf, projectShape } from '../src/assets/overview.js'
 import { actsOn, jumpsOf } from '../src/assets/palette.js'
 import { quickWord } from '../src/assets/quick.js'
+import { barsFor } from '../src/assets/shell.js'
 import { applySnapshot, emptyStore } from '../src/assets/store.js'
 import { reasonFor, reasonWord } from '../src/assets/talk.js'
 import { MOST, shownOf, statesOf, transitionsOf } from '../src/assets/toasts.js'
@@ -324,5 +326,15 @@ describe('what just changed', () => {
     const shown = shownOf(many)
     expect(shown).toHaveLength(MOST)
     expect(shown.at(-1)?.word).toBe(`${7 - (MOST - 1)} more changed`)
+  })
+})
+
+describe('the very first ask', () => {
+  it('is connecting, with no bar: nothing was read, so nothing is behind', () => {
+    const connection = { kind: 'unreachable' as const, sinceAt: 0 }
+    expect(partsOf('connecting', connection, '—', 0).words).toBe('connecting')
+    expect(barsFor('connecting', connection, emptyStore(), 0, 0)).toEqual([])
+    // And a drop after that is reconnecting, with its bar, as before.
+    expect(barsFor('reconnecting', connection, emptyStore(), 0, 0)).toHaveLength(1)
   })
 })

@@ -204,9 +204,10 @@ describe('whose a task is', () => {
 })
 
 describe('how the page stands to the machine', () => {
-  it('has a drawing for each of the six standings, each with a word', () => {
+  it('has a drawing for each of the seven standings, each with a word', () => {
     expect(Object.keys(FRESH_MARKS).sort()).toEqual([
       'closed',
+      'connecting',
       'live',
       'reconnecting',
       'stale',

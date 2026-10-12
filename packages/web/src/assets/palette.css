@@ -1,7 +1,9 @@
 /*
-  What floats over the page: the command bar (`palette.js`) — a sheet from the
-  bottom on a phone, where the thumb is, and a centred panel from a tablet up,
-  where the eyes are — with the only shadow in the design under it.
+  Talking to Tade. What floats over the page — the command bar (`palette.js`),
+  a sheet from the bottom on a phone, where the thumb is, and a centred panel
+  from a tablet up, where the eyes are, with the only shadow in the design
+  under it — and the conversation's own screen (`talk.js`): lines as a chat
+  draws them, and the box docked at the foot.
 */
 
 /* ── the command bar ───────────────────────────────────────────────────────── */
@@ -288,4 +290,104 @@ a.pal-whole:hover {
   .pal-keys span {
     margin-inline-end: var(--s3);
   }
+}
+
+/*
+  The conversation: who, small, and their words in a bubble under it — a list
+  of things said rather than a table of rows, with no hairline between them.
+*/
+.rows.chat {
+  gap: var(--s3);
+  background: none;
+  border: 0;
+  overflow: visible;
+}
+
+.rows.chat > li {
+  display: grid;
+  gap: var(--s1);
+}
+
+.rows.chat > li > div,
+.rows.chat > li + li > div {
+  display: block;
+  min-height: 0;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-radius: var(--r2);
+  background: var(--surface);
+  color: var(--body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rows.chat > li > div:empty {
+  display: none;
+}
+
+/*
+  The conversation's box, docked: at the foot of the screen over the tab bar
+  on a phone, at the foot of the work on a desk, on the page's own ground so
+  lines scrolling under it do not show through.
+*/
+.section.composer-dock {
+  position: sticky;
+  bottom: calc(var(--s7) + var(--s5) + env(safe-area-inset-bottom));
+  z-index: 3;
+  margin-block-end: 0;
+  padding-block: var(--s3);
+  background: var(--ground);
+  border-block-start: var(--border);
+}
+
+.composer-dock .section-head {
+  display: none;
+}
+
+.composer-dock textarea {
+  resize: none;
+  max-height: 200px;
+}
+
+@media (min-width: 768px) {
+  .section.composer-dock {
+    bottom: 0;
+  }
+}
+
+/* A person's lines on the right, in the one colour that means *you*; Tade's on the left. */
+.rows.chat > li.is-asked {
+  justify-items: end;
+  text-align: end;
+}
+
+.rows.chat > li.is-asked > div {
+  max-width: 85%;
+  background: color-mix(in srgb, var(--violet) 14%, var(--surface));
+  border-end-end-radius: var(--r1);
+}
+
+.rows.chat > li.is-reply > div {
+  max-width: 92%;
+  border-end-start-radius: var(--r1);
+}
+
+.rows.chat > li.is-problem > div {
+  background: color-mix(in srgb, var(--red) 10%, var(--surface));
+}
+
+/* The box and its press side by side, the reason and the answer under both. */
+.composer-dock .section-head + div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--s2);
+  align-items: end;
+}
+
+.composer-dock .section-head + div > :not(textarea, .presses) {
+  grid-column: 1 / -1;
+}
+
+.composer-dock textarea {
+  margin: 0;
 }
