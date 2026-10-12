@@ -100,6 +100,7 @@ export function applySnapshot(store, snapshot) {
   store.you = snapshot.you
   store.rev = snapshot.fresh.rev
   store.had = true
+  rederive(store)
   return null
 }
 
@@ -127,7 +128,61 @@ export function applyDelta(store, delta) {
   if (delta.fresh !== null && delta.fresh !== undefined) store.fresh = delta.fresh
   if (delta.you !== undefined) store.you = delta.you
   store.rev = delta.rev
+  rederive(store)
   return null
+}
+
+/**
+ * The reason `deriveState` gives an agent idle at its prompt — `IDLE_REASON` in
+ * `@tade/core`, held equal to it by `test/store.test.ts`.
+ */
+export const IDLE_REASON = 'agent idle, waiting for input'
+
+/**
+ * Whether a task is waiting on a decision of yours, **by the window's own rule**
+ * (`markOf`): an approval waiting, a turn that ended on something to decide, or
+ * a failure — not an agent idle at its prompt, not work in review, not work
+ * already finished.
+ *
+ * The projection says this too (`snapshot.ts`'s `wantsYou`), and the page
+ * applies it again over what arrived, **because the page outlives the machine's
+ * code**: a window opened this morning projects by this morning's rule until
+ * it is restarted, while the page it serves is read fresh. Two copies of one
+ * rule, held to each other by `test/store.test.ts`, so they cannot drift.
+ */
+export function needsYou(task) {
+  if (task.approval !== null && task.approval !== undefined) return true
+  if (task.finished === true && task.state !== 'working' && task.state !== 'parked') return false
+  if (task.state === 'failed') return true
+  return task.state === 'blocked' && task.reason !== IDLE_REASON
+}
+
+/**
+ * Every flag and count the page reads, derived again by the window's rule
+ * over the rows it holds: each task's `wantsYou`, and — where every task of a
+ * project is on the page, so the count would be the whole truth — its
+ * `counts.wantsYou` and `counts.working`. A project cut short keeps the
+ * projection's own counts, which are over every task in it.
+ */
+function rederive(store) {
+  const want = new Map()
+  const run = new Map()
+  for (const task of store.rows.tasks.values()) {
+    task.wantsYou = needsYou(task)
+    if (task.wantsYou) want.set(task.project, (want.get(task.project) ?? 0) + 1)
+    if (task.state === 'working' && !task.stalled) {
+      run.set(task.project, (run.get(task.project) ?? 0) + 1)
+    }
+  }
+  for (const project of store.rows.projects.values()) {
+    const counts = project.counts
+    if (counts === undefined || counts.shown !== counts.tasks) continue
+    project.counts = {
+      ...counts,
+      wantsYou: want.get(project.name) ?? 0,
+      working: run.get(project.name) ?? 0,
+    }
+  }
 }
 
 function refuse(version) {
@@ -171,8 +226,8 @@ const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0)
 /**
  * What wants you, and in the order it wants you.
  *
- * `wantsYou` is the projection's own flag — the window's *needs you* — so
- * this sorts rather than decides. Blocked first because somebody is waiting on
+ * `wantsYou` is the window's *needs you*, as `rederive` leaves it, so this
+ * sorts rather than decides. Blocked first because somebody is waiting on
  * a keypress, then failed, then work that is finished and nobody has looked at.
  */
 const URGENCY = { blocked: 0, failed: 1, review: 2 }

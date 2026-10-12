@@ -143,6 +143,8 @@ declare module '*/assets/store.js' {
   export function applyDelta(store: Store, delta: unknown): string | null
   export function rowsOf(store: Store, collection: string): readonly any[]
   export function wantsYou(store: Store): readonly any[]
+  export const IDLE_REASON: string
+  export function needsYou(task: unknown): boolean
   export function wantingIds(store: Store): Set<string>
   export function projectsOf(store: Store): readonly any[]
   export function tasksIn(store: Store, project: string): readonly any[]

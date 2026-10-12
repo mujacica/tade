@@ -208,6 +208,7 @@ describe('the two grants, which are keypresses at this machine', () => {
     expect(one.away.panel()?.away?.devices[0]).toMatchObject({
       mayReadSettings: false,
       mayConfigure: false,
+      full: false,
     })
 
     await press(one, `${AWAY_CONTROLS.settings}${DEVICE}`)
@@ -220,6 +221,7 @@ describe('the two grants, which are keypresses at this machine', () => {
     expect(one.away.panel()?.away?.devices[0]).toMatchObject({
       mayReadSettings: true,
       mayConfigure: true,
+      full: false,
     })
     // And the very next request from the phone can change one.
     expect((await change(one.port, EDITOR)).status).toBe(200)

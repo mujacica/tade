@@ -168,6 +168,7 @@ function mayOf(
   view: Pick<AwayView, 'acting' | 'talking' | 'configuring'>,
 ): Piece[] {
   const boxes: [string, boolean][] = [
+    [AWAY_CONTROLS.everything, device.full],
     ...(view.acting
       ? ([
           [AWAY_CONTROLS.act, device.mayAct],

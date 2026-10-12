@@ -1,4 +1,4 @@
-import { WAITING_STATES } from '@tade/core'
+import { IDLE_REASON as CORE_IDLE, WAITING_STATES } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { noAgentsSaid } from '../src/assets/desk.js'
 import {
@@ -9,10 +9,12 @@ import {
   checksWord,
   emptyStore,
   GRANTS,
+  IDLE_REASON,
   intakeAt,
   intakeOf,
   intakeWaiting,
   mayRead,
+  needsYou,
   notesOf,
   omitted,
   projectAt,
@@ -214,6 +216,30 @@ describe('what wants you', () => {
     const store = emptyStore()
     applySnapshot(store, projector(input({ tasks: [task()] }), NOW).snapshot())
     expect(wantsYou(store)).toEqual([])
+  })
+  it("is the window's rule, applied by the page too, so an older machine cannot overcount", () => {
+    // The two copies of one rule: the projection's (`snapshot.ts`) and the
+    // page's (`needsYou`), which the page applies over whatever arrived — so
+    // a window still running yesterday's rule cannot put idle agents in it.
+    expect(IDLE_REASON).toBe(CORE_IDLE)
+    const tasks = [
+      task({ id: 'a/idle', state: 'blocked', reason: { kind: 'clause', said: CORE_IDLE } }),
+      task({
+        id: 'a/dirty',
+        state: 'blocked',
+        reason: { kind: 'clause', said: 'turn ended with 2 uncommitted files' },
+      }),
+      task({ id: 'a/failed', state: 'failed' }),
+      task({ id: 'a/review', state: 'review' }),
+      task({ id: 'a/working', state: 'working' }),
+    ]
+    const made = projector(input({ tasks }), NOW).snapshot()
+    for (const row of made.tasks) expect(needsYou(row), row.id).toBe(row.wantsYou)
+    // An old projection that flagged every blocked task is put right on arrival.
+    const old = { ...made, tasks: made.tasks.map((row) => ({ ...row, wantsYou: true })) }
+    const store = emptyStore()
+    applySnapshot(store, old)
+    expect(wantsYou(store).map((one: { id: string }) => one.id)).toEqual(['a/dirty', 'a/failed'])
   })
 })
 

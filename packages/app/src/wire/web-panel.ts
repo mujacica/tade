@@ -11,9 +11,11 @@ import {
   blocksFor,
   codeFor,
   type Device,
+  GRANTS,
   type PairingAsk,
   reachOf,
   readsOf,
+  SCOPES,
   type Surface,
   type Tickets,
 } from '@tade/web'
@@ -239,6 +241,9 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       mayClose: one.scopes.includes('projects'),
       mayReadSettings: one.granted.includes('settings'),
       mayConfigure: one.scopes.includes('configure'),
+      full:
+        GRANTS.every((grant) => one.granted.includes(grant)) &&
+        SCOPES.every((scope) => one.scopes.includes(scope)),
       live: facts.live.has(one.id),
     }))
 }

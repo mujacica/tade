@@ -14,20 +14,20 @@
  ▾ CHANGES  3        vs│  ● iPhone  connected now                                     Sign out  │                       
   M package.json       │    phone · from your network · paired Fri 11 Sep 09:12                 │                       
   A …/webhooks.test.ts │    reads     names   states   counts   titles                          │                       
-  M src/webhooks.ts   +│    may      ■ answer & steer  ■ stop agents  □ close projects          │                       
-                       │             □ see screens  □ read settings                             │                       
+  M src/webhooks.ts   +│    may      □ full access  ■ answer & steer  ■ stop agents             │                       
+                       │             □ close projects  □ see screens  □ read settings           │                       
  ▾ FILES               │                                                                        │                       
    ▾ src/              │  ○ iPad  not connected                                       Sign out  │                       
        webhooks.test.ts│    tablet · from Tailscale · paired Fri 11 Sep 09:40                   │                       
        webhooks.ts     │    reads     names   states   counts   titles   requests   workflows   │                       
-   ▸ test/             │    may      □ answer & steer  □ stop agents  □ close projects          │                       
-     package.json      │             □ see screens  □ read settings                             │                       
+   ▸ test/             │    may      □ full access  □ answer & steer  □ stop agents             │                       
+     package.json      │             □ close projects  □ see screens  □ read settings           │                       
      README.md         │                                                                        │                       
                        │  ○ kitchen screen  not connected                             Sign out  │                       
  ▸ NOTES  4            │    from your network · paired Thu 10 Sep 18:02                         │                       
  ▾ GIT                 │    reads     names   states   counts                                   │                       
-   repo     ~/src/check│    may      □ answer & steer  □ stop agents  □ close projects          │                       
-   branch   …de/stripe-│             □ see screens  □ read settings                             │                       
+   repo     ~/src/check│    may      □ full access  □ answer & steer  □ stop agents             │                       
+   branch   …de/stripe-│             □ close projects  □ see screens  □ read settings           │                       
    from     main       │ answer & steer: a device acts as a request, never as your own words    │                       
    worktree …kout-strip│ an agent on this machine could pair itself     Disconnect everything   │                       
    path     /Users/me/.╰────────────────────────────────────────────────────────────────────────╯                       

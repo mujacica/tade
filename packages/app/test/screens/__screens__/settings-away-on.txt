@@ -40,8 +40,8 @@
     │                            ▕│  ● iPhone  connected now                                            Sign out  █│    
     │                            ▕│    phone · from your network · paired Fri 11 Sep 09:12                        █│    
     │                            ▕│    reads     names   states   counts   titles   intent                        █│    
-    │                            ▕│    may      □ answer & steer  □ stop agents  □ close projects  □ talk to Tade █│    
-    │                            ▕│             □ change settings  □ see screens  □ read settings                 █│    
+    │                            ▕│    may      □ full access  □ answer & steer  □ stop agents  □ close projects  █│    
+    │                            ▕│             □ talk to Tade  □ change settings  □ see screens  □ read settings █│    
     │                            ▕│                                                                               █│    
     │                            ▕│                                                                               ▕│    
     │                            ▕│ an agent on this machine could pair itself            Disconnect everything   ▕│    

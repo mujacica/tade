@@ -90,6 +90,17 @@ export async function widen(deps: Widening, control: string): Promise<boolean> {
     await written(deps, id, { scopes: granted.scopes.join(' ') }, granted.said)
     return true
   }
+  if (control.startsWith(AWAY_CONTROLS.everything)) {
+    const id = control.slice(AWAY_CONTROLS.everything.length)
+    const granted = await letEverything(at, deps.devices(), id)
+    await written(
+      deps,
+      id,
+      { scopes: granted.scopes.join(' '), reads: granted.reads.join(' ') },
+      granted.said,
+    )
+    return true
+  }
   for (const grant of ['lanes', 'settings'] as const) {
     const prefix = grant === 'lanes' ? AWAY_CONTROLS.see : AWAY_CONTROLS.settings
     if (!control.startsWith(prefix)) continue
@@ -117,6 +128,39 @@ async function written(
   await deps.log({ type: 'web_paired', detail: { device, ...what, granted: 'at the machine' } })
   deps.news(said)
   await deps.reread()
+}
+
+/**
+ * Give one device everything — every reading grant and every scope — or, when
+ * it has all of it already, take it back to names and counts (`read` and no
+ * grant). **A person at this machine, only**, through the panel's own box.
+ *
+ * Both lines are written whole, as every grant here is: `grantDevice` and
+ * `allowDevice` each record the complete list. What a device may then *use*
+ * is still the settings' and the origin's to say — a route with its setting
+ * off is not built, and a plaintext address reads and nothing more.
+ */
+export async function letEverything(
+  deps: { home: string; now(): number },
+  devices: readonly Device[],
+  id: string,
+): Promise<{ reads: string[]; scopes: string[]; said: string }> {
+  const device = devices.find((one) => one.id === id && one.revoked === null)
+  if (device === undefined) throw new Error('that device is not paired')
+  const full =
+    GRANTS.every((grant) => device.granted.includes(grant)) &&
+    SCOPES.every((scope) => device.scopes.includes(scope))
+  const reads: string[] = full ? [] : [...GRANTS]
+  const scopes: string[] = full ? ['read'] : [...SCOPES]
+  const when = new Date(deps.now())
+  await grantDevice(deps.home, id, reads, when)
+  await allowDevice(deps.home, id, scopes, when)
+  const what = device.label === '' ? 'that device' : device.label
+  return {
+    reads,
+    scopes,
+    said: full ? `${what} reads names and counts only` : `${what} has full access`,
+  }
 }
 
 /** What each reading grant with a control lets a device see, in the strip's words. */

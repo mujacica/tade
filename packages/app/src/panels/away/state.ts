@@ -64,6 +64,17 @@ export const AWAY_CONTROLS = {
   /** One device, by its id: `away-revoke:<id>`. */
   revoke: 'away-revoke:',
   /**
+   * Give one device everything, or take everything back: `away-all:<id>`.
+   *
+   * **The owner's default, as one press**: a device let in now gets every
+   * reading grant and every scope (`EVERYTHING`), and one paired before that
+   * — or narrowed since — gets the same from here, rather than a box per
+   * reading grant somebody has to find. Ticked when it has all of them;
+   * pressing a ticked one leaves it reading names and counts, and the boxes
+   * beside it take back one thing at a time.
+   */
+  everything: 'away-all:',
+  /**
    * Let one device act, or take it back: `away-act:<id>`.
    *
    * **The only door a scope widens through, and it is a keypress here.**
@@ -150,6 +161,7 @@ export const AWAY_LABELS = {
   [AWAY_CONTROLS.see]: 'see screens',
   [AWAY_CONTROLS.settings]: 'read settings',
   [AWAY_CONTROLS.revoke]: 'Sign out',
+  [AWAY_CONTROLS.everything]: 'full access',
 } as const
 
 /**

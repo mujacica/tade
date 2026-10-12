@@ -48,6 +48,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
         mayClose: false,
         mayReadSettings: false,
         mayConfigure: false,
+        full: false,
         live: true,
       },
       {
@@ -63,6 +64,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
         mayClose: false,
         mayReadSettings: false,
         mayConfigure: false,
+        full: false,
         live: false,
       },
     ],
@@ -214,6 +216,7 @@ export const AWAY_SCREENS: Scenario[] = [
               mayClose: false,
               mayReadSettings: false,
               mayConfigure: false,
+              full: false,
               live: true,
             },
             {
@@ -229,6 +232,7 @@ export const AWAY_SCREENS: Scenario[] = [
               mayClose: false,
               mayReadSettings: false,
               mayConfigure: false,
+              full: false,
               live: false,
             },
             {
@@ -244,6 +248,7 @@ export const AWAY_SCREENS: Scenario[] = [
               mayClose: false,
               mayReadSettings: false,
               mayConfigure: false,
+              full: false,
               live: false,
             },
           ],

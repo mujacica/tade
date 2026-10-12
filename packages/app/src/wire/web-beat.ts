@@ -162,7 +162,11 @@ export function beatParts(
   // is every task's `null` — never a figure of nought.
   const spend = live.spendToday() ?? { byTask: {} }
   const overrides = overridesFrom(live.events)
-  const ran = ranOn(live.events)
+  const queueFacts = live.queueFacts()
+  // **Every `run_started`, not the last five hundred lines**: what an agent
+  // runs on is written once, when it starts, and an agent started this morning
+  // on a busy machine is long out of `live.events` — which drew it as `— · —`.
+  const ran = ranOn(queueFacts.events)
   // Folds over the journal the window already holds, each pure: whether an
   // agent is waiting on a question, and whether a task's document is actually
   // there. The state and not the triage — a document somebody has already
@@ -186,7 +190,6 @@ export function beatParts(
   // stopping the agent somebody opened since. Out of the queue's own events,
   // which are the **whole** journal's — the window's recent five hundred would
   // count differently from the door that re-reads it at the act.
-  const queueFacts = live.queueFacts()
   const starts = startsOf(queueFacts.events)
   const extras = new Map<string, TaskExtra>()
   const pending = new Map<string, number>()

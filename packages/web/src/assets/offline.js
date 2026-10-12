@@ -35,7 +35,7 @@
 import { el, into } from './dom.js'
 import { clockOf, count, duration } from './figures.js'
 import { CACHE_PREFIX } from './install.js'
-import { intakeWaiting, omitted, projectsOf, rowsOf } from './store.js'
+import { intakeWaiting, needsYou, omitted, projectsOf, rowsOf } from './store.js'
 import { TROUBLES } from './trouble.js'
 import { note, problem, problemIn } from './ui.js'
 
@@ -84,8 +84,8 @@ export function countsOf(store, savedAt) {
     // Open ones: a closed project is a row only so it can be opened again.
     projects: projectsOf(store).length,
     tasks: tasks.length,
-    working: tasks.filter((task) => task.state === 'working').length,
-    wantsYou: tasks.filter((task) => task.wantsYou === true).length,
+    working: tasks.filter((task) => task.state === 'working' && !task.stalled).length,
+    wantsYou: tasks.filter(needsYou).length,
     queue: store.rows.queue.size + omitted(store, 'queue'),
     inbox: intakeWaiting(store).length,
     runs: store.rows.runs.size + omitted(store, 'runs'),

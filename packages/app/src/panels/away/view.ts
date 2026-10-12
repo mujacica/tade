@@ -125,6 +125,8 @@ export interface AwayDevice {
   mayReadSettings: boolean
   /** Whether it was granted `configure`: changing a setting a request is enough for. */
   mayConfigure: boolean
+  /** Whether it has every reading grant and every scope: `full access`. */
+  full: boolean
   /** Whether it has a live stream open now. */
   live: boolean
 }
