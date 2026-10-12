@@ -470,6 +470,8 @@ async function lookAt(
   } catch (err) {
     return { failed: codeOf(err) }
   } finally {
+    // What was read, or why it could not be, is already the answer: a handle
+    // that will not close changes nothing about it.
     await fh.close().catch(() => {})
   }
 }

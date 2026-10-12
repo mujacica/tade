@@ -5,11 +5,12 @@ import { appendFileSync } from 'node:fs'
 //
 //   node fake-child.ts <how> <log> [ms]
 //
-// Every start and every ask is a line in <log>, so a test counts forks and
-// looks by what happened rather than by how long it waited.
+// Every start, the flags it was started with and every ask is a line in <log>,
+// so a test counts forks and looks by what happened rather than by how long it
+// waited.
 //
 //   answer   answers every ask with an empty workspace
-//   slow     the same, <ms> late
+//   slow     the same, <ms> late, and notes each answer once it is sent
 //   hang     hears every ask and answers none
 //   silent   never says it is ready
 //   crash    falls over before it can listen
@@ -24,6 +25,7 @@ const note = (line: string) => {
 const send = (message: unknown) => process.send?.(message)
 
 note(`boot ${process.pid}`)
+note(`flags ${process.execArgv.join(' ')}`)
 process.on('disconnect', () => process.exit(0))
 
 const answer = (id: number) => ({
@@ -56,8 +58,9 @@ if (how === 'silent') {
     if (how === 'die') process.exit(3)
     if (how === 'garbage') send({ id, answer: { known: true, workspace: 'nothing to see' } })
     else if (how === 'noise') send('hello')
-    else if (how === 'slow') setTimeout(() => send(answer(id)), Number(late))
-    else send(answer(id))
+    else if (how === 'slow') {
+      setTimeout(() => process.send?.(answer(id), () => note(`answered ${id}`)), Number(late))
+    } else send(answer(id))
   })
   send({ ready: true })
 }

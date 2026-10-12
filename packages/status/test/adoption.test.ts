@@ -330,6 +330,47 @@ describe('a scan asked again with what it read before', () => {
     },
   )
 
+  it.skipIf(process.getuid?.() === 0)(
+    'keeps what it last read of a transcript it cannot open, and says it could not look',
+    async () => {
+      const { home, file } = claudeHome()
+      writeFileSync(file, said('2026-09-11T09:00:00Z'))
+      const reads = newTranscriptReads()
+      const before = await scan(home, reads)
+      // Grown, so there is something to read, and then shut.
+      appendFileSync(file, replied('2026-09-11T09:00:01Z', 'end_turn'))
+      chmodSync(file, 0o000)
+      try {
+        const after = await scan(home, reads)
+        expect(after.sessions).toEqual(before.sessions)
+        expect(after.warnings).toEqual(['claude-code: some transcripts could not be read (EACCES)'])
+      } finally {
+        chmodSync(file, 0o644)
+      }
+      // And once it can be read again, it is read: what stood was never kept as the answer.
+      expect((await scan(home, reads)).sessions[0]?.turn).toBe('idle')
+    },
+  )
+
+  it.skipIf(process.getuid?.() === 0)(
+    'keeps what it last read of a transcript in a folder it can list but not look into',
+    async () => {
+      const { home, dir, file } = claudeHome()
+      writeFileSync(file, said('2026-09-11T09:00:00Z'))
+      const reads = newTranscriptReads()
+      const before = await scan(home, reads)
+      // Its names can be read, and nothing about any file in it can.
+      chmodSync(dir, 0o444)
+      try {
+        const after = await scan(home, reads)
+        expect(after.sessions).toEqual(before.sessions)
+        expect(after.warnings).toEqual(['claude-code: some transcripts could not be read (EACCES)'])
+      } finally {
+        chmodSync(dir, 0o755)
+      }
+    },
+  )
+
   it('reads a transcript whose parser threw as unrecognised, and from the start once it changes', async () => {
     const { home, file } = claudeHome()
     const fussy: TranscriptParser = {

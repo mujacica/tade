@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { CLOSED, type StatusAsk, type StatusCollector } from '../src/collector.ts'
 import {
+  CHILD_FLAGS,
   type ChildOptions,
   lastWords,
   lookInChild,
@@ -57,6 +58,8 @@ function fake(how: string, opts: ChildOptions = {}, extra: string[] = []) {
   return {
     look,
     boots: () => said('boot').map(Number),
+    flags: () => said('flags'),
+    answered: () => said('answered').length,
     asks: () => said('ask').length,
   }
 }
@@ -101,6 +104,12 @@ describe('a child that answers', () => {
     expect(asks()).toBe(2)
   })
 
+  it("is started with its heap sized, and with none of the window's own flags", async () => {
+    const { look, flags } = fake('answer')
+    expect(await look.collect(ask)).toMatchObject({ known: true })
+    expect(flags()).toEqual([CHILD_FLAGS.join(' ')])
+  })
+
   it('is started before the first ask, so the window does not wait for Node to boot', async () => {
     const { boots } = fake('answer')
     // Nothing has been asked: the child came up on its own.
@@ -116,6 +125,20 @@ describe('a child that answers', () => {
 })
 
 describe('a child that is slow', () => {
+  it('answers the next ask with a look that finished while nobody was waiting for it', async () => {
+    const { look, asks, answered } = fake('slow', { deadlineMs: 100 }, ['300'])
+    expect(await look.collect(ask)).toMatchObject({ known: false })
+    // Paced by the child having answered: the look is over, and the ask that
+    // started it stopped waiting long ago.
+    await until(() => answered() === 1)
+    const next = await until(async () => {
+      const answer = await look.collect(ask)
+      return answer.known ? answer : null
+    })
+    expect(next.known).toBe(true)
+    expect(asks()).toBe(1)
+  })
+
   it('is unknown at the deadline, keeps looking, and answers the next ask with that same look', async () => {
     const { look, asks } = fake('slow', { deadlineMs: 100 }, ['600'])
     const first = await look.collect(ask)

@@ -148,16 +148,21 @@ class InChild implements StatusCollector {
 
   async collect(ask: StatusAsk): Promise<StatusAnswer> {
     if (this.closed) return unknown(CLOSED)
-    this.flight ??= this.look(ask).finally(() => {
-      this.flight = null
-    })
-    return within(
-      this.flight,
-      this.deadlineMs,
-      unknown(
+    // Let go by the ask that is handed its answer, and never when it settles:
+    // a look that lands between asks, with nobody waiting on it, is the
+    // answer to the next one rather than thrown away for a second look to
+    // start over — which, on a machine slow enough to miss one deadline,
+    // missed every one after it.
+    if (this.flight === null) this.flight = this.look(ask)
+    const flight = this.flight
+    const answer = await within<StatusAnswer | null>(flight, this.deadlineMs, null)
+    if (answer === null) {
+      return unknown(
         `status took longer than ${seconds(this.deadlineMs)} to look, which is a busy machine rather than a broken one: still looking`,
-      ),
-    )
+      )
+    }
+    if (this.flight === flight) this.flight = null
+    return answer
   }
 
   async close(): Promise<void> {
