@@ -597,4 +597,20 @@ describe('ClaudeAdapter', () => {
     writeFileSync(join(account, 'projects', 'x', `${sessionIdFor(spec.task)}.jsonl`), '')
     expect(await adapter.hasConversation(spec.task, spec.cwd)).toBe(true)
   })
+
+  it('looks for a conversation where the environment it was given says Claude Code keeps them', async () => {
+    // The `claude` it starts inherits CLAUDE_CONFIG_DIR, so a transcript in
+    // the real home is one that process has never heard of: taking it up
+    // again there is "No conversation found with session ID".
+    const home = tmp('tade-claude-home-')
+    const named = tmp('tade-claude-env-')
+    const id = sessionIdFor('app/t')
+    mkdirSync(join(home, '.claude', 'projects', 'x'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'projects', 'x', `${id}.jsonl`), '')
+    const one = new ClaudeAdapter({ runDir: tmp('tcc-'), home, env: { CLAUDE_CONFIG_DIR: named } })
+    expect(await one.hasConversation('app/t', '/wt/t')).toBe(false)
+    mkdirSync(join(named, 'projects', 'x'), { recursive: true })
+    writeFileSync(join(named, 'projects', 'x', `${id}.jsonl`), '')
+    expect(await one.hasConversation('app/t', '/wt/t')).toBe(true)
+  })
 })

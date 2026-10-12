@@ -322,14 +322,19 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   constructor(opts: ClaudeAdapterOptions) {
     const home = opts.home ?? homedir()
+    const env = opts.env ?? process.env
     this.opts = {
       runDir: opts.runDir,
       socketDir: opts.socketDir ?? opts.runDir,
       approvals: opts.approvals ?? 'bypass',
       bin: opts.bin ?? 'claude',
       args: opts.args ?? [],
-      configDir: opts.account?.dir ?? opts.configDir ?? defaultConfigDir(home),
-      env: opts.env ?? process.env,
+      // Where the `claude` it starts will look: an environment that names a
+      // folder is one the child inherits, so the transcripts it is asked to
+      // resume are read from there too — never from a home it is not using.
+      configDir:
+        opts.account?.dir ?? opts.configDir ?? env.CLAUDE_CONFIG_DIR ?? defaultConfigDir(home),
+      env,
       type: opts.type,
       onWarning: opts.onWarning ?? (() => {}),
       home,

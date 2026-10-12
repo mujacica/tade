@@ -32,6 +32,8 @@ export interface HarnessOptions {
   supervised?: boolean
   /** Extra arguments appended to every launch, for tests that need a harness told something. */
   args?: string[]
+  /** The environment its processes start from, when not this one's. */
+  env?: NodeJS.ProcessEnv
 }
 
 /**

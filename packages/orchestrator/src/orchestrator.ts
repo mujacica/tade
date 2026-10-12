@@ -266,6 +266,9 @@ export class Orchestrator {
       // tools, and pi refuses to start on the collision.
       supervised: false,
       ...(opts.args ? { args: [...opts.args] } : {}),
+      // The environment its harness runs in, so the adapter looks for the
+      // conversation where the process it starts keeps it.
+      ...(opts.env ? { env: opts.env } : {}),
     })
     // Drawn by Tade rather than drawing itself: a harness that cannot be run
     // that way can run agents, and says so rather than starting something
