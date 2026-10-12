@@ -377,15 +377,18 @@ describe('the last look at a task, read without starting one', () => {
     }
     for (let frame = 0; frame < 30; frame++) read()
     expect(gitLoad().started - before, 'a read started git').toBe(0)
-    expect(live.files(repo.root, []), 'a read went to the disk').toEqual([])
+    // And what has not been looked at says so, rather than being nothing.
+    expect(live.files(repo.root, []), 'a read went to the disk').toBeNull()
+    expect(live.changesAt(repo.root, null), 'not looked, drawn as nothing changed').toBeNull()
     // Asked for once, however often it was read: one look soon, not thirty.
     expect(due).toBe(1)
 
     // The look starts all of it, and the listing is there at once.
     const revision = live.revision
     const looking = live.lookAgain()
-    expect(live.files(repo.root, []).length).toBeGreaterThan(0)
+    expect(live.files(repo.root, [])?.length).toBeGreaterThan(0)
     await looking
+    expect(live.changesAt(repo.root, null), 'a clean checkout, looked at').toEqual([])
     expect(gitLoad().started - before).toBeGreaterThan(0)
     expect(live.revision, 'what changed was not counted').toBeGreaterThan(revision)
     // And nothing more is due until something goes stale: reading again
@@ -394,6 +397,30 @@ describe('the last look at a task, read without starting one', () => {
     read()
     await live.lookAgain()
     expect(gitLoad().started).toBe(looked)
+  }, 30_000)
+
+  it('counts a first look that found nothing changed as news, because `…` was drawn before it', async () => {
+    // An idle window draws only on news, so a clean checkout's first answer
+    // that went uncounted would leave CHANGES saying `…` until something else
+    // happened to be drawn.
+    const repo = mkrepo()
+    const home = tmp('tade-live-clean-')
+    const client = await Workbench.open({ home })
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+    })
+    opened.push({ live, client })
+    await live.refresh()
+
+    expect(live.changesAt(repo.root, null)).toBeNull()
+    const revision = live.revision
+    await live.lookAgain()
+    expect(live.changesAt(repo.root, null)).toEqual([])
+    expect(live.revision, 'nothing changed was not told').toBeGreaterThan(revision)
   }, 30_000)
 
   it('keeps the whole of the last look, and says unknown before there has been one', async () => {

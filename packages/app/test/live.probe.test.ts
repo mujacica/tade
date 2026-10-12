@@ -419,7 +419,7 @@ describe('what an idle window costs to keep a checkout looked at', () => {
   it('looks again on the beat after the checkout moves, however it moved', async () => {
     const { repo, live, status, beat, asked, base } = await checkoutOver()
     const root = live.worktreeOf('app/refunds') as string
-    const changed = () => live.changesAt(root, base).map((one) => `${one.path} +${one.added}`)
+    const changed = () => live.changesAt(root, base)?.map((one) => `${one.path} +${one.added}`)
     await asked(root, base)
     expect(changed()).toEqual([])
 

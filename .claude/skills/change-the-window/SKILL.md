@@ -201,6 +201,9 @@ regions in a cycle now.
   What a subject has on screen it hands to `Live.keepAsking`, which reads it again on every beat:
   an idle window draws no frames, and a reader read only in one goes stale behind it. A look at a
   checkout asks `CheckoutGate` first (`checkout-look.ts`) — git only where a stat signature moved.
+- **Not looked is not empty.** `files` and `changesAt` answer `null` until they have looked, and the
+  side draws `…` in the rows the section last took (`roomHeld`, kept by `wire/here.ts`), so NOTES
+  does not jump on a switch. A first answer that is empty is still news (`told`): `…` was drawn.
 - **A region whose inputs did not move is not drawn again** (`view/last-frame.ts`). `Painted` holds a
   `LastFrame`; each region is drawn through a proxy that records every field of `state` and `frame` it
   read, and next frame exactly those are compared — plain data member by member, anything else by

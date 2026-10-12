@@ -566,10 +566,12 @@ export class Live {
    * themselves. Each folder is read at most once per `LISTING_MS`, and never
    * from here: the window draws up to thirty times a second, and the disk is
    * read on its next look (`lookAgain`), like everything else these answer.
+   * `null` until the folder itself has been read: not looked is not empty.
    */
-  files(root: string | null, expanded: readonly string[]): FileEntry[] {
+  files(root: string | null, expanded: readonly string[]): FileEntry[] | null {
     if (!root) return []
-    return treeOf(expanded, (folder) => this.listing(join(root, folder)))
+    const tree = treeOf(expanded, (folder) => this.listing(join(root, folder)))
+    return this.listings.has(join(root, '')) ? tree : null
   }
 
   private listing(dir: string): Listed[] {
@@ -735,13 +737,14 @@ export class Live {
    * What a task has changed: where it works, measured from where it branched.
    * A task names a place and a base, and the answer is about the place — so an
    * agent sharing the project's checkout sees everything uncommitted in it,
-   * whoever changed it.
+   * whoever changed it. Not looked at yet reads as none here; what the side
+   * draws is `changesAt`'s answer, which can say it has not looked.
    */
   changes(task: string | null): readonly Change[] {
     if (!task) return []
     const root = this.worktrees.get(task)
     if (!root) return []
-    return this.changesAt(root, this.bases.get(task) ?? null)
+    return this.changesAt(root, this.bases.get(task) ?? null) ?? []
   }
 
   /**
@@ -760,8 +763,10 @@ export class Live {
    * nothing, like `marksAt` and `branchAt` — this is read every frame now,
    * agent or not, so a beat that always redraws would be a beat that never rests.
    * And a look asks git only where the checkout has moved (`CheckoutGate`).
+   * `null` until a look has answered, which the side draws as `…`, never as
+   * "nothing changed".
    */
-  changesAt(root: string | null, base: string | null): readonly Change[] {
+  changesAt(root: string | null, base: string | null): readonly Change[] | null {
     if (!root) return []
     const key = JSON.stringify([root, base])
     const seen = this.changed.get(key)
@@ -779,10 +784,10 @@ export class Live {
         if (changes === STILL && was) this.changed.set(key, { ...was, at: this.now() })
         if (changes === null || changes === STILL) return
         this.changed.set(key, { at: this.now(), changes })
-        if (JSON.stringify(changes) !== JSON.stringify(was?.changes ?? [])) this.told()
+        if (JSON.stringify(changes) !== JSON.stringify(was?.changes ?? null)) this.told()
       })
     }
-    return seen?.changes ?? []
+    return seen?.changes ?? null
   }
 
   /** A task's branch, its project, and how many commits it has that its base does not. */

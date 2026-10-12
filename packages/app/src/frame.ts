@@ -356,8 +356,11 @@ export interface Frame {
    * has read, and no further — nothing here invents a line nobody has seen.
    */
   held?: ReadonlyMap<'pane' | 'terminal', HeldLines>
-  /** The files of the focused agent's worktree, or of the project when there is none. */
-  files?: readonly FileEntry[]
+  /**
+   * The files of the focused agent's worktree, or of the project when there is
+   * none: `null` until the folder has been read, which is drawn as `…`.
+   */
+  files?: readonly FileEntry[] | null
   /** What git says about those files, by path: `M`, `A`, `D`, `R`, `U`, `!`. */
   fileMarks?: Readonly<Record<string, string>>
   /**
@@ -377,8 +380,14 @@ export interface Frame {
     /** Where the agent's work came from — an issue, a trace — each opened by a click. */
     links?: readonly { title: string; url: string }[]
   } | null
-  /** What the focused agent has changed since it branched. */
-  changes?: readonly Change[]
+  /** What the focused agent has changed since it branched: `null` until git has answered. */
+  changes?: readonly Change[] | null
+  /**
+   * How many rows CHANGES and FILES drew when they last had an answer. One that
+   * has not looked at what is in front of you now holds that room under its `…`,
+   * so NOTES below it stays where it was rather than jumping up and back down.
+   */
+  roomHeld?: { changes: number; files: number }
   /** What the focused agent has done, for the ACTIONS tab beside its screen. */
   actions?: ActionsView | null
   /** The sections extensions keep in the sidebar, as they last answered. */

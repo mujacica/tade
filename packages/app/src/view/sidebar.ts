@@ -80,9 +80,11 @@ export function renderSidebar(
   const handed = inboxHere(frame.intake ?? [], state.project)
   const groups = groupedTasks(state)
   const tasks = groups.flatMap((group) => group.tasks)
-  const changes = frame.changes ?? []
+  // `null` is not looked yet, and drawn as `…` in the room it last took.
+  const changes = frame.changes ?? null
   const notes = frame.notes ?? []
-  const files = frame.files ?? []
+  const files = frame.files ?? null
+  const room = frame.roomHeld ?? { changes: 1, files: 1 }
   const spend = frame.spend?.byTask ?? {}
   const where = frame.where ?? null
   // Agents that have finished: what `H` hides and `X` closes. Neither control
@@ -204,29 +206,33 @@ export function renderSidebar(
     {
       id: 'changes',
       label: 'CHANGES',
-      count: changes.length,
+      count: changes?.length ?? null,
       ...(frame.base ? { note: `vs ${frame.base.replace(/^origin\//, '')}` } : {}),
       rows: (row) =>
-        changes.length === 0
-          ? [
-              // Nothing changed is about the checkout, not about the agent: it
-              // used to say "open an agent to see", which was true of what it
-              // read and not of what git knew.
-              row()
-                .space(3)
-                .text(where ? 'nothing changed' : 'no checkout here', skin.hint)
-                .build(),
-            ]
-          : changes.map((change) => changeRow(row(), change, skin, state.focused)),
+        changes === null && where
+          ? notLookedYet(row, width, skin, room.changes)
+          : !changes?.length
+            ? [
+                // Nothing changed is about the checkout, not about the agent: it
+                // used to say "open an agent to see", which was true of what it
+                // read and not of what git knew.
+                row()
+                  .space(3)
+                  .text(where ? 'nothing changed' : 'no checkout here', skin.hint)
+                  .build(),
+              ]
+            : changes.map((change) => changeRow(row(), change, skin, state.focused)),
     },
     {
       id: 'files',
       label: 'FILES',
       count: null,
       rows: (row) =>
-        files.length === 0
-          ? [row().space(3).text('—', skin.hint).build()]
-          : files.map((entry) => fileRow(row(), entry, skin, frame.fileMarks ?? {})),
+        files === null
+          ? notLookedYet(row, width, skin, room.files)
+          : files.length === 0
+            ? [row().space(3).text('—', skin.hint).build()]
+            : files.map((entry) => fileRow(row(), entry, skin, frame.fileMarks ?? {})),
     },
     {
       id: 'notes',
@@ -502,6 +508,21 @@ function whereRows(
     rows.push({ text: r.build().text, hits: [rowHit(0, r.width, open)] })
   })
   return rows
+}
+
+/**
+ * A section that has not looked at what is in front of you yet: `…`, which is
+ * not "nothing", and then blank rows to the height it last drew, so whatever is
+ * under it stays put until the answer arrives rather than moving twice.
+ */
+function notLookedYet(
+  row: () => Row,
+  width: number,
+  skin: Skin,
+  room: number,
+): { text: string; hits: Hit[] }[] {
+  const rest = Array.from({ length: Math.max(0, room - 1) }, () => blank(width))
+  return [row().space(3).text('…', skin.hint).build(), ...rest]
 }
 
 /** A file or folder in the tree, indented by how deep it is. */

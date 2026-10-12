@@ -78,9 +78,20 @@ const deps = () =>
  * named in front of you — or with nobody, which is the case the orchestrator's
  * own edits fall into.
  */
-async function world(root: string, home: string, focused: string | null) {
+async function world(
+  root: string,
+  home: string,
+  focused: string | null,
+  others: Record<string, string> = {},
+) {
   const client = await Workbench.open({ home })
-  const config = ConfigSchema.parse({ projects: { app: { root, workspace: 'checkout' } } })
+  const more = Object.entries(others).map(([name, at]) => [
+    name,
+    { root: at, workspace: 'checkout' },
+  ])
+  const config = ConfigSchema.parse({
+    projects: { app: { root, workspace: 'checkout' }, ...Object.fromEntries(more) },
+  })
   const live = await Live.start({
     client,
     config,
@@ -217,5 +228,44 @@ describe('what the side asks about the checkout', () => {
     asked.length = 0
     await live.refresh(false)
     expect(asked).toEqual([repo.root])
+  })
+})
+
+describe('what the side draws before it has looked', () => {
+  it('says it has not looked rather than that nothing changed, and holds the room it took', async () => {
+    const repo = sharedCheckout()
+    repo.write({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    const other = mkrepo()
+    other.commit('first', { 'README.md': 'another project\n' })
+    const { live, files, put } = await world(repo.root, repo.home, null, { other: other.root })
+
+    // Nothing has been looked at yet: unknown, which the side draws as `…`,
+    // and never as a clean checkout or an empty folder.
+    expect(files.facts().changes).toBeNull()
+    expect(files.facts().files).toBeNull()
+    expect(files.facts().roomHeld).toEqual({ changes: 1, files: 1 })
+
+    const looked = () => {
+      const facts = files.facts()
+      live.lookAgain()
+      return facts
+    }
+    await until('both looked at', () => {
+      const facts = looked()
+      return facts.changes?.length === 2 && (facts.files?.length ?? 0) > 0
+    })
+    const listed = files.facts().files?.length ?? 0
+    expect(files.facts().roomHeld).toEqual({ changes: 2, files: listed })
+
+    // Another checkout, not looked at yet: unknown again, in the room the last
+    // answer took — so NOTES, under both, does not jump up and back down.
+    put((was) => ({ ...was, project: 'other' }))
+    expect(files.facts().changes).toBeNull()
+    expect(files.facts().files).toBeNull()
+    expect(files.facts().roomHeld).toEqual({ changes: 2, files: listed })
+
+    // And its answer, clean, is the room from then on.
+    await until('the other checkout looked at', () => looked().changes?.length === 0)
+    expect(files.facts().roomHeld?.changes).toBe(1)
   })
 })

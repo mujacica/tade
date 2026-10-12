@@ -11,7 +11,7 @@ import {
   openerForReveal,
 } from '../editor.ts'
 import type { Frame } from '../frame.ts'
-import { focusTask, notice, sectionOpen, shownName, toggleFolder, viewLane } from '../model.ts'
+import { focusTask, notice, shownName, toggleFolder, viewLane } from '../model.ts'
 import { type FilePanel, filePanel, savedFile, showsDiff } from '../panels/file/state.ts'
 import { fileBodySize } from '../panels/file/view.ts'
 import { branchMenuItems, changeMenuItems, fileMenuItems } from '../panels/menu/state.ts'
@@ -27,10 +27,10 @@ import {
   promptFailed,
   type Subject,
   type Submits,
-  tilde,
   type Wiring,
   why,
 } from './context.ts'
+import { Here } from './here.ts'
 import { Viewed } from './viewed.ts'
 
 // The file you have open, the diff beside it, and the branch underneath.
@@ -78,10 +78,12 @@ export class Files implements Subject {
   private diff: ParsedDiff | null = null
   /** The project checkout's branches, for the Switch branch panel. */
   private branchRows: BranchRow[] = []
+  private readonly here: Here
 
   constructor(wire: Wiring, deps: FilesDeps) {
     this.wire = wire
     this.deps = deps
+    this.here = new Here(wire)
   }
 
   /**
@@ -94,49 +96,9 @@ export class Files implements Subject {
     return this.wire.opts.open ?? launch
   }
 
-  /**
-   * What is on disk here: the tree beside the agent, what git says about it,
-   * and where the work is. The worktree when an agent is in front of you and
-   * the project's own checkout otherwise, which is the same rule `hereOnDisk`
-   * follows — one answer to "here", read two ways.
-   */
+  /** What the side shows of the checkout here, and the room it holds (`here.ts`). */
   facts(): Partial<Frame> {
-    const live = this.wire.live
-    const state = this.wire.state
-    const focused = state.panes.find((pane) => pane.task === state.focused)
-    const configured = state.project ? this.wire.opts.config.projects[state.project] : null
-    const repo = configured ? expandHome(configured.root) : null
-    const worktree = focused ? (live?.worktreeOf(focused.task) ?? null) : null
-    const facts = focused ? live?.factsOf(focused.task) : null
-    // What the changes are measured from: where the agent branched when one is
-    // in front of you, and nowhere — so, `git status` — when none is.
-    const base = live?.baseOf(state.focused) ?? null
-    // Asked again on every beat, frame or none (`keepAsking`); the tree only while FILES is open.
-    live?.keepAsking('files', () => this.facts())
-    const tree = sectionOpen(state, 'files', false) ? (worktree ?? repo) : null
-    return {
-      files: live?.files(tree, state.expanded) ?? [],
-      fileMarks: live?.marksAt(tree) ?? {},
-      where: repo
-        ? {
-            repo: tilde(repo),
-            branch: facts?.branch ?? live?.branchAt(repo) ?? null,
-            base: focused ? (live?.baseOf(focused.task) ?? null) : null,
-            // Only a worktree of its own is worth a line: one sharing the
-            // checkout works in `repo`.
-            worktree: worktree && resolve(worktree) !== resolve(repo) ? tilde(worktree) : null,
-            path: worktree ?? repo,
-            shownPath: tilde(worktree ?? repo),
-            links: facts?.links ?? [],
-          }
-        : null,
-      // The same "here" the tree and the marks above are read at, rather than
-      // the focused task: a change in this checkout is a change whoever made
-      // it, and with no agent in front of you there is still a checkout to ask
-      // about.
-      changes: live?.changesAt(worktree ?? repo, base) ?? [],
-      base,
-    }
+    return this.here.facts()
   }
 
   /** The file being read, the diff beside it, or the branches to switch to. */
@@ -191,7 +153,7 @@ export class Files implements Subject {
               marks[subject.path] !== undefined ||
               this.wire.live
                 ?.changesAt(here, this.wire.live.baseOf(this.wire.state.focused))
-                .some((change) => change.path === subject.path) === true,
+                ?.some((change) => change.path === subject.path) === true,
             agent: focused?.lane != null,
             platform: process.platform,
           })
