@@ -434,6 +434,38 @@ describe('the window, and the lanes in it', () => {
     }
   })
 
+  // A key into a lane asks for no look of its own: its echo is the lane
+  // printing, and a print is what looks (`Looks.printed`). So every lane that
+  // can be typed into is watched — the second half of a split as much as the
+  // first, which nothing watched while each key still asked for its own look.
+  it('watches both halves of a split terminal, and draws what is typed into the second', async () => {
+    const watched = new Set<string>()
+    const watch = client.watch.bind(client)
+    client.watch = ((...args: Parameters<typeof watch>) => {
+      watched.add(args[0])
+      return watch(...args)
+    }) as typeof client.watch
+    const first = await client.openTerminal({ project: 'app' })
+    await start()
+    await until('its tab', () => terminal.written.includes('terminal 1'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    terminal.press(`\x1b[<2;${tab.col + 2};${tab.row + 1}M`)
+    terminal.press(`\x1b[<2;${tab.col + 2};${tab.row + 1}m`)
+    await until('its menu', () => terminal.written.includes('Split: a new terminal beside'))
+    const item = find('Split: a new terminal beside')
+    click(item.col + 1, item.row)
+    await until('a second terminal', () => client.terminals('app').length === 2)
+    const second = client.terminals('app').find((one) => one.id !== first.id)?.id ?? ''
+    await until('both halves watched', () => watched.has(first.id) && watched.has(second))
+    // The keyboard is on the new half: what is typed there is drawn there.
+    for (const char of 'echo split-$((6 * 7))') terminal.press(char)
+    terminal.press('\r')
+    await until('the second half answering', () =>
+      screenOf(terminal.written).some((row) => row.includes('split-42')),
+    )
+  })
+
   // A URL a program printed is a link like any other on screen: it lights up
   // under the pointer and a click opens it. Where it opens is the seam — the
   // window hands the opener to whatever it was started with, and a test is
