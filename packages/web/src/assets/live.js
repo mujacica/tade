@@ -64,6 +64,18 @@ export function standingOf(connection, tries = 0) {
 }
 
 /**
+ * How a page with **no session** stands: `unpaired` where the machine answered
+ * and said this device is not let in, `unreachable` where it did not answer.
+ *
+ * Never `reconnecting`, which is a stream retrying — and a page with no session
+ * opens no stream, so drawing it was a page that looked like a broken
+ * connection when the one thing to do was scan the code at the machine.
+ */
+export function outsideOf(status) {
+  return status === 0 ? 'unreachable' : 'unpaired'
+}
+
+/**
  * The line the page says about it: the glyph apart from the words, so the glyph
  * can be coloured and the words cannot be.
  *
@@ -91,6 +103,8 @@ export function partsOf(standing, connection, at, now, tight = false) {
       return { glyph: '◴', words: `reconnecting · ${of}${at}` }
     case 'closed':
       return { glyph: '⏸', words: connection.why }
+    case 'unpaired':
+      return { glyph: '○', words: 'not paired' }
     default:
       return {
         glyph: '○',

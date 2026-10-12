@@ -58,7 +58,7 @@ import { widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownKeys, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
-import { awayView, codeShownOn, mintPairing } from './web-panel.ts'
+import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
 import { toldTo } from './web-told.ts'
@@ -465,8 +465,10 @@ export class Away implements Subject {
   }
 
   panel(): Frame['panel'] {
-    const where = codeShownOn(this.wire.state.panel)
-    return where === null ? {} : { away: this.view() }
+    if (codeShownOn(this.wire.state.panel) === null) return {}
+    const surface = surfaceOf(this.config().surfaces.web)
+    keepCode(this.tickets, surface, (this.server?.bound.length ?? 0) > 0, this.wire.now())
+    return { away: this.view() }
   }
 
   /** The strip's chip (`Frame.remote`): what is listening, and how many devices are reading. */

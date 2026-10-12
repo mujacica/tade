@@ -143,6 +143,8 @@ export function composerOf(ctx, words) {
   into(presses, press, stop)
 
   let talk = null
+  /** What `talkOf` said, `undefined` included: nothing read yet is not *off*. */
+  let told
   let going = false
 
   /** One press, and the answer is the only thing that clears the box. */
@@ -176,8 +178,8 @@ export function composerOf(ctx, words) {
     box.hidden = !mine || busy
     press.disabled = going
     stop.disabled = going
-    textIn(why, reasonFor(talk))
-    why.hidden = reasonFor(talk) === ''
+    textIn(why, reasonFor(told))
+    why.hidden = reasonFor(told) === ''
   }
 
   press.addEventListener('click', () => {
@@ -192,7 +194,8 @@ export function composerOf(ctx, words) {
   return {
     nodes: [why, box, presses, said],
     update(next) {
-      talk = next
+      told = next
+      talk = next ?? null
       // **The draft is the page's and the box is this one's view of it**: the
       // other composer may have been typed into since this one last drew, and
       // a box somebody is typing in is never written under them.
@@ -211,7 +214,9 @@ export function composerOf(ctx, words) {
  * to the wrong place twice out of three times.
  */
 export function reasonFor(talk) {
-  if (talk === null || talk === undefined) {
+  // Nothing read yet: the freshness line says why, and there is no setting to name.
+  if (talk === undefined) return ''
+  if (talk === null) {
     return 'Talking to Tade is not turned on for this machine. It is a setting in the window, beside the one that let this device in.'
   }
   if (talk.mine !== true) {

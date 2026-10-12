@@ -96,6 +96,10 @@ export function shell(desk = null) {
     parts: [skip, top, bars, desk?.projects, frame, tabs, sheet, announce].filter(
       (one) => one !== null && one !== undefined,
     ),
+    // What only a device with a session is drawn (`insideIn`).
+    inside: [rail, tabs, again, desk?.projects, desk?.side, desk?.strip].filter(
+      (one) => one !== null && one !== undefined,
+    ),
     main,
     bars,
     dot,
@@ -142,6 +146,20 @@ function entry(parent, one, where) {
   into(link, mark, label, figure)
   parent.append(link)
   return { link, figure, view: one.view, counts: one.counts, where }
+}
+
+/**
+ * The navigation, the desk and the retry, drawn only for a device with a
+ * session.
+ *
+ * Without one the page is the pairing screen or the last view it kept, and
+ * nothing around it may say otherwise: a rail into screens it cannot read, an
+ * agents list saying *no agent is running* and a strip saying talking is *not
+ * turned on* were each a claim about a machine this page never asked — and
+ * together they read as a broken connection rather than *pair first*.
+ */
+export function insideIn(shown, inside) {
+  for (const part of shown.inside) part.hidden = !inside
 }
 
 /**

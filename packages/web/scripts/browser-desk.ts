@@ -193,3 +193,55 @@ export async function lanesSeen(
     found('lanes', left, 'fail', said(problem))
   }
 }
+
+/** What a page with no session draws around the pairing form. */
+const OUTSIDE = `(() => {
+  const shown = (selector) => {
+    const one = document.querySelector(selector)
+    return one !== null && getComputedStyle(one).display !== 'none' && !one.hidden
+  }
+  return {
+    drawn: ['nav.rail', 'nav.tabs', 'nav.projects', 'nav.side', 'section.strip']
+      .filter(shown),
+    words: document.body.innerText,
+    path: location.pathname,
+  }
+})()`
+
+/**
+ * A browser with no session, opened at a deep path, before anything is paired.
+ *
+ * **It is the pairing screen and nothing else.** It used to be the desk with
+ * the form in its middle: a rail into screens it cannot read, *reconnecting*
+ * over a stream it never opened, *no agent is running* and talking *not turned
+ * on* — every one a claim about a machine it never asked, and together a
+ * connection that looked broken when the thing to do was scan the code.
+ */
+export async function unpairedAt(
+  page: Page,
+  origin: string,
+  width: { name: string },
+  found: Found,
+): Promise<void> {
+  const where = `no session @ ${width.name}`
+  try {
+    await page.goto(`${origin}/agents`, { waitUntil: READY })
+    await page.waitForSelector('#label', { timeout: 10_000 })
+    const shape = (await page.evaluate(OUTSIDE)) as { drawn: string[]; words: string; path: string }
+    const claims = ['reconnecting', 'no agent is running', 'not turned on'].filter((one) =>
+      shape.words.toLowerCase().includes(one),
+    )
+    if (shape.path !== '/pair') found('unpaired', where, 'fail', `left at ${shape.path}`)
+    else if (shape.drawn.length > 0) {
+      found('unpaired', where, 'fail', `drawn around the form: ${shape.drawn.join(', ')}`)
+    } else if (claims.length > 0) found('unpaired', where, 'fail', `says ${claims.join('; ')}`)
+    else if (!shape.words.includes('not paired')) found('unpaired', where, 'fail', 'never says so')
+    else found('unpaired', where, 'pass', 'the pairing screen alone, and says it is not paired')
+  } catch (problem) {
+    found('unpaired', where, 'fail', said(problem))
+  } finally {
+    // Away from `/pair`, or the pairing that follows is a fragment changing
+    // under a page that has already read it — no load, and no ticket taken.
+    await page.goto('about:blank')
+  }
+}

@@ -100,6 +100,8 @@ export interface Finding {
 
 /** The checks a full run makes, named so an `unrun` report can list them all. */
 export const CHECKS = [
+  // A browser with no session is the pairing screen alone (`browser-desk.ts`).
+  'unpaired',
   'pairing',
   'landmarks',
   'axe',

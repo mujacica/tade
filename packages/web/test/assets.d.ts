@@ -36,6 +36,8 @@ declare module '*/assets/live.js' {
   ): Connection
   /** `live | stale | reconnecting | unreachable | closed`. */
   export function standingOf(connection: unknown, tries?: number): string
+  /** How a page with no session stands, out of what `/api/devices` answered: `unpaired | unreachable`. */
+  export function outsideOf(status: number): string
   export function partsOf(
     standing: string,
     connection: unknown,
@@ -153,6 +155,7 @@ declare module '*/assets/store.js' {
   export function checksWord(fold: Record<string, any>): string
   export function reviewsOf(store: Store): { offered: readonly any[]; unoffered: readonly any[] }
   export function mayRead(store: Store, grant: string): boolean
+  export function talkOf(store: Store): any
   export const WAITING: readonly string[]
   export function intakeOf(store: Store, project?: string | null): readonly any[]
   export function intakeAt(store: Store, item: string): any
@@ -372,6 +375,10 @@ declare module '*/assets/push.js' {
     auth: string
   }
   export function keyBytes(key: string): Uint8Array
+}
+
+declare module '*/assets/desk.js' {
+  export function noAgentsSaid(store: unknown): string
 }
 
 declare module '*/assets/agents.js' {

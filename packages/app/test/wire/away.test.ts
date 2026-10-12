@@ -8,6 +8,7 @@ import { readDevices, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
+import { settingsPanel } from '../../src/panels/settings/state.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
 import { nothingHandedOver } from '../../src/wire/web-beat.ts'
@@ -104,7 +105,13 @@ function heldState(over: { tasks?: number } = {}) {
 }
 
 async function wiring(
-  over: { web?: Record<string, unknown>; live?: Live; now?: number; log?: string } = {},
+  over: {
+    web?: Record<string, unknown>
+    live?: Live
+    now?: number
+    clock?: () => number
+    log?: string
+  } = {},
 ) {
   const home = await mkdtemp(join(tmpdir(), 'tade-away-'))
   let state: AppState = initialState()
@@ -141,7 +148,7 @@ async function wiring(
       state = next
     },
     live: over.live ?? null,
-    now: () => over.now ?? 1_000,
+    now: over.clock ?? (() => over.now ?? 1_000),
     openedAt: 0,
     draw: () => {
       draws += 1
@@ -559,6 +566,36 @@ describe('what the panel is told', () => {
     expect(view.ticket?.url).toMatch(/^http:\/\/localhost:\d+\/pair#t=/)
     expect(view.code.length).toBeGreaterThan(8)
     expect(view.ticket?.secondsLeft).toBeGreaterThan(0)
+  })
+
+  it('draws a code the moment the Away page of Settings is shown, and another when it runs out', async () => {
+    // Nobody presses `New code` to see the first one: the page showing with the
+    // view on is the ask. Opened through Settings and not `/away`, which mints
+    // a code of its own.
+    let at = 1_000
+    const { away, logged, use } = await wiring({ web: { enabled: true }, clock: () => at })
+    await away.open()
+    expect(away.panel()).toEqual({})
+    ;(away as unknown as { wire: Wiring }).wire.put({
+      ...initialState(),
+      panel: settingsPanel('away'),
+    })
+    const first = away.panel()?.away?.ticket
+    expect(first?.url).toMatch(/^http:\/\/localhost:\d+\/pair#t=/)
+    // The same code while it is good: a frame is not a reason for a new one.
+    at += 30_000
+    expect(away.panel()?.away?.ticket?.url).toBe(first?.url)
+    // And past its lifetime, a fresh one rather than an empty space with a button.
+    at += 61_000
+    const second = away.panel()?.away?.ticket
+    expect(second?.url).toMatch(/\/pair#t=/)
+    expect(second?.url).not.toBe(first?.url)
+    // A ticket is a credential: nothing of it reaches the journal.
+    expect(JSON.stringify(logged)).not.toContain('#t=')
+    // With nothing listening there is no code to draw, and none is minted.
+    use({ enabled: false })
+    await (away as unknown as { turning: Promise<void> }).turning
+    expect(away.panel()?.away?.ticket).toBeNull()
   })
 
   it('shows every device there is even with nothing listening', async () => {

@@ -541,6 +541,9 @@ describe('the conversation screen', () => {
     // And nothing at all where there is a box, so the reason cannot be left
     // over from the last frame.
     expect(reasonFor({ mine: true, busy: false, rev: 'b0', whose: null })).toBe('')
+    // Before the first snapshot nothing has been read, and *not turned on* would
+    // be the page's empty store said as the machine's setting.
+    expect(reasonFor(undefined)).toBe('')
   })
 
   it('says who said each line, and never says a device was you', () => {

@@ -256,8 +256,13 @@ export function chatOf(store) {
  * `null` where talking is not turned on, which is **not** an empty
  * conversation: a page told there are no lines would say Tade had never been
  * spoken to, and what is true is that this surface is off.
+ *
+ * `undefined` before the first snapshot, which is neither: nothing has been
+ * read, and a page that said *not turned on* then was reading its own empty
+ * store as the machine's setting.
  */
 export function talkOf(store) {
+  if (!store.had) return undefined
   return store.you?.talk ?? null
 }
 

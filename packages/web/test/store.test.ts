@@ -1,5 +1,6 @@
 import { WAITING_STATES } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { noAgentsSaid } from '../src/assets/desk.js'
 import {
   applyDelta,
   applySnapshot,
@@ -25,6 +26,7 @@ import {
   sourcesOf,
   spendFold,
   spendSince,
+  talkOf,
   taskAt,
   tasksIn,
   WAITING,
@@ -60,6 +62,18 @@ const held = () => {
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return { store, made }
 }
+
+describe('what is said before anything was read', () => {
+  it('is neither talking off nor no agents', () => {
+    // `undefined` and not `null`: a page with no snapshot yet said *talking to
+    // Tade is not turned on* off its own empty store.
+    expect(talkOf(emptyStore())).toBeUndefined()
+    expect(noAgentsSaid(emptyStore())).toBe('not read yet')
+    const { store } = held()
+    expect(talkOf(store)).not.toBeUndefined()
+    expect(noAgentsSaid(store)).toBe('no agent is running')
+  })
+})
 
 describe('the protocol this page speaks', () => {
   it('is the one the machine speaks', () => {

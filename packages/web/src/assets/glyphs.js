@@ -279,6 +279,7 @@ export function stepMark(step) {
  * nothing is unreachable. `connectionOf` is deliberately not asked to know
  * that, because what it is for is what the stream did; how many tries have
  * failed is the page's own count (`live.js` holds the backoff curve).
+ * `unpaired` is a page with no session at all, which opens no stream to lose.
  */
 export const FRESH_MARKS = {
   live: mark('●', 'live', 'is-live'),
@@ -286,6 +287,7 @@ export const FRESH_MARKS = {
   reconnecting: mark('◴', 'reconnecting', 'is-reconnecting'),
   unreachable: mark('○', 'unreachable', 'is-gone'),
   closed: mark('⏸', 'closed', 'is-closed'),
+  unpaired: mark('○', 'not paired', 'is-closed'),
 }
 
 export function freshMark(kind) {

@@ -22,7 +22,7 @@ import {
   worstOf,
 } from '../test/browser-plan.ts'
 import { agentHeld, input, NOW } from '../test/fixtures.ts'
-import { deskAt, lanesSeen } from './browser-desk.ts'
+import { deskAt, lanesSeen, unpairedAt } from './browser-desk.ts'
 import { asPwa } from './browser-pwa.ts'
 import {
   AXE,
@@ -306,6 +306,7 @@ async function run() {
       page.on('console', (line) => {
         if (line.type() === 'error') noise.push(`logged: ${line.text().split('\n')[0] ?? ''}`)
       })
+      await unpairedAt(page, origin, width, found)
       await pairIn(page, origin, tickets.mint(`${origin}/pair`, Date.now()).value, width.name)
       for (const look of LOOKS) {
         if (look.path === '/pair') continue

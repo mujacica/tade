@@ -31,7 +31,7 @@ import { deskParts } from './desk.js'
 import { classOn, el, textIn } from './dom.js'
 import { inboxScreen, requestScreen } from './factory.js'
 import { forget, NOT_SECURE, startInstall, takeUpdate } from './install.js'
-import { backoffAt, connectionOf, standingOf } from './live.js'
+import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
 import {
   checksScreen,
@@ -55,6 +55,7 @@ import {
   crossing,
   freshIn,
   heldOn,
+  insideIn,
   navCounts,
   navOn,
   shell,
@@ -190,6 +191,12 @@ const shown = shell(desk)
 let screen = null
 let where = { view: 'now' }
 let seen = { open: false, lastAt: Date.now(), ended: null }
+/**
+ * How a page with no session stands (`outsideOf`), and the one screen it may
+ * draw — or null while it has one. Nothing else is reachable from outside: a
+ * screen of a store nothing filled would say *nothing is running*.
+ */
+let outside = null
 let tries = 0
 let source = null
 let wanted = null
@@ -254,7 +261,8 @@ function go(path, opts = {}) {
   draw(viewOf(path))
 }
 
-function draw(at) {
+function draw(asked) {
+  const at = outside === null ? asked : { view: outside.view }
   where = at
   const make = SCREENS[at.view] ?? SCREENS.nowhere
   // **The screen being left stops whatever it was asking.** One has something
@@ -304,11 +312,13 @@ function wireLinks() {
 function paint() {
   const now = Date.now()
   const connection = connectionOf(seen, now)
-  const standing = standingOf(connection, tries)
+  const standing = outside?.standing ?? standingOf(connection, tries)
   const clock = asOf(held.store, standing, now)
   freshIn(shown, standing, connection, held.store, now)
   barsIn(shown, barsFor(standing, connection, held.store, now, tries, [...broke, ...offered()]))
-  heldOn(document.body, standing)
+  // A kept view is a record and says so itself; only rows a stream drew dim.
+  heldOn(document.body, outside === null ? standing : 'live')
+  insideIn(shown, outside === null)
   if (held.store.had) {
     navCounts(shown.links, {
       wantsYou: rowsOf(held.store, 'tasks').filter((task) => task.wantsYou).length,
@@ -351,7 +361,7 @@ function paint() {
     },
   }
   screen?.update(view)
-  desk.update(view)
+  if (outside === null) desk.update(view)
 }
 
 /**
@@ -704,6 +714,7 @@ async function start() {
       // nothing, and a timer that repainted an unchanging page every five
       // seconds would be a phone kept awake for nothing. The way out of this
       // screen is a reload, and the screen says so.
+      outside = { standing: outsideOf(mine.status), view: 'lastSeen' }
       draw({ view: 'lastSeen' })
       void install()
       return
@@ -712,6 +723,7 @@ async function start() {
   // No session: the pairing screen, whatever path was asked for. Replacing the
   // address rather than keeping it, so a reload after pairing lands on a real
   // screen rather than back here.
+  outside = { standing: outsideOf(mine.status), view: 'pair' }
   draw({ view: 'pair' })
   if (location.pathname !== '/pair') history.replaceState(null, '', '/pair')
   void install()

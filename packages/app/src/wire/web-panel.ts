@@ -215,3 +215,18 @@ export function mintPairing(tickets: Tickets, surface: Surface, now: number): vo
   tickets.clear()
   tickets.mint(base, now)
 }
+
+/**
+ * A code wherever one is drawn and none is outstanding: the page opened, or the
+ * one it showed ran out or was claimed. Asked on every frame that draws the
+ * code, so nobody presses `New code` to see the first one. In memory only, as
+ * every ticket is — never journaled, never on a frame the orchestrator reads.
+ */
+export function keepCode(
+  tickets: Tickets,
+  surface: Surface,
+  listening: boolean,
+  now: number,
+): void {
+  if (listening && tickets.outstanding(now).length === 0) mintPairing(tickets, surface, now)
+}

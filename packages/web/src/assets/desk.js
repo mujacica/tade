@@ -134,6 +134,7 @@ function agentsIn(made, view) {
   textIn(made.figure, count(agents.length))
   made.figure.setAttribute('aria-label', `${agents.length} agents running`)
   made.none.hidden = agents.length > 0
+  textIn(made.none, noAgentsSaid(view.store))
   const groups = new Map()
   for (const task of agents) {
     const held = groups.get(task.project) ?? { project: task.project, agents: [] }
@@ -148,6 +149,15 @@ function agentsIn(made, view) {
     createGroup,
     (one, group) => fillGroup(one, group, on),
   )
+}
+
+/**
+ * Why the side list is empty: nobody running, or nothing read yet — never the
+ * first said for the second, which is a page with no snapshot reporting a
+ * machine where nothing works.
+ */
+export function noAgentsSaid(store) {
+  return store.had ? 'no agent is running' : 'not read yet'
 }
 
 function createGroup() {
@@ -214,7 +224,7 @@ function stripIn(made, view) {
   // under where the box would be; what is left here is this device not being
   // granted the lines, or nothing having been said.
   const said =
-    talk === null
+    (talk ?? null) === null
       ? ''
       : !may
         ? 'The conversation is not granted to this device.'

@@ -204,12 +204,13 @@ describe('whose a task is', () => {
 })
 
 describe('how the page stands to the machine', () => {
-  it('has a drawing for each of the five standings, each with a word', () => {
+  it('has a drawing for each of the six standings, each with a word', () => {
     expect(Object.keys(FRESH_MARKS).sort()).toEqual([
       'closed',
       'live',
       'reconnecting',
       'stale',
+      'unpaired',
       'unreachable',
     ])
     for (const kind of Object.keys(FRESH_MARKS)) expect(freshMark(kind).word).not.toBe('')

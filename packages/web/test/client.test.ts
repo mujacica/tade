@@ -7,11 +7,14 @@ import {
   backoffAt,
   connectionOf,
   GIVEN_UP_AFTER,
+  outsideOf,
   partsOf,
   STALE_AFTER_MS,
   standingOf,
 } from '../src/assets/live.js'
 import { keyOf } from '../src/assets/screens.js'
+import { barsFor } from '../src/assets/shell.js'
+import { emptyStore } from '../src/assets/store.js'
 import {
   BACKOFF_MS as BACKOFF,
   backoffAt as backoffHere,
@@ -152,6 +155,24 @@ describe('what it says, and what it never says', () => {
     for (const kind of ['live', 'stale', 'closed']) {
       expect(standingOf({ kind, sinceAt: NOW, why: 'x' }, 99)).toBe(kind)
     }
+  })
+})
+
+describe('a page with no session', () => {
+  // What a browser nobody paired was drawn: `reconnecting` and *trying again in
+  // 1s* over a stream it never opened, which read as a broken connection when
+  // the one thing to do was scan the code at the machine.
+  it('is not paired where the machine answered, and unreachable where it did not', () => {
+    expect(outsideOf(401)).toBe('unpaired')
+    expect(outsideOf(403)).toBe('unpaired')
+    expect(outsideOf(0)).toBe('unreachable')
+  })
+
+  it('says it is not paired, and never that it is reconnecting', () => {
+    const closed = connectionOf({ open: false, lastAt: NOW, ended: null }, NOW)
+    const parts = partsOf(outsideOf(401), closed, '—', NOW)
+    expect(parts.words).toBe('not paired')
+    expect(barsFor(outsideOf(401), closed, emptyStore(), NOW, 0)).toEqual([])
   })
 })
 

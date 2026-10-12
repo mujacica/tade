@@ -319,6 +319,14 @@ a device still has none of the scopes that change anything until somebody at thi
 - **Nothing in the client touches `innerHTML`**, there is no Markdown renderer, and the content policy
   has no `unsafe-inline`. Those three are what actually stands against injected script; `HttpOnly`
   stops the *theft* of a credential and not its use.
+- **A page with no session is the pairing screen alone** (`outside` in `boot.js`, `insideIn`,
+  `outsideOf`): no rail, no desk, no retry, and `not paired` rather than `reconnecting` — it
+  opens no stream. Drawn inside the desk it said *no agent is running* and talking *not turned
+  on* off an empty store, and read as a broken connection. Before the first snapshot the same
+  two say nothing (`talkOf` is `undefined`, `noAgentsSaid`); the harness's `unpaired` holds it.
+- **Wherever the code is drawn, one is outstanding** (`keepCode`, from `Away.panel`): opening
+  the Away page of Settings shows one, and one that ran out or was claimed is replaced on the
+  next frame. Minted in memory like every ticket — never journaled.
 - **`[hidden]` is an author rule with `!important`, in `tokens.css`.** The page turns a region off
   with `el.hidden = true`, which is `display: none` in the *user agent's* stylesheet — and any author
   rule beats a UA one. The moment a region gained `display: flex`, `hidden` stopped hiding it and
