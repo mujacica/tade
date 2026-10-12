@@ -243,9 +243,14 @@ describe('the window, talking to the orchestrator', () => {
     const chip = find('no model ▾')
     terminal.written = ''
     click(chip.col + 1, chip.row)
-    await until('the picker', () =>
-      screenOf(terminal.written).some((row) => row.includes('Model for the orchestrator')),
-    )
+    // Answered: it opens at once on what the harness said last, asking again.
+    await until('the picker, answered', () => {
+      const rows = screenOf(terminal.written)
+      return (
+        rows.some((row) => row.includes('Model for the orchestrator')) &&
+        rows.every((row) => !row.includes('asking '))
+      )
+    })
     const shown = screenOf(terminal.written).join('\n')
     expect(shown).toContain('opus')
     expect(shown).toContain('1 of 1 in claude-code')
@@ -278,9 +283,14 @@ describe('the window, talking to the orchestrator', () => {
     const chip = find('no model ▾')
     terminal.written = ''
     click(chip.col + 1, chip.row)
-    await until('the picker', () =>
-      screenOf(terminal.written).some((row) => row.includes('Model for the orchestrator')),
-    )
+    // Answered: it opens at once on what the harness said last, asking again.
+    await until('the picker, answered', () => {
+      const rows = screenOf(terminal.written)
+      return (
+        rows.some((row) => row.includes('Model for the orchestrator')) &&
+        rows.every((row) => !row.includes('asking '))
+      )
+    })
     const shown = screenOf(terminal.written).join('\n')
     expect(shown).toContain('codex names its own models')
     expect(shown).not.toContain('moonshotai')

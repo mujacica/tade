@@ -434,6 +434,33 @@ describe('the window, and the lanes in it', () => {
     }
   })
 
+  // A new terminal's tab is read off the lane registry, which had it before the
+  // open answered: it was waited for from up to ten looks at status, a tenth of
+  // a second apart, before anything was drawn. Here no look can finish at all.
+  it('shows a new terminal’s tab at once, with no look at status to wait for', async () => {
+    await start()
+    await until('the tabs', () =>
+      screenOf(terminal.written).some((row) => row.includes('orchestrator')),
+    )
+    let release = () => {}
+    const stuck = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const asked = client.pendingApprovals.bind(client)
+    // What every look asks, and only a look: held until the test is over.
+    client.pendingApprovals = ((task?: string) =>
+      task === undefined ? stuck.then(() => asked()) : asked(task)) as never
+    try {
+      terminal.press('\x14')
+      await until('a terminal', () => client.terminals('app').length === 1)
+      await until('its tab, in front', () =>
+        screenOf(terminal.written).some((row) => row.includes('terminal 1')),
+      )
+    } finally {
+      release()
+    }
+  })
+
   // A key into a lane asks for no look of its own: its echo is the lane
   // printing, and a print is what looks (`Looks.printed`). So every lane that
   // can be typed into is watched — the second half of a split as much as the

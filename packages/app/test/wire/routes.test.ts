@@ -1,10 +1,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { ConfigSchema } from '@tade/core'
+import type { HarnessModels } from '@tade/harnesses-core'
 import { taskFilePath } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import type { TaskSnapshot } from '../../src/model.ts'
+import type { AppState, TaskSnapshot } from '../../src/model.ts'
+import type { ModelPanel } from '../../src/panels/models/state.ts'
 import { Routes } from '../../src/wire/routes.ts'
 
 // What each agent's harness lets a person ask of it, learned as the tasks
@@ -86,5 +88,77 @@ describe('what an agent’s harness offers, learned as the tasks refresh', () =>
     wire.opts.config = ConfigSchema.parse({ projects: {} })
     await beat()
     expect(asked()).toBe(3)
+  })
+})
+
+/** A model a harness offers, as its catalog names it. */
+const offered = (id: string) => ({ id: `openai/${id}`, provider: 'openai', name: id })
+
+/**
+ * A picker for the orchestrator, which runs in Codex: what Codex said the last
+ * time it was asked, and the orchestrator's own answer, held until `answer`.
+ */
+function picking(lastSaid: readonly string[], inUse: string | null = null) {
+  let answer: (models: HarnessModels) => void = () => {}
+  let state = { panel: null, panes: [] } as unknown as AppState
+  const wire = {
+    opts: {
+      config: ConfigSchema.parse({ projects: {}, orchestrator: { harness: 'codex' } }),
+      models: async (harness: string) => ({ harness, models: lastSaid.map(offered), why: null }),
+      orchestratorModels: () => new Promise<HarnessModels>((resolve) => (answer = resolve)),
+    },
+    live: null,
+    get state() {
+      return state
+    },
+    put: (next: AppState) => {
+      state = next
+    },
+    draw: () => {},
+  }
+  const routes = new Routes(wire as never, { thinkerModel: () => inUse } as never)
+  return {
+    routes,
+    wire,
+    answer: (ids: readonly string[]) =>
+      answer({ harness: 'codex', models: ids.map(offered), why: null }),
+  }
+}
+
+describe('the model picker, opened before its harness has answered', () => {
+  it('opens at once on what the harness said last, says it is asking, and fills in', async () => {
+    const { routes, wire, answer } = picking(['gpt-5'])
+    await routes.refreshModels()
+    const opening = routes.openModels('orchestrator')
+    // Before Codex has said a word: the panel is there, on the list it gave last.
+    expect(wire.state.panel).toMatchObject({ kind: 'model', for: 'orchestrator' })
+    expect(routes.panel()).toMatchObject({ modelsFrom: { harness: 'codex', asking: true } })
+    expect(routes.offeredModels().map((one) => one.id)).toEqual(['openai/gpt-5'])
+    answer(['gpt-5', 'gpt-5.5'])
+    await opening
+    expect(routes.panel()?.modelsFrom?.asking).toBeUndefined()
+    expect(routes.offeredModels().map((one) => one.id)).toEqual(['openai/gpt-5', 'openai/gpt-5.5'])
+  })
+
+  it('keeps the keyboard on the model it was on when the answer moves it', async () => {
+    const { routes, wire, answer } = picking(['gpt-5', 'gpt-5.5'], 'gpt-5')
+    await routes.refreshModels()
+    const opening = routes.openModels('orchestrator')
+    expect(wire.state.panel).toMatchObject({ index: 0 })
+    // Walked to gpt-5.5 while it was asked, and the answer put another above it.
+    wire.put({ ...wire.state, panel: { ...(wire.state.panel as ModelPanel), index: 1 } })
+    answer(['o4', 'gpt-5', 'gpt-5.5'])
+    await opening
+    expect(wire.state.panel).toMatchObject({ index: 2 })
+  })
+
+  it('leaves alone a picker closed while it was asked', async () => {
+    const { routes, wire, answer } = picking(['gpt-5'])
+    await routes.refreshModels()
+    const opening = routes.openModels('orchestrator')
+    wire.put({ ...wire.state, panel: null })
+    answer(['gpt-5', 'gpt-5.5'])
+    await opening
+    expect(wire.state.panel).toBeNull()
   })
 })

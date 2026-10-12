@@ -13,6 +13,7 @@ import { parseCommand } from './commands.ts'
 import type { ScrollArea, Target } from './hits.ts'
 import { type Spot, standingIn, whereYouWere } from './layout.ts'
 import type { Panel } from './panels.ts'
+import { stillAnswered } from './pending.ts'
 import { type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
 import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
@@ -54,8 +55,8 @@ export interface AgentPane {
   reason?: string
   /** Something is waiting on a human here. */
   waiting: boolean
-  /** What it is waiting for, when that is an approval. */
-  approval: { tool: string; summary: string } | null
+  /** What it is waiting for, when that is an approval; `id` is the request, where the look knew it. */
+  approval: { tool: string; summary: string; id?: string } | null
   /** Every live lane the task has: its agent, and any shells beside it. */
   lanes: { id: string; kind: string; title?: string }[]
   /** It finished, as the journal says: who said so, and what was done. */
@@ -190,6 +191,13 @@ export interface AppState {
   /** What the pointer is over and what it is holding down, for hover and press. */
   hover: Target | null
   pressed: Target | null
+  /** The control whose action is still running: drawn held down until it answers (`Router.run`). */
+  busy: Target | null
+  /**
+   * Approvals answered here that no look has caught up with, by task, to the
+   * request's id: the card goes when pressed (`answering`), and stays gone.
+   */
+  answered: Readonly<Record<string, string>>
   /** Sidebar sections folded shut. */
   folded: string[]
   /**
@@ -356,6 +364,8 @@ export function initialState(): AppState {
     chose: false,
     hover: null,
     pressed: null,
+    busy: null,
+    answered: {},
     folded: [...FOLDED_AT_START],
     opened: [],
     hidingDone: false,
@@ -403,7 +413,7 @@ export interface TaskSnapshot {
   branch?: string
   lane?: string | null
   waiting?: boolean
-  approval?: { tool: string; summary: string } | null
+  approval?: AgentPane['approval']
   lanes?: { id: string; kind: string; title?: string }[]
   finished?: { by: string; summary: string } | null
   done?: DoneRule
@@ -421,6 +431,7 @@ export interface TaskSnapshot {
  * place every time status is polled would make the app unusable.
  */
 export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
+  const answered = stillAnswered(state.answered, tasks)
   const panes = tasks.map((task) => ({
     task: task.task,
     project: task.task.split('/')[0] ?? task.task,
@@ -431,8 +442,8 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     lane: task.lane ?? null,
     state: task.state,
     ...(task.reason ? { reason: task.reason } : {}),
-    waiting: task.waiting ?? false,
-    approval: task.approval ?? null,
+    waiting: (task.waiting ?? false) && !(task.task in answered),
+    approval: task.task in answered ? null : (task.approval ?? null),
     ...(task.waitsOn ? { waitsOn: task.waitsOn } : {}),
     lanes: task.lanes ?? (task.lane ? [{ id: task.lane, kind: 'agent' }] : []),
     ...(task.finished ? { finished: task.finished } : {}),
@@ -449,7 +460,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     null
   // Tabbing and a search walk you into another project without its tab, so
   // where you were is caught up with here, not at each place focus can move.
-  const next = { ...state, panes, focused, project }
+  const next = { ...state, panes, focused, project, answered }
   return { ...next, spots: whereYouWere(next) }
 }
 
@@ -1907,8 +1918,10 @@ export function keyAction(key: string, state: AppState): KeyAction {
   // Answering an approval is a single key only while one is actually waiting,
   // and never while a line to Tade is being typed.
   const focused = state.panes.find((pane) => pane.task === state.focused)
-  if (state.dictation === null && focused?.waiting && key === 'a') return { kind: 'approve' }
-  if (state.dictation === null && focused?.waiting && key === 'd') return { kind: 'deny' }
+  // An answer still on its way keeps both, so a second press is told so rather than typed.
+  const asked = focused?.waiting || (focused?.task ?? '') in state.answered
+  if (state.dictation === null && asked && key === 'a') return { kind: 'approve' }
+  if (state.dictation === null && asked && key === 'd') return { kind: 'deny' }
   return { kind: 'none' }
 }
 

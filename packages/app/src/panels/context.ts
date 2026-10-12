@@ -211,9 +211,10 @@ export interface PanelContext {
   models: readonly ModelChoice[]
   /**
    * Whose models those are, and — where it had none to offer — that harness's
-   * own words for why. Null before any picker has been opened.
+   * own words for why; `asking` while what it runs is being asked again and
+   * the list is what it said last. Null before any picker has been opened.
    */
-  modelsFrom: { harness: string; why: string | null } | null
+  modelsFrom: { harness: string; why: string | null; asking?: boolean } | null
   /** What the model panel is choosing for, as it is called: `the orchestrator`, `agent-1`. */
   modelTarget: string
   /** The model it is on now. */

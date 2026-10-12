@@ -1,4 +1,5 @@
 import { matchActions, parseCommand } from '../commands.ts'
+import { sameTarget, type Target } from '../hits.ts'
 import { focusTask } from '../model.ts'
 import type { ExtensionViewPanel } from '../panels/extensions/setup.ts'
 import { type MenuSubject, menuPanel } from '../panels/menu/state.ts'
@@ -85,10 +86,35 @@ export class Router {
   async run(action: string, from?: Pressed): Promise<void> {
     const found = this.lookUp(action)
     if (found) {
-      await found.does(found.rest, from)
+      await this.holding({ kind: 'action', name: action }, found.does(found.rest, from))
       return
     }
     await this.act(action)
+  }
+
+  /**
+   * Keep a control held down while what it asked for has not answered.
+   *
+   * The press let go before the action was awaited, so a click on anything
+   * that asks another process — the workbench, a harness, a shell starting —
+   * drew nothing until that came back, and read as a click that missed. Only an
+   * action still running when it returns is held: one that finished at once
+   * changes nothing. Held for whoever asked, keyboard included, because the
+   * control is the same one either way.
+   */
+  private async holding(control: Target, doing: Promise<void> | void): Promise<void> {
+    if (!(doing instanceof Promise)) return
+    this.wire.put({ ...this.wire.state, busy: control })
+    this.wire.draw()
+    try {
+      await doing
+    } finally {
+      // Only its own: a later press holds its own control, and lets it go itself.
+      if (sameTarget(this.wire.state.busy, control)) {
+        this.wire.put({ ...this.wire.state, busy: null })
+        this.wire.draw()
+      }
+    }
   }
 
   /**
@@ -174,7 +200,12 @@ export class Router {
       // one drawn under a menu that is still there is a panel nobody can see.
       this.wire.put({ ...this.wire.state, panel: null })
       this.wire.draw()
-      await menuOf(this.deps.subjects(), panel.subject.kind)?.choose(panel.subject, choice ?? '')
+      // The control that opened it is held down until what was chosen has answered.
+      const chosen = menuOf(this.deps.subjects(), panel.subject.kind)
+      await this.holding(
+        { kind: 'menu', subject: panel.subject },
+        chosen?.choose(panel.subject, choice ?? ''),
+      )
       return
     }
     if (panel.kind === 'prompt') await this.savePrompt(panel, choice)

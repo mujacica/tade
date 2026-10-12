@@ -21,7 +21,13 @@ import {
   menuPanel,
   thinkingMenuItems,
 } from '../panels/menu/state.ts'
-import { type ModelChoice, type ModelPanel, modelPanel, priceSaid } from '../panels/models/state.ts'
+import {
+  type ModelChoice,
+  type ModelPanel,
+  modelChoices,
+  modelPanel,
+  priceSaid,
+} from '../panels/models/state.ts'
 import type { AccountShown } from '../panels/settings/accounts.ts'
 import type { Choice } from '../panels/settings/state.ts'
 import { writeSetting } from '../settings.ts'
@@ -111,9 +117,9 @@ export class Routes implements Subject {
   /**
    * What the open picker offers: the models of the one harness it is choosing
    * for, asked when it was opened — with that harness's own words where it
-   * had none to offer.
+   * had none to offer, and `asking` until it has answered (`openModels`).
    */
-  private picker: HarnessModels | null = null
+  private picker: (HarnessModels & { asking?: boolean }) | null = null
 
   constructor(wire: Wiring, deps: RoutesDeps) {
     this.wire = wire
@@ -523,23 +529,53 @@ export class Routes implements Subject {
     return asked ?? (await this.learnModels(this.harnessShown(target)))
   }
 
-  /** Choose a model for the orchestrator, or for one agent's session. */
+  /**
+   * Choose a model for the orchestrator, or for one agent's session.
+   *
+   * Opened at once, on what its harness said the last time it was asked, and
+   * saying that it is being asked again: asking is a program run for Codex, and
+   * a picker that appears a second after the click is a click that seemed to
+   * miss. The answer replaces the list, the keyboard staying on its model.
+   */
   async openModels(target: string): Promise<void> {
+    const harness =
+      target === 'orchestrator'
+        ? this.wire.opts.config.orchestrator.harness
+        : this.harnessShown(target)
+    const shown = {
+      harness,
+      models: this.offered.get(harness)?.models ?? [],
+      why: null,
+      asking: true,
+    }
+    this.picker = shown
+    const opened = { ...modelPanel(target), index: this.inUse(target, shown.models) }
+    this.wire.put({ ...this.wire.state, panel: opened })
+    this.wire.draw()
     const offered = await this.modelsFor(target)
+    // Closed, or opened again, while it was asked: what it said is kept all the
+    // same (`modelsFor`), and nothing on screen is about it any more.
+    const panel = this.wire.state.panel
+    if (this.picker !== shown || panel?.kind !== 'model' || panel.for !== target) return
     this.picker = offered
-    // Starting on the one in use, so enter is a no-op and ↑↓ is "the one next to it".
+    const on = modelChoices(shown.models, panel.query)[panel.index]?.id
+    const at = on ? modelChoices(offered.models, panel.query).findIndex((one) => one.id === on) : -1
+    const index = at >= 0 ? at : panel.query ? 0 : this.inUse(target, offered.models)
+    this.wire.put({ ...this.wire.state, panel: { ...panel, index } })
+    this.wire.draw()
+  }
+
+  /** Where the model in use is in a list: so enter is a no-op and ↑↓ is "the one next to it". */
+  private inUse(target: string, models: readonly ModelChoice[]): number {
     const current =
       target === 'orchestrator'
         ? this.deps.thinkerModel()
         : (this.wire.live?.vitals(target)?.model ?? null)
-    const index = current
-      ? Math.max(
-          0,
-          offered.models.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
-        )
-      : 0
-    this.wire.put({ ...this.wire.state, panel: { ...modelPanel(target), index } })
-    this.wire.draw()
+    if (!current) return 0
+    return Math.max(
+      0,
+      models.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
+    )
   }
 
   /**

@@ -19,6 +19,8 @@ import {
   confirmRemovePanel,
   promptPanel,
 } from '../panels/small/state.ts'
+import { answering, unanswered } from '../pending.ts'
+import { approvalId } from '../reality.ts'
 import {
   type Actions,
   flash,
@@ -328,8 +330,10 @@ export class Agents implements Subject {
       case 'mark-done':
         try {
           await this.wire.opts.client.markDone(task, { by: 'you' })
-          await this.wire.live?.refresh()
+          // Said when it is so, not a look later.
           flash(this.wire, `${task} is finished`)
+          this.wire.draw()
+          await this.wire.live?.refresh()
         } catch (err) {
           notify(this.wire, why(err))
         }
@@ -340,8 +344,9 @@ export class Agents implements Subject {
         const parked = pane?.state !== 'parked'
         try {
           await this.wire.opts.client.parkTask(task, parked)
-          await this.wire.live?.refresh()
           flash(this.wire, parked ? `parked ${task}` : `picked ${task} up again`)
+          this.wire.draw()
+          await this.wire.live?.refresh()
         } catch (err) {
           notify(this.wire, why(err))
         }
@@ -620,15 +625,22 @@ export class Agents implements Subject {
     // Two clicks before the first agent has registered must not start two.
     if (this.opening.has(task)) return
     this.opening.add(task)
+    // Said before anything is waited on, and again once it is open, before the
+    // look that lists its lane: starting a harness is the slow part.
+    flash(this.wire, `opening ${task} where it left off…`)
+    this.wire.draw()
     try {
       // Reattached, never restarted: its lane and its conversation come back
       // exactly where they were, and nothing is said to it. An agent told its
       // first instruction a second time would do the work again.
       await this.wire.opts.client.reopenAgent({ task: task as never, cwd: worktree })
-      await this.wire.live?.refresh()
       const told = acknowledge(this.wire.state, `opened ${task} where it left off`, this.wire.now())
       this.wire.put(focus ? focusTask(told, task) : told)
+      this.wire.draw()
+      await this.wire.live?.refresh()
     } catch (err) {
+      // Not opening after all, and not left saying it is.
+      this.wire.put({ ...this.wire.state, flash: null })
       notify(this.wire, why(err))
     } finally {
       this.opening.delete(task)
@@ -725,18 +737,43 @@ export class Agents implements Subject {
     await this.decideFor(task, allow)
   }
 
-  /** Answer what one agent is waiting on, wherever you are looking. */
+  /**
+   * Answer what one agent is waiting on, wherever you are looking.
+   *
+   * The card goes the moment it is pressed (`answering`) and the workbench
+   * hears after: a card that sat there for the round trip read as a press that
+   * missed. Answered is the request on the card, never whichever is oldest by
+   * then; and a second press — the card it hit already gone — says so.
+   */
   async decideFor(task: string, allow: boolean): Promise<void> {
+    const shown = this.wire.state.panes.find((one) => one.task === task)?.approval ?? null
+    if (!shown && task in this.wire.state.answered) {
+      flash(this.wire, `already answered — ${task} goes on`)
+      this.wire.draw()
+      return
+    }
+    this.wire.put(answering(this.wire.state, task))
+    this.wire.draw()
     try {
-      const [pending] = await this.wire.opts.client.pendingApprovals(task)
-      if (!pending) return
-      await this.wire.opts.client.decideApproval(pending.run, pending.requestId, {
-        allow,
-        ...(allow ? {} : { reason: 'denied from the window' }),
-      })
-      flash(this.wire, `${allow ? 'approved' : 'denied'}: ${pending.summary}`)
+      const waiting = await this.wire.opts.client.pendingApprovals(task)
+      const pending = waiting.find((one) => !shown?.id || approvalId(one) === shown.id)
+      if (!pending) {
+        notify(
+          this.wire,
+          shown ? `${task}'s ${shown.tool} was already answered` : `${task} is not waiting on you`,
+        )
+      } else {
+        await this.wire.opts.client.decideApproval(pending.run, pending.requestId, {
+          allow,
+          ...(allow ? {} : { reason: 'denied from the window' }),
+        })
+        flash(this.wire, `${allow ? 'approved' : 'denied'}: ${pending.summary}`)
+      }
     } catch (err) {
+      // Not answered after all: the card is the next look's to draw again.
+      this.wire.put(unanswered(this.wire.state, task))
       notify(this.wire, err instanceof Error ? err.message : String(err))
+      void this.wire.live?.refresh()
     }
     this.wire.draw()
   }

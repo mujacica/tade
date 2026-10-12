@@ -395,6 +395,7 @@ const PURE = [
   'packages/app/src/reality.ts',
   'packages/app/src/happening.ts',
   'packages/app/src/pace.ts',
+  'packages/app/src/pending.ts',
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
   'packages/app/src/model.ts',

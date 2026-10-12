@@ -167,6 +167,23 @@ export const PANEL_SCREENS: Scenario[] = [
     }),
   },
   {
+    name: 'asking-a-harness-its-models',
+    about:
+      'The model picker the moment it is clicked: opened on what the harness said the last time it was asked, saying that it is asking again, and filled in when it answers.',
+    state: { ...base(), panel: modelPanel('checkout/stripe-v15') },
+    frame: frame({
+      panel: {
+        models: [
+          { id: 'openai/gpt-5.5', provider: 'openai', name: 'GPT-5.5' },
+          { id: 'openai/gpt-5.5-mini', provider: 'openai', name: 'GPT-5.5 mini' },
+        ],
+        modelsFrom: { harness: 'codex', why: null, asking: true },
+        modelTarget: 'stripe-v15',
+        currentModel: 'gpt-5.5',
+      },
+    }),
+  },
+  {
     name: 'agent-menu',
     about: "An agent's menu, opened from its ≡: what can be done, and why not where it cannot.",
     state: {

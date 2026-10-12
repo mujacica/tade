@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { ConfigSchema, type TaskId } from '@tade/core'
 import { Speaker } from '@tade/voice-tts'
 import { Workbench } from '@tade/workbench'
+import type { PendingApproval } from '@tade/workbench/workers'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { App } from '../../src/app.ts'
@@ -140,6 +141,56 @@ describe('the window, starting and ending agents', () => {
     await until('finished on screen', () =>
       screenOf(terminal.written).some((row) => row.includes('✓ refunds')),
     )
+  })
+
+  // Answering is Tade's to decide, so the card goes when it is pressed, before
+  // the workbench has heard — and a look that still sees it waiting does not
+  // put it back. A second press finds no card, and is told rather than ignored.
+  it('takes an approval card away the moment it is answered, and says so of a second press', async () => {
+    const pending: PendingApproval[] = [
+      {
+        run: 'run-1' as PendingApproval['run'],
+        task: 'app/refunds' as TaskId,
+        requestId: 'req-1',
+        tool: 'bash',
+        summary: 'rm -rf dist',
+        tier: 'hard',
+        rule: 'ask before deleting',
+        reason: 'it deletes',
+        at: 1,
+      },
+    ]
+    let looks = 0
+    let land = () => {}
+    client.pendingApprovals = ((task?: string) => {
+      if (task === undefined) looks++
+      return pending.filter((one) => task === undefined || one.task === task)
+    }) as typeof client.pendingApprovals
+    // Held until the test lets it land, and still waiting on the workbench till then.
+    client.decideApproval = (() =>
+      new Promise<void>((resolve) => {
+        land = () => {
+          pending.length = 0
+          resolve()
+        }
+      })) as typeof client.decideApproval
+    await start()
+    await until('the card', () =>
+      screenOf(terminal.written).some((row) => row.includes('Allow once')),
+    )
+    const allow = find('Allow once')
+    click(allow.col + 1, allow.row)
+    await until('the card gone', () =>
+      screenOf(terminal.written).every((row) => !row.includes('Allow once')),
+    )
+    // A look that still finds it waiting, then a second press drawn over it.
+    const seen = looks
+    await until('a look while it is answered', () => looks > seen)
+    terminal.press('a')
+    await until('the second press told', () => terminal.written.includes('already answered'))
+    expect(screenOf(terminal.written).every((row) => !row.includes('Allow once'))).toBe(true)
+    land()
+    await until('approved', () => terminal.written.includes('approved: rm -rf dist'))
   })
 
   it('opens how hard an agent thinks from the button beside its model', async () => {

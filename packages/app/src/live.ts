@@ -35,7 +35,7 @@ import {
 } from '@tade/core'
 import type { LaneScreen } from '@tade/drivers-core'
 import { makeCollector, type StatusCollector } from '@tade/status'
-import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
+import type { Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { aboutRoot } from './away-lifecycle.ts'
@@ -57,7 +57,7 @@ import type { ActionsView, Change, NoteShown } from './frame.ts'
 import { type Histories, JOURNAL, QUEUE_READS, RUNTIME_READS, readHistories } from './histories.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
-import { snapshotsFrom } from './reality.ts'
+import { snapshotsFrom, tabsFrom } from './reality.ts'
 import { SCHEDULE_LINES, ScheduleFold, type ScheduleRuns } from './schedule-fold.ts'
 import { lookAtWork } from './work-look.ts'
 
@@ -956,6 +956,19 @@ export class Live {
     return this.refreshing
   }
 
+  /**
+   * The lower pane's tabs (`tabsFrom`), said only where they moved, like the
+   * tasks. Read off the registry as they are said, never as a look began: the
+   * window asks the moment it opens one, and a look begun before that must
+   * not take the tab away again.
+   */
+  tabsNow(): void {
+    const tabs = tabsFrom(this.opts.client.lanes())
+    if (JSON.stringify(tabs) === this.tabs) return
+    this.tabs = JSON.stringify(tabs)
+    this.opts.onTerminals?.(tabs)
+  }
+
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
@@ -1014,19 +1027,7 @@ export class Live {
           }
         }
       }
-      // Chats first, then this project's terminals: the two conversations in
-      // the lower pane — the orchestrator's tab and the chats — sit together,
-      // and the terminals stay next to the `+` that makes another. Said only
-      // where they moved, like the tasks below.
-      const tabs = [...chatsFrom(lanes), ...terminalsFrom(lanes)].map(({ id, project, name }) => ({
-        id,
-        project,
-        name,
-      }))
-      if (JSON.stringify(tabs) !== this.tabs) {
-        this.tabs = JSON.stringify(tabs)
-        this.opts.onTerminals?.(tabs)
-      }
+      this.tabsNow()
       this.met = []
       this.queue = []
       this.states = new Map()

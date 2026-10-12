@@ -46,6 +46,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `router.ts` | Whether a keystroke is for the agent or for Tade | a terminal |
 | `transcript.ts` | The conversation with the orchestrator as entries, folded from what it does | a terminal |
 | `flash.ts` | What is said back where you are looking: an acknowledgement's flash (`acknowledge`, `flashing`), and whether the conversation has something unread (`unreadSince`) | a terminal |
+| `pending.ts` | A press answered before what it asked for: an approval's card gone at once (`answering`), and kept gone through a look that began before the answer (`stillAnswered`) | a terminal |
 | `transcript-view.ts` | That conversation laid out to a width: wrapped, formatted, spinning | a terminal |
 | `images.ts` | Pictures: recognising a dropped path, reading the clipboard, reading bytes | a terminal |
 | `links.ts` | A row of someone else's text with its links and file references clickable | a terminal |
@@ -176,6 +177,13 @@ regions in a cycle now.
   conversation's tab wears `•` in its turning mark's columns when a line lands while it is not in
   front (`unreadSince`, with the newest line a frame drew in front kept by the Window subject), and a
   line of Tade's own is said again once it has gone unsaid for `REPEAT_MS` (`tadeDid`).
+- **A press is answered before what it asked for is** (`pending.ts`). `Router.run` holds the control
+  down (`AppState.busy`, drawn as `pressed` by `Row`) while its action has not returned — so an action
+  that waits on anything returns its promise, never `() => void this.x()`, or nothing is held. What Tade
+  decides itself is done at once and never waited on a look for: an approval's card goes on the press
+  (`answering`, kept gone by `stillAnswered` until a look no longer shows that request), a new tab is
+  read off the registry (`Live.tabsNow`), a picker opens on what its harness said last and says it is
+  asking. The flash goes *before* the refresh, never after it.
 - **Every exchange shows its reasoning** (`→ verb · task · "why"`). A wrong guess must be visible and
   correctable, never silently obeyed.
 - **A surface is options and values; the explanation lives where somebody asks for it.** Every drawn

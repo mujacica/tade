@@ -137,4 +137,24 @@ describe('the model picker', () => {
     const rows = drawn(pi, 'opus').join('\n')
     expect(rows).toContain('No model like that in pi.')
   })
+
+  // Opened at once on what the harness said last, while it is asked again: a
+  // list that changes under you a moment later is one you were told about.
+  it('says it is asking, under what the harness said last', () => {
+    const rows = drawn({ ...pi, modelsFrom: { harness: 'pi', why: null, asking: true } })
+    expect(rows.join('\n')).toContain('kimi-k2.6')
+    expect(rows.some((row) => row.includes('asking pi…'))).toBe(true)
+  })
+
+  it('says it is asking where it has nothing yet, rather than that nothing matched', () => {
+    const rows = drawn({ models: [], modelsFrom: { harness: 'codex', why: null, asking: true } })
+    const shown = rows.join('\n')
+    expect(shown).toContain('asking codex…')
+    expect(shown).not.toContain('No model like that')
+  })
+
+  it('keeps its height while it asks, and when the answer comes', () => {
+    const asking = drawn({ ...pi, modelsFrom: { harness: 'pi', why: null, asking: true } })
+    expect(asking.length).toBe(drawn(pi).length)
+  })
 })

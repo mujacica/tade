@@ -21,6 +21,11 @@ import { widthOf } from './width.ts'
 export interface Pointer {
   hover: Target | null
   pressed: Target | null
+  /**
+   * The control whose action has not answered yet, which stays held down after
+   * the press lets go: a click that changes nothing reads as one that missed.
+   */
+  busy?: Target | null
 }
 
 export const NO_POINTER: Pointer = { hover: null, pressed: null }
@@ -125,7 +130,7 @@ export class Row {
    */
   icon(label: string, target: Target, tone: 'plain' | 'danger' | 'signal' = 'plain'): this {
     const rest: IconState = tone === 'signal' ? 'signal' : 'rest'
-    const state: IconState = sameTarget(this.pointer.pressed, target)
+    const state: IconState = this.held(target)
       ? 'pressed'
       : sameTarget(this.pointer.hover, target)
         ? tone === 'danger'
@@ -224,7 +229,7 @@ export class Row {
    * of them lines up and a switch never changes width as it is thrown.
    */
   toggle(on: boolean, target: Target): this {
-    const state: SwitchState = sameTarget(this.pointer.pressed, target)
+    const state: SwitchState = this.held(target)
       ? 'pressed'
       : sameTarget(this.pointer.hover, target)
         ? 'hover'
@@ -318,9 +323,14 @@ export class Row {
     return this
   }
 
+  /** Held down: pressed now, or pressed and still being answered. */
+  private held(target: Target): boolean {
+    return sameTarget(this.pointer.pressed, target) || sameTarget(this.pointer.busy ?? null, target)
+  }
+
   private lookOf(target: Target, look: Look): Look {
     if (look === 'off') return look
-    if (sameTarget(this.pointer.pressed, target)) return 'pressed'
+    if (this.held(target)) return 'pressed'
     if ((look === 'rest' || look === 'add') && sameTarget(this.pointer.hover, target))
       return 'hover'
     return look
@@ -333,7 +343,7 @@ export class Row {
    */
   private litBy(target: Target, look: Look): boolean {
     if (look === 'off' || look === 'rest' || look === 'add') return false
-    if (sameTarget(this.pointer.pressed, target)) return false
+    if (this.held(target)) return false
     return sameTarget(this.pointer.hover, target)
   }
 }

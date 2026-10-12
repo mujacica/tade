@@ -17,10 +17,12 @@ import {
   watchedFrom,
   workedFrom,
 } from '@tade/core'
+import { chatsFrom } from '@tade/workbench/chats'
 import type { LaneRecord } from '@tade/workbench/registry'
+import { terminalsFrom } from '@tade/workbench/terminals'
 import type { PendingApproval } from '@tade/workbench/workers'
 import type { Change, CheckView, CommitView } from './frame.ts'
-import type { QueuedView, TaskSnapshot } from './model.ts'
+import type { QueuedView, TaskSnapshot, TerminalTab } from './model.ts'
 
 // What git and the journal said, read into the shapes the window draws.
 //
@@ -126,13 +128,33 @@ export function snapshotsFrom(
   return snapshots.sort((a, b) => a.task.localeCompare(b.task))
 }
 
-/** The oldest approval a task is waiting on, which is the one to answer first. */
-function approvalOf(
-  pending: readonly PendingApproval[],
-  task: string,
-): { tool: string; summary: string } | null {
+/**
+ * The oldest approval a task is waiting on, which is the one to answer first,
+ * with which request it is: an answer from the window is matched to exactly it.
+ */
+function approvalOf(pending: readonly PendingApproval[], task: string): TaskSnapshot['approval'] {
   const first = pending.filter((approval) => approval.task === task).sort((a, b) => a.at - b.at)[0]
-  return first ? { tool: first.tool, summary: first.summary } : null
+  return first ? { tool: first.tool, summary: first.summary, id: approvalId(first) } : null
+}
+
+/** Which request an approval is, the same wherever it is read: its run and its id there. */
+export function approvalId(approval: Pick<PendingApproval, 'run' | 'requestId'>): string {
+  return `${approval.run}:${approval.requestId}`
+}
+
+/**
+ * The tabs along the bottom, as the lane registry has them: the chats first,
+ * then the terminals, so the two conversations in the lower pane — the
+ * orchestrator's tab and the chats — sit together and the terminals stay next
+ * to the `+` that makes another. Read by every look, and by the window the
+ * moment it opens one, so a new tab is where the next look will put it.
+ */
+export function tabsFrom(lanes: readonly LaneRecord[]): TerminalTab[] {
+  return [...chatsFrom(lanes), ...terminalsFrom(lanes)].map(({ id, project, name }) => ({
+    id,
+    project,
+    name,
+  }))
 }
 
 /**

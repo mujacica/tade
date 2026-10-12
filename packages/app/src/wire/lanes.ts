@@ -212,9 +212,10 @@ export class Lanes implements Subject {
 
   actions(): Actions {
     return {
-      'new-terminal': () => void this.openTerminal(),
+      // Answered once the tab is there, so the control is held down till then (`Router.run`).
+      'new-terminal': () => this.openTerminal().then(() => {}),
       // Typed as well as clicked, in the default harness: the `+` is a menu now.
-      'new-chat': () => void this.openChat(),
+      'new-chat': () => this.openChat().then(() => {}),
       'find-terminal': async () => {
         const terminal = activeTerminal(this.wire.state)
         if (terminal) await this.openFind(terminal.id)
@@ -690,16 +691,16 @@ export class Lanes implements Subject {
     return moved || view !== was.view
   }
 
-  /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
+  /**
+   * Put a terminal or a chat in front the moment it is open, from wherever. Its
+   * tab is read off the lane registry, which had it before the open answered,
+   * as every look reads it (`tabsNow`) — not waited for from up to ten looks a
+   * tenth of a second apart.
+   */
   async showTerminal(id: string): Promise<void> {
-    // Just opened, it may take a refresh or two to be listed: it still comes to the front.
-    for (let tries = 0; tries < 10; tries++) {
-      if (this.wire.state.terminals.some((terminal) => terminal.id === id)) break
-      await this.wire.live?.refresh()
-      if (this.wire.state.terminals.some((terminal) => terminal.id === id)) break
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
+    this.wire.live?.tabsNow()
     this.wire.put(showTerminal(this.wire.state, id))
+    this.deps.soonTick()
     this.wire.draw()
   }
 

@@ -50,7 +50,7 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
   // The moment, to the spinner's resolution, for every region alike: see `drawnFor`.
   const frame = given.now === undefined ? given : { ...given, now: drawnFor(given.now) }
   const skin = frame.skin ?? PLAIN
-  const pointer: Pointer = { hover: state.hover, pressed: state.pressed }
+  const pointer: Pointer = { hover: state.hover, pressed: state.pressed, busy: state.busy }
   // The config's sizes, then the ones dragged to, then the bottom folded or
   // filling — and grown for the conversation as the window holds it, which
   // outlasts the turn (`grownSince`); a frame that does not say goes by the turn.
@@ -70,7 +70,13 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     paint: (state: AppState, frame: Frame) => Drawn,
   ): Drawn =>
     last
-      ? last.region(name, [...args, skin, pointer.hover, pointer.pressed], state, frame, paint)
+      ? last.region(
+          name,
+          [...args, skin, pointer.hover, pointer.pressed, pointer.busy],
+          state,
+          frame,
+          paint,
+        )
       : paint(state, frame)
 
   const rows: string[] = []

@@ -97,21 +97,24 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       hits: [{ row: 0, from: 0, to: inner - 1, target }],
     })
   })
+  // Opened on what the harness said last, while it is asked again: said, so a
+  // list that changes under you a moment later is one you were told about.
+  const asking = ctx.modelsFrom?.asking ? `asking ${ctx.modelsFrom.harness}…` : null
   if (choices.length === 0) {
-    // Nothing to choose between is two different things: nothing this harness
-    // runs matches what was typed, or the harness could not say what it runs
-    // at all — and then it is the harness's own sentence, never a fallback to
-    // another harness's list.
-    const why = ctx.models.length === 0 ? (ctx.modelsFrom?.why ?? null) : null
+    // Nothing to choose between is three different things: the harness has not
+    // answered yet, nothing it runs matches what was typed, or it could not say
+    // what it runs at all — and then it is the harness's own sentence, never a
+    // fallback to another harness's list.
+    const why = asking || ctx.models.length > 0 ? null : (ctx.modelsFrom?.why ?? null)
+    const said =
+      asking ??
+      (why
+        ? `${ctx.modelsFrom?.harness} ${why}`
+        : `No model like that in ${ctx.modelsFrom?.harness ?? 'this harness'}.`)
     lines.push(
       new Row(inner, skin)
         .space()
-        .text(
-          why
-            ? `${ctx.modelsFrom?.harness} ${why}`
-            : `No model like that in ${ctx.modelsFrom?.harness ?? 'this harness'}.`,
-          why ? skin.waiting : skin.hint,
-        )
+        .text(said, why ? skin.waiting : skin.hint)
         .build(),
     )
   }
@@ -127,7 +130,9 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       foot: [
         panel.error
           ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
-          : blank(inner),
+          : asking && choices.length > 0
+            ? new Row(inner, skin).space().text(asking, skin.hint).build()
+            : blank(inner),
         new Row(inner, skin, ctx.pointer)
           .space()
           .text(
