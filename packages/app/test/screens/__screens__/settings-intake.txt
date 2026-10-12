@@ -1,0 +1,34 @@
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
+    │  search settings            │ Intake                                                                         │────
+ ▌ !│                             │ from  Local door    GitHub    Slack    Linear                                  │    
+ ▌  │  Agents             bypass █│                                                                                │    
+    │                            █│ Accept work from outside       ────████ on                                    ▕│    
+   ⠋│  Models                    █│                                                                               ▕│    
+    │                            █│▌Accept requests                ────████ on                                    ▕│    
+    │  Orchestrator              █│▌                               on: requests github hands over may become work ▕│    
+ ▸ S│                            █│▌                               in the projects below; off: they are read and… ▕│    
+ ▸ S│  Checks                    █│▌                                                                              ▕│    
+ ▸ I│                            █│ Projects it may make work in    checkout                                      ▕│    
+ ▾ C│  Voice                     █│                                                                               ▕│    
+  M │                            █│ Whose requests count            kim                                           ▕│    
+  A │  Window                    █│                                                                               ▕│    
+  M │                            █│ What an accepted request does    ◉ propose     ○ queue                        ▕│    
+    │  Away view                 █│                                                                               ▕│    
+ ▾ F│                            █│ Template                        github-bug                                    ▕│    
+   ▾│▌ Intake                    █│                                                                               ▕│    
+    │▌                           █│ Which document it fills         the obvious one                               ▕│    
+    │  Projects              ● 1 █│                                                                               ▕│    
+   ▸│                            █│ Say a status back              ████──── off                                   ▕│    
+━   │  Journal                   █│                                                                               ▕│   ━
+    │                            █│ Let a status name the work     ████──── off                                   ▕│    
+    │  Telemetry                 █│                                                                               ▕│   ▕
+    │                            ▕│                                                                               ▕│   ▕
+    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
+    │                            ▕│                                                   Open config.yaml     Done    │   ▕
+ ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

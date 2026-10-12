@@ -5,7 +5,7 @@ import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from '../../keys.ts'
 import { box, type Drawn, keysWidth, Row } from '../../ui.ts'
 import { cap, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
-import { PROJECTS, projectsIn } from './projects.ts'
+import { PROJECTS, scopesOf } from './scopes.ts'
 import {
   ACCOUNTS,
   choicesFor,
@@ -275,7 +275,7 @@ export function badgeFor(id: string, ctx: PanelContext): ((row: Row) => void) | 
     // A budget that is nearly spent first, because it is the one that is about
     // to stop work; how many projects there are otherwise.
     if (ctx.budgetWarnings > 0) return (row) => row.text(`● ${ctx.budgetWarnings}`, skin.waiting)
-    const count = projectsIn(ctx.settings).length
+    const count = scopesOf(PROJECTS, ctx.settings).length
     return count > 0 ? (row) => row.badge(count) : null
   }
   const signedIn = ctx.accounts.filter((one) => one.status.signedIn).length

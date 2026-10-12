@@ -203,7 +203,7 @@ const UPDATES_SHOWN = {
   ],
 }
 
-function settingsFacts() {
+function settingsFacts(intake: Record<string, unknown> = {}) {
   const config = ConfigSchema.parse({
     projects: {
       checkout: { root: '~/src/checkout', budget: { usd_per_day: 5 } },
@@ -215,6 +215,7 @@ function settingsFacts() {
         mic: { device: 'MacBook Pro Microphone' },
         attention: { budget: 6, quiet: '22:00-07:00' },
       },
+      intake,
     },
   })
   return {
@@ -242,6 +243,28 @@ export const SETTINGS_SCREENS: Scenario[] = [
       'they do, and what it may spend a day.',
     state: { ...base(), panel: { ...settingsPanel('projects', '', 'search'), row: 4 } },
     frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-intake',
+    about:
+      'One source at a time, the way the Projects page is one project at a time: every source ' +
+      'Tade can take work from along the top, the switch every one of them is behind, and then ' +
+      'that source’s own answers — whether it accepts, where, from whom, whether a person ' +
+      'approves, what it is stamped from and what is said back.',
+    state: { ...base(), panel: { ...settingsPanel('intake', '', 'github'), row: 1 } },
+    frame: frame({
+      panel: settingsFacts({
+        enabled: true,
+        sources: {
+          github: {
+            accept: true,
+            projects: ['checkout'],
+            from: ['kim'],
+            template: 'github-bug',
+          },
+        },
+      }),
+    }),
   },
   {
     name: 'settings-searched',

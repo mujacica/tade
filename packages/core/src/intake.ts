@@ -60,6 +60,14 @@ export const INTAKE_SOURCES = ['cli', 'github', 'slack', 'linear'] as const
 export const IntakeSource = z.enum(INTAKE_SOURCES)
 export type IntakeSource = (typeof INTAKE_SOURCES)[number]
 
+/** What a source is called on screen, keyed so tsc names the one nobody titled. */
+export const INTAKE_SOURCE_TITLES: Readonly<Record<IntakeSource, string>> = {
+  cli: 'Local door',
+  github: 'GitHub',
+  slack: 'Slack',
+  linear: 'Linear',
+}
+
 /** What happens when a source's rule matches: a person approves, or the queue takes it. */
 export const INTAKE_MODES = ['propose', 'queue'] as const
 export type IntakeMode = (typeof INTAKE_MODES)[number]
@@ -380,7 +388,8 @@ export const IntakeGrant = z
  * **A sibling of `surfaces.web` and not a key inside it**, because
  * neither turns the other on: the away view is who can *read* Tade from
  * off this machine, and intake is whose words can *make work* on it.
- * Both are `never` in `reach.ts`, each for its own clause.
+ * Both are `never` subtrees in `reach.ts`, each for its own clause, and
+ * each with the few keys that are neither named beside it.
  *
  * **Off, and every default is the decision.** `enabled` is the surface;
  * `accept` is one source; `from: []` means nobody; `mode: propose`

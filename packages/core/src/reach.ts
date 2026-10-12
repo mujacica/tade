@@ -149,17 +149,27 @@ const NEVER: readonly (readonly [string, string])[] = [
     'projects',
     'moving a project’s root moves where every agent in it works — closing it and opening it again is two acts, each said',
   ],
+  // The away view's keys, all but two (`ALLOWED_UNDER`). What is left here is
+  // each a door or a grant: whether anything listens (`enabled`), on which
+  // network (`bind`) and at which address a pairing code sends a phone with
+  // the ticket that makes it a device (`port`), which origin is trusted
+  // (`trusted_hosts`), what a paired device may do — and an agent here can
+  // pair itself (`DEVICES_SEEN_BY_AGENTS`), so `acting`, `orchestrator`,
+  // `drafts` and `settings` widen what an agent may do — what goes through a
+  // push service somebody else runs (`push`, `push_details`), and the key that
+  // signs it (`push_key`).
   [
     'surfaces.web',
     'the away view is who can reach Tade from off this machine, and a page I read does not get to let anybody in',
   ],
   // Matched as a dotted prefix, so every key under it — the ones there are and
-  // the ones a connector adds next month — is refused on the day it is written.
-  // All four clauses of `never` apply at once: a grant widens what an agent may
-  // do, it hands somebody else's words to one, it changes who is asked, and
-  // `reply` changes where Tade sends something. And the shape of the attack is
-  // the plainest there is: the text I read all day would like to be the text
-  // that is allowed to make work.
+  // the ones a connector adds next month — is refused on the day it is written,
+  // two named in `ALLOWED_UNDER` aside. All four clauses of `never` apply to
+  // the rest: a grant widens what an agent may do, it hands somebody else's
+  // words to one, `mode` changes who is asked, and `reply` and `names` change
+  // what Tade sends where. And the shape of the attack is the plainest there
+  // is: the text I read all day would like to be the text that is allowed to
+  // make work.
   [
     'surfaces.intake',
     'intake is whose words can make work on this machine, and the words I read all day do not get to put themselves on that list',
@@ -197,6 +207,22 @@ const NEVER: readonly (readonly [string, string])[] = [
  * wrong repository, and it is a sentence a page would like obeyed for that
  * reason. So it takes the person's own words, like every other ordinary
  * setting, and the confusion has to be asked for out loud.
+ *
+ * **Two of an intake source's eight, and only the two that choose among the
+ * owner's own things.** `template` is which *published* template a request is
+ * stamped from — a template is the owner's, an immutable snapshot, and using
+ * one makes parked work — and `document` is which of its document inputs the
+ * body lands in, every one of which is under the material heading. Neither
+ * says whose words count, where, whether anybody approves, or what goes back:
+ * the hole the skill warns about is a template the *requester* chose, and this
+ * is the owner choosing, in their own words.
+ *
+ * **Two of the away view's, and only the two that hand a device nothing.**
+ * `install` puts the static page on a device already paired — the same bytes
+ * for every device, no projection, no way to read one without a session — and
+ * `offline` lets that device keep counts and a moment it was already shown,
+ * no text. Neither lets anybody in, lets a device do anything, or sends
+ * anything anywhere it was not already going.
  */
 const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.title$/,
@@ -206,6 +232,8 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.workspace$/,
   /^projects\.[a-z0-9-]+\.max_parallel$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,
+  /^surfaces\.intake\.sources\.[a-z0-9-]+\.(template|document)$/,
+  /^surfaces\.web\.(install|offline)$/,
 ]
 
 /** Whether `path` is `prefix` or lives under it. */
@@ -358,6 +386,12 @@ export function watchNamedBy(
  * is what keeps `namedBy` usable for a thing whose whole path is its name —
  * closing a project is checked that way.
  *
+ * **The same is true of any scope** (`Setting.scope`): every segment of the
+ * path up to and including it is what holds that scope's settings, so none of
+ * them counts. `surfaces.intake.sources.github.template` is named by `template`
+ * and never by `intake`, `sources` or `github`, each of which names all eight
+ * of that source's settings and six of them no words reach.
+ *
  * The title always counts however short it is: it is the name the setting
  * actually has, and somebody who says it has named it. Which is also the shape
  * of the ordinary conversation here — the orchestrator says the setting back
@@ -370,11 +404,14 @@ export function watchNamedBy(
  * agent may do is in the tier no words reach at all, and what is left here can
  * only change when Tade runs checks unasked, or what it times.
  */
-export function wordsFor(setting: Pick<Setting, 'path' | 'title' | 'keywords'>): string[] {
+export function wordsFor(
+  setting: Pick<Setting, 'path' | 'title' | 'keywords' | 'scope'>,
+): string[] {
   const parts = setting.path.split('.')
   const section = parts[0] ?? ''
+  const scopeAt = setting.scope === undefined ? -1 : parts.indexOf(setting.scope)
   const sections = new Set(
-    [section, section === 'projects' ? (parts[1] ?? '') : '']
+    [section, section === 'projects' ? (parts[1] ?? '') : '', ...parts.slice(0, scopeAt + 1)]
       .filter((part) => part !== '')
       .map((part) => part.toLowerCase()),
   )
@@ -414,7 +451,7 @@ function saidIn(line: string, phrase: string): boolean {
  * did not already allow.
  */
 export function namedBy(
-  setting: Pick<Setting, 'path' | 'title' | 'keywords'>,
+  setting: Pick<Setting, 'path' | 'title' | 'keywords' | 'scope'>,
   lines: readonly string[],
 ): string | null {
   const words = wordsFor(setting)

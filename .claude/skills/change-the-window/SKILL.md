@@ -788,6 +788,10 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
 - **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`
   sentence, and `live: false` if Tade only reads it at start — the panel draws the control and the
   *on restart* label from that.
+- **A page of the same settings over and over is one of them at a time.** Projects and Intake
+  declare `SettingGroup.scoped` (the scopes, the selector's lead word) and each row its `scope`;
+  `panels/settings/scopes.ts` is the one selector, its keys and its rows, and a row with no scope is
+  on every one of them. Never a second selector for the next page that needs one.
 - **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid out
   from the room there is (`spendColumns`, `panels/spend/view.ts`): the figures take what a figure takes,
   the share meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`)

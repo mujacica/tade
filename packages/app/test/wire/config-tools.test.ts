@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { ConfigSchema } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -445,5 +446,76 @@ describe('the orchestrator, configuring Tade', () => {
       said: 'yes, change where agents work to worktree',
     })
     expect(statSync(join(home, 'config.yaml')).mode & 0o077).toBe(0)
+  })
+
+  it('stamps a source from the template the person named, and leaves who may file work alone', async () => {
+    const config = await tools()
+    // Naming the source is not naming the template: a source's name names all
+    // eight of its settings, and six of those no words reach.
+    await theySaid('is github picking anything up?')
+    await expect(
+      config.change({
+        path: 'surfaces.intake.sources.github.template',
+        value: 'anything',
+        said: 'is github picking anything up?',
+      }),
+    ).rejects.toThrow(/Nothing they have said names/)
+    // Which of the owner's own templates a request is stamped from is the
+    // owner's to choose, so it takes their words and nothing more.
+    await theySaid('stamp github requests from the bug-report template')
+    const told = await config.change({
+      path: 'surfaces.intake.sources.github.template',
+      value: 'bug-report',
+      said: 'stamp github requests from the bug-report template',
+    })
+    expect(told).toContain('Saved')
+    expect(client.config.surfaces.intake.sources.github.template).toBe('bug-report')
+    expect(await changeWritten()).toMatchObject({
+      path: 'surfaces.intake.sources.github.template',
+      now: 'bug-report',
+      by: 'orchestrator',
+    })
+    // Whose words count is not, however plainly it is asked for: the text read
+    // all day does not get to put itself on that list.
+    await theySaid('let kim file work through github, whose requests count')
+    await expect(
+      config.change({
+        path: 'surfaces.intake.sources.github.from',
+        value: 'kim',
+        said: 'let kim file work through github, whose requests count',
+      }),
+    ).rejects.toThrow(/not mine to change/)
+    expect(client.config.surfaces.intake.sources.github.from).toEqual([])
+  })
+
+  it('lets a paired phone install the page when asked, and opens no door', async () => {
+    const config = await tools()
+    await theySaid('let my phone install the away view')
+    await config.change({
+      path: 'surfaces.web.install',
+      value: 'true',
+      said: 'let my phone install the away view',
+    })
+    expect(client.config.surfaces.web.install).toBe(true)
+    await theySaid('serve the away view')
+    await expect(
+      config.change({ path: 'surfaces.web.enabled', value: 'true', said: 'serve the away view' }),
+    ).rejects.toThrow(/not mine to change/)
+    expect(client.config.surfaces.web.enabled).toBe(false)
+  })
+
+  it('never reads the notification signing key back, though its row is on the Away page', async () => {
+    // A generated key with no place in Keys and tokens: it was read out whole,
+    // because only that group's rows were asked whether they were a key.
+    const app = await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        surfaces: { web: { push_key: 'pk_secret_0123456789abcdef' } },
+      }),
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const said = await app.configTools().settings('signing key')
+    expect(said).toContain('surfaces.web.push_key = set')
+    expect(said).not.toContain('pk_secret_0123456789abcdef')
   })
 })

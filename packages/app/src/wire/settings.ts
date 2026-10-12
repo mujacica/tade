@@ -16,6 +16,7 @@ import {
   type ThinkingLevel,
   wantedInstead,
 } from '@tade/core'
+import { isCredential } from '@tade/web'
 import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
 import {
@@ -249,7 +250,7 @@ export class Settings implements Subject {
       )
       if (found.length === 0) continue
       lines.push(`${group.title} — ${group.about}`)
-      for (const setting of found) lines.push(`  ${this.lineFor(group.id, setting)}`)
+      for (const setting of found) lines.push(`  ${this.lineFor(group, setting)}`)
     }
     if (lines.length === 0) {
       return words.length === 0
@@ -260,16 +261,19 @@ export class Settings implements Subject {
   }
 
   /** One setting on one line: its path, what it is, what it means, how far I reach. */
-  private lineFor(group: string, setting: Setting): string {
+  private lineFor(group: SettingGroup, setting: Setting): string {
     const { reach, because } = settingReach(setting.path)
-    const shown =
-      group === 'credentials'
-        ? setting.value === ''
-          ? `not set (${setting.fallback})`
-          : `set (${setting.fallback})`
-        : setting.value === ''
-          ? `(${setting.fallback})`
-          : setting.value
+    // A key's fallback says where the one in use comes from; the notification
+    // key's says it is made when first needed, which is only true while unset.
+    const shown = isCredential(group, setting)
+      ? setting.value === ''
+        ? `not set (${setting.fallback})`
+        : group.id === 'credentials'
+          ? `set (${setting.fallback})`
+          : 'set'
+      : setting.value === ''
+        ? `(${setting.fallback})`
+        : setting.value
     const may =
       reach === 'never'
         ? `not mine to change: ${because}`
@@ -333,11 +337,11 @@ export class Settings implements Subject {
   }
 
   /**
-   * Open the Settings page: on a category, on one project of the Projects page,
-   * or on everything matching `search`.
+   * Open the Settings page: on a category, on one project of the Projects page
+   * or one source of Intake's, or on everything matching `search`.
    */
-  async open(category = 'agents', search = '', project = ''): Promise<string> {
-    this.wire.put({ ...this.wire.state, panel: settingsPanel(category, search, project) })
+  async open(category = 'agents', search = '', scope = ''): Promise<string> {
+    this.wire.put({ ...this.wire.state, panel: settingsPanel(category, search, scope) })
     this.wire.draw()
     // Asked each time the page opens: a sign-in made in another terminal counts.
     this.deps.loadAccounts()
@@ -589,13 +593,15 @@ export class Settings implements Subject {
 
   /**
    * Whether this setting is a credential — one an extension declared and
-   * Settings offers a field for. Asked of the group rather than of the path,
-   * because the group *is* the declared list: a key an extension asks for
-   * tomorrow is covered the day it asks.
+   * Settings offers a field for, or the notification signing key, which is
+   * generated rather than pasted and has its row on the Away page. Asked the
+   * way the away view asks (`isCredential`), so a phone and the orchestrator
+   * are never told two different things about one key: `tade_settings` read
+   * that key out whole, and the journal kept it, until this asked the same.
    */
   private secret(path: string): boolean {
-    return this.rows().some(
-      (group) => group.id === 'credentials' && group.settings.some((one) => one.path === path),
+    return this.rows().some((group) =>
+      group.settings.some((one) => one.path === path && isCredential(group, one)),
     )
   }
 

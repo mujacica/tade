@@ -155,9 +155,10 @@ export function awayReach(path: string): AwayReach {
 /**
  * The project a setting is one of, read out of its path.
  *
- * Out of the path and not only the row's `scope`, because the gate has a path
+ * Out of the path and never the row's `scope`, because the gate has a path
  * and no row — and the per-project boundary has to hold for a crafted call
- * exactly as it does for a drawn one.
+ * exactly as it does for a drawn one. A scope is not always a project, either:
+ * an intake source's rows carry the source.
  */
 export function projectOfSetting(path: string): string | null {
   const parts = path.split('.')
@@ -251,7 +252,9 @@ export function settingsFor(
   for (const group of groups) {
     const settings: SettingOut[] = []
     for (const setting of group.settings) {
-      const project = setting.scope ?? projectOfSetting(setting.path)
+      // Out of the path, never the row's `scope`: a scope is whatever a group
+      // holds over and over, and an intake source's is not a project.
+      const project = projectOfSetting(setting.path)
       if (project !== null && !sees(reach, project)) {
         withheld += 1
         continue

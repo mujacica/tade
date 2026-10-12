@@ -5,7 +5,7 @@ import { normalKey } from '../../keys.ts'
 import type { PanelInputs } from '../../panels.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 import { accountChoice } from './accounts.ts'
-import { PROJECTS, projectHere, projectRows, projectsIn } from './projects.ts'
+import { scopedGroup, scopedRows, scopeHere, scopesOf } from './scopes.ts'
 
 export type { UpdatesShown }
 
@@ -65,17 +65,18 @@ export interface SettingsPanel {
    */
   following: boolean
   /**
-   * Which pane of the page the keyboard is in. `projects` is the selector at
-   * the top of the Projects page — the row of projects the page is one of, and
-   * the only page that has one.
+   * Which pane of the page the keyboard is in. `scopes` is the selector at the
+   * top of a page that is one of many (`scopes.ts`) — the row of projects the
+   * Projects page is one of, the row of sources Intake is one of.
    */
-  focus: 'categories' | 'form' | 'search' | 'projects'
+  focus: 'categories' | 'form' | 'search' | 'scopes'
   /**
-   * The project the Projects page is configuring. Empty means the first one
-   * there is: which projects exist is the config's to say, and a name written
-   * down here would outlive a project somebody closed.
+   * Which of those the page is configuring: a project, a source. Empty means
+   * the first one there is: which exist is the config's to say, and a name
+   * written down here would outlive a project somebody closed. Another page is
+   * another list, so going to one starts it again at its first.
    */
-  project: string
+  scope: string
   search: string
   /** A text setting being typed into. */
   editing: { path: string; text: string } | null
@@ -163,8 +164,9 @@ export function updateActions(look: UpdatesShown | null, busy: boolean): UpdateA
 }
 
 /**
- * The Settings page, on a category — on one project of the Projects page, or,
- * given words, on everything that matches them whatever category each lives in.
+ * The Settings page, on a category — on one project of the Projects page or one
+ * source of Intake's, or, given words, on everything that matches them whatever
+ * category each lives in.
  *
  * The last two are how somewhere else in the window sends you here. A
  * project's Configure is the Projects page with that project chosen: one page
@@ -174,7 +176,7 @@ export function updateActions(look: UpdatesShown | null, busy: boolean): UpdateA
  * configured a project would be a second answer to what a project's settings
  * are.
  */
-export function settingsPanel(category = 'agents', search = '', project = ''): SettingsPanel {
+export function settingsPanel(category = 'agents', search = '', scope = ''): SettingsPanel {
   return {
     kind: 'settings',
     category,
@@ -183,7 +185,7 @@ export function settingsPanel(category = 'agents', search = '', project = ''): S
     listScroll: 0,
     following: true,
     focus: 'form',
-    project,
+    scope,
     search,
     editing: null,
     dropdown: null,
@@ -213,10 +215,11 @@ export function visibleSettings(panel: SettingsPanel, groups: readonly SettingGr
         return true
       })
   }
-  // The Projects page is one project at a time, behind its selector: the group
-  // holds every project's rows, and which of them you are configuring is the
-  // page's own question.
-  if (panel.category === PROJECTS) return projectRows(panel.project, groups).rows
+  // A page that is one of many is one at a time, behind its selector: the group
+  // holds every project's rows, or every source's, and which of them you are
+  // configuring is the page's own question.
+  if (scopedGroup(panel.category, groups))
+    return scopedRows(panel.scope, panel.category, groups).rows
   return groups.find((group) => group.id === panel.category)?.settings ?? []
 }
 
@@ -474,16 +477,16 @@ function settingsPress(
   if (key === 'escape') return close
   if (key === 'ctrl+f' || data === '/') return stay({ ...panel, focus: 'search' })
 
-  // The selector at the top of the Projects page: ←→ walks the projects, and
-  // ↓ goes into that project's settings. The one page with a pane of its own,
-  // kept above the form rather than in it, because a selector that scrolls
-  // away is one you cannot see the answer of while you read the rows under it.
-  if (panel.focus === 'projects') {
-    const names = projectsIn(groups)
-    const at = Math.max(0, names.indexOf(projectHere(panel.project, groups) ?? ''))
+  // The selector at the top of a page that is one of many: ←→ walks them, and
+  // ↓ goes into that one's settings. A pane of its own, kept above the form
+  // rather than in it, because a selector that scrolls away is one you cannot
+  // see the answer of while you read the rows under it.
+  if (panel.focus === 'scopes') {
+    const names = scopesOf(panel.category, groups).map((one) => one.id)
+    const at = Math.max(0, names.indexOf(scopeHere(panel.scope, panel.category, groups) ?? ''))
     if (key === 'left' || key === 'right') {
       const next = names[(at + (key === 'right' ? 1 : -1) + names.length) % names.length]
-      return next === undefined ? stay(panel) : stay({ ...panel, project: next, row: 0, scroll: 0 })
+      return next === undefined ? stay(panel) : stay({ ...panel, scope: next, row: 0, scroll: 0 })
     }
     if (key === 'down' || key === 'enter' || key === 'tab')
       return stay({ ...panel, focus: 'form', row: 0 })
@@ -496,7 +499,7 @@ function settingsPress(
     const at = Math.max(0, ids.indexOf(panel.category))
     if (key === 'down' || key === 'up') {
       const next = ids[(at + (key === 'down' ? 1 : -1) + ids.length) % ids.length] ?? panel.category
-      return stay({ ...panel, category: next, row: 0 })
+      return stay({ ...panel, category: next, row: 0, scope: '' })
     }
     if (key === 'right' || key === 'tab' || key === 'enter')
       return stay({ ...panel, focus: 'form', row: 0 })
@@ -524,8 +527,8 @@ function settingsPress(
     return stay({ ...panel, row: Math.min(Math.max(0, count - 1), panel.row + 1) })
   if (key === 'up') {
     if (panel.row > 0) return stay({ ...panel, row: panel.row - 1 })
-    const selector = panel.category === PROJECTS && !panel.search
-    return stay({ ...panel, focus: selector ? 'projects' : 'search' })
+    const selector = scopedGroup(panel.category, groups) !== null && !panel.search
+    return stay({ ...panel, focus: selector ? 'scopes' : 'search' })
   }
   if (panel.category === ACCOUNTS && !panel.search) {
     const action = (inputs.accountActions ?? [])[panel.row]
@@ -644,21 +647,22 @@ function clicked(
         ...panel,
         category: arg,
         row: 0,
+        scope: '',
         focus: 'form',
         search: '',
         editing: null,
         dropdown: null,
       })
-    // Which project the Projects page is configuring. The page starts again at
-    // its first row: the rows are a different project's, so the row the
-    // keyboard was on is not a row any more.
-    case 'project':
+    // Which project or source the page is configuring. The page starts again at
+    // its first row: the rows are a different one's, so the row the keyboard
+    // was on is not a row any more.
+    case 'scope':
       return stay({
         ...panel,
-        project: arg,
+        scope: arg,
         row: 0,
         scroll: 0,
-        focus: 'projects',
+        focus: 'scopes',
         editing: null,
         dropdown: null,
       })

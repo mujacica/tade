@@ -407,7 +407,8 @@ export const PUSH_KEY_IS_GENERATED =
  * is how reading from the sofa turns into acting from anywhere, and the fourth
  * is a different kind of thing again — bounded verbs against free text.
  * All of them are `never` in `reach.ts` by subtree: each changes who can reach
- * Tade, or what they can do.
+ * Tade, or what they can do. `install` and `offline` below are the two that do
+ * neither, and `reach.ts` names them `asked`.
  */
 export const WebSurface = z
   .strictObject({

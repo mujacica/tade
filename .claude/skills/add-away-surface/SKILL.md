@@ -431,14 +431,18 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
 
 ## The config, and the five controls over it
 
-`surfaces.web` is read in exactly one place — `surfaceOf` — and its eight keys are `never` in
-`reach.ts`: each either widens who can reach the control room (`enabled`, `bind`), decides what the
-pairing code says (`port`), lets a device change something (`acting`), lets one talk to the model
-that holds the tools (`orchestrator`), lets one save a draft every future run of a workflow would
-be stamped from (`drafts`), lets one change a setting a request is enough for (`settings`), puts
-Tade's own page on somebody's phone (`install`) or lets that phone keep a few counts (`offline`,
-narrowed under `install`). A tier is a property of the path, so
-`packages/core/test/reach.test.ts` asserts it by subtree rather than through what Settings happens
+`surfaces.web` is read in exactly one place — `surfaceOf` — and it is a `never` subtree in
+`reach.ts`: each key either widens who can reach the control room (`enabled`, `bind`,
+`trusted_hosts`), decides where the pairing code sends a phone (`port`), lets a device change
+something (`acting`), lets one talk to the model that holds the tools (`orchestrator`), lets one
+save a draft every future run of a workflow would be stamped from (`drafts`), lets one change a
+setting a request is enough for (`settings`) — and an agent here can pair itself, so those four
+widen what an agent may do — or goes through a stranger's push service (`push`, `push_details`,
+`push_key`). **Two are carved out to `asked`** by name in `ALLOWED_UNDER`: `install`, which puts
+Tade's own page on a phone already paired, and `offline`, which lets that phone keep counts it was
+already shown — neither lets anybody in or a device do anything. A key you add is `never` until
+somebody argues otherwise there. A tier is a property of the path, so
+`packages/core/test/reach.test.ts` asserts it by path rather than through what Settings happens
 to list.
 
 **All eight are `live: false`, honestly.** The listener comes up when the window starts and the epoch

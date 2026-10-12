@@ -24,8 +24,9 @@ import type { SettingGroup } from './settings.ts'
 //
 // Its own half of `settingsOf`, split off for the reason the projects half
 // was: that file reached the size a file is allowed to be. It is a seam rather
-// than a cut — these seven are exactly the keys `reach.ts` refuses to the
-// orchestrator by subtree, and exactly the ones whose `means` carries a
+// than a cut — these are exactly the keys under `reach.ts`'s `surfaces.web`
+// subtree, all but `install` and `offline` refused to the orchestrator, and
+// exactly the ones whose `means` carries a
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //

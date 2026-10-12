@@ -3,6 +3,7 @@ import {
   EMPTY_MEANS_NOBODY,
   INTAKE_IS_SOMEBODY_ELSE,
   INTAKE_MODES,
+  INTAKE_SOURCE_TITLES,
   INTAKE_SOURCES,
   METADATA_IS_DISCLOSURE,
   PROPOSE_IS_THE_TYPING,
@@ -16,20 +17,29 @@ import type { Setting, SettingGroup } from './settings.ts'
 // Its own half of `settingsOf`, for the reason the away view's and the
 // projects' halves are: that file reached the size a file is allowed to be.
 //
-// Two things about the shape here rather than in `settings.ts`:
+// Three things about the shape here rather than in `settings.ts`:
 //
-// **Every row is a `never` key, by one entry in `reach.ts`.** So nothing here
-// is ever written on an orchestrator's say-so, whoever asked and however they
-// asked — which is the point, because the orchestrator reads review comments,
-// tool descriptions and pages somebody pasted, and the sentence an injected one
-// would most like obeyed is "put me on the list".
+// **One source at a time** (`scoped`), the way the Projects page is one
+// project at a time: every source answers the same eight questions, and a
+// page of thirty-three switches with the source's name in every title was a
+// page nobody could find one of them on. So each row carries its source as
+// `scope`, its title names the setting and never the source, and the
+// surface's own switch has no scope, so it is on every source's page.
+//
+// **Almost every row is a `never` key** (`reach.ts`), and the two that are not
+// are named there: which template a request is stamped from and which of its
+// documents the body fills are the owner's choices among things the owner
+// published, and widen nothing. The rest decide whose words make work, where,
+// whether a person approves it, and what is said back to a stranger's system —
+// and the sentence an injected page would most like obeyed is "put me on the
+// list".
 //
 // **The sentence a control is tempted to leave out is in `means`.** Turning a
 // source on means somebody else's words reach an agent that runs as you, with
 // your keys, and Tade sandboxes nothing. `INTAKE_IS_SOMEBODY_ELSE` says it once
 // so no surface can say the comfortable half.
 
-/** One row per source, and the surface's own switch above them. */
+/** One page per source, and the surface's own switch on every one of them. */
 export function intakeGroup(config: Config): SettingGroup {
   const intake = config.surfaces.intake
   const settings: Setting[] = [
@@ -51,83 +61,91 @@ export function intakeGroup(config: Config): SettingGroup {
     settings.push(
       {
         path: `${at}.accept`,
-        title: `Accept from ${source}`,
+        title: 'Accept requests',
         means: `on: requests ${source} hands over may become work in the projects below; off: they are read and refused, and the refusal is written down`,
         value: String(grant.accept),
         fallback: 'false',
         type: { kind: 'flag' },
         live: true,
+        scope: source,
       },
       {
         path: `${at}.projects`,
-        title: `Projects ${source} may make work in`,
+        title: 'Projects it may make work in',
         means:
           'which repositories a request from this source can become work in. Empty means nowhere, and a project not on the list is refused with the list named',
         value: grant.projects.join(' '),
         fallback: 'none',
         type: { kind: 'text', placeholder: 'tade sentry-cli' },
         live: true,
+        scope: source,
       },
       {
         path: `${at}.from`,
-        title: `Whose requests ${source} may hand over`,
+        title: 'Whose requests count',
         means: `the handles, as ${source} names them, whose requests count. ${EMPTY_MEANS_NOBODY}`,
         value: grant.from.join(' '),
         fallback: 'nobody',
         type: { kind: 'text', placeholder: 'kim' },
         live: true,
+        scope: source,
         keywords: ['allowlist', 'who', 'requester', 'handle'],
       },
       {
         path: `${at}.mode`,
-        title: `What an accepted ${source} request does`,
+        title: 'What an accepted request does',
         means: PROPOSE_IS_THE_TYPING,
         value: grant.mode,
         fallback: 'propose',
         type: { kind: 'choice', options: [...INTAKE_MODES] },
         live: true,
+        scope: source,
         keywords: ['propose', 'queue', 'approve', 'parked'],
       },
       {
         path: `${at}.template`,
-        title: `The template ${source} requests are stamped from`,
+        title: 'Template',
         means:
           'a published template, chosen here and never by whoever sent the request. Empty makes one ordinary task instead',
         value: grant.template,
         fallback: 'none: one task',
         type: { kind: 'text', placeholder: 'github-bug' },
         live: true,
+        scope: source,
         keywords: ['template', 'workflow'],
       },
       {
         path: `${at}.document`,
-        title: `Which of that template's documents a ${source} request fills`,
+        title: 'Which document it fills',
         means:
           'the name of one of the template’s document inputs, for a template that declares more than one and requires none of them. Empty takes the only one, or the only one it requires',
         value: grant.document,
         fallback: 'the obvious one',
         type: { kind: 'text', placeholder: 'report' },
         live: true,
+        scope: source,
         keywords: ['document', 'body', 'input'],
       },
       {
         path: `${at}.reply`,
-        title: `Say a status back to ${source}`,
+        title: 'Say a status back',
         means: `on: where a request got to goes back as one of ${INTAKE_SAYINGS.length} sentences Tade wrote — picked up, queued, being worked on, up for review, finished, stopped — one each, at most ${INTAKE_REPLY_CAP} a day per request; off: nothing is posted anywhere. Never a word an agent wrote, never a diff, never a file name, never a link. ${NEVER_REPLIED_TO}`,
         value: String(grant.reply),
         fallback: 'false',
         type: { kind: 'flag' },
         live: true,
+        scope: source,
         keywords: ['comment', 'post', 'back', 'status', 'outbox'],
       },
       {
         path: `${at}.names`,
-        title: `Let a ${source} status name the work`,
+        title: 'Let a status name the work',
         means: `on: a status says which task and which machine; off: it says where the request got to and nothing else. ${METADATA_IS_DISCLOSURE}`,
         value: String(grant.names),
         fallback: 'false',
         type: { kind: 'flag' },
         live: true,
+        scope: source,
         keywords: ['disclosure', 'task', 'machine', 'hostname', 'metadata', 'public'],
       },
     )
@@ -135,6 +153,11 @@ export function intakeGroup(config: Config): SettingGroup {
   return {
     id: 'intake',
     title: 'Intake',
+    scoped: {
+      word: 'from',
+      scopes: INTAKE_SOURCES.map((source) => ({ id: source, title: INTAKE_SOURCE_TITLES[source] })),
+      none: '',
+    },
     about: `Work that arrives from outside this machine — a ticket somebody filed, a line typed at the local door — read on a clock like every other watch, with no listener and no inbound port. Off by default, and every source is a separate act. ${INTAKE_NO_REALTIME} ${INTAKE_IS_SOMEBODY_ELSE}`,
     keywords: [
       'intake',

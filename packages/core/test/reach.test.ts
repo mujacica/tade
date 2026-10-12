@@ -287,9 +287,12 @@ describe('the shape of the rule', () => {
       // was already decided by subtree, which the test above asserts
       // directly, because a tier is a property of the path and not of whether
       // a page lists it.
+      // Intake's own switch, and six of each source's eight: whose words make
+      // work, where, whether a person approves it, and what is said back. The
+      // other two — which of the owner's templates, and which of its documents
+      // — are `asked`, and held below.
       'surfaces.intake.enabled',
       'surfaces.intake.sources.cli.accept',
-      'surfaces.intake.sources.cli.document',
       'surfaces.intake.sources.cli.from',
       'surfaces.intake.sources.cli.mode',
       // The newest of them, and it arrived `never` without anybody touching
@@ -299,7 +302,6 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.cli.names',
       'surfaces.intake.sources.cli.projects',
       'surfaces.intake.sources.cli.reply',
-      'surfaces.intake.sources.cli.template',
       // And the GitHub source's eight, by the same one dotted prefix rather
       // than by anybody having listed them: a key added with the connector is
       // `never` on the day it is added, which is the whole point of the
@@ -307,13 +309,11 @@ describe('the shape of the rule', () => {
       // whose labelling starts work here, and the text the orchestrator reads
       // all day does not get to put itself on it.
       'surfaces.intake.sources.github.accept',
-      'surfaces.intake.sources.github.document',
       'surfaces.intake.sources.github.from',
       'surfaces.intake.sources.github.mode',
       'surfaces.intake.sources.github.names',
       'surfaces.intake.sources.github.projects',
       'surfaces.intake.sources.github.reply',
-      'surfaces.intake.sources.github.template',
       // And Linear's eight, which arrived the same way: nobody added a line to
       // `reach.ts` for them, and `settingReach` had them at `never` before the
       // connector was written. `from` here is a list of Linear **user ids**,
@@ -322,13 +322,11 @@ describe('the shape of the rule', () => {
       // must never reach is also the key whose value a person has to go and
       // look up. Both of those make it `never` rather than `asked`.
       'surfaces.intake.sources.linear.accept',
-      'surfaces.intake.sources.linear.document',
       'surfaces.intake.sources.linear.from',
       'surfaces.intake.sources.linear.mode',
       'surfaces.intake.sources.linear.names',
       'surfaces.intake.sources.linear.projects',
       'surfaces.intake.sources.linear.reply',
-      'surfaces.intake.sources.linear.template',
       // And the Slack source's eight, again by the prefix and not by anybody
       // having listed them. Two of these are why the subtree is the rule rather
       // than a list: `reply` is Tade writing into a channel other people read,
@@ -337,24 +335,19 @@ describe('the shape of the rule', () => {
       // orchestrator may well end up reading, and it does not get to put its
       // author on the list.
       'surfaces.intake.sources.slack.accept',
-      'surfaces.intake.sources.slack.document',
       'surfaces.intake.sources.slack.from',
       'surfaces.intake.sources.slack.mode',
       'surfaces.intake.sources.slack.names',
       'surfaces.intake.sources.slack.projects',
       'surfaces.intake.sources.slack.reply',
-      'surfaces.intake.sources.slack.template',
       'surfaces.web.acting',
       'surfaces.web.bind',
       'surfaces.web.drafts',
       'surfaces.web.enabled',
-      // The sixth and seventh, and `never` by the subtree for the same reason
-      // the fourth is. Neither grants a device anything — one puts the static
-      // page on a phone and the other lets that phone keep a few counts — and
-      // both are still here, because the subtree is the rule and because what
-      // they change is where Tade's own page ends up.
-      'surfaces.web.install',
-      'surfaces.web.offline',
+      // `install` and `offline` were here, by the subtree alone, and are not:
+      // neither grants a device anything — one puts the static page on a phone
+      // already paired and the other lets that phone keep counts it was already
+      // shown — so they are `asked`, carved out by name (`ALLOWED_UNDER`).
       // The fourth away-view key, and `never` by the same subtree rather than
       // by a line of its own — which is the property this list is here to
       // show: a key added under `surfaces.web` is refused on the day it is
@@ -373,6 +366,78 @@ describe('the shape of the rule', () => {
     ])
     // The rest — and it is most of them — needs the person's own words.
     expect(byTier.asked?.length).toBeGreaterThan(30)
+  })
+})
+
+describe('what the person’s own words reach under intake and the away view', () => {
+  const rows = settingsOf(ConfigSchema.parse({})).flatMap((group) => group.settings)
+  const row = (path: string) => {
+    const found = rows.find((one) => one.path === path)
+    if (!found) throw new Error(`no row for ${path}`)
+    return found
+  }
+
+  it('reaches which of the owner’s templates a source stamps, and which document it fills', () => {
+    // The owner choosing among what the owner published: a template is an
+    // immutable snapshot that makes parked work, and every document input is
+    // under the material heading. Nothing here says whose words count.
+    for (const source of ['cli', 'github', 'slack', 'linear']) {
+      for (const leaf of ['template', 'document']) {
+        const path = `surfaces.intake.sources.${source}.${leaf}`
+        expect(settingReach(path).reach, path).toBe('asked')
+      }
+    }
+  })
+
+  it('reaches nothing else of a source, and nothing new under one', () => {
+    for (const leaf of ['accept', 'projects', 'from', 'mode', 'reply', 'names']) {
+      const path = `surfaces.intake.sources.github.${leaf}`
+      expect(settingReach(path).reach, path).toBe('never')
+    }
+    expect(settingReach('surfaces.intake.enabled').reach).toBe('never')
+    // The carve-out is the leaf and not its start: a key that only begins the
+    // same way is a key nobody has looked at, and the subtree refuses it.
+    expect(settingReach('surfaces.intake.sources.github.templates').reach).toBe('never')
+    expect(settingReach('surfaces.intake.sources.github.template.name').reach).toBe('never')
+  })
+
+  it('reaches installing the page and keeping its counts, and none of the doors', () => {
+    expect(settingReach('surfaces.web.install').reach).toBe('asked')
+    expect(settingReach('surfaces.web.offline').reach).toBe('asked')
+    for (const leaf of [
+      'enabled',
+      'bind',
+      'port',
+      'trusted_hosts',
+      'acting',
+      'orchestrator',
+      'drafts',
+      'settings',
+      'push',
+      'push_details',
+      'push_key',
+    ]) {
+      const path = `surfaces.web.${leaf}`
+      expect(settingReach(path).reach, path).toBe('never')
+    }
+    expect(settingReach('surfaces.web.installed').reach).toBe('never')
+  })
+
+  it('is named by the setting, never by the source or the surface it is under', () => {
+    // `intake`, `sources` and `github` each name every one of that source's
+    // eight settings, six of which no words reach — so none of them counts.
+    const template = row('surfaces.intake.sources.github.template')
+    expect(namedBy(template, ['is github intake picking anything up?'])).toBeNull()
+    expect(namedBy(template, ['turn the intake sources on'])).toBeNull()
+    expect(namedBy(template, ['stamp github requests from the bug template'])).not.toBeNull()
+    const document = row('surfaces.intake.sources.slack.document')
+    expect(namedBy(document, ['how is slack doing'])).toBeNull()
+    expect(namedBy(document, ['put the slack body in the report document'])).not.toBeNull()
+    const install = row('surfaces.web.install')
+    expect(namedBy(install, ['let my phone install it'])).not.toBeNull()
+    expect(namedBy(install, ['something a page I read told you'])).toBeNull()
+    const offline = row('surfaces.web.offline')
+    expect(namedBy(offline, ['let it work offline on the train'])).not.toBeNull()
   })
 })
 

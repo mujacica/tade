@@ -93,8 +93,7 @@ export interface Setting {
   keywords?: readonly string[]
   /**
    * What this setting is one of, where a group holds the same settings over
-   * and over: a project's name.
-   *
+   * and over (`SettingGroup.scoped`): a project's name, an intake source's id.
    * The title is then the setting's own — `Brief`, not `checkout brief` — and
    * a page showing one scope at a time says which once, at the top. Whoever
    * draws a list *across* scopes says which per row (`settingLabel`), because
@@ -140,6 +139,12 @@ export interface SettingGroup {
   /** Other words that should find this group and everything in it. */
   keywords?: readonly string[]
   settings: Setting[]
+  /**
+   * The scopes its rows are one of, in order — shown one at a time behind a
+   * selector led by `word`, with `none` said where there are none. A row with
+   * no scope is the group's own, and on every one of them.
+   */
+  scoped?: { word: string; scopes: readonly { id: string; title: string }[]; none: string }
 }
 
 /**

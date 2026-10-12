@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { HARNESS_CHOICES, type Setting, settingLabel } from '@tade/core'
+import { HARNESS_CHOICES, type Setting, type SettingGroup, settingLabel } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { blank, box, NO_POINTER, type Pointer, Row } from '../../ui.ts'
 import { cap, padTo, sideWidth, withFocus, wrapTo } from '../cells.ts'
@@ -28,7 +28,7 @@ import {
   spellsOut,
   valueTooWide,
 } from './control.ts'
-import { PROJECTS, projectHere, projectsIn } from './projects.ts'
+import { scopedGroup, scopeHere } from './scopes.ts'
 import { ACCOUNTS, type SettingsPanel, UPDATES, visibleSettings } from './state.ts'
 import { drawUpdates } from './updates.ts'
 
@@ -111,38 +111,40 @@ function chosenCategory(
 }
 
 /**
- * Which project the Projects page is configuring: every project as a tab,
- * under the word for them — the shape the projects along the top of the window
- * have, which is what somebody already knows how to use.
+ * Which of many the page is configuring — a project, an intake source — as a
+ * tab each, under the word for them: the shape the projects along the top of
+ * the window have, which is what somebody already knows how to use.
  *
- * `for` is the lead word the Spend page's ranges use, and means the same thing
- * here: this page, over that one of them. Lit where the keyboard is on the
- * selector, so walking into it with ↑ shows which it is on.
+ * The lead word is the group's own (`scoped.word`): `for` a project, the word
+ * the Spend page's ranges use for this page over that one of them, and `from`
+ * a source. Lit where the keyboard is on the selector, so walking into it with
+ * ↑ shows which it is on.
  */
-function projectRow(
+function scopeRow(
   panel: SettingsPanel,
   ctx: PanelContext,
   form: number,
+  group: SettingGroup,
   chosen: string | null,
 ): Line[] {
-  const names = projectsIn(ctx.settings)
-  if (names.length === 0) {
+  const scopes = group.scoped?.scopes ?? []
+  if (scopes.length === 0) {
     return [
       new Row(form, ctx.skin)
         .space()
-        .text(cap('No projects are open.', form - 2), ctx.skin.hint)
+        .text(cap(group.scoped?.none ?? '', form - 2), ctx.skin.hint)
         .build(),
     ]
   }
   const pointer =
-    panel.focus === 'projects' ? withFocus(ctx.pointer, `project:${chosen ?? ''}`) : ctx.pointer
+    panel.focus === 'scopes' ? withFocus(ctx.pointer, `scope:${chosen ?? ''}`) : ctx.pointer
   return tabRow(
     () => new Row(form, ctx.skin, pointer),
     ctx.skin,
-    'for',
-    names.map((name) => ({ id: name, label: name })),
+    group.scoped?.word ?? '',
+    scopes.map((one) => ({ id: one.id, label: one.title })),
     chosen ?? '',
-    'project',
+    'scope',
     form,
   )
 }
@@ -217,13 +219,15 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       .text(cap(title, form - 2), skin.brand)
       .build(),
   ]
-  // The Projects page is one project at a time, and which one is a row of them
-  // above the form — the shape the projects along the top of the window have,
-  // and in the head rather than in the body so that it is still on screen when
-  // you have scrolled down to that project's checks.
-  const onProjects = panel.category === PROJECTS && !panel.search
-  const chosenProject = onProjects ? projectHere(panel.project, ctx.settings) : null
-  if (onProjects) formHead.push(...projectRow(panel, ctx, form, chosenProject))
+  // A page that is one of many — Projects, Intake — is one at a time, and which
+  // one is a row of them above the form: the shape the projects along the top
+  // of the window have, and in the head rather than in the body so that it is
+  // still on screen when you have scrolled down to that project's checks.
+  const scoped = panel.search ? null : scopedGroup(panel.category, ctx.settings)
+  if (scoped) {
+    const chosen = scopeHere(panel.scope, panel.category, ctx.settings)
+    formHead.push(...scopeRow(panel, ctx, form, scoped, chosen))
+  }
   // A heading and then the settings. What a group is about is still written
   // down — `about` is half of what the search box matches on, and `tade
   // config` reads it — but three lines of prose over every page, saying what
@@ -355,7 +359,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       focusFrom = from
       focusTo = to
     })
-  } else if (rows.length === 0 && !onProjects) {
+  } else if (rows.length === 0 && !scoped) {
     body.push(
       new Row(form, skin)
         .space()
@@ -363,7 +367,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
         .build(),
     )
   }
-  // Nothing is said on the Projects page with no projects open: the selector
+  // Nothing is said on a page of many with none of them there: the selector
   // has already said it, in the words that are true of it rather than in the
   // ones about a search.
 

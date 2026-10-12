@@ -537,13 +537,18 @@ describe('the shape of the settings', () => {
       .map((setting) => setting.path)
       .filter((path) => path.startsWith('surfaces.intake'))
 
-  it('puts every key under surfaces.intake out of the orchestrator’s reach', () => {
+  it('puts every key that says whose words make work out of the orchestrator’s reach', () => {
     // Table-tested over every key the schema actually produces, so a key added
     // next month is refused on the day it is added rather than when somebody
-    // remembers to think about it.
+    // remembers to think about it. Two leaves are the owner choosing among
+    // things the owner published — which template, which of its documents —
+    // and those take the person's own words; everything else no words reach.
     const found = paths()
     expect(found.length).toBeGreaterThan(0)
-    for (const path of found) expect(settingReach(path).reach).toBe('never')
+    const owners = /\.(template|document)$/
+    for (const path of found) {
+      expect(settingReach(path).reach, path).toBe(owners.test(path) ? 'asked' : 'never')
+    }
     // And the subtree, so a key nothing offers yet is refused too.
     expect(settingReach('surfaces.intake.sources.cli.something-new').reach).toBe('never')
   })

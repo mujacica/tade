@@ -179,7 +179,8 @@ are exactly two files it can go wrong in:
   `fallback: config.<the global>` and **`scope: name`**, and put `''` first in a `choice` — empty is
   how somebody gives the question back to the machine, and `writeSetting` deletes the key. The
   title names the *setting* and never the project (`Brief`, not `app brief`): the page shows one
-  project at a time behind a selector and says which once, and a list that crosses projects says
+  project at a time behind a selector (`SettingGroup.scoped`, which Intake's sources share) and
+  says which once, and a list that crosses projects says
   which per row through `settingLabel`. `''` draws as `as all projects do (<fallback>)`, so the
   ordinary answer reads as an answer rather than as an empty circle.
 - Add the path to `ALLOWED_UNDER` in `reach.ts`, or it is `never`: `projects` is a `never` subtree

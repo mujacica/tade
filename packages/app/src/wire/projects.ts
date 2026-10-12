@@ -29,7 +29,7 @@ import {
   type OpenRowView,
   openProjectPanel,
 } from '../panels/project/state.ts'
-import { PROJECTS } from '../panels/settings/projects.ts'
+import { PROJECTS } from '../panels/settings/scopes.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import {
   ago,

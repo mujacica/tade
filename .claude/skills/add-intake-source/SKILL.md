@@ -22,7 +22,7 @@ suite, so `intake`, `recheck` and `reply` are declared capabilities on it, honou
 | `packages/core/src/intake-outbox.ts` | what may be said back and which status is due: `INTAKE_SAYINGS`, `intakeSays`/`IntakeSayFacts`, `intakeMark`, `IntakeReceipt`, `sayingFor`, `outboxFor`/`outboxOf`, the two bounds and the cap |
 | `packages/core/src/events.ts` | `intake_received`, `intake_refused`, `intake_accepted`, `intake_held`, `intake_replied` |
 | `packages/core/src/settings-intake.ts` | the controls, with the sentence a control is tempted to leave out |
-| `packages/core/src/reach.ts` | `surfaces.intake` in `NEVER`, matched as a prefix |
+| `packages/core/src/reach.ts` | `surfaces.intake` in `NEVER`, matched as a prefix; `template` and `document` carved out in `ALLOWED_UNDER` |
 | `packages/core/src/limits.ts` | `planTooTight`: the subscription hold, scoped to intake-originated starts |
 | `packages/extensions/core/src/watch.ts` | the watch half of the port: `Finding.intake`, `Recheck`, `ReplyRequest`, `ReplyReceipt`, `ExtensionWatch.intake`/`recheck`/`reply` |
 | `packages/extensions/core/src/shape.ts` | `intakeProblem`: what a source must have to be turned on at all |
@@ -167,9 +167,16 @@ an agent runs as you and could label an issue itself, and then somebody is looki
   `started` — three facts, three words, and no copy may blur them. A sleeping laptop runs nothing
   and promises nothing, so "we'll run it when you're back" is not in `INTAKE_SAYINGS` and must not
   become one.
-- **Every key under `surfaces.intake` is `never`-tier**, by one dotted prefix in `reach.ts`, so a
-  key added next month is refused on the day it is added. The text the orchestrator reads all day
-  does not get to put itself on an allowlist.
+- **Every key under `surfaces.intake` is `never`-tier but two**, by one dotted prefix in
+  `reach.ts`, so a key added next month is refused on the day it is added. The text the
+  orchestrator reads all day does not get to put itself on an allowlist. The two are a source's
+  `template` and `document`, named in `ALLOWED_UNDER` and `asked`: the owner choosing among what
+  the owner published, which says nothing about whose words count, where, whether anybody
+  approves, or what goes back. A key you add to `IntakeGrant` is `never` until somebody argues
+  otherwise there.
+- **Settings shows one source at a time** (`SettingGroup.scoped`, the selector the Projects page
+  has): a row carries its source as `scope` and a title that names the setting, never the source,
+  and a source you add gets its tab from `INTAKE_SOURCE_TITLES`, which tsc holds complete.
 - **Nothing takes a path.** No `path`, `file`, `dir`, `root`, `command` or `prompt` key on any
   intake route, held by a test. Enforcement by absence rather than a sanitiser.
 - **A template's inputs are filled by what each one *is*, never by a mapping a caller supplies.**
@@ -266,8 +273,8 @@ deliberately has none, so nothing Tade reads there can be something it wrote.
   now. It is not a second authorisation — `intakeStands` asks the source and the grant at the
   moment of starting — it is so a press says which key rather than holding a second later.
 - **The orchestrator may read and may not act.** Two tools, both read-only; no method on the
-  `ToolHost` that approves, refuses, retries or changes a grant; `surfaces.intake` whole at `never`
-  in `reach.ts`. Held by `packages/orchestrator/test/intake.test.ts`, which names the absent tools
+  `ToolHost` that approves, refuses, retries or changes a grant; `surfaces.intake` at `never` in
+  `reach.ts` but for which template and which document, which take the person's own words. Held by `packages/orchestrator/test/intake.test.ts`, which names the absent tools
   so that adding one is a test to delete rather than a line nobody notices.
 
 ## A chat source, and a source you can say something back to

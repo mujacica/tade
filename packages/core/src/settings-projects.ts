@@ -31,6 +31,11 @@ export function projectGroups(config: Config): SettingGroup[] {
       about:
         "Each repository Tade can start work in: where it is, what it is called, what its agents do with finished work, its own answers to the check rules, and what it may spend. Left empty each follows the machine's answer above. What a project actually checks is read from its own workflows and commit hook, which Settings does not hold because they live in the repository.",
       keywords: ['project', 'projects', 'repository', 'repo', 'checks', 'budget', 'spend'],
+      scoped: {
+        word: 'for',
+        scopes: projects.map(([name]) => ({ id: name, title: name })),
+        none: 'No projects are open.',
+      },
       settings: projects.flatMap(([name, project]): Setting[] => [
         {
           path: `projects.${name}.root`,

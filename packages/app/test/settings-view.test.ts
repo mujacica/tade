@@ -1,37 +1,22 @@
 import { sliceByColumn, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
-import { ConfigSchema, type SettingGroup, settingsOf } from '@tade/core'
+import { ConfigSchema, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
 import { cap, sideWidth } from '../src/panels/cells.ts'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import { ITEM } from '../src/panels/frame.ts'
-import { PROJECTS, projectHere, projectsIn } from '../src/panels/settings/projects.ts'
-import { type SettingsPanel, settingsPanel, visibleSettings } from '../src/panels/settings/state.ts'
+import { visibleSettings } from '../src/panels/settings/state.ts'
 import { formLayout } from '../src/panels/settings/view.ts'
-import { panelKey } from '../src/panels.ts'
-import { COLOUR } from '../src/skin.ts'
 import type { Drawn } from '../src/ui.ts'
+import { context, drawnAt, GROUPS, panelFor, plainRows, WIDTHS } from './settings-panel.ts'
 
 // What the Settings panel has to be true at every width.
 //
 // The goldens say what it looks like on the two terminals they were drawn on;
 // these say what holds on all the others — that nothing ever runs into
 // anything, and that everything you can click says so under the pointer.
+// The two pages that are one of many are `settings-scopes.test.ts`.
 
-const config = ConfigSchema.parse({
-  projects: {
-    checkout: { root: '~/src/checkout', budget: { usd_per_day: 5 } },
-    search: { root: '~/src/search' },
-  },
-  surfaces: {
-    voice: {
-      mic: { device: 'MacBook Pro Microphone' },
-      attention: { budget: 6, quiet: '22:00-07:00' },
-    },
-  },
-})
-
-const GROUPS: SettingGroup[] = settingsOf(config)
 const CATEGORIES = [...GROUPS.map((group) => group.id), 'accounts', 'updates']
 
 /** What the Updates page would have read off this machine and the registries. */
@@ -111,85 +96,6 @@ const LOOK = {
   ],
 }
 
-const context = (over: Partial<PanelContext> = {}): PanelContext =>
-  ({
-    width: 120,
-    height: 34,
-    skin: COLOUR,
-    pointer: { hover: null, pressed: null },
-    home: '~/.tade',
-    route: null,
-    spend: null,
-    panes: [],
-    project: 'checkout',
-    items: [],
-    changes: [],
-    ahead: null,
-    branch: null,
-    base: null,
-    diff: null,
-    choices: [
-      { value: 'whisper', label: 'whisper · base.en', group: 'On this machine', note: 'no key' },
-      { value: 'openai', label: 'openai · whisper-1', group: 'In the cloud', note: 'needs a key' },
-    ],
-    settings: GROUPS,
-    accounts: [
-      {
-        harness: 'claude-code',
-        name: null,
-        kind: 'subscription' as const,
-        canAdd: true,
-        why: null,
-        status: { signedIn: true, who: 'you@example.com', plan: 'max', problem: null },
-        limits: { fiveHour: { used: 34, resetsAt: 0 } },
-        agents: 1,
-        forNewAgents: true,
-        canSignIn: true,
-      },
-    ],
-    configPath: '~/.tade/config.yaml',
-    releases: true,
-    budgetWarnings: 1,
-    levels: [],
-    openRows: [],
-    browsing: null,
-    homeDir: '/Users/me',
-    entries: [],
-    searching: false,
-    viewing: null,
-    talkKey: 'ctrl+space',
-    talkMode: 'hold',
-    bindings: {},
-    running: 0,
-    branches: [],
-    checkout: null,
-    found: 0,
-    terminalName: 'terminal',
-    extensions: [],
-    harnessExtensions: [],
-    written: [],
-    extensionView: null,
-    setup: null,
-    extensionsRoot: '~/.tade/extensions',
-    models: [],
-    modelTarget: 'the orchestrator',
-    currentModel: null,
-    updates: null,
-    updatesBusy: false,
-    lanesSurvive: false,
-    ...over,
-  }) as PanelContext
-
-const panelFor = (category: string, over: Partial<SettingsPanel> = {}): SettingsPanel => ({
-  ...settingsPanel(category),
-  ...over,
-})
-
-const drawnAt = (category: string, over: Partial<PanelContext> = {}, panel = panelFor(category)) =>
-  drawPanel(panel, context(over)).panel
-
-const plainRows = (drawn: Drawn) => drawn.rows.map((row) => stripTerminalSequences(row))
-
 /**
  * What the drawing says of `value`, read across the rows it took: the longest
  * piece of what is left that each row holds, in order. A value wrapped under
@@ -215,90 +121,6 @@ const readAcross = (rows: readonly string[], value: string): string => {
   }
   return got
 }
-
-/** The widths worth trying: from a terminal nobody should use to a wide one. */
-const WIDTHS = [40, 48, 56, 64, 72, 80, 96, 104, 120, 160]
-
-describe('the Projects page, which is one project at a time', () => {
-  const groups = settingsOf(config)
-
-  it('shows one project’s own answers, and the selector says which', () => {
-    // What Configure on a project's tab does, and what the page does on its
-    // own: everything that project answers for itself, in one place, written
-    // by the same writer. It was three pages — Projects, Checks per project
-    // and Budgets — each listing every project.
-    const shown = visibleSettings(settingsPanel(PROJECTS, '', 'checkout'), groups).map(
-      (setting) => setting.path,
-    )
-    expect(shown).toEqual([
-      'projects.checkout.root',
-      'projects.checkout.title',
-      'projects.checkout.brief',
-      'projects.checkout.workspace',
-      'projects.checkout.push',
-      'projects.checkout.max_parallel',
-      'projects.checkout.budget.usd_per_day',
-      'projects.checkout.checks.before',
-      'projects.checkout.checks.on_red',
-      'projects.checkout.checks.parallel',
-    ])
-    // And only that project's: the row beside it is somebody else's budget.
-    expect(shown).not.toContain('projects.search.budget.usd_per_day')
-  })
-
-  it('names a project nobody chose, and falls back to one that exists', () => {
-    // A project closed while the page is open leaves the page on one there is,
-    // rather than on an empty form.
-    expect(projectsIn(groups)).toEqual(['checkout', 'search'])
-    expect(projectHere('', groups)).toBe('checkout')
-    expect(projectHere('gone', groups)).toBe('checkout')
-    expect(projectHere('search', groups)).toBe('search')
-  })
-
-  it('offers every project to click, and the one you are on is the one drawn', () => {
-    const drawn = drawnAt(PROJECTS, {}, panelFor(PROJECTS, { project: 'search' }))
-    const ids = drawn.hits
-      .map((hit) => (hit.target.kind === 'control' ? hit.target.id : ''))
-      .filter((id) => id.startsWith('project:'))
-    expect([...new Set(ids)]).toEqual(['project:checkout', 'project:search'])
-    // The rows are that project's, and the heading above them is the page's.
-    const said = plainRows(drawn).join('\n')
-    expect(said).toContain('~/src/search')
-    expect(said).not.toContain('~/src/checkout')
-  })
-
-  it('walks the projects with the keyboard, above the first row of the form', () => {
-    // ↑ from the first setting reaches the selector, ←→ walks it, ↓ goes back
-    // into that project's rows — the selector is a pane of the page, not a row
-    // of the form, because a selector that scrolls away is one you cannot see
-    // the answer of while you read what it chose.
-    const inputs = { settings: groups }
-    const up = panelKey(panelFor(PROJECTS, { focus: 'form', row: 0 }), 'up', '', inputs)
-      .panel as SettingsPanel
-    expect(up.focus).toBe('projects')
-    const right = panelKey(up, 'right', '', inputs).panel as SettingsPanel
-    expect(right.project).toBe('search')
-    // Round the list rather than stopping at its end, the way the categories go.
-    expect((panelKey(right, 'right', '', inputs).panel as SettingsPanel).project).toBe('checkout')
-    const down = panelKey(right, 'down', '', inputs).panel as SettingsPanel
-    expect(down).toMatchObject({ focus: 'form', row: 0, project: 'search' })
-    // And nowhere else: no other page has a selector to walk into.
-    const elsewhere = panelKey(panelFor('telemetry', { focus: 'form', row: 0 }), 'up', '', inputs)
-      .panel as SettingsPanel
-    expect(elsewhere.focus).toBe('search')
-  })
-
-  it('says which project a row is about only where the page cannot', () => {
-    // On the page itself the selector says it once. A search crosses projects,
-    // so three rows called Brief would be three rows nobody can tell apart.
-    const here = plainRows(drawnAt(PROJECTS, {}, panelFor(PROJECTS, { project: 'checkout' })))
-    expect(here.join('\n')).toContain('Brief')
-    expect(here.join('\n')).not.toContain('checkout — Brief')
-    const found = plainRows(drawnAt(PROJECTS, {}, panelFor(PROJECTS, { search: 'brief' })))
-    expect(found.join('\n')).toContain('checkout — Brief')
-    expect(found.join('\n')).toContain('search — Brief')
-  })
-})
 
 describe('what the menu down the side is', () => {
   it('has no page of its own for approvals, and asks it where agents are', () => {
