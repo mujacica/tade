@@ -78,6 +78,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` — `follow` brings it up and down as the switch changes |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
 | what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with four goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy |
+| the strip's `remote off` / `remote 2` chip | `Away.facts` (`Frame.remote`, off the listener and its streams, never the config), drawn in `view/foot.ts`. The beat draws when the streams open differ from what the last **frame** drew, not the last beat: a page that opens and closes between two beats is otherwise left on screen |
 | the terminal's end of it | `packages/cli/src/commands/web.ts` |
 
 ## The rules that break things quietly

@@ -120,6 +120,9 @@ export const frame = (over: Partial<Frame> = {}): Frame => ({
   // Nothing wrong with how it is paid for, which is the ordinary case and draws
   // nothing at all: the strip says what needs somebody, not that things work.
   orchestratorAccount: { provider: 'openrouter', problem: null },
+  // The away view as most windows have it, which is off: the strip's chip is
+  // then the first thing it gives up, and drawn only where there is room.
+  remote: { on: false, devices: 0 },
   files: [
     { path: 'src', name: 'src', depth: 0, folder: true, open: true },
     {

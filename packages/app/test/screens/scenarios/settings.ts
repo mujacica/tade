@@ -351,6 +351,7 @@ export const SETTINGS_SCREENS: Scenario[] = [
     frame: frame({
       date: utcDate,
       height: 64,
+      remote: { on: true, devices: 1 },
       panel: { ...settingsFacts({}, { enabled: true }), away: awayOn() },
     }),
   },

@@ -546,7 +546,7 @@ describe('what the window shows', () => {
 
     await loaded.call('jev_review', { project: 'shop', task: 'shop/add-refunds' }, asked)
     const [item] = await loaded.statuses(tade)
-    expect(item?.item.text).toMatch(/jev · 1 read · 1 flagged/)
+    expect(item?.item.text).toMatch(/^jev 1\/1 /)
     // It is asked on a timer whether anybody is looking or not, so the second
     // ask must not read the journal again.
     const started = performance.now()

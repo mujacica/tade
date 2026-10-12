@@ -125,6 +125,9 @@ const SLOT = {
   // A plan window comes back within a week, the longest any harness names.
   reset: widthOf('6d 23h'),
   tokens: widthOf('999k tok'),
+  // The away view's chip, the wider of its two words: `remote 2` keeps the
+  // columns `remote off` took, so the line beside it holds still either way.
+  remote: widthOf('remote off'),
 }
 
 /** The conversation's tab has something in it nobody has seen: a shape no agent's mark has. */
@@ -495,19 +498,28 @@ export function renderFoot(
     bars: true,
     reset: true,
     listed: true,
+    remote: true,
   }
   // `listed` goes after the plan's own trimmings and before the controls: it is
   // a dollar figure, so it outlasts the tokens and the reset times, and it is
   // one click away on the page it opens, so it goes before anything that cannot
   // be clicked any more. Before the bars, too — what a plan has *left* is what
   // stops somebody working, and that is the more urgent of the two.
+  //
+  // The away view's chip goes where what it says puts it. `remote off` is the
+  // first thing given up: it is the default, about a feature most windows never
+  // turn on, and a figure is worth more than a column saying nothing listens.
+  // A device reading this machine is the other thing, and outlasts the figures.
+  const on = frame.remote?.on === true
   const shed: Array<keyof typeof full> = [
+    ...(on ? [] : (['remote'] as const)),
     'account',
     'tokens',
     'reset',
     'both',
     'listed',
     'thinking',
+    ...(on ? (['remote'] as const) : []),
     'model',
     'runtime',
     'bars',
@@ -527,6 +539,19 @@ export function renderFoot(
         r.text(one.text, lit(view, tone), one.viewable ? view : undefined)
         r.text(' │ ', skin.chrome)
       }
+    }
+    // The away view, as the listener has it and not as the config wishes:
+    // `remote off` in the grey of a quiet status, or the devices with a page
+    // open on it in the green of something live. Pressed, it goes where pairing
+    // is — the panel with the code while something listens, the switch in
+    // Settings while nothing does. Before anything looked, no chip: off is a claim.
+    if (show.remote && frame.remote) {
+      const { on, devices } = frame.remote
+      const away: Target = { kind: 'action', name: on ? '/away' : 'away-settings' }
+      const said = on ? `remote ${devices}` : 'remote off'
+      r.text(said, lit(away, on ? skin.done : skin.hint), away)
+      r.text(' '.repeat(Math.max(0, SLOT.remote - widthOf(said))), undefined, away)
+      r.text(' │ ', skin.chrome)
     }
     if (show.model && thinker !== undefined) {
       const look = lit(switcher, skin.hint)

@@ -150,6 +150,10 @@ export class Settings implements Subject {
       budgets: async () => {
         await this.open('budgets')
       },
+      // The strip's `remote off`: the switch that turns the away view on is here.
+      'away-settings': async () => {
+        await this.open('away')
+      },
     }
   }
 

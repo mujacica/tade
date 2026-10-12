@@ -118,16 +118,28 @@ function centsSaid(usd: number): string {
  * **last** look's. A watch that has started working again says so by going
  * quiet, which is the only dismissal a derived line can honestly have — and
  * what it says names what happened rather than that something did.
+ *
+ * `strip` is the same three figures as the strip draws them, `173/315 $0.47`:
+ * read over flagged, and the money only where some was measured, so a day
+ * nobody priced is never drawn as `$0.00`. `text` keeps the words, because it
+ * is also what `jev_findings` says out loud, where `173/315` means nothing.
  */
-export function statusLine(record: ReviewRecord): { text: string; flagged: number } {
+export function statusLine(record: ReviewRecord): {
+  text: string
+  strip: string
+  flagged: number
+} {
   const since = startOfDay(record.now)
   const today = record.reviews.filter((review) => Date.parse(review.at) >= since)
   const flagged = today.reduce((sum, review) => sum + review.raised.length, 0)
   const spent = today.reduce((sum, review) => sum + review.cost_usd, 0)
   // `looks` is newest first, as `watchedFrom` hands it over.
   const last = record.looks[0]
+  const cost = spent > 0 ? centsSaid(spent) : null
+  const trouble = last?.problem ? ` · ${shortly(last.problem)}` : ''
   return {
-    text: `${today.length} read · ${flagged} flagged${spent > 0 ? ` · ${centsSaid(spent)}` : ''}${last?.problem ? ` · ${shortly(last.problem)}` : ''}`,
+    text: `${today.length} read · ${flagged} flagged${cost ? ` · ${cost}` : ''}${trouble}`,
+    strip: `${today.length}/${flagged}${cost ? ` ${cost}` : ''}${trouble}`,
     flagged,
   }
 }

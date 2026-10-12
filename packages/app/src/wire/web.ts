@@ -184,6 +184,8 @@ export class Away implements Subject {
   /** What `enabled` the listener was last brought up or taken down for, and the turn doing it. */
   private wanted = false
   private turning: Promise<void> = Promise.resolve()
+  /** The devices the strip's chip last drew: one more or fewer since is a frame owed. */
+  private readers = 0
 
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
@@ -351,7 +353,7 @@ export class Away implements Subject {
     void letGoOfRevoked(this.sessions())
     // And the notifications: nothing awaited — somebody else's latency.
     this.push.beat()
-    if (this.asking !== null) this.wire.draw()
+    if (this.asking !== null || this.streams.listening().length !== this.readers) this.wire.draw()
   }
 
   /**
@@ -467,6 +469,13 @@ export class Away implements Subject {
     return where === null ? {} : { away: this.view(where === 'settings') }
   }
 
+  /** The strip's chip (`Frame.remote`): what is listening, and how many devices are reading. */
+  facts(): Partial<Frame> {
+    const on = this.server !== null && this.server.bound.length > 0
+    this.readers = on ? this.streams.listening().length : 0
+    return { remote: { on, devices: this.readers } }
+  }
+
   inputs(): PanelInputs {
     return {
       devices: this.devices.filter((one) => one.revoked === null).length,
@@ -510,9 +519,9 @@ export class Away implements Subject {
       if (control === AWAY_CONTROLS.code) this.mint()
       else if (control === AWAY_CONTROLS.allow) await this.decide(true)
       else if (control === AWAY_CONTROLS.deny) await this.decide(false)
-      else if (control === AWAY_CONTROLS.all) await this.revokeEverything()
+      else if (control === AWAY_CONTROLS.all) await revokeEvery(this.sessions(), this.tickets)
       else if (control.startsWith(AWAY_CONTROLS.revoke)) {
-        await this.revoke(control.slice(AWAY_CONTROLS.revoke.length))
+        await revokeOne(this.sessions(), control.slice(AWAY_CONTROLS.revoke.length))
       } else await widen(this.widening(), control)
     } catch (err) {
       // Said on the panel where the button was pressed, and never swallowed:
@@ -521,11 +530,6 @@ export class Away implements Subject {
       this.problem = err instanceof Error ? err.message : String(err)
     }
     this.wire.draw()
-  }
-
-  /** One device, disconnected at the machine. Its streams close now. */
-  private revoke(id: string): Promise<void> {
-    return revokeOne(this.sessions(), id)
   }
 
   /**
@@ -542,11 +546,6 @@ export class Away implements Subject {
       news: (said: string) => this.deps.news(said),
       reread: () => this.reread(),
     }
-  }
-
-  /** Every device, and the outstanding code, gone. It needs no network. */
-  private revokeEverything(): Promise<void> {
-    return revokeEvery(this.sessions(), this.tickets)
   }
 
   /** What ending a session needs of this subject, in one place for all three. */

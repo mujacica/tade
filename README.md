@@ -459,8 +459,10 @@ rather than drawn here.
 </table>
 
 Turning it on is one switch, in Settings › Away view, and the code, its link and the devices appear
-under it at once. The switch is off until you turn it; every step under it is on, and each is still
-nothing to a device until you grant that device here:
+under it at once. The strip at the foot of the window says which it is — `remote off`, or `remote 2`
+in green for the devices with a page open — and pressing it goes to that switch, or to the code once
+something is listening. The switch is off until you turn it; every step under it is on, and each is
+still nothing to a device until you grant that device here:
 
 | Switch | Default | What it adds |
 |---|---|---|

@@ -19,6 +19,9 @@ import { base, frame, type Scenario, utcDate } from './fixtures.ts'
 
 const URL = 'http://studio.local:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
 
+/** The strip's chip while it listens, with the one device below that has a page open. */
+const LISTENING = { on: true, devices: 1 }
+
 const AGENTS = `${DEVICES_SEEN_BY_AGENTS[0]?.toUpperCase() ?? ''}${DEVICES_SEEN_BY_AGENTS.slice(
   1,
 )}, which is why this list shows every device there is.`
@@ -110,7 +113,7 @@ export const AWAY_SCREENS: Scenario[] = [
       'and every device already paired with what each may read — because seeing the whole list ' +
       'is the real answer to one having been added by something running here.',
     state: { ...base(), panel: awayPanel() },
-    frame: frame({ date: utcDate, panel: { away: view() } }),
+    frame: frame({ date: utcDate, remote: LISTENING, panel: { away: view() } }),
   },
   {
     name: 'away-on-the-network',
@@ -120,6 +123,7 @@ export const AWAY_SCREENS: Scenario[] = [
     state: { ...base(), panel: awayPanel() },
     frame: frame({
       date: utcDate,
+      remote: LISTENING,
       panel: {
         away: view({
           bind: 'lan',
@@ -135,7 +139,13 @@ export const AWAY_SCREENS: Scenario[] = [
       'Too narrow for the code: said, with the address, rather than drawn cut — a QR with its ' +
       'right-hand side missing scans as nothing while looking exactly like one that works.',
     state: { ...base(), panel: awayPanel() },
-    frame: frame({ date: utcDate, width: 60, height: 24, panel: { away: view() } }),
+    frame: frame({
+      date: utcDate,
+      remote: LISTENING,
+      width: 60,
+      height: 24,
+      panel: { away: view() },
+    }),
   },
   {
     name: 'away-a-device-asking',
@@ -146,6 +156,7 @@ export const AWAY_SCREENS: Scenario[] = [
     state: { ...base(), panel: awayPanel() },
     frame: frame({
       date: utcDate,
+      remote: LISTENING,
       panel: {
         away: view({
           asking: {
@@ -173,6 +184,7 @@ export const AWAY_SCREENS: Scenario[] = [
     frame: frame({
       height: 42,
       date: utcDate,
+      remote: LISTENING,
       panel: {
         away: view({
           // Nothing to scan: a claim burns the ticket, and a person who came

@@ -402,6 +402,21 @@ describe('what the strip says about a look that failed', () => {
     ]
     expect(statusLine(record(reviews)).text).toBe('0 read · 0 flagged')
   })
+
+  it('draws read over flagged in the strip, with money only where some was measured', () => {
+    const today = (unit: string, raised: string[], cost: number) =>
+      review(NOW - 60_000, unit, { raised, cost_usd: cost })
+    const priced = statusLine(
+      record([today('shop/a', ['test_missing', 'secret'], 0.25), today('shop/b', [], 0.22)]),
+    )
+    expect(priced.strip).toBe('2/2 $0.47')
+    // The words stay where they are said out loud, and the strip is the same day.
+    expect(priced.text).toBe('2 read · 2 flagged · $0.47')
+    // Nothing priced is not nothing spent: no `$0.00` in its place.
+    expect(statusLine(record([today('shop/a', [], 0)])).strip).toBe('1/0')
+    const failing = statusLine(record([], { looks: [look(60_000, 'TypeSafe answered 400')] }))
+    expect(failing.strip).toBe('0/0 · TypeSafe answered 400')
+  })
 })
 
 describe('the sweep asks again rather than going quiet', () => {

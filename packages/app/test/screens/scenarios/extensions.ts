@@ -644,7 +644,7 @@ export const EXTENSION_SCREENS: Scenario[] = [
       height: 35,
       // Today's, like the page it opens: a figure that never goes down reads as
       // a figure that is stuck.
-      statuses: [{ extension: 'jev', text: '2 read · 4 flagged', tone: 'quiet', viewable: true }],
+      statuses: [{ extension: 'jev', text: 'jev 2/4 $0.03', tone: 'quiet', viewable: true }],
       panel: {
         extensionView: {
           title: 'Jev',

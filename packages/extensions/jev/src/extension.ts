@@ -1155,7 +1155,7 @@ export const jevExtension: TadeExtension = {
     if (record.reviews.length === 0 && record.looks.length === 0) return null
     const line = statusLine(record)
     return {
-      text: `jev · ${line.text}`,
+      text: `jev ${line.strip}`,
       // The **last** look and not any look this week: a warning in the strip
       // that outlives what it is about is a warning nobody can dismiss, and
       // whoever opened the page to get rid of it found nothing to press.

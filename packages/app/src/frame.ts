@@ -532,6 +532,13 @@ export interface Frame {
    * on its own — and draws as not held, which is what it is by default.
    */
   awake?: { held: boolean; problem: string | null }
+  /**
+   * The away view, for the strip's chip: whether anything is listening, and how
+   * many paired devices have a page open on it. Read off the listener and its
+   * streams, never the config — `enabled` with every bind refused is off.
+   * Undefined is a frame nothing looked for it in and draws no chip at all.
+   */
+  remote?: { on: boolean; devices: number }
   /** A picture is on the clipboard, and has not been taken or turned down. */
   clipboardImage?: boolean
   /** Extensions that need setting up, or are broken: a badge beside the Extensions button. */
