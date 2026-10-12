@@ -62,33 +62,42 @@ export interface Histories {
    * being read is one the subscription hears, and is never counted twice.
    */
   upTo: number
+  /** Each list that could not be read, said in words: an empty list stands in for it. */
+  failed: string[]
 }
 
 /** A turn of the event loop, so whatever is waiting is answered before the next query. */
 const aTurn = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 /**
- * Read every list, a query a turn. A query that fails is an empty list, as it
- * always was: the window opening is never what a journal that could not be
- * read stops.
+ * Read every list, a query a turn. A query that fails is an empty list and a
+ * sentence in `failed`: the window opening is never what a journal that could
+ * not be read stops, and never what it stops in silence either.
  */
 export async function readHistories(client: Pick<Workbench, 'events'>): Promise<Histories> {
-  const read = async (filter: Parameters<Workbench['events']>[0]) => {
+  const failed: string[] = []
+  const read = async (what: string, filter: Parameters<Workbench['events']>[0]) => {
     await aTurn()
-    return client.events(filter).catch(() => null)
+    return client.events(filter).catch((err: unknown) => {
+      const why = err instanceof Error ? err.message : String(err)
+      failed.push(`could not read ${what} from the journal, so the window goes without it: ${why}`)
+      return null
+    })
   }
   // The tail first: its last line is the moment everything else is cut to. A
   // tail that could not be read has no moment to cut to, so nothing is cut and
   // the newest line read stands in for it — which can count a line appended
   // while the rest were read twice, and only on a journal already failing.
-  const tail = await read({ limit: JOURNAL })
+  const tail = await read('what happened lately', { limit: JOURNAL })
   const upTo = tail ? (tail.at(-1)?.seq ?? 0) : Number.POSITIVE_INFINITY
   const cut = (events: TadeEvent[] | null) => (events ?? []).filter((event) => event.seq <= upTo)
-  const usage = cut(await read({ types: ['usage'] }))
-  const told = cut(await read({ types: [...TOLD_READS] }))
-  const runs = cut(await read({ types: [...RUNTIME_READS] }))
-  const queue = cut(await read({ types: [...QUEUE_READS] }))
-  const roots = cut(await read({ types: ['config_changed'] })).filter(aboutRoot)
+  const usage = cut(await read('what was spent', { types: ['usage'] }))
+  const told = cut(await read('which tasks finished', { types: [...TOLD_READS] }))
+  const runs = cut(await read('how long agents ran', { types: [...RUNTIME_READS] }))
+  const queue = cut(await read('what the queue decided', { types: [...QUEUE_READS] }))
+  const roots = cut(await read('where projects live', { types: ['config_changed'] })).filter(
+    aboutRoot,
+  )
   const recent = tail ?? []
   const newest = Math.max(
     0,
@@ -102,5 +111,6 @@ export async function readHistories(client: Pick<Workbench, 'events'>): Promise<
     queue,
     roots,
     upTo: Number.isFinite(upTo) ? upTo : newest,
+    failed,
   }
 }

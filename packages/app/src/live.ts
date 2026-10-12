@@ -295,6 +295,7 @@ export class Live {
       if (event.type === 'run_started' && event.task) this.started.add(event.task)
     }
     this.roots = read.roots
+    for (const why of read.failed) this.opts.onWarning?.(why)
     this.upTo = read.upTo
     this.read = true
     this.revisions++
