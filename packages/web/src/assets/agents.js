@@ -181,12 +181,16 @@ export function fillAgentRow(node, task, view) {
 }
 
 /**
- * What an agent runs on: the harness and the model, each a dash where nobody
- * wrote it down — never left out, which would read as the other one being the
- * whole answer.
+ * Where an agent works and what it runs on, in the order you look for them:
+ * its project, the harness with the account it signs in as, then the model.
+ * A harness or model nobody wrote down is a dash — never left out, which
+ * would read as the other being the whole answer; an account this device was
+ * not granted is simply not said.
  */
 export function runsOn(task) {
-  return `${task.harness ?? '—'} · ${task.model ?? '—'}`
+  const account = task.account?.words ?? null
+  const harness = `${task.harness ?? '—'}${account === null ? '' : ` (${account})`}`
+  return `${task.project} · ${harness} · ${task.model ?? '—'}`
 }
 
 /* ── one agent, looked into ────────────────────────────────────────────────── */

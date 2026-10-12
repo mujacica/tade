@@ -205,11 +205,8 @@ describe('what wants you', () => {
       NOW,
     )
     applySnapshot(store, made.snapshot())
-    expect(wantsYou(store).map((one: { id: string }) => one.id)).toEqual([
-      'a/blocked',
-      'a/failed',
-      'a/review',
-    ])
+    // Review is the window's *done*, not a decision waiting.
+    expect(wantsYou(store).map((one: { id: string }) => one.id)).toEqual(['a/blocked', 'a/failed'])
     expect(wantingIds(store).has('a/working')).toBe(false)
   })
 

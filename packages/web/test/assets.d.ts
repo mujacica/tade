@@ -484,7 +484,12 @@ declare module '*/assets/agents.js' {
   export function byProject<T extends { project: string }>(
     agents: readonly T[],
   ): { project: string; agents: T[] }[]
-  export function runsOn(task: { harness: string | null; model: string | null }): string
+  export function runsOn(task: {
+    project: string
+    harness: string | null
+    model: string | null
+    account: { words: string } | null
+  }): string
 }
 
 declare module '*/assets/toasts.js' {

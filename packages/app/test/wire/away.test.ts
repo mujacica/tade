@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConfigSchema, LAN_IS_PLAINTEXT_SHORT, LOCAL, startOfToday } from '@tade/core'
-import { readDevices, writeDevices } from '@tade/web'
+import { GRANTS, readDevices, SCOPES, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState } from '../../src/model.ts'
@@ -480,13 +480,13 @@ describe('letting a device in', () => {
     expect(decided).toEqual([true])
   })
 
-  it('grants names and counts on a yes, and nothing wider', async () => {
+  it('grants everything on a yes: the owner opts out, not in', async () => {
     const { away } = await wiring({ web: { enabled: true } })
     await away.open()
     const asked = asking(away)
     await away.decide(true)
     const said = await asked
-    expect(said).toEqual({ let: true, projects: null, granted: [] })
+    expect(said).toEqual({ let: true, projects: null, granted: GRANTS, scopes: SCOPES })
   })
 
   it('refuses on a no, and says which it was', async () => {

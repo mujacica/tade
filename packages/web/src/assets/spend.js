@@ -57,10 +57,7 @@ export function spendScreen() {
   kinds.classList.add('minis')
   into(made.body, head, under, about.body, kinds, outside)
 
-  const plans = section('PLAN WINDOWS')
-  const planList = panel('ul', 'rows')
-  const noPlans = empty('no harness here reported a plan window')
-  into(plans.body, planList, noPlans)
+  const plans = quotasSection()
 
   const by = section('BY PROJECT')
   const wrap = el('div', {
@@ -107,24 +104,7 @@ export function spendScreen() {
       ])
       planEquivalentIn({ outside, planWhy, planSaid }, fold)
       caveatsIn(caveats, fold, view.may.spend, spendSince(view.store))
-      const rows = plansOf(view.store)
-      textIn(plans.figure, count(rows.length))
-      noPlans.hidden = rows.length > 0
-      textIn(
-        noPlans,
-        nothingSaid(
-          view.may.spend,
-          omitted(view.store, 'plans'),
-          'no harness here reported a plan window',
-        ),
-      )
-      keyed(
-        planList,
-        rows,
-        (row) => row.id,
-        createPlanRow,
-        (one, row) => fillPlanRow(one, row, view),
-      )
+      plans.update(view)
       const names = projectsOf(view.store)
       // The largest project's money is the full width of every bar, so the
       // bars compare the projects with each other and nothing else.
@@ -135,6 +115,37 @@ export function spendScreen() {
         (row) => row.name,
         createSpendRow,
         (one, row) => fillSpendRow(one, row, view, most),
+      )
+    },
+  }
+}
+
+/**
+ * Quotas: every account's plan windows — the 5 hours, the week — each a bar
+ * of how much of it is used and when it starts over, as the harness reported
+ * them. The Spend screen and the overview draw the same section.
+ */
+export function quotasSection() {
+  const made = section('QUOTAS')
+  const list = panel('ul', 'rows quotas')
+  const none = empty('no account reported a quota')
+  into(made.body, list, none)
+  return {
+    node: made.node,
+    update(view) {
+      const rows = plansOf(view.store)
+      textIn(made.figure, count(rows.length))
+      none.hidden = rows.length > 0
+      textIn(
+        none,
+        nothingSaid(view.may.spend, omitted(view.store, 'plans'), 'no account reported a quota'),
+      )
+      keyed(
+        list,
+        rows,
+        (row) => row.id,
+        createPlanRow,
+        (one, row) => fillPlanRow(one, row, view),
       )
     },
   }

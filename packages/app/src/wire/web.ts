@@ -53,7 +53,7 @@ import {
   upSinceOf,
 } from './web-beat.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
-import { widen } from './web-grants.ts'
+import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownKeys, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
@@ -449,12 +449,8 @@ export class Away implements Subject {
     this.asking = null
     asking.answer(
       allow
-        ? // **Names and counts, and nothing else**, because that is what a
-          // keypress with one question on it can honestly grant. Widening what
-          // one device may read is its own act with its own control, and
-          // granting it from a yes/no would be a yes to a question nobody was
-          // asked.
-          { let: true, projects: null, granted: [] }
+        ? // Everything, opt-out: the owner's call (`EVERYTHING`, `web-grants.ts`).
+          { let: true, projects: null, ...EVERYTHING }
         : { let: false, why: 'refused' },
     )
     await this.reread()

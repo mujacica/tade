@@ -171,7 +171,7 @@ const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0)
 /**
  * What wants you, and in the order it wants you.
  *
- * `wantsYou` is the projection's own flag — `blocked | failed | review` — so
+ * `wantsYou` is the projection's own flag — the window's *needs you* — so
  * this sorts rather than decides. Blocked first because somebody is waiting on
  * a keypress, then failed, then work that is finished and nobody has looked at.
  */
@@ -216,6 +216,14 @@ export function tasksIn(store, project) {
  */
 export function agentsOf(store) {
   return rowsOf(store, 'tasks').filter((task) => (task.agents ?? 0) > 0)
+}
+
+/**
+ * The agents actually at work: mid-turn and not gone quiet, as the window
+ * counts *working*. An agent idle at its prompt has a lane and is not one.
+ */
+export function runningOf(store) {
+  return rowsOf(store, 'tasks').filter((task) => task.state === 'working' && !task.stalled)
 }
 
 export function taskAt(store, project, name) {

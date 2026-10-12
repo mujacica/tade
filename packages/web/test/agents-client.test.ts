@@ -42,7 +42,12 @@ describe('the agents, as the side list draws them', () => {
   })
 
   it('says what an agent runs on with a dash for what nobody wrote down', () => {
-    expect(runsOn({ harness: 'pi', model: 'claude-opus-5' })).toBe('pi · claude-opus-5')
-    expect(runsOn({ harness: 'pi', model: null })).toBe('pi · —')
+    const one = { project: 'tade', harness: 'pi', model: 'claude-opus-5', account: null }
+    expect(runsOn(one)).toBe('tade · pi · claude-opus-5')
+    expect(runsOn({ ...one, model: null })).toBe('tade · pi · —')
+    // The key it signs in as, beside its harness, where this device may read it.
+    expect(runsOn({ ...one, account: { words: 'work@example.invalid' } })).toBe(
+      'tade · pi (work@example.invalid) · claude-opus-5',
+    )
   })
 })

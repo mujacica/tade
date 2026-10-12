@@ -24,9 +24,11 @@ import { couldBeTicket, type Tickets } from './tickets.ts'
 // 4. the person asked, with a deadline, where *nobody answered* is an answer;
 // 5. the device written down, once, only after a yes.
 //
-// Nothing here decides who may read what: pairing mints `read` and the
-// ceiling is the origin's (`scopesOn`). Widening a device is a separate act at
-// the machine with no route at all.
+// Nothing here decides who may read what: pairing mints what the person at
+// the machine let it have (`Confirmed`) — `read` alone when that is unsaid —
+// and the ceiling is the origin's (`scopesOn`), so a device on a plaintext
+// address reads and nothing more whatever was let. Widening or narrowing one
+// later is a separate act at the machine with no route at all.
 
 /** What the pairing exchange needs, and nothing else reachable from it. */
 export interface Pairing {
@@ -122,7 +124,7 @@ export async function carryPairing(
   }
 
   const minted = mint()
-  const scopes = scopesOn(origin, ctx.surface, ['read'])
+  const scopes = scopesOn(origin, ctx.surface, confirmed.scopes ?? ['read'])
   const until = new Date(now() + SESSION_MS)
   await appendDevice(ctx.home, {
     kind: 'paired',

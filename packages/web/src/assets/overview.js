@@ -19,7 +19,7 @@
 // where somebody's thumb is.
 
 import { createAgentRow, fillAgentRow } from './agents.js'
-import { barIn, barOf, ringIn, ringOf, shareIn } from './charts.js'
+import { barIn, barOf, ringIn, ringOf } from './charts.js'
 import {
   classOn,
   el,
@@ -35,12 +35,13 @@ import {
   textIn,
   toneOn,
 } from './dom.js'
-import { ageSaid, money, planPressure, tokensSaid } from './figures.js'
+import { ageSaid, money, tokensSaid } from './figures.js'
 import { taskMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { quickActs } from './quick.js'
 import { pathOf, taskPath } from './routes.js'
 import { section } from './rows.js'
+import { quotasSection } from './spend.js'
 import {
   agentsOf,
   checksFold,
@@ -53,6 +54,7 @@ import {
   queueIn,
   reviewsOf,
   rowsOf,
+  runningOf,
   runsOf,
   spendFold,
   tasksIn,
@@ -76,7 +78,8 @@ export function glanceOf(store, project = null) {
   const tasks = rowsOf(store, 'tasks').filter(mine)
   const wants = wantsYou(store).filter(mine)
   const by = (state) => wants.filter((task) => task.state === state).length
-  const agents = agentsOf(store).filter(mine)
+  const running = runningOf(store).filter(mine)
+  const stalled = tasks.filter((task) => task.state === 'working' && task.stalled).length
   const queue = queueIn(store, project)
   const checks = checksFold(tasks)
   let plan = null
@@ -96,8 +99,8 @@ export function glanceOf(store, project = null) {
       review: by('review'),
     },
     working: {
-      n: agents.length,
-      stalled: agents.filter((task) => task.stalled).length,
+      n: running.length,
+      stalled,
     },
     queue: {
       n: queue.length + (project === null ? omitted(store, 'queue') : 0),
@@ -185,9 +188,13 @@ export function nowScreen(ctx = null) {
   const closedList = el('div', { class: 'chips' })
   into(closed.body, closedList)
 
+  // Every account's quota — the 5 hours, the week — as a bar each.
+  const quotas = quotasSection()
+
   into(
     node,
     top.node,
+    quotas.node,
     wants.node,
     projects.node,
     working.node,
@@ -201,6 +208,7 @@ export function nowScreen(ctx = null) {
     update(view) {
       const glance = glanceOf(view.store)
       tilesIn(made, glance, view)
+      quotas.update(view)
 
       const rows = wantsYou(view.store)
       textIn(wants.figure, rows.length === 0 ? '' : String(rows.length))
@@ -311,9 +319,7 @@ const TILE_SPECS = {
   wants: { icon: 'flag', label: 'Wants you', href: '#wants', tone: 'wants', bar: true },
   working: { icon: 'bolt', label: 'Working', href: '/agents', tone: 'working' },
   queue: { icon: 'queue', label: 'Queued', href: '/queue', tone: 'quiet' },
-  checks: { icon: 'checks', label: 'Checks', href: '/checks', ring: 'checks' },
   spend: { icon: 'spend', label: 'Spend', href: '/spend', tone: 'quiet' },
-  plan: { icon: 'clock', label: 'Plan', href: '/spend', ring: 'plan' },
 }
 
 const TILES = Object.keys(TILE_SPECS)
@@ -392,25 +398,6 @@ export function tilesIn(made, glance, view) {
     `${q.n} queued`,
   )
 
-  const c = glance.checks
-  const total = c.pass + c.fail + c.unknown
-  said(
-    made.checks,
-    total === 0 ? '—' : c.fail > 0 ? `${c.fail}` : `${c.pass}/${total}`,
-    total === 0
-      ? 'none run'
-      : c.fail > 0
-        ? 'red'
-        : c.unknown > 0
-          ? `${c.unknown} not run`
-          : 'green',
-    `checks: ${c.pass} green, ${c.fail} red, ${c.unknown} not run here`,
-  )
-  if (made.checks !== undefined) {
-    ringIn(made.checks.chart, [c.pass, c.fail, c.unknown])
-    classOn(made.checks.node, 'is-bad', c.fail > 0)
-  }
-
   const paid = money(glance.spend, view.may.spend)
   const figure = paid.said === '—' ? '—' : `${glance.spend.partial ? '≥' : ''}${paid.said}`
   const toks = tokensSaid(glance.spend)
@@ -420,17 +407,6 @@ export function tilesIn(made, glance, view) {
     paid.said === '—' ? paid.why : toks === null ? 'today' : `${toks.said} tokens`,
     paid.said === '—' ? `spend: ${paid.why}` : `spend ${figure}`,
   )
-
-  const p = glance.plan
-  said(
-    made.plan,
-    p === null ? '—' : `${Math.round(p.used)}%`,
-    p === null ? 'none reported' : `${p.label} · ${p.harness}`,
-    p === null ? 'plan: none reported' : `${p.harness} ${p.label} plan ${Math.round(p.used)}% used`,
-  )
-  if (made.plan !== undefined) {
-    shareIn(made.plan.chart, p?.used ?? null, p === null ? '' : planPressure(p.used))
-  }
 }
 
 /** `2 blocked · 1 failed`, leaving out what is nought. */

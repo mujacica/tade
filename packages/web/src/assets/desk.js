@@ -24,6 +24,7 @@
 // Hidden below its width by the stylesheet alone, so a tablet turned on its
 // side gains the dock without anything here knowing.
 
+import { runsOn } from './agents.js'
 import { classOn, el, empty, glyphOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
 import { count } from './figures.js'
 import { CHAT_KINDS, taskMark } from './glyphs.js'
@@ -213,7 +214,7 @@ function fillAgent(node, task, on) {
   else link.removeAttribute('aria-current')
   markIn(glyph, taskMark(task.state))
   textIn(name, task.name)
-  textIn(runs, task.model ?? task.harness ?? '—')
+  textIn(runs, runsOn(task))
   classOn(link, 'stalled', task.stalled)
 }
 

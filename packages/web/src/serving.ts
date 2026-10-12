@@ -7,7 +7,7 @@ import type { Streams } from './peers.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
-import type { Surface } from './surface.ts'
+import type { Scope, Surface } from './surface.ts'
 import type { Tickets } from './tickets.ts'
 
 // What the window hands the away view, and what it hands back.
@@ -44,7 +44,13 @@ export interface PairingAsk {
  * one answer for all of them.
  */
 export type Confirmed =
-  | { let: true; projects: readonly string[] | null; granted: readonly Grant[] }
+  | {
+      let: true
+      projects: readonly string[] | null
+      granted: readonly Grant[]
+      /** What it may do; `read` alone when unsaid. The origin's ceiling still holds (`scopesOn`). */
+      scopes?: readonly Scope[]
+    }
   | { let: false; why: 'refused' | 'nobody answered' }
 
 /**

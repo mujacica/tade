@@ -91,11 +91,11 @@ export function projectScreen(where, ctx) {
   // The project at a glance: the overview's own tiles, folded over this
   // project's work, each going to its own section below.
   const tiles = el('div', { class: 'tiles tiles-4' })
-  const glance = glanceTiles(tiles, ['wants', 'working', 'queue', 'checks'], {
+  const glance = glanceTiles(tiles, ['wants', 'working', 'queue', 'spend'], {
     wants: `#${agents.heading.id}`,
     working: `#${agents.heading.id}`,
     queue: `#${queue.heading.id}`,
-    checks: `#${checks.heading.id}`,
+    spend: `#${spend.heading.id}`,
   })
   into(node, back, head, tiles, strip, gone, agents.node, queue.node, checks.node, spend.node)
   const folds = foldsOf(checks, spend)

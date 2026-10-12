@@ -111,7 +111,6 @@ describe('what changed', () => {
     expect(delta?.set.tasks?.['sentry/away-projection']).toEqual({
       state: 'review',
       reason: '2 commits, tests unknown',
-      wantsYou: true,
     })
   })
 

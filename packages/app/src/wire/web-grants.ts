@@ -1,7 +1,27 @@
 import type { Config } from '@tade/core'
-import { allowDevice, type Device, grantDevice, surfaceOf, type Told } from '@tade/web'
+import {
+  allowDevice,
+  type Device,
+  GRANTS,
+  grantDevice,
+  SCOPES,
+  surfaceOf,
+  type Told,
+} from '@tade/web'
 import { AWAY_CONTROLS } from '../panels/away/state.ts'
 import { type Granted, kept, letOneAct, letOneTalk } from './web-acting.ts'
+
+/**
+ * What a device the person lets in may read and do: **everything, and the
+ * person takes away what they do not want** — the owner's own decision that
+ * the away view should be the whole of Tade by default, opt-out rather than
+ * opt-in, so a phone paired on the way out of the door can answer, steer and
+ * talk without a second trip to the machine. Two things still hold whatever
+ * this says: the asking card says *full access* at the moment of the yes, and
+ * the origin's ceiling (`scopesOn`) leaves a device on a plaintext address
+ * reading and nothing more. Each chip in the panel takes one back.
+ */
+export const EVERYTHING = { granted: [...GRANTS], scopes: [...SCOPES] } as const
 
 // The panel's controls that widen what one device may do or read, and
 // the one rule they share: **a keypress at this machine is the only door.**

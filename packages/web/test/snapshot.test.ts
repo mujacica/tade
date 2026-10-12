@@ -1,3 +1,4 @@
+import { IDLE_REASON } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { BUDGET, type Budget, pageOf, textOf } from '../src/page.ts'
 import { reasonOf, snapshotOf, wantsYou } from '../src/snapshot.ts'
@@ -68,13 +69,27 @@ describe('the projection', () => {
   })
 
   it('derives one flag and reads the rest', () => {
-    expect(['blocked', 'failed', 'review'].map(wantsYou as never)).toEqual([true, true, true])
-    expect(['working', 'queued', 'merged', 'parked'].map(wantsYou as never)).toEqual([
+    // The window's rule: a decision waiting is *wants you*; an agent idle at its
+    // prompt, work in review and work already finished are not.
+    const of = (state: string, said = 'turn ended with 2 uncommitted files', more = {}) =>
+      wantsYou({
+        state,
+        reason: { kind: 'clause', said },
+        approval: null,
+        finished: false,
+        ...more,
+      } as never)
+    expect(['blocked', 'failed'].map((state) => of(state))).toEqual([true, true])
+    expect(['review', 'working', 'queued', 'merged', 'parked'].map((state) => of(state))).toEqual([
+      false,
       false,
       false,
       false,
       false,
     ])
+    expect(of('blocked', IDLE_REASON)).toBe(false)
+    expect(of('blocked', 'x', { finished: true })).toBe(false)
+    expect(of('working', 'x', { approval: { id: 'a', tool: 'Bash', sinceAt: 0 } })).toBe(true)
   })
 
   it('splits a task’s name out of its id, so a phone need not', () => {

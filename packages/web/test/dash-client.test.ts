@@ -57,9 +57,16 @@ describe('the overview’s figures', () => {
   it('are the projection’s own counts, across every project', () => {
     const store = held()
     const glance = glanceOf(store)
-    const tasks = [...store.rows.tasks.values()] as { wantsYou: boolean; agents: number }[]
+    const tasks = [...store.rows.tasks.values()] as {
+      wantsYou: boolean
+      state: string
+      stalled: boolean
+    }[]
     expect(glance.wants.n).toBe(tasks.filter((one) => one.wantsYou).length)
-    expect(glance.working.n).toBe(tasks.filter((one) => one.agents > 0).length)
+    // Running, not every task with a lane: an agent idle at its prompt is not at work.
+    expect(glance.working.n).toBe(
+      tasks.filter((one) => one.state === 'working' && !one.stalled).length,
+    )
     expect(glance.wants.blocked + glance.wants.failed + glance.wants.review).toBe(glance.wants.n)
     expect(glance.queue.n).toBe(store.rows.queue.size)
   })

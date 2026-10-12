@@ -1,4 +1,4 @@
-import type { PlanStanding, Spend } from '@tade/core'
+import { IDLE_REASON, type PlanStanding, type Spend } from '@tade/core'
 import { projectRev, taskRev } from './acting.ts'
 import {
   type IntakeIn,
@@ -94,9 +94,23 @@ export function reasonOf(reason: ReasonIn): string {
   return `wants approval: ${reason.tool}${more}`
 }
 
-/** `blocked | failed | review` — the one flag this file derives rather than reads. */
-export function wantsYou(state: TaskIn['state']): boolean {
-  return state === 'blocked' || state === 'failed' || state === 'review'
+/**
+ * Whether a task is waiting on a decision of yours — the one flag this file
+ * derives rather than reads, and **by the window's own rule** (`markOf` in the
+ * app's model), so the count on a phone is the count on the screen at the
+ * machine: an approval waiting, a turn that ended on something to decide, or
+ * an agent that failed. Not an agent idle at its prompt — it finished its turn
+ * and is waiting to be told something, which is no decision — and not one in
+ * `review` or already finished, which the window draws as done.
+ */
+export function wantsYou(
+  task: Pick<TaskIn, 'state' | 'reason' | 'approval' | 'finished'>,
+): boolean {
+  if (task.approval !== null) return true
+  if (task.finished && task.state !== 'working' && task.state !== 'parked') return false
+  if (task.state === 'failed') return true
+  if (task.state !== 'blocked') return false
+  return !(task.reason.kind === 'clause' && task.reason.said === IDLE_REASON)
 }
 
 function spendOf(spend: Spend): SpendOut {
@@ -150,7 +164,7 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     // assumes, so a screen is refused exactly when what it was looking at has
     // moved and not when some figure did.
     rev: taskRev(factsOf(task)),
-    wantsYou: wantsYou(task.state),
+    wantsYou: wantsYou(task),
     question: task.question,
     approval:
       task.approval === null
@@ -585,8 +599,9 @@ function projectRow(
     counts: {
       tasks: mine.length,
       shown,
-      wantsYou: mine.filter((task) => wantsYou(task.state)).length,
-      working: mine.filter((task) => task.state === 'working').length,
+      wantsYou: mine.filter((task) => wantsYou(task)).length,
+      // Running, as the window counts it: an agent mid-turn and not gone quiet.
+      working: mine.filter((task) => task.state === 'working' && !task.stalled).length,
       queued: mine.filter((task) => task.state === 'queued').length,
     },
   }
