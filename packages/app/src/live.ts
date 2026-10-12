@@ -1,5 +1,5 @@
 import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   type Config,
   type DoneRule,
@@ -41,13 +41,16 @@ import type { PendingApproval } from '@tade/workbench/workers'
 import { aboutRoot } from './away-lifecycle.ts'
 import {
   branchesIn,
+  ChangesHeld,
   CheckoutGate,
   changesIn,
   diffIn,
   marksIn,
   STILL,
+  type TreeSaid,
   toldOf,
   treeIn,
+  treesFrom,
 } from './checkout-look.ts'
 import { type FileEntry, type Listed, treeOf } from './files.ts'
 import type { ActionsView, Change, NoteShown } from './frame.ts'
@@ -170,8 +173,10 @@ export class Live {
    * The last look at what is changed in a checkout, keyed by the place and the
    * base it is measured from, and whether a look is under way.
    */
-  private readonly changed = new Map<string, { at: number; changes: Change[] }>()
+  private readonly changed = new ChangesHeld()
   private readonly looking = new Set<string>()
+  /** What status said of each checkout it looks at, by where it is (`treesFrom`). */
+  private trees = new Map<string, TreeSaid>()
   /**
    * Looks a reader found due, waiting for the window's next look to start
    * them (`lookAgain`). Keyed by what is looked at, so a reader asked thirty
@@ -602,6 +607,9 @@ export class Live {
    */
   marksAt(root: string | null): Readonly<Record<string, string>> {
     if (!root) return {}
+    // Status has just run `git status` on a tree an agent works in: its word is the marks.
+    const said = this.trees.get(resolve(root))
+    if (said) return said.marks
     const seen = this.marks.get(root)
     if (!seen || this.now() - seen.at >= LISTING_MS) {
       this.lookSoon(`marks\0${root}`, () => this.lookAtMarks(root))
@@ -698,7 +706,7 @@ export class Live {
     return {
       ...seen.work,
       ahead: facts?.ahead ?? seen.work.ahead,
-      dirty: this.changed.get(task)?.changes.length ?? seen.work.dirty,
+      dirty: this.trees.get(resolve(root))?.dirty ?? seen.work.dirty,
       shared: facts ? facts.workspace === 'checkout' : seen.work.shared,
       review: review ?? seen.work.review,
     }
@@ -761,25 +769,23 @@ export class Live {
   changesAt(root: string | null, base: string | null): readonly Change[] | null {
     if (!root) return []
     const key = JSON.stringify([root, base])
-    const seen = this.changed.get(key)
-    if ((!seen || this.now() - seen.at >= LISTING_MS) && !this.looking.has(key)) {
+    const at = this.changed.at(key)
+    if ((at === null || this.now() - at >= LISTING_MS) && !this.looking.has(key)) {
       this.lookSoon(`changes\0${key}`, async () => {
         if (this.looking.has(key)) return
         this.looking.add(key)
-        const named = (this.changed.get(key)?.changes ?? []).map((change) => change.path)
-        const changes = await this.gate
-          .ask(`changes\0${key}`, root, named, this.now(), () => changesIn(root, base))
+        const named = this.changed.named(key)
+        // The files git does not track are status's to say, where it looks at this tree.
+        const asks = !this.trees.has(resolve(root))
+        const looked = await this.gate
+          .ask(`changes\0${key}`, root, named, this.now(), () => changesIn(root, base, asks))
           .catch(() => null)
           .finally(() => this.looking.delete(key))
-        const was = this.changed.get(key)
         // Still standing is a look that was had: not again until it is stale.
-        if (changes === STILL && was) this.changed.set(key, { ...was, at: this.now() })
-        if (changes === null || changes === STILL) return
-        this.changed.set(key, { at: this.now(), changes })
-        if (JSON.stringify(changes) !== JSON.stringify(was?.changes ?? null)) this.told()
+        if (looked !== null && this.changed.keep(key, looked, this.now())) this.told()
       })
     }
-    return seen?.changes ?? null
+    return this.changed.answer(key, this.trees.get(resolve(root))?.untracked)
   }
 
   /** A task's branch, its project, and how many commits it has that its base does not. */
@@ -1079,6 +1085,7 @@ export class Live {
         this.answered = said
         this.revisions++
         this.snapshots = snapshots
+        this.trees = treesFrom(workspace, this.trees)
         for (const warning of workspace.warnings) this.opts.onWarning?.(warning)
       }
       this.opts.onTasks?.(this.snapshots, moved)

@@ -352,6 +352,8 @@ function heldStatus(): StatusCollector & { say(change: (world: Workspace) => voi
  * clock the test moves, and status held still. `beat` is what an idle window
  * does every two seconds: the side read as a frame reads it — the marks, the
  * changes and the branch of one checkout — and the looks that found due.
+ * `tell` is status's next look finding the agent's tree changed as `codes`
+ * says (git's `XY` by path), and the window hearing it.
  */
 async function checkoutOver(
   over: { onTasks?: (moved: boolean) => void; onTerminals?: () => void } = {},
@@ -390,8 +392,18 @@ async function checkoutOver(
     await beat(root, base)
     return gitLoad().started - was
   }
-  return { repo, live, status, beat, asked, base: live.baseOf('app/refunds') }
+  const tell = async (codes: Record<string, string>) => {
+    status.say((world) => {
+      const task = world.projects[0]?.tasks.find((one) => one.id === 'app/refunds')
+      if (task?.git) Object.assign(task.git, { dirty: Object.keys(codes).sort(), xy: codes })
+    })
+    await live.refresh(false)
+  }
+  return { repo, live, status, beat, asked, tell, base: live.baseOf('app/refunds') }
 }
+
+/** How many `git status`es have been started, by anybody. */
+const statuses = () => gitLoad().commands.status ?? 0
 
 describe('what an idle window costs to keep a checkout looked at', () => {
   // The FILES tree's marks, CHANGES and the branch were asked of git every two
@@ -417,7 +429,7 @@ describe('what an idle window costs to keep a checkout looked at', () => {
   })
 
   it('looks again on the beat after the checkout moves, however it moved', async () => {
-    const { repo, live, status, beat, asked, base } = await checkoutOver()
+    const { repo, live, tell, beat, asked, base } = await checkoutOver()
     const root = live.worktreeOf('app/refunds') as string
     const changed = () => live.changesAt(root, base)?.map((one) => `${one.path} +${one.added}`)
     await asked(root, base)
@@ -427,11 +439,7 @@ describe('what an idle window costs to keep a checkout looked at', () => {
     // or of the folder sees. It is what status says next that tells.
     writeFileSync(join(root, 'ledger.ts'), 'one\ntwo\n')
     expect(await asked(root, base), 'the blind spot status covers').toBe(0)
-    status.say((world) => {
-      const task = world.projects[0]?.tasks.find((one) => one.id === 'app/refunds')
-      if (task?.git) task.git.dirty = ['ledger.ts']
-    })
-    await live.refresh(false)
+    await tell({ 'ledger.ts': '.M' })
     expect(await asked(root, base)).toBeGreaterThan(0)
     expect(changed()).toEqual(['ledger.ts +1'])
 
@@ -440,14 +448,17 @@ describe('what an idle window costs to keep a checkout looked at', () => {
     expect(await asked(root, base)).toBeGreaterThan(0)
     expect(changed()).toEqual(['ledger.ts +2'])
 
-    // A new file, which the folder's own stat sees.
+    // A new file: in CHANGES when status says so, since a diff cannot see one.
     writeFileSync(join(root, 'teapot.yaml'), 'short\n')
-    expect(await asked(root, base)).toBeGreaterThan(0)
+    await tell({ 'ledger.ts': '.M', 'teapot.yaml': '??' })
     expect(changed()).toContain('teapot.yaml +null')
+    // And the folder's own stat moved, so the diff is asked for again.
+    expect(await asked(root, base)).toBeGreaterThan(0)
 
     // Committed: the index and HEAD.
     repo.git('-C', root, 'add', '-A')
     repo.git('-C', root, 'commit', '-q', '-m', 'the teapot')
+    await tell({})
     expect(await asked(root, base)).toBeGreaterThan(0)
     // And quiet again once each reader has looked at what the commit left: the
     // branch on its own ten seconds, and the one look more that an answer
@@ -460,12 +471,66 @@ describe('what an idle window costs to keep a checkout looked at', () => {
     // The project's own checkout, where its one agent does not work: status
     // says nothing of it, so the only thing that can see an edit in place is a
     // look, and the answer stands only as long as status would let its own.
+    // That look is the window's own `git status`, for the marks and the new
+    // files, because nothing else has run one there.
     const { repo, beat, asked } = await checkoutOver()
+    const was = statuses()
     expect(await asked(repo.root, null)).toBeGreaterThan(0)
+    expect(statuses() - was, 'nobody said what is in a checkout status does not watch').toBe(2)
     const before = gitLoad().started
     for (let beats = 1; beats < REUSE_MS / 2_000; beats++) await beat(repo.root, null)
     expect(gitLoad().started - before).toBe(0)
     expect(await asked(repo.root, null)).toBeGreaterThan(0)
+  })
+})
+
+describe('what a window asks git of a tree status already looks at', () => {
+  // Status runs `git status` on every tree an agent works in, behind its own
+  // gate, and the window ran the same command on the same tree twice more
+  // every two seconds: once for the FILES tree's marks and once for CHANGES.
+  // Both now come out of what status said (`GitSnapshot.xy`); the window asks
+  // git only for the diff from the base, which status does not take.
+
+  it('runs no `git status` of its own, and draws what status said', async () => {
+    const { live, tell, beat, base } = await checkoutOver()
+    const root = live.worktreeOf('app/refunds') as string
+    const was = statuses()
+    for (let beats = 0; beats < 5; beats++) await beat(root, base)
+    writeFileSync(join(root, 'ledger.ts'), 'one\ntwo\n')
+    writeFileSync(join(root, 'teapot.yaml'), 'short\n')
+    await tell({ 'ledger.ts': '.M', 'teapot.yaml': '??' })
+    for (let beats = 0; beats < 5; beats++) await beat(root, base)
+    expect(statuses() - was, 'the window ran git status on a tree status looks at').toBe(0)
+    expect(live.marksAt(root)).toEqual({ 'ledger.ts': 'M', 'teapot.yaml': 'U' })
+    const drawn = live.changesAt(root, base)?.map((one) => `${one.mark} ${one.path}`)
+    expect(drawn).toEqual(['M ledger.ts', '? teapot.yaml'])
+  })
+
+  it('hands a frame the same answer while status says the same, through news about anything else', async () => {
+    // A region is kept over identity (`view/last-frame.ts`), and these are read
+    // in every frame: made again per beat, the side would be drawn again on
+    // every beat that was news for some other reason.
+    const { live, status, tell, beat, base } = await checkoutOver()
+    const root = live.worktreeOf('app/refunds') as string
+    writeFileSync(join(root, 'teapot.yaml'), 'short\n')
+    await tell({ 'teapot.yaml': '??' })
+    await beat(root, base)
+    const marks = live.marksAt(root)
+    const changes = live.changesAt(root, base)
+    status.say((world) => {
+      const task = world.projects[0]?.tasks.find((one) => one.id === 'app/refunds')
+      if (task) task.reason = 'something new'
+    })
+    const revision = live.revision
+    await live.refresh(false)
+    expect(live.revision, 'the beat was not news').toBeGreaterThan(revision)
+    await beat(root, base)
+    expect(live.marksAt(root)).toBe(marks)
+    expect(live.changesAt(root, base)).toBe(changes)
+    // And a new one the moment status says something new about the tree.
+    await tell({ 'teapot.yaml': '??', 'ledger.ts': '.M' })
+    expect(live.marksAt(root)).not.toBe(marks)
+    expect(live.changesAt(root, base)).not.toBe(changes)
   })
 })
 

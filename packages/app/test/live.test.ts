@@ -1,7 +1,14 @@
 import { renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, type Task, type Workspace } from '@tade/core'
-import { git, gitLoad, makeCollector, type StatusAnswer, type StatusCollector } from '@tade/status'
+import {
+  git,
+  gitLoad,
+  makeCollector,
+  parseStatusV2,
+  type StatusAnswer,
+  type StatusCollector,
+} from '@tade/status'
 import { Workbench } from '@tade/workbench'
 import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
@@ -13,8 +20,10 @@ import {
   changedFrom,
   changesFrom,
   commitsFrom,
+  diffFrom,
   knownTasks,
   snapshotsFrom,
+  withUntracked,
 } from '../src/reality.ts'
 
 // What the window shows is a fold of three sources that each know part of the
@@ -200,6 +209,20 @@ describe('changesFrom', () => {
     // Paths with spaces survive, because the output is NUL-separated.
     expect(at('new file.ts')?.mark).toBe('?')
     expect(at('new name.ts')?.mark).toBe('R')
+
+    // Where status has looked at the tree, CHANGES is the diff alone and the
+    // files status says git does not track: the same answer, without the
+    // window's own `git status`.
+    const said = parseStatusV2(
+      await run(['status', '--porcelain=v2', '-z', '--untracked-files=all']),
+    )
+    const untracked = Object.keys(said.xy).filter((path) => said.xy[path] === '??')
+    const diff = diffFrom(
+      await run(['diff', '--name-status', '-z', base]),
+      await run(['diff', '--numstat', '-z', base]),
+    )
+    expect(diff.map((one) => one.path)).not.toContain('new file.ts')
+    expect(withUntracked(diff, untracked)).toEqual(changes)
   })
 })
 
@@ -338,6 +361,30 @@ describe('the last look at a task, read without starting one', () => {
     await new Promise((resolve) => setTimeout(resolve, 2_000))
     expect(live.seenActions('app/refunds')).toEqual(live.actions('app/refunds'))
     expect(live.seenActions('app/refunds')?.task).toBe('app/refunds')
+  }, 30_000)
+
+  it('counts what is not committed from what status said, rather than saying none', async () => {
+    // The ACTIONS tab looked its count up under the task's name in a map kept
+    // by checkout, never found it, and said "Nothing uncommitted." of every
+    // agent. Status has just counted them, so the count is status's.
+    const repo = mkrepo()
+    const worktree = repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge' })
+    repo.write({ 'ledger.ts': 'changed\n', 'teapot.yaml': 'new\n' }, worktree)
+    const home = tmp('tade-live-dirty-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+    })
+    opened.push({ live, client })
+    await live.refresh()
+    live.actions('app/refunds')
+    await live.lookAgain()
+    expect(live.actions('app/refunds')?.dirty).toBe(2)
   }, 30_000)
 
   it('starts no git while it answers, and starts what it found due on the next look', async () => {

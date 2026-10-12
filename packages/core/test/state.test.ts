@@ -12,6 +12,7 @@ function git(over: Partial<GitSnapshot> = {}): GitSnapshot {
     headSubject: 'wip',
     headTime: NOW - 10 * MIN,
     dirty: [],
+    xy: {},
     ahead: 0,
     behind: 0,
     baseRef: 'main',

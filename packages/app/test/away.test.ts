@@ -52,6 +52,7 @@ function task(over: Partial<Task> = {}): Task {
       headSubject: 'the refunds work',
       headTime: Date.parse('2026-10-08T14:10:00.000Z'),
       dirty: [`${PRIVATE.root}/src/a.ts`, `${PRIVATE.root}/src/b.ts`],
+      xy: { [`${PRIVATE.root}/src/a.ts`]: '.M', [`${PRIVATE.root}/src/b.ts`]: '??' },
       ahead: 2,
       behind: null,
       baseRef: 'main',

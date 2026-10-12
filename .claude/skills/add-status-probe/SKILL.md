@@ -51,7 +51,9 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   instrument the probe test holds that to (`test/scan.probe.test.ts`: spawns and how many at once,
   never a stretch of wall clock). Work out an answer from output already in hand rather than
   spawning for it: `ahead`/`behind` come off `git status --branch` where the upstream is the base,
-  and contained-in-the-base is `ahead === 0` rather than another `merge-base`.
+  and contained-in-the-base is `ahead === 0` rather than another `merge-base`. The same goes for
+  whoever reads status: what the window needs of output status already has is carried in the answer
+  as data (each dirty path's own `XY` in `GitSnapshot.xy`), never spawned for again beside it.
 - **Anything the pool runs must not throw**, because one rejection takes the whole fan-out with it
   and `collectStatus`'s last-resort catch answers with an empty world — thirteen tasks reported as
   none. `probeOf` catches for exactly this reason.

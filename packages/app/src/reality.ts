@@ -142,6 +142,20 @@ function approvalOf(
  * the parsing is tested against real git output rather than trusted.
  */
 export function changesFrom(nameStatus: string, numstat: string, status = ''): Change[] {
+  const untracked = status
+    .split('\0')
+    .filter((field) => field.startsWith('? '))
+    .map((field) => field.slice(2))
+  return withUntracked(diffFrom(nameStatus, numstat), untracked)
+}
+
+/**
+ * The diff half of `changesFrom`: everything git tracks that changed since
+ * the base, without a word from `git status`. Where status has just looked at
+ * the tree anyway, the files it does not track come from what it said
+ * (`withUntracked`), and the window asks git for the diff alone.
+ */
+export function diffFrom(nameStatus: string, numstat: string): Change[] {
   const counts = new Map<string, { added: number | null; removed: number | null }>()
   const stats = numstat.split('\0')
   const count = (value: string | undefined) =>
@@ -176,17 +190,36 @@ export function changesFrom(nameStatus: string, numstat: string, status = ''): C
       i += 1
     }
   }
-  for (const field of status.split('\0')) {
-    if (field.startsWith('? ')) seen.set(field.slice(2), '?')
-  }
 
   const out: Change[] = []
   for (const [path, mark] of seen) {
     const counted = counts.get(path)
     out.push({ path, mark, added: counted?.added ?? null, removed: counted?.removed ?? null })
   }
-  return out.sort((a, b) => a.path.localeCompare(b.path))
+  return out.sort(byPath)
 }
+
+/**
+ * A diff with the files git does not track added in, each marked `?`: one the
+ * diff also names keeps its counts and takes the `?`, as `changesFrom` always
+ * gave it.
+ */
+export function withUntracked(diff: readonly Change[], untracked: readonly string[]): Change[] {
+  if (untracked.length === 0) return [...diff]
+  const all = new Map(diff.map((change) => [change.path, change]))
+  for (const path of untracked) {
+    const counted = all.get(path)
+    all.set(path, {
+      path,
+      mark: '?',
+      added: counted?.added ?? null,
+      removed: counted?.removed ?? null,
+    })
+  }
+  return [...all.values()].sort(byPath)
+}
+
+const byPath = (a: Change, b: Change) => a.path.localeCompare(b.path)
 
 /**
  * The commits of a branch, as `git log` with the trailer format and

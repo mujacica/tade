@@ -63,6 +63,40 @@ describe('probeGit on real repos', () => {
     expect(snapshot?.dirty).toEqual(['README.md', 'has space.txt', 'new\nline.txt', 'staged.ts'])
   })
 
+  it('says what git said of each dirty path, in its own two letters, conflicts and renames too', async () => {
+    // The window draws each changed file's mark from these, so it never has
+    // to run `git status` on a tree status has just looked at.
+    const r = mkrepo()
+    const wt = r.addTask('codes', { project: 'p' })
+    r.commit(
+      'base',
+      { 'keep.ts': 'a\n', 'gone.ts': 'b\n', 'old name.ts': 'c\n', 'both.ts': 'd\n' },
+      wt,
+    )
+    runGit(wt, 'checkout', '-q', '-b', 'other')
+    r.commit('theirs', { 'both.ts': 'theirs\n' }, wt)
+    runGit(wt, 'checkout', '-q', 'tade/codes')
+    r.commit('ours', { 'both.ts': 'ours\n' }, wt)
+    // A conflict, which git says by exiting 1.
+    expect(() => runGit(wt, 'merge', '-q', 'other')).toThrow()
+    // Computed, because `__proto__:` in a literal sets the prototype rather than a key.
+    r.write({ 'keep.ts': 'changed\n', 'new file.ts': 'x\n', ['__proto__']: 'y\n' }, wt)
+    rmSync(join(wt, 'gone.ts'))
+    runGit(wt, 'mv', 'old name.ts', 'new name.ts')
+    const { snapshot } = await probeGit(wt, { baseRef: 'main', ...noPr })
+    expect(snapshot?.xy).toEqual({
+      // A path, never the object's prototype.
+      ['__proto__']: '??',
+      'both.ts': 'UU',
+      'gone.ts': '.D',
+      'keep.ts': '.M',
+      'new file.ts': '??',
+      'new name.ts': 'R.',
+    })
+    // One code for every dirty path and nothing else, keyed in the same order.
+    expect(Object.keys(snapshot?.xy ?? {})).toEqual(snapshot?.dirty)
+  })
+
   it('worktree with 3 commits ahead, and main moved on', async () => {
     const r = mkrepo()
     const wt = r.addTask('ahead', { project: 'p' })

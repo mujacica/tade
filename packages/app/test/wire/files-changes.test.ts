@@ -137,13 +137,17 @@ async function world(
       state = next(state)
     },
     /**
-     * What the section would draw now, and then the window's next look. A
-     * read answers from the last look and only says one is due — a frame
-     * never starts git — so a test asks until the answer arrives, not once.
+     * What the section would draw now, and then the window's next look and
+     * status's next beat. A read answers from the last look and only says one
+     * is due — a frame never starts git — so a test asks until the answer
+     * arrives, not once. The beat is the window's every two seconds, and it is
+     * what says which files git does not track: status has just run `git
+     * status` on the checkout, so the window does not run it again.
      */
     changed: () => {
       const changes = files.facts().changes ?? []
       live.lookAgain()
+      void live.refresh(false)
       return changes.map((change) => change.path)
     },
     /** Where the view says it is looking, which is what the changes are about. */

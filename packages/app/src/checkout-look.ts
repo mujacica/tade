@@ -2,9 +2,9 @@ import { stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { Reality, Workspace } from '@tade/core'
 import { git, newProbeGate, REUSE_MS } from '@tade/status'
-import { marksFrom } from './files.ts'
+import { marksFrom, marksOf } from './files.ts'
 import type { Change } from './frame.ts'
-import { CHANGED_FORMAT, changedFrom, changesFrom } from './reality.ts'
+import { CHANGED_FORMAT, changedFrom, diffFrom, withUntracked } from './reality.ts'
 
 // What git says about a checkout — what is changed in it, each file's mark,
 // one file's diff, its branches — and when asking again would only find what
@@ -141,8 +141,13 @@ export async function markOf(path: string): Promise<string> {
 
 /**
  * What status last said of a checkout: for every task working in it, its head,
- * how far ahead of its base it is, and every dirty path. `''` where no task
- * works there, which is a checkout only a look can say anything about.
+ * how far ahead of its base it is, and every changed file git tracks, with
+ * git's code for it. `''` where no task works there, which is a checkout only a
+ * look can say anything about.
+ *
+ * Not the files git does not track: nothing gated on this reads them — the
+ * diff from the base cannot see one, and the window takes them from status
+ * itself (`treesFrom`) — so a new file is not a reason to ask git for a diff.
  */
 export function toldOf(world: Workspace | null, root: string): string {
   const at = resolve(root)
@@ -150,10 +155,64 @@ export function toldOf(world: Workspace | null, root: string): string {
   for (const project of world?.projects ?? []) {
     for (const task of project.tasks) {
       if (!task.git || resolve(task.worktree) !== at) continue
-      said.push([task.git.head, task.git.ahead, ...task.git.dirty].join('\0'))
+      const tracked = Object.entries(task.git.xy ?? {})
+        .filter(([, code]) => code !== '??')
+        .map(([path, code]) => `${code} ${path}`)
+      said.push([task.git.head, task.git.ahead, ...tracked].join('\0'))
     }
   }
   return said.join('\n')
+}
+
+/** What status said of a checkout it looks at, read the way the window draws it. */
+export interface TreeSaid {
+  /** What it was read out of, as one string: the same string is the same answer. */
+  readonly of: string
+  /** Each changed file's mark, as the FILES tree draws it (`markFor`). */
+  readonly marks: Readonly<Record<string, string>>
+  /** The files git does not track, which a diff from the base never names. */
+  readonly untracked: readonly string[]
+  /** How many files are changed and not committed. */
+  readonly dirty: number
+}
+
+/**
+ * What status said of every checkout a task works in, by where it is
+ * (`resolve`d): the first task's look answers, because every task in one
+ * checkout is handed the same one. A checkout no task works in is not here,
+ * and is looked at by the window itself.
+ *
+ * One whose codes read as they did keeps the answer it had (`was`), so what a
+ * frame was handed is the same object for as long as the tree is the same —
+ * and a beat costs a string per checkout, not a map of marks.
+ */
+export function treesFrom(
+  world: Workspace,
+  was: ReadonlyMap<string, TreeSaid>,
+): Map<string, TreeSaid> {
+  const out = new Map<string, TreeSaid>()
+  for (const project of world.projects) {
+    for (const task of project.tasks) {
+      const at = resolve(task.worktree)
+      // A snapshot with no codes is one that did not say, which is a look.
+      if (!task.git?.xy || out.has(at)) continue
+      const xy = task.git.xy
+      const of = JSON.stringify(xy)
+      const kept = was.get(at)
+      out.set(
+        at,
+        kept?.of === of
+          ? kept
+          : {
+              of,
+              marks: marksOf(xy),
+              untracked: Object.keys(xy).filter((path) => xy[path] === '??'),
+              dirty: Object.keys(xy).length,
+            },
+      )
+    }
+  }
+  return out
 }
 
 /** What git says about each file under a checkout — changed, new, conflicted — or null. */
@@ -163,21 +222,116 @@ export async function marksIn(root: string): Promise<Record<string, string> | nu
 }
 
 /**
- * Everything changed in a checkout since it branched, measured from where it
- * branched — the merge base, so work that landed on `base` since is not counted
- * as the checkout's — or from `HEAD` where there is no base. Null where git
- * could not say.
+ * What git tracks that changed in a checkout since it branched, measured from
+ * where it branched — the merge base, so work that landed on `base` since is
+ * not counted as the checkout's — or from `HEAD` where there is no base. Null
+ * where git could not say.
+ *
+ * The diff alone: the files git does not track are what status said of the
+ * checkout (`TreeSaid.untracked`), or `untrackedIn` where it says nothing.
  */
-export async function changesIn(root: string, base: string | null): Promise<Change[] | null> {
+export async function diffSince(root: string, base: string | null): Promise<Change[] | null> {
   const since = base ? await git(root, ['merge-base', 'HEAD', base]) : null
   const from = since?.ok ? since.stdout.trim() : 'HEAD'
-  const [names, numstat, status] = await Promise.all([
+  const [names, numstat] = await Promise.all([
     git(root, ['diff', '--name-status', '-z', from]),
     git(root, ['diff', '--numstat', '-z', from]),
-    git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all']),
   ])
   if (!names.ok) return null
-  return changesFrom(names.stdout, numstat.ok ? numstat.stdout : '', status.ok ? status.stdout : '')
+  return diffFrom(names.stdout, numstat.ok ? numstat.stdout : '')
+}
+
+/**
+ * What a look at a checkout's changes found: what git tracks that changed
+ * since the base, and the files it does not track where the look had to ask
+ * for them — null where status said, which is every checkout an agent works in.
+ */
+export interface ChangesLooked {
+  diff: Change[]
+  untracked: readonly string[] | null
+}
+
+/** The diff since `base`, and `git status`'s untracked files only where `asks`. */
+export async function changesIn(
+  root: string,
+  base: string | null,
+  asks: boolean,
+): Promise<ChangesLooked | null> {
+  const [diff, untracked] = await Promise.all([
+    diffSince(root, base),
+    asks ? untrackedIn(root) : null,
+  ])
+  return diff && { diff, untracked }
+}
+
+/** No files git does not track, as one array, so an answer joined with it is kept. */
+const NONE: readonly string[] = []
+
+/**
+ * What the window last found changed in each checkout, keyed by the place and
+ * the base it is measured from, and the answer CHANGES draws out of it: the
+ * diff joined with the files git does not track — status's word where it
+ * looks at the tree, and the look's own where it does not.
+ *
+ * The answer is the same object for as long as neither half is a new one,
+ * because it is read in every frame and a region is kept over identity.
+ */
+export class ChangesHeld {
+  private readonly looked = new Map<string, ChangesLooked & { at: number }>()
+  private readonly joined = new Map<string, { of: readonly unknown[]; changes: Change[] }>()
+
+  /** When the checkout under `key` was last looked at: never is `null`. */
+  at(key: string): number | null {
+    return this.looked.get(key)?.at ?? null
+  }
+
+  /** Every path the last look named, which the gate's signature stats. */
+  named(key: string): string[] {
+    const was = this.looked.get(key)
+    return [...(was?.diff ?? []).map((one) => one.path), ...(was?.untracked ?? [])]
+  }
+
+  /**
+   * Keep what a look found, or that the last answer still stands (`STILL`),
+   * as of `now`. True where it says something the last look did not, the
+   * first look included: before it, the side drew `…`.
+   */
+  keep(key: string, looked: ChangesLooked | typeof STILL, now: number): boolean {
+    const was = this.looked.get(key)
+    if (looked === STILL) {
+      if (was) this.looked.set(key, { ...was, at: now })
+      return false
+    }
+    this.looked.set(key, { ...looked, at: now })
+    const before = was ? { diff: was.diff, untracked: was.untracked } : null
+    return (
+      JSON.stringify({ diff: looked.diff, untracked: looked.untracked }) !== JSON.stringify(before)
+    )
+  }
+
+  /** What is changed, or `null` before any look: not looked is not empty. */
+  answer(key: string, said: readonly string[] | undefined): Change[] | null {
+    const was = this.looked.get(key)
+    if (!was) return null
+    const untracked = said ?? was.untracked ?? NONE
+    const kept = this.joined.get(key)
+    if (kept?.of[0] === was.diff && kept.of[1] === untracked) return kept.changes
+    const changes = withUntracked(was.diff, untracked)
+    this.joined.set(key, { of: [was.diff, untracked], changes })
+    return changes
+  }
+}
+
+/**
+ * The files git does not track in a checkout status says nothing of, out of a
+ * `git status` of the window's own. None where it could not say, as CHANGES
+ * always took a failed status: the diff is the half that can be wrong.
+ */
+export async function untrackedIn(root: string): Promise<string[]> {
+  const out = await git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all'])
+  if (!out.ok) return []
+  const marks = marksFrom(out.stdout)
+  return Object.keys(marks).filter((path) => marks[path] === 'U')
 }
 
 /**

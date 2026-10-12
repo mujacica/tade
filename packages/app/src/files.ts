@@ -66,38 +66,51 @@ export function treeOf(
  * `R`enamed, `U`ntracked, or `!` for a conflict. Tade's own record is left out.
  */
 export function marksFrom(status: string): Record<string, string> {
-  const marks: Record<string, string> = {}
+  const marks: [string, string][] = []
   const fields = status.split('\0')
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i]
     if (!field) continue
     const parts = field.split(' ')
-    let path: string | null = null
-    let mark = 'M'
+    const xy = parts[1] ?? '..'
     switch (field[0]) {
-      case '1': {
-        path = parts.slice(8).join(' ')
-        const xy = parts[1] ?? '..'
-        mark = xy.includes('A') ? 'A' : xy.includes('D') ? 'D' : 'M'
+      case '1':
+        marks.push([parts.slice(8).join(' '), markFor(xy)])
         break
-      }
       case '2':
-        path = parts.slice(9).join(' ')
-        mark = 'R'
+        marks.push([parts.slice(9).join(' '), markFor(xy)])
         i++ // the original path is the next field
         break
       case 'u':
-        path = parts.slice(10).join(' ')
-        mark = '!'
+        marks.push([parts.slice(10).join(' '), markFor(xy)])
         break
       case '?':
-        path = field.slice(2)
-        mark = 'U'
+        marks.push([field.slice(2), markFor('??')])
         break
     }
-    if (path) marks[path] = mark
   }
-  return marks
+  return Object.fromEntries(marks)
+}
+
+/** The kinds of change porcelain v2 writes only on a conflicted (`u`) line. */
+const CONFLICTED = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'])
+
+/**
+ * The letter one of git's own two (`XY`) is drawn as: `??` is a file git does
+ * not track, a conflict's codes are only ever a conflict's, and a rename or a
+ * copy is the only change whose code says `R` or `C` — so the code alone says
+ * all a porcelain line does, and status can hand the code over instead.
+ */
+export function markFor(xy: string): string {
+  if (xy === '??') return 'U'
+  if (CONFLICTED.has(xy)) return '!'
+  if (/[RC]/.test(xy)) return 'R'
+  return xy.includes('A') ? 'A' : xy.includes('D') ? 'D' : 'M'
+}
+
+/** Every path's mark, out of what status said of each (`GitSnapshot.xy`). */
+export function marksOf(xy: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(Object.entries(xy).map(([path, code]) => [path, markFor(code)]))
 }
 
 /**

@@ -10,7 +10,6 @@ import {
   LOCAL,
   type Queued,
   type TadeEvent,
-  type Task,
   taskDir,
   type Workspace,
   writeSetting,
@@ -39,6 +38,7 @@ import { capabilities } from './away-capabilities.ts'
 import { homeConfig, INTAKE } from './away-intake.ts'
 import { type AgentLanes, laneDoor, lifecycleFor } from './away-lifecycle.ts'
 import { settingsDoor, settingsOn } from './away-settings.ts'
+import { worldOf } from './away-world.ts'
 
 // A window with a real workbench behind it, a real listener on loopback, and a
 // phone making real requests.
@@ -471,6 +471,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
         headSubject: 'the fix',
         headTime: Date.now(),
         dirty: [],
+        xy: {},
         ahead: 2,
         behind: 0,
         baseRef: 'main',
@@ -502,90 +503,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     },
   }
   return made
-}
-
-/**
- * The world, with each task's **real** park read back off its **real** file.
- *
- * Read every time rather than captured, which is what makes "somebody parked
- * it at the keyboard since" a thing a test can do with the workbench and have
- * the projection see.
- */
-function worldOf(
-  home: string,
-  root: string,
-  tasks: readonly string[],
-  agents: ReadonlyMap<string, string>,
-  git: ReadonlyMap<string, GitSnapshot> = new Map(),
-  lanes: ReadonlyMap<string, boolean> = new Map(),
-): Workspace {
-  return {
-    generatedAt: new Date().toISOString(),
-    projects: [
-      {
-        name: 'app',
-        root,
-        brief: null,
-        untracked: [],
-        tasks: tasks.map((id) =>
-          taskOf(home, root, id, agents.has(id), git.get(id) ?? null, lanes.get(id)),
-        ),
-      },
-    ],
-    elsewhere: [],
-    toolServers: { looked: true, alive: 0 },
-    warnings: [],
-  }
-}
-
-function taskOf(
-  home: string,
-  root: string,
-  id: string,
-  running: boolean,
-  git: GitSnapshot | null = null,
-  lane: boolean | undefined = undefined,
-): Task {
-  // **Read out of the real task file, including the two the runs fold needs.**
-  // `effort` and `start` are what group tasks into a run and what the graph's
-  // edges are, and a fixture that ignored them would make every run of one
-  // task with no waits — which is the one shape the fold cannot get wrong.
-  const file = parse(readFileSync(join(taskDir(home, id), 'task.yaml'), 'utf8')) as {
-    parked?: boolean
-    by?: string
-    done?: Task['done']
-    effort?: string
-    start?: Task['start']
-  }
-  return {
-    id,
-    project: 'app',
-    branch: `tade/${id.split('/')[1] ?? id}`,
-    worktree: root,
-    created: new Date().toISOString(),
-    state: file.parked === true ? 'parked' : 'queued',
-    reason: 'no agent has started',
-    stalled: false,
-    ...(file.effort === undefined ? {} : { effort: file.effort }),
-    ...(file.start === undefined ? {} : { start: file.start }),
-    git,
-    agents: running
-      ? [
-          {
-            provider: 'pi',
-            session: 'one',
-            cwd: root,
-            lastActivityAt: Date.now(),
-            messages: 1,
-            pid: null,
-          },
-        ]
-      : [],
-    lanes: lane === undefined ? [] : [{ id: `${id}/agent`, kind: 'agent', alive: lane, pid: null }],
-    ...(file.parked === undefined ? {} : { parked: file.parked }),
-    ...(file.by === undefined ? {} : { by: file.by }),
-    ...(file.done === undefined ? {} : { done: file.done }),
-  } as unknown as Task
 }
 
 /** Whether a task's own file says it is parked. */

@@ -157,6 +157,7 @@ describe('a raw tool payload never becomes a reason', () => {
         headSubject: 'wip',
         headTime: NOW,
         dirty: [],
+        xy: {},
         ahead: 0,
         behind: 0,
         baseRef: 'main',

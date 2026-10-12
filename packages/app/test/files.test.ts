@@ -1,5 +1,6 @@
+import { parseStatusV2 } from '@tade/status'
 import { describe, expect, it } from 'vitest'
-import { folderMark, type Listed, marksFrom, treeOf } from '../src/files.ts'
+import { folderMark, type Listed, marksFrom, marksOf, treeOf } from '../src/files.ts'
 import { initialState, toggleFolder } from '../src/model.ts'
 
 // The FILES tree, from a made-up disk: what is listed, in what order, how deep.
@@ -75,6 +76,44 @@ describe('marks from git', () => {
       'old.ts': 'D',
       'src/renamed.ts': 'R',
       'src/conflict.ts': '!',
+      'notes/draft.md': 'U',
+    })
+  })
+
+  it('reads the same marks out of the codes status hands over as out of the porcelain', () => {
+    // Status ran `git status` on the tree already and hands over git's two
+    // letters for each path (`GitSnapshot.xy`); the window draws from those
+    // rather than running it again, and must draw exactly what it drew.
+    const status = [
+      '# branch.oid abc',
+      '1 .M N... 100644 100644 100644 abc abc src/app.ts',
+      '1 AM N... 000000 100644 100644 000 abc src/new.ts',
+      '1 .A N... 000000 000000 100644 000 000 src/intended.ts',
+      '1 D. N... 100644 000000 000000 abc 000 old.ts',
+      '1 .T N... 100644 100644 120000 abc abc linked',
+      '2 R. N... 100644 100644 100644 abc abc R100 src/renamed.ts',
+      'src/before.ts',
+      '2 C. N... 100644 100644 100644 abc abc C75 src/copied.ts',
+      'src/original.ts',
+      'u UU N... 100644 100644 100644 100644 a b c src/conflict.ts',
+      'u DU N... 100644 000000 100644 100644 a b c src/they-kept.ts',
+      'u AA N... 000000 100644 100644 100644 a b c src/both-added.ts',
+      '? notes/draft.md',
+      '',
+    ].join('\0')
+    const marks = marksFrom(status)
+    expect(marksOf(parseStatusV2(status).xy)).toEqual(marks)
+    expect(marks).toEqual({
+      'src/app.ts': 'M',
+      'src/new.ts': 'A',
+      'src/intended.ts': 'A',
+      'old.ts': 'D',
+      linked: 'M',
+      'src/renamed.ts': 'R',
+      'src/copied.ts': 'R',
+      'src/conflict.ts': '!',
+      'src/they-kept.ts': '!',
+      'src/both-added.ts': '!',
       'notes/draft.md': 'U',
     })
   })

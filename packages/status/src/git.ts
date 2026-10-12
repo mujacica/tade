@@ -32,19 +32,27 @@ export interface CmdResult {
 let started = 0
 let running = 0
 let peak = 0
+/** And how many of each command (`status`, `diff`…), so a test can hold one of them to none. */
+const commands = new Map<string, number>()
 
-export function gitLoad(): { started: number; peak: number } {
-  return { started, peak }
+export function gitLoad(): {
+  started: number
+  peak: number
+  commands: Readonly<Record<string, number>>
+} {
+  return { started, peak, commands: Object.fromEntries(commands) }
 }
 
 export function resetGitLoad(): void {
   started = 0
   running = 0
   peak = 0
+  commands.clear()
 }
 
 export async function git(dir: string, args: string[], timeoutMs = 5_000): Promise<CmdResult> {
   started++
+  commands.set(args[0] ?? '', (commands.get(args[0] ?? '') ?? 0) + 1)
   running++
   if (running > peak) peak = running
   try {
@@ -126,6 +134,12 @@ export interface StatusV2 {
   ahead: number | null
   behind: number | null
   paths: string[]
+  /**
+   * Git's own two letters for each of `paths` (`XY`), by path: `??` for a file
+   * it does not track. Built with `Object.fromEntries`, so a path called
+   * `__proto__` is a path and not a prototype.
+   */
+  xy: Record<string, string>
 }
 
 export function parseStatusV2(stdout: string): StatusV2 {
@@ -136,6 +150,12 @@ export function parseStatusV2(stdout: string): StatusV2 {
     ahead: null,
     behind: null,
     paths: [],
+    xy: {},
+  }
+  const codes: [string, string][] = []
+  const changed = (path: string, xy: string) => {
+    s.paths.push(path)
+    codes.push([path, xy])
   }
   const parts = stdout.split('\0')
   for (let i = 0; i < parts.length; i++) {
@@ -157,22 +177,24 @@ export function parseStatusV2(stdout: string): StatusV2 {
       continue
     }
     const fields = p.split(' ')
+    const xy = fields[1] ?? '..'
     switch (p[0]) {
       case '1':
-        s.paths.push(fields.slice(8).join(' '))
+        changed(fields.slice(8).join(' '), xy)
         break
       case '2':
-        s.paths.push(fields.slice(9).join(' '))
+        changed(fields.slice(9).join(' '), xy)
         i++ // the rename's original path is the next NUL field
         break
       case 'u':
-        s.paths.push(fields.slice(10).join(' '))
+        changed(fields.slice(10).join(' '), xy)
         break
       case '?':
-        s.paths.push(p.slice(2))
+        changed(p.slice(2), '??')
         break
     }
   }
+  s.xy = Object.fromEntries(codes)
   return s
 }
 
@@ -388,6 +410,12 @@ async function lookAtGit(worktree: string, opts: GitProbeOptions): Promise<GitPr
       headSubject,
       headTime,
       dirty: [...status.paths].sort(),
+      // In the order `dirty` is, so the same tree is the same JSON.
+      xy: Object.fromEntries(
+        Object.entries(status.xy).sort(([one], [other]) =>
+          one < other ? -1 : one > other ? 1 : 0,
+        ),
+      ),
       ahead,
       behind,
       baseRef: opts.baseRef,

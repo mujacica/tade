@@ -209,6 +209,10 @@ regions in a cycle now.
   What a subject has on screen it hands to `Live.keepAsking`, which reads it again on every beat:
   an idle window draws no frames, and a reader read only in one goes stale behind it. A look at a
   checkout asks `CheckoutGate` first (`checkout-look.ts`) — git only where a stat signature moved.
+  **And what status already looked at is not looked at again**: on a tree an agent works in, the
+  marks and the files git does not track are status's (`GitSnapshot.xy`, read by `treesFrom`), and
+  the window asks git only for the diff from the base. Its own `git status` is for a checkout no
+  agent works in; `live.probe.test.ts` counts `gitLoad().commands.status` to hold it there.
 - **Not looked is not empty.** `files` and `changesAt` answer `null` until they have looked, and the
   side draws `…` in the rows the section last took (`roomHeld`, kept by `wire/here.ts`), so NOTES
   does not jump on a switch. A first answer that is empty is still news (`told`): `…` was drawn.

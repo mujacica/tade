@@ -210,6 +210,13 @@ export const GitSnapshot = z.object({
   headTime: z.number().nullable(),
   /** Paths with staged, unstaged or untracked changes. */
   dirty: z.array(z.string()),
+  /**
+   * What git said of each of `dirty`, by path, in its own two letters —
+   * porcelain v2's `XY`: `.M` changed, `A.` added, `R.` renamed, `UU` in
+   * conflict, `??` untracked. Carried so a window can tell a new file from a
+   * changed one without running `git status` on a tree status just looked at.
+   */
+  xy: z.record(z.string(), z.string()),
   ahead: z.number().int().nullable(),
   behind: z.number().int().nullable(),
   baseRef: z.string().nullable(),

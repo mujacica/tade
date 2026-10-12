@@ -67,6 +67,7 @@ describe('runSignal', () => {
         headSubject: 'wip',
         headTime: 1_000,
         dirty: [],
+        xy: {},
         ahead: 0,
         behind: 0,
         baseRef: 'main',
