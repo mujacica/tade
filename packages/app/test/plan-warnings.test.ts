@@ -14,7 +14,7 @@ import { planBusyOf } from '../src/queue.ts'
 const queued = (
   name: string,
   after: readonly string[],
-  touches: readonly string[],
+  touches: readonly string[] = TOUCHES[name] ?? [],
 ): TaskSnapshot => ({
   task: `tade/${name}`,
   state: 'queued',
@@ -32,8 +32,8 @@ const queued = (
 const running = (
   name: string,
   after: readonly string[],
-  touches: readonly string[],
   over: Partial<TaskSnapshot> = {},
+  touches: readonly string[] = TOUCHES[name] ?? [],
 ): TaskSnapshot => ({
   task: `tade/${name}`,
   state: 'working',
@@ -45,140 +45,156 @@ const running = (
 })
 
 /** Said it was done, and sits at its prompt: what status calls `blocked`. */
-const done = (name: string, after: readonly string[], touches: readonly string[]) =>
-  running(name, after, touches, {
+const done = (name: string, after: readonly string[]) =>
+  running(name, after, {
     state: 'blocked',
     reason: 'agent idle, waiting for input',
     finished: { by: 'agent', summary: '' },
   })
 
+/** What each said it would touch, verbatim from its task file — junk entries included. */
+const TOUCHES: Record<string, readonly string[]> = {
+  'journal-index-no-rebuild': [
+    'packages/workbench/src/events.ts',
+    'packages/workbench/src/event-index.ts',
+    'packages/workbench/src/compact.ts',
+    'scripts/bench.ts',
+  ],
+  'open-paints-first': [
+    'packages/app/src/live.ts',
+    'packages/app/src/app.ts',
+    'packages/cli/src/commands/app.ts',
+    'packages/cli/src/program.ts',
+    'packages/cli/src/telemetry.ts',
+    'packages/app/src/highlight.ts',
+    'packages/app/src/wire/web.ts',
+  ],
+  'away-settings-compact-defaults': [
+    'packages/app/src/panels/settings',
+    'packages/core/src/config.ts',
+    'packages/core/src/settings.ts',
+    'packages/core/src/reach.ts',
+  ],
+  'documents-outlive-tasks': [
+    'packages/core/src/produces.ts',
+    'packages/core/src/home.ts',
+    'packages/core/src/compose.ts',
+    'packages/workbench/src/tasks.ts',
+    'packages/workbench/src/documents.ts',
+    'packages/orchestrator/src',
+    'packages/cli/src/commands/documents.ts',
+    'packages/app/src/wire/agents.ts',
+    '.claude/skills',
+    'CLAUDE.md/AGENTS.md',
+  ],
+  'idle-draws-only-on-news': [
+    'packages/app/src/wire/files.ts',
+    'packages/app/src/live.ts',
+    'packages/app/src/work-look.ts',
+    'packages/app/src/app.ts',
+    'packages/app/src/wire/extensions.ts',
+    'packages/app/src/wire/routes.ts',
+  ],
+  'unknown-not-empty': [
+    'packages/app/src/live.ts',
+    'packages/app/src/view/sidebar.ts',
+    'README pictures/goldens',
+  ],
+  'figures-hold-still': [
+    'packages/app/src/view/foot.ts',
+    'packages/app/src/view/top.ts',
+    'packages/app/src/view/queue.ts',
+    'packages/core/src/runtime.ts',
+    'README pictures/goldens',
+  ],
+  'flash-acknowledgements': [
+    'packages/app/src/model.ts',
+    'packages/app/src/transcript.ts',
+    'packages/app/src/view/foot.ts',
+    'packages/app/src/wire/paint.ts',
+  ],
+  'scrollback-and-history-fold': [
+    'packages/drivers/pty/src/index.ts',
+    'packages/workbench/src/registry.ts',
+    'packages/core/src/config.ts',
+    'packages/app/src/live.ts',
+  ],
+  'spawns-run-detached': [
+    'packages/core/src/run.ts',
+    'packages/core/src/index.ts',
+    'packages/app/src/images.ts',
+    'packages/extensions/core/src/host.ts',
+    'packages/drivers/tmux/src/index.ts',
+    'packages/workbench/src/authored.ts',
+    'packages/workbench/src/programs.ts',
+    'packages/voice',
+    'packages/harnesses/claude/src/adapter.ts',
+    'packages/harnesses/codex/src/adapter.ts',
+    'packages/status/src/git.ts',
+    'packages/status/src/processes.ts',
+    'packages/status/src/forges.ts',
+    'test/modularity.test.ts',
+    'README.md',
+  ],
+  'clipboard-watched': [
+    'packages/app/src/images.ts',
+    'packages/app/src/wire/images.ts',
+    'packages/app/src/wire/context.ts',
+  ],
+  'github-token-cached': [
+    'packages/status/src/forges.ts',
+    'packages/forges/github/src/index.ts',
+    'packages/extensions/review/src/forge.ts',
+    'packages/extensions/intake/src/github.ts',
+  ],
+  'git-status-via-status-child': [
+    'packages/status/src/git.ts',
+    'packages/status/src/status.ts',
+    'packages/status/src/forked.ts',
+    'packages/app/src/live.ts',
+    'packages/app/src/wire/files.ts',
+  ],
+  'front-agent-stays-still': [
+    'packages/app/src/wire/lanes.ts',
+    'packages/app/src/wire/keyboard.ts',
+    'packages/app/src/wire/mouse.ts',
+    'packages/app/src/wire/window.ts',
+    'packages/app/src/layout.ts',
+    'packages/app/src/model.ts',
+    'packages/app/src/app.ts',
+  ],
+  'intake-settings-by-source': [
+    'packages/app/src',
+    'packages/core/src/reach.ts',
+    'packages/core/src',
+  ],
+  'settings-orchestrator-model-dropdowns': ['packages/app', 'packages/core/src'],
+  'thinking-dropdown-anchored': ['packages/app/src'],
+}
+
+// What each was doing at 02:34, as the journal says, and what it waited on.
 const at0234: TaskSnapshot[] = [
-  done('journal-index-no-rebuild', [], ['packages/workbench/src/events.ts', 'scripts/bench.ts']),
-  running(
+  done('journal-index-no-rebuild', []),
+  running('open-paints-first', ['journal-index-no-rebuild']),
+  running('away-settings-compact-defaults', []),
+  running('documents-outlive-tasks', []),
+  queued('idle-draws-only-on-news', ['open-paints-first']),
+  queued('unknown-not-empty', ['idle-draws-only-on-news']),
+  queued('figures-hold-still', ['unknown-not-empty']),
+  queued('flash-acknowledgements', ['figures-hold-still']),
+  queued('scrollback-and-history-fold', ['flash-acknowledgements']),
+  queued('spawns-run-detached', [
     'open-paints-first',
-    ['journal-index-no-rebuild'],
-    [
-      'packages/app/src/live.ts',
-      'packages/app/src/app.ts',
-      'packages/cli/src/commands/app.ts',
-      'packages/cli/src/program.ts',
-      'packages/cli/src/telemetry.ts',
-      'packages/app/src/highlight.ts',
-      'packages/app/src/wire/web.ts',
-    ],
-  ),
-  running(
     'away-settings-compact-defaults',
-    [],
-    [
-      'packages/app/src/panels/settings',
-      'packages/core/src/config.ts',
-      'packages/core/src/settings.ts',
-      'packages/core/src/reach.ts',
-    ],
-  ),
-  running(
     'documents-outlive-tasks',
-    [],
-    [
-      'packages/core/src/produces.ts',
-      'packages/core/src/home.ts',
-      'packages/core/src/compose.ts',
-      'packages/workbench/src/tasks.ts',
-      'packages/workbench/src/documents.ts',
-      'packages/orchestrator/src',
-      'packages/cli/src/commands/documents.ts',
-      'packages/app/src/wire/agents.ts',
-      '.claude/skills',
-    ],
-  ),
-  queued(
-    'idle-draws-only-on-news',
-    ['open-paints-first'],
-    [
-      'packages/app/src/wire/files.ts',
-      'packages/app/src/live.ts',
-      'packages/app/src/work-look.ts',
-      'packages/app/src/app.ts',
-      'packages/app/src/wire/extensions.ts',
-      'packages/app/src/wire/routes.ts',
-    ],
-  ),
-  queued(
-    'unknown-not-empty',
-    ['idle-draws-only-on-news'],
-    ['packages/app/src/live.ts', 'packages/app/src/view/sidebar.ts'],
-  ),
-  queued(
-    'figures-hold-still',
-    ['unknown-not-empty'],
-    [
-      'packages/app/src/view/foot.ts',
-      'packages/app/src/view/top.ts',
-      'packages/app/src/view/queue.ts',
-      'packages/core/src/runtime.ts',
-    ],
-  ),
-  queued(
-    'flash-acknowledgements',
-    ['figures-hold-still'],
-    [
-      'packages/app/src/model.ts',
-      'packages/app/src/transcript.ts',
-      'packages/app/src/view/foot.ts',
-      'packages/app/src/wire/paint.ts',
-    ],
-  ),
-  queued(
-    'scrollback-and-history-fold',
-    ['flash-acknowledgements'],
-    [
-      'packages/drivers/pty/src/index.ts',
-      'packages/workbench/src/registry.ts',
-      'packages/core/src/config.ts',
-      'packages/app/src/live.ts',
-    ],
-  ),
-  queued(
-    'spawns-run-detached',
-    ['open-paints-first', 'away-settings-compact-defaults', 'documents-outlive-tasks'],
-    ['packages/core/src/run.ts', 'packages/app/src/images.ts', 'packages/voice'],
-  ),
-  queued(
-    'clipboard-watched',
-    ['spawns-run-detached'],
-    ['packages/app/src/images.ts', 'packages/app/src/wire/images.ts'],
-  ),
-  queued('github-token-cached', ['spawns-run-detached'], ['packages/status/src/forges.ts']),
-  queued(
-    'git-status-via-status-child',
-    ['scrollback-and-history-fold', 'spawns-run-detached'],
-    ['packages/status/src/git.ts', 'packages/app/src/live.ts', 'packages/app/src/wire/files.ts'],
-  ),
-  done(
-    'front-agent-stays-still',
-    ['intake-settings-by-source'],
-    [
-      'packages/app/src/wire/lanes.ts',
-      'packages/app/src/wire/keyboard.ts',
-      'packages/app/src/wire/mouse.ts',
-      'packages/app/src/wire/window.ts',
-      'packages/app/src/layout.ts',
-      'packages/app/src/model.ts',
-      'packages/app/src/app.ts',
-    ],
-  ),
-  done(
-    'intake-settings-by-source',
-    ['thinking-dropdown-anchored'],
-    ['packages/app/src', 'packages/core/src/reach.ts', 'packages/core/src'],
-  ),
-  done('settings-orchestrator-model-dropdowns', [], ['packages/app', 'packages/core/src']),
-  done(
-    'thinking-dropdown-anchored',
-    ['settings-orchestrator-model-dropdowns'],
-    ['packages/app/src'],
-  ),
+  ]),
+  queued('clipboard-watched', ['spawns-run-detached']),
+  queued('github-token-cached', ['spawns-run-detached']),
+  queued('git-status-via-status-child', ['scrollback-and-history-fold', 'spawns-run-detached']),
+  done('front-agent-stays-still', ['intake-settings-by-source']),
+  done('intake-settings-by-source', ['thinking-dropdown-anchored']),
+  done('settings-orchestrator-model-dropdowns', ['merge-local-worktrees']),
+  done('thinking-dropdown-anchored', ['settings-orchestrator-model-dropdowns']),
 ]
 
 const agent = (
@@ -283,8 +299,9 @@ const context = (busy: readonly PlanBusy[]) => ({
   workspace: () => 'checkout' as const,
   tasks: new Set(at0234.map((task) => task.task)),
   busy,
-  // tade's manifests: the repository's own and one per package.
-  packages: () => ['', 'packages/app', 'packages/core', 'packages/drivers/pty', 'packages/voice'],
+  // The packages this plan's touches are in, as tade has them: none of its
+  // agents names a whole one.
+  packages: () => ['', 'packages/app', 'packages/drivers/pty'],
 })
 
 const warningsWith = (busy: readonly PlanBusy[]) => {
