@@ -325,9 +325,10 @@ export class PtyDriver implements WorkspaceDriver {
    * rows.
    *
    * Answered from the frame the emulators pushed, without asking them, when it
-   * already holds everything the lane printed before this was asked; otherwise
-   * from the next one they push, which they do once it has settled. Either way
-   * a capture taken just after a keystroke was echoed shows the echo.
+   * already holds everything the lane printed before this was asked and at
+   * least the lines asked for (`covers`); otherwise from the next one they
+   * push, which they do once it has settled. Either way a capture taken just
+   * after a keystroke was echoed shows the echo.
    */
   async capture(id: LaneId, opts: CaptureOptions): Promise<string> {
     const lane = this.live(id)
@@ -338,16 +339,17 @@ export class PtyDriver implements WorkspaceDriver {
     const past = lane.frame?.whole === false ? lane.frame.n : 0
     const fresh = () =>
       lane.frame !== null &&
-      answers(lane.frame, asked) &&
+      covers(lane.frame, asked) &&
       lane.frame.seq >= want &&
       lane.frame.n > past
     this.watch(lane, asked, fresh())
     await this.wait(lane, fresh)
     if (lane.closed) throw new LaneClosedError(id)
-    const frame = (fresh() ? lane.frame : null) ?? lastKnown(lane, asked)
+    // Fresh or not, the newest there is, made to answer what was asked.
+    const frame = shaped(lane.frame, asked)
     if (!frame) throw cannotTell(id)
-    if (!frame.whole && lane.whole && answers(lane.whole, asked)) {
-      const held = lane.whole.rows
+    if (!frame.whole && lane.whole && covers(lane.whole, asked)) {
+      const held = shaped(lane.whole, asked)?.rows ?? ''
       lane.whole = null
       return held
     }
@@ -512,11 +514,15 @@ export class PtyDriver implements WorkspaceDriver {
    *
    * Said again only when it changed, or before it would run out — a lane on
    * screen is captured several times a second and nothing about it is news.
+   * A watch that already covers what is asked is not a change: the window
+   * scrolled back asks for more lines than it does at the newest one, and
+   * telling the smaller one the moment it came back down was a frame made for
+   * a screen whose newest rows had just been sent.
    */
   private watch(lane: Lane, asked: Asked, have: boolean): void {
     const now = Date.now()
     const was = lane.watching
-    if (have && was && answers(was, asked) && now - was.at < WATCH_MS / 2) return
+    if (have && was && covers(was, asked) && now - was.at < WATCH_MS / 2) return
     lane.watching = { ...asked, at: now }
     this.thread.tell({ do: 'watch', key: lane.key, ...asked })
   }
@@ -683,19 +689,33 @@ function answers(frame: Asked, asked: Asked): boolean {
   return frame.lines === asked.lines && frame.styled === asked.styled
 }
 
+/**
+ * Whether a frame answers what was asked without being made again: painted as
+ * asked, and of at least as many lines. A frame is cut from the bottom up, so
+ * the newest rows of a bigger one are exactly the smaller one.
+ *
+ * Matched only on the exact count, a window scrolling up the first screenful
+ * of a lane asked the emulators for a frame on every notch, each a line
+ * further back than the last — and waited for every one of them.
+ */
+function covers(frame: Asked, asked: Asked): boolean {
+  return frame.styled === asked.styled && frame.lines >= asked.lines
+}
+
 function saw(lane: Lane, seq: number, screen: LaneScreen): void {
   if (!lane.view || seq >= lane.view.seq) lane.view = { seq, screen }
 }
 
 /**
- * The newest frame known, made to answer what was asked, for when the
- * emulators could not say anything newer in time: the rows asked for, without
- * paint where none was wanted. A pane drawn from what was last known is a
- * pane a beat behind; one drawn from nothing is a pane that says the lane is
- * empty, which it is not.
+ * A frame made to answer what was asked: the rows asked for, without paint
+ * where none was wanted.
+ *
+ * Which is the whole answer from one that `covers` it, and the best there is
+ * from the newest known when the emulators could not say anything newer in
+ * time: a pane drawn from what was last known is a pane a beat behind; one
+ * drawn from nothing is a pane that says the lane is empty, which it is not.
  */
-function lastKnown(lane: Lane, asked: Asked): Pushed | null {
-  const frame = lane.frame
+function shaped(frame: Pushed | null, asked: Asked): Pushed | null {
   if (!frame || answers(frame, asked)) return frame
   const rows = frame.rows.split('\n').slice(-asked.lines)
   return {

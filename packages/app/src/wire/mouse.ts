@@ -116,9 +116,9 @@ export interface MouseDeps {
   /** A named action, as a button would run it, and where that button is. */
   run(action: string, from?: Pressed): void
   /**
-   * A lane was scrolled: cut what is held to where it now is. True when the
-   * lines held reached that far, which is what says whether the driver has to
-   * be asked at all.
+   * A lane was scrolled: cut what is held to where it now is. True when that
+   * cut is the whole answer, which is what says whether the driver has to be
+   * asked at all — a cut over the live rows is drawn and still looked behind.
    */
   reslice(area: 'pane' | 'terminal'): boolean
   soonTick(): void
@@ -259,10 +259,11 @@ export class Mouse {
       // A lane's screen is read from the driver, so the wheel would leave
       // the text where it was until the next look while the bar beside it
       // had already moved. Cut the lines we hold to where it now is, and
-      // ask for more only when it has gone past them — which is what the
-      // cut says, and the only reason to go to the driver at all. Asking
-      // anyway cost a screen read a notch in two lanes, 81 ms of a 735 ms
-      // flick spent finding out that nothing had changed.
+      // ask for more only when it has gone past them or onto the live rows
+      // — which is what the cut says, and the only reason to go to the
+      // driver at all. Asking anyway cost a screen read a notch in two
+      // lanes, 81 ms of a 735 ms flick spent finding out that nothing had
+      // changed.
       if (!this.deps.reslice(event.area)) this.deps.soonTick()
     }
     return true

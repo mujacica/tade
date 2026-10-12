@@ -5,9 +5,11 @@ import type { Hit } from '../src/hits.ts'
 import { resolveLayout } from '../src/layout.ts'
 import { type AppState, scrollBy } from '../src/model.ts'
 import {
+  asking,
   cutFrom,
   DRAG_MS,
   endOf,
+  HELD_LINES,
   NOTCH,
   RUN_MS,
   reachOf,
@@ -196,6 +198,31 @@ describe('cutting a screen out of the lines already held', () => {
     expect(cutFrom(held, 2, 10, 103)).toBe(['line 91', 'line 92'].join('\n'))
     // And once it wants a line that arrived after the read, it has to ask.
     expect(cutFrom(held, 2, 0, 103)).toBeNull()
+  })
+})
+
+// How many lines a lane is read back for. A driver that keeps a frame ready
+// keeps the one it was asked for, so a count that moved with every notch was a
+// frame made, and waited for, on every notch up the first screenful.
+describe('how far back a lane is read', () => {
+  it('reads the screen alone at the newest line, which is what a look costs there', () => {
+    expect(asking(40, 0)).toBe(40)
+  })
+
+  it('asks one count for a run of notches up the first screenful', () => {
+    const counts = new Set(Array.from({ length: 40 }, (_, back) => asking(40, back + 1)))
+    expect([...counts]).toEqual([2 * HELD_LINES])
+  })
+
+  it('always holds the way back down and room to move above it', () => {
+    for (const rows of [1, 24, 40, 199, 200, 201]) {
+      for (const back of [1, 39, 160, 161, 1_000, 9_999]) {
+        const asked = asking(rows, back)
+        expect(asked % HELD_LINES).toBe(0)
+        expect(asked).toBeGreaterThanOrEqual(rows + back + HELD_LINES)
+        expect(asked).toBeLessThan(rows + back + 2 * HELD_LINES)
+      }
+    }
   })
 })
 

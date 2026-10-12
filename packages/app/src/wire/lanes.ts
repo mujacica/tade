@@ -20,7 +20,6 @@ import {
 import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
-import { cutFrom, type HeldLines, holding, keeping, settledAbove } from '../scroll.ts'
 import type { Skin } from '../skin.ts'
 import {
   splitActed,
@@ -43,37 +42,16 @@ import {
 } from './context.ts'
 import { Finding } from './finding.ts'
 import { Fitting, type Size } from './fitting.ts'
+import { Held } from './held.ts'
 import { type Area, Screens } from './shown.ts'
 
-// The two screens in front of you, and the terminals they are.
-//
-// A lane's screen is read once and cut, not read again per notch: scrollback
-// above the live screen cannot change — an agent appends, it never rewrites —
-// so the lines are held with how deep the lane was when they were read, and
-// the screen is cut out of them. Only the bottom is asked for again. That is
-// also what puts the text and the bar beside it on the same frame.
+// The two screens in front of you, and the terminals they are. What the wheel
+// cuts them out of is `Held`.
 //
 // Whose the wheel is, is the lane's own to say and never the harness's: a
 // shell with an editor open in it is the same situation as an agent that
 // draws its own conversation, and a window that guessed from what it launched
 // would be wrong the moment somebody opened one.
-
-/**
- * How many lines past what is on screen a lane is read back, once it is being
- * scrolled: room for the wheel to move in before the driver has to be asked
- * again.
- *
- * A capture costs what it asks for — a tenth of a millisecond a line, so
- * twelve of them two thousand lines back — and it used to be paid again on
- * every look and again on every notch, for the same lines that had not
- * changed since the agent printed them. Scrollback above the live screen
- * never changes; only the bottom does. So the lines are kept, and the screen
- * the window draws is cut out of them.
- */
-const HELD_LINES = 200
-
-/** Which of the two screens an area is, and where each keeps how far back it is. */
-const SCROLL_OF = { pane: 'paneScroll', terminal: 'terminalScroll' } as const
 
 /** Two readings of a lane's screen that say the same thing, and so redraw nothing. */
 function same(a: LaneView | null, b: LaneView | null): boolean {
@@ -120,11 +98,8 @@ export class Lanes implements Subject {
    * another frame's depth jumps.
    */
   private readonly screens = new Screens()
-  /**
-   * The lines the pane and the terminal were last read as, and how deep the read
-   * went, which the wheel cuts a new screen out of: replaced, never written into.
-   */
-  private held: ReadonlyMap<'pane' | 'terminal', HeldLines> = new Map()
+  /** The lines the pane and the terminal were last read as, which the wheel cuts a screen out of. */
+  private readonly held: Held
   /** The lanes in front — both halves of each, where split — watched so they redraw as they print. */
   private readonly watching = new Map<Area, { lane: string; stop: () => void }>()
   /** How each lane was last sized — once per size, and once it holds still; its height, what may be rewritten. */
@@ -139,6 +114,7 @@ export class Lanes implements Subject {
     this.wire = wire
     this.deps = deps
     this.fitting = new Fitting(wire, { size: () => deps.size(), told: () => deps.soonTick() })
+    this.held = new Held(wire, this.fitting, deps.skin)
   }
 
   /** The two screens, as the frame draws them. */
@@ -154,7 +130,7 @@ export class Lanes implements Subject {
       // The lines behind those two screens: what a selection dragged over one
       // and scrolled reaches into. Which line of the lane the top of the screen
       // is, is the drawing's to work out, from the `cutAt` it was cut with.
-      held: this.held,
+      held: this.held.lines,
       terminal: {
         screen: terminal.screen,
         find: this.findView(),
@@ -190,8 +166,8 @@ export class Lanes implements Subject {
     }
     // Another lane's lines are not these: a selection anchored in them, or a
     // notch cut out of them, would be the lane just left.
-    if (moved.pane) this.held = holding(this.held, 'pane', null)
-    if (moved.terminal) this.held = holding(this.held, 'terminal', null)
+    if (moved.pane) this.held.drop('pane')
+    if (moved.terminal) this.held.drop('terminal')
     if (moved.pane || moved.split || moved.terminal || moved.below) this.deps.soonTick()
   }
 
@@ -478,7 +454,7 @@ export class Lanes implements Subject {
     // two lanes and gets neither.
     const read = at.split ? null : ((await this.wire.live?.screen(at.lane)) ?? null)
     const view = was.lane === at.lane && same(read, was.view) ? was.view : read
-    const screen = await this.laneScreen('pane', at.lane, at.rows, view)
+    const screen = await this.held.read('pane', at.lane, at.rows, view)
     // Kept as the lane's own only where it was read at its newest line: coming
     // back to an agent is coming back to its end.
     const fresh = { lane: at.lane, screen, view }
@@ -530,57 +506,6 @@ export class Lanes implements Subject {
     if (scrolled || this.wire.state.held !== was.held || routed.toTade !== null) this.wire.draw()
   }
   /**
-   * A lane's screen, cut to where it is scrolled to — read back from the
-   * driver only when what is already held does not reach that far.
-   *
-   * Scrollback is the one thing about a lane that cannot change: the agent
-   * appends, it never rewrites what it printed an hour ago. So a screen read
-   * two thousand lines back is read once, and the wheel moving through it is
-   * an array slice. What still has to be asked every look is the bottom,
-   * where the agent is typing, and that is the cheap end — which is what
-   * `settledAbove` holds this to. Answering the bottom from held lines too, a
-   * lane repainting in place never gets deeper, so the pane froze on the first
-   * screen ever read of it and drew that for as long as you watched.
-   */
-  private async laneScreen(
-    area: 'pane' | 'terminal',
-    lane: string | null,
-    rows: number,
-    view: LaneView | null,
-  ): Promise<string> {
-    if (!lane) {
-      this.held = holding(this.held, area, null)
-      return ''
-    }
-    const which = SCROLL_OF[area]
-    const at = view?.lines ?? 0
-    // Never further back than there is to read: the wheel is clamped against
-    // what the last frame drew, and this is the same clamp against what the
-    // driver says now, for a lane that shrank or was relaunched under us.
-    const most = Math.max(0, at - rows)
-    if (at > 0 && this.wire.state[which] > most)
-      this.wire.put({ ...this.wire.state, [which]: most })
-    const back = this.wire.state[which]
-    const held = keeping(view) && this.settled(lane, back) ? this.held.get(area) : undefined
-    if (held?.lane === lane && at >= held.at) {
-      const cut = cutFrom(held, rows, back, at)
-      if (cut !== null) return cut
-    }
-    // Room to move in before the driver has to be asked again — only once
-    // there is scrollback in play, so a lane at its newest line costs what it
-    // always did.
-    const asked = rows + back + (back > 0 ? HELD_LINES : 0)
-    const captured = (await this.wire.live?.capture(lane, asked, this.deps.skin.colour)) ?? ''
-    const lines = captured.split('\n')
-    // A capture ends at the newest line, so how many lines came back is what
-    // says which lines they are. A lane with no depth of its own — half of a
-    // split — has only its capture to count from.
-    const read = { lane, lines, at: Math.max(at, lines.length), asked }
-    this.held = holding(this.held, area, keeping(view) ? read : null)
-    return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
-  }
-
-  /**
    * A wheel that is the lane's to answer rather than the window's: turned in
    * it, and true when it was.
    *
@@ -617,36 +542,19 @@ export class Lanes implements Subject {
 
   /**
    * Cut the lines already held to where the wheel has just put them, so the
-   * text moves on the same frame as the bar beside it. True when they reached
-   * that far, and then there is nothing to ask the driver: what a notch
-   * changed is where the window is looking, not what the lane holds. False is
-   * the only reason to go and look, and asking anyway cost a screen read a
-   * notch in every lane in front of you — 81 ms of a 735 ms flick spent being
-   * told that nothing had changed.
+   * text moves on the same frame as the bar beside it (`Held.cut`). True when
+   * that is the whole answer and there is nothing to ask the driver; false is
+   * the only reason to go and look — the lines do not reach, or they are the
+   * live rows, drawn at once and read again behind it.
    */
   reslice(area: 'pane' | 'terminal'): boolean {
     // Only ever the lane in front's own lines: what a focus left behind is not.
     this.owned()
-    const held = this.held.get(area)
     const shown = this.screens.of(area)
-    if (!held || held.lane !== shown.lane) return false
-    // A notch onto the live screen is answered by reading it, not from held.
-    if (!this.settled(held.lane, this.wire.state[SCROLL_OF[area]])) return false
-    const cut = cutFrom(
-      held,
-      this.fitting.laneRows(area),
-      this.wire.state[SCROLL_OF[area]],
-      shown.view?.lines ?? held.at,
-    )
-    if (cut === null) return false
-    this.screens.read(area, { ...shown, screen: cut }, false)
-    return true
-  }
-
-  /** `settledAbove`, against the screen this lane was actually made. */
-  private settled(lane: string, back: number): boolean {
-    const live = this.fitting.rows(lane)
-    return live === undefined ? false : settledAbove(back, live)
+    const cut = this.held.cut(area, shown)
+    if (!cut) return false
+    this.screens.read(area, { ...shown, screen: cut.screen }, false)
+    return cut.whole
   }
 
   /**
@@ -685,7 +593,7 @@ export class Lanes implements Subject {
     const was = this.screens.of('terminal')
     const read = split ? null : ((await this.wire.live?.screen(id)) ?? null)
     const view = was.lane === id && same(read, was.view) ? was.view : read
-    const screen = await this.laneScreen('terminal', id, rows, view)
+    const screen = await this.held.read('terminal', id, rows, view)
     const fresh = { lane: id, screen, view }
     const moved = this.screens.read('terminal', fresh, this.wire.state.terminalScroll === 0)
     return moved || view !== was.view
@@ -775,8 +683,12 @@ export class Lanes implements Subject {
     if (!lane) return
     const watching = { lane, stop: () => {} }
     this.watching.set(slot, watching)
+    const printed = () => {
+      if (slot === 'pane' || slot === 'terminal') this.held.printed(slot)
+      this.deps.printed()
+    }
     void this.wire.opts.client
-      .watch(lane as LaneId, () => this.deps.printed(), { lines: 1 })
+      .watch(lane as LaneId, printed, { lines: 1 })
       .then((watched) => {
         if (this.watching.get(slot) === watching) watching.stop = watched.stop
         else watched.stop()

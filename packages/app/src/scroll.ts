@@ -228,9 +228,47 @@ export function holding<Area>(
  *
  * Not a rare shape, and not only agents: it is every progress bar, every
  * spinner, every `npm install` in a terminal lane.
+ *
+ * Below it the lines held are still worth *drawing* — a photograph as new as
+ * the look that took it, which is what every frame is — only never the whole
+ * answer: a look still reads the live rows again behind them.
  */
 export function settledAbove(back: number, live: number): boolean {
   return back >= live
+}
+
+/**
+ * How many lines past what is on screen a lane is read back, once it is being
+ * scrolled: room for the wheel to move in before the driver has to be asked
+ * again.
+ *
+ * A capture costs what it asks for — a tenth of a millisecond a line, so
+ * twelve of them two thousand lines back — and it used to be paid again on
+ * every look and again on every notch, for the same lines that had not
+ * changed since the agent printed them. Scrollback above the live screen
+ * never changes; only the bottom does. So the lines are kept, and the screen
+ * the window draws is cut out of them.
+ */
+export const HELD_LINES = 200
+
+/**
+ * How many lines a lane is read back for a screen `rows` tall that ends `back`
+ * lines above its newest: the screen alone at the newest line, which is what a
+ * lane printing in front of you costs every look, and otherwise the screen,
+ * the way back down and `HELD_LINES` more, rounded up to a whole number of
+ * `HELD_LINES`.
+ *
+ * Rounded, because a driver that keeps a frame ready keeps the one it was
+ * asked for (`drivers/pty`), and a different number of lines is a frame it has
+ * not made. Every notch over the live rows moved `back`, so every one was a
+ * frame made on the emulators' thread and waited for, the text a look behind
+ * the bar beside it (`Held.cut` has the numbers). Rounded, one
+ * frame answers every notch from the newest line to a hundred and sixty lines
+ * up a forty-row screen.
+ */
+export function asking(rows: number, back: number): number {
+  if (back <= 0) return rows
+  return Math.ceil((rows + back + HELD_LINES) / HELD_LINES) * HELD_LINES
 }
 
 /**

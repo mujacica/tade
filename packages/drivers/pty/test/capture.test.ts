@@ -21,6 +21,14 @@ function script(driver: PtyDriver, id: string, source: string) {
   })
 }
 
+/** Emulators that never make a frame of a lane smaller than one it was already asked for. */
+const SPARING = new URL('./fixtures/sparing-emulators.ts', import.meta.url)
+
+/** `count` turns of the event loop, with whatever I/O arrived in them. */
+async function turns(count: number): Promise<void> {
+  for (let i = 0; i < count; i++) await new Promise((resolve) => setImmediate(resolve))
+}
+
 async function until(check: () => Promise<boolean>, ms = 10_000): Promise<void> {
   const deadline = Date.now() + ms
   while (!(await check())) {
@@ -89,6 +97,32 @@ describe('reading a lane', () => {
       depth = view.lines
       expect(await driver.capture(lane, { lines: 50, styled: true })).toContain(`got:k${i}`)
     }
+  }, 30_000)
+
+  // A window scrolled up the first screenful of a lane asks for more lines than
+  // one at its newest line, and each notch asked for a different number of
+  // them. Matched only on the exact count, every one was a frame the emulators
+  // had to make and the capture had to wait for, though the newest rows of the
+  // one they had already sent are exactly the rows asked for.
+  it('answers from a frame of more lines than it was asked for, without waiting for one', async () => {
+    driver = new PtyDriver({ emulators: SPARING })
+    await script(
+      driver,
+      'read/fewer',
+      `for (let i = 0; i < 300; i++) process.stdout.write('\\x1b[1;31mline ' + i + '\\x1b[0m\\r\\n')`,
+    )
+    const lane = 'read/fewer' as LaneId
+    const deep = { lines: 400, styled: true }
+    await until(async () => (await driver.capture(lane, deep)).includes('line 299'))
+    const all = await driver.capture(lane, deep)
+
+    // Counted in turns of the loop rather than in milliseconds: answered from
+    // what is there is one turn, and these emulators never make the smaller
+    // frame a capture that waited for one would wait out its bound for.
+    const near = driver.capture(lane, { lines: 40, styled: true })
+    const first = await Promise.race([near.then(() => 'answered'), turns(5).then(() => 'waiting')])
+    expect(first).toBe('answered')
+    expect(await near).toBe(all.split('\n').slice(-40).join('\n'))
   }, 30_000)
 
   it('never shows a frame half drawn', async () => {

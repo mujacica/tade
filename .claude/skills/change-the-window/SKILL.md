@@ -21,7 +21,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
 | `hits.ts` | What is where on the screen, so a click can mean something (`scrollAt`, `extentOf`, `selectableText`) | a terminal |
 | `pointer.ts` | What a press, a drag, a release and a notch mean at the cell they landed on | a terminal |
-| `scroll.ts` | What a notch is worth (`Wheel`, the ramp), how far a region reaches (`reachOf`), and the lines a lane's screen is cut out of (`HeldLines`, `cutFrom`, `keeping`) | a terminal |
+| `scroll.ts` | What a notch is worth (`Wheel`, the ramp), how far a region reaches (`reachOf`), and the lines a lane's screen is cut out of (`HeldLines`, `cutFrom`, `keeping`, how many to ask for: `asking`) | a terminal |
 | `scrollbar.ts` | The bar down the right of anything that scrolls, and the one along the bottom of anything wider than its pane (`barAcross`) | a terminal |
 | `selection.ts` | `Region`: what a drawing says it drew, so a selection is anchored in lines and not in rows (`cellsIn`, `spanText`) | a terminal |
 | `input.ts` | What is selected in the line you type on and in the file you have open — one model for both (`spanOf`, `wordAt`, `clickedSpan`, `putCaret`, `cutSpan`, `rowStarts`) | a terminal |
@@ -443,6 +443,15 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   is looking, not what the lane holds, so there is nothing to ask the driver at all (`reslice` says
   whether it reached; only false asks for a look). Asking anyway cost a screen read a notch in every
   lane in front of you: 81 ms of a 735 ms flick spent being told that nothing had changed.
+- **Over the live rows a cut is drawn and still looked behind** (`Held.cut`, `wire/held.ts`): the
+  rows a program may be rewriting are as new as the look that read them, which is as new as any
+  frame, so the first screenful up is cut at once and `reslice` says false; waiting for the look
+  instead was 19 ms a notch with the text behind the bar, against 2 now. **Never older than the last
+  look**: where a look answered from above them while the lane printed, the rows wait for one. The
+  count asked for is rounded (`asking`) and a pty capture is answered by any fresh frame that covers
+  it, because each notch asking one line more was a frame made and waited for; and a notch through
+  held lines tells the driver, once a look and only while the lane prints, that its bottom is still
+  watched (`keepWatching`), so coming back down after a long read finds a frame ready.
 - **Lines are only held where the scrolling is the window's** (`keeping`), because that is the only
   place the fact they rest on is true. A program on the alternate screen repaints every row in place
   and never gets any deeper, so the depth the held lines are keyed by never moves: every look found the

@@ -406,6 +406,142 @@ describe('the window, and the lanes in it', () => {
     expect(captures).toBe(0)
   })
 
+  // The first screenful up from the newest line is the live rows, which the
+  // program may still be rewriting, so a look reads them again behind every
+  // notch — and the text used to wait for that look, twenty to fifty
+  // milliseconds a notch with the bar beside it already moved. The lines held
+  // are drawn at once instead, as new as the look that read them.
+  it('draws a notch over the live rows from the lines it holds, before the driver answers', async () => {
+    terminal.resize(120, 45)
+    const opened = await client.openTerminal({ project: 'app' })
+    const printing = 'i=1; while [ $i -le 400 ]; do echo "printed line $i"; i=$((i+1)); done'
+    await client.write(opened.id, `${printing}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until(
+      'the terminal in front',
+      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
+      20_000,
+    )
+    const rows = screenOf(terminal.written)
+    const shell = rows.findIndex((row) => row.includes('printed line 400'))
+    // The lane's rows on screen: its live rows are at least that many.
+    const live = rows.filter((row) => /printed line \d+/.test(row)).length
+    const up = `\x1b[<64;10;${shell + 1}M`
+
+    // The first notch has nothing above the screen to cut from, so it is read.
+    terminal.press(up)
+    await until('the first notch read', () => newestPrinted(terminal) < 400)
+    const once = newestPrinted(terminal)
+
+    // From here the driver answers nothing until it is let go.
+    let letGo = () => {}
+    const held = new Promise<void>((resolve) => (letGo = resolve))
+    const capture = client.capture.bind(client)
+    client.capture = async (lane, lines, styled) => {
+      await held
+      return capture(lane, lines, styled)
+    }
+    try {
+      terminal.press(up)
+      await until('the second notch drawn', () => newestPrinted(terminal) < once)
+      // Still over the live rows, which is the whole of what this is about.
+      expect(400 - newestPrinted(terminal)).toBeLessThan(live)
+    } finally {
+      letGo()
+    }
+  })
+
+  // Only as new as the last look that read them, though. A lane that went on
+  // rewriting its live rows while the looks answered from above them has rows
+  // nobody has read since, so coming back down onto them waits for a look
+  // rather than drawing old ones. Meanwhile the driver is told, once a look,
+  // that the bottom is still being looked at — so that look finds a frame of
+  // it ready rather than one let lapse during the read.
+  it('never draws live rows older than the last look, and keeps them watched', async () => {
+    terminal.resize(120, 45)
+    const opened = await client.openTerminal({ project: 'app' })
+    const printing = 'i=1; while [ $i -le 400 ]; do echo "printed line $i"; i=$((i+1)); done'
+    // Then the last row rewritten in place, as a spinner does: never any deeper.
+    const ticking = "j=0; while true; do printf '\\rtick %s ' $j; j=$((j+1)); sleep 0.2; done"
+    await client.write(opened.id, `${printing}; ${ticking}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    const ticks = () => screenOf(terminal.written).some((row) => /tick \d+/.test(row))
+    await until('the terminal ticking in front', ticks, 20_000)
+    const shell = screenOf(terminal.written).findIndex((row) => row.includes('printed line 400'))
+    const up = `\x1b[<64;10;${shell + 1}M`
+    const down = `\x1b[<65;10;${shell + 1}M`
+
+    let looks = 0
+    let asked: (number | undefined)[] = []
+    let held: Promise<void> | null = null
+    let letGo = () => {}
+    const capture = client.capture.bind(client)
+    client.capture = async (lane, lines, styled) => {
+      asked.push(lines)
+      if (held) await held
+      return capture(lane, lines, styled)
+    }
+    const screen = client.screen.bind(client)
+    client.screen = (lane) => {
+      looks++
+      return screen(lane)
+    }
+    /** A notch, and the look that answers it. */
+    const notch = async (bytes: string) => {
+      const was = looks
+      terminal.press(bytes)
+      await until('the look that answers a notch', () => looks > was, SPAWNING_MS)
+    }
+
+    // Back past the live rows, as far as a whole window's height.
+    const clear = () => newestPrinted(terminal) <= 400 - terminal.rows
+    for (let i = 0; i < 100 && !clear(); i++) await notch(up)
+    expect(clear()).toBe(true)
+
+    // Through the lines held while the lane ticks on, three moves to a look:
+    // the driver is asked nothing about them, and told no more than once a
+    // look that the bottom is still looked at, always for the same lines.
+    asked = []
+    const from = looks
+    for (let i = 0; i < 10; i++) {
+      for (let move = 0; move < 2; move++) {
+        terminal.press(up)
+        // A run of notches is one move until the turn it arrived in is over.
+        await new Promise((resolve) => setImmediate(resolve))
+      }
+      await notch(up)
+    }
+    expect(asked.length).toBeGreaterThan(0)
+    expect(asked.length).toBeLessThanOrEqual(looks - from)
+    expect(new Set(asked).size).toBe(1)
+
+    // And back down onto the live rows with the driver held: nothing of them
+    // is drawn from what was read before the ticking went on.
+    held = new Promise<void>((resolve) => (letGo = resolve))
+    try {
+      terminal.type(down.repeat(200))
+      let was = -1
+      let quiet = 0
+      await until('the screen at rest', () => {
+        const now = newestPrinted(terminal)
+        quiet = now === was ? quiet + 1 : 0
+        was = now
+        return quiet >= 20
+      })
+      expect(ticks()).toBe(false)
+    } finally {
+      held = null
+      letGo()
+    }
+    await until('the live rows, read', ticks)
+  })
+
   it('opens a terminal from the + beside the orchestrator, and types into it', async () => {
     await start()
     await until('the tabs', () =>
