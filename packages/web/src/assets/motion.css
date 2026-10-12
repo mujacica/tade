@@ -50,6 +50,15 @@
   }
 }
 
+@keyframes glow {
+  0% {
+    background-color: color-mix(in srgb, var(--amber) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
 @keyframes shimmer {
   from {
     background-position: 100% 0;
@@ -105,6 +114,13 @@ main a.proj,
 .bump {
   display: inline-block;
   animation: bump 600ms var(--ease-sheet);
+}
+
+/* ── a state that changed ─────────────────────────────────────────────────── */
+
+/* A row whose state moved glows once, over its own ground (`stateIn`). */
+.changed {
+  animation: glow 1.2s var(--ease-sheet);
 }
 
 /* ── working: the one thing that breathes ──────────────────────────────────── */

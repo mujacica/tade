@@ -29,6 +29,7 @@ import {
   into,
   keyed,
   markIn,
+  stateIn,
   textIn,
   toneOn,
 } from './dom.js'
@@ -434,6 +435,7 @@ function fillWant(node, task, view) {
   classOn(node, 'is-failed', task.state === 'failed')
   classOn(node, 'is-review', task.state === 'review')
   markIn(glyph, mark)
+  stateIn(node, task.state)
   link.setAttribute('href', taskPath(task.id))
   textIn(link.children[0], task.project)
   textIn(link.children[1], task.name)

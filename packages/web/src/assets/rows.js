@@ -13,7 +13,7 @@
 // Nothing here decides anything about a task. `state`, `reason`, `wantsYou` and
 // every count came off the wire already derived; what is here is the drawing.
 
-import { classOn, el, glyphOf, into, markIn, proseOf, textIn } from './dom.js'
+import { classOn, el, glyphOf, into, markIn, proseOf, stateIn, textIn } from './dom.js'
 import { ageSaid, shortClockOf } from './figures.js'
 import {
   checkMark,
@@ -85,6 +85,7 @@ export function fillTaskRow(node, task, view) {
   const [glyph, name, aside, under] = link.children
   link.setAttribute('href', taskPath(task.id))
   markIn(glyph, taskMark(task.state))
+  stateIn(link, task.state)
   textIn(name, task.name)
   textIn(under, task.reason)
   const age = ageSaid(task.movedAt, view.asOf, view.frozen)

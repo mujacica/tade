@@ -193,7 +193,8 @@ export const MORE = [
   // **First under More, and its count is on the More tab itself**: a request
   // waiting for a yes is somebody else blocked on this machine.
   { view: 'inbox', icon: 'inbox', mark: '✉', label: 'Inbox', counts: 'intake' },
-  { view: 'talk', icon: 'talk', mark: '❯', label: 'Tade', counts: null },
+  // Under the Tade category, so its own word is what it is: the conversation.
+  { view: 'talk', icon: 'talk', mark: '❯', label: 'Conversation', counts: null },
   { view: 'runs', icon: 'runs', mark: '⑁', label: 'Runs', counts: 'runs' },
   { view: 'spend', icon: 'spend', mark: '$', label: 'Spend', counts: null },
   { view: 'checks', icon: 'checks', mark: '✓', label: 'Checks', counts: null },

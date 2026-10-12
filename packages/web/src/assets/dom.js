@@ -319,3 +319,21 @@ export function felt() {
     // A browser that has the method and refuses it has nothing to feel.
   }
 }
+
+/**
+ * Write a row's state, and mark that it changed: a state that moved under
+ * somebody's eyes — working to review, waiting to running — glows once
+ * (`motion.css`), so the change is seen rather than found.
+ *
+ * Only on a change from a state the row already showed: a row arriving is
+ * not a row changing.
+ */
+export function stateIn(node, state) {
+  const was = node.getAttribute('data-state')
+  if (was === state) return
+  node.setAttribute('data-state', state)
+  if (was === null) return
+  node.classList.remove('changed')
+  void node.offsetWidth
+  node.classList.add('changed')
+}

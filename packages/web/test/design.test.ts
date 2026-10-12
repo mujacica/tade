@@ -280,7 +280,7 @@ describe('reach and motion', () => {
     // machine being asked again. A fourth that loops is a page that never
     // settles, and has to argue for itself here.
     const named = [...AWAY.matchAll(/@keyframes\s+([\w-]+)/g)].map((one) => one[1])
-    expect(named.sort()).toEqual(['bump', 'pulse', 'rise', 'shimmer', 'sweep'])
+    expect(named.sort()).toEqual(['bump', 'glow', 'pulse', 'rise', 'shimmer', 'sweep'])
     expect(read('motion.css')).toContain('@keyframes')
     for (const name of SHEETS.filter((one) => one !== 'motion.css')) {
       expect(read(name), name).not.toContain('@keyframes')

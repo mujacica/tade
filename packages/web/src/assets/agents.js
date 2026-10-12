@@ -20,7 +20,7 @@
 // markup, never a link, never a colour read out of an escape — and what the
 // machine took out of them (`screen.ts`) is drawn as the `…` it left.
 
-import { classOn, el, empty, glyphOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
+import { classOn, el, empty, glyphOf, into, keyed, markIn, stateIn, textIn, toneOn } from './dom.js'
 import { ageSaid, count } from './figures.js'
 import { taskMark } from './glyphs.js'
 import { taskPath } from './routes.js'
@@ -170,6 +170,7 @@ export function fillAgentRow(node, task, view) {
   const [glyph, name, aside, runs, why] = link.children
   link.setAttribute('href', taskPath(task.id))
   markIn(glyph, taskMark(task.state))
+  stateIn(link, task.state)
   textIn(name, task.name)
   const age = ageSaid(task.movedAt, view.asOf, view.frozen)
   textIn(aside, age ?? '')
