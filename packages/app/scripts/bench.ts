@@ -23,6 +23,7 @@ import { benchOpen } from './open.ts'
 //   pnpm bench                     both, every size
 //   pnpm bench frames              what composing a frame costs — pure, no terminal
 //   pnpm bench window              the real window in a real terminal, idle then loaded
+//   pnpm bench window --lane       and then the same keys typed into a terminal running `cat`
 //   pnpm bench open                time to the first frame on a seeded home (`scripts/open.ts`)
 //   pnpm bench open --journal ~/.tade   the same with that home's journal and index copied in
 //   pnpm bench --size 160x45       one size instead of all three
@@ -56,7 +57,8 @@ import { benchOpen } from './open.ts'
 // whether `write` moves when the machine is loaded and `draw` does not.
 //
 // **What it does not measure yet**, so nobody reads a green bench as a quiet
-// window: agents. Every case here is a window with nothing running in it.
+// window: agents. Every case here is a window with nothing running in it but,
+// with `--lane`, one terminal running `cat`.
 // Thirteen agents streaming flat out, a wheel flick over a pane, a 2 KB paste,
 // an alternate-screen agent repainting in place, opening a terminal, one status
 // scan of thirteen worktrees, a resize, and thirteen lanes at full scrollback
@@ -146,6 +148,20 @@ const KEYS = numberArg('keys', 120)
  * narrowest window measured here.
  */
 const RUN = 20
+
+/**
+ * Type into a lane as well as at Tade's own line: a terminal opened in the
+ * window with ctrl+t, with `cat` in it so the kernel does the echoing.
+ *
+ * The two are different journeys. A key at the line is drawn by the window
+ * from what it already holds; a key into a lane goes out to a program, comes
+ * back as output, is parsed on the emulators' thread and is then read and
+ * drawn by a look — every hop of which once waited on a timer, which put a
+ * lane's echo at 11 ms p50 and 26 ms p99 against 2 ms at the line. `cat`
+ * echoes in a fraction of a millisecond outside the window, so whatever this
+ * measures above that is Tade's.
+ */
+const LANE = args.includes('--lane')
 
 /**
  * How many busy processes "loaded" means.
@@ -351,12 +367,16 @@ const SEQUENCES = new RegExp(
  * reported rather than recorded as a slow frame: a key that was dropped is
  * news of a different kind from a key that was slow. `run` is how many are
  * still on the line at the end, which is what the screen is then checked for.
+ * `letter` is what is typed and `point` what it is timed as, so a second run
+ * somewhere else in the window is found by its own letter and not the first's.
  */
 async function echoes(
   driver: PtyDriver,
   lane: LaneId,
   keys: number,
   timings: Timings,
+  letter = 'x',
+  point = 'keystroke-to-echo',
 ): Promise<{ missed: number; run: number }> {
   let missed = 0
   let run = 0
@@ -372,7 +392,7 @@ async function echoes(
     // From quiet, so what is timed is this key and not the tail of the frame
     // before it.
     await settled(driver, lane, 120, 3_000)
-    const wanted = 'x'.repeat(run)
+    const wanted = letter.repeat(run)
     let seen = ''
     let heard: number | null = null
     let release = (): void => {}
@@ -387,13 +407,29 @@ async function echoes(
       release = stop
     })
     const at = performance.now()
-    await driver.write(lane, Buffer.from('x', 'utf8'))
+    await driver.write(lane, Buffer.from(letter, 'utf8'))
     await Promise.race([echoed, new Promise((done) => setTimeout(done, 3_000))])
     release()
     if (heard === null) missed++
-    else timings.sample('keystroke-to-echo', heard - at)
+    else timings.sample(point, heard - at)
   }
   return { missed, run }
+}
+
+/**
+ * Open a terminal in the window with ctrl+t and put `cat` in it, so what is
+ * typed next goes to a lane and the lane's echo is the kernel's. True once the
+ * window has drawn it and stopped; false where it drew nothing at all.
+ *
+ * `exec`, so there is no shell between the keys and the echo: a prompt's own
+ * line editor answers a key in its own time, which is a number about the shell.
+ */
+async function intoCat(driver: PtyDriver, lane: LaneId): Promise<boolean> {
+  await driver.write(lane, Buffer.from('\x14', 'utf8'))
+  if (!(await opened(driver, lane, 15_000))) return false
+  await settled(driver, lane, 500, 15_000)
+  await driver.write(lane, Buffer.from('exec cat\r', 'utf8'))
+  return settled(driver, lane, 800, 15_000)
 }
 
 /**
@@ -443,12 +479,25 @@ async function window(
         note: 'the window drew nothing in two minutes, so nothing below was measured against a running window',
       }
     await settled(driver, lane, 1_200, 30_000)
-    const { missed, run } = await echoes(driver, lane, keys, echo)
+    const line = await echoes(driver, lane, keys, echo)
     // The floor under every sample above: the window really did draw what was
     // typed at it. A measurement of a window that was ignoring the keyboard
-    // would otherwise come back as a beautifully low number of misses.
-    const screen = await driver.capture(lane, { lines: size.height, styled: false })
-    const drew = run > 0 && screen.includes('x'.repeat(run))
+    // would otherwise come back as a beautifully low number of misses. Read
+    // before a terminal is opened, which takes the line off screen.
+    const shown = (letter: string, run: number) =>
+      driver
+        .capture(lane, { lines: size.height, styled: false })
+        .then((screen) => run > 0 && screen.includes(letter.repeat(run)))
+    let drew = await shown('x', line.run)
+    let missed = line.missed
+    if (LANE) {
+      if (!(await intoCat(driver, lane))) drew = false
+      else {
+        const typed = await echoes(driver, lane, keys, echo, 'z', 'keystroke-to-echo in a lane')
+        missed += typed.missed
+        drew &&= await shown('z', typed.run)
+      }
+    }
     const pid = open.pid ?? (await driver.get(lane))?.pid ?? null
     if (pid !== null) process.kill(pid, 'SIGTERM')
     for (let waited = 0; waited < 150 && !existsSync(wrote); waited++) {
@@ -497,7 +546,8 @@ async function windows(sizes: readonly Size[]): Promise<void> {
           `the window at ${size.name}, ${how}${how === 'loaded' ? ` — ${load.started} busy processes on ${cpus().length} cores` : ''}`,
         )
         if (note) say(`! ${note}`)
-        if (missed > 0) say(`! ${missed} of ${KEYS} keys were never echoed inside three seconds`)
+        const typed = LANE ? KEYS * 2 : KEYS
+        if (missed > 0) say(`! ${missed} of ${typed} keys were never echoed inside three seconds`)
         say(table(echo.spans()))
         say('inside the window')
         say(

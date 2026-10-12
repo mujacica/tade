@@ -1,5 +1,6 @@
 import { type Terminal, TuiAltScreen } from '@earendil-works/pi-tui'
 import {
+  ECHO_OWED_MS,
   intervalOf,
   newsWait,
   type Pace,
@@ -184,6 +185,12 @@ class TimedScreen extends TuiAltScreen {
   private held: NodeJS.Timeout | null = null
   /** A frame owed to news, waiting for its interval (`newsWait`). */
   private news: NodeJS.Timeout | null = null
+  /** Until when a key typed into a lane is owed its echo, on the same clock (`oweEcho`). */
+  private echoOwedUntil = Number.NEGATIVE_INFINITY
+  /** The next frame owed to an echo is drawn at the end of this turn, and then the next is not. */
+  private soonest = false
+  /** That frame, on its way. */
+  private drawing: NodeJS.Immediate | null = null
 
   constructor(terminal: TimedTerminal) {
     super(terminal)
@@ -192,18 +199,35 @@ class TimedScreen extends TuiAltScreen {
 
   override requestRender(force?: boolean): void {
     // A forced frame is a whole screen somebody needs now — a resize — and a
-    // key being answered is somebody waiting to see what they typed: neither
-    // is ever held, and either draws whatever was. While one is held, the
-    // frame it becomes draws whatever is true by then, so a second request
-    // has nothing to add.
-    const now = force === true || this.accepting.answeringKey()
+    // key being answered, or its echo, is somebody waiting to see what they
+    // typed: none is ever held, and each draws whatever was. While one is
+    // held, the frame it becomes draws whatever is true by then, so a second
+    // request has nothing to add.
+    const at = performance.now()
+    const owed = at < this.echoOwedUntil
+    const now = force === true || this.accepting.answeringKey() || owed
     if (now) this.release()
     else if (this.held !== null) return
-    const wait = now ? 0 : renderWait(this.pace, performance.now() - this.drewAt)
+    // The echo has already waited on a program and a look, so its frame does
+    // not then wait on pi-tui's timer too: a timeout of nothing is a whole
+    // millisecond, and its throttle up to sixteen behind any frame before it.
+    // Drawn at the end of this turn, once the key has gone out (`Outbox`), and
+    // only once an echo: whatever is asked for after it is throttled as ever.
+    if (owed && this.soonest && force !== true) {
+      this.soonest = false
+      this.drawing ??= setImmediate(() => {
+        this.drawing = null
+        if (!this.stopped) this.renderNow()
+      })
+      return
+    }
+    const wait = now ? 0 : renderWait(this.pace, at - this.drewAt)
     if (wait <= 0) {
       super.requestRender(force)
       return
     }
+    // How long the terminal's pace kept a frame back: what a key's echo must never be.
+    timing().sample('held', wait)
     this.held = setTimeout(() => {
       this.held = null
       super.requestRender()
@@ -240,8 +264,22 @@ class TimedScreen extends TuiAltScreen {
     }, wait)
   }
 
+  /**
+   * A key was typed into a lane. Its echo is the lane's to print and a look's
+   * to draw, long after the key was answered — so for `ECHO_OWED_MS` whatever
+   * is asked for is never held for the terminal's pace, and the first of it is
+   * drawn at the end of the turn it is asked for in. The key's own frame is
+   * usually not drawn at all (`Lanes.toLane`), which leaves pi-tui's throttle
+   * unarmed for the echo.
+   */
+  oweEcho(): void {
+    this.echoOwedUntil = performance.now() + ECHO_OWED_MS
+    this.soonest = true
+  }
+
   override stop(options?: Parameters<TuiAltScreen['stop']>[0]): void {
     this.release()
+    this.drawn()
     super.stop(options)
   }
 
@@ -250,6 +288,7 @@ class TimedScreen extends TuiAltScreen {
     const at = timings.start()
     // Whatever was held is drawn by this frame, whoever asked for it.
     this.release()
+    this.drawn()
     this.drewAt = performance.now()
     this.accepting.begin()
     super.doRender()
@@ -267,6 +306,12 @@ class TimedScreen extends TuiAltScreen {
     if (this.news !== null) clearTimeout(this.news)
     this.held = null
     this.news = null
+  }
+
+  /** The echo's frame on its way is this one, or none. */
+  private drawn(): void {
+    if (this.drawing !== null) clearImmediate(this.drawing)
+    this.drawing = null
   }
 }
 
@@ -382,7 +427,7 @@ class TimedTerminal implements Terminal {
 }
 
 /** What the window draws on: pi-tui's alternate screen, timed, paced, and told what is only news. */
-export type Screen = TuiAltScreen & Pick<TimedScreen, 'requestNews'>
+export type Screen = TuiAltScreen & Pick<TimedScreen, 'requestNews' | 'oweEcho'>
 
 /** The alternate screen the window draws on, with the two pi-tui points timed. */
 export function screenFor(terminal: Terminal): Screen {

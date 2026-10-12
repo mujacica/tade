@@ -55,7 +55,8 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `wire/context.ts` | What a subject may reach (`Wiring`), and what it offers back (`Subject`: `facts`, `panel`, `inputs`, `actions`, `menus`, `submits`, `prompts`) | — |
 | `wire/frame.ts` | `frameOf` — the frame, folded out of the subjects that own each piece of it; `panelInputsOf` beside it | — |
 | `wire/actions.ts` | `Router`: a button's name, a menu's kind, a panel's answer and a slash command, each looked up in the table the subjects fill in | a terminal |
-| `pace.ts` | How often the window looks, how soon after a lane prints it looks again, and how far apart frames go when the terminal is slow to take them (`paced`, `renderWait`) | — |
+| `pace.ts` | How often the window looks, how soon after a lane prints it looks again (`printedWait`), how long a key's echo is owed (`ECHO_OWED_MS`), and how far apart frames go when the terminal is slow to take them (`paced`, `renderWait`) | — |
+| `wire/looks.ts` | `Looks`: when the lanes are looked at, one look at a time — the beat, a look asked for soon, a lane printing looked at now, and a key's echo owed a look and a frame (`typed`, `printed`) | a terminal |
 | `title.ts` | What the terminal window calls itself | — |
 | `inbox.ts` | What Tade tells the orchestrator without being asked, and where you are when you ask (`whereYouAre`) | — |
 | `settings.ts` | Reading and writing a setting from the window, through core's one writer | a real disk |
@@ -234,7 +235,9 @@ regions in a cycle now.
   of easy frames. It only ever adds time, a held request is handed to pi-tui when the interval is up,
   and a frame asked for while a key is being answered is never held (`TimedTerminal.start` knows when
   that is) — not pi-tui's immediate render, which is only for a component with the focus, and the
-  window gives none of them the focus. `pace` in `TADE_TIMING` says how far it went.
+  window gives none of them the focus. Nor is one asked for while a key typed into a lane is owed its
+  echo (`oweEcho`, `ECHO_OWED_MS`), because a look draws that echo long after the key was answered.
+  `pace` in `TADE_TIMING` says how far it went, and `held` how long a frame was kept back.
 - **One read of the terminal is one turn, and what it sends is sent once.** pi-tui splits a stdin
   event into sequences and dispatches every one before anything else runs, and renders once after.
   What was per sequence was Tade's: a lane write a character (`wire.outbox`, joined per lane and sent
@@ -649,9 +652,18 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
 - **An agent's screen is read from the bottom.** pi draws from the top of its terminal and stops at
   its prompt, so `renderMain` drops trailing blank rows of an `agent` lane and pads above. Never do
   that to a shell: full-screen programs count rows.
-- **Redraw on output, not on a timer.** `App.watch` subscribes to the lane in front of you and asks
-  for a look 16 ms after it prints; the quarter-second tick is only the fallback. Polling alone made
-  every keystroke wait for the next tick.
+- **Redraw on output, not on a timer.** `Lanes.watch` subscribes to every lane in front of you — both
+  halves of a split, since either may be typed into — and a print is looked at **at once**, no
+  oftener than the floor while it streams (`Looks.printed`, `printedWait`); the quarter-second tick
+  is only the fallback. **A key into a lane asks for no look of its own** and draws no frame of its
+  own unless it changed something Tade draws (`Lanes.toLane`): a look asked for by the key landed
+  before the program answered, found nothing and held the echo a whole floor behind it, and the
+  key's frame armed pi-tui's throttle just as the echo needed it. Its echo is *owed* instead — the
+  first print after it is not held to the floor, its frame is not paced, and the first frame of it
+  is drawn at the end of the turn rather than on pi-tui's timer (`Outbox` → `Looks.typed` →
+  `oweEcho`) — which took a `cat` lane's echo from 12/26 ms (p50/p99) to 2.4/3.9, level with the
+  line's own (`pnpm bench window --lane`). `frame.probe.test.ts` holds that no echo is held for the
+  terminal's pace.
 - **A lane's screen is that lane's** (`wire/shown.ts`). Every screen handed to the frame says which
   lane it was read from, and `Lanes.owned` — run where the frame is made, so no door the focus moves
   through has to remember — swaps in the lane now in front's own last screen (`KEPT_SCREENS` of
@@ -1049,7 +1061,8 @@ accepted on a story is a perf change nobody can undo later.
   change measures the same twice (`packages/app/test/bench.ts`). `pnpm bench window` is the whole
   program: it opens the real `tade app` in a real pty, types at it, and reports keystroke-to-echo
   from outside and the four frame points from inside, idle and then with the machine loaded
-  (`--load`, `--keys`, `--rounds`, `--size`). `pnpm bench open` is the time to the first frame on a
+  (`--load`, `--keys`, `--rounds`, `--size`), and with `--lane` the same keys typed into a terminal
+  running `cat`, which is a lane's echo rather than the line's. `pnpm bench open` is the time to the first frame on a
   seeded home, and `--journal ~/.tade` copies that home's journal and index in, which is what an
   open on a real home costs (`packages/app/scripts/open.ts`).
 - **`TADE_TIMING`** turns the four probes on in any window: `frameOf` (plus one per subject), `draw`,
@@ -1122,7 +1135,7 @@ accepted on a story is a perf change nobody can undo later.
 
 ## Gotchas
 
-- **Lanes are looked at one look at a time** (`App.tick` → `look`). Looks that overlap finish out of
+- **Lanes are looked at one look at a time** (`Looks.tick` → `App.look`). Looks that overlap finish out of
   order, and a slow one finishing last puts back the screen a fast one replaced: a line blinking, one
   frame's text interleaved with the next. A driver's `capture` waits for a whole frame — see
   **a capture is a whole frame** in `add-workspace-driver`, which is where tearing in a pane that

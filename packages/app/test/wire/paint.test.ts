@@ -244,6 +244,46 @@ describe('what the screen draws at once, and what it spreads out', () => {
     }
   })
 
+  // A key typed into a lane is drawn by a look, long after the key was
+  // answered. Its echo is owed (`oweEcho`): what it asks for is not held for
+  // the terminal's pace, and the first of it is drawn at the end of the turn,
+  // not on pi-tui's timer — once, so what is asked for after it is throttled
+  // as ever. Said by order, not by time: a frame there before the next turn of
+  // the loop has finished is one no timer drew.
+  it('draws the echo of a key typed into a lane at the end of the turn, however slow the terminal', async () => {
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    const { screen, held, frames } = screened()
+    try {
+      await until('the first frame', () => frames() > 0)
+      held.slow = RENDER_CEILING_MS * WRITE_SHARE + 10
+      while ((timings.span('pace')?.worst ?? 0) < RENDER_CEILING_MS) {
+        const was = frames()
+        screen.requestRender()
+        await until('a frame', () => frames() > was)
+      }
+      // Quick again, and just after a frame at the ceiling: anything paced
+      // waits most of a beat, and pi-tui's own throttle most of sixteen ms.
+      held.slow = 0
+      const quick = frames()
+      screen.requestRender()
+      await until('a quick frame', () => frames() > quick)
+      const was = frames()
+      screen.oweEcho()
+      screen.requestRender()
+      screen.requestRender()
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(frames(), 'the echo waited on a timer').toBe(was + 1)
+      screen.requestRender()
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(frames(), 'a second frame skipped the throttle').toBe(was + 1)
+      await until('the frame after it, on pi-tui’s timer', () => frames() > was + 1)
+    } finally {
+      stop()
+      screen.stop()
+    }
+  })
+
   // News, kept up flat out — thirteen agents' worth of events — is drawn as
   // often as the spinner turns, and its last word is drawn: a rate with a
   // ceiling, which a starved runner meets by drawing less, and a floor that is

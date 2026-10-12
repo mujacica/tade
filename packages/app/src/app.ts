@@ -19,7 +19,7 @@ import {
   withTasks,
   withTerminals,
 } from './model.ts'
-import { FRAME_MS, lookWait, SLOW_LOOK_MS } from './pace.ts'
+import { FRAME_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
 import { Agents } from './wire/agents.ts'
@@ -43,6 +43,7 @@ import { Images } from './wire/images.ts'
 import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Lanes } from './wire/lanes.ts'
+import { Looks } from './wire/looks.ts'
 import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
@@ -80,12 +81,8 @@ export class App {
   private state: AppState = initialState()
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
-  /** A look at the lanes is under way, and whether another was asked for meanwhile. */
-  private looking = false
-  private lookAgain = false
-  private soon: NodeJS.Timeout | null = null
-  /** When the last look started, by the real clock, as `tick` times one. */
-  private lookedAt = 0
+  /** When the lanes are looked at, one look at a time. */
+  private readonly looks: Looks
   private live: Live | null = null
   private timer: NodeJS.Timeout | null = null
   private readonly repaint = new Repaint()
@@ -168,6 +165,25 @@ export class App {
       now: () => this.now(),
       layout: () => this.window.layout(),
       draw: () => this.draw(),
+      typed: () => this.looks.typed(),
+    })
+    this.looks = new Looks({
+      look: () => this.look(),
+      stopped: () => this.stopped,
+      owe: () => this.tui.oweEcho(),
+      slow: (startedAt) =>
+        this.opts.report
+          ?.doing({
+            name: 'a look at the tasks',
+            op: 'tade.look',
+            startedAt,
+            attributes: {
+              'tade.tasks': this.state.panes.length,
+              'tade.agents': this.opts.client.runs().length,
+              'tade.projects': Object.keys(this.opts.config.projects).length,
+            },
+          })
+          .end(),
     })
     this.notes = new Notes(this.wire, {
       copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
@@ -236,7 +252,7 @@ export class App {
       opts.hold ?? caffeineHold(),
     )
     this.images = new Images(this.wire, {
-      soonTick: () => this.soonTick(),
+      soonTick: () => this.looks.soonTick(),
       answering: () => this.orchestrator.attached(),
     })
     this.away = new Away(this.wire, {
@@ -274,7 +290,7 @@ export class App {
     // Mouse reporting is on by default, which is what makes the window
     // clickable: events arrive at the component with coordinates local to it.
     // It asks for focus reports too, which `watch` reads; a resize is a look at once.
-    this.repaint.watch(this.terminal, () => void this.tick())
+    this.repaint.watch(this.terminal, () => void this.looks.tick())
     this.tui = screenFor(this.terminal)
     freeViewportKeys()
     this.keyboard = new Keyboard(this.wire, {
@@ -298,7 +314,7 @@ export class App {
       run: (action) => void this.router.run(action),
       interrupt: () => void this.orchestrator.interrupt(),
       quit: () => this.window.quit(),
-      soonTick: () => this.soonTick(),
+      soonTick: () => this.looks.soonTick(),
       settle: () => this.mouse.settle(),
       toLane: (data) => this.lanes.toLane(data),
       act: (said) => void this.router.act(said),
@@ -307,7 +323,8 @@ export class App {
     this.lanes = new Lanes(this.wire, {
       size: () => this.room(),
       skin: this.skin,
-      soonTick: () => this.soonTick(),
+      soonTick: () => this.looks.soonTick(),
+      printed: () => this.looks.printed(),
       say: (said) => this.orchestrator.say(said),
     })
     this.extensions = new Extensions(this.wire, {
@@ -383,7 +400,7 @@ export class App {
       openMenu: (subject, at) => this.router.openMenu(subject, at),
       run: (action, from) => void this.router.run(action, from),
       reslice: (area) => this.lanes.reslice(area),
-      soonTick: () => this.soonTick(),
+      soonTick: () => this.looks.soonTick(),
       turnedInLane: (event) => this.lanes.turnedInLane(event),
       selectTo: (line, x, extend, drag) => this.keyboard.selectTo(line, x, extend, drag),
       selectedOnLine: () => this.keyboard.selectedText(),
@@ -522,7 +539,7 @@ export class App {
     if (this.stopped) return
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
-    if (this.soon) clearTimeout(this.soon)
+    this.looks.stop()
     this.mouse.letGo()
     this.lanes.stopWatching()
     this.images.stop()
@@ -606,7 +623,7 @@ export class App {
         this.draw()
       },
       onChange: () => this.draw(),
-      onDue: () => this.soonTick(),
+      onDue: () => this.looks.soonTick(),
       onWork: (task) => void this.agents.nameAgent(task),
       onTerminals: (terminals) => {
         this.state = withTerminals(this.state, terminals)
@@ -672,57 +689,12 @@ export class App {
     this.release = this.tui.addInputListener((data) => this.keyboard.onInput(data))
     this.tui.start()
     void this.keyboard.load()
-    this.timer = setInterval(() => void this.tick(), this.opts.frameMs ?? FRAME_MS)
+    this.timer = setInterval(() => void this.looks.tick(), this.opts.frameMs ?? FRAME_MS)
     this.timer.unref?.()
-    await this.tick()
+    await this.looks.tick()
   }
 
-  /**
-   * Look again, one look at a time. Looks overlapping could finish out of
-   * order, and a slow one finishing last would put back the screen the fast
-   * one had just replaced: a line blinking, text from one frame interleaved
-   * with the next. Asked again while looking, it asks the way everything else
-   * asks — starting one here was a look the instant the last ended, no delay.
-   */
-  private async tick(): Promise<void> {
-    if (this.stopped) return
-    if (this.looking) {
-      this.lookAgain = true
-      return
-    }
-    this.looking = true
-    // Timed by the clock, not the app's: how long a look really took is the
-    // question, and a test's clock stands still.
-    const started = Date.now()
-    this.lookedAt = started
-    try {
-      await this.look()
-    } finally {
-      this.looking = false
-      // Only the ones worth asking about: a look is meant to be cheap, and one
-      // slower than the time between two is Tade getting in its own way.
-      const took = Date.now() - started
-      if (took > SLOW_LOOK_MS) {
-        this.opts.report
-          ?.doing({
-            name: 'a look at the tasks',
-            op: 'tade.look',
-            startedAt: started,
-            attributes: {
-              'tade.tasks': this.state.panes.length,
-              'tade.agents': this.opts.client.runs().length,
-              'tade.projects': Object.keys(this.opts.config.projects).length,
-            },
-          })
-          .end()
-      }
-    }
-    if (this.lookAgain) {
-      this.lookAgain = false
-      this.soonTick()
-    }
-  }
-
+  /** Read the lanes in front and draw what changed: what `Looks` runs, one at a time. */
   private async look(): Promise<void> {
     if (this.stopped) return
     this.agents.beats()
@@ -735,28 +707,14 @@ export class App {
       repaintScreen(this.tui, this.terminal)
     const at = await this.lanes.fitPane()
     this.window.titleHere()
-    const paneScreen = await this.lanes.readPane(at)
-    const terminal = await this.lanes.captureTerminal()
+    // Side by side, and drawn once: neither screen waits behind the other's read.
+    const [paneScreen, terminal] = await Promise.all([
+      this.lanes.readPane(at),
+      this.lanes.captureTerminal(),
+    ])
     // News: a lane drew something new, the microphone's clock, or a spinner turned.
     if (paneScreen || terminal || this.state.talkingSince !== null || this.window.turned())
       this.draw()
-  }
-
-  /**
-   * Look at the lane again in a moment: long enough to take a burst of output
-   * in one look, short enough that what you typed is on screen before you
-   * notice it was not. Reading waits for the emulator to finish parsing, so a
-   * look this soon is never a look at half of it.
-   */
-  private soonTick(): void {
-    if (this.soon || this.stopped) return
-    this.soon = setTimeout(
-      () => {
-        this.soon = null
-        void this.tick()
-      },
-      lookWait(Date.now() - this.lookedAt),
-    )
   }
 
   /** Start whatever queued work is ready, and say what is held. */

@@ -43,7 +43,7 @@ import {
 } from './context.ts'
 import { Finding } from './finding.ts'
 import { Fitting, type Size } from './fitting.ts'
-import { Screens } from './shown.ts'
+import { type Area, Screens } from './shown.ts'
 
 // The two screens in front of you, and the terminals they are.
 //
@@ -93,8 +93,10 @@ export interface LanesDeps {
   size(): { columns: number; rows: number }
   /** Whether a capture comes back coloured. */
   skin: Skin
-  /** A lane printed something, or was typed into: look at it sooner than the next beat. */
+  /** Something was done to a lane — split, sized, sent to its end: look sooner than the next beat. */
   soonTick(): void
+  /** A lane in front printed: look at it now, and no oftener than the floor (`Looks.printed`). */
+  printed(): void
   /** A line addressed to Tade rather than to the agent it was typed at. */
   say(said: string): void
 }
@@ -102,8 +104,8 @@ export interface LanesDeps {
 /** The pane's lanes as this look found them: what is in front, and how much of it fits. */
 export interface PaneAt {
   lane: string | null
-  /** It is showing two lanes, which get neither the bar nor the cursor. */
-  split: boolean
+  /** The second lane it is showing, and its rows: two lanes get neither the bar nor the cursor. */
+  split: { lane: string; rows: number } | null
   rows: number
 }
 
@@ -123,8 +125,8 @@ export class Lanes implements Subject {
    * went, which the wheel cuts a new screen out of: replaced, never written into.
    */
   private held: ReadonlyMap<'pane' | 'terminal', HeldLines> = new Map()
-  /** The lanes in front — the agent's, and the terminal's — watched so they redraw as they print. */
-  private readonly watching = new Map<'pane' | 'terminal', { lane: string; stop: () => void }>()
+  /** The lanes in front — both halves of each, where split — watched so they redraw as they print. */
+  private readonly watching = new Map<Area, { lane: string; stop: () => void }>()
   /** How each lane was last sized — once per size, and once it holds still; its height, what may be rewritten. */
   private readonly fitting: Fitting
   /** A terminal's scrollback, read for finding in it. */
@@ -441,17 +443,12 @@ export class Lanes implements Subject {
     // pulls the view back five rows after the wheel has moved it.
     if (lane) await this.fitting.fit(lane, size, true)
     this.watch(lane)
-    if (split) {
-      await this.fitting.fit(split.lane, halves.second, true)
-      const second =
-        (await this.wire.live?.capture(split.lane, halves.second.rows, this.deps.skin.colour)) ?? ''
-      if (this.screens.read('split', { lane: split.lane, screen: second, view: null }, true))
-        this.wire.draw()
-    }
+    this.watch(split?.lane ?? null, 'split')
+    if (split) await this.fitting.fit(split.lane, halves.second, true)
     this.fitting.behind()
     return {
       lane,
-      split: split !== null,
+      split: split ? { lane: split.lane, rows: halves.second.rows } : null,
       rows: this.fitting.laneRows('pane'),
     }
   }
@@ -464,6 +461,17 @@ export class Lanes implements Subject {
    * before it is a screen cut in the wrong place.
    */
   async readPane(at: PaneAt): Promise<boolean> {
+    // Its second half beside it, and said in the same answer: drawn on its
+    // own, it was a frame of the split's news ahead of the pane's.
+    const [first, second] = await Promise.all([
+      this.readFirst(at),
+      at.split ? this.readHalf('split', at.split) : false,
+    ])
+    return first || second
+  }
+
+  /** The lane the pane is showing, or the first of two. */
+  private async readFirst(at: PaneAt): Promise<boolean> {
     const was = this.screens.of('pane')
     // Only for the one screen the bar and the cursor are drawn on: a split is
     // two lanes and gets neither.
@@ -477,8 +485,19 @@ export class Lanes implements Subject {
     return changed || view !== was.view
   }
 
+  /** The second half of a split, read whole: it scrolls with neither bar nor cursor. */
+  private async readHalf(
+    area: 'split' | 'splitTerminal',
+    half: { lane: string; rows: number },
+  ): Promise<boolean> {
+    const screen =
+      (await this.wire.live?.capture(half.lane, half.rows, this.deps.skin.colour)) ?? ''
+    return this.screens.read(area, { lane: half.lane, screen, view: null }, true)
+  }
+
   /** Type into the agent you are watching, and hold focus while you do. */
   toLane(data: string): void {
+    const was = this.wire.state
     const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
     // Typing at an agent is looking at its newest line.
     this.wire.put({ ...noteTyping(this.wire.state, this.wire.now()), paneScroll: 0 })
@@ -500,7 +519,14 @@ export class Lanes implements Subject {
       this.wire.outbox.write(lane as LaneId, routed.toLane)
     }
     if (routed.toTade !== null) this.deps.say(routed.toTade)
-    this.wire.draw()
+    // Back to its newest line, and the text with the bar: the lines held may
+    // reach it, and a look catches up if not.
+    const scrolled = was.paneScroll !== 0
+    if (scrolled && !this.reslice('pane')) this.deps.soonTick()
+    // The key's own frame only where it changed something the window draws:
+    // the echo is the lane's to print and a look's to draw, and a frame for
+    // nothing arms pi-tui's throttle just as the echo comes back and needs it.
+    if (scrolled || this.wire.state.held !== was.held || routed.toTade !== null) this.wire.draw()
   }
   /**
    * A lane's screen, cut to where it is scrolled to — read back from the
@@ -574,10 +600,10 @@ export class Lanes implements Subject {
     const lane =
       event.area === 'pane' ? this.paneLane() : (activeTerminal(this.wire.state)?.id ?? null)
     if (view.scrolling === 'lane' && lane) {
+      // What it draws in answer is the lane printing, which is what looks at
+      // it (`watch`). A look asked for here landed before the program had
+      // answered, found nothing, and held the answer a whole floor behind it.
       this.wire.outbox.wheel(lane as LaneId, { rows: event.rows, ...event.at })
-      // What it drew in answer is a change to its screen, which the next look
-      // reads as it reads every other: sooner, because somebody is watching.
-      this.deps.soonTick()
     }
     return true
   }
@@ -631,6 +657,7 @@ export class Lanes implements Subject {
     const terminal = activeTerminal(this.wire.state)
     if (!terminal || this.wire.state.bottomMode === 'min') {
       this.watch(null, 'terminal')
+      this.watch(null, 'splitTerminal')
       const shown = this.screens.of('terminal')
       if (shown.view) this.screens.read('terminal', { ...shown, view: null }, false)
       return false
@@ -640,23 +667,27 @@ export class Lanes implements Subject {
     const size = halves.first
     await this.fitting.fit(terminal.id, size, true)
     this.watch(terminal.id, 'terminal')
-    let changed = false
-    if (split) {
-      await this.fitting.fit(split.lane, halves.second, true)
-      const second =
-        (await this.wire.live?.capture(split.lane, halves.second.rows, this.deps.skin.colour)) ?? ''
-      const half = { lane: split.lane, screen: second, view: null }
-      changed = this.screens.read('splitTerminal', half, true)
-    }
+    const half = split ? { lane: split.lane, rows: halves.second.rows } : null
+    this.watch(half?.lane ?? null, 'splitTerminal')
+    if (half) await this.fitting.fit(half.lane, halves.second, true)
+    const [first, second] = await Promise.all([
+      this.readTerminal(terminal.id, size.rows, half !== null),
+      half ? this.readHalf('splitTerminal', half) : false,
+    ])
+    return first || second
+  }
+
+  /** The terminal in front, or the first of two. */
+  private async readTerminal(id: string, rows: number, split: boolean): Promise<boolean> {
     // The depth before the text, as an agent's pane reads them: what is held
     // is kept by which lines they are, and that is counted from the depth.
     const was = this.screens.of('terminal')
-    const read = split ? null : ((await this.wire.live?.screen(terminal.id)) ?? null)
-    const view = was.lane === terminal.id && same(read, was.view) ? was.view : read
-    const screen = await this.laneScreen('terminal', terminal.id, size.rows, view)
-    const fresh = { lane: terminal.id, screen, view }
+    const read = split ? null : ((await this.wire.live?.screen(id)) ?? null)
+    const view = was.lane === id && same(read, was.view) ? was.view : read
+    const screen = await this.laneScreen('terminal', id, rows, view)
+    const fresh = { lane: id, screen, view }
     const moved = this.screens.read('terminal', fresh, this.wire.state.terminalScroll === 0)
-    return moved || changed || view !== was.view
+    return moved || view !== was.view
   }
 
   /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
@@ -730,11 +761,13 @@ export class Lanes implements Subject {
   }
 
   /**
-   * Watch the lane in front of you, so what it prints is on screen at once
+   * Watch a lane in front of you, so what it prints is on screen at once
    * rather than at the next quarter-second look. Typing waited for that look,
-   * which is what made an agent feel slow to type into.
+   * which is what made an agent feel slow to type into — and what it prints
+   * is the only thing that looks at it after a key, which is why both halves
+   * of a split are watched: either can be the one being typed into.
    */
-  private watch(lane: string | null, slot: 'pane' | 'terminal' = 'pane'): void {
+  private watch(lane: string | null, slot: Area = 'pane'): void {
     if (this.watching.get(slot)?.lane === lane) return
     this.watching.get(slot)?.stop()
     this.watching.delete(slot)
@@ -742,7 +775,7 @@ export class Lanes implements Subject {
     const watching = { lane, stop: () => {} }
     this.watching.set(slot, watching)
     void this.wire.opts.client
-      .watch(lane as LaneId, () => this.deps.soonTick(), { lines: 1 })
+      .watch(lane as LaneId, () => this.deps.printed(), { lines: 1 })
       .then((watched) => {
         if (this.watching.get(slot) === watching) watching.stop = watched.stop
         else watched.stop()

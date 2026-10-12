@@ -107,9 +107,11 @@ export function wiringFor(
     now: () => number
     layout: () => LayoutPrefs
     draw: () => void
+    /** Something was typed into a lane (`Outbox`). */
+    typed: () => void
   },
 ): Wiring {
-  const outbox = new Outbox(opts.client)
+  const outbox = new Outbox(opts.client, () => window.typed())
   return {
     get opts() {
       return opts

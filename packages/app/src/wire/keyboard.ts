@@ -111,7 +111,7 @@ export interface KeyboardDeps {
   interrupt(): void
   /** ctrl+c with nothing left to clear. */
   quit(): void
-  /** A lane was typed into: look at it sooner than the next beat. */
+  /** Look at the lanes sooner than the next beat: a terminal typed into was scrolled back. */
   soonTick(): void
   /** The notches turned before this key, answered first: the key comes after them. */
   settle(): void
@@ -330,11 +330,15 @@ export class Keyboard implements Subject {
     // A terminal with the keyboard gets every keystroke Tade did not keep.
     const terminal = activeTerminal(this.wire.state)
     if (terminal && this.wire.state.keyboard === 'terminal' && this.wire.state.dictation === null) {
+      const scrolled = this.wire.state.terminalScroll !== 0
       this.wire.put({ ...this.wire.state, terminalScroll: 0 })
       const split = terminalSplitShown(this.wire.state)
       const into = split && this.wire.state.splitFocus ? split.lane : terminal.id
       this.wire.outbox.write(into as LaneId, data)
-      this.deps.soonTick()
+      // No look of its own: the echo is the lane printing, which looks at once
+      // (`Looks.printed`); one asked for here found nothing and held the echo a
+      // floor behind it. Only a terminal scrolled back is owed one, to its end.
+      if (scrolled) this.deps.soonTick()
       return { consume: true }
     }
     // Dictating: the line is being typed, not the agent.

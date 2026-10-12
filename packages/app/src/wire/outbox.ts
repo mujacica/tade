@@ -36,16 +36,20 @@ type Sent =
 
 export class Outbox {
   private readonly door: LaneDoor
+  /** Told of every write, as it is asked for: something was typed into a lane, and its echo is owed. */
+  private readonly typed: () => void
   private sent: Sent[] = []
   /** The end of this turn is already asked for. */
   private due = false
 
-  constructor(door: LaneDoor) {
+  constructor(door: LaneDoor, typed: () => void = () => {}) {
     this.door = door
+    this.typed = typed
   }
 
   /** Type into a lane: joined to the write in front of it where that went to the same lane. */
   write(lane: LaneId, data: string): void {
+    this.typed()
     const last = this.sent[this.sent.length - 1]
     if (last?.kind === 'write' && last.lane === lane) last.data += data
     else this.queue({ kind: 'write', lane, data })

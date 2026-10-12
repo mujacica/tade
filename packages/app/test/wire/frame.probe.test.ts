@@ -248,6 +248,71 @@ describe('what the frame loop costs', () => {
     }
   })
 
+  // A key typed into a lane is drawn by the lane: out to the program, back as
+  // output, read by a look and drawn by it. That frame is the key's as much as
+  // the line's own echo is, and a terminal slow to take frames is no reason to
+  // show somebody what they typed later — but it was paced like news, held for
+  // the terminal's interval behind the frame before it, and the slower the
+  // terminal the longer every echo waited.
+  //
+  // So a terminal taking forty milliseconds a frame, which puts the pace three
+  // steps up, `cat` to type into, and each key typed as soon as the last one's
+  // echo is on screen: just after a frame, where anything paced waits most of
+  // its interval. Counted against the keys, never a sleep — how many of their
+  // echoes the pace held — with room for a runner so starved an echo came back
+  // later than `ECHO_OWED_MS`, which makes it an ordinary frame and is the
+  // rule working. Every one held is the old window.
+  it('a frame owed to a key is not paced', async () => {
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    try {
+      let slow = 0
+      const write = terminal.write.bind(terminal)
+      terminal.write = (data: string) => {
+        const until = performance.now() + slow
+        while (performance.now() < until) {
+          // Holding the thread, as a blocking write(2) does.
+        }
+        write(data)
+      }
+      const opened = await client.openTerminal({ project: 'app' })
+      await client.write(opened.id, 'exec cat\r')
+      await start({ frameMs: 250 })
+      await until('the first frame', () => terminal.written.includes('refunds'))
+      const tab = find('terminal 1')
+      click(tab.col + 1, tab.row)
+      // What `cat` echoes, found by content: a run nothing else on screen has.
+      let line = ''
+      const type = async (keys: string): Promise<void> => {
+        for (const key of keys) {
+          line += key
+          terminal.press(key)
+          await until(`"${line}" echoed`, () =>
+            screenOf(terminal.written).some((row) => row.includes(line)),
+          )
+        }
+      }
+      await type('ECHO>')
+
+      slow = 40
+      while ((timings.span('pace')?.worst ?? 0) * WRITE_SHARE < slow) await type('z')
+      const KEYS = 6
+      const from = timings.span('held')?.count ?? 0
+      await type('z'.repeat(KEYS))
+      const held = (timings.span('held')?.count ?? 0) - from
+      expect(held, `${held} of ${KEYS} echoes held for the terminal's pace`).toBeLessThan(KEYS / 2)
+      // The floor under it, so a pass is not a probe gone quiet: frames the
+      // window asks for that nobody typed — clicks — are still held.
+      const clicked = timings.span('held')?.count ?? 0
+      await until('a click held for the pace', () => {
+        click(tab.col + 1, tab.row)
+        return (timings.span('held')?.count ?? 0) > clicked
+      })
+    } finally {
+      stop()
+    }
+  })
+
   // An event is news, not necessarily a new picture. Every line the journal
   // hears changes something the window may draw, and every one of them used to
   // ask for a frame of its own: a storm of them was a frame every sixteen

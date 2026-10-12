@@ -8,7 +8,11 @@
 /** How often a lane's screen is re-read when nothing has said it changed. */
 export const FRAME_MS = 250
 
-/** How soon after a lane prints something it is looked at again. */
+/**
+ * How soon a look somebody asked for happens: a focus moved, a split opened,
+ * a terminal came to the front. Long enough to take a burst of what that set
+ * off in one look. Never what a lane printing waits for (`printedWait`).
+ */
 export const LOOK_SOON_MS = 8
 
 /**
@@ -54,6 +58,43 @@ export function lookWait(since: number): number {
   return Math.max(LOOK_SOON_MS, LOOK_FLOOR_MS - Math.max(0, since))
 }
 
+// ─── a key's echo ────────────────────────────────────────────────────────────
+//
+// A key typed into a lane is drawn by the lane, not by the window: it goes out
+// to a program, comes back as output, is parsed on the emulators' thread, and
+// is then read and drawn by a look. Every hop of that waited on a timer — the
+// key's own look eight milliseconds out, which found nothing when the program
+// had not answered yet and then held the echo to the floor; and the frame,
+// paced as if it were news. A lane's echo was 11 ms at p50 and 26 at p99
+// against 2 and 5.5 at Tade's own line (`pnpm bench window --lane`).
+//
+// So the key asks for no look of its own, and its echo is *owed*: the first
+// thing the lane prints after it is looked at at once, floor or no floor, and
+// the frame that draws it is drawn as a key's (`wire/paint.ts`). One look per
+// key, so typing into a lane that streams cannot take the floor away.
+
+/**
+ * How long after a key is sent to a lane its echo is owed. Past anything a
+ * program at a prompt takes to answer, and short enough that whatever it
+ * prints a while later is the ordinary kind again.
+ */
+export const ECHO_OWED_MS = 100
+
+/**
+ * How long to wait before looking at a lane in front that just printed,
+ * `since` milliseconds after the last look started.
+ *
+ * Not `LOOK_SOON_MS`: a read waits for the emulators to have parsed what was
+ * printed, so the soon wait bought nothing here, and a look that lands inside
+ * it is one the next print then waits a whole floor behind. At once from quiet,
+ * then, and no oftener than the floor while it streams — unless it is a key's
+ * echo (`owed`), which is never held to the floor.
+ */
+export function printedWait(since: number, owed: boolean): number {
+  if (owed) return 0
+  return Math.max(0, LOOK_FLOOR_MS - Math.max(0, since))
+}
+
 // ─── how fast the terminal lets the window draw ──────────────────────────────
 //
 // Everything above is about how often the window *looks*. What nothing said
@@ -86,8 +127,10 @@ export function lookWait(since: number): number {
 // terminal slow to accept is no reason to show somebody their own typing later.
 // Not by pi-tui's immediate render, which is only for a component that holds
 // the focus and the window gives none of them the focus: whatever a key asks
-// for while it is being answered is never held (`wire/paint.ts`). What is paced
-// is everything else: a look, the spinner, the wheel, an event, the status beat.
+// for while it is being answered is never held (`wire/paint.ts`), and nor is
+// the echo of one typed into a lane, which a look draws (`ECHO_OWED_MS`). What
+// is paced is everything else: a look, the spinner, the wheel, an event, the
+// status beat.
 
 /** The least time between two frames while the terminal keeps up: pi-tui's own throttle. */
 export const RENDER_FLOOR_MS = 16

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   EASY_FRAMES,
+  ECHO_OWED_MS,
   FRAME_MS,
   intervalOf,
   LOOK_FLOOR_MS,
@@ -10,6 +11,7 @@ import {
   newsWait,
   type Pace,
   paced,
+  printedWait,
   RENDER_CEILING_MS,
   RENDER_FLOOR_MS,
   renderWait,
@@ -42,6 +44,24 @@ describe('waiting before the next look', () => {
       expect(wait).toBeGreaterThanOrEqual(LOOK_SOON_MS)
       expect(wait).toBeLessThanOrEqual(LOOK_FLOOR_MS)
     }
+  })
+
+  it('looks at a lane that printed at once from quiet, and no sooner than the floor while it streams', () => {
+    // Reading waits for what it printed to be parsed, so the short wait buys
+    // nothing here — and a look inside it is one the next print waits behind.
+    expect(printedWait(LOOK_FLOOR_MS, false)).toBe(0)
+    expect(printedWait(1_000, false)).toBe(0)
+    expect(printedWait(0, false)).toBe(LOOK_FLOOR_MS)
+    expect(printedWait(10, false)).toBe(LOOK_FLOOR_MS - 10)
+    expect(printedWait(-5, false)).toBe(LOOK_FLOOR_MS)
+  })
+
+  it('never holds a key’s echo to the floor', () => {
+    for (let since = -10; since <= 100; since++) expect(printedWait(since, true)).toBe(0)
+    // Owed for longer than a program at a prompt takes, and for less than the
+    // beat: past it, a print is the ordinary kind.
+    expect(ECHO_OWED_MS).toBeLessThan(FRAME_MS)
+    expect(ECHO_OWED_MS).toBeGreaterThan(LOOK_FLOOR_MS)
   })
 
   it('looks oftener than the beat, and not so often nobody could read it', () => {
