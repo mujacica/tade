@@ -10,11 +10,12 @@
 // data cannot answer and a control offering it would be a lie with a tab on it.
 
 import { ringOf, shareIn } from './charts.js'
-import { classOn, el, empty, foldOf, into, keyed, textIn } from './dom.js'
+import { el, empty, foldOf, into, keyed, textIn } from './dom.js'
 import { count, money, onPlan, planBar, sinceSaid, tokensSaid, untilSaid } from './figures.js'
 import { nothingSaid } from './pages.js'
 import { dl, dlIn, sayIn, section } from './rows.js'
 import { omitted, plansOf, projectsOf, rowsOf, spendFold, spendSince, tasksIn } from './store.js'
+import { callout, meter, meterIn, panel } from './ui.js'
 
 /* ── the money ─────────────────────────────────────────────────────────────── */
 
@@ -34,10 +35,9 @@ export function spendScreen() {
   into(outside, planWhy, planSaid, planNot)
   // The caveats are built once and shown or hidden, so a figure somebody is
   // reading does not move down the page because a new one appeared under it.
-  const scope = el('p', {
-    class: 'caveat',
-    text: 'This device was not granted what the work costs, so every figure here is a dash. What each device may read is decided at the machine, and the Devices screen lists what this one was given.',
-  })
+  const scope = callout(
+    'This device was not granted what the work costs, so every figure here is a dash. What each device may read is decided at the machine, and the Devices screen lists what this one was given.',
+  )
   const floor = el('p', {
     class: 'unknown',
     text: '— some tasks are not on this page, so this is a floor',
@@ -64,13 +64,13 @@ export function spendScreen() {
   into(made.body, head, under, about.body, kinds, outside)
 
   const plans = section('PLAN WINDOWS')
-  const planList = el('ul', { class: 'rows' })
+  const planList = panel('ul', 'rows')
   const noPlans = empty('no harness here reported a plan window')
   into(plans.body, planList, noPlans)
 
   const by = section('BY PROJECT')
   const wrap = el('div', {
-    class: 'scrolls',
+    class: 'scrolls ui-panel',
     attrs: { tabindex: '0', role: 'region', 'aria-label': 'Spend by project, scrollable' },
   })
   const table = el('table')
@@ -104,7 +104,12 @@ export function spendScreen() {
         ['exact', fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null],
         ['estimated', fold.usdEstimated > 0 ? `~$${fold.usdEstimated.toFixed(2)}` : null],
         ['tokens', tokens === null ? null : tokens.said],
-        ['unpriced', tokens === null || tokens.unpriced === '' ? null : tokens.unpriced],
+        [
+          'unpriced',
+          tokens === null || tokens.unpriced === ''
+            ? null
+            : tokens.unpriced.replace(/ unpriced$/, ''),
+        ],
       ])
       planEquivalentIn({ outside, planWhy, planSaid, planNot }, fold)
       caveatsIn(caveats, fold, view.may.spend, spendSince(view.store))
@@ -236,8 +241,7 @@ function fillPlanRow(node, plan, view) {
 
 function createWindow() {
   const node = el('li')
-  const bar = el('span', { class: 'window-bar', attrs: { 'aria-hidden': 'true' } })
-  into(bar, el('span'))
+  const bar = meter()
   into(
     node,
     el('span', { class: 'window-label' }),
@@ -252,10 +256,7 @@ function fillWindow(node, window, view) {
   const [label, bar, share, resets] = node.children
   const drawn = planBar(window.used)
   textIn(label, window.label)
-  bar.firstChild.style.setProperty('width', `${Math.max(0, Math.min(100, window.used))}%`)
-  for (const one of ['is-fine', 'is-warm', 'is-tight']) {
-    classOn(node, one, one === `is-${drawn.pressure}`)
-  }
+  meterIn(bar, window.used, drawn.pressure)
   textIn(share, drawn.said)
   const until = untilSaid(window.resetsAt, view?.asOf ?? Date.now())
   textIn(resets, until === null ? 'no reset said' : `resets in ${until}`)
@@ -269,8 +270,8 @@ function createSpendRow() {
   // Each project's share of the largest, as a bar under its name: a picture
   // of the money column beside it, and `aria-hidden` because it is that.
   const name = el('span', { class: 'share-name' })
-  const share = el('span', { class: 'share', attrs: { 'aria-hidden': 'true' } })
-  into(share, el('span'))
+  const share = meter()
+  share.classList.add('share')
   into(node.firstChild, name, share)
   return node
 }
@@ -284,7 +285,7 @@ function fillSpendRow(node, project, view, most = 0) {
   textIn(name, project.name)
   const part = paid.said === '—' || most <= 0 ? 0 : fold.usd / most
   share.hidden = part === 0
-  share.firstChild.style.setProperty('width', `${Math.round(part * 1000) / 10}%`)
+  meterIn(share, part * 100)
   textIn(cells[1], paid.said === '—' ? '—' : `${fold.partial ? '≥' : ''}${paid.said}`)
   cells[1].setAttribute('aria-label', paid.said === '—' ? paid.why : paid.said)
   const tokens = tokensSaid(fold)

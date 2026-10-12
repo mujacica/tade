@@ -107,11 +107,7 @@
  * takes. `--amber-dark` is a ground and a border and never text.
  */
 .material-label {
-  border-inline-start: 3px solid var(--amber-dark);
-  padding: var(--s2) var(--s3);
-  background: var(--panel);
   color: var(--bright);
-  font-size: var(--step--1);
 }
 
 .material {
@@ -180,10 +176,6 @@
 */
 .settings-list {
   display: grid;
-  border-radius: var(--r2);
-  background: var(--panel);
-  border: var(--border);
-  overflow: hidden;
 }
 
 .setting {
@@ -216,52 +208,10 @@
 .setting-value {
   flex: 0 1 auto;
   max-width: 50%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 2px var(--s3);
-  border-radius: var(--r3);
-  background: var(--raised);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  color: var(--body);
 }
 
 .setting .hint-body {
   color: var(--heading);
-  font-size: var(--step--1);
-}
-
-.setting-tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 var(--s4);
-}
-
-/* A tag and its sentence: side by side with the next tag, the sentence under all. */
-.setting-tag-wrap {
-  display: contents;
-}
-
-.setting-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  justify-self: start;
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-.setting-tag .ic {
-  width: 0.9375rem;
-  height: 0.9375rem;
-}
-
-.setting-tag-wrap .empty {
-  flex: 1 0 100%;
-  order: 1;
-  padding-block: 0 var(--s2);
   font-size: var(--step--1);
 }
 

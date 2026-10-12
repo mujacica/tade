@@ -26,6 +26,7 @@ import { taskMark } from './glyphs.js'
 import { taskPath } from './routes.js'
 import { section } from './rows.js'
 import { agentsOf, omitted } from './store.js'
+import { panel } from './ui.js'
 
 /** How often a page that is looking asks again: the window's own beat. */
 const EVERY_MS = 2000
@@ -127,7 +128,7 @@ export function byProject(agents) {
 function createGroup() {
   const made = section('project')
   // A list on a phone and a grid of cards where the work has room for two.
-  const list = el('ul', { class: 'rows agent-list' })
+  const list = panel('ul', 'rows agent-list')
   into(made.body, list)
   return made.node
 }
@@ -211,7 +212,7 @@ export function agentPane(where, ctx) {
   into(screen.body, why, frame, facts)
 
   const activity = section('ACTIVITY')
-  const list = el('ul', { class: 'rows moments' })
+  const list = el('ul', { class: 'ui-timeline moments' })
   const none = empty('nothing written down about it yet')
   const more = el('p', { class: 'unknown', text: 'and more before this' })
   into(activity.body, list, none, more)

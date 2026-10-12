@@ -26,6 +26,7 @@ import {
 } from './glyphs.js'
 import { safeHref, taskPath } from './routes.js'
 import { taskAt } from './store.js'
+import { panel } from './ui.js'
 
 /**
  * A section: a heading, a figure, and a body that is never left blank.
@@ -301,7 +302,7 @@ function outbound(body, href) {
 /* ── a plain figure row, for the tables that are not lists ─────────────────── */
 
 export function dl() {
-  return el('dl', { class: 'dl' })
+  return panel('dl', 'dl')
 }
 
 /**

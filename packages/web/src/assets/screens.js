@@ -50,6 +50,7 @@ import {
   section,
 } from './rows.js'
 import { omitted, projectAt, queueIn, spendFold, spendSince, taskAt, tasksIn } from './store.js'
+import { note, panel } from './ui.js'
 
 /* The overview is `overview.js`: the landing screen has grown its own file. */
 
@@ -62,16 +63,16 @@ export function projectScreen(where, ctx) {
   const title = el('h1', { text: where.project })
   const figure = el('span', { class: 'figure' })
   into(head, title, figure)
-  const strip = el('nav', { class: 'tabstrip', attrs: { 'aria-label': 'This project' } })
+  const strip = el('nav', { class: 'tabstrip ui-panel', attrs: { 'aria-label': 'This project' } })
   const gone = el('p', { class: 'empty nothing' })
 
   const agents = section('AGENTS')
-  const agentList = el('ul', { class: 'rows' })
+  const agentList = panel('ul', 'rows')
   const noAgents = empty('nothing running here')
   into(agents.body, agentList, noAgents)
 
   const queue = section('QUEUE')
-  const queueList = el('ul', { class: 'queue' })
+  const queueList = panel('ul', 'queue')
   const noQueue = empty('nothing queued here')
   into(queue.body, queueList, noQueue)
 
@@ -296,7 +297,7 @@ export function taskScreen(where, ctx) {
   const title = el('h1', { text: where.task })
   // The state again as a pill beside the name: the word in its tone's tint,
   // so what the glyph says is readable at a glance from across a desk.
-  const pill = el('span', { class: 'pill' })
+  const pill = el('span', { class: 'ui-pill' })
   into(head, glyph, title, pill)
   // The presses this device was granted, under the name and above the fold:
   // on a phone the full controls are a long scroll down, and the answer to an
@@ -591,30 +592,34 @@ function partsOf(state, agent, work, checks, rest) {
     word: el('p', { class: 'word' }),
     why: el('p', { class: 'said' }),
     asked: el('p', { class: 'block' }),
-    askedWhy: el('p', {
-      class: 'unknown',
-      text: 'the whole of what it asked is in the window, at the machine',
-    }),
+    askedWhy: note(
+      'at the machine',
+      'the whole of what it asked is in the window, at the machine',
+      'laptop',
+    ),
     stalled: el('p', { class: 'unknown', text: 'nothing has moved here for a while' }),
-    queue: el('ul', { class: 'queue' }),
+    queue: panel('ul', 'queue'),
     agent: dl(),
     noHarness: el('p', { class: 'unknown', text: 'no harness was written down' }),
     work: dl(),
     noBranch: el('p', { class: 'unknown', text: 'this task has no branch of its own' }),
-    shared: el('p', {
-      class: 'unknown',
-      text: 'other agents work in this checkout, so uncommitted work here is nobody’s',
-    }),
+    shared: note(
+      'shared checkout',
+      'other agents work in this checkout, so uncommitted work here is nobody’s',
+      'agents',
+    ),
     checksWord: el('p', { class: 'word' }),
     checksNames: dl(),
-    overruled: el('p', {
-      class: 'unknown',
-      text: 'a failing check here was overruled, with a reason, at the machine',
-    }),
-    noChecks: el('p', {
-      class: 'unknown',
-      text: 'nobody ran these here — which is not that they passed',
-    }),
+    overruled: note(
+      'overruled',
+      'a failing check here was overruled, with a reason, at the machine',
+      'alert',
+    ),
+    noChecks: note(
+      'not run here',
+      'nobody ran these here — which is not that they passed',
+      'clock',
+    ),
     rest: dl(),
     origin: el('p', { class: 'aside' }),
     findings: el('p', { class: 'aside' }),

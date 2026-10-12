@@ -299,7 +299,7 @@ export function foldOf(label) {
     text: '?',
     attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': id, 'aria-label': label },
   })
-  const body = el('div', { class: 'fold', attrs: { id } })
+  const body = el('div', { class: 'fold ui-panel', attrs: { id } })
   body.hidden = true
   press.addEventListener('click', () => {
     body.hidden = !body.hidden

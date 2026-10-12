@@ -29,10 +29,6 @@
 .rows,
 .queue {
   display: grid;
-  border-radius: var(--r2);
-  background: var(--panel);
-  border: var(--border);
-  overflow: hidden;
 }
 
 .rows:empty,
@@ -150,43 +146,6 @@
   color: var(--quiet);
 }
 
-/* A pill: the tone's own tint as its ground, the tone as its text. */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s1);
-  padding: 2px var(--s2);
-  border-radius: var(--r3);
-  background: var(--raised);
-  font-size: var(--step--1);
-  white-space: nowrap;
-}
-
-.chip .ic {
-  width: 0.9375rem;
-  height: 0.9375rem;
-}
-
-main a.chip-link {
-  min-height: 2.75rem;
-  padding-inline: var(--s3);
-  border: var(--border);
-  background: var(--panel);
-  color: var(--body);
-  text-decoration: none;
-}
-
-main a.chip-link:hover {
-  background: var(--surface);
-  color: var(--bright);
-}
-
-main a.chip-link.t-wants {
-  border-color: color-mix(in srgb, var(--violet) 40%, transparent);
-  background: color-mix(in srgb, var(--violet) 10%, var(--panel));
-  color: var(--violet);
-}
-
 /* ── the project sub-navigation: scrollable, never collapsed into `+3 more` ── */
 
 .tabstrip {
@@ -196,9 +155,6 @@ main a.chip-link.t-wants {
   padding: var(--s1);
   overflow-x: auto;
   scroll-snap-type: x proximity;
-  border-radius: var(--r2);
-  background: var(--panel);
-  border: var(--border);
 }
 
 .tabstrip a {
@@ -277,9 +233,6 @@ main a.chip-link.t-wants {
 
 .scrolls {
   overflow-x: auto;
-  border-radius: var(--r2);
-  background: var(--panel);
-  border: var(--border);
 }
 
 table {
@@ -433,9 +386,6 @@ th.figure {
   gap: var(--s2) var(--s4);
   margin: 0;
   padding: var(--s3) var(--s4);
-  border-radius: var(--r2);
-  background: var(--panel);
-  border: var(--border);
 }
 
 .dl + .press,
@@ -600,16 +550,6 @@ select {
 }
 
 /* The sentence that may never get comfortable, where somebody is deciding. */
-.caveat {
-  padding: var(--s3);
-  border-radius: var(--r1);
-  border-inline-start: 3px solid var(--amber-dark);
-  background: var(--panel);
-  color: var(--heading);
-  font-size: var(--step--1);
-  line-height: var(--lead);
-}
-
 /* An absence in a word, with its sentence one `?` away. */
 .why-short {
   display: flex;

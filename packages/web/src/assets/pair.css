@@ -24,8 +24,8 @@
   width: min(100%, 28rem);
   padding: var(--s5);
   border-radius: var(--r4);
-  background: var(--panel);
-  border: var(--border);
+  /* A panel clips; a card with a field in it must not cut its focus ring. */
+  overflow: visible;
 }
 
 /* The whole wordmark, `AWAY` too: the card has the room the header does not. */
@@ -42,12 +42,6 @@
   display: flex;
   gap: var(--s2);
   align-items: flex-start;
-  padding: var(--s3);
-  border-radius: var(--r2);
-  background: color-mix(in srgb, var(--red) 8%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
-  color: var(--bright);
-  font-size: var(--step--1);
 }
 
 .pair-gone .ic {

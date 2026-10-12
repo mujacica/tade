@@ -18,9 +18,8 @@
 // (`locally`) rather than left as holes.
 
 import { afterAnswer, draftBody, savingOf } from './acts.js'
-import { el, glyphOf, into, keyed, markIn, proseOf, textIn } from './dom.js'
+import { el, into, keyed, proseOf, textIn } from './dom.js'
 import { count } from './figures.js'
-import { checkMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { nothingSaid } from './pages.js'
 import { pathOf } from './routes.js'
@@ -37,13 +36,14 @@ import {
   section,
 } from './rows.js'
 import { mayRead, omitted, workflowAt, workflowsOf } from './store.js'
+import { panel } from './ui.js'
 
 /* ── the workflows ─────────────────────────────────────────────────────────── */
 
 export function workflowsScreen() {
   const node = el('div')
   const made = section('WORKFLOWS', { top: true })
-  const list = el('ul', { class: 'rows' })
+  const list = panel('ul', 'rows')
   const none = el('p', { class: 'empty nothing' })
   into(made.body, list, none)
   into(node, made.node)
@@ -147,7 +147,7 @@ export function workflowScreen(where, ctx) {
   into(about.body, facts, says)
 
   const problems = section('WHAT WOULD STOP IT PUBLISHING')
-  const problemList = el('ul', { class: 'rows' })
+  const problemList = panel('ul', 'rows')
   const problemNone = el('p', {
     class: 'empty nothing',
     text: 'nothing: it would publish as it stands',
@@ -466,7 +466,7 @@ function shapeIn(parent) {
 function createColumn() {
   const node = el('div', { class: 'layer' })
   const head = el('h3', { class: 'aside' })
-  const list = el('ul', { class: 'rows' })
+  const list = panel('ul', 'rows')
   return into(node, head, list)
 }
 

@@ -85,12 +85,6 @@
 
   .frame:not(.rail-mini) .rail-items .count {
     position: static;
-    background: none;
-    color: var(--heading);
-  }
-
-  .frame:not(.rail-mini) .rail-items > a[aria-current="page"] .count {
-    color: var(--bright);
   }
 
   /* The projects' tree: a project, its counts, and the press that opens it. */

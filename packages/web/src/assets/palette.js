@@ -166,7 +166,7 @@ export function palette(ctx) {
   const scrim = el('div', { class: 'scrim', attrs: { 'aria-hidden': 'true' } })
   const box = el('div', { class: 'pal' })
   const field = el('div', { class: 'pal-field' })
-  const chip = el('span', { class: 'pal-chip' })
+  const chip = el('span', { class: 'ui-pill t-working pal-chip' })
   chip.hidden = true
   const input = el('input', {
     attrs: {

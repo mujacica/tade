@@ -240,8 +240,8 @@ function createTreeProject() {
   })
   into(twist, icon('chevron', 'twist'))
   const link = el('a', { class: 'tree-link', attrs: { href: '/' } })
-  const wants = el('span', { class: 'tree-count is-wants' })
-  const working = el('span', { class: 'tree-count is-working' })
+  const wants = el('span', { class: 'ui-count is-wants' })
+  const working = el('span', { class: 'ui-count is-working' })
   into(link, el('span', { class: 'tree-name' }), wants, working)
   into(row, twist, link)
   const tasks = el('ul', { class: 'tree-tasks' })
@@ -313,7 +313,7 @@ function entry(parent, one, where) {
   // Violet means *waiting on you* and nothing else, so only the two counts of
   // that wear it; every other count is a neutral figure.
   const wants = one.counts === 'wantsYou' || one.counts === 'intake'
-  const figure = el('span', { class: wants ? 'count is-wants' : 'count' })
+  const figure = el('span', { class: wants ? 'count ui-count is-loud' : 'count ui-count' })
   into(link, icon(one.icon), label, figure)
   parent.append(link)
   return { link, figure, view: one.view, counts: one.counts, where }

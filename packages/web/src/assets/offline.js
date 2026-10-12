@@ -36,6 +36,7 @@ import { el, into } from './dom.js'
 import { clockOf, count, duration } from './figures.js'
 import { CACHE_PREFIX } from './install.js'
 import { intakeWaiting, omitted, projectsOf, rowsOf } from './store.js'
+import { callout } from './ui.js'
 
 /**
  * The whole of what may be on that disk.
@@ -179,10 +180,9 @@ export function lastSeenScreen(view, now) {
   // note). Then the counts it last knew, as tiles, and when.
   const head = el('div', { class: 'page-head' })
   into(head, el('h1', { text: 'Tade isn’t answering' }))
-  const when = el('p', {
-    class: 'caveat',
-    text: `${since === null ? 'Last seen: unknown' : `Last seen ${duration(since)} ago`}${told === null ? '' : ` · as of ${told}`}. This device cannot reach the machine: the laptop may be asleep, or Tade closed there. Below is what this device was last told — not what is happening now, and nothing here can be acted on.`,
-  })
+  const when = callout(
+    `${since === null ? 'Last seen: unknown' : `Last seen ${duration(since)} ago`}${told === null ? '' : ` · as of ${told}`}. This device cannot reach the machine: the laptop may be asleep, or Tade closed there. Below is what this device was last told — not what is happening now, and nothing here can be acted on.`,
+  )
   into(node, head, when)
   const tiles = el('div', { class: 'tiles' })
   for (const [said, n] of [
@@ -193,7 +193,7 @@ export function lastSeenScreen(view, now) {
     ['Runs', view.runs],
     ['Projects', view.projects],
   ]) {
-    const tile = el('div', { class: 'tile' })
+    const tile = el('div', { class: 'ui-card tile' })
     into(
       tile,
       el('span', { class: 'tile-head', text: said }),
@@ -205,7 +205,7 @@ export function lastSeenScreen(view, now) {
     node,
     tiles,
     el('p', {
-      class: 'caveat',
+      class: 'ui-callout',
       // **What to do, rather than a promise this screen cannot keep.** It has
       // no beat and patches nothing — there is nothing to refresh into — so
       // saying it fills in by itself would be a page waiting for something

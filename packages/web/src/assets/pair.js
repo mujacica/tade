@@ -22,6 +22,7 @@
 
 import { el, into, textIn } from './dom.js'
 import { icon, iconIn, wordmark } from './icons.js'
+import { callout } from './ui.js'
 
 /** The four steps, in order: what each is called and what it is drawn as. */
 export const STEPS = [
@@ -69,13 +70,16 @@ export const IN_AFTER_MS = 1200
 
 export function pairScreen(ctx) {
   const node = el('div', { class: 'pair' })
-  const card = el('section', { class: 'pair-card', attrs: { 'aria-labelledby': 'pair-head' } })
+  const card = el('section', {
+    class: 'pair-card ui-panel',
+    attrs: { 'aria-labelledby': 'pair-head' },
+  })
   const mark = el('span', { class: 'pair-mark' })
   into(mark, wordmark())
   const title = el('h1', { text: 'Pair this device', attrs: { id: 'pair-head' } })
 
   // What the machine could not be reached about, before anything else.
-  const gone = el('p', { class: 'pair-gone' })
+  const gone = el('p', { class: 'ui-callout is-bad pair-gone' })
   into(
     gone,
     icon('alert'),
@@ -119,10 +123,9 @@ export function pairScreen(ctx) {
   const press = el('button', { class: 'press pair-press', attrs: { type: 'button' } })
   into(press, el('span', { text: 'Pair' }), icon('chevron'))
   // **Said where somebody is deciding**, and so not behind a `?`.
-  const why = el('p', {
-    class: 'caveat',
-    text: 'Tade will ask at the machine before this device is let in. It will be able to read every project, task, note, check and figure — including what you have typed into Tade, as you typed it — and to change nothing.',
-  })
+  const why = callout(
+    'Tade will ask at the machine before this device is let in. It will be able to read every project, task, note, check and figure — including what you have typed into Tade, as you typed it — and to change nothing.',
+  )
   into(form, label, field, press, why)
 
   const waiting = el('div', { class: 'pair-waiting' })

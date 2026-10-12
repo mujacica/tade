@@ -1,0 +1,326 @@
+/*
+  The components: every look the page repeats, defined once.
+
+  **A screen composes these and adds only what is its own** — a panel is a
+  panel on the queue, in Settings and in the dock; a count is a count on the
+  tab bar, in the rail and in the project tree. `ui.js` makes each one, so a
+  screen asks for a pill rather than writing a span with five declarations
+  beside it, and a change to how a pill looks is one rule here.
+
+  The construction is the system's (`tokens.css`): a surface one step up from
+  what it sits on and a hairline round it, a state as a tint of its own tone
+  with the tone as its text, amber for the one thing that is pressed or where
+  you are, and every control a 44px target.
+
+  Loaded after the tokens and before everything else, so a screen's own rule
+  — the one place a component is allowed to differ — always wins.
+*/
+
+/* ── panel: a container of rows, one step up from the page ─────────────────── */
+
+.ui-panel {
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
+  overflow: hidden;
+}
+
+/* ── card: a thing of its own, one step up again ───────────────────────────── */
+
+.ui-card {
+  position: relative;
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: var(--border);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color var(--ease),
+    background var(--ease);
+}
+
+/* A card that is a link lights its edge under the pointer. */
+a.ui-card:hover,
+.ui-card.is-link:hover {
+  border-color: var(--control);
+}
+
+/* ── pill: a word or a value, soft, in its tone ────────────────────────────── */
+
+.ui-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  max-width: 100%;
+  padding: 2px var(--s3);
+  border-radius: var(--r3);
+  background: var(--raised);
+  color: var(--body);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-pill.is-mono {
+  font-family: var(--font-mono);
+}
+
+.ui-pill .ic {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+/* A state's pill is its tone's tint, with the tone as its text. */
+.ui-pill.t-wants {
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+}
+
+.ui-pill.t-failed {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+}
+
+.ui-pill.t-working {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+.ui-pill.t-done {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+/* ── count: how many, on a tab, a rail entry, a project ────────────────────── */
+
+.ui-count {
+  display: inline-block;
+  min-width: 1.25rem;
+  padding-inline: 5px;
+  border-radius: var(--r3);
+  background: var(--chosen);
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step--1);
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.ui-count:empty {
+  display: none;
+}
+
+/* What wants you, soft; and the same, solid, where it must be seen at a glance. */
+.ui-count.is-wants {
+  background: color-mix(in srgb, var(--violet) 18%, transparent);
+  color: var(--violet);
+}
+
+.ui-count.is-working {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber);
+}
+
+.ui-count.is-done {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green);
+}
+
+.ui-count.is-failed {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+}
+
+.ui-count.is-loud {
+  background: var(--violet);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ── chip: a press shaped like a pill — a filter, a project, a link ─────────── */
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s3);
+  border-radius: var(--r3);
+  background: var(--panel);
+  border: var(--border);
+  color: var(--body);
+  font: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--ease),
+    border-color var(--ease),
+    color var(--ease);
+}
+
+.ui-chip:hover {
+  background: var(--surface);
+  border-color: var(--control);
+  color: var(--bright);
+}
+
+.ui-chip .ic {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Pressed, or where you are: the one accent, as everywhere. */
+.ui-chip[aria-pressed="true"],
+.ui-chip[aria-current="page"] {
+  background: color-mix(in srgb, var(--amber) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+  color: var(--amber);
+}
+
+/* A chip about what wants you wears that tone. */
+.ui-chip.t-wants {
+  background: color-mix(in srgb, var(--violet) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--violet) 40%, transparent);
+  color: var(--violet);
+}
+
+/* ── meter: a share of something, as a bar ─────────────────────────────────── */
+
+.ui-meter {
+  display: block;
+  height: 6px;
+  border-radius: var(--r3);
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.ui-meter > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: var(--r3);
+  background: var(--amber);
+  transition: width var(--ease-sheet);
+}
+
+.ui-meter.is-warm > span {
+  background: var(--amber-light);
+}
+
+.ui-meter.is-tight > span {
+  background: var(--red);
+}
+
+/* ── callout: the sentence that may never get comfortable ──────────────────── */
+
+.ui-callout {
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r1);
+  border-inline-start: 3px solid var(--amber-dark);
+  background: var(--panel);
+  color: var(--heading);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
+.ui-callout.is-bad {
+  border-inline-start-color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--panel));
+  color: var(--bright);
+}
+
+/* ── timeline: what happened, in order, on a rule ──────────────────────────── */
+
+/*
+  Primer's timeline: each moment a node on one vertical rule, its words beside
+  it and how long ago at the end. The rule starts at the first node and stops
+  at the last, so the line is the history and nothing else.
+*/
+.ui-timeline {
+  display: grid;
+}
+
+.ui-timeline > li > div {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.ui-timeline > li > div::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(0.875rem - 0.5px);
+  width: 1px;
+  background: var(--raised);
+}
+
+.ui-timeline > li:first-child > div::before {
+  inset-block-start: 50%;
+}
+
+.ui-timeline > li:last-child > div::before {
+  inset-block-end: 50%;
+}
+
+.ui-timeline > li:only-child > div::before {
+  display: none;
+}
+
+.ui-timeline .glyph {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r3);
+  background: var(--panel);
+  border: var(--border);
+  font-size: var(--step--1);
+  line-height: 1;
+}
+
+.ui-timeline .name {
+  color: var(--body);
+}
+
+.ui-timeline:empty {
+  display: none;
+}
+
+/* ── note: a word, its icon, and its sentence behind a `?` ──────────────────── */
+
+.ui-note {
+  display: grid;
+  justify-items: start;
+}
+
+.ui-note-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.ui-note-line .ic {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.ui-note-why {
+  padding-block-end: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* Notes side by side where a row has more than one. */
+.ui-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s4);
+}

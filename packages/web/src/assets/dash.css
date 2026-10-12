@@ -31,11 +31,6 @@
   gap: var(--s1);
   min-height: 7.5rem;
   padding: var(--s3) var(--s4) var(--s4);
-  border-radius: var(--r2);
-  background: var(--surface);
-  border: var(--border);
-  color: inherit;
-  text-decoration: none;
   overflow: hidden;
   transition:
     border-color var(--ease),
@@ -250,18 +245,9 @@ main a.proj {
   align-items: stretch;
   gap: var(--s3);
   padding: var(--s4);
-  border-radius: var(--r2);
-  background: var(--surface);
-  border: var(--border);
-  color: inherit;
-  text-decoration: none;
   transition:
     border-color var(--ease),
     background var(--ease);
-}
-
-main a.proj:hover {
-  border-color: var(--control);
 }
 
 .proj-head {
@@ -292,20 +278,8 @@ main a.proj:hover .proj-go {
 
 .proj-stats {
   display: flex;
-  gap: var(--s4);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--step-0);
-}
-
-.stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--s1);
-}
-
-.stat.is-zero {
-  color: var(--heading);
+  gap: var(--s2);
+  min-height: 1.25rem;
 }
 
 .proj-foot {
@@ -338,10 +312,6 @@ main a.proj:hover .proj-go {
 .signals,
 .places {
   display: grid;
-  border-radius: var(--r2);
-  background: var(--panel);
-  border: var(--border);
-  overflow: hidden;
 }
 
 .signals > li + li,
@@ -406,16 +376,7 @@ main .places a {
   align-content: start;
   gap: var(--s2);
   padding: var(--s4);
-  border-radius: var(--r2);
-  background: var(--surface);
-  border: var(--border);
-  color: inherit;
-  text-decoration: none;
   transition: border-color var(--ease);
-}
-
-.card:hover {
-  border-color: var(--control);
 }
 
 /* The state's tone down the card's edge, and as a wash at its top. */
@@ -487,16 +448,6 @@ main a.card-link {
 */
 .card .asked {
   justify-self: start;
-  padding: 2px var(--s2);
-  border-radius: var(--r1);
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  color: var(--amber);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 /* The presses on a card, above its stretched link. */
@@ -558,20 +509,8 @@ main {
 }
 
 .share {
-  display: block;
   width: 8rem;
-  height: 4px;
   margin-block-start: var(--s1);
-  border-radius: var(--r3);
-  background: var(--raised);
-  overflow: hidden;
-}
-
-.share > span {
-  display: block;
-  height: 100%;
-  border-radius: var(--r3);
-  background: var(--amber);
 }
 
 /* The older pages of a list, asked for a page at a time, stacked under it. */
@@ -582,35 +521,6 @@ main {
 .press.more-page {
   width: 100%;
   margin-block-start: var(--s3);
-}
-
-/* A state as a pill: its tone's own tint, the tone as its text. */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s1);
-  padding: 2px var(--s3);
-  border-radius: var(--r3);
-  background: var(--raised);
-  font-size: var(--step--1);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.pill.t-wants {
-  background: color-mix(in srgb, var(--violet) 14%, transparent);
-}
-
-.pill.t-failed {
-  background: color-mix(in srgb, var(--red) 14%, transparent);
-}
-
-.pill.t-working {
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
-}
-
-.pill.t-done {
-  background: color-mix(in srgb, var(--green) 14%, transparent);
 }
 
 /* The total and its `?`, side by side. */
@@ -626,9 +536,6 @@ main {
   gap: var(--s2);
   margin-block: var(--s2) var(--s3);
   padding: var(--s3) var(--s4);
-  border-radius: var(--r2);
-  background: var(--panel);
-  border: var(--border);
 }
 
 /*
@@ -690,28 +597,6 @@ main {
   font-size: var(--step--1);
 }
 
-.window-bar {
-  height: 6px;
-  border-radius: var(--r3);
-  background: var(--raised);
-  overflow: hidden;
-}
-
-.window-bar > span {
-  display: block;
-  height: 100%;
-  border-radius: var(--r3);
-  background: var(--amber);
-}
-
-.is-warm .window-bar > span {
-  background: var(--amber-light);
-}
-
-.is-tight .window-bar > span {
-  background: var(--red);
-}
-
 .window-share {
   text-align: end;
   color: var(--bright);
@@ -753,15 +638,6 @@ main a.check-card {
   gap: 2px var(--s3);
   align-items: center;
   padding: var(--s3) var(--s4);
-  border-radius: var(--r2);
-  background: var(--surface);
-  border: var(--border);
-  color: inherit;
-  text-decoration: none;
-}
-
-main a.check-card:hover {
-  border-color: var(--control);
 }
 
 .check-card .ring {
@@ -808,65 +684,12 @@ main a.check-card:hover {
   A project's counts, in the rail's tree and on the More screen: what wants
   you in violet, what works in amber, nought not at all.
 */
-.tree-count {
-  min-width: 1.25rem;
-  padding-inline: 5px;
-  border-radius: var(--r3);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--step--1);
-  line-height: 1.25rem;
-  text-align: center;
-}
-
-.tree-count:empty {
-  display: none;
-}
-
-.tree-count.is-wants {
-  background: color-mix(in srgb, var(--violet) 18%, transparent);
-  color: var(--violet);
-}
-
-.tree-count.is-working {
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
-  color: var(--amber);
-}
-
 /* A row of filter chips: the one pressed is lit, each with its count. */
 .filter {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s2);
   margin-block-end: var(--s4);
-}
-
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: var(--tap);
-  padding-inline: var(--s3);
-  border-radius: var(--r3);
-  background: var(--panel);
-  border: var(--border);
-  color: var(--body);
-  cursor: pointer;
-  transition:
-    background var(--ease),
-    border-color var(--ease),
-    color var(--ease);
-}
-
-.filter-chip:hover {
-  border-color: var(--control);
-  color: var(--bright);
-}
-
-.filter-chip[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--amber) 10%, var(--panel));
-  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
-  color: var(--amber);
 }
 
 .filter-chip .num {

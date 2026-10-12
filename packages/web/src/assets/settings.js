@@ -36,9 +36,9 @@ import {
   shownOf,
 } from './acts.js'
 import { el, hintOf, into, textIn } from './dom.js'
-import { icon } from './icons.js'
 import { section } from './rows.js'
 import { keyOf } from './screens.js'
+import { callout, note, panel } from './ui.js'
 
 /**
  * The screen: built once on open, again after a change, and **never by a
@@ -50,10 +50,7 @@ export function settingsScreen(ctx) {
   const top = section('SETTINGS', { top: true })
   const said = el('p', { class: 'empty nothing' })
   const withheld = el('p', { class: 'unknown' })
-  const keys = el('p', {
-    class: 'caveat',
-    text: 'A key or a token is said as set or not set and is never shown here.',
-  })
+  const keys = callout('A key or a token is said as set or not set and is never shown here.')
   const groups = el('div')
   into(top.body, said, withheld, keys)
   into(node, top.node, groups)
@@ -93,7 +90,7 @@ export function settingsScreen(ctx) {
 
   const groupNode = (group) => {
     const part = section(group.title.toUpperCase())
-    const list = el('ul', { class: 'settings-list' })
+    const list = panel('ul', 'settings-list')
     for (const row of group.settings) into(list, rowNode(row))
     into(part.body, list)
     return part.node
@@ -107,9 +104,9 @@ export function settingsScreen(ctx) {
     const item = el('li', { class: 'setting' })
     const line = el('div', { class: 'setting-line' })
     const name = el('span', { class: 'setting-name' })
-    if (row.scope !== null) into(name, el('span', { class: 'chip', text: row.scope }))
+    if (row.scope !== null) into(name, el('span', { class: 'ui-pill', text: row.scope }))
     into(name, el('span', { text: row.title }))
-    const value = el('span', { class: 'setting-value', text: shownOf(row) })
+    const value = el('span', { class: 'ui-pill is-mono setting-value', text: shownOf(row) })
     into(line, name, value)
     if (row.means !== '') {
       const means = hintOf(row.means)
@@ -118,25 +115,15 @@ export function settingsScreen(ctx) {
     } else {
       into(item, line)
     }
-    const tags = el('div', { class: 'setting-tags' })
-    if (!row.live) into(tags, tagOf('refresh', 'on restart', 'applies when Tade next starts'))
+    const tags = el('div', { class: 'ui-notes setting-tags' })
+    if (!row.live) into(tags, note('on restart', 'applies when Tade next starts', 'refresh'))
     const standing = settingStanding(row, acts)
     if (standing.kind === 'no' && standing.why !== '') {
-      into(tags, tagOf('laptop', 'at the machine', standing.why))
+      into(tags, note('at the machine', standing.why, 'laptop'))
     }
     if (tags.children.length > 0) into(item, tags)
     if (standing.kind === 'yes') into(item, controlFor(row, value))
     return item
-  }
-
-  /** A word with its icon, and the sentence behind it one `?` away. */
-  const tagOf = (drawn, word, why) => {
-    const node = el('span', { class: 'setting-tag' })
-    const hint = hintOf(why, 'empty')
-    into(node, icon(drawn), el('span', { text: word }), hint.press)
-    const wrap = el('span', { class: 'setting-tag-wrap' })
-    into(wrap, node, hint.body)
-    return wrap
   }
 
   /**

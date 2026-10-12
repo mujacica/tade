@@ -39,7 +39,7 @@ const STRIP_LINES = 6
 export function deskParts(ctx) {
   const projects = el('nav', { class: 'projects', attrs: { 'aria-label': 'Projects' } })
 
-  const side = el('nav', { class: 'side', attrs: { 'aria-label': 'Running agents' } })
+  const side = el('nav', { class: 'side ui-panel', attrs: { 'aria-label': 'Running agents' } })
   const sideHead = el('div', { class: 'section-head' })
   const sideTitle = el('h2', { text: 'AGENTS', attrs: { 'aria-label': 'Agents' } })
   const sideFigure = el('span', { class: 'figure' })
@@ -48,7 +48,10 @@ export function deskParts(ctx) {
   const noAgents = empty('no agent is running')
   into(side, sideHead, groups, noAgents)
 
-  const strip = el('section', { class: 'strip', attrs: { 'aria-labelledby': 'strip-head' } })
+  const strip = el('section', {
+    class: 'strip ui-panel',
+    attrs: { 'aria-labelledby': 'strip-head' },
+  })
   const stripHead = el('div', { class: 'section-head' })
   const stripTitle = el('h2', {
     text: 'TADE',
@@ -100,11 +103,11 @@ function projectsIn(nav, view) {
 }
 
 function createProject() {
-  const link = el('a', { attrs: { href: '/' } })
+  const link = el('a', { class: 'ui-chip', attrs: { href: '/' } })
   const name = el('span', { class: 'name' })
-  const wants = el('span', { class: 'count t-wants' })
-  const working = el('span', { class: 'count t-working' })
-  const queued = el('span', { class: 'count t-quiet' })
+  const wants = el('span', { class: 'ui-count is-wants' })
+  const working = el('span', { class: 'ui-count is-working' })
+  const queued = el('span', { class: 'ui-count' })
   into(link, name, wants, working, queued)
   return link
 }
@@ -126,9 +129,9 @@ function fillProject(link, project, here) {
 }
 
 /** A count with its glyph, hidden at nought: a badge that says 0 is a badge nobody reads. */
-function figureIn(node, n, glyph, noun) {
-  node.hidden = n === 0
-  textIn(node, n === 0 ? '' : `${glyph} ${count(n)}`)
+function figureIn(node, n, _glyph, noun) {
+  // A count, as every count on the page is (`ui.css`): nothing at nought.
+  textIn(node, n === 0 ? '' : String(n))
   node.setAttribute('aria-label', `${n} ${noun}`)
 }
 

@@ -35,7 +35,7 @@ import {
   textIn,
   toneOn,
 } from './dom.js'
-import { ageSaid, count, money, planPressure, tokensSaid } from './figures.js'
+import { ageSaid, money, planPressure, tokensSaid } from './figures.js'
 import { taskMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { quickActs } from './quick.js'
@@ -59,6 +59,7 @@ import {
   wantsYou,
 } from './store.js'
 import { changesSeen, KINDS } from './toasts.js'
+import { count, countIn, panel } from './ui.js'
 
 /* ── the figures, as pure folds over what the store holds ──────────────────── */
 
@@ -138,7 +139,7 @@ export function nowScreen(ctx = null) {
   const wants = section('WANTS YOU')
   foldable(wants, 'overview:wants')
   wants.node.setAttribute('id', 'wants')
-  const inbox = el('a', { class: 'chip chip-link t-wants', attrs: { href: '/inbox' } })
+  const inbox = el('a', { class: 'ui-chip t-wants', attrs: { href: '/inbox' } })
   into(inbox, icon('inbox'), el('span'))
   wants.heading.after(inbox)
   const cards = el('div', { class: 'cards wants-cards' })
@@ -157,7 +158,7 @@ export function nowScreen(ctx = null) {
   const working = section('AGENTS')
   foldable(working, 'overview:agents')
   working.node.classList.add('ov-agents')
-  const agentList = el('ul', { class: 'rows' })
+  const agentList = panel('ul', 'rows')
   const idle = empty('none running')
   into(working.body, agentList, idle)
 
@@ -168,12 +169,12 @@ export function nowScreen(ctx = null) {
   foldable(recent, 'overview:changes')
   const recentWhy = hintOf('Since this page opened. A reload starts it over.')
   recent.figure.before(recentWhy.press)
-  const recentList = el('ul', { class: 'rows' })
+  const recentList = panel('ul', 'rows')
   into(recent.body, recentWhy.body, recentList)
 
   const signals = section('ELSEWHERE')
   foldable(signals, 'overview:elsewhere')
-  const signalList = el('ul', { class: 'signals' })
+  const signalList = panel('ul', 'signals')
   const shown = SIGNALS.map((one) => signalOf(one))
   into(signalList, ...shown.map((one) => one.node))
   into(signals.body, signalList)
@@ -259,7 +260,7 @@ export function nowScreen(ctx = null) {
         shut,
         (row) => row.name,
         () => {
-          const link = el('a', { class: 'chip chip-link', attrs: { href: '/' } })
+          const link = el('a', { class: 'ui-chip', attrs: { href: '/' } })
           into(link, icon('folder'), el('span'))
           return link
         },
@@ -324,7 +325,10 @@ const TILES = Object.keys(TILE_SPECS)
  * three that have a shape — a chart. A link to where the whole of it is.
  */
 function tileOf(spec) {
-  const node = el('a', { class: `tile tile-${spec.tone ?? 'plain'}`, attrs: { href: spec.href } })
+  const node = el('a', {
+    class: `ui-card tile tile-${spec.tone ?? 'plain'}`,
+    attrs: { href: spec.href },
+  })
   const head = el('span', { class: 'tile-head' })
   into(
     head,
@@ -448,7 +452,7 @@ function partsSaid(...parts) {
  * stylesheet, and the presses sit above that.
  */
 function createWant(ctx) {
-  const node = el('article', { class: 'card want' })
+  const node = el('article', { class: 'ui-card card want' })
   const top = el('div', { class: 'card-top' })
   const glyph = glyphOf(taskMark('blocked'))
   const link = el('a', { class: 'card-link', attrs: { href: '/' } })
@@ -456,7 +460,7 @@ function createWant(ctx) {
   const age = el('span', { class: 'aside' })
   into(top, glyph, link, age)
   const why = el('p', { class: 'why' })
-  const asked = el('p', { class: 'asked' })
+  const asked = el('p', { class: 'ui-pill is-mono t-working asked' })
   const quick = ctx === null ? null : quickActs(ctx)
   into(node, top, why, asked, quick?.node)
   node.quick = quick
@@ -486,25 +490,15 @@ function fillWant(node, task, view) {
 /* ── a project ─────────────────────────────────────────────────────────────── */
 
 function createProject() {
-  const node = el('a', { class: 'proj', attrs: { href: '/' } })
+  const node = el('a', { class: 'ui-card proj', attrs: { href: '/' } })
   const head = el('span', { class: 'proj-head' })
   const name = el('span', { class: 'proj-name' })
   into(head, icon('folder'), name, icon('chevron', 'proj-go'))
   const bar = barOf(['wants', 'working', 'queued', 'rest'])
+  // What wants you, what works and what waits, as the counts the rail and
+  // the chips draw (`ui.css`): nothing at nought.
   const stats = el('span', { class: 'proj-stats' })
-  for (const [tone, glyph] of [
-    ['t-wants', '◆'],
-    ['t-working', '●'],
-    ['t-quiet', '⌸'],
-  ]) {
-    const one = el('span', { class: `stat ${tone}` })
-    into(
-      one,
-      el('span', { class: 'stat-glyph', text: glyph, attrs: { 'aria-hidden': 'true' } }),
-      el('span'),
-    )
-    stats.append(one)
-  }
+  into(stats, count('wants'), count('working'), count())
   const foot = el('span', { class: 'proj-foot' })
   const checks = ringOf('checks')
   const checkSaid = el('span', { class: 'proj-checks' })
@@ -526,10 +520,7 @@ function fillProject(node, project, view) {
   barIn(bar, projectShape(counts))
   const figures = [counts.wantsYou, counts.working, counts.queued]
   ;[...stats.children].forEach((one, at) => {
-    const n = figures[at] ?? 0
-    textIn(one.lastChild, count(n))
-    one.setAttribute('aria-label', `${n} ${STAT_NOUNS[at]}`)
-    classOn(one, 'is-zero', n === 0)
+    countIn(one, figures[at] ?? 0, STAT_NOUNS[at])
   })
   const tasks = tasksIn(view.store, project.name)
   const fold = checksFold(tasks)

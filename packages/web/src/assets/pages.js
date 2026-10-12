@@ -55,6 +55,7 @@ import {
   spendSince,
   tasksIn,
 } from './store.js'
+import { callout, countIn, count as countOf, panel } from './ui.js'
 
 /**
  * What an empty list says, which is **two different nothings**.
@@ -94,7 +95,7 @@ export function queueScreen() {
   const chipsBy = new Map()
   for (const kind of [null, ...QUEUE_KINDS]) {
     const chip = el('button', {
-      class: 'filter-chip',
+      class: 'ui-chip filter-chip',
       attrs: { type: 'button', 'aria-pressed': kind === null ? 'true' : 'false' },
     })
     into(
@@ -162,7 +163,7 @@ const QUEUE_WORDS = {
 function createQueueGroup() {
   const node = el('div', { class: 'section' })
   const head = el('h3', { class: 'aside' })
-  const list = el('ul', { class: 'queue' })
+  const list = panel('ul', 'queue')
   const said = el('p', { class: 'unknown' })
   return into(node, head, list, said)
 }
@@ -194,7 +195,7 @@ export function checksScreen() {
   // than a phone is the one thing in this design allowed to scroll sideways,
   // and a container nobody can focus is one a keyboard cannot move.
   const wrap = el('div', {
-    class: 'scrolls',
+    class: 'scrolls ui-panel',
     attrs: { tabindex: '0', role: 'region', 'aria-label': 'Checks, scrollable' },
   })
   const table = el('table')
@@ -234,7 +235,7 @@ export function checksScreen() {
       const mark = checkMark(checksWord(fold))
       textIn(made.figure, mark.word)
       // The word as a pill in its own tone: the one figure this heading has.
-      classOn(made.figure, 'pill', true)
+      classOn(made.figure, 'ui-pill', true)
       toneOn(made.figure, mark.tone)
       none.hidden = tasks.length > 0
       wrap.hidden = tasks.length === 0
@@ -251,11 +252,9 @@ export function checksScreen() {
 }
 
 function createCheckCard() {
-  const node = el('a', { class: 'check-card', attrs: { href: '/' } })
+  const node = el('a', { class: 'ui-card check-card', attrs: { href: '/' } })
   const counts = el('span', { class: 'check-counts' })
-  for (const tone of ['t-done', 't-failed', 't-quiet']) {
-    into(counts, el('span', { class: `stat ${tone}` }))
-  }
+  into(counts, countOf('done'), countOf('failed'), countOf())
   into(node, ringOf('checks'), el('span', { class: 'proj-name' }), counts)
   return node
 }
@@ -270,10 +269,7 @@ function fillCheckCard(node, project, view) {
   ringIn(ring, [fold.pass, fold.fail, fold.unknown])
   const figures = [fold.pass, fold.fail, fold.unknown]
   ;[...counts.children].forEach((one, at) => {
-    const n = figures[at] ?? 0
-    textIn(one, `${checkMark(['pass', 'fail', 'unknown'][at]).glyph} ${n}`)
-    one.setAttribute('aria-label', `${n} ${CHECK_NOUNS[at]}`)
-    classOn(one, 'is-zero', n === 0)
+    countIn(one, figures[at] ?? 0, CHECK_NOUNS[at])
   })
 }
 
@@ -309,17 +305,17 @@ function fillCheckRow(node, task) {
 export function reviewsScreen() {
   const node = el('div')
   const open = section('REVIEWS', { top: true })
-  const openList = el('ul', { class: 'rows' })
+  const openList = panel('ul', 'rows')
   const noOpen = empty('nothing is offered for merge')
   into(open.body, openList, noOpen)
   const quiet = section('NO REVIEW')
-  const quietList = el('ul', { class: 'rows' })
+  const quietList = panel('ul', 'rows')
   const noQuiet = empty('nothing is waiting to be offered')
   into(quiet.body, quietList, noQuiet)
   // Without the grant the link to each review is withheld, so **every** task
   // reads as unoffered. Said before the lists rather than left to look like a
   // repository where nobody reviews anything.
-  const scope = el('p', { class: 'caveat' })
+  const scope = el('p', { class: 'ui-callout' })
   into(node, scope, open.node, quiet.node)
 
   return {
@@ -370,16 +366,15 @@ export function reviewsScreen() {
 export function findingsScreen() {
   const node = el('div')
   const made = section('FINDINGS', { top: true })
-  const list = el('ul', { class: 'rows' })
+  const list = panel('ul', 'rows')
   const none = empty('no findings')
   into(made.body, list, none)
   into(
     node,
     made.node,
-    el('p', {
-      class: 'caveat',
-      text: 'A judge answers questions; it never decides. A probability is not a verdict, and the account under one is the agent’s own testimony.',
-    }),
+    callout(
+      'A judge answers questions; it never decides. A probability is not a verdict, and the account under one is the agent’s own testimony.',
+    ),
   )
 
   return {
@@ -421,13 +416,13 @@ function whose(finding) {
 export function notesScreen(ctx = null) {
   const node = el('div')
   const made = section('NOTES', { top: true })
-  const list = el('ul', { class: 'rows notes' })
+  const list = panel('ul', 'rows notes')
   // **The older pages, asked for, not sent.** The snapshot carries the newest
   // notes and a cursor past them (`pages.notes.next`); each press asks the
   // machine for the page after it (`/api/notes?after=`), and what came is
   // drawn under the newest. Notes are append-only, so a page once read stays
   // true — and a cursor the machine no longer knows starts over and says so.
-  const older = el('ul', { class: 'rows notes' })
+  const older = panel('ul', 'rows notes')
   const none = empty('nothing written down')
   into(made.body, list, older, none)
   const more = el('button', { class: 'press ghost more-page', attrs: { type: 'button' } })
@@ -530,10 +525,9 @@ export function devicesScreen(ctx) {
     telling.body,
     tellingSaid,
     tell,
-    el('p', {
-      class: 'caveat',
-      text: 'A notification says how many pieces of work want you and nothing else — no project, no task, no title — unless details are turned on at the machine. It is relayed by your browser’s own push service, which cannot read it, and it is sent only while Tade’s window is open and the machine is awake. Nothing is caught up afterwards.',
-    }),
+    callout(
+      'A notification says how many pieces of work want you and nothing else — no project, no task, no title — unless details are turned on at the machine. It is relayed by your browser’s own push service, which cannot read it, and it is sent only while Tade’s window is open and the machine is awake. Nothing is caught up afterwards.',
+    ),
   )
   /** What the *phone* says, which is the one thing this screen cannot derive. */
   let standing = null
@@ -576,7 +570,7 @@ export function devicesScreen(ctx) {
   })
 
   const others = section('DEVICES')
-  const list = el('ul', { class: 'rows' })
+  const list = panel('ul', 'rows')
   const loading = el('p', { class: 'empty', text: 'asking…' })
   into(others.body, list, loading)
   // The device list is not on the stream — letting a phone in or disconnecting
@@ -606,10 +600,9 @@ export function devicesScreen(ctx) {
     mine.node,
     telling.node,
     others.node,
-    el('p', {
-      class: 'caveat',
-      text: 'Every device that has been let in is listed here, and disconnecting one is done at the machine and needs no network. Nothing running on that machine is contained: anything there runs as you.',
-    }),
+    callout(
+      'Every device that has been let in is listed here, and disconnecting one is done at the machine and needs no network. Nothing running on that machine is contained: anything there runs as you.',
+    ),
   )
 
   return {
@@ -683,7 +676,7 @@ export function moreScreen() {
   for (const group of GROUPS) {
     const views = group.views.filter((view) => MORE.some((one) => one.view === view))
     if (group.key !== 'projects' && views.length === 0) continue
-    const list = el('ul', { class: 'places' })
+    const list = panel('ul', 'places')
     if (group.title === '') into(made.body, list)
     else {
       const part = section(group.title.toUpperCase())
@@ -720,7 +713,7 @@ export function moreScreen() {
             link,
             icon('folder'),
             el('span', { class: 'label' }),
-            el('span', { class: 'tree-count is-wants' }),
+            el('span', { class: 'ui-count is-wants' }),
           )
           return into(row, link)
         },

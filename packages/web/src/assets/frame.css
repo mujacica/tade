@@ -505,26 +505,6 @@ kbd {
   position: absolute;
   top: 2px;
   left: calc(50% + 4px);
-  min-width: 1.125rem;
-  padding-inline: 4px;
-  border-radius: var(--r3);
-  background: var(--control);
-  color: var(--bright);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--step--1);
-  font-weight: 700;
-  line-height: 1.125rem;
-  text-align: center;
-}
-
-.tab .count:empty {
-  display: none;
-}
-
-.tab .count.is-wants {
-  background: var(--violet);
-  color: var(--ink);
 }
 
 /* Tade, in the middle: an amber disc, the one primary press on the bar. */
@@ -757,20 +737,6 @@ main[tabindex="-1"]:focus {
     position: absolute;
     top: 3px;
     inset-inline-end: 4px;
-    min-width: 1rem;
-    padding-inline: 3px;
-    border-radius: var(--r3);
-    background: var(--chosen);
-    color: var(--bright);
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: var(--step--1);
-    line-height: 1rem;
-    text-align: center;
-  }
-
-  .rail-items .count:empty {
-    display: none;
   }
 
   .rail-items > a:hover {
@@ -844,38 +810,5 @@ main[tabindex="-1"]:focus {
     grid-column: 2;
   }
 
-  .projects a {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s2);
-    min-height: 2.75rem;
-    padding-inline: var(--s3);
-    border-radius: var(--r3);
-    background: var(--panel);
-    border: var(--border);
-    color: var(--body);
-    text-decoration: none;
-    font-size: var(--step-0);
-    transition:
-      background var(--ease),
-      border-color var(--ease);
-  }
-
-  .projects a:hover {
-    background: var(--surface);
-    border-color: var(--control);
-  }
-
   /* Where you are, in amber, as the rail says it — and said to a screen reader. */
-  .projects a[aria-current="page"] {
-    color: var(--amber);
-    border-color: color-mix(in srgb, var(--amber) 45%, transparent);
-    background: color-mix(in srgb, var(--amber) 8%, var(--panel));
-  }
-
-  .projects .count {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: var(--step--1);
-  }
 }

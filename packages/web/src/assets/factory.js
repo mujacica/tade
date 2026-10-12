@@ -31,18 +31,9 @@ import { ageSaid, count, untilSaid } from './figures.js'
 import { intakeMark, sourceMark } from './glyphs.js'
 import { nothingSaid } from './pages.js'
 import { pathOf, requestPath, safeHref, taskPath } from './routes.js'
-import {
-  createLocally,
-  createWaitRow,
-  dl,
-  dlIn,
-  fillLocally,
-  fillWaitRow,
-  rowFor,
-  sayIn,
-  section,
-} from './rows.js'
+import { createLocally, dl, dlIn, fillLocally, rowFor, sayIn, section } from './rows.js'
 import { intakeAt, intakeOf, intakeWaiting, mayRead, omitted, sourcesOf } from './store.js'
+import { panel } from './ui.js'
 
 /* ── what has been handed over ─────────────────────────────────────────────── */
 
@@ -60,10 +51,10 @@ export function inboxScreen() {
   const node = el('div')
   const made = section('HANDED OVER', { top: true })
   const doors = section('THE DOORS')
-  const list = el('ul', { class: 'rows' })
+  const list = panel('ul', 'rows')
   const none = el('p', { class: 'empty nothing' })
   into(made.body, list, none)
-  const doorList = el('ul', { class: 'rows' })
+  const doorList = panel('ul', 'rows')
   const doorNone = el('p', { class: 'empty nothing', text: 'no source is implemented here' })
   into(doors.body, doorList, doorNone)
   const left = el('p', { class: 'unknown' })
@@ -209,19 +200,19 @@ export function requestScreen(where, ctx) {
   into(from.body, facts, link)
 
   const work = section('WHAT IT MADE')
-  const workList = el('ul', { class: 'rows' })
+  const workList = panel('ul', 'rows')
   const workNone = el('p', { class: 'empty nothing' })
   const runLink = el('a', { class: 'press ghost', text: 'The whole run' })
   into(work.body, workList, workNone, runLink)
 
   const replies = section('WHAT WENT BACK')
   const said = el('p', { class: 'said' })
-  const unsent = el('ul', { class: 'rows' })
+  const unsent = panel('ul', 'rows')
   into(replies.body, said, unsent)
 
   // The request itself, last, under the heading that travels with it.
   const words = section('THE REQUEST ITSELF')
-  const label = el('p', { class: 'material-label' })
+  const label = el('p', { class: 'ui-callout material-label' })
   const body = el('div', { class: 'material' })
   const noBody = el('p', { class: 'unknown' })
   into(words.body, label, body, noBody)

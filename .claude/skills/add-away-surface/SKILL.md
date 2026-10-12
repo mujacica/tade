@@ -73,6 +73,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a device may keep on its own disk | `src/assets/offline.js` (the allow-list, the store, the screen) |
 | the icons and the manifest | `scripts/icons.ts` — **generated**; `test/icons.test.ts` decodes the committed PNGs |
 | the palette, the type scale, the primitives | `src/assets/tokens.css` — every colour is a window tone, checked by arithmetic |
+| a look the page repeats — panel, card, pill, count, chip, meter, callout, timeline, note | `src/assets/ui.css` (one rule each, loaded right after the tokens so a screen's rule wins) and `ui.js` (one factory each); **a screen composes these rather than writing one out again**, and `test/components.test.ts` fails on a second panel or a `ui-*` class no sheet defines |
 | the frame: header, bars, nav, the four region states | `src/assets/frame.css`, `src/assets/shell.js` — a sentence somebody may need is behind a `?` (`hintOf` in `dom.js`), not a paragraph |
 | what a screen looks like | `src/assets/away.css`, `src/assets/rows.js` |
 | which controls a screen offers, and what each sends | `src/assets/acts.js` — pure; `screens.js` builds the nodes |

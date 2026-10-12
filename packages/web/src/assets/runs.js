@@ -22,13 +22,14 @@ import { checkMark, reviewMark, stepMark } from './glyphs.js'
 import { pathOf, requestPath, taskPath } from './routes.js'
 import { createWaitRow, dl, dlIn, fillWaitRow, sayIn, section } from './rows.js'
 import { mayRead, omitted, runAt, runsOf } from './store.js'
+import { panel } from './ui.js'
 
 /* ── the runs ──────────────────────────────────────────────────────────────── */
 
 export function runsScreen() {
   const node = el('div')
   const made = section('RUNS', { top: true })
-  const list = el('ul', { class: 'rows' })
+  const list = panel('ul', 'rows')
   const none = el('p', {
     class: 'empty nothing',
     text: 'no runs yet',
@@ -205,7 +206,7 @@ export function runScreen(where) {
 function createLayer() {
   const node = el('div', { class: 'layer' })
   const head = el('h3', { class: 'aside' })
-  const list = el('ul', { class: 'rows' })
+  const list = panel('ul', 'rows')
   return into(node, head, list)
 }
 
