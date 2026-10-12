@@ -17,18 +17,19 @@ import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from '
 /** One delivery, written into the journal the way the delivery path writes it. */
 async function handedOver(
   client: Workbench,
-  over: { task?: string; mode?: string } = {},
+  over: { task?: string; mode?: string; id?: string } = {},
 ): Promise<void> {
+  const id = over.id ?? 'req-1'
   const where = {
-    item: 'cli:req-1',
+    item: `cli:${id}`,
     source: 'cli',
-    external_id: 'req-1',
+    external_id: id,
     revision: '1',
     project: 'app',
     requester: 'kim',
     hash: 'sha256:aaa',
-    ref: 'req-1.0001.json',
-    url: 'https://example.invalid/req-1',
+    ref: `${id}.0001.json`,
+    url: `https://example.invalid/${id}`,
     watch: 'intake.cli',
     schedule: 'intake-cli',
   }
@@ -150,6 +151,26 @@ describe('the window, and work handed to it from outside', () => {
     // And looking at it has started nothing.
     expect(parked()).toBe(true)
     expect(client.runs()).toEqual([])
+  })
+
+  it('still sees a new request once the journal is longer than the lines the window keeps', async () => {
+    tall()
+    // More lines than `Live` holds (500), so its window is full from the
+    // first frame and stays exactly that long however much more it hears: a
+    // mark kept as a *count* of lines never moves again, and the inbox stops
+    // refolding for the rest of the session.
+    for (let i = 0; i < 499; i++) {
+      await client.log.append({ type: 'output', lane: 'app/refunds/agent', detail: { bytes: 1 } })
+    }
+    await handedOver(client)
+    await start()
+    // The first fold, which proves the window has looked at its full window.
+    await until('the first request down the side', () => terminal.written.includes('req-1'))
+
+    await handedOver(client, { id: 'req-2', task: 'app/refunds-again' })
+    await until('the second request down the side', () =>
+      screenOf(terminal.written).join('\n').includes('req-2'),
+    )
   })
 
   it('asks before approving, because it starts agents on somebody else’s words', async () => {

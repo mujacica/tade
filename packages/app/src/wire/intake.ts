@@ -85,6 +85,13 @@ const INBOX_LINES = new Set<string>([
   'task_done',
 ])
 
+/** The lines after `seq`, walked back from the newest end, which is where they are. */
+function linesAfter<T extends { seq: number }>(events: readonly T[], seq: number): readonly T[] {
+  let from = events.length
+  while (from > 0 && (events[from - 1]?.seq ?? seq) > seq) from--
+  return events.slice(from)
+}
+
 /** What a watch's look hands back, as its host declares it. */
 type Looked = Awaited<ReturnType<ExtensionHost['look']>>
 
@@ -115,8 +122,20 @@ export interface IntakeDeps {
 export class Intake implements Subject {
   private readonly wire: Wiring
   private readonly deps: IntakeDeps
-  /** The last fold, and the journal it was folded from. */
+  /** The last fold. */
   private rows: readonly InboxRow[] = []
+  /**
+   * The `seq` of the newest line the last look took in, or -1 for "all of it".
+   *
+   * **A sequence number, never a count.** `Live.events` is the last 500 lines,
+   * kept by splicing, so once it is full its length stays 500 whatever it
+   * hears — and a mark kept as a length never moved again, so the inbox
+   * stopped refolding for the rest of the session. A `seq` is only to be
+   * trusted inside one window's lifetime, because a compaction at open can
+   * hand the next window lower numbers (`compactJournal`); this object dies
+   * with its window, and a newest line older than the mark is still read as
+   * everything being new rather than nothing.
+   */
   private folded = -1
   /** A fold under way, so a slow one is never started twice. */
   private folding: Promise<void> | null = null
@@ -227,10 +246,12 @@ export class Intake implements Subject {
    * effect appears a second later is a button people press twice.
    */
   look(): void {
+    if (this.folding) return
     const events = this.wire.live?.events ?? []
-    if (events.length === this.folded || this.folding) return
-    const fresh = this.folded < 0 ? events : events.slice(this.folded)
-    this.folded = events.length
+    const newest = events.at(-1)?.seq ?? -1
+    if (newest === this.folded) return
+    const fresh = newest < this.folded ? events : linesAfter(events, this.folded)
+    this.folded = newest
     if (!fresh.some((event) => INBOX_LINES.has(event.type))) return
     this.folding = this.fold(events)
       .catch((err: unknown) => this.couldNotRead(err))
