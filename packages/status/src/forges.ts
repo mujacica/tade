@@ -204,8 +204,12 @@ const remotes = new WeakMap<
 async function configStamp(root: string): Promise<string | null> {
   try {
     const dotGit = join(root, '.git')
+    const found = await stat(dotGit)
     let dir = dotGit
-    if (!(await stat(dotGit)).isDirectory()) {
+    if (!found.isDirectory()) {
+      // Only a regular file is read, as git does: anything else here — a fifo
+      // somebody made — would be a read that never comes back.
+      if (!found.isFile()) return null
       const named = /^gitdir:\s*(.+)$/m.exec(await readFile(dotGit, 'utf8'))?.[1]?.trim()
       if (!named) return null
       const own = resolve(root, named)

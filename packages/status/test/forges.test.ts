@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { CREDENTIAL_KEEP_MS, type ForgeOptions } from '@tade/forges-core'
 import { describe, expect, it } from 'vitest'
@@ -186,6 +187,14 @@ describe('what the registry keeps between looks', () => {
     await remoteAt(exec, nowhere)
     await remoteAt(exec, nowhere)
     expect(asked()).toBe(4)
+  })
+
+  it('reads no .git that is not a regular file, which would be a read that never came back', async () => {
+    const odd = tmp('tade-fifo-git-')
+    execFileSync('mkfifo', [join(odd, '.git')])
+    const { exec, asked } = counting()
+    expect(await remoteAt(exec, odd)).toBe('')
+    expect(asked()).toBe(1)
   })
 })
 
