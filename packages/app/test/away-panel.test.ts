@@ -38,6 +38,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
     bind: 'loopback',
     bound: ['127.0.0.1:7654', '[::1]:7654'],
     reachable: ['localhost'],
+    machine: 'this Mac',
     ticket: { url: URL, secondsLeft: 84 },
     code: code === null ? [] : blocksFor(code),
     asking: null,
@@ -48,6 +49,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
       {
         id: '00112233445566aa',
         label: 'iPhone',
+        from: 'your network',
         pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
         reads: ['titles'],
         mayAct: false,
@@ -179,10 +181,11 @@ describe('what a grant does', () => {
 
   it('is one clause in the foot while the pointer is on its control', () => {
     expect(said(everything, { height: 80, hover: onAct })).toContain(
-      `act: ${ACTING_IS_NOT_YOU_SHORT}`,
+      `answer & steer: ${ACTING_IS_NOT_YOU_SHORT}`,
     )
-    expect(said(everything, { height: 80, hover: onTalk })).toContain(
-      `talk: ${TALKING_IS_NOT_YOU_SHORT}`,
+    // Wrapped where it does not fit, so read as words rather than as one row.
+    expect(words(said(everything, { height: 80, hover: onTalk }))).toContain(
+      `talk to Tade: ${TALKING_IS_NOT_YOU_SHORT}`,
     )
     // Nothing pointed at, nothing said.
     expect(said(everything, { height: 80 })).not.toContain(ACTING_IS_NOT_YOU_SHORT)
@@ -234,13 +237,16 @@ describe('the code', () => {
     expect(joined).toContain(URL)
   })
 
-  it('cuts neither how long the code has left nor what is bound, however narrow', () => {
+  it('cuts neither how long the code has left nor the port, however narrow', () => {
     // The two figures on the panel somebody reads off it — moved onto lines
     // of their own rather than cut at the edge, the control beside them too.
+    // Two addresses bound to one port are one port: the addresses were what
+    // the status line was read as, and what the link already says.
     for (const width of [120, 60, 44]) {
       const text = words(said({}, { width, height: 60 }))
       expect(text, String(width)).toContain('1:24 left')
-      expect(text, String(width)).toMatch(/127\.0\.0\.1:7654\s+\[::1\]:7654/)
+      expect(text, String(width)).toContain('port 7654')
+      expect(text, String(width)).not.toContain('127.0.0.1')
       const ids = drawn({}, { width, height: 60 }).hits.map((hit) =>
         hit.target.kind === 'control' ? hit.target.id : '',
       )
@@ -410,13 +416,14 @@ describe('answering the device at the door', () => {
 })
 
 describe('what the panel never carries', () => {
-  it('says nothing of a device but its label, its grant and when it paired', () => {
+  it('says nothing of a device but its label, where in words, its grants and when it paired', () => {
     const text = said(
       {
         devices: [
           {
             id: '00112233445566aa',
             label: 'iPhone',
+            from: 'your network',
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: [],
             mayAct: false,
@@ -436,9 +443,10 @@ describe('what the panel never carries', () => {
       { height: 64 },
     )
     // Not its address and not its digest: what another device is, from here,
-    // is a name and a date.
+    // is a name, a place in words and a date.
     expect(text).toContain('iPhone')
-    expect(text).toContain('names and counts')
+    expect(text).toContain('from your network')
+    expect(text).toMatch(/reads\s+\(names\)\s+\(states\)\s+\(counts\)/)
     expect(text).not.toContain('192.168')
   })
 })
@@ -450,12 +458,11 @@ describe('letting one device act', () => {
     // what it says — and the row is byte-identical to what it was before any
     // of this existed.
     const text = said({}, { height: 64 })
-    expect(text).not.toContain('[act]')
-    expect(text).not.toContain('may act')
+    expect(text).not.toContain('answer & steer')
     // Nor the lifecycle's two: they are acting routes, and with acting off
     // there is no route a grant of either could reach.
-    expect(text).not.toContain('[agents]')
-    expect(text).not.toContain('[projects]')
+    expect(text).not.toContain('stop agents')
+    expect(text).not.toContain('close projects')
   })
 
   it('offers it per device once a person has turned acting on', () => {
@@ -463,11 +470,11 @@ describe('letting one device act', () => {
     // first, so on an ordinary terminal the device list is a scroll away and
     // is correct to be.
     const text = said({ acting: true }, { height: 64 })
-    expect(text).toContain('[act]')
-    // A chip each for the lifecycle, beside it and implied by it in neither
+    expect(text).toContain('□ answer & steer')
+    // A box each for the lifecycle, beside it and implied by it in neither
     // direction.
-    expect(text).toContain('[agents]')
-    expect(text).toContain('[projects]')
+    expect(text).toContain('□ stop agents')
+    expect(text).toContain('□ close projects')
   })
 
   it('says which devices may, and offers to take it back from those', () => {
@@ -478,6 +485,7 @@ describe('letting one device act', () => {
           {
             id: '00112233445566aa',
             label: 'iPhone',
+            from: 'your network',
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: ['titles'],
             mayAct: true,
@@ -493,13 +501,12 @@ describe('letting one device act', () => {
       },
       { height: 64 },
     )
-    // **On the row, in words.** The list is what somebody reads to answer
-    // *can any of these change my work*, and a capability visible only as the
-    // colour of a button is one nobody audits — and one a screenshot cannot
-    // carry. The chip is the same word either way; what changes is its
-    // colour, which is the window's own `danger`/`go` pair.
-    expect(text).toContain('may act')
-    expect(text).toContain('[act]')
+    // **On the row, without colour.** The list is what somebody reads to
+    // answer *can any of these change my work*, and a capability visible only
+    // as the colour of a button is one nobody audits — and one a screenshot
+    // cannot carry. A ticked box is the answer and the control in one.
+    expect(text).toContain('■ answer & steer')
+    expect(text).not.toContain('□ answer & steer')
   })
 
   it('says nothing about acting where it is off, even with a device granted it', () => {
@@ -513,6 +520,7 @@ describe('letting one device act', () => {
           {
             id: '00112233445566aa',
             label: 'iPhone',
+            from: 'your network',
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: [],
             mayAct: true,
@@ -528,7 +536,7 @@ describe('letting one device act', () => {
       },
       { height: 64 },
     )
-    expect(text).not.toContain('may act')
+    expect(text).not.toContain('answer & steer')
     for (const word of ['never your own words', 'overrule']) expect(text).not.toContain(word)
   })
 })
@@ -539,14 +547,13 @@ describe('letting one device talk to Tade', () => {
     // decisions with two settings, and a person who turned the first on has
     // not answered the second.
     const text = said({ acting: true }, { height: 72 })
-    expect(text).toContain('[act]')
-    expect(text).not.toContain('[talk]')
-    expect(text).not.toContain('may talk')
+    expect(text).toContain('answer & steer')
+    expect(text).not.toContain('talk to Tade')
   })
 
   it('offers it per device once a person has turned talking on', () => {
     const text = said({ talking: true }, { height: 72 })
-    expect(text).toContain('[talk]')
+    expect(text).toContain('□ talk to Tade')
   })
 
   it('says which devices may, and says both where a device has both', () => {
@@ -558,6 +565,7 @@ describe('letting one device talk to Tade', () => {
           {
             id: '00112233445566aa',
             label: 'iPhone',
+            from: 'your network',
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: ['titles'],
             mayAct: true,
@@ -582,10 +590,14 @@ describe('letting one device talk to Tade', () => {
     // folded them into one would be a list somebody reads to answer the wrong
     // question — *can this change my work* and *can this ask Tade for
     // anything* have different answers.
-    expect(text).toContain('may act')
-    expect(text).toContain('may talk')
-    expect(text).toContain('[act]')
-    expect(text).toContain('[talk]')
+    expect(text).toContain('■ answer & steer')
+    expect(text).toContain('■ talk to Tade')
+    // And Sign out, which a long row of boxes must never push off.
+    const ids = drawn(
+      { acting: true, talking: true, configuring: true },
+      { height: 76, date: () => '11 Sep' },
+    ).hits.map((hit) => (hit.target.kind === 'control' ? hit.target.id : ''))
+    expect(ids).toContain(`${AWAY_CONTROLS.revoke}00112233445566aa`)
   })
 
   it('says nothing about talking where it is off, even with a device granted it', () => {
@@ -596,6 +608,7 @@ describe('letting one device talk to Tade', () => {
           {
             id: '00112233445566aa',
             label: 'iPhone',
+            from: 'your network',
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
             reads: [],
             mayAct: false,
@@ -611,7 +624,7 @@ describe('letting one device talk to Tade', () => {
       },
       { height: 72 },
     )
-    expect(text).not.toContain('may talk')
+    expect(text).not.toContain('talk to Tade')
     expect(text).not.toContain('refused in code')
   })
 })
@@ -651,8 +664,8 @@ describe('on the Away page of Settings', () => {
     }
     const view = awayView(facts)
     // Never a third wording: the clause the domain says once, after the chip's name.
-    expect(view.help[AWAY_CONTROLS.act]).toBe(`act: ${ACTING_IS_NOT_YOU_SHORT}`)
-    expect(view.help[AWAY_CONTROLS.talk]).toBe(`talk: ${TALKING_IS_NOT_YOU_SHORT}`)
+    expect(view.help[AWAY_CONTROLS.act]).toBe(`answer & steer: ${ACTING_IS_NOT_YOU_SHORT}`)
+    expect(view.help[AWAY_CONTROLS.talk]).toBe(`talk to Tade: ${TALKING_IS_NOT_YOU_SHORT}`)
     expect(view.lan).toBe(LAN_IS_PLAINTEXT_SHORT)
     expect(view.agents).toBe(DEVICES_SEEN_BY_AGENTS)
   })

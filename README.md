@@ -465,24 +465,27 @@ screen shows is a grant of its own, per device and off for every one: the last r
 while that page is open, with machine paths and every key Tade knows of taken out. Nothing on the
 page types into an agent; what you say goes through Tade.
 
-What each device may read and do is granted here, per device, a chip each, and pointing at a chip
-says in one line what it grants. The whole of it: a request from a paired device is never your own
-words. Granted acting, it can answer what an agent is waiting on, tell one something, hold or
-release queued work, add a note or a line to what a task is told, mark work finished and approve a
-request a grant here already allowed — and, granted each, stop or reopen an agent and close or
-reopen a project. It can never change a setting beyond its own switch, read a credential, run a
-command, start an agent that never ran, push, merge or overrule a check, and it acts only from this
-machine or an `https` name you trusted. A message from one reaches the same conversation you type
-into, cannot authorise a setting change however it is phrased, and is answered with Tade's tools
-narrowed in code to that device's own view. Publishing a workflow, turning a source on and granting
-anything stay acts at this machine: **no route for any of them exists**, and every act a device does
-take is in the journal under its own id. Both pictures below are this end of it — the window; what a
-phone opens is a page, held to its look by a browser rather than drawn here.
+A device asking in is a card at the top of the panel — what it calls itself, where it came from in
+words, that a yes grants full access, a bar for the minute it has, and Approve or Refuse, the same
+`a` and `d` as approving a tool call. What each device may read and do is granted here, per device,
+a box each, ticked where it was granted, and pointing at a box says in one line what it grants. The
+whole of it: a request from a paired device is never your own words. Granted acting, it can answer
+what an agent is waiting on, tell one something, hold or release queued work, add a note or a line
+to what a task is told, mark work finished and approve a request a grant here already allowed — and,
+granted each, stop or reopen an agent and close or reopen a project. It can never change a setting
+beyond its own switch, read a credential, run a command, start an agent that never ran, push, merge
+or overrule a check, and it acts only from this machine or an `https` name you trusted. A message
+from one reaches the same conversation you type into, cannot authorise a setting change however it
+is phrased, and is answered with Tade's tools narrowed in code to that device's own view. Publishing
+a workflow, turning a source on and granting anything stay acts at this machine: **no route for any
+of them exists**, and every act a device does take is in the journal under its own id. Both pictures
+below are this end of it — the window; what a phone opens is a page, held to its look by a browser
+rather than drawn here.
 
 <table>
 <tr>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg" alt="The away view in the window, on this machine alone: one line with the addresses it is bound to, a QR code to scan a phone in with, and that an agent on this machine could pair itself"></td>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away-devices.svg" alt="The away view with acting on: every device with what it was granted and a chip per grant, and in one line what the chip under the pointer grants"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg" alt="The away view in the window with a phone asking to pair: a card with the device, where it came from, that a yes grants full access, a countdown bar, and Approve in green and Refuse in red with their keys; then the code to scan, and that an agent on this machine could pair itself"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away-devices.svg" alt="The away view with acting on: every device with whether it is connected, where it paired from, what it reads, a ticked box per thing it may do, and in one line what the box under the pointer grants"></td>
 </tr>
 </table>
 

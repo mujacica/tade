@@ -505,7 +505,7 @@ describe('letting a device in', () => {
     expect(news.join(' ')).toContain('wants to pair')
     const drawn = away.panel()?.away
     expect(drawn?.asking?.label).toBe('iPhone')
-    expect(drawn?.asking?.from).toBe('192.168.1.42')
+    expect(drawn?.asking).toMatchObject({ from: 'your network', address: '192.168.1.42' })
   })
 })
 

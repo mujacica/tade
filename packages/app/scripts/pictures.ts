@@ -305,24 +305,27 @@ export const PICTURES: readonly Picture[] = [
   },
   {
     file: 'away.svg',
-    scenario: 'away-pairing',
+    scenario: 'away-a-device-asking',
     crop: 'panel',
     about:
-      'The away view in the window, on and on this machine alone: one line saying so with the ' +
-      'two addresses it is bound to, a QR code to scan a phone in with, and at the foot that an ' +
-      'agent on this machine could pair itself, with Disconnect everything beside it.',
+      'The away view in the window with a phone asking to pair: one line saying it is on and ' +
+      'only this Mac can reach it, then a card at the top — the iPhone, from your network with ' +
+      'its address, that a yes grants full access and any of it can be unticked in its row, ' +
+      'the minute it has as a bar, and Approve in green and Refuse in red with their keys as key caps — then the ' +
+      'code to scan, and at the foot that an agent on this machine could pair itself, beside ' +
+      'Disconnect everything.',
   },
   {
     file: 'away-devices.svg',
     scenario: 'away-acting-granted',
     crop: 'panel',
     about:
-      'The away view with acting on: every device there is, each with what it was granted to ' +
-      'read in the words it was granted, may act and may stop agents on the one that has them, ' +
-      'and a chip beside each to grant or take back acting, stopping agents, closing projects, ' +
-      'seeing screens and reading settings. The pointer is on one act chip, so the foot says ' +
-      'in one clause what it grants: a device acts as a request, never as your own words. ' +
-      'Nothing to scan, because claiming a code burns it.',
+      'The away view with acting on: every device there is, each with whether it is connected ' +
+      'now, what it is, where it paired from and when, what it reads as pills, and a box per ' +
+      'thing it may do — answer and steer, stop agents, close projects, see screens, read ' +
+      'settings — ticked where it was granted. The pointer is on one box, so the foot says in ' +
+      'one clause what it grants: a device acts as a request, never as your own words. Sign ' +
+      'out on each row and Disconnect everything stay grey until pointed at.',
   },
   {
     file: 'away-settings.svg',
@@ -331,7 +334,7 @@ export const PICTURES: readonly Picture[] = [
     about:
       'The away view in Settings, turned on from its own switch: under it at once the code to ' +
       'scan, the link to open on this machine with Open and Copy beside it, and every device ' +
-      'with a chip per grant and ' +
+      'with a box per grant and ' +
       'Disconnect everything — then who may reach it, the port, and what a paired device may ' +
       'do as short names under one heading, each on by default, each applied as it is changed, ' +
       'and each still nothing until a device is granted it at this machine.',

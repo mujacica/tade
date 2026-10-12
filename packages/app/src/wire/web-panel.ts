@@ -17,7 +17,7 @@ import {
   type Surface,
   type Tickets,
 } from '@tade/web'
-import { AWAY_CONTROLS } from '../panels/away/state.ts'
+import { AWAY_CONTROLS, AWAY_LABELS } from '../panels/away/state.ts'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
 import type { Panel } from '../panels.ts'
 import { RUNS, SEES } from './web-grants.ts'
@@ -55,6 +55,9 @@ export interface PanelFacts {
   now: number
 }
 
+/** What this machine is called in a sentence: the one a person is sitting at. */
+const MACHINE = process.platform === 'darwin' ? 'this Mac' : 'this machine'
+
 /** How long a ticket is good for, and how long somebody has to answer the door. */
 const TICKET_MS = 90_000
 const ASKING_MS = 60_000
@@ -69,6 +72,7 @@ export function awayView(facts: PanelFacts): AwayView {
     bind: facts.surface.bind,
     bound: facts.bound,
     reachable: facts.surface.bind === 'lan' ? routesOf(networkInterfaces()) : ['localhost'],
+    machine: MACHINE,
     ticket:
       facts.ticket === null
         ? null
@@ -82,9 +86,12 @@ export function awayView(facts: PanelFacts): AwayView {
         ? null
         : {
             label: facts.asking.ask.label,
-            from: facts.asking.ask.from,
-            host: facts.asking.ask.host,
+            from: whereFrom(facts.asking.ask.from, facts.asking.ask.host, MACHINE),
+            // The address itself only where it is somebody else's: a stranger's
+            // is the thing to check, and this machine's is noise.
+            address: local(facts.asking.ask.from) ? '' : bare(facts.asking.ask.from),
             secondsLeft: left(facts.asking.at + ASKING_MS, facts.now),
+            seconds: ASKING_MS / 1000,
           },
     devices: deviceViews(facts),
     streams: facts.streams,
@@ -117,19 +124,32 @@ export function grantsHelp(
     // longest clause somebody could actually point at and no more.
     ...(surface.acting
       ? {
-          [AWAY_CONTROLS.act]: `act: ${ACTING_IS_NOT_YOU_SHORT}`,
-          [AWAY_CONTROLS.agents]: `agents: ${RUNS.agents}`,
-          [AWAY_CONTROLS.projects]: `projects: ${RUNS.projects}`,
+          [AWAY_CONTROLS.act]: said(AWAY_CONTROLS.act, ACTING_IS_NOT_YOU_SHORT),
+          [AWAY_CONTROLS.agents]: said(AWAY_CONTROLS.agents, RUNS.agents),
+          [AWAY_CONTROLS.projects]: said(AWAY_CONTROLS.projects, RUNS.projects),
         }
       : {}),
-    ...(surface.talking ? { [AWAY_CONTROLS.talk]: `talk: ${TALKING_IS_NOT_YOU_SHORT}` } : {}),
-    ...(surface.configuring
-      ? { [AWAY_CONTROLS.configure]: `configure: ${SETTINGS_FROM_AWAY_SHORT}` }
+    ...(surface.talking
+      ? { [AWAY_CONTROLS.talk]: said(AWAY_CONTROLS.talk, TALKING_IS_NOT_YOU_SHORT) }
       : {}),
-    [AWAY_CONTROLS.see]: `lanes: ${SEES.lanes}; only paths and keys are taken out`,
-    [AWAY_CONTROLS.settings]: `settings: ${SEES.settings}; a key is said as set or not set`,
-    [AWAY_CONTROLS.revoke]: '×: disconnect this device now',
+    ...(surface.configuring
+      ? { [AWAY_CONTROLS.configure]: said(AWAY_CONTROLS.configure, SETTINGS_FROM_AWAY_SHORT) }
+      : {}),
+    [AWAY_CONTROLS.see]: said(
+      AWAY_CONTROLS.see,
+      `${SEES.lanes}; only paths and keys are taken out`,
+    ),
+    [AWAY_CONTROLS.settings]: said(
+      AWAY_CONTROLS.settings,
+      `${SEES.settings}; a key is said as set or not set`,
+    ),
+    [AWAY_CONTROLS.revoke]: said(AWAY_CONTROLS.revoke, 'disconnect this device now'),
   }
+}
+
+/** A control's clause, after the word it is drawn with. */
+function said(control: keyof typeof AWAY_LABELS, clause: string): string {
+  return `${AWAY_LABELS[control]}: ${clause}`
 }
 
 /**
@@ -141,6 +161,52 @@ export function codeShownOn(panel: Panel | null): 'panel' | 'settings' | null {
   if (panel?.kind === 'away') return 'panel'
   const page = panel?.kind === 'settings' && panel.category === 'away' && panel.search === ''
   return page ? 'settings' : null
+}
+
+/**
+ * Where a device came from, in words a person can check against what they are
+ * holding: this machine, `your network`, `Tailscale`, or `outside your
+ * network` — never only an address, which was `::1 · reached localhost:7654`
+ * and meant *this Mac* to nobody.
+ *
+ * **A loopback address that reached a name other than this machine's came
+ * through a proxy** — `tailscale serve` connects from `127.0.0.1` — so it is
+ * said as the name it came through rather than as this machine, which would be
+ * exactly the wrong reassurance.
+ */
+export function whereFrom(address: string, host: string, machine: string): string {
+  const at = bare(address)
+  if (local(at)) {
+    const name = hostname(host)
+    return name === '' || local(name) || name === 'localhost' ? machine : `through ${name}`
+  }
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(at) || /^fd7a:115c:a1e0:/i.test(at)) {
+    return 'Tailscale'
+  }
+  const near =
+    /^(10\.|192\.168\.|169\.254\.)/.test(at) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(at) ||
+    /^f[cde][0-9a-f]{2}:/i.test(at)
+  return near ? 'your network' : 'outside your network'
+}
+
+/** An address as the socket gives it, without the IPv4-in-IPv6 prefix. */
+function bare(address: string): string {
+  return address.replace(/^::ffff:/i, '')
+}
+
+/** Whether an address or a name is this machine's own loopback. */
+function local(address: string): boolean {
+  const at = bare(address)
+  return at === '::1' || at.startsWith('127.') || at === 'localhost'
+}
+
+/** The name out of a `Host`: no port, no brackets. */
+function hostname(host: string): string {
+  const bracketed = host.match(/^\[([^\]]*)\]/)
+  if (bracketed) return bracketed[1] ?? ''
+  const colon = host.lastIndexOf(':')
+  return colon === -1 || host.indexOf(':') !== colon ? host : host.slice(0, colon)
 }
 
 /** Seconds left until a deadline, and never a negative number. */
@@ -163,6 +229,7 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
     .map((one) => ({
       id: one.id,
       label: one.label,
+      from: whereFrom(one.from, one.host, MACHINE),
       pairedAt: one.pairedAt,
       reads: readsOf(reachOf(one)),
       mayAct: one.scopes.some((scope) => scope === 'answer' || scope === 'steer'),

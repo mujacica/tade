@@ -50,6 +50,12 @@ export type Look =
   | 'off'
   /** Makes another of something: a `+` that has to be found at a glance. */
   | 'add'
+  /**
+   * Destructive, and not what the surface is for: as quiet as `rest` until
+   * the pointer is on it, then the red of `danger`. A sign-out on every row
+   * of a list drawn red would be the loudest thing on it.
+   */
+  | 'harm'
 
 export interface Skin {
   readonly colour: boolean
@@ -480,6 +486,7 @@ const LOOKS: Record<Look, Paint> = {
   // The label *is* the signal here, so it is the brand's amber rather than
   // ink at all: a `+` that has to be found at a glance on a grey block.
   add: { ground: GREY.control, ink: TONE.amber, bold: true },
+  harm: { ground: GREY.control },
 }
 
 /**
@@ -492,6 +499,7 @@ const LIT: Partial<Record<Look, Paint>> = {
   attention: { ground: TONE.greenMutedLight, bold: true },
   go: { ground: TONE.greenLit, bold: true },
   danger: { ground: TONE.redLight, bold: true },
+  harm: { ground: TONE.redLight, bold: true },
 }
 
 const identity = (text: string) => text

@@ -135,6 +135,24 @@ export const AWAY_CONTROLS = {
 } as const
 
 /**
+ * What each per-device control is called on screen, by its prefix in
+ * `AWAY_CONTROLS`: the drawing's word and the foot's clause (`grantsHelp`)
+ * start with the same one, so pointing at a box and reading what it grants
+ * never name it two ways. Words for what the device may then do, not the
+ * scope's own name — `act` was a word somebody had to look up.
+ */
+export const AWAY_LABELS = {
+  [AWAY_CONTROLS.act]: 'answer & steer',
+  [AWAY_CONTROLS.agents]: 'stop agents',
+  [AWAY_CONTROLS.projects]: 'close projects',
+  [AWAY_CONTROLS.talk]: 'talk to Tade',
+  [AWAY_CONTROLS.configure]: 'change settings',
+  [AWAY_CONTROLS.see]: 'see screens',
+  [AWAY_CONTROLS.settings]: 'read settings',
+  [AWAY_CONTROLS.revoke]: 'Sign out',
+} as const
+
+/**
  * A key, while the panel has the keyboard.
  *
  * **The keys that let a device in are the window's own `approve`/`deny`**,

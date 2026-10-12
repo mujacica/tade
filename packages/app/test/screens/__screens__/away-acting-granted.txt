@@ -3,24 +3,34 @@
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▌ ! stripe-v15   880k tok   █│                                                                                         
- ▌   wants you to approve…   █│                                                                                         
-                       ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮                       
-   ⠋ refunds         $0│                                                                        │                       
-     working           │ ● On, on this machine alone  127.0.0.1:7654  [::1]:7654                │                       
+ ▌   wants you to appro╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮                       
                        │                                                                        │                       
- ▸ SMART QUEUE         │                                                             New code   │                       
- ▸ SCHEDULES           │                                                                        │                       
- ▸ INTAKE              │ DEVICES 1 open                                                         │                       
- ▾ CHANGES  3        vs│ › iPhone ● now Fri 11 Sep 09:12 · titles · may act · may stop agents   │                       
-  M package.json       │                        act   agents   projects   lanes   settings   ×  │                       
-  A …/webhooks.test.ts │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows                │                       
-  M src/webhooks.ts   +│                        act   agents   projects   lanes   settings   ×  │                       
-                       │   kitchen screen ○ Thu 10 Sep 18:02 · names and counts                 │                       
- ▾ FILES               │                        act   agents   projects   lanes   settings   ×  │                       
-   ▾ src/              │ act: a device acts as a request, never as your own words               │                       
-       webhooks.test.ts│ an agent on this machine could pair itself     Disconnect everything   │                       
-       webhooks.ts     ╰────────────────────────────────────────────────────────────────────────╯                       
-   ▸ test/                   ▕│                                                                                         
+   ⠋ refunds         $0│ ● On — only this Mac can reach it                            port 7654 │                       
+     working           │                                                                        │                       
+                       │ PAIR A DEVICE                                                New code  │                       
+ ▸ SMART QUEUE         │                                                                        │                       
+ ▸ SCHEDULES           │ DEVICES  3 paired · 1 connected                                        │                       
+ ▸ INTAKE              │                                                                        │                       
+ ▾ CHANGES  3        vs│  ● iPhone  connected now                                     Sign out  │                       
+  M package.json       │    phone · from your network · paired Fri 11 Sep 09:12                 │                       
+  A …/webhooks.test.ts │    reads     names   states   counts   titles                          │                       
+  M src/webhooks.ts   +│    may      ■ answer & steer  ■ stop agents  □ close projects          │                       
+                       │             □ see screens  □ read settings                             │                       
+ ▾ FILES               │                                                                        │                       
+   ▾ src/              │  ○ iPad  not connected                                       Sign out  │                       
+       webhooks.test.ts│    tablet · from Tailscale · paired Fri 11 Sep 09:40                   │                       
+       webhooks.ts     │    reads     names   states   counts   titles   requests   workflows   │                       
+   ▸ test/             │    may      □ answer & steer  □ stop agents  □ close projects          │                       
+     package.json      │             □ see screens  □ read settings                             │                       
+     README.md         │                                                                        │                       
+                       │  ○ kitchen screen  not connected                             Sign out  │                       
+ ▸ NOTES  4            │    from your network · paired Thu 10 Sep 18:02                         │                       
+ ▾ GIT                 │    reads     names   states   counts                                   │                       
+   repo     ~/src/check│    may      □ answer & steer  □ stop agents  □ close projects          │                       
+   branch   …de/stripe-│             □ see screens  □ read settings                             │                       
+   from     main       │ answer & steer: a device acts as a request, never as your own words    │                       
+   worktree …kout-strip│ an agent on this machine could pair itself     Disconnect everything   │                       
+   path     /Users/me/.╰────────────────────────────────────────────────────────────────────────╯                       
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

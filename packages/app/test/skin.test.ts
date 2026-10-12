@@ -22,6 +22,7 @@ const LOOKS: readonly Look[] = [
   'danger',
   'off',
   'add',
+  'harm',
 ]
 
 // Escape sequences are written rather than typed, the way the screen tests

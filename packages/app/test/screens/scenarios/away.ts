@@ -30,6 +30,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
     bind: 'loopback',
     bound: ['127.0.0.1:7654', '[::1]:7654'],
     reachable: ['localhost'],
+    machine: 'this Mac',
     ticket: { url: URL, secondsLeft: 84 },
     code: code === null ? [] : blocksFor(code),
     asking: null,
@@ -37,6 +38,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
       {
         id: '00112233445566aa',
         label: 'iPhone',
+        from: 'your network',
         pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
         reads: ['titles', 'intent'],
         mayAct: false,
@@ -51,6 +53,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
       {
         id: '00112233445566bb',
         label: 'MacBook',
+        from: 'this Mac',
         pairedAt: Date.parse('2026-09-11T09:40:00.000Z'),
         reads: [],
         mayAct: false,
@@ -143,9 +146,12 @@ export const AWAY_SCREENS: Scenario[] = [
   {
     name: 'away-a-device-asking',
     about:
-      'A device at the door: what it calls itself, where it came from, what it will be able to ' +
-      'read — and the window’s own approve and deny keys, because letting a device in is the ' +
-      'same act in the same vocabulary as approving a tool call.',
+      'A device at the door, as a card above the code: what it calls itself, where it came from ' +
+      'in words with the address beside them, that a yes grants full access and that any of ' +
+      'it is untick-able in its row, the minute it has as a bar, and Approve in green and Refuse in red with the ' +
+      'window’s own approve and deny keys drawn as key caps beside them — the same act in the ' +
+      'same vocabulary as approving a tool call. Above the code because it is the one question ' +
+      'here: under twenty rows of code it was scrolled out of sight.',
     state: { ...base(), panel: awayPanel() },
     frame: frame({
       date: utcDate,
@@ -154,9 +160,10 @@ export const AWAY_SCREENS: Scenario[] = [
         away: view({
           asking: {
             label: 'iPhone',
-            from: '192.168.1.42',
-            host: 'studio.local:7654',
+            from: 'your network',
+            address: '192.168.1.42',
             secondsLeft: 47,
+            seconds: 60,
           },
         }),
       },
@@ -165,13 +172,14 @@ export const AWAY_SCREENS: Scenario[] = [
   {
     name: 'away-acting-granted',
     about:
-      'Acting on, which is the state the list exists for: what each device may read in the ' +
-      'words it was granted, ‘may act’ on the one row that has it, and a chip per grant. The ' +
-      'pointer is on the first device’s `act`, so the foot says in one clause what pressing it ' +
-      'grants — the moment somebody is deciding. No code outstanding, because the panel ' +
-      'somebody opens to read their own devices is not the one they opened to add a phone. One ' +
-      'device may also stop agents, and each row has a chip for that and one for closing ' +
-      'projects, neither implied by `act`.',
+      'Acting on, which is the state the list exists for: each device with whether it is ' +
+      'connected now, what it is, where it paired from and when, what it reads as pills, and a ' +
+      'box per thing it may do — ticked where a person here granted it, so the answer to *can ' +
+      'any of these change my work* reads without colour. The pointer is on the first ' +
+      'device’s `answer & steer`, so the foot says in one clause what it grants. Sign out on ' +
+      'each row and Disconnect everything are grey until pointed at. No code outstanding, ' +
+      'because the panel somebody opens to read their own devices is not the one they opened ' +
+      'to add a phone.',
     state: {
       ...base(),
       hover: { kind: 'control', id: `${AWAY_CONTROLS.act}00112233445566aa` },
@@ -180,6 +188,9 @@ export const AWAY_SCREENS: Scenario[] = [
     frame: frame({
       date: utcDate,
       remote: LISTENING,
+      // Three devices of five rows each, and the foot: taller than the
+      // default 34, so the picture of the list is the whole list.
+      height: 44,
       panel: {
         away: view({
           // Nothing to scan: a claim burns the ticket, and a person who came
@@ -193,6 +204,7 @@ export const AWAY_SCREENS: Scenario[] = [
             {
               id: '00112233445566aa',
               label: 'iPhone',
+              from: 'your network',
               pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
               reads: ['titles'],
               mayAct: true,
@@ -207,6 +219,7 @@ export const AWAY_SCREENS: Scenario[] = [
             {
               id: '00112233445566bb',
               label: 'iPad',
+              from: 'Tailscale',
               pairedAt: Date.parse('2026-09-11T09:40:00.000Z'),
               reads: ['titles', 'requests', 'workflows'],
               mayAct: false,
@@ -221,6 +234,7 @@ export const AWAY_SCREENS: Scenario[] = [
             {
               id: '00112233445566cc',
               label: 'kitchen screen',
+              from: 'your network',
               pairedAt: Date.parse('2026-09-10T18:02:00.000Z'),
               reads: [],
               mayAct: false,

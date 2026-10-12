@@ -7,54 +7,54 @@
     │                            ▕│▌                          on: listening while this window is open, with the   █│    
    ⠋│  Models                    ▕│▌                          code to pair shown here                             █│    
     │                            ▕│▌                                                                              █│    
-    │  Orchestrator              ▕│ ● On, on this machine alone  127.0.0.1:7654  [::1]:7654                       █│    
+    │  Orchestrator              ▕│ ● On — only this Mac can reach it                                   port 7654 █│    
  ▸ S│                            ▕│                                                                               █│    
- ▸ S│  Queue                     ▕│                                                                               █│    
+ ▸ S│  Queue                     ▕│ PAIR A DEVICE                                                       New code  █│    
  ▸ I│                            ▕│                                                                               █│    
- ▾ C│  Checks                    ▕│      █▀▀▀▀▀█ ███▄▄█▀▀█▀█▀▄▀ █  █▀▀▀▀▀█                                        █│    
-  M │                            ▕│      █ ███ █ ▄▀    ▄ ▄▀ ▀▀ █▄  █ ███ █                                        █│    
-  A │  Voice                     ▕│      █ ▀▀▀ █  ▀ █▄▄▀  ▄▄▄▀█▀▀█ █ ▀▀▀ █                                        █│    
-  M │                            ▕│      ▀▀▀▀▀▀▀ █ █▄█ ▀ ▀▄█ █ █▄█ ▀▀▀▀▀▀▀                                        █│    
-    │  Window                    ▕│      ▀ ▀█▄▀▀▀▄▄▄▀▄ █  ▀▀▄▀█▄█  █  █▄▀▀                                        █│    
- ▾ F│                            ▕│      ▀█▀█▄▀▀▄▄▀▀ █▄█  ▀▄▄▄▀█▀▄▀██▀█ ██                                        █│    
-   ▾│▌ Away view                 ▕│       ▀▀ ▀▀▀▄▀██ ▄  ▀▄▄█▄█▀█▀█▄ █▀▀▄█                                         █│    
-    │▌                           ▕│      ▀▀█ ▀ ▀█▄▄▀  ▀▀▀█ ▄█ ██▄▄ ▀▄█▄█                                          █│    
-    │  Intake                    ▕│      ▀▀█ ▀▀▀▀█▄█  ▀▄█▀▄▀▀ ▀▀█▄██ ██▀ ▄                                        █│    
-   ▸│                            ▕│       █ ▀█ ▀▄▀██▀ ▄ █▀▀ ▄   ▄ █ ▄█ ▀█                                         █│    
-    │  Projects              ● 1 ▕│      ▄▀▄▀█▀▀▀ ▄▄▀▄█▀▄  █████▄█ ▄▀▀█▀▀▄                                        █│    
-    │                            ▕│       ▄█▄ ▀▀ ▄ ▀█▄ ▀ █▀▄▄█ █▀▀▀▄ █▀▀█▀                                        █│    
-    │  Journal                   ▕│      ▀  ▀▀ ▀ ▄█ ▄ ▄▀█ █ ██ ▄▄█▀▀▀██ █                                         █│    
- ▸ N│                            ▕│      █▀▀▀▀▀█ █▄▄▀▀▄  ▀  ██▄ ██ ▀ █ ▄▀                                         █│    
- ▾ G│  Telemetry                 ▕│      █ ███ █ ▄ █▄▀█▀  █▄▄██▀██▀▀▀▀ ▀ █                                        █│    
-   r│                            ▕│      █ ▀▀▀ █ ▀▀█▄ ▀▀▄▄▄█     ▀ ▀▀▄▀▀ ▄                                        █│    
-   b│  Shortcuts                 ▕│      ▀▀▀▀▀▀▀ ▀▀▀▀ ▀ ▀ ▀▀▀▀▀▀▀  ▀   ▀                                          █│    
-   f│                            ▕│                                                                               █│    
+ ▾ C│  Checks                    ▕│                                                                               █│    
+  M │                            ▕│      █▀▀▀▀▀█ ███▄▄█▀▀█▀█▀▄▀ █  █▀▀▀▀▀█                                        █│    
+  A │  Voice                     ▕│      █ ███ █ ▄▀    ▄ ▄▀ ▀▀ █▄  █ ███ █                                        █│    
+  M │                            ▕│      █ ▀▀▀ █  ▀ █▄▄▀  ▄▄▄▀█▀▀█ █ ▀▀▀ █                                        █│    
+    │  Window                    ▕│      ▀▀▀▀▀▀▀ █ █▄█ ▀ ▀▄█ █ █▄█ ▀▀▀▀▀▀▀                                        █│    
+ ▾ F│                            ▕│      ▀ ▀█▄▀▀▀▄▄▄▀▄ █  ▀▀▄▀█▄█  █  █▄▀▀                                        █│    
+   ▾│▌ Away view                 ▕│      ▀█▀█▄▀▀▄▄▀▀ █▄█  ▀▄▄▄▀█▀▄▀██▀█ ██                                        █│    
+    │▌                           ▕│       ▀▀ ▀▀▀▄▀██ ▄  ▀▄▄█▄█▀█▀█▄ █▀▀▄█                                         █│    
+    │  Intake                    ▕│      ▀▀█ ▀ ▀█▄▄▀  ▀▀▀█ ▄█ ██▄▄ ▀▄█▄█                                          █│    
+   ▸│                            ▕│      ▀▀█ ▀▀▀▀█▄█  ▀▄█▀▄▀▀ ▀▀█▄██ ██▀ ▄                                        █│    
+    │  Projects              ● 1 ▕│       █ ▀█ ▀▄▀██▀ ▄ █▀▀ ▄   ▄ █ ▄█ ▀█                                         █│    
+    │                            ▕│      ▄▀▄▀█▀▀▀ ▄▄▀▄█▀▄  █████▄█ ▄▀▀█▀▀▄                                        █│    
+    │  Journal                   ▕│       ▄█▄ ▀▀ ▄ ▀█▄ ▀ █▀▄▄█ █▀▀▀▄ █▀▀█▀                                        █│    
+ ▸ N│                            ▕│      ▀  ▀▀ ▀ ▄█ ▄ ▄▀█ █ ██ ▄▄█▀▀▀██ █                                         █│    
+ ▾ G│  Telemetry                 ▕│      █▀▀▀▀▀█ █▄▄▀▀▄  ▀  ██▄ ██ ▀ █ ▄▀                                         █│    
+   r│                            ▕│      █ ███ █ ▄ █▄▀█▀  █▄▄██▀██▀▀▀▀ ▀ █                                        █│    
+   b│  Shortcuts                 ▕│      █ ▀▀▀ █ ▀▀█▄ ▀▀▄▄▄█     ▀ ▀▀▄▀▀ ▄                                        █│    
+   f│                            ▕│      ▀▀▀▀▀▀▀ ▀▀▀▀ ▀ ▀ ▀▀▀▀▀▀▀  ▀   ▀                                          █│    
    w│  Accounts              ● 3 ▕│                                                                               █│    
    p│                            ▕│                                                                               █│    
-    │  Updates                   ▕│ http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8             Open   Copy  █│    
-    │                            ▕│ Open the link on this machine — 1:24 left                           New code  █│    
+    │  Updates                   ▕│                                                                               █│    
+    │                            ▕│ http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8             Open   Copy  █│    
+    │                            ▕│ Open the link on this Mac · 1:24 left                                         █│    
     │                            ▕│                                                                               █│    
-    │                            ▕│ DEVICES 1 open                                                                █│    
-    │                            ▕│ › iPhone ● now Fri 11 Sep 09:12 · titles, intent                              █│    
-    │                            ▕│            act   agents   projects   talk   configure   lanes   settings   ×  █│    
+    │                            ▕│ DEVICES  1 paired · 1 connected                                               █│    
     │                            ▕│                                                                               █│    
-    │                            ▕│ an agent on this machine could pair itself            Disconnect everything   █│    
+    │                            ▕│  ● iPhone  connected now                                            Sign out  █│    
+    │                            ▕│    phone · from your network · paired Fri 11 Sep 09:12                        █│    
+    │                            ▕│    reads     names   states   counts   titles   intent                        █│    
+    │                            ▕│    may      □ answer & steer  □ stop agents  □ close projects  □ talk to Tade █│    
+    │                            ▕│             □ change settings  □ see screens  □ read settings                 █│    
     │                            ▕│                                                                               █│    
-    │                            ▕│ Who can reach it            ◉ loopback     ○ lan                              █│    
-    │                            ▕│                                                                               █│    
-    │                            ▕│ Port                        ‹   7654   ›                                      █│    
-    │                            ▕│                                                                               █│    
-    │                            ▕│ Trusted hostnames          none                                               █│    
-    │                            ▕│                                                                               █│    
-    │                            ▕│ Notification signing key   generated when it is first needed                  █│    
     │                            ▕│                                                                               ▕│    
-    │                            ▕│ A PAIRED DEVICE MAY                                                           ▕│    
-    │                            ▕│ Act                       ────████ on                                         ▕│    
+    │                            ▕│ an agent on this machine could pair itself            Disconnect everything   ▕│    
     │                            ▕│                                                                               ▕│    
-━   │                            ▕│ Talk to Tade              ────████ on                                         ▕│   ━
+    │                            ▕│ Who can reach it            ◉ loopback     ○ lan                              ▕│    
     │                            ▕│                                                                               ▕│    
-    │                            ▕│ Save draft workflows      ────████ on                                         ▕│   ▕
+    │                            ▕│ Port                        ‹   7654   ›                                      ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│ Trusted hostnames          none                                               ▕│    
+━   │                            ▕│                                                                               ▕│   ━
+    │                            ▕│ Notification signing key   generated when it is first needed                  ▕│    
     │                            ▕│                                                                               ▕│   ▕
+    │                            ▕│ A PAIRED DEVICE MAY                                                           ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

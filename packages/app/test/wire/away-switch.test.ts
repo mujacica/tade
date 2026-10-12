@@ -88,7 +88,8 @@ describe('the away view, turned on from Settings', () => {
     await until('the link', () => terminal.written.includes(`http://localhost:${port}/pair#`))
     expect(await answers(port)).toBe(true)
     const page = screenOf(terminal.written).join('\n')
-    expect(page).toContain('Open the link on this machine')
+    // `this Mac` on a Mac and `this machine` elsewhere: the one a person is at.
+    expect(page).toMatch(/Open the link on this (Mac|machine)/)
     expect(page).toContain('DEVICES')
     expect(page).toContain('No device has been paired.')
     expect(page).toContain('█')
