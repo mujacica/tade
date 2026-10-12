@@ -80,7 +80,9 @@ export const FLOOR: Record<string, number> = {
   'packages/harnesses/pi': 89,
   // 89 -> 91 when macOS runners read 93.0. Not 92: `askCwds` reads `/proc` on
   // Linux and `lsof` everywhere else, so ubuntu covers three lines fewer.
-  'packages/status': 91,
+  // 91 -> 93 when macOS runners read 95.2 and a laptop 94.7: 1.7 under the
+  // lowest machine, rather than the 94 the runner asked for and 0.7 under it.
+  'packages/status': 93,
   // Up with the issues half: the filtering GitHub's own documentation warns
   // about, who applied a label as against who wrote the words, and the
   // conditional request a poll lives on are each exercised against recorded
@@ -99,7 +101,7 @@ export const FLOOR: Record<string, number> = {
   'packages/extensions/deps': 91,
   'packages/mcp/stdio': 91,
   'packages/drivers/tmux': 92,
-  'packages/voice/tts': 92,
+  'packages/voice/tts': 96,
   // 93 -> 94 when the emulators moved to a thread of their own and read
   // 96.4: what a frame promises is held in place by `emulator.test.ts`, and the
   // thread's three lines of wiring are named in UNSEEN.
@@ -168,7 +170,8 @@ export const MOVES: Record<string, string> = {
  *
  * The list cannot rot: an excluded file that shows a covered line fails the
  * gate, because something imports it now and its line here is what stops that
- * counting.
+ * counting. The one kind of import that measures nothing is a worker loading
+ * a file without running what it does, and those are named in LOADED.
  *
  * What would change it: run the children under `NODE_V8_COVERAGE` and merge
  * what they write into the report. That is real work and it is worth doing —
@@ -181,10 +184,10 @@ export const UNSEEN: Record<string, string> = {
   // printed and what it exited with — which is the right test for a program
   // whose exit codes and stdio are the thing under test, and is invisible from
   // inside a worker. What stays measured is the CLI's modules: `native.ts`,
-  // `node.ts`, `io.ts`, `version.ts`, `telemetry.ts`, `commands/voice.ts` and
-  // `commands/setup-machine.ts` are all imported directly by a test.
+  // `node.ts`, `io.ts`, `version.ts`, `telemetry.ts`, `program.ts`,
+  // `commands/voice.ts` and `commands/setup-machine.ts` are all imported
+  // directly by a test.
   'packages/cli/src/bin.ts': 'the binary',
-  'packages/cli/src/program.ts': 'builds the program the binary runs',
   'packages/cli/src/attach.ts': 'puts a real terminal in raw mode',
   'packages/cli/src/format.ts': 'prints for `tade status`, which its test runs as a process',
   'packages/cli/src/with-workbench.ts': 'wraps a command in an open workbench',
@@ -237,6 +240,56 @@ export const UNSEEN: Record<string, string> = {
 }
 
 /**
+ * Files UNSEEN names that a worker loads anyway, and how many of their
+ * functions loading them runs.
+ *
+ * `packages/cli/test/program.test.ts` loads every command to hold `COMMANDS`
+ * to what each module registers. That runs a command's top level and its
+ * `register…` function, and whatever that calls while it registers — `queue`'s
+ * and `accounts`' little builders — but never a handler, which runs when its
+ * command is typed, in the binary. So a covered line in one says only that it
+ * was loaded: counting them would put 2,028 lines in `packages/cli`'s figure,
+ * 115 of them covered, and read it at 16.8% rather than 72.5% — a floor that
+ * measures the instrument.
+ *
+ * The count is what keeps this from being a hole in UNSEEN's rule. A handler
+ * can only run once its command has registered, so a worker that runs one runs
+ * more functions than this says, and that fails the gate the way a covered line
+ * in any other excluded file does. A count rather than names, because the
+ * builders are arrow functions the report cannot name; and held exactly, both
+ * ways, because a count above what loading runs is room for a handler to run
+ * unseen.
+ */
+export const LOADED: Record<string, number> = {
+  // Imported by `commands/lanes.ts` and `commands/setup.ts`: their top level.
+  'packages/cli/src/attach.ts': 0,
+  'packages/cli/src/commands/setup-facts.ts': 0,
+  'packages/cli/src/commands/accounts.ts': 2,
+  'packages/cli/src/commands/app.ts': 1,
+  'packages/cli/src/commands/brief.ts': 1,
+  'packages/cli/src/commands/chat.ts': 1,
+  'packages/cli/src/commands/check.ts': 1,
+  'packages/cli/src/commands/checks.ts': 1,
+  'packages/cli/src/commands/config.ts': 1,
+  'packages/cli/src/commands/documents.ts': 1,
+  'packages/cli/src/commands/intake.ts': 1,
+  'packages/cli/src/commands/lanes.ts': 1,
+  'packages/cli/src/commands/mcp.ts': 1,
+  'packages/cli/src/commands/notes.ts': 1,
+  'packages/cli/src/commands/proposals.ts': 2,
+  'packages/cli/src/commands/queue.ts': 3,
+  'packages/cli/src/commands/schedules.ts': 1,
+  'packages/cli/src/commands/setup.ts': 1,
+  'packages/cli/src/commands/spend.ts': 1,
+  'packages/cli/src/commands/status.ts': 1,
+  'packages/cli/src/commands/summary.ts': 1,
+  'packages/cli/src/commands/tasks.ts': 1,
+  'packages/cli/src/commands/templates.ts': 2,
+  'packages/cli/src/commands/update.ts': 1,
+  'packages/cli/src/commands/web.ts': 1,
+}
+
+/**
  * How far above a floor a package's coverage may sit before the floor is asked
  * to follow it up. The half that makes the ratchet work: without it the
  * numbers stay at the day they were written and the table becomes decoration.
@@ -247,18 +300,23 @@ export const UNSEEN: Record<string, string> = {
  */
 export const SLACK = 4
 
-/** One file as the v8 provider reports it: where each statement is, and its hits. */
+/**
+ * One file as the v8 provider reports it: where each statement is, and its
+ * hits, and the hits of each function.
+ */
 export interface FileCoverage {
   statementMap: Record<string, { start: { line: number } }>
   s: Record<string, number>
+  f: Record<string, number>
 }
 
-/** One file's lines, counted. */
+/** One file's lines, counted, and how many of its functions ran. */
 export interface Measured {
   /** Repo-relative, the way both tables spell a path. */
   path: string
   lines: number
   covered: number
+  called: number
 }
 
 /** One package's row. */
@@ -311,6 +369,7 @@ export function measure(report: Record<string, FileCoverage>, root: string): Mea
       path: absolute.startsWith(root) ? absolute.slice(root.length) : absolute,
       lines: hits.size,
       covered: [...hits.values()].filter((count) => count > 0).length,
+      called: Object.values(file.f).filter((count) => count > 0).length,
     }
   })
 }
@@ -320,6 +379,39 @@ const pct = (covered: number, lines: number): number =>
 
 /** `81.0`, always one place, because two is noise and none is a rounded lie. */
 export const said = (n: number): string => n.toFixed(1)
+
+/**
+ * What is wrong with what ran in a file UNSEEN names, or null: nothing at all,
+ * or for one LOADED counts, exactly the functions loading it runs.
+ */
+function unseenProblem(file: Measured): string | null {
+  const loads = LOADED[file.path]
+  if (loads === undefined)
+    return file.covered === 0
+      ? null
+      : `${file.path} is excluded as unmeasurable, and ${file.covered} of its ${file.lines} lines ran.\n` +
+          'Something imports it now, so it can be measured: delete its line from UNSEEN\n' +
+          `(${TABLE}) and let its package's floor account for it.`
+  if (file.covered === 0)
+    return (
+      `LOADED says a worker loads ${file.path}, and none of its lines ran.\n` +
+      `Nothing loads it in process any more: delete its line from LOADED (${TABLE}).`
+    )
+  if (file.called > loads)
+    return (
+      `${file.path} is excluded as unmeasurable, and ${file.called} of its functions ran where loading it runs ${loads}.\n` +
+      'Something runs what it does in process now, so it can be measured: delete its lines from\n' +
+      `UNSEEN and LOADED (${TABLE}) and let its package's floor account for it. If what ran\n` +
+      `is still only what loading it runs, its count in LOADED is ${file.called}.`
+    )
+  if (file.called < loads)
+    return (
+      `${file.path} runs ${file.called} of its functions when a worker loads it, and LOADED says ${loads}.\n` +
+      `Lower it to ${file.called} (${TABLE}): a count above what loading runs is room for a\n` +
+      'handler to run unseen.'
+    )
+  return null
+}
 
 /**
  * The whole gate: the rows, and every problem already saying what to do about
@@ -336,12 +428,8 @@ export function readCoverage(measured: readonly Measured[], tracked: ReadonlySet
   for (const file of measured) {
     seen.add(file.path)
     if (file.path in UNSEEN) {
-      if (file.covered > 0)
-        problems.push(
-          `${file.path} is excluded as unmeasurable, and ${file.covered} of its ${file.lines} lines ran.\n` +
-            'Something imports it now, so it can be measured: delete its line from UNSEEN\n' +
-            `(${TABLE}) and let its package's floor account for it.`,
-        )
+      const problem = unseenProblem(file)
+      if (problem !== null) problems.push(problem)
       continue
     }
     const pkg = packageOf(file.path)
@@ -356,7 +444,14 @@ export function readCoverage(measured: readonly Measured[], tracked: ReadonlySet
 
   // A file the report never mentioned is one `coverage.include` no longer
   // reaches — a rule that quietly stopped applying, which is the thing this
-  // whole file is against.
+  // whole file is against. A count for a file UNSEEN does not name is the same.
+  for (const path of Object.keys(LOADED)) {
+    if (path in UNSEEN) continue
+    problems.push(
+      `LOADED counts ${path}, which UNSEEN does not name, so nothing reads the count.\n` +
+        `Delete its line from LOADED (${TABLE}), or give it its line in UNSEEN.`,
+    )
+  }
   for (const path of Object.keys(UNSEEN)) {
     if (seen.has(path)) continue
     problems.push(

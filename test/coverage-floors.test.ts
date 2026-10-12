@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   FLOOR,
+  LOADED,
   type Measured,
   MOVES,
   measure,
@@ -38,16 +39,37 @@ function tracked(): Set<string> {
   )
 }
 
-/** A reading of one file: `at(path, 90)` is 90 of 100 lines. */
-const at = (path: string, covered: number, lines = 100): Measured => ({ path, lines, covered })
+/** A reading of one file: `at(path, 90)` is 90 of 100 lines, and no function ran. */
+const at = (path: string, covered: number, lines = 100, called = 0): Measured => ({
+  path,
+  lines,
+  covered,
+  called,
+})
 
 /** A reading where every package sits exactly on its floor, and nothing else. */
 function onTheFloor(): Measured[] {
   return Object.entries(FLOOR).map(([pkg, floor]) => at(`${pkg}/src/index.ts`, floor))
 }
 
-/** Every excluded file, read as the instrument really reads it: nothing ran. */
-const excluded = (): Measured[] => Object.keys(UNSEEN).map((path) => at(path, 0, 10))
+/**
+ * Every excluded file, read as the instrument really reads it: nothing ran, or
+ * for one a worker loads, a line and exactly what loading it runs.
+ */
+const excluded = (): Measured[] =>
+  Object.keys(UNSEEN).map((path) =>
+    path in LOADED ? at(path, 1, 10, LOADED[path]) : at(path, 0, 10),
+  )
+
+/** A file LOADED counts, whose loading runs at least one of its functions. */
+const [registered, registers] = Object.entries(LOADED).find(([, loads]) => loads > 0)!
+
+/** The excluded files with one of them read as `reading` instead. */
+const excludedWith = (reading: Measured): Measured[] => [
+  ...onTheFloor(),
+  ...excluded().filter((file) => file.path !== reading.path),
+  reading,
+]
 
 const problemsOf = (measured: Measured[]): string[] =>
   readCoverage([...measured, ...excluded()], tracked()).problems
@@ -80,17 +102,26 @@ describe('counting lines', () => {
             2: { start: { line: 2 } },
           },
           s: { 0: 3, 1: 0, 2: 0 },
+          f: {},
         },
       },
       '/repo/',
     )
     // Line 1 ran (one of its two statements did), line 2 did not.
-    expect(file).toEqual({ path: 'packages/core/src/a.ts', lines: 2, covered: 1 })
+    expect(file).toEqual({ path: 'packages/core/src/a.ts', lines: 2, covered: 1, called: 0 })
+  })
+
+  it('counts the functions that ran, and not how often', () => {
+    const [file] = measure(
+      { '/repo/packages/core/src/a.ts': { statementMap: {}, s: {}, f: { 0: 2, 1: 0, 2: 1 } } },
+      '/repo/',
+    )
+    expect(file?.called).toBe(2)
   })
 
   it('spells paths the way the tables do', () => {
     const [file] = measure(
-      { '/repo/packages/core/src/a.ts': { statementMap: {}, s: {} } },
+      { '/repo/packages/core/src/a.ts': { statementMap: {}, s: {}, f: {} } },
       '/repo/',
     )
     expect(file?.path).toBe('packages/core/src/a.ts')
@@ -168,6 +199,40 @@ describe('what the instrument cannot see', () => {
     expect(problem).toContain('delete its line from UNSEEN')
   })
 
+  it('lets a worker load a file LOADED counts, and run exactly what loading it runs', () => {
+    // What `program.test.ts` does to every command: its top level and its
+    // register function ran, and none of its handlers.
+    expect(excluded().filter((file) => file.path in LOADED && file.covered > 0)).not.toEqual([])
+    expect(readCoverage([...onTheFloor(), ...excluded()], tracked()).problems).toEqual([])
+  })
+
+  it('fails a loaded file the moment one of its handlers runs in process', () => {
+    const ran = registers + 1
+    const [problem, ...rest] = readCoverage(
+      excludedWith(at(registered, 9, 48, ran)),
+      tracked(),
+    ).problems
+    expect(rest).toEqual([])
+    expect(problem).toContain(
+      `${registered} is excluded as unmeasurable, and ${ran} of its functions`,
+    )
+    expect(problem).toContain('delete its lines from\nUNSEEN and LOADED')
+    expect(problem).toContain(`its count in LOADED is ${ran}`)
+  })
+
+  it('asks a count above what loading runs to come down', () => {
+    const ran = registers - 1
+    const [problem] = readCoverage(excludedWith(at(registered, 9, 48, ran)), tracked()).problems
+    expect(problem).toContain(`and LOADED says ${registers}`)
+    expect(problem).toContain(`Lower it to ${ran}`)
+  })
+
+  it('names a loaded file that nothing loads any more', () => {
+    const [problem] = readCoverage(excludedWith(at(registered, 0, 10)), tracked()).problems
+    expect(problem).toContain(`LOADED says a worker loads ${registered}, and none of its lines ran`)
+    expect(problem).toContain('delete its line from LOADED')
+  })
+
   it('tells a file that moved from a file that is gone', () => {
     const path = Object.keys(UNSEEN)[0]!
     const short = [...onTheFloor(), ...excluded().filter((file) => file.path !== path)]
@@ -184,6 +249,10 @@ describe('the tables against the repository', () => {
   it('excludes no file this repository does not have', () => {
     const known = tracked()
     expect(Object.keys(UNSEEN).filter((path) => !known.has(path))).toEqual([])
+  })
+
+  it('counts only files UNSEEN excludes', () => {
+    expect(Object.keys(LOADED).filter((path) => !(path in UNSEEN))).toEqual([])
   })
 
   it('gives a floor to every package that has source', () => {
