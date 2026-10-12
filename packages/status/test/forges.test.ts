@@ -1,6 +1,8 @@
+import { join } from 'node:path'
+import { CREDENTIAL_KEEP_MS, type ForgeOptions } from '@tade/forges-core'
 import { describe, expect, it } from 'vitest'
-import { mkrepo, runGit } from '../../../test/fixtures/mkrepo.ts'
-import { forgeFor } from '../src/forges.ts'
+import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { forgeExec, forgeFor, remoteAt } from '../src/forges.ts'
 import { probeGit } from '../src/git.ts'
 
 const exec = async () => ({ code: 1, stdout: '', stderr: 'not here' })
@@ -103,3 +105,98 @@ describe('the review a branch is out for', () => {
     expect(probed.snapshot?.pr).toBeNull()
   })
 })
+
+describe('what the registry keeps between looks', () => {
+  // A forge is made for every look. Before these, each one ran `gh auth token`
+  // and `git config --get remote.origin.url` again: two processes a minute per
+  // project, for answers that change when somebody signs in or edits a remote.
+
+  it('asks gh once for every forge made for the same sign-in through one way of running it', async () => {
+    let asked = 0
+    const signedIn: ForgeOptions['exec'] = async (command) => {
+      if (command === 'gh') asked++
+      return { code: 0, stdout: 'gho_kepttoken\n', stderr: '' }
+    }
+    const fetch = (async () =>
+      new Response(JSON.stringify({ login: 'kept' }), { status: 200 })) as typeof globalThis.fetch
+    for (let look = 0; look < 3; look++) {
+      await forgeFor('git@github.com:acme/api.git', { exec: signedIn, fetch, env: {} })?.whoami()
+    }
+    expect(asked).toBe(1)
+    // A second account is a second sign-in, so it is its own ask.
+    await forgeFor('git@github.com-ammujacic:ammujacic/z.git', {
+      exec: signedIn,
+      fetch,
+      env: {},
+    })?.whoami()
+    expect(asked).toBe(2)
+  })
+
+  it('reads a remote once while the config it is written in is unchanged', async () => {
+    const repo = mkrepo()
+    runGit(repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/api.git')
+    const { exec, asked } = counting()
+    expect(await remoteAt(exec, repo.root)).toBe('git@github.com:acme/api.git')
+    expect(await remoteAt(exec, repo.root)).toBe('git@github.com:acme/api.git')
+    expect(asked()).toBe(1)
+    runGit(repo.root, 'remote', 'set-url', 'origin', 'git@github.com:acme/moved.git')
+    expect(await remoteAt(exec, repo.root)).toBe('git@github.com:acme/moved.git')
+    expect(asked()).toBe(2)
+  })
+
+  it('reads a worktree\u2019s remote from the repository\u2019s config, and sees it change there', async () => {
+    const repo = mkrepo()
+    repo.write({ 'a.txt': 'a' })
+    runGit(repo.root, 'add', '.')
+    runGit(repo.root, 'commit', '-qm', 'a')
+    runGit(repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/api.git')
+    const tree = join(tmp('tade-remote-tree-'), 'tree')
+    runGit(repo.root, 'worktree', 'add', '-q', '-b', 'side', tree)
+    const { exec, asked } = counting()
+    expect(await remoteAt(exec, tree)).toBe('git@github.com:acme/api.git')
+    expect(await remoteAt(exec, tree)).toBe('git@github.com:acme/api.git')
+    expect(asked()).toBe(1)
+    runGit(repo.root, 'remote', 'set-url', 'origin', 'git@github.com:acme/moved.git')
+    expect(await remoteAt(exec, tree)).toBe('git@github.com:acme/moved.git')
+  })
+
+  it('asks again after ten minutes, for a remote set somewhere the stamp cannot see', async () => {
+    const repo = mkrepo()
+    runGit(repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/api.git')
+    const { exec, asked } = counting()
+    let at = 0
+    const now = () => at
+    await remoteAt(exec, repo.root, { now })
+    at = CREDENTIAL_KEEP_MS - 1
+    await remoteAt(exec, repo.root, { now })
+    expect(asked()).toBe(1)
+    at = CREDENTIAL_KEEP_MS
+    await remoteAt(exec, repo.root, { now })
+    expect(asked()).toBe(2)
+  })
+
+  it('never keeps "no remote", which a git that did not answer in time looks the same as', async () => {
+    const repo = mkrepo()
+    const { exec, asked } = counting()
+    expect(await remoteAt(exec, repo.root)).toBe('')
+    expect(await remoteAt(exec, repo.root)).toBe('')
+    expect(asked()).toBe(2)
+    // And one that is not a checkout at all has nothing to stamp, so it is asked every time.
+    const nowhere = tmp('tade-not-a-repo-')
+    await remoteAt(exec, nowhere)
+    await remoteAt(exec, nowhere)
+    expect(asked()).toBe(4)
+  })
+})
+
+/** Real git, counted: the stamp is the file's, so the answers have to be git's own. */
+function counting(): { exec: ForgeOptions['exec']; asked: () => number } {
+  let asked = 0
+  return {
+    exec: (command, args, options) => {
+      asked++
+      return forgeExec(command, args, options)
+    },
+    asked: () => asked,
+  }
+}

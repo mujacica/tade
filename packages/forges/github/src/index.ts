@@ -26,9 +26,10 @@ import { githubTickets } from './tickets.ts'
 // who already uses it and it holds **more than one** account per host — `gh
 // auth token --hostname <host> --user <account>` is the whole multi-account
 // design, and which account to ask for is read off the remote (`placeOf`)
-// rather than off this machine. The token is read, used and dropped: Tade
-// never writes one anywhere. A machine with no `gh` sets `$GITHUB_TOKEN` (or
-// whatever `token_env` names) instead.
+// rather than off this machine. The token is held in memory and nowhere else —
+// what `gh` answered for minutes, per sign-in (`options.credentials`) — and
+// Tade never writes one anywhere. A machine with no `gh` sets `$GITHUB_TOKEN`
+// (or whatever `token_env` names) instead.
 //
 // Everything after the credential is a plain request, so a poll of the lists
 // is two GraphQL searches rather than two process spawns per review.
@@ -72,6 +73,8 @@ export function makeGithubForge(options: ForgeOptions): Forge {
 
   let token: string | null = null
   let me: string | null = null
+  /** Which sign-in a credential is for: the host, and the account where the remote names one. */
+  const signIn = options.accounts?.[host] ? `${options.accounts[host]}@${host}` : host
   let limits: { remaining: number; of: number; resetsAt: number } | null = null
 
   const rest = (path: string) =>
@@ -92,6 +95,10 @@ export function makeGithubForge(options: ForgeOptions): Forge {
    *     credential attached, which is worse because it looks answered.
    *   · Otherwise the environment first, then `gh`'s keyring: zero setup for
    *     anybody who already uses `gh`, and a token for anybody who does not.
+   *
+   * What `gh` answered is kept in `options.credentials` where there is one —
+   * a forge lives for one look, and asking `gh` again at every look was a
+   * process a minute per project for an answer that had not changed.
    */
   async function credential(): Promise<string> {
     if (token) return token
@@ -106,18 +113,22 @@ export function makeGithubForge(options: ForgeOptions): Forge {
         }
       }
     }
-    const args = ['auth', 'token', '--hostname', host, ...(account ? ['--user', account] : [])]
-    const got = await options.exec('gh', args, {
-      timeoutMs: 5_000,
-      ...(options.cwd ? { cwd: options.cwd } : {}),
-    })
-    const found = got.stdout.trim()
-    if (got.code !== 0 || !found) {
-      throw new ForgeError('auth', notSignedIn(host, account, named[0]), {
-        said: got.stderr.trim() || undefined,
+    const ask = async (): Promise<string> => {
+      const args = ['auth', 'token', '--hostname', host, ...(account ? ['--user', account] : [])]
+      const got = await options.exec('gh', args, {
+        timeoutMs: 5_000,
+        ...(options.cwd ? { cwd: options.cwd } : {}),
       })
+      const found = got.stdout.trim()
+      if (got.code !== 0 || !found) {
+        throw new ForgeError('auth', notSignedIn(host, account, named[0]), {
+          said: got.stderr.trim() || undefined,
+        })
+      }
+      return found
     }
-    token = found
+    if (options.credentials) return options.credentials.get(signIn, ask)
+    token = await ask()
     return token
   }
 
@@ -172,6 +183,10 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       throw new ForgeError('auth', `${host} refused: ${said(body) || 'not allowed'}`)
     }
     if (answer.status === 401) {
+      // Expired or revoked: whichever forge asks next looks for it again rather
+      // than being handed the same one for the rest of ten minutes.
+      token = null
+      options.credentials?.refused(signIn, auth)
       throw new ForgeError('auth', `${host} did not accept the credential: run \`gh auth login\``)
     }
     if (answer.status === 404) throw new ForgeError('missing', `${host} has no such thing`)

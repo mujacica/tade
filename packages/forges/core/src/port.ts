@@ -1,5 +1,6 @@
 import type { CheckRun } from '@tade/checks-core'
 import type { RequiredProgram } from '@tade/core'
+import type { CredentialCache } from './credentials.ts'
 import type { TicketDetail, TicketPage, TicketQuery, TicketRef } from './tickets.ts'
 
 // The Forge port: the service a branch is offered to other people on, and
@@ -529,6 +530,12 @@ export interface ForgeOptions {
   /** Where to run the CLI: a checkout of the repository, when there is one. */
   cwd?: string
   now?: () => number
+  /**
+   * Where a credential the forge had to run a program for is kept, so the next
+   * forge made for the same sign-in does not run it again. Without one a forge
+   * keeps what it found for its own life, which is one look.
+   */
+  credentials?: CredentialCache
 }
 
 /** A remote's host, however it is written: `git@github.com:o/r.git`, `https://github.com/o/r`. */

@@ -16,7 +16,8 @@ by what the code cannot express, not by being careful at the call site.
 | `packages/forges/core/src/conformance.ts` | `testForge`: the suite every implementation passes |
 | `packages/forges/github/src/{index,map,queries}.ts` | GitHub: one credential, plain requests, and its vocabulary in `map.ts` alone |
 | `packages/forges/scripted/src/index.ts` | a forge that answers from a table: `ScriptedReview`, `Wrote` |
-| `packages/status/src/forges.ts` | `FORGES`, `forgeFor`, `forgeExec`: the one registry every call site goes through |
+| `packages/status/src/forges.ts` | `FORGES`, `forgeFor`, `forgeExec`: the one registry every call site goes through, and what it keeps between looks — `remoteAt`, the credential cache per way of running programs |
+| `packages/forges/core/src/credentials.ts` | `credentialCache`, `CREDENTIAL_KEEP_MS`: a credential a forge ran a program for, kept for the next forge made for the same sign-in |
 | `packages/status/src/git.ts` | `probeReview`: the one narrow question status asks, with the window closed |
 | `packages/extensions/review/src/forge.ts` | finding the forge and asking it as little as possible: `whereOf`, `everywhere`, `snapshot`, `POLL_MS`, `forget`, `settingsOf`, `refFrom`, `credentialProblem` |
 | `packages/extensions/review/src/extension.ts` | `TASK_TRAILER`, the settings, the surfaces, the `review_*` tools, the three review watches |
@@ -331,10 +332,17 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   status never throws and a task whose review state could not be read is one Tade says nothing
   about rather than one it calls merged; `snapshot` keeps `problem` so it is said once rather than at
   every look.
-- **Credentials are read, used and dropped.** `gh` is how the token is found, a pasted token reaches
-  the forge as the variable it already reads, and **the environment always wins** over what was
-  pasted. Nothing writes a token anywhere. `credentialProblem` answers from files and the
+- **Credentials are held in memory and never written.** `gh` is how the token is found, a pasted
+  token reaches the forge as the variable it already reads, and **the environment always wins** over
+  what was pasted. Nothing writes a token anywhere. `credentialProblem` answers from files and the
   environment only: it runs before the window opens and must never be a request.
+- **A forge lives for one look, so what outlives it is the registry's.** `forgeFor` hands every forge
+  one `credentialCache` per way of running programs: what `gh` answered is kept per sign-in for
+  `CREDENTIAL_KEEP_MS` (ten minutes), shared by forges asking at once, dropped on a `401`, and never
+  kept when `gh` found nothing — a token is not in the journal, telemetry or a spec, only in that
+  map. The environment is read every time and is never cached. `remoteAt` keeps a found remote per
+  checkout behind the git config's stamp (inode, size, mtime — git renames a new file over it), and
+  never keeps "no remote", which a runner that timed out reads the same as.
 - **Everything a person reads is in `format.ts`.** The tools, the list rows, the status line, the
   brief and the view all compose from there, so the window and the CLI cannot come to two wordings.
 - **A review down the side is two rows, and which half a mark goes in is decided here.**

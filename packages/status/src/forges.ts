@@ -1,8 +1,10 @@
+import { readFile, stat } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
 import { located } from '@tade/core'
 import { makeGithubForge } from '@tade/forge-github'
 import { makeScriptedForge } from '@tade/forge-scripted'
-import type { ExecResult, Forge, ForgeOptions } from '@tade/forges-core'
-import { hostOf, repoOf } from '@tade/forges-core'
+import type { CredentialCache, ExecResult, Forge, ForgeOptions } from '@tade/forges-core'
+import { CREDENTIAL_KEEP_MS, credentialCache, hostOf, repoOf } from '@tade/forges-core'
 import { execa } from 'execa'
 
 // The forges there are, by name: the one registry every call site goes
@@ -40,9 +42,10 @@ export interface ForgeChoice extends ForgeOptions {
  * rather than each working it out — and none of them has to be handed a remote
  * to get it right.
  */
-export function forgeFor(remote: string, options: ForgeChoice): Forge | null {
+export function forgeFor(remote: string, choice: ForgeChoice): Forge | null {
   const host = hostOf(remote)
   if (!host) return null
+  const options = { ...choice, credentials: choice.credentials ?? credentialsOf(choice.exec) }
   const named = options.hostForges?.[host]
   if (named) {
     const make = FORGES[named]
@@ -76,6 +79,22 @@ function asItsAccount(
   if (!place) return null
   if (!place.account || options.accounts?.[place.host] === place.account) return forge
   return make({ ...options, accounts: { ...options.accounts, [place.host]: place.account } })
+}
+
+/**
+ * Where what a forge had to run a program to find is kept between looks: one
+ * cache per way of running programs, because the `gh` one runs is the `gh` that
+ * answered. In memory only — `credentialCache` says what is kept and for how long.
+ */
+const credentials = new WeakMap<ForgeOptions['exec'], CredentialCache>()
+
+function credentialsOf(exec: ForgeOptions['exec']): CredentialCache {
+  let kept = credentials.get(exec)
+  if (!kept) {
+    kept = credentialCache()
+    credentials.set(exec, kept)
+  }
+  return kept
 }
 
 /**
@@ -129,14 +148,78 @@ export interface ForgePlace {
   forge: Forge
 }
 
-/** A checkout's `origin`, as git has it. Empty when it has none — not an error. */
+/**
+ * A checkout's `origin`, as git has it. Empty when it has none — not an error.
+ *
+ * Asked of git once and kept while the file it is written in has not changed:
+ * every look at a project asks this first, and it was a process a minute per
+ * project for an answer that changes when somebody runs `git remote`. Git
+ * rewrites its config by renaming a new file over it, so a changed remote is a
+ * changed inode however coarse the clock. What the stamp cannot see — an
+ * included file, the global config — is read again after `CREDENTIAL_KEEP_MS`.
+ *
+ * Only a remote found is kept. "Not set" and "git did not answer in time" are
+ * one exit code through some runners, and a look that could not look must not
+ * be kept as nothing there.
+ */
 export async function remoteAt(
   exec: ForgeOptions['exec'],
   root: string,
-  timeoutMs = 5_000,
+  options: { timeoutMs?: number; now?: () => number } = {},
 ): Promise<string> {
-  const got = await exec('git', ['-C', root, 'config', '--get', 'remote.origin.url'], { timeoutMs })
-  return got.code === 0 ? got.stdout.trim() : ''
+  const at = (options.now ?? Date.now)()
+  const stamp = await configStamp(root)
+  const remembered = stamp ? remotes.get(exec)?.get(root) : undefined
+  if (remembered?.stamp === stamp && at - remembered.at < CREDENTIAL_KEEP_MS) {
+    return remembered.remote
+  }
+  const got = await exec('git', ['-C', root, 'config', '--get', 'remote.origin.url'], {
+    timeoutMs: options.timeoutMs ?? 5_000,
+  })
+  const remote = got.code === 0 ? got.stdout.trim() : ''
+  if (stamp && remote) {
+    let known = remotes.get(exec)
+    if (!known) {
+      known = new Map()
+      remotes.set(exec, known)
+    }
+    known.set(root, { remote, stamp, at })
+  }
+  return remote
+}
+
+/** What `remoteAt` found, per way of running git and per checkout. */
+const remotes = new WeakMap<
+  ForgeOptions['exec'],
+  Map<string, { remote: string; stamp: string; at: number }>
+>()
+
+/**
+ * Which version of a checkout's git config is on disk, without running git:
+ * `.git/config` for a repository, and for a worktree or a submodule — whose
+ * `.git` is a file naming its own git directory — the config of the repository
+ * that directory's `commondir` names. Null where there is no such file to look
+ * at, and then nothing is kept.
+ */
+async function configStamp(root: string): Promise<string | null> {
+  try {
+    const dotGit = join(root, '.git')
+    let dir = dotGit
+    if (!(await stat(dotGit)).isDirectory()) {
+      const named = /^gitdir:\s*(.+)$/m.exec(await readFile(dotGit, 'utf8'))?.[1]?.trim()
+      if (!named) return null
+      const own = resolve(root, named)
+      const common = await readFile(join(own, 'commondir'), 'utf8').then(
+        (text) => text.trim(),
+        () => '',
+      )
+      dir = common ? resolve(own, common) : own
+    }
+    const config = await stat(join(dir, 'config'))
+    return `${config.dev}:${config.ino}:${config.size}:${config.mtimeMs}`
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -153,7 +236,7 @@ export async function forgeAt(
   root: string,
   options: ForgeChoice,
 ): Promise<ForgePlace | { problem: string }> {
-  const remote = await remoteAt(options.exec, root)
+  const remote = await remoteAt(options.exec, root, options.now ? { now: options.now } : {})
   if (!remote) return { problem: `${root} has no remote: there is nothing to push to` }
   const repo = repoOf(remote)
   const forge = forgeFor(remote, { ...options, cwd: options.cwd ?? root })
