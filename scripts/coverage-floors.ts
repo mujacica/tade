@@ -391,7 +391,8 @@ function unseenProblem(file: Measured): string | null {
       ? null
       : `${file.path} is excluded as unmeasurable, and ${file.covered} of its ${file.lines} lines ran.\n` +
           'Something imports it now, so it can be measured: delete its line from UNSEEN\n' +
-          `(${TABLE}) and let its package's floor account for it.`
+          `(${TABLE}) and let its package's floor account for it. If a worker only\n` +
+          `loads it and nothing it does runs — a new command — give it a line in LOADED at ${file.called}.`
   if (file.covered === 0)
     return (
       `LOADED says a worker loads ${file.path}, and none of its lines ran.\n` +

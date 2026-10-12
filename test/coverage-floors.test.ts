@@ -194,9 +194,11 @@ describe('what the instrument cannot see', () => {
   it('fails an excluded file the moment something runs it in process', () => {
     const path = Object.keys(UNSEEN)[0]!
     const measured = [...onTheFloor(), ...excluded().filter((file) => file.path !== path)]
-    const [problem] = readCoverage([...measured, at(path, 4, 10)], tracked()).problems
+    const [problem] = readCoverage([...measured, at(path, 4, 10, 1)], tracked()).problems
     expect(problem).toContain(`${path} is excluded as unmeasurable, and 4 of its 10 lines ran`)
     expect(problem).toContain('delete its line from UNSEEN')
+    // A command that is new, and only loaded, is the other way out.
+    expect(problem).toContain('give it a line in LOADED at 1')
   })
 
   it('lets a worker load a file LOADED counts, and run exactly what loading it runs', () => {

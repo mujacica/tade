@@ -28,7 +28,8 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
 
 1. Implement the logic in the right package with its own unit tests.
 2. Write it in `packages/cli/src/commands/<name>.ts`, exporting `register<Name>(program, io, setExit)`,
-   and call that from `buildProgram()` in `packages/cli/src/program.ts`.
+   and give it an entry in `COMMANDS` (`packages/cli/src/program.ts`) under every name it registers.
+   Give it a line in both `UNSEEN` and `LOADED` (`scripts/coverage-floors.ts`, which say why).
 3. Add an end-to-end test in `packages/cli/test/`, using the `tade()` helper that spawns the
    real binary under plain `node`. Set `TADE_HOME` (and `HOME`) to tmp dirs so tests never touch
    `~/.tade` or read your real transcripts.
