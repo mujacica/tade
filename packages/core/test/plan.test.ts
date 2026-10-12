@@ -116,7 +116,7 @@ describe('a plan', () => {
     ])
   })
 
-  it("refuses a document outside the task's own folder, whole rather than half made", () => {
+  it("refuses a document outside the task's documents folder, whole rather than half made", () => {
     const check = checkPlan(
       {
         project: 'shop',
@@ -128,7 +128,7 @@ describe('a plan', () => {
     expect(check.ok).toBe(false)
     if (check.ok) return
     expect(check.problems[0]).toContain('audit cannot produce that:')
-    expect(check.problems[0]).toContain("climbs out of the task's folder")
+    expect(check.problems[0]).toContain("climbs out of the task's documents folder")
   })
 
   it('carries what each agent produces through to the tasks it makes', () => {

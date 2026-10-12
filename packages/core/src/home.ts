@@ -94,6 +94,24 @@ export function taskDir(home: string, id: string): string {
 }
 
 /**
+ * Where the documents a project's tasks produced are kept: beside its task
+ * folders and never inside one, because a task's folder goes when the task is
+ * removed and a document is somebody's to read after its agent has gone.
+ */
+export function documentsDir(home: string, project: string): string {
+  return join(projectDir(home, project), 'documents')
+}
+
+/**
+ * The folder one task's documents go in, named for the task: a task's name is
+ * never used twice (`guardName`), so neither is this, and which agent wrote a
+ * document is answerable from where it is as well as from the journal.
+ */
+export function taskDocumentsDir(home: string, id: string): string {
+  return join(documentsDir(home, id.split('/')[0] ?? ''), taskFolder(id))
+}
+
+/**
  * The spool the local intake door writes into, and the `intake.cli` watch
  * reads: one file per request, named by the id the door gave it.
  *

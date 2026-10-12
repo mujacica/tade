@@ -304,7 +304,7 @@ const CHOICES: readonly Choice[] = [
       const produces = String(created?.detail.produces ?? '')
       expect(produces).not.toBe('')
       // And a name rather than a path of its own: the document goes in the
-      // task's own folder, so the description only reads right if what comes
+      // task's documents folder, so the description only reads right if what comes
       // back is something to join onto one.
       expect(producesProblem(produces)).toBe(null)
     },

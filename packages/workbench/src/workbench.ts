@@ -80,7 +80,7 @@ import { parse as parseYaml } from 'yaml'
 import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
 import { recordAuthored } from './authored.ts'
 import { checksAt, checksGate, sharesCheckout } from './checks.ts'
-import { removedDocument } from './documents.ts'
+import { documentsFolder, removedDocument, settleDocuments } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
@@ -226,7 +226,7 @@ export interface CreateTaskRequest {
   done?: DoneRule
   /**
    * The document it produces rather than a change to the code, named in the
-   * task's own folder: what an agent sent to plan, audit or research writes.
+   * task's documents folder: what an agent sent to plan, audit or research writes.
    */
   produces?: string
   /** When it starts: after other tasks, not before a time. Made now, started by the queue. */
@@ -430,9 +430,8 @@ export class Workbench {
       })
       // Pick the agents that kept working back up: the channel first, so their
       // extensions can reconnect, then the spend that went unreported while
-      // there was nothing for them to report to. Neither is fatal.
-      // Anything an agent wrote for itself while nobody was looking gets a
-      // commit now, so it is reviewable rather than merely present.
+      // there was nothing for them to report to. Neither is fatal. Anything an
+      // agent wrote for itself gets a commit now, so it is reviewable.
       await recordAuthored(
         expandHome(config.orchestrator.extensions),
         'tools written since Tade was last open',
@@ -442,6 +441,7 @@ export class Workbench {
       await workbench.reconcileSpend().catch(() => {})
       await workbench.lookAtCommits().catch(() => {})
       await workbench.lookAtChecks().catch(() => {})
+      await settleDocuments(workbench, config.documents.keep_days)
       return workbench
     } catch (err) {
       await journal?.close().catch(() => {})
@@ -1405,8 +1405,7 @@ export class Workbench {
 
   /** Remove a task. Refuses to destroy uncommitted or unmerged work. */
   async removeTask(req: RemoveTaskRequest): Promise<RemoveResult> {
-    // Asked before the folder goes, because afterwards nothing can (`documents.ts`).
-    const lost = await removedDocument(this.home, req.task ?? null)
+    const lost = await removedDocument(this, req.task ?? null)
     const result = await removeTask({ ...req, home: this.home })
     if (result.removed) {
       await this.log.append({
@@ -1661,6 +1660,7 @@ export class Workbench {
       branch: head.ok ? head.stdout.trim() : '',
       notes: this.memory.recall(task),
       context: existsSync(context) ? context : null,
+      documents: documentsFolder(this.home, project),
       workspace,
       commit: this.config.agents.commit,
       instructions: this.config.agents.instructions,

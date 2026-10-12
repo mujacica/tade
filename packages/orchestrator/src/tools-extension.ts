@@ -224,13 +224,13 @@ export function orchestratorTools(
     items: object({ title: string('what it is'), url: string('where it is') }, ['title', 'url']),
   }
   // What a task made to plan, audit or research says about itself. A name, not
-  // a path: the document goes with the task in Tade's home, so no project
+  // a path: the document is kept in Tade's home past its task, so no project
   // carries it and nothing commits it, and Tade hands over the whole path the
   // moment the task finishes — which is the only thing the repository was ever
   // buying. The last sentence is the other half: a README really is the
   // project's, and this field is not how one gets written.
   const produces = string(
-    'for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the name of the file it writes. Tade keeps it with the task, in the task’s own folder, never in the repository and never committed. Tade tells you when the task finishes, with the full path, so you read it and decide what follows. A file that belongs to the project itself — a README, a changelog — is an ordinary change and not this.',
+    'for an agent that writes something up rather than changing code — a plan, an audit, an analysis: the name of the file it writes. Tade keeps it in the project’s documents folder in its home, never in the repository and never committed, and it outlives the task. Tade tells you when the task finishes, with the full path, so you read it and decide what follows. A file that belongs to the project itself — a README, a changelog — is an ordinary change and not this.',
   )
 
   tool(

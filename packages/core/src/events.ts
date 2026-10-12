@@ -89,6 +89,23 @@ export const EventType = z.enum([
    */
   'document_triaged',
   /**
+   * A document a task produced was moved to where documents are kept now —
+   * out of its task's own folder, which goes when the task does, into the
+   * project's documents folder. `from` and `into`, so the fold follows it and
+   * a path somebody wrote down last week can still be traced — `into` and
+   * never `to`, which is on telemetry's allow-list, and a path names a task.
+   */
+  'document_moved',
+  /**
+   * A document a task produced was deleted: `path`, whose call it was (`by` —
+   * a person, the orchestrator on somebody's say-so, or `cleanup`) and
+   * `explained`, in their words. Written after the file went, and the only
+   * answer there will ever be to "what happened to it". `explained` and never
+   * `why`, for the reason `document_triaged` says `decided`: `why` is on
+   * telemetry's allow-list, and a sentence about somebody's work stays here.
+   */
+  'document_deleted',
+  /**
    * Somebody added to what a task's agent is told.
    *
    * The line carries **how much** was added and who added it, and never a word
@@ -398,6 +415,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Notable: a record nobody can reconstruct, so it is worth the fsync that
   // `notable` is the threshold for. Never `blocking` — nothing waits on it.
   document_triaged: 'notable',
+  // Notable for the same reason: nothing else will ever say where it went.
+  document_moved: 'notable',
+  document_deleted: 'notable',
   // Notable: what an agent is told changes what it does, so somebody coming
   // back wants to see that it was changed and by whom. Never `blocking` —
   // nothing is waiting on it.

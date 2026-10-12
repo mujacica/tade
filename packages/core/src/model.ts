@@ -119,8 +119,8 @@ export const TaskFile = z.object({
   done: z.enum(DONE_RULES).optional(),
   /**
    * What it produces that is not a change to the code: a document of this name,
-   * in the task's own folder in Tade's home (`producesPath`) and never in the
-   * repository. Named when the task is made, by whoever asked for the plan, the
+   * in the project's documents folder in Tade's home (`producesPath`), kept
+   * after the task is removed and never in the repository. Named when the task is made, by whoever asked for the plan, the
    * audit or the analysis — so that when the task finishes, the path goes with
    * the summary and whoever reads it can read the document rather than be told
    * one exists.

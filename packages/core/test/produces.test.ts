@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { EventType, TadeEvent } from '../src/events.ts'
 import {
   actedOnSays,
+  compactedSays,
+  documentMovedTo,
   documentsIn,
+  documentsToCompact,
+  everyDocumentSays,
   producedClause,
   producesPath,
   producesProblem,
@@ -43,28 +47,175 @@ describe('a name a task may produce', () => {
 
   it('refuses a path of its own, wherever it would land', () => {
     // Not "outside the repository" any more: the document goes in the task's
-    // own folder in Tade's home, so what is refused is anything that is not a
-    // name inside it — an absolute path included, however harmless it looks.
+    // documents folder in Tade's home, so what is refused is anything that is
+    // not a name inside it — an absolute path included, however harmless.
     expect(producesProblem('/tmp/audit.md')).toContain('a path of its own')
     expect(producesProblem('~/audit.md')).toContain('a path of its own')
     expect(producesProblem('C:\\audit.md')).toContain('a path of its own')
-    expect(producesProblem('../elsewhere/audit.md')).toContain("climbs out of the task's folder")
-    expect(producesProblem('notes/../../out.md')).toContain("climbs out of the task's folder")
+    expect(producesProblem('../elsewhere/audit.md')).toContain("climbs out of the task's documents")
+    expect(producesProblem('notes/../../out.md')).toContain("climbs out of the task's documents")
   })
 
   it('refuses nothing at all, which is the shape of a field left empty', () => {
     expect(producesProblem('   ')).toContain('name the file it writes')
   })
 
-  it('goes in the task’s own folder in Tade’s home, and nowhere in the project', () => {
+  it('goes in the project’s documents folder in Tade’s home, and nowhere in the project', () => {
     // The one reader: the sentence the agent is told, the path on `task_done`
-    // and the file Tade looks for are this string.
+    // and the file Tade looks for are this string — beside the task folders
+    // and never in one, because a task's folder goes when the task does.
     expect(producesPath('/h/.tade', 'shop/scope-audit', 'audit.md')).toBe(
-      '/h/.tade/projects/shop/tasks/scope-audit/audit.md',
+      '/h/.tade/projects/shop/documents/scope-audit/audit.md',
     )
     expect(producesPath('/h/.tade', 'shop/scope-audit', ' notes/audit.md ')).toBe(
-      '/h/.tade/projects/shop/tasks/scope-audit/notes/audit.md',
+      '/h/.tade/projects/shop/documents/scope-audit/notes/audit.md',
     )
+  })
+
+  it('knows where one written under the old rule belongs now, and nothing else', () => {
+    expect(
+      documentMovedTo(
+        '/h/.tade',
+        'shop/scope-audit',
+        '/h/.tade/projects/shop/tasks/scope-audit/notes/a.md',
+      ),
+    ).toBe('/h/.tade/projects/shop/documents/scope-audit/notes/a.md')
+    // Already where documents are kept, another task's folder, or anywhere
+    // else: not a document to move.
+    expect(
+      documentMovedTo(
+        '/h/.tade',
+        'shop/scope-audit',
+        '/h/.tade/projects/shop/documents/scope-audit/a.md',
+      ),
+    ).toBe(null)
+    expect(
+      documentMovedTo('/h/.tade', 'shop/scope-audit', '/h/.tade/projects/shop/tasks/other/a.md'),
+    ).toBe(null)
+    expect(documentMovedTo('/h/.tade', 'shop/scope-audit', '/etc/passwd')).toBe(null)
+  })
+})
+
+describe('a document outliving its task', () => {
+  const done = (minute = 1) =>
+    event('task_done', 'app/audit', { by: 'agent', produces: '/h/a.md', summary: 's' }, minute)
+
+  it('is still written after a removal that says it kept it', () => {
+    const [one] = documentsIn([done(), event('task_removed', 'app/audit', { kept: true }, 2)])
+    expect(one).toMatchObject({ state: 'written', removedAt: null, summary: 's' })
+  })
+
+  it('went with its task under a removal from before, which says nothing', () => {
+    const [one] = documentsIn([done(), event('task_removed', 'app/audit', {}, 2)])
+    expect(one).toMatchObject({ state: 'gone', removedAt: at(2) })
+  })
+
+  it('is remembered from a kept removal where its agent never finished', () => {
+    const [one] = documentsIn([
+      event('task_removed', 'app/audit', { produces: '/h/a.md', written: true, kept: true }, 2),
+    ])
+    expect(one).toMatchObject({ task: 'app/audit', path: '/h/a.md', state: 'written' })
+  })
+
+  it('follows a move, keeping everything that had come of it', () => {
+    const events = [
+      done(),
+      event('document_triaged', 'app/audit', { path: '/h/a.md', by: 'person', decided: 'ok' }, 2),
+      event('document_moved', 'app/audit', { from: '/h/a.md', into: '/h/b.md' }, 3),
+    ]
+    const all = documentsIn(events)
+    expect(all).toHaveLength(1)
+    expect(all[0]).toMatchObject({ path: '/h/b.md', triaged: { decided: 'ok' } })
+  })
+
+  it('says who deleted it and why, and is no longer waiting', () => {
+    const [one] = documentsIn([
+      done(),
+      event('document_deleted', 'app/audit', { path: '/h/a.md', by: 'you', explained: 'stale' }, 2),
+    ])
+    expect(one).toMatchObject({ state: 'deleted', deleted: { by: 'you', why: 'stale' } })
+    expect(waitingDocuments([one!], Date.UTC(2026, 8, 15, 10))).toEqual([])
+    expect(producedClause(one!)).toBe('produced /h/a.md, and you deleted it: stale')
+  })
+
+  it('lists every one, kept and deleted, when asked for all', () => {
+    expect(everyDocumentSays([])).toBe('No task has produced a document yet.')
+    const said = everyDocumentSays(documentsIn([done()]))
+    expect(said).toContain('kept in Tade’s home after their tasks are removed')
+    expect(said).toContain('app/audit produced /h/a.md')
+  })
+})
+
+describe('what the cleanup may take', () => {
+  const day = 86_400_000
+  const keep = 30 * day
+  const decided = (minute: number) =>
+    event(
+      'document_triaged',
+      'app/audit',
+      { path: '/h/a.md', by: 'person', decided: 'done' },
+      minute,
+    )
+  const done = event('task_done', 'app/audit', { by: 'agent', produces: '/h/a.md' }, 1)
+  const later = Date.UTC(2026, 9, 20, 9)
+
+  it('never takes one nobody decided about, however old', () => {
+    expect(documentsToCompact([done], Date.UTC(2030, 0, 1), keep)).toEqual([])
+  })
+
+  it('takes one decided about long enough ago, and says why', () => {
+    const [one] = documentsToCompact([done, decided(2)], later, keep)
+    expect(one?.document.task).toBe('app/audit')
+    expect(one?.because).toBe('person decided about it 34 days ago (done)')
+  })
+
+  it('keeps one decided about recently', () => {
+    expect(documentsToCompact([done, decided(2)], Date.UTC(2026, 8, 30), keep)).toEqual([])
+  })
+
+  it('keeps one whose follow-up is still under way, and takes it once that has finished', () => {
+    const queued = event('task_created', 'app/fix', { after: ['app/audit'] }, 3)
+    expect(documentsToCompact([done, decided(2), queued], later, keep)).toEqual([])
+    const started = event('run_started', 'app/fix', {}, 4)
+    expect(documentsToCompact([done, decided(2), queued, started], later, keep)).toEqual([])
+    const finished = event('task_done', 'app/fix', { by: 'agent' }, 5)
+    const [one] = documentsToCompact([done, decided(2), queued, started, finished], later, keep)
+    expect(one?.because).toContain('everything queued off it has finished')
+  })
+
+  it('keeps one whose own agent was started again, which may be rewriting it', () => {
+    const again = event('run_started', 'app/audit', {}, 3)
+    expect(documentsToCompact([done, decided(2), again], later, keep)).toEqual([])
+  })
+
+  it('takes nothing already deleted, gone or never written', () => {
+    const deleted = event(
+      'document_deleted',
+      'app/audit',
+      { path: '/h/a.md', by: 'you', explained: 'x' },
+      3,
+    )
+    expect(documentsToCompact([done, decided(2), deleted], later, keep)).toEqual([])
+    const missing = event(
+      'task_done',
+      'app/b',
+      { by: 'agent', produces: '/h/b.md', missing: true },
+      1,
+    )
+    const triagedB = event(
+      'document_triaged',
+      'app/b',
+      { path: '/h/b.md', by: 'p', decided: 'x' },
+      2,
+    )
+    expect(documentsToCompact([missing, triagedB], later, keep)).toEqual([])
+  })
+
+  it('says what it would take and what it took', () => {
+    const taken = documentsToCompact([done, decided(2)], later, keep)
+    expect(compactedSays(taken, false)).toContain('nothing has been deleted yet')
+    expect(compactedSays(taken, true)).toContain('Deleted 1 document')
+    expect(compactedSays([], false)).toContain('Nothing to clean up')
   })
 })
 

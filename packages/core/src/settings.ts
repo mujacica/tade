@@ -12,6 +12,7 @@ import { PUSH_BY_DEFAULT, PUSH_MODES, pushDefault } from './project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
+import { keepGroup } from './settings-keep.ts'
 import { projectGroups } from './settings-projects.ts'
 import { KEEP_AWAKE_MEANS } from './sleep.ts'
 
@@ -626,42 +627,7 @@ export function settingsOf(
     awayGroup(config),
     intakeGroup(config),
     ...projectGroups(config),
-    {
-      id: 'journal',
-      title: 'Journal',
-      about:
-        'What events.jsonl keeps. It is the truth and everything folds over all of it, so its size is what every statistic costs to read. Its index beside it (events.jsonl.db) is derived from it and rebuilt whenever the two disagree — deleting that file is always safe, and costs one rebuild on the next open.',
-      keywords: [
-        'journal',
-        'events',
-        'events.jsonl',
-        'index',
-        'database',
-        'db',
-        'disk',
-        'size',
-        'space',
-        'history',
-        'log',
-        'compaction',
-        'retention',
-        'prune',
-        'delete',
-      ],
-      settings: [
-        {
-          path: 'journal.max_mb',
-          title: 'Journal size',
-          means:
-            'megabytes; past it the oldest sampled byte counts are dropped on the next open — 86% of the lines, which nothing reads back — and nothing else ever is',
-          value: String(config.journal.max_mb),
-          fallback: '16 MB',
-          type: { kind: 'number', unit: 'MB' } as const,
-          live: false,
-          keywords: ['compact', 'ceiling', 'grow', 'trace', 'output'],
-        },
-      ],
-    },
+    keepGroup(config),
     {
       id: 'telemetry',
       title: 'Telemetry',

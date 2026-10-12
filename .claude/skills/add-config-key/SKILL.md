@@ -17,6 +17,7 @@ orchestrator's arm reaches into it, and whether a person can read back what they
 | `packages/core/src/config-file.ts` | the file it is read from and written to: `parseConfig`, `loadConfig`, `writeSetting`, `ownerOnly` |
 | `packages/core/src/settings.ts` | `settingsOf`, `parseSetting`, `findableBy`, `settingLabel`, `SettingKind`, the Keys and tokens group |
 | `packages/core/src/settings-projects.ts` | the one `projects` group: every row of it one project's, by `scope` |
+| `packages/core/src/settings-keep.ts` | the Journal group — what Tade keeps and lets go: `journal.max_mb`, `documents.keep_days` |
 | `packages/core/src/reach.ts` | `settingReach`, `Reach`, the `NEVER` table, `OPEN`, `OPEN_UNDER`, `ALLOWED_UNDER`, `namedBy`, `wordsFor`, `WATCH_REACH`, `watchNamedBy`, `LINES_LOOKED_BACK` |
 | `packages/core/src/project.ts` | what one project answers for itself: `workspaceFor`, `pushFor`, `PUSH_MODES`, `pushProblems` |
 | `packages/core/src/secrets.ts` | a credential: `findSecret`, `secretPath`, `secretCommand`, `IN_CONFIG`, `KEYS_AND_AGENTS`, `SEEN_BY_AGENTS` |

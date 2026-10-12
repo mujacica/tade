@@ -4,22 +4,18 @@ import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import { closeDonePanel, confirmRemovePanel } from '../src/panels/small/state.ts'
 import { COLOUR } from '../src/skin.ts'
 
-// What somebody is told before they destroy a document nobody has read.
+// What somebody is told about a document nobody has read, as they close the
+// agent that wrote it.
 //
 // Its own file because `panels.test.ts` is at the size a file is allowed to
-// be, and because this is one subject rather than a page: the two questions
-// that stand between a cleanup and a loss.
+// be, and because this is one subject rather than a page.
 //
-// **The bug these exist for.** Closing an agent asked nothing at all when the
-// agent worked in the project's own checkout, on the strength of a comment
-// saying it "loses nothing by going — only its task folder goes with it". The
-// task folder is the only copy of what the task produced. On the machine this
-// was found on, twelve of thirteen produced documents had been destroyed that
-// way: six inside two seconds of one press of the close-everything button, and
-// one of them twenty-six seconds after its agent wrote it.
-//
-// Both questions **ask** and neither refuses. A document is somebody's to keep
-// or to throw away; what was wrong was doing it without telling them.
+// **The bug these existed for.** Closing an agent destroyed the task's folder,
+// which was the only copy of what the task produced: twelve of thirteen
+// documents on one machine went that way, six inside two seconds of one press
+// of the close-everything button. A document is kept in the project's
+// documents folder now, so the panels say it is kept — and say it, rather than
+// leaving somebody who lost six analyses once to wonder.
 
 const context = (): PanelContext =>
   ({
@@ -39,16 +35,17 @@ const drawn = (panel: Parameters<typeof drawPanel>[0]): string =>
     .join('\n')
 
 describe('the question before one agent is closed', () => {
-  it('names the document and says the removal deletes it', () => {
+  it('names the document and says the removal keeps it', () => {
     const panel = confirmRemovePanel('app/scope-audit', 'AUDIT.md (41 KB) — nobody has read it yet')
     // Keep is where the keyboard starts: enter answers the way that loses nothing.
     expect(panel.field).toBe('keep')
     const text = drawn(panel)
-    expect(text).toContain('It produced a document nobody has read')
+    expect(text).toContain('It produced a document nobody has read yet, which is kept')
     expect(text).toContain('AUDIT.md (41 KB)')
-    expect(text).toContain('Deletes the worktree, the branch and that document')
-    // Still a question: the destructive answer is there to be chosen.
-    expect(text).toContain('Remove anyway')
+    expect(text).toContain('Deletes the worktree and branch; the conversation stays.')
+    expect(text).not.toContain('that document')
+    // Nothing is lost by it, so it is not "anyway".
+    expect(text).not.toContain('Remove anyway')
   })
 
   it('says nothing of the sort where closing loses no document', () => {
@@ -66,7 +63,8 @@ describe('the question before every finished agent is closed at once', () => {
     )
     expect(panel.field).toBe('keep')
     const text = drawn(panel)
-    expect(text).toContain('2 produced a document nobody has read')
+    expect(text).toContain('2 produced a document nobody has read yet. Closing keeps them.')
+    expect(text).not.toContain('deletes')
     // And marked in the list itself, so it is clear *which* two.
     expect(text).toContain('document unread')
   })

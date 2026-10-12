@@ -1,6 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { documentsIn, producedClause, producesPath, taskDir, waitingDocuments } from '@tade/core'
+import {
+  documentsIn,
+  producedClause,
+  producesPath,
+  taskDir,
+  taskDocumentsDir,
+  waitingDocuments,
+} from '@tade/core'
 import { until } from '@tade/drivers-core/conformance'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -55,12 +62,13 @@ describe('task and run RPC', () => {
     expect(event?.detail.intent_spoken).toBe(INTENT)
   })
 
-  it("puts the document in the task's own folder, and tells the orchestrator that path", async () => {
+  it("puts the document in the project's documents folder, and tells the orchestrator that path", async () => {
     // The point of the whole mechanism: whoever hears that a research task
     // finished hears where the document is, and the journal is what remembers
     // — a window shut when the agent finished still knows on its way back up.
-    // Where it is, is the task's own folder in Tade's home: nothing of this is
-    // the project's, so nothing of it is in the checkout or on the branch.
+    // Where it is, is the project's documents folder in Tade's home: nothing
+    // of this is the project's, so nothing of it is in the checkout or on the
+    // branch, and it is not the task's folder, which goes with the task.
     const task = await client.createTask({
       project: 'app',
       slug: 'scope-audit',
@@ -69,8 +77,8 @@ describe('task and run RPC', () => {
       produces: 'notes/scope-audit.md',
     })
     const where = producesPath(home, task.id, 'notes/scope-audit.md')
-    expect(where).toBe(join(taskDir(home, 'app/scope-audit'), 'notes', 'scope-audit.md'))
-    mkdirSync(join(taskDir(home, 'app/scope-audit'), 'notes'), { recursive: true })
+    expect(where).toBe(join(taskDocumentsDir(home, 'app/scope-audit'), 'notes', 'scope-audit.md'))
+    mkdirSync(join(taskDocumentsDir(home, 'app/scope-audit'), 'notes'), { recursive: true })
     writeFileSync(where, '# what I found\n')
     // No lane and no agent: where the document is does not depend on knowing
     // where the agent worked, which is the other half of taking it out of the
@@ -152,11 +160,11 @@ describe('task and run RPC', () => {
     expect(producedClause(documentsIn(await client.events({}))[0]!)).toContain('(4096 bytes)')
   })
 
-  it('says on the removal that a document existed, before the folder holding it goes', async () => {
-    // The whole of what went wrong: removing a task is `rm -rf` of the only
-    // copy of what it produced, and the removal said nothing about it — so
-    // twelve of thirteen documents on one machine were destroyed with no line
-    // anywhere saying they had existed, six of them inside two seconds.
+  it('keeps the document when its task is removed, and says so on the removal', async () => {
+    // The whole of what went wrong: removing a task was `rm -rf` of the only
+    // copy of what it produced — thirteen of sixteen documents on one machine
+    // went that way. The document is not in the task's folder now, so the
+    // removal takes the bookkeeping and leaves what somebody reads.
     const task = await client.createTask({
       project: 'app',
       slug: 'scope-audit',
@@ -176,12 +184,44 @@ describe('task and run RPC', () => {
     })
 
     const [gone] = await client.events({ types: ['task_removed'] })
-    expect(gone?.detail).toMatchObject({ produces: where, written: true })
-    // And the record outlives the file: the path no longer says where to look,
-    // which is exactly why somebody has to be told it was never read.
-    expect(existsSync(where)).toBe(false)
+    expect(gone?.detail).toMatchObject({ produces: where, written: true, kept: true })
+    expect(existsSync(taskDir(home, task.id))).toBe(false)
+    expect(existsSync(where)).toBe(true)
     const [doc] = documentsIn(await client.events({}))
-    expect(doc).toMatchObject({ task: task.id, path: where, state: 'gone', triaged: null })
+    expect(doc).toMatchObject({ task: task.id, path: where, state: 'written', triaged: null })
+    // Still waiting on somebody: removing the agent decided nothing about it.
+    expect(waitingDocuments([doc!], Date.now())).toHaveLength(1)
+  })
+
+  it("moves a document an older agent left in its task's folder out before the folder goes", async () => {
+    // An agent started before documents outlived their tasks was told the old
+    // path once, at its start, and writes there. Its receipt says so, and the
+    // removal moves the file rather than destroying it.
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'scope-audit',
+      intent: 'work out where the token gets taken twice',
+      workspace: 'worktree',
+      produces: 'AUDIT.md',
+    })
+    const before = join(taskDir(home, task.id), 'AUDIT.md')
+    writeFileSync(before, '# what I found\n')
+    await client.markDone(task.id, { by: 'you' })
+    const [done] = await client.events({ types: ['task_done'] })
+    expect(done?.detail).toMatchObject({ produces: before, bytes: 15 })
+    await client.removeTask({
+      root: repo.root,
+      worktree: task.worktree,
+      branch: task.branch,
+      task: task.id,
+      force: true,
+    })
+    const where = producesPath(home, task.id, 'AUDIT.md')
+    const [moved] = await client.events({ types: ['document_moved'] })
+    expect(moved?.detail).toEqual({ from: before, into: where })
+    expect(existsSync(where)).toBe(true)
+    const [doc] = documentsIn(await client.events({}))
+    expect(doc).toMatchObject({ path: where, state: 'written' })
   })
 
   it('speaks for an agent killed before it finished, which never got a receipt', async () => {
@@ -202,7 +242,7 @@ describe('task and run RPC', () => {
       force: true,
     })
     const [doc] = documentsIn(await client.events({}))
-    expect(doc).toMatchObject({ state: 'gone', task: task.id })
+    expect(doc).toMatchObject({ state: 'written', task: task.id })
   })
 
   it('writes down what somebody decided, and refuses to write a second answer over it', async () => {

@@ -14,7 +14,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 |---|---|
 | `packages/core/src/done.ts` | when a task is finished: `finishedFrom`, `ruleMet`, `workedFrom` |
 | `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `inWrittenOrder`, `startFrom`, `collidesNow`, `checkPlan`, `overlaps`, `QUEUE_CHANGES` |
-| `packages/core/src/produces.ts` | what a task produces instead of code: `producesProblem`, `producedIn`, `producedClause` |
+| `packages/core/src/produces.ts` | what a task produces instead of code: `producesProblem`, `producesPath`, `documentsIn`, `documentsToCompact`, `producedClause` |
+| `packages/workbench/src/documents.ts` | triage, `deleteDocument`, `cleanupDocuments`, `settleDocuments` on open, `removedDocument` |
 | `packages/core/src/effort.ts` | one change across repositories: `effortsIn`, `effortSays` |
 | `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, `standingSchedules`, `scheduleIdOf`, the words for each |
 | `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*` |
@@ -57,18 +58,24 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   carries that path and whether the file was actually there (`producedDetail` — which checks the name
   again on the way into the journal, because the file on disk is somebody's to hand-edit). **On
   `task_done` rather than looked up afterwards**, because the journal is the only thing that
-  remembers: the task's folder goes when the task does, and a window that was shut when an agent
-  finished still has to open knowing there is something to read — which is what the briefing's own
+  remembers: a window that was shut when an agent finished still has to open knowing there is
+  something to read — which is what the briefing's own
   section is for, uncapped like `held`, because a document lost to a per-project cap is the whole
-  bug back again. **Where it goes is the task's own folder in Tade's home** (`producesPath`), beside
-  its task file and its context: `produces` is a *name*, `producesProblem` refuses anything that is a
-  path out of that folder, and nothing of it is in the repository or in a commit. It used to be a
-  path in the repository, committed, so that the document outlived its worktree — which bought one
-  thing, somebody being able to read it, and charged every project Tade touched an oauth-scope audit
-  in its history on a branch carrying no code. What it was paying for is the line saying the task
-  finished, which already hands over the path; so a document goes with the task and is removed with
-  it, and anything that genuinely is the project's — a README, a skill, a changelog — is an ordinary
-  change and never was this field. Both the agent's sentence and the tool's description say the home
+  bug back again. **Where it goes is the project's documents folder in Tade's home**, one folder per
+  task (`producesPath` → `<home>/projects/<p>/documents/<task>/`): `produces` is a *name*,
+  `producesProblem` refuses anything that is a path out of that folder, and nothing of it is in the
+  repository or in a commit. It used to be a path in the repository, committed — which charged every
+  project Tade touched an oauth-scope audit in its history — and then the task's own folder, which
+  `removeTask` deletes: thirteen of sixteen documents on one machine went with their agents that way.
+  **A document outlives its task**: removing one writes `kept: true` on `task_removed`, and a document
+  an agent told under the old rule left in its task folder is moved out first (`document_moved`), on
+  removal or on the next open. What deletes one is a person asking (`deleteDocument`, with their
+  reason) or the cleanup (`cleanupDocuments`, on open and via `tade_documents_cleanup` / `tade
+  documents cleanup`), which takes only what `documentsToCompact` allows: **triaged**, at least
+  `documents.keep_days` ago, everything queued off it finished, its agent not started again — never an
+  undecided one. Each is a `document_deleted` line, so "what happened to it" is always answerable.
+  Anything that genuinely is the project's — a README, a skill, a changelog — is an ordinary change
+  and never was this field. Both the agent's sentence and the tool's description say the home
   and say *not committed*, because one place saying the repository is one place agents will believe.
   What has been done about one is
   **derived, never remembered** (`producedIn`): work made since it finished that waits on it, and

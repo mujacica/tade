@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { effectByName, taskDir } from '@tade/core'
+import { effectByName, taskDir, taskDocumentsDir } from '@tade/core'
 import type {
   PermissionDecision,
   RunId,
@@ -262,9 +262,10 @@ export function taskProducing(produces: string, wrote = true): { cwd: string; ho
     ].join('\n'),
   )
   if (!wrote) return { cwd, home }
-  // In the task's own folder, not the worktree: that is where the agent was
-  // told to write it, and the only place Tade looks.
-  mkdirSync(join(dir, dirname(produces)), { recursive: true })
-  writeFileSync(join(dir, produces), '# what I found\n')
+  // In the project's documents folder, not the worktree: that is where the
+  // agent was told to write it, and where it outlives its task.
+  const kept = taskDocumentsDir(home, 'app/refunds')
+  mkdirSync(join(kept, dirname(produces)), { recursive: true })
+  writeFileSync(join(kept, produces), '# what I found\n')
   return { cwd, home }
 }

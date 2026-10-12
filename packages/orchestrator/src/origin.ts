@@ -241,6 +241,10 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   // Its own clause, because it is the only one here that is not about what a
   // call can reach.
   tade_document_triage: { kind: 'local', because: DECIDES_FOR_SOMEBODY },
+  // Deleting a document cannot be asked back, and the one who decides it is
+  // the person at this machine — the second press is theirs, like `tade_done`.
+  tade_document_delete: { kind: 'local', because: CONFIRMS },
+  tade_documents_cleanup: { kind: 'local', because: CONFIRMS },
 }
 
 /**
@@ -388,6 +392,8 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'queue/list': never(READS_WIDE),
   'documents/list': never(READS_WIDE),
   'documents/triage': never(DECIDES_FOR_SOMEBODY),
+  'documents/delete': never(CONFIRMS),
+  'documents/cleanup': never(CONFIRMS),
   'queue/change': never(PUBLISHES),
   'queue/schedule': never(EXECUTES),
   'template/list': never(READS_WIDE),

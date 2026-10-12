@@ -485,26 +485,19 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
     rows.push(row().space().text('Nothing in it is unmerged.').build())
   }
   // The document is said *after* the unmerged work and before the consequence,
-  // because it is the thing this panel was wrong about: an agent in the
-  // project's own checkout has no unmerged work to lose and its task folder is
-  // the only copy of what it produced, so "nothing in it is unmerged" used to
-  // be the last word before a document was deleted.
+  // and said to be kept: it lives in the project's documents folder, not the
+  // task's, so closing the agent is not what deletes it any more — and a
+  // person who closed six agents to lose six analyses is why that is spelled
+  // out rather than left to be believed.
   if (panel.unread) {
     rows.push(blank(inner))
-    rows.push(row().space().text('It produced a document nobody has read:', skin.waiting).build())
+    rows.push(
+      row().space().text('It produced a document nobody has read yet, which is kept:').build(),
+    )
     rows.push(row().space(3).text(panel.unread).build())
   }
   rows.push(blank(inner))
-  rows.push(
-    row()
-      .space()
-      .text(
-        panel.unread
-          ? 'Deletes the worktree, the branch and that document; the conversation stays.'
-          : 'Deletes the worktree and branch; the conversation stays.',
-      )
-      .build(),
-  )
+  rows.push(row().space().text('Deletes the worktree and branch; the conversation stays.').build())
   rows.push(
     panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
   )
@@ -515,7 +508,7 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
           .button('Keep it', { kind: 'control', id: 'keep' })
           .space()
           .button(
-            panel.busy ? 'Removing…' : unmerged || panel.unread ? 'Remove anyway' : 'Remove',
+            panel.busy ? 'Removing…' : unmerged ? 'Remove anyway' : 'Remove',
             { kind: 'control', id: 'remove' },
             panel.busy ? 'off' : 'danger',
           )
@@ -561,16 +554,16 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
         .build(),
     )
   rows.push(blank(inner))
-  // Counted and said before the press. This button closed twenty agents at
-  // once on the machine this was found on, and six of them had written an
-  // analysis in the minutes before — all six deleted, nothing asked.
+  // Counted and said before the press, and said to be kept. This button
+  // closed twenty agents at once on the machine this was found on, and six of
+  // them had written an analysis in the minutes before — all six deleted,
+  // nothing asked. Documents outlive their tasks now; that is what this says.
   if (unread.size > 0) {
     rows.push(
       row()
         .space()
         .text(
-          `${unread.size} produced a document nobody has read. Closing deletes ${unread.size === 1 ? 'it' : 'them'}.`,
-          skin.waiting,
+          `${unread.size} produced a document nobody has read yet. Closing keeps ${unread.size === 1 ? 'it' : 'them'}.`,
         )
         .build(),
     )

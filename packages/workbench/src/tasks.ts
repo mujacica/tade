@@ -9,6 +9,7 @@ import {
   TaskFile,
   TaskId,
   taskDir,
+  taskDocumentsDir,
 } from '@tade/core'
 import { git, parseStatusV2, resolveBase } from '@tade/status'
 import { parse as parseYaml, stringify } from 'yaml'
@@ -77,7 +78,7 @@ export interface CreateTaskOptions {
   done?: DoneRule
   /**
    * The document it produces rather than a change to the code, as a name in the
-   * task's own folder. Refused where it would be a path out of that folder.
+   * task's documents folder. Refused where it would be a path out of that folder.
    */
   produces?: string
   /** When it starts, for queued work: kept in the task file until it does. */
@@ -205,7 +206,18 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(dir, 'context.md'), context)
+  await documentsFolderFor(opts)
   return task
+}
+
+/**
+ * Make the folder a task's document goes in when the task says it produces
+ * one, so its agent is never told to write into a folder that is not there.
+ */
+async function documentsFolderFor(opts: CreateTaskOptions): Promise<void> {
+  if (opts.produces?.trim()) {
+    await mkdir(taskDocumentsDir(opts.home, `${opts.project}/${opts.slug}`), { recursive: true })
+  }
 }
 
 /**
@@ -246,6 +258,7 @@ async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<Ta
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(dir, 'context.md'), context)
+  await documentsFolderFor(opts)
   return task
 }
 
@@ -442,9 +455,14 @@ export async function setTitle(
  * in is the only copy there is.
  *
  * On `task_done` rather than looked up afterwards, because the journal is the
- * only thing that remembers: the task's folder goes when the task does, and a
- * window that was shut when an agent finished still has to be able to say, the
- * next time it opens, that there is a document waiting to be read.
+ * only thing that remembers: a window that was shut when an agent finished
+ * still has to be able to say, the next time it opens, that there is a
+ * document waiting to be read.
+ *
+ * Looked for in the task's documents folder, and then in its own folder: an
+ * agent started before documents outlived their tasks was told to write there,
+ * and is told only once. What is found there is moved on the next open
+ * (`settleDocuments`) or before the task's folder goes (`removedDocument`).
  *
  * `missing` is the same caution every probe here takes — a task that named a
  * document and did not write one is a thing to go and ask about, and claiming
@@ -456,7 +474,7 @@ export async function setTitle(
  * big one is lets whoever reads it next decide before it is opened. Absent
  * rather than nought where nothing could look.
  *
- * **A path that leaves the task's folder is reported as leaving it and never
+ * **A path that leaves the folder it is in is reported as leaving it and never
  * followed.** `producesProblem` refuses a name that climbs out, but a symlink
  * written *inside* the folder is a name that passes and a path that does not,
  * and the receipt is handed to whoever reads next as a thing to go and open.
@@ -475,6 +493,18 @@ export async function producedDetail(
   // onto a path.
   if (!named || producesProblem(named)) return {}
   const produces = producesPath(home, task, named)
+  const before = join(taskDir(home, task), named.trim())
+  const here = await lookAt(produces, taskDocumentsDir(home, task))
+  if (!here.missing || here.outside) return here
+  const there = await lookAt(before, taskDir(home, task))
+  return there.missing && !there.outside ? here : there
+}
+
+/** One place a document may be: its size, or why it is not a document there. */
+async function lookAt(
+  produces: string,
+  folder: string,
+): Promise<{ produces: string; missing?: true; outside?: true; bytes?: number }> {
   try {
     const found = await stat(produces)
     // A directory where a document should be is not a document, and neither
@@ -482,7 +512,7 @@ export async function producedDetail(
     // a folder comes back as.
     if (!found.isFile()) return { produces, missing: true }
     const real = await realpath(produces)
-    const dir = await realpath(taskDir(home, task)).catch(() => taskDir(home, task))
+    const dir = await realpath(folder).catch(() => folder)
     const out = relative(dir, real)
     // `..` leaves the folder, and an absolute answer means no relative path
     // exists at all — another volume, which is as far outside as it gets.

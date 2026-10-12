@@ -636,6 +636,21 @@ export const ConfigSchema = z
         max_mb: z.int().positive().default(16),
       })
       .prefault({}),
+    /**
+     * What the documents folder keeps.
+     *
+     * A document a task produced outlives its task, so something has to say
+     * when one is not needed any more — and it is never a clock alone. On
+     * every open, a document somebody decided about at least this long ago,
+     * whose follow-up has all finished, is deleted and the deletion written to
+     * the journal (`documentsToCompact`). One nobody decided about is kept
+     * however old it gets: only a person deletes that.
+     */
+    documents: z
+      .strictObject({
+        keep_days: z.int().positive().default(30),
+      })
+      .prefault({}),
     /** When a project's own checks run, and what a red one does. */
     checks: ChecksConfigSchema.prefault({}),
     /**

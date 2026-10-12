@@ -361,7 +361,7 @@ describe('a template', () => {
   // The one place a filled-in value becomes a real filesystem path
   // (`producesPath`, for a document handed from one task to another). Every
   // escape is refused by the slug's own rule, and the one spelling that gets
-  // through stays inside the task's own folder.
+  // through stays inside the task's documents folder.
   it.each(['../../../../etc', '..', '.', 'a/b', 'a\\b', '-x', 'A'])(
     'refuses the slug %s, so nothing builds a path out of it',
     (ticket) => {
@@ -375,7 +375,7 @@ describe('a template', () => {
     },
   )
 
-  it('keeps a handed document inside the task’s own folder, whatever the slug is', () => {
+  it('keeps a handed document inside the task’s documents folder, whatever the slug is', () => {
     const read = parseTemplate('research-then-plan', BUILT_IN_TEMPLATES['research-then-plan'] ?? '')
     expect(read.ok).toBe(true)
     if (!read.ok) return
@@ -388,7 +388,7 @@ describe('a template', () => {
     const path = /`([^`]+research[^`]*)`/.exec(
       fill.plan.agents.find((one) => one.name === 'plan-a..b')?.context ?? '',
     )?.[1]
-    expect(path).toBe('/home/.tade/projects/shop/tasks/research-a..b/research.md')
+    expect(path).toBe('/home/.tade/projects/shop/documents/research-a..b/research.md')
   })
 
   it('refuses a template that names an input of the wrong kind', () => {
@@ -424,7 +424,9 @@ describe('a template', () => {
     expect(fill.ok).toBe(true)
     if (!fill.ok) return
     const plan = fill.plan.agents.find((one) => one.name === 'plan-exports')
-    expect(plan?.context).toContain('/home/.tade/projects/shop/tasks/research-exports/research.md')
+    expect(plan?.context).toContain(
+      '/home/.tade/projects/shop/documents/research-exports/research.md',
+    )
     expect(plan?.context).toContain('Handed to you')
   })
 

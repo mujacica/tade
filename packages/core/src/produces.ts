@@ -1,6 +1,6 @@
-import { join } from 'node:path'
-import type { TadeEvent } from './events.ts'
-import { taskDir } from './home.ts'
+import { isAbsolute, join, relative } from 'node:path'
+import type { EventType, TadeEvent } from './events.ts'
+import { taskDir, taskDocumentsDir } from './home.ts'
 
 // What a task produces that is not a change to the code.
 //
@@ -14,29 +14,36 @@ import { taskDir } from './home.ts'
 // when the task is made like `done` and `start`, and the line that says it
 // finished carries that path and whether the file is actually there. It is on
 // `task_done` rather than looked up afterwards because **the journal is the
-// only thing that remembers**: the task's folder goes when the task does, and
-// a window that was shut when an agent finished still has to be able to say,
-// when it opens, that there is a document waiting to be read.
+// only thing that remembers**: a window that was shut when an agent finished
+// still has to be able to say, when it opens, that there is a document waiting
+// to be read — and who wrote it, when, and what its agent said it was.
 //
-// The document goes with the task, in the task's own folder in Tade's home
-// (`producesPath`) — so it is not the repository's, not committed, and it is
-// removed with the task's other files when somebody removes the task.
+// **The document outlives its task.** It goes in the project's documents
+// folder in Tade's home, in a folder named for the task (`producesPath`) — not
+// the repository's, never committed, and not the task's own folder either,
+// which goes when the task is removed. It used to be that folder, and closing
+// an agent deleted the folder, the document and the record of it together:
+// thirteen of sixteen documents on the machine this was written for went that
+// way, six of them inside two seconds of one cleanup, with nothing anywhere
+// saying they had existed. Removing a task now removes its bookkeeping and
+// leaves what it wrote, so closing an agent loses nothing anybody reads.
 //
 // **"The orchestrator is told the moment it finishes, and reads it then, which
-// is the one moment anybody ever needed it for" was the whole of the rest of
-// this, and it was the belief the mechanism broke on.** That moment is one
-// in-memory line in a window that may be shut, in a list capped at forty, and
-// the second telling — the briefing — forgot after three days and only ever
-// spoke when a window opened. Meanwhile the only way to clear a document off
-// that list was to queue work off it, so "I read it and nothing follows" could
-// not be said at all; and closing an agent deleted the folder, the document
-// and the record of it together, which is how twelve of thirteen documents on
-// one machine were destroyed with nothing anywhere saying they had existed.
+// is the one moment anybody ever needed it for" was the belief the mechanism
+// broke on next.** That moment is one in-memory line in a window that may be
+// shut, in a list capped at forty, and the second telling — the briefing —
+// forgot after three days and only ever spoke when a window opened. Meanwhile
+// the only way to clear a document off that list was to queue work off it, so
+// "I read it and nothing follows" could not be said at all.
 //
 // So a document is not handed off when somebody is told. It is handed off when
 // somebody says what they decided (`document_triaged`), and until then it
 // stays on the list however long that takes (`waitingDocuments`). What bounds
-// the list is decisions, never a clock.
+// the list is decisions, never a clock — and what bounds the folder is the
+// same: only a document somebody decided about, whose follow-up has finished,
+// is ever cleaned up unasked (`documentsToCompact`), and every one that goes is
+// a line in the journal (`document_deleted`), so "what happened to it" always
+// has an answer.
 //
 // There is no research mode and no lifecycle of its own: a task is a task, and
 // this is one optional field on it.
@@ -48,10 +55,10 @@ import { taskDir } from './home.ts'
 /**
  * Why a name cannot be what a task produces, or null when it can.
  *
- * What a task names is a file in its own folder: a name, or a path under it,
- * and never a way out of it — so the one question the rule exists to answer,
- * what happens to the document, has one answer for every task. It is where
- * Tade's bookkeeping for that task already is, and goes when that does.
+ * What a task names is a file in its own documents folder: a name, or a path
+ * under it, and never a way out of it — so the one question the rule exists to
+ * answer, what happens to the document, has one answer for every task: it is
+ * kept in Tade's home until somebody decides it is not needed.
  *
  * It used to be a path in the repository, committed like any other change,
  * because a document only in a worktree is one nobody can read once the
@@ -59,26 +66,28 @@ import { taskDir } from './home.ts'
  * it in every project Tade touched: somebody's oauth-scope audit in their
  * history for good, on a branch that exists to carry no code. What it was
  * really paying for is that somebody is told, which the line saying the task
- * finished already does. A document that genuinely belongs to the repository —
+ * finished already does — and the outliving is the documents folder's now,
+ * which costs no project anything. A document that genuinely belongs to the repository —
  * a README, a skill, a changelog — is an ordinary change and never was this
  * field.
  */
 export function producesProblem(path: string): string | null {
   const said = path.trim()
-  if (!said) return "name the file it writes, as a name in the task's own folder"
+  if (!said) return "name the file it writes, as a name in the task's documents folder"
   if (said.startsWith('/') || said.startsWith('~') || /^[a-z]:[\\/]/i.test(said)) {
-    return `${said} is a path of its own: give a name in the task's own folder`
+    return `${said} is a path of its own: give a name in the task's documents folder`
   }
   const parts = said.split(/[\\/]/)
   if (parts.includes('..')) {
-    return `${said} climbs out of the task's folder: give a name inside it`
+    return `${said} climbs out of the task's documents folder: give a name inside it`
   }
   return null
 }
 
 /**
- * Where the document a task produces goes: the task's own folder in Tade's
- * home, under the name the task gave it.
+ * Where the document a task produces goes: the task's folder in the project's
+ * documents folder in Tade's home (`taskDocumentsDir`), under the name the task
+ * gave it. Removing the task leaves it there.
  *
  * The one reader, so the sentence its agent is told, the path written on
  * `task_done` and the file Tade looks for are one string rather than three
@@ -87,13 +96,31 @@ export function producesProblem(path: string): string | null {
  * `producedDetail`, and the agent's own prompt).
  */
 export function producesPath(home: string, task: string, produces: string): string {
-  return join(taskDir(home, task), produces.trim())
+  return join(taskDocumentsDir(home, task), produces.trim())
 }
 
 /**
- * What state a produced document is in, which is three facts and not a
- * lifecycle: the file is there, the task named one and wrote none, or the task
- * was removed and took it with it.
+ * Where a document written before documents outlived their tasks belongs now,
+ * or null when `path` is not one: a path inside the task's own folder is where
+ * every document used to go, and the same name under the task's documents
+ * folder is where it is kept from now on.
+ *
+ * The one rule for both moves — every finished one on the next open, and an
+ * agent's still in progress at the moment its task is removed — so the two
+ * cannot disagree about where a document went.
+ */
+export function documentMovedTo(home: string, task: string, path: string): string | null {
+  const inside = relative(taskDir(home, task), path)
+  if (!inside || inside.startsWith('..') || isAbsolute(inside)) return null
+  return join(taskDocumentsDir(home, task), inside)
+}
+
+/**
+ * What state a produced document is in, which is four facts and not a
+ * lifecycle: the file is there, the task named one and wrote none, somebody
+ * deleted it — by asking, or by a cleanup that may only take one somebody
+ * decided about — or, from before documents outlived their tasks, the task was
+ * removed and took it with it.
  *
  * `gone` is here rather than being an absence because **a document destroyed
  * before anybody read it is a fact**, and the version of this that deleted the
@@ -102,7 +129,7 @@ export function producesPath(home: string, task: string, produces: string): stri
  * six of them inside two seconds of a cleanup, and no surface in Tade could
  * say they had ever existed.
  */
-export type DocumentState = 'written' | 'missing' | 'gone'
+export type DocumentState = 'written' | 'missing' | 'deleted' | 'gone'
 
 /**
  * A document a finished task produced, and what has come of it since.
@@ -115,14 +142,14 @@ export interface Document {
   task: string
   /** Where it is: the path in Tade's home the journal recorded, ready to read. */
   path: string
-  /** Whether the file is there, was never written, or went with its task. */
+  /** Whether the file is there, was never written, was deleted, or went with its task. */
   state: DocumentState
   /** What its agent said when it finished. */
   summary: string
   /** When it finished, as the journal wrote it. */
   at: string
   /**
-   * When its task was removed and the file went, or null while it is there.
+   * When the file went — deleted, or with its task — or null while it is there.
    *
    * Kept apart from `at` because a `gone` one is aged against *this* and never
    * against its finish: a document written last week and destroyed a minute
@@ -140,6 +167,15 @@ export interface Document {
   reused: boolean
   /** Somebody read it and said what they decided; null while nobody has. */
   triaged: Triage | null
+  /** Who deleted it and why; null while it has not been. */
+  deleted: Deletion | null
+}
+
+/** A document deleted: whose call, their reason in their words, and when. */
+export interface Deletion {
+  by: string
+  why: string
+  at: string
 }
 
 /** Somebody's decision about a document: whose, what they said, and when. */
@@ -149,6 +185,21 @@ export interface Triage {
   decided: string
   at: string
 }
+
+/**
+ * The kinds of line `documentsIn` and `documentsToCompact` read, and nothing
+ * else: what they are asked of on every open goes to the index for these
+ * rather than reading the whole journal before the window has drawn anything.
+ */
+export const DOCUMENT_EVENTS = [
+  'task_created',
+  'task_done',
+  'task_removed',
+  'run_started',
+  'document_triaged',
+  'document_moved',
+  'document_deleted',
+] as const satisfies readonly EventType[]
 
 /**
  * Every document a task produced, oldest first, with what has come of each.
@@ -182,10 +233,17 @@ export function documentsIn(events: readonly TadeEvent[]): Document[] {
     if (!task) continue
     const mine = byTask.get(task) ?? []
     if (event.type === 'task_removed') {
-      // The document went with the folder. The record stays, and says so.
-      for (const one of mine) {
-        one.state = 'gone'
-        one.removedAt = event.ts
+      // `kept` is what a removal says now: the documents folder is not the
+      // task's, so nothing it wrote went with it. A removal from before that
+      // says nothing, and then the document went with the folder — the record
+      // stays, and says so.
+      const kept = event.detail.kept === true
+      if (!kept) {
+        for (const one of mine) {
+          if (one.state === 'deleted') continue
+          one.state = 'gone'
+          one.removedAt = event.ts
+        }
       }
       // A task removed having never finished never got a receipt, so the
       // removal is the only thing that can say a document existed — which is
@@ -195,18 +253,36 @@ export function documentsIn(events: readonly TadeEvent[]): Document[] {
       const path = said(event.detail.produces)
       if (event.detail.written === true && path && !mine.some((one) => one.path === path)) {
         keep({
-          task,
-          path,
-          state: 'gone',
-          summary: '',
-          at: event.ts,
-          removedAt: event.ts,
-          missing: false,
-          bytes: null,
-          followed: [],
-          reused: false,
-          triaged: null,
+          ...fresh(task, path, event.ts),
+          state: kept ? 'written' : 'gone',
+          removedAt: kept ? null : event.ts,
         })
+      }
+      continue
+    }
+    if (event.type === 'document_moved') {
+      // Where it is now, under the same task and with everything that has
+      // come of it: a move changes the path somebody opens and nothing else.
+      const from = said(event.detail.from)
+      const to = said(event.detail.into)
+      const one = mine.find((o) => o.path === from)
+      if (!one || !to) continue
+      out.delete(keyOf(task, from))
+      one.path = to
+      out.set(keyOf(task, to), one)
+      continue
+    }
+    if (event.type === 'document_deleted') {
+      const path = said(event.detail.path)
+      for (const one of mine) {
+        if (one.path !== path || one.state === 'gone') continue
+        one.state = 'deleted'
+        one.removedAt = event.ts
+        one.deleted = {
+          by: said(event.detail.by) || 'unknown',
+          why: said(event.detail.explained),
+          at: event.ts,
+        }
       }
       continue
     }
@@ -248,20 +324,99 @@ export function documentsIn(events: readonly TadeEvent[]): Document[] {
     if (!path) continue
     const missing = event.detail.missing === true
     keep({
-      task,
-      path,
+      ...fresh(task, path, event.ts),
       state: missing ? 'missing' : 'written',
       summary: said(event.detail.summary),
-      at: event.ts,
-      removedAt: null,
       missing,
       bytes: typeof event.detail.bytes === 'number' ? event.detail.bytes : null,
-      followed: [],
-      reused: false,
-      triaged: null,
     })
   }
   return [...out.values()]
+}
+
+/** A document with nothing come of it yet, as a line about it first says. */
+function fresh(task: string, path: string, at: string): Document {
+  return {
+    task,
+    path,
+    state: 'written',
+    summary: '',
+    at,
+    removedAt: null,
+    missing: false,
+    bytes: null,
+    followed: [],
+    reused: false,
+    triaged: null,
+    deleted: null,
+  }
+}
+
+/** A document the cleanup may take, and the sentence it is taken with. */
+export interface Compactable {
+  document: Document
+  because: string
+}
+
+/**
+ * The documents a cleanup may delete unasked, oldest first, each with why.
+ *
+ * **Only ever one somebody decided about.** A document is deleted unasked only
+ * where all of these hold, and each is a reason one is kept:
+ *
+ * - its file is there (`written`) — nothing else has anything to delete;
+ * - somebody triaged it, `keep` or longer ago — **an undecided one is never
+ *   cleaned up**, however old, because a document nobody has read is exactly
+ *   the thing this folder exists to keep (and a person can still delete one,
+ *   by asking: that is `deleteDocument`, not this);
+ * - every task queued off it has finished or been removed — work still under
+ *   way may be reading it;
+ * - its own task has not been started again since it last finished — an agent
+ *   picked back up may be rewriting it.
+ *
+ * Aged against the decision and never the writing, for the reason `removedAt`
+ * is kept apart from `at`: a document read and settled yesterday has been
+ * settled for a day, however long ago it was written.
+ *
+ * Pure, and takes `now`: the clock is the caller's.
+ */
+export function documentsToCompact(
+  events: readonly TadeEvent[],
+  now: number,
+  keep: number,
+): Compactable[] {
+  /** The last thing that happened to each task's run: started, finished or removed. */
+  const last = new Map<string, string>()
+  for (const event of events) {
+    if (!event.task) continue
+    if (
+      event.type === 'run_started' ||
+      event.type === 'task_done' ||
+      event.type === 'task_removed'
+    ) {
+      last.set(event.task, event.type)
+    }
+  }
+  const finished = (task: string): boolean => {
+    const was = last.get(task)
+    return was === 'task_done' || was === 'task_removed'
+  }
+  const out: Compactable[] = []
+  for (const one of documentsIn(events)) {
+    if (one.state !== 'written' || !one.triaged) continue
+    const age = now - when(one.triaged.at)
+    if (age < keep) continue
+    if (!one.followed.every(finished)) continue
+    if (last.get(one.task) === 'run_started') continue
+    const days = Math.floor(age / 86_400_000)
+    out.push({
+      document: one,
+      because: `${one.triaged.by} decided about it ${days} day${days === 1 ? '' : 's'} ago (${one.triaged.decided})${
+        one.followed.length > 0 ? ', and everything queued off it has finished' : ''
+      }`,
+    })
+  }
+  return out
 }
 
 /**
@@ -295,6 +450,8 @@ export function waitingDocuments(documents: readonly Document[], now: number): D
     // under it and a model picked, and a list whose whole purpose is that a
     // document is not lost may not be emptied by a relaunch.
     if (one.triaged || one.followed.length > 0) return false
+    // Somebody deleted it, which is a decision about it too.
+    if (one.state === 'deleted') return false
     if (one.state !== 'gone') return true
     return when(one.removedAt ?? one.at) >= now - GONE_STALE
   })
@@ -316,7 +473,13 @@ export function producedClause(one: {
   followed?: readonly string[]
   reused?: boolean
   triaged?: Triage | null
+  deleted?: Deletion | null
 }): string {
+  if (one.state === 'deleted') {
+    const by = one.deleted?.by ?? 'somebody'
+    const why = one.deleted?.why ? `: ${one.deleted.why}` : ''
+    return `produced ${one.path}, and ${by} deleted it${why}`
+  }
   if (one.state === 'gone') {
     return one.missing
       ? `said it would produce ${one.path}, and the task was removed`
@@ -359,6 +522,31 @@ export function documentsWaitingSays(documents: readonly Document[], now: number
   return [
     'Documents tasks produced that nobody has decided about yet. Read each file before you say anything about it — you have a path, not a summary — then say what follows and record it with tade_document_triage. Deciding that nothing should follow is an answer.',
     ...waiting.map((one) => `  ${one.task} ${producedClause(one)}`),
+  ].join('\n')
+}
+
+/**
+ * Every document tasks produced, oldest first, as lines: the waiting ones and
+ * the decided, the kept and the deleted, each with what has come of it.
+ */
+export function everyDocumentSays(documents: readonly Document[]): string {
+  if (documents.length === 0) return 'No task has produced a document yet.'
+  return [
+    'Every document tasks produced, oldest first. They are kept in Tade’s home after their tasks are removed, until somebody deletes one or a cleanup takes one that was decided about:',
+    ...documents.map((one) => `  ${one.task} ${producedClause(one)}`),
+  ].join('\n')
+}
+
+/** What a cleanup would take, or took, as lines: each one and why. */
+export function compactedSays(taken: readonly Compactable[], done: boolean): string {
+  if (taken.length === 0) {
+    return 'Nothing to clean up: every document is either undecided, still recent, or still being worked from.'
+  }
+  return [
+    done
+      ? `Deleted ${taken.length} document${taken.length === 1 ? '' : 's'}, each written down in the journal:`
+      : `A cleanup would delete ${taken.length} document${taken.length === 1 ? '' : 's'} — nothing has been deleted yet:`,
+    ...taken.map(({ document, because }) => `  ${document.task} ${document.path} — ${because}`),
   ].join('\n')
 }
 

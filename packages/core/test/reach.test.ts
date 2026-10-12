@@ -146,6 +146,15 @@ describe('what an ordinary request reaches', () => {
     expect(settingReach('journal.max_mb').reach).toBe('asked')
   })
 
+  it('does not include how long decided documents are kept, though it can delete one', () => {
+    // `asked`, decided: it widens nothing an agent may do and sends nothing
+    // anywhere, and the worst a sentence can do with it is age out documents
+    // somebody already decided about — never one nobody has, which no value
+    // reaches. But it is how long somebody's own research is kept, so it is
+    // theirs to name, not the orchestrator's to tidy.
+    expect(settingReach('documents.keep_days').reach).toBe('asked')
+  })
+
   it('does not include holding the machine awake, which is the one that reaches outside Tade', () => {
     // `asked`, decided rather than defaulted into, and the only setting whose
     // effect is on the machine rather than on Tade. Not `never`: it widens
@@ -228,6 +237,7 @@ describe('the shape of the rule', () => {
       'agents',
       'approvals',
       'checks',
+      'documents',
       'extensions',
       'journal',
       'mcp',

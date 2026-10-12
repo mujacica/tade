@@ -79,11 +79,11 @@ describe('a persona', () => {
     expect(read.problems.join('\n')).toContain('the file is called tester.md')
   })
 
-  it('refuses a document that would escape the task’s own folder', () => {
+  it('refuses a document that would escape the task’s documents folder', () => {
     const read = parsePersona('p', file('persona: p\nproduces: ../../etc/passwd'))
     expect(read.ok).toBe(false)
     if (read.ok) return
-    expect(read.problems.join('\n')).toMatch(/climbs out of the task's folder/)
+    expect(read.problems.join('\n')).toMatch(/climbs out of the task's documents folder/)
   })
 
   it('refuses one that tells its agent nothing', () => {

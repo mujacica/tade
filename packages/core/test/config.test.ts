@@ -276,6 +276,21 @@ projects:
   })
 })
 
+describe('how long decided documents are kept', () => {
+  it('keeps them thirty days unless told otherwise', () => {
+    const r = parseConfig('')
+    expect(r.ok && r.config.documents).toEqual({ keep_days: 30 })
+  })
+
+  it('takes a number of days, and refuses none at all', () => {
+    const r = parseConfig('documents:\n  keep_days: 7\n')
+    expect(r.ok && r.config.documents).toEqual({ keep_days: 7 })
+    const bad = parseConfig('documents:\n  keep_days: 0\n')
+    expect(bad.ok).toBe(false)
+    expect(!bad.ok && bad.issues[0]?.path).toBe('documents.keep_days')
+  })
+})
+
 describe('what the journal keeps', () => {
   it('lets the file reach 16 MB before anything is dropped, unasked', () => {
     const r = parseConfig('')
@@ -537,10 +552,35 @@ describe('what a project pushes', () => {
     // because a notification is delivered to the worker the installed page
     // registers. A warning and never an issue — refusing the file would take
     // away everything else they wrote in it.
-    const read = parseConfig('surfaces:\n  web:\n    enabled: true\n    push: true\n')
+    const read = parseConfig('surfaces:\n  web:\n    enabled: true\n    install: false\n')
     expect(read.ok).toBe(true)
     expect(read.ok && read.warnings.join(' ')).toContain('surfaces.web.push is on')
     expect(read.ok && read.warnings.join(' ')).toContain('install is off')
+  })
+
+  it('is off, and everything under it on, so turning it on is one switch', () => {
+    // The person's ask: the away view itself stays off by default, and every
+    // capability under it is on, so turning it on is a working setup rather
+    // than a second page of switches. `bind` is a choice of network and stays
+    // on this machine — `lan` is the clear.
+    const web = ConfigSchema.parse({}).surfaces.web
+    expect(web.enabled).toBe(false)
+    expect(web.bind).toBe('loopback')
+    for (const key of [
+      'acting',
+      'orchestrator',
+      'drafts',
+      'settings',
+      'install',
+      'offline',
+      'push',
+      'push_details',
+    ] as const) {
+      expect(web[key], key).toBe(true)
+    }
+    // And turned on alone, nothing is left that cannot mean what it says.
+    const read = parseConfig('surfaces:\n  web:\n    enabled: true\n')
+    expect(read.ok && read.warnings).toEqual([])
   })
 
   it('says each of the three pairings that cannot hold, and nothing otherwise', () => {

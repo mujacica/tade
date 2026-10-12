@@ -15,11 +15,11 @@ export interface ConfirmRemovePanel {
   task: string
   /**
    * The document this task produced that nobody has read, as a clause — or
-   * null where closing loses no document.
+   * null where there is none.
    *
-   * The reason this panel is shown at all for an agent in the project's own
-   * checkout, where there is no unmerged work to lose: the task's folder is
-   * the only copy of what it produced, and closing the agent deletes it.
+   * Said, never asked about: the document is kept in the project's documents
+   * folder when the task goes, so it is a fact about the agent somebody is
+   * closing and no reason by itself to stop and ask.
    */
   unread: string | null
   field: 'keep' | 'remove'
@@ -39,9 +39,9 @@ export interface CloseDonePanel {
   /**
    * Of those, the ones whose produced document nobody has read.
    *
-   * Named before the press rather than counted after it: a task's folder is
-   * the only copy of the document it produced, so this button is the one that
-   * destroys them — six at once, in the case that put this field here.
+   * Named before the press, and said to be kept: this button is the one that
+   * destroyed six at once when a document lived in its task's folder, which
+   * is why the panel says so rather than leaving anybody to wonder.
    */
   unread: string[]
   field: 'keep' | 'remove'

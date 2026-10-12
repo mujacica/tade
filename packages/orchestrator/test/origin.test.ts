@@ -27,15 +27,20 @@ function arm(over: Partial<Extract<Arm, { how: 'remote' }>> = {}): Arm {
   return { how: 'remote', device: 'a1b2c3d4e5f60718', projects: null, may: [], ...over }
 }
 
-/** The `ToolHost`'s own method names, read out of the file that declares them. */
+/** The `ToolHost`'s own method names, read out of the files that declare them. */
 function methodNames(): string[] {
-  const path = fileURLToPath(new URL('../src/tool-host.ts', import.meta.url))
-  const source = readFileSync(path, 'utf8')
+  const read = (file: string): string =>
+    readFileSync(fileURLToPath(new URL(`../src/${file}`, import.meta.url)), 'utf8')
   // The keys of the one `methods` record, which are quoted `thing/verb` pairs
   // at a known depth. Read rather than exported, because the record is built
   // inside `listen` out of closures over its options — and a second exported
-  // list of the same names is the thing this test exists to prevent.
-  return [...source.matchAll(/^ {6}'([a-z]+\/[a-z-]+)':/gm)].map((found) => found[1] ?? '')
+  // list of the same names is the thing this test exists to prevent. The
+  // document methods are spread into it from their own file, one level up.
+  const keys = (source: string, depth: number): string[] =>
+    [...source.matchAll(new RegExp(`^ {${depth}}'([a-z]+\\/[a-z-]+)':`, 'gm'))].map(
+      (found) => found[1] ?? '',
+    )
+  return [...keys(read('tool-host.ts'), 6), ...keys(read('host-documents.ts'), 4)]
 }
 
 describe('what a remote turn may reach', () => {
