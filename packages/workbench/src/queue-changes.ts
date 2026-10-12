@@ -1,5 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { type Asker, checkWaits, type QueueChange, type StartCondition, TaskFile } from '@tade/core'
+import {
+  type Asker,
+  checkWaits,
+  inheritWaits,
+  type QueueChange,
+  type StartCondition,
+  TaskFile,
+} from '@tade/core'
 import { parse as parseYaml, stringify } from 'yaml'
 import type { EventLog } from './events.ts'
 import { refuseParked } from './parked.ts'
@@ -14,6 +21,8 @@ import { aloneOn, readTaskFile, taskFilePath } from './tasks.ts'
 // it will touch (`start`), and there is never a second store of it: `after`
 // and `retell`. Both write the file first and the line second, so nothing is
 // written down that did not happen, and the line says who and what it was.
+// So does handing a removed task's waits on to what waited on it
+// (`handOnWaits`), which is a wait written for each of them.
 //
 // Here rather than on the workbench because the file it was in is at the size
 // a file is allowed to be, and a wait written on queued work is a rule about
@@ -96,15 +105,7 @@ function waitOn(
   req: QueueChangeRequest & { task: string },
 ): Promise<StartCondition> {
   return aloneOn(`${tade.home}#waits`, async () => {
-    const events = await tade.log.read({ types: ['task_created', 'task_removed', 'run_started'] })
-    const tasks = new Set<string>()
-    const started = new Set<string>()
-    for (const event of events) {
-      if (!event.task) continue
-      if (event.type === 'task_created') tasks.add(event.task)
-      if (event.type === 'task_removed') tasks.delete(event.task)
-      if (event.type === 'run_started') started.add(event.task)
-    }
+    const { tasks, started } = await tasksKnown(tade)
     const file = await queuedFile(tade.home, req.task, started)
     // What every other piece of queued work waits on, for the loop check:
     // work that has started waits on nothing any more, so no loop runs through it.
@@ -146,6 +147,85 @@ function waitOn(
     })
     return start
   })
+}
+
+/** What queued work waits on after a removal handed it on, or why it could not take it over. */
+export type HandedOn =
+  | { task: string; after: { task: string; why: string }[] }
+  | { task: string; problem: string }
+
+/**
+ * Remove a task, and hand what it waited on to every piece of queued work that
+ * waited on it (`remove` with `dependents: inherit`), so taking one task out
+ * of a chain holds nothing after it. Each is written into its task file and
+ * said in a `queue_changed` line, `inherited` naming the task removed, with
+ * what it waited on before.
+ *
+ * Removing is the caller's — the window's, which knows the worktree and the
+ * branch — and runs **inside the lock every wait is written under**: a wait on
+ * the task written while it was being removed would pass a check that still
+ * found it, and be left naming work that had gone. What it waited on is read
+ * before it goes, since its task file goes with it. A removal that fails
+ * writes nothing; a task file that will not take its new waits keeps the old
+ * ones, is held on the removal like any other, and is named in the answer.
+ */
+export function handOnWaits(
+  tade: QueueChanger,
+  req: { task: string; by: Asker },
+  remove: () => Promise<void>,
+): Promise<HandedOn[]> {
+  return aloneOn(`${tade.home}#waits`, async () => {
+    const waits = (await readTaskFile(tade.home, req.task))?.start?.after ?? []
+    await remove()
+    const { tasks, started } = await tasksKnown(tade)
+    const queued = [...tasks].filter((task) => task !== req.task && !started.has(task))
+    const files = await Promise.all(
+      queued.map(async (task) => ({ task, start: (await readTaskFile(tade.home, task))?.start })),
+    )
+    const handed: HandedOn[] = []
+    for (const { task, start } of files) {
+      if (!start?.after.some((dep) => dep.task === req.task)) continue
+      const after = inheritWaits({ task, current: start.after, removed: req.task, waits })
+      try {
+        await writeStart(tade.home, task, (kept) => {
+          kept.after = after
+        })
+      } catch (err) {
+        handed.push({ task, problem: err instanceof Error ? err.message : String(err) })
+        continue
+      }
+      await tade.log.append({
+        type: 'queue_changed',
+        task,
+        detail: {
+          change: 'after',
+          by: req.by,
+          after,
+          replace: true,
+          was: start.after.map((dep) => dep.task),
+          inherited: req.task,
+        },
+      })
+      handed.push({ task, after })
+    }
+    return handed
+  })
+}
+
+/** Every task there is, and which of them have ever started, as the journal says. */
+async function tasksKnown(
+  tade: QueueChanger,
+): Promise<{ tasks: Set<string>; started: Set<string> }> {
+  const events = await tade.log.read({ types: ['task_created', 'task_removed', 'run_started'] })
+  const tasks = new Set<string>()
+  const started = new Set<string>()
+  for (const event of events) {
+    if (!event.task) continue
+    if (event.type === 'task_created') tasks.add(event.task)
+    if (event.type === 'task_removed') tasks.delete(event.task)
+    if (event.type === 'run_started') started.add(event.task)
+  }
+  return { tasks, started }
 }
 
 /**

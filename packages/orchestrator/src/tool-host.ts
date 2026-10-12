@@ -86,6 +86,8 @@ export interface ToolHostOptions {
       /** For `retell`: what it is told when it starts, and what it says it will change. */
       prompt?: string
       touches?: readonly string[]
+      /** For `remove`: what waited on it is held (the default), or waits on what it waited on. */
+      dependents?: 'hold' | 'inherit'
     }): Promise<string>
     plan(plan: Plan): Promise<string>
     schedule(req: {
@@ -265,6 +267,7 @@ export class ToolHost {
           ...(p.replace === true ? { replace: true } : {}),
           ...(typeof p.prompt === 'string' ? { prompt: p.prompt } : {}),
           ...(Array.isArray(p.touches) ? { touches: p.touches.map(String) } : {}),
+          ...(p.dependents === undefined ? {} : { dependents: dependentsOf(p.dependents) }),
           change: String(p.change ?? ''),
         }),
       'queue/schedule': async (p) => {
@@ -711,6 +714,14 @@ function linksOf(value: unknown[]): { title: string; url: string }[] {
       ? [{ title: typeof link.title === 'string' ? link.title : link.url, url: link.url }]
       : []
   })
+}
+
+/** What becomes of what waited on removed work, as a model sent it, or why that is not one. */
+function dependentsOf(value: unknown): 'hold' | 'inherit' {
+  if (value === 'hold' || value === 'inherit') return value
+  throw new Error(
+    `dependents is hold, which leaves what waited on it held, or inherit, which has it wait on what the removed work waited on — not ${JSON.stringify(value)}`,
+  )
 }
 
 /**

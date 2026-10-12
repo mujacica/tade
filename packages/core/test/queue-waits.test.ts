@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { EventType, TadeEvent } from '../src/events.ts'
 import type { StartCondition } from '../src/model.ts'
-import { checkWaits, choicesFor, holdSaid, type Queued, queueStateOf } from '../src/queue.ts'
+import {
+  checkWaits,
+  choicesFor,
+  holdSaid,
+  inheritWaits,
+  type Queued,
+  queueStateOf,
+} from '../src/queue.ts'
 
 // Changing queued work once it is made: what it waits on (`after`) and what
 // it is told (`retell`). The waits are checked by a plan's rules across every
@@ -184,5 +191,92 @@ describe('how the queue reads a wait or a retelling', () => {
     expect(
       holdSaid('tade/a', held, [first, event('queue_changed', 'tade/a', { change: 'pause' })]),
     ).toBe(true)
+  })
+})
+
+describe('waits handed on by a removal', () => {
+  const removed = 'tade/b'
+  const instead = 'in place of tade/b, which was removed'
+
+  it('puts what the removed task waited on where the wait on it was', () => {
+    expect(
+      inheritWaits({
+        task: 'tade/a',
+        current: [
+          { task: 'tade/b', why: 'needs b' },
+          { task: 'tade/d', why: 'shares a file' },
+        ],
+        removed,
+        waits: [
+          { task: 'tade/c', why: 'what b built on' },
+          { task: 'web/e', why: '' },
+        ],
+      }),
+    ).toEqual([
+      // Its own reason, since it is the one waiting, and where the wait came from.
+      { task: 'tade/c', why: `needs b; ${instead}` },
+      { task: 'web/e', why: `needs b; ${instead}` },
+      { task: 'tade/d', why: 'shares a file' },
+    ])
+  })
+
+  it('keeps a wait it already had with its own reason, and never waits on itself', () => {
+    expect(
+      inheritWaits({
+        task: 'tade/a',
+        current: [
+          { task: 'tade/b', why: '' },
+          { task: 'tade/c', why: 'its own' },
+        ],
+        removed,
+        waits: [
+          { task: 'tade/c', why: 'b needed it' },
+          { task: 'tade/a', why: '' },
+          { task: 'tade/d', why: '' },
+        ],
+      }),
+    ).toEqual([
+      { task: 'tade/d', why: instead },
+      { task: 'tade/c', why: 'its own' },
+    ])
+  })
+
+  it('waits on nothing in its place where the removed task waited on nothing', () => {
+    expect(
+      inheritWaits({ task: 'tade/a', current: [{ task: 'tade/b', why: '' }], removed, waits: [] }),
+    ).toEqual([])
+  })
+
+  it('leaves a start-anyway standing, and starts once what it took over has finished', () => {
+    const anyway = event('queue_changed', 'tade/a', { change: 'start' })
+    const handed = event('queue_changed', 'tade/a', {
+      change: 'after',
+      inherited: 'tade/b',
+      after: [{ task: 'tade/c', why: instead }],
+    })
+    expect(choicesFor('tade/a', [anyway, handed]).anyway).toBe(true)
+    // A wait somebody wrote is still newer than a start-anyway, and says the opposite.
+    expect(
+      choicesFor('tade/a', [anyway, handed, event('queue_changed', 'tade/a', { change: 'after' })])
+        .anyway,
+    ).toBe(false)
+
+    const facts = (finished: boolean) => ({
+      tasks: new Map([['tade/c', { state: 'working' as const, reason: '' }]]),
+      finished: new Map(
+        finished ? [['tade/c', { at: '2026-10-12T10:00:00Z', by: 'you', summary: '' }]] : [],
+      ),
+      events: [event('task_removed', 'tade/b'), handed],
+      now: 0,
+    })
+    const item: Queued = {
+      task: 'tade/a',
+      project: 'tade',
+      parked: false,
+      start: { after: [{ task: 'tade/c', why: instead }], prompt: '', touches: [] },
+    }
+    // Nothing about the removal holds it: what it waits on now is what b did.
+    expect(queueStateOf(item, facts(false))).toEqual({ kind: 'waiting', on: ['tade/c'] })
+    expect(queueStateOf(item, facts(true))).toEqual({ kind: 'ready' })
   })
 })

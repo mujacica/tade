@@ -4,6 +4,7 @@ import { type PlannedAgent, taskDir } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { handOnWaits } from '../src/queue-changes.ts'
 import { readTaskFile } from '../src/tasks.ts'
 import { Workbench } from '../src/workbench.ts'
 
@@ -146,6 +147,76 @@ describe('changing queued work', () => {
     // Nothing refused was written.
     expect((await readTaskFile(home, 'app/one'))?.start?.after).toEqual([])
     expect(await client.events({ types: ['queue_changed'] })).toEqual([])
+  })
+
+  it("hands a removed task's waits on to what waited on it, and nothing waits on it while it goes", async () => {
+    await client.planTasks({ project: 'app', said: 'one more', agents: [agent('four')] })
+    await client.changeQueued({
+      task: 'app/three',
+      change: 'after',
+      after: [{ task: 'two', why: 'same README section' }],
+      by: 'you',
+    })
+    const removing = (task: string) => async () => {
+      const result = await client.removeTask({
+        root: repo.root,
+        worktree: repo.root,
+        branch: '',
+        task,
+        force: true,
+      })
+      if (!result.removed) throw new Error(result.reason)
+    }
+
+    // A removal that fails writes nothing.
+    await expect(
+      handOnWaits(client, { task: 'app/two', by: 'orchestrator' }, async () => {
+        throw new Error('the disk said no')
+      }),
+    ).rejects.toThrow('the disk said no')
+    expect((await readTaskFile(home, 'app/three'))?.start?.after).toEqual([
+      { task: 'app/two', why: 'same README section' },
+    ])
+
+    // A wait on it asked for while it goes is checked once it has gone: let
+    // in beside the removal, it would name work nobody hands anything on from.
+    const [handed, late] = await Promise.allSettled([
+      handOnWaits(client, { task: 'app/two', by: 'orchestrator' }, removing('app/two')),
+      client.changeQueued({
+        task: 'app/four',
+        change: 'after',
+        after: [{ task: 'two', why: '' }],
+        by: 'you',
+      }),
+    ])
+    const after = [
+      { task: 'app/one', why: 'same README section; in place of app/two, which was removed' },
+    ]
+    expect(handed).toEqual({ status: 'fulfilled', value: [{ task: 'app/three', after }] })
+    expect(late.status).toBe('rejected')
+    expect(String((late as PromiseRejectedResult).reason)).toMatch(
+      /cannot wait on two, which is not a task Tade has/,
+    )
+
+    // Written into its task file, every other field as it was, and said with
+    // what it waited on before and whose waits these were.
+    expect((await readTaskFile(home, 'app/three'))?.start).toMatchObject({
+      after,
+      prompt: 'please do three',
+      touches: ['README.md'],
+    })
+    const lines = await client.events({ types: ['queue_changed'], task: 'app/three' })
+    expect(lines.at(-1)?.detail).toEqual({
+      change: 'after',
+      by: 'orchestrator',
+      after,
+      replace: true,
+      was: ['app/two'],
+      inherited: 'app/two',
+    })
+    // What did not wait on it is left alone.
+    expect((await readTaskFile(home, 'app/one'))?.start?.after).toEqual([])
+    expect((await readTaskFile(home, 'app/four'))?.start?.after).toEqual([])
   })
 
   it('lets only one of two waits written at once close a loop', async () => {

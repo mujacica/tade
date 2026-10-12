@@ -212,9 +212,11 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
         break
       // A wait written down is newer than a start-anyway and says the
       // opposite. It answers no trouble: adding a wait may only ever make a
-      // start later, so a failure it was held on still holds.
+      // start later, so a failure it was held on still holds. Waits handed on
+      // by a removal (`inheritWaits`) say nothing new — it already waited on
+      // all of them through the task removed — so a start-anyway stands.
       case 'after':
-        choices.anyway = false
+        if (event.detail.inherited === undefined) choices.anyway = false
         break
     }
   }
@@ -608,6 +610,46 @@ export function checkWaits(req: {
     )
   }
   return problems.length > 0 ? { ok: false, problems } : { ok: true, after }
+}
+
+/**
+ * What queued work waits on once a task it waited on is removed and hands its
+ * own waits on (`remove` with `dependents: inherit`): the wait on the removed
+ * task becomes the removed task's waits, in its place, so taking one task out
+ * of the middle of a chain holds nothing after it.
+ *
+ * Not checked again the way a wait somebody writes is (`checkWaits`), because
+ * it can neither close a loop nor make a start later: everything it now waits
+ * on, it already waited on through the task removed. A wait on work that has
+ * gone since is handed on as it was — the removed task was held on it, and
+ * dropping it would start what nobody said could start.
+ */
+export function inheritWaits(req: {
+  /** The queued task that waited on the removed one. */
+  task: string
+  /** What its task file says it waits on now. */
+  current: readonly { task: string; why: string }[]
+  removed: string
+  /** What the removed task waited on. */
+  waits: readonly { task: string; why: string }[]
+}): { task: string; why: string }[] {
+  // A wait it already has keeps its place and its own reason.
+  const own = new Set(req.current.map((dep) => dep.task))
+  const after: { task: string; why: string }[] = []
+  for (const dep of req.current) {
+    if (after.some((one) => one.task === dep.task)) continue
+    if (dep.task !== req.removed) {
+      after.push(dep)
+      continue
+    }
+    const instead = `in place of ${req.removed}, which was removed`
+    for (const its of req.waits) {
+      if (its.task === req.task || its.task === req.removed || own.has(its.task)) continue
+      if (after.some((one) => one.task === its.task)) continue
+      after.push({ task: its.task, why: dep.why ? `${dep.why}; ${instead}` : instead })
+    }
+  }
+  return after
 }
 
 /** The waits from one task to another, both ends included; null where there are none. */

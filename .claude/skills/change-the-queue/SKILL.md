@@ -22,7 +22,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, `standingSchedules`, `scheduleIdOf`, the words for each |
 | `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*` |
 | `packages/workbench/src/workbench.ts` | writing it down: `markDone`, `planTasks`, `startQueued`, `holdQueued`, `setSchedule`, `fireSchedule`, `watchChecked`, `watchFound` |
-| `packages/workbench/src/queue-changes.ts` | `changeQueued`: a choice about queued work, and `after` and `retell` written into its task file |
+| `packages/workbench/src/queue-changes.ts` | `changeQueued`: a choice about queued work, and `after` and `retell` written into its task file; `handOnWaits` for a removal |
 | `packages/workbench/src/schedules.ts` | `schedules.jsonl`: every change a line, with who made it; `readEverMade` |
 | `packages/workbench/src/tasks.ts` | `by`, `done`, `start` and `produces` in a task file; `producedDetail`; `beginFrom` for stacked worktrees |
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal; `lookAtTrees` at the moment of starting |
@@ -227,6 +227,17 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   is what sent the orchestrator off to re-plan. `remove` names what waited on it. What that look
   holds is written down as ever but told to the orchestrator in the answer it is reading
   (`answering`), not again a turn later.
+- **A removal says what becomes of what waited on it** (`dependents`). `hold`, the default, is what
+  removing always did: each is held on the task that went until somebody answers. `inherit` hands
+  the removed task's waits on to each, in the place of the wait on it (`inheritWaits`), written into
+  its task file with a `queue_changed` `after` line that names the task removed (`inherited`) and
+  what it waited on before — so taking one task out of a chain holds nothing after it, where every
+  removal used to spread through everything downstream. It is not checked the way a written wait is,
+  because it can neither close a loop nor make a start later (everything it now waits on, it already
+  waited on through the task removed), and for the same reason it leaves a start-anyway standing. A
+  wait on work already gone is handed on as it was, never dropped. The removal runs inside the lock
+  waits are written under (`handOnWaits`), so nothing can be made to wait on the task while it goes,
+  and the queue's passes leave the waiting work alone until it has its new waits (`handing`).
 - **An order is a written fact, and only a preference.** `inWrittenOrder` reads the last `order`
   somebody wrote and the window sorts what it hands `readyToStart` with it — so it changes which of
   the ready ones goes first and nothing else. It can never jump a wait, unhold a hold, resume a

@@ -384,6 +384,23 @@ describe('changing queued work, from the tool to the window', () => {
       },
       { change: 'retell', task: 'tade/lane-echo', prompt: 'only the echo', touches: ['app.ts'] },
     ])
+
+    // What becomes of what waited on removed work is carried; anything but
+    // the two answers is refused, saying what they are.
+    await tool?.run({ change: 'remove', task: 'tade/lane-echo', dependents: 'inherit' }, 'c4', {
+      cwd: '/',
+    })
+    expect(asked.at(-1)).toEqual({
+      change: 'remove',
+      task: 'tade/lane-echo',
+      dependents: 'inherit',
+    })
+    await expect(
+      tool?.run({ change: 'remove', task: 'tade/lane-echo', dependents: 'drop' }, 'c5', {
+        cwd: '/',
+      }),
+    ).rejects.toThrow('dependents is hold, which leaves what waited on it held, or inherit')
+    expect(asked).toHaveLength(4)
   })
 })
 

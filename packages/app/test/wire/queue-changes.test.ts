@@ -172,6 +172,91 @@ describe('changing work already queued', () => {
     )
   })
 
+  it('hands the waits of work it removes on to what waited on it, so nothing after it is held', async () => {
+    const told: string[] = []
+    const tools = await opened(told)
+    await tools.plan({
+      project: 'app',
+      said: 'a, then b, then c and d',
+      agents: [
+        { name: 'link-a', said: 'a', prompt: '', after: [], touches: [] },
+        {
+          name: 'link-b',
+          said: 'b',
+          prompt: '',
+          after: [{ agent: 'link-a', why: '' }],
+          touches: [],
+        },
+        {
+          name: 'link-c',
+          said: 'c',
+          prompt: '',
+          after: [{ agent: 'link-b', why: 'needs b' }],
+          touches: [],
+        },
+        {
+          name: 'link-d',
+          said: 'd',
+          prompt: '',
+          after: [
+            { agent: 'link-b', why: '' },
+            { agent: 'link-c', why: 'after c' },
+          ],
+          touches: [],
+        },
+      ],
+    })
+    await until(
+      'a started',
+      () => client.runs().some((run) => run.task === 'app/link-a'),
+      SPAWNING_MS,
+    )
+    await expect(
+      tools.change({ task: 'app/link-c', change: 'wait', dependents: 'inherit' }),
+    ).rejects.toThrow('dependents says what becomes of what waited on work being removed')
+
+    expect(
+      await tools.change({ task: 'app/link-b', change: 'remove', dependents: 'inherit' }),
+    ).toBe(
+      [
+        'app/link-b is removed, and app/link-c and app/link-d take over its waits:',
+        '- app/link-c waits on app/link-a, and starts by itself once that has finished',
+        '- app/link-d waits on app/link-a and app/link-c, and starts by itself once they have finished',
+      ].join('\n'),
+    )
+    const instead = 'in place of app/link-b, which was removed'
+    expect((await readTaskFile(home, 'app/link-c'))?.start?.after).toEqual([
+      { task: 'app/link-a', why: `needs b; ${instead}` },
+    ])
+    expect((await readTaskFile(home, 'app/link-d'))?.start?.after).toEqual([
+      { task: 'app/link-a', why: instead },
+      { task: 'app/link-c', why: 'after c' },
+    ])
+    const [line] = await client.events({ types: ['queue_changed'], task: 'app/link-c' })
+    expect(line?.detail).toMatchObject({
+      change: 'after',
+      inherited: 'app/link-b',
+      by: 'orchestrator',
+    })
+
+    // And on its way: what it took over finishing starts it, by itself, and
+    // nothing was ever held on the task that went.
+    await client.markDone('app/link-a', { by: 'you' })
+    await until(
+      'c started by itself',
+      () => client.runs().some((run) => run.task === 'app/link-c'),
+      SPAWNING_MS,
+    )
+    await until(
+      'why it started, written down',
+      async () =>
+        (await client.events({ types: ['queue_started'], task: 'app/link-c' }))[0]?.detail.why ===
+        'app/link-a has finished',
+    )
+    expect(await client.events({ types: ['queue_held'] })).toEqual([])
+    expect(told.filter((text) => text.includes(' is held'))).toEqual([])
+  })
+
   it('changes what queued work waits on and what it is told from its menu', async () => {
     terminal.columns = 120
     terminal.rows = 60

@@ -17,7 +17,7 @@ import {
   readyToStart,
   startFrom,
 } from '@tade/core'
-import { intakeStands } from '@tade/workbench'
+import { type HandedOn, handOnWaits, intakeStands } from '@tade/workbench'
 import { acknowledge } from '../flash.ts'
 import { type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
 import { promptPanel } from '../panels/small/state.ts'
@@ -103,6 +103,8 @@ export interface QueueTools {
     prompt?: string
     /** For `retell`: what it says it will change. */
     touches?: readonly string[]
+    /** For `remove`: what waited on it is held (the default), or waits on what it waited on. */
+    dependents?: 'hold' | 'inherit'
     by?: 'you' | 'orchestrator'
   }): Promise<string>
   plan(plan: Plan): Promise<string>
@@ -116,6 +118,12 @@ export class Queue implements Subject {
   private advancing: Promise<string[]> | null = null
   /** Queued work being started now, so a refresh in the middle does not start it twice. */
   private readonly starting = new Set<string>()
+  /**
+   * Queued work taking over the waits of a task being removed, which passes
+   * leave alone until it has: one in between would hold each on a task that
+   * had gone, and say so, about a wait a moment from being handed on.
+   */
+  private readonly handing = new Set<string>()
   /** Tasks whose rule was met and is being written down, so it is written once. */
   private readonly marking = new Set<string>()
   /**
@@ -171,7 +179,9 @@ export class Queue implements Subject {
     const live = this.wire.live
     if (!live) return []
     const transcript = this.wire.state.transcript
-    const items = live.queued.filter((item) => !this.starting.has(item.task))
+    const items = live.queued.filter(
+      (item) => !this.starting.has(item.task) && !this.handing.has(item.task),
+    )
     // What the tree says now, for whatever is about to start in it: `touches`
     // was one person's reading of the code when the work was planned, and
     // agents have been changing files ever since. Looked at here, at the
@@ -378,7 +388,12 @@ export class Queue implements Subject {
             ),
           )
         }
-        if (req.change === 'remove') return this.remove(req.task, req.by)
+        if (req.dependents && req.change !== 'remove') {
+          throw new Error(
+            `dependents says what becomes of what waited on work being removed, so it goes with remove, not ${req.change}`,
+          )
+        }
+        if (req.change === 'remove') return this.remove(req.task, req.by, req.dependents)
         if (!change) {
           throw new Error(
             `${req.change} is not something to do to queued work: ${[...QUEUE_CHANGES, 'remove'].join(', ')}`,
@@ -501,10 +516,16 @@ export class Queue implements Subject {
 
   /**
    * Take one piece of queued work away, with its worktree and its branch, and
-   * name what waited on it: each is held the moment it has gone, and "anything
-   * waiting on it is held" said whether or not anything did.
+   * say what became of what waited on it. With `hold`, the default, each is
+   * held on the removal until somebody answers it; with `inherit` each waits
+   * on what the removed one waited on instead (`handOnWaits`), so taking one
+   * task out of a chain holds nothing after it.
    */
-  private async remove(task: string | undefined, by?: 'you' | 'orchestrator'): Promise<string> {
+  private async remove(
+    task: string | undefined,
+    by?: 'you' | 'orchestrator',
+    dependents: 'hold' | 'inherit' = 'hold',
+  ): Promise<string> {
     if (!task) throw new Error('remove is for one piece of work: say which')
     const facts = this.wire.live?.factsOf(task)
     const worktree = this.wire.live?.worktreeOf(task)
@@ -513,14 +534,18 @@ export class Queue implements Subject {
       .filter((one) => one.task !== task && one.start.after.some((dep) => dep.task === task))
       .map((one) => one.task)
     const root = this.wire.opts.config.projects[facts.project]?.root
-    const result = await this.wire.opts.client.removeTask({
-      root: root ? expandHome(root) : worktree,
-      worktree,
-      branch: facts.branch,
-      task,
-      force: true,
-    })
-    if (!result.removed) throw new Error(result.reason)
+    const removing = async () => {
+      const result = await this.wire.opts.client.removeTask({
+        root: root ? expandHome(root) : worktree,
+        worktree,
+        branch: facts.branch,
+        task,
+        force: true,
+      })
+      if (!result.removed) throw new Error(result.reason)
+    }
+    if (dependents === 'inherit') return this.handOn(task, waited, by, removing)
+    await removing()
     const started = await this.settle(waited, by)
     if (waited.length === 0)
       return changedSays(`${task} is removed. Nothing waited on it.`, started, [])
@@ -529,6 +554,50 @@ export class Queue implements Subject {
       started,
       this.nowOf(waited.filter((one) => !started.includes(one))),
     )
+  }
+
+  /**
+   * Remove a task and hand its waits on to what waited on it, answered with
+   * where each stands once the queue has looked again. Asked of the task
+   * files rather than of the last look, which may be a moment behind them.
+   */
+  private async handOn(
+    task: string,
+    waited: readonly string[],
+    by: 'you' | 'orchestrator' | undefined,
+    removing: () => Promise<void>,
+  ): Promise<string> {
+    for (const one of waited) this.handing.add(one)
+    let handed: HandedOn[]
+    try {
+      // A pass under way read them before they were left alone.
+      await this.advancing?.catch(() => {})
+      handed = await handOnWaits(
+        this.wire.opts.client,
+        { task, by: by ?? 'orchestrator' },
+        removing,
+      )
+    } finally {
+      for (const one of waited) this.handing.delete(one)
+    }
+    const about = handed.map((one) => one.task)
+    const started = await this.settle(about, by)
+    const took = handed.flatMap((one) => ('after' in one ? [one.task] : []))
+    const lines = [
+      ...handed.flatMap((one) =>
+        'problem' in one
+          ? [`${one.task} could not take over what ${task} waited on: ${one.problem}`]
+          : [],
+      ),
+      ...this.nowOf(about.filter((one) => !started.includes(one))),
+    ]
+    if (about.length === 0)
+      return changedSays(`${task} is removed. Nothing waited on it.`, started, [])
+    const lead =
+      took.length > 0
+        ? `${task} is removed, and ${joined(took)} ${took.length === 1 ? 'takes' : 'take'} over its waits`
+        : `${task} is removed`
+    return changedSays(`${lead}${lines.length > 0 ? ':' : '.'}`, started, lines)
   }
 
   /**
