@@ -44,7 +44,6 @@ import {
   pairScreen,
   queueScreen,
   reviewsScreen,
-  spendScreen,
 } from './pages.js'
 import { palette } from './palette.js'
 import { viewOf } from './routes.js'
@@ -63,6 +62,7 @@ import {
   shell,
   titleFor,
 } from './shell.js'
+import { spendScreen } from './spend.js'
 import {
   agentsOf,
   applyDelta,
@@ -77,6 +77,7 @@ import {
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
+import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
 function ticketIn() {
@@ -191,6 +192,8 @@ const desk = deskParts(ctx)
 const shown = shell(desk)
 // The command bar: Tade, and everywhere else, one press away (`palette.js`).
 const bar = palette(ctx)
+// What just changed, as a toast that links to it (`toasts.js`).
+const told = toasts()
 
 let screen = null
 let where = { view: 'now' }
@@ -238,7 +241,7 @@ const SCREENS = {
   reviews: () => reviewsScreen(),
   spend: () => spendScreen(),
   findings: () => findingsScreen(),
-  notes: () => notesScreen(),
+  notes: () => notesScreen(ctx),
   talk: () => talkScreen(ctx),
   lastSeen: () => lastSeenScreen(held.lastView ?? {}, Date.now()),
   devices: () => devicesScreen(ctx),
@@ -276,8 +279,12 @@ function draw(asked) {
   // can see.
   screen?.leave?.()
   screen = make(at)
+  // A navigation is the one moment a screen is built fresh, so it is the one
+  // moment it rises in (`motion.css`); a delta patches and never animates it.
+  screen.node.classList.add('enter')
   shown.main.replaceChildren(screen.node)
   document.title = titleFor(at)
+  badged = -1
   navOn(shown.links, at)
   // Focus goes to the region, not to its first link: a screen reader then reads
   // the heading it arrived at, and the keyboard's next Tab is the first thing
@@ -343,6 +350,12 @@ function paint() {
       }
     : null
   if (counts !== null) navCounts(shown.links, counts)
+  // The page's own standing, as two classes the stylesheet draws from: a
+  // shimmer where figures will be before anything was read, and a line
+  // sweeping under the header while the machine is asked again.
+  classOn(document.body, 'is-loading', outside === null && !held.store.had)
+  classOn(document.body, 'is-reconnecting', standing === 'reconnecting')
+  badgeIn(outside === null ? (counts?.wantsYou ?? 0) : 0)
   keep(now)
   const view = {
     store: held.store,
@@ -551,7 +564,32 @@ function took(event, apply) {
   }
   broke = []
   announce()
+  told.update(rowsOf(held.store, 'tasks'), seen.open)
   paint()
+}
+
+/** The last count the badges were given, so a beat that changed nothing writes nothing. */
+let badged = -1
+
+/**
+ * What wants you, on the tab's title and on the installed app's icon.
+ *
+ * The title is what a desk shows in a tab strip of thirty; the badge is what a
+ * home screen shows, through the Badging API where the browser has it (an
+ * installed app on iOS 16.4 and up, Chrome and Edge) and nothing where it
+ * does not. A count and no words — the notification rule, kept here too.
+ */
+function badgeIn(n) {
+  if (n === badged) return
+  badged = n
+  const title = document.title.replace(/^\(\d+\+?\) /, '')
+  document.title = n > 0 ? `(${n > 99 ? '99+' : n}) ${title}` : title
+  try {
+    if (n > 0) void navigator.setAppBadge?.(n)?.catch?.(() => {})
+    else void navigator.clearAppBadge?.()?.catch?.(() => {})
+  } catch {
+    // A browser that has the method and refuses it has nothing to draw on.
+  }
 }
 
 function failedBar(said) {
@@ -710,7 +748,9 @@ async function start() {
   // The sprite the icons are drawn from stays: it is in the shell so that no
   // module has to spell the SVG namespace (`icons.js`).
   const sprite = document.querySelector('svg.sprite')
-  document.body.replaceChildren(...[sprite, ...shown.parts, bar.node].filter((one) => one !== null))
+  document.body.replaceChildren(
+    ...[sprite, ...shown.parts, told.node, bar.node].filter((one) => one !== null),
+  )
   wireLinks()
   wireKeys()
   const mine = await ask('GET', '/api/devices')

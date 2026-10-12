@@ -78,7 +78,7 @@ export function deskParts(ctx) {
     strip,
     update(view) {
       projectsIn(projects, view)
-      agentsIn({ groups, figure: sideFigure, none: noAgents }, view)
+      agentsIn({ node: side, groups, figure: sideFigure, none: noAgents }, view)
       stripIn({ node: strip, lines, quiet }, view)
       typing.update(talkOf(view.store))
     },
@@ -135,6 +135,12 @@ function figureIn(node, n, glyph, noun) {
 /* ── agents ────────────────────────────────────────────────────────────────── */
 
 function agentsIn(made, view) {
+  // **Not beside the Agents screen**, which is the same list with more on each
+  // row: two of one list side by side is one too many, and the dock gives the
+  // room to Tade instead.
+  const there = navFor(view.where) === 'agents'
+  made.node.hidden = there
+  if (there) return
   const agents = agentsOf(view.store)
   textIn(made.figure, count(agents.length))
   made.figure.setAttribute('aria-label', `${agents.length} agents running`)

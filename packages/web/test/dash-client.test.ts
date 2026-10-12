@@ -2,13 +2,23 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { stopsOf } from '../src/assets/charts.js'
-import { commandsFor, GROUP_MOST, movedTo, scoreOf } from '../src/assets/commands.js'
+import {
+  commandsFor,
+  GROUP_MOST,
+  litOf,
+  matchOf,
+  movedTo,
+  RECENT_MOST,
+  rememberedWith,
+  scoreOf,
+} from '../src/assets/commands.js'
 import { ICONS } from '../src/assets/icons.js'
 import { glanceOf, projectShape } from '../src/assets/overview.js'
-import { jumpsOf } from '../src/assets/palette.js'
+import { actsOn, jumpsOf } from '../src/assets/palette.js'
 import { quickWord } from '../src/assets/quick.js'
 import { applySnapshot, emptyStore } from '../src/assets/store.js'
 import { reasonFor, reasonWord } from '../src/assets/talk.js'
+import { MOST, shownOf, statesOf, transitionsOf } from '../src/assets/toasts.js'
 import { assetsDir } from '../src/assets.ts'
 import { projector } from '../src/reading.ts'
 import { blocked, EVERY, input, NOW, plan, reach, task } from './fixtures.ts'
@@ -135,6 +145,80 @@ describe('the command bar', () => {
     expect(rows.filter((one) => one.group === 'Work')).toHaveLength(GROUP_MOST)
   })
 
+  it('finds the letters in order when nothing better matches, and lights them', () => {
+    expect(scoreOf('queue-rules', 'qrs')).toBe(3)
+    expect(matchOf('queue-rules', 'qrs')?.at).toEqual([0, 6, 10])
+    expect(litOf('queue', [0, 1])).toEqual([
+      { text: 'qu', on: true },
+      { text: 'eue', on: false },
+    ])
+  })
+
+  it('finds work by its title as well as its name, and lights only the name it matched', () => {
+    const rows = commandsFor('pure data', {
+      tasks: [{ id: 'sentry/away-projection', title: 'the pure data boundary', path: '/t/x' }],
+    })
+    expect(rows[0]).toMatchObject({ kind: 'go', label: 'sentry/away-projection', match: [] })
+  })
+
+  it('offers the acts on what wants somebody with nothing typed, and on what matches after', () => {
+    const tasks = [
+      {
+        id: 'p/blocked',
+        path: '/t/p/blocked',
+        wants: true,
+        acts: [{ verb: 'answer', word: 'Allow Bash', typed: { allow: true }, icon: 'check' }],
+      },
+      {
+        id: 'p/working',
+        path: '/t/p/working',
+        acts: [{ verb: 'steer', word: 'Tell', icon: 'talk' }],
+      },
+    ]
+    const empty = commandsFor('', { tasks })
+    expect(empty.filter((one) => one.group === 'Do').map((one) => one.label)).toEqual([
+      'Allow Bash',
+    ])
+    const typed = commandsFor('working', { tasks })
+    expect(typed.find((one) => one.group === 'Do')).toMatchObject({
+      kind: 'tell',
+      task: 'p/working',
+    })
+  })
+
+  it('remembers a few places, the newest first and each once', () => {
+    let held: { path: string; label: string }[] = []
+    for (const path of ['/a', '/b', '/a', '/c', '/d', '/e', '/f']) {
+      held = rememberedWith(held, { path, label: path })
+    }
+    expect(held.map((one) => one.path)).toEqual(['/f', '/e', '/d', '/c', '/a'])
+    expect(held).toHaveLength(RECENT_MOST)
+    const rows = commandsFor('', { recent: held, screens: [{ label: 'F', icon: 'x', path: '/f' }] })
+    expect(rows.filter((one) => one.path === '/f')).toHaveLength(1)
+  })
+
+  it('offers only the acts the session and the row both allow', () => {
+    const row = {
+      approval: { tool: 'Bash' },
+      parked: false,
+      can: [
+        { verb: 'answer', how: 'now' },
+        { verb: 'done', how: 'now' },
+      ],
+      cannot: [{ verb: 'park', why: 'no' }],
+    }
+    expect(actsOn(row, { answer: true, steer: false }).map((one) => one.word)).toEqual([
+      'Allow Bash',
+      'Deny',
+    ])
+    expect(actsOn(row, { answer: true, steer: true }).map((one) => one.word)).toEqual([
+      'Allow Bash',
+      'Deny',
+      'Mark done',
+    ])
+    expect(actsOn(row, {})).toEqual([])
+  })
+
   it('moves the lit row round the list, and nowhere in an empty one', () => {
     expect(movedTo(0, 3, 1)).toBe(1)
     expect(movedTo(2, 3, 1)).toBe(0)
@@ -200,5 +284,45 @@ describe('the icons', () => {
         expect(drawn.has(found[1] ?? ''), `${name} asks for ${found[1]}`).toBe(true)
       }
     }
+  })
+})
+
+describe('what just changed', () => {
+  const at = (rows: { id: string; state: string; agents?: number }[]) => statesOf(rows)
+
+  it('says nothing on arriving, which is not a change to anything', () => {
+    expect(transitionsOf(null, at([{ id: 'p/a', state: 'blocked', agents: 1 }]))).toEqual([])
+  })
+
+  it('names each crossing worth a toast, and nothing that is only a figure moving', () => {
+    const was = at([
+      { id: 'p/a', state: 'working', agents: 1 },
+      { id: 'p/b', state: 'working', agents: 1 },
+      { id: 'p/c', state: 'working', agents: 1 },
+      { id: 'p/d', state: 'review', agents: 0 },
+      { id: 'p/e', state: 'working', agents: 1 },
+    ])
+    const is = at([
+      { id: 'p/a', state: 'blocked', agents: 1 },
+      { id: 'p/b', state: 'failed', agents: 0 },
+      { id: 'p/c', state: 'review', agents: 0 },
+      { id: 'p/d', state: 'merged', agents: 0 },
+      { id: 'p/e', state: 'working', agents: 1 },
+      { id: 'p/f', state: 'working', agents: 1 },
+    ])
+    expect(transitionsOf(was, is)).toEqual([
+      { id: 'p/a', kind: 'wants' },
+      { id: 'p/b', kind: 'failed' },
+      { id: 'p/c', kind: 'finished' },
+      { id: 'p/d', kind: 'merged' },
+      { id: 'p/f', kind: 'started' },
+    ])
+  })
+
+  it('counts the rest into one past a few, rather than filling the screen', () => {
+    const many = Array.from({ length: 7 }, (_, n) => ({ id: `p/${n}`, kind: 'wants' }))
+    const shown = shownOf(many)
+    expect(shown).toHaveLength(MOST)
+    expect(shown.at(-1)?.word).toBe(`${7 - (MOST - 1)} more changed`)
   })
 })

@@ -1,5 +1,6 @@
 import { appliesTo, type Note } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { BUDGET } from '../src/page.ts'
 import { inScope, notesOf, projector } from '../src/reading.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import { EVERY, input, NOW, note, reach, task } from './fixtures.ts'
@@ -105,6 +106,54 @@ describe('notes in one scope', () => {
     })
     const ids = notesOf(twice, 'sentry').rows.map((row) => row.id)
     expect(new Set(ids).size).toBe(2)
+  })
+})
+
+describe('the older notes, a page at a time', () => {
+  // Five notes a minute apart and a budget of two: the snapshot carries the
+  // newest two and a cursor past them, and the notes route walks on from it.
+  const five = input({
+    reach: reach(EVERY),
+    notes: Array.from({ length: 5 }, (_, n) =>
+      note({ at: new Date(Date.parse('2026-10-08T12:00:00.000Z') - n * 60_000).toISOString() }),
+    ),
+  })
+  const made = projector(five, NOW, { budget: { ...BUDGET, notes: 2 } })
+
+  it('walks on from the snapshot’s own cursor, newest first, to the end', () => {
+    const first = made.snapshot()
+    expect(first.notes).toHaveLength(2)
+    const next = first.pages.notes?.next ?? null
+    expect(next).not.toBeNull()
+    const second = made.notes(undefined, next)
+    expect(second.rows).toHaveLength(2)
+    expect(second.rows.map((row) => row.id)).not.toContain(first.notes[1]?.id)
+    const third = made.notes(undefined, second.next)
+    expect(third.rows).toHaveLength(1)
+    expect(third.next).toBeNull()
+    // Every note once, and every page older than the one before it.
+    const ids = [...first.notes, ...second.rows, ...third.rows].map((row) => row.id)
+    expect(new Set(ids).size).toBe(5)
+    const oldest = (rows: readonly { at: string }[]) => rows.map((row) => row.at).sort()[0] ?? ''
+    const newest = (rows: readonly { at: string }[]) =>
+      rows
+        .map((row) => row.at)
+        .sort()
+        .at(-1) ?? ''
+    expect(newest(second.rows) < oldest(first.notes)).toBe(true)
+    expect(newest(third.rows) < oldest(second.rows)).toBe(true)
+  })
+
+  it('starts over and says so for a cursor that names nothing', () => {
+    const page = made.notes(undefined, 'not-a-note')
+    expect(page.restarted).toBe(true)
+    expect(page.rows).toHaveLength(2)
+  })
+
+  it('pages nothing for a device not granted notes, and still counts them', () => {
+    const page = projector({ ...five, reach: reach([]) }, NOW).notes(undefined, null)
+    expect(page.rows).toEqual([])
+    expect(page.total).toBe(5)
   })
 })
 

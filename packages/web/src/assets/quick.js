@@ -40,8 +40,15 @@ export function quickWord(verb, row, asked = false) {
   }
 }
 
-export function quickActs(ctx) {
+/**
+ * `tell: false` on the task's own page, where telling its agent is the box a
+ * little further down rather than a link back to the page it is on.
+ */
+export function quickActs(ctx, opts = {}) {
+  const offersTell = opts.tell !== false
   const node = el('div', { class: 'quick' })
+  // Nothing until a row says what may be asked of it.
+  node.hidden = true
   const said = el('p', { class: 'quick-said', attrs: { role: 'status' } })
   const presses = new Map()
   let held = null
@@ -102,7 +109,7 @@ export function quickActs(ctx) {
       deny.hidden = !yes('answer')
       done.hidden = !yes('done')
       park.hidden = !yes('park')
-      tell.hidden = !yes('steer')
+      tell.hidden = !offersTell || !yes('steer')
       tell.setAttribute('href', taskPath(task.id))
       for (const one of presses.values()) {
         if (one.press.classList.contains('asked')) continue

@@ -1,7 +1,10 @@
 /*
-  The overview's own drawing: the six tiles, the two charts, a card of work
+  The overview's own drawing — the six tiles, the two charts, a card of work
   that wants somebody with its presses, a project's card, the places that are a
-  count and a link, and the screen a cold open draws from what it kept.
+  count and a link, the screen a cold open draws from what it kept — and the
+  figures elsewhere drawn the same way: a plan's windows as bars, a project's
+  share of the money, a state as a pill, a strip of small stats, the sentences
+  folded under a `?`, the notes and the older pages of them.
 
   The same construction as everything in `away.css` — a surface one step up
   from what it sits on and a hairline round it, a state as a tint of its own
@@ -547,4 +550,191 @@ main {
   .tile-figure {
     font-size: var(--step-4);
   }
+}
+
+/* A project's share of the largest in the money column, under its name. */
+.share-name {
+  display: block;
+}
+
+.share {
+  display: block;
+  width: 8rem;
+  height: 4px;
+  margin-block-start: var(--s1);
+  border-radius: var(--r3);
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.share > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r3);
+  background: var(--amber);
+}
+
+/* The older pages of a list, asked for a page at a time, stacked under it. */
+.rows + .rows {
+  margin-block-start: var(--s2);
+}
+
+.press.more-page {
+  width: 100%;
+  margin-block-start: var(--s3);
+}
+
+/*
+  Nothing here: a quiet word in a dashed box where the rows would be, so an
+  empty list reads as empty rather than as a list that failed to draw.
+*/
+.section .empty {
+  padding: var(--s4);
+  border-radius: var(--r2);
+  border: 1px dashed var(--line);
+  text-align: center;
+}
+
+/* A state as a pill: its tone's own tint, the tone as its text. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 2px var(--s3);
+  border-radius: var(--r3);
+  background: var(--raised);
+  font-size: var(--step--1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill.t-wants {
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+}
+
+.pill.t-failed {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+}
+
+.pill.t-working {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+.pill.t-done {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+/* The total and its `?`, side by side. */
+.big-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Sentences folded under a `?`: a quiet panel when opened. */
+.fold {
+  display: grid;
+  gap: var(--s2);
+  margin-block: var(--s2) var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
+}
+
+/*
+  The kinds of money as a strip of small figures: each word and its number a
+  pair, the pairs side by side and wrapping two to a line on a phone.
+*/
+.dl.minis {
+  grid-template-columns: repeat(auto-fill, 5rem 6.5rem);
+  align-items: baseline;
+  margin-block: var(--s3);
+  padding: var(--s3) var(--s4);
+}
+
+.dl.minis dd {
+  font-size: var(--step-1);
+  color: var(--bright);
+}
+
+/*
+  A note is a line that says who and when, and their words under it: a block,
+  not the three columns of a row, with the hairline between notes.
+*/
+.rows.notes > li {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3) var(--s4);
+}
+
+.rows.notes > li + li {
+  border-block-start: var(--border);
+}
+
+.rows.notes > li > div,
+.rows.notes > li + li > div {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* A plan's windows: a name, a bar of what is used, the share, when it resets. */
+.windows {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: var(--s2);
+  margin-block-start: var(--s2);
+}
+
+.windows > li {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+  gap: 2px var(--s3);
+  align-items: center;
+}
+
+.window-label {
+  font-family: var(--font-mono);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.window-bar {
+  height: 6px;
+  border-radius: var(--r3);
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.window-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r3);
+  background: var(--amber);
+}
+
+.is-warm .window-bar > span {
+  background: var(--amber-light);
+}
+
+.is-tight .window-bar > span {
+  background: var(--red);
+}
+
+.window-share {
+  text-align: end;
+  color: var(--bright);
+}
+
+.window-resets {
+  grid-column: 2 / -1;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* The presses under a task's name, before its sections. */
+.page-head + .quick {
+  margin-block-end: var(--s5);
 }

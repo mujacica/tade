@@ -1,26 +1,32 @@
-// The command bar: Tade, and everywhere else, one press away.
+// The command bar: Tade, every act and everywhere else, one press away.
 //
 // `⌘K` at a keyboard, the field in the header at any width, the middle of the
 // tab bar on a phone — all three open this. **What is typed is first a message
-// to Tade** where this device may send one, and then a filter over where it
-// could go (`commands.js`): the lit row is what Enter does, and the first row
-// is the message. So talking to the orchestrator is never more than a press
-// and a sentence away, and going anywhere is the same press and a word.
+// to Tade** where this device may send one, then the acts this device was
+// granted on the work that matches (allow, deny, done, set aside, tell), then
+// where it could go (`commands.js`): the lit row is what Enter does, and the
+// first row is the message. So talking to the orchestrator, answering an agent
+// and going anywhere are each a press and a word away.
 //
-// **The same ask flow as the conversation's own box**, not a second door:
-// `askBody` and `afterAnswer` from `acts.js`, the same route, the same `rev`,
-// the same rule that only an answer that did something clears what was typed.
-// What a message from here may reach is decided at the machine (`origin.ts`)
-// and nothing here widens it.
+// **The same doors as the screens, not a second set.** A message is
+// `askBody` over `/api/ask/ask`; an act is `bodyFor` over `/api/act/<verb>`
+// with the row's own revision; `afterAnswer` says what came of it and only an
+// answer that did something clears what was typed. Finishing work asks twice,
+// as everywhere (`confirms`). What any of it may reach is decided at the
+// machine and nothing here widens it.
+//
+// **Telling an agent something is a mode**: choosing *Tell* on a task puts
+// that task in the field as a chip, and what is typed next goes to its agent
+// rather than to Tade. Backspace on an empty field, or Escape, leaves it.
 //
 // **A dialog, done properly**: `aria-modal`, a combobox with an
 // `aria-activedescendant` listbox, focus into the field on opening and back to
-// whatever opened it on closing, Escape to close. Built once and patched, like
-// every screen, so a delta that arrives mid-sentence moves nothing under the
+// whatever opened it on closing, Escape to close, Tab kept inside. Built once
+// and patched, so a delta that arrives mid-sentence moves nothing under the
 // thumb.
 
-import { afterAnswer, askBody } from './acts.js'
-import { commandsFor, movedTo } from './commands.js'
+import { afterAnswer, askBody, bodyFor, confirms, controlsFor } from './acts.js'
+import { commandsFor, litOf, movedTo, rememberedWith } from './commands.js'
 import { el, hintOf, into, keyed, textIn, toneOn } from './dom.js'
 import { CHAT_KINDS, taskMark } from './glyphs.js'
 import { icon, iconIn } from './icons.js'
@@ -43,20 +49,75 @@ const STATE_ICONS = {
   parked: 'pause',
 }
 
+/** The keys that go to a screen (`boot.js`'s `GOES`), shown beside its row. */
+const KEYS = {
+  now: 'g n',
+  agents: 'g a',
+  queue: 'g q',
+  spend: 'g s',
+  checks: 'g c',
+  reviews: 'g r',
+  findings: 'g f',
+}
+
 /** The screens, as rows: every place the navigation has, by its own word. */
 function screensOf() {
   return [...NAV, ...MORE].map((one) => ({
     label: one.label,
     icon: one.icon,
     path: pathOf({ view: one.view }),
+    hint: KEYS[one.view] ?? '',
   }))
 }
 
 /**
- * What the bar can jump to, out of the store: what wants somebody first, then
- * every agent at work, each once.
+ * The acts a task may be asked for from the bar, as this session could ask
+ * them: `controlsFor`'s answer, in the bar's short words.
  */
-export function jumpsOf(store) {
+export function actsOn(task, acts) {
+  const yes = new Set(
+    controlsFor(task, acts ?? {}, ['answer', 'done', 'park', 'steer'])
+      .filter((one) => one.kind === 'yes')
+      .map((one) => one.verb),
+  )
+  const out = []
+  if (yes.has('answer')) {
+    const tool = task.approval?.tool ?? ''
+    out.push({
+      verb: 'answer',
+      word: `Allow ${tool}`.trim(),
+      typed: { allow: true },
+      icon: 'check',
+      tone: 't-done',
+    })
+    out.push({
+      verb: 'answer',
+      word: 'Deny',
+      typed: { allow: false },
+      icon: 'close',
+      tone: 't-failed',
+    })
+  }
+  if (yes.has('steer')) out.push({ verb: 'steer', word: 'Tell', icon: 'talk' })
+  if (yes.has('done')) {
+    out.push({ verb: 'done', word: 'Mark done', typed: { summary: '' }, icon: 'flag' })
+  }
+  if (yes.has('park')) {
+    out.push({
+      verb: 'park',
+      word: task.parked === true ? 'Resume' : 'Set aside',
+      typed: {},
+      icon: 'pause',
+    })
+  }
+  return out
+}
+
+/**
+ * What the bar can jump to and act on, out of the store: what wants somebody
+ * first, then every agent at work, each once.
+ */
+export function jumpsOf(store, acts = {}) {
   const seen = new Set()
   const tasks = []
   for (const task of [...wantsYou(store), ...agentsOf(store)]) {
@@ -64,9 +125,12 @@ export function jumpsOf(store) {
     seen.add(task.id)
     tasks.push({
       id: task.id,
+      title: task.title?.words ?? null,
       path: taskPath(task.id),
       icon: STATE_ICONS[task.state] ?? 'bolt',
       tone: taskMark(task.state).tone,
+      wants: task.wantsYou === true,
+      acts: actsOn(task, acts),
     })
   }
   return {
@@ -74,6 +138,23 @@ export function jumpsOf(store) {
     projects: projectsOf(store).map((row) => row.name),
     screens: screensOf(),
   }
+}
+
+/**
+ * The places gone to lately, for as long as this page is open.
+ *
+ * Held in memory and nowhere else: nothing on this page writes to the
+ * browser's storage (`test/assets.test.ts`), and a list of where somebody
+ * went is not worth being the first thing that does.
+ */
+let recent = []
+
+function recentIn() {
+  return recent
+}
+
+function remember(one) {
+  recent = rememberedWith(recent, one)
 }
 
 export function palette(ctx) {
@@ -85,6 +166,8 @@ export function palette(ctx) {
   const scrim = el('div', { class: 'scrim', attrs: { 'aria-hidden': 'true' } })
   const box = el('div', { class: 'pal' })
   const field = el('div', { class: 'pal-field' })
+  const chip = el('span', { class: 'pal-chip' })
+  chip.hidden = true
   const input = el('input', {
     attrs: {
       type: 'text',
@@ -104,7 +187,7 @@ export function palette(ctx) {
     attrs: { type: 'button', 'aria-label': 'Close' },
   })
   into(close, icon('close'))
-  into(field, icon('spark', 'pal-mark'), input, close)
+  into(field, icon('spark', 'pal-mark'), chip, input, close)
 
   const talkPart = el('div', { class: 'pal-talk' })
   const lines = el('ul', { class: 'pal-lines', attrs: { 'aria-label': 'The conversation' } })
@@ -125,7 +208,7 @@ export function palette(ctx) {
     el('kbd', { text: '↑↓' }),
     el('span', { text: 'move' }),
     el('kbd', { text: '↵' }),
-    el('span', { text: 'go' }),
+    el('span', { text: 'do' }),
     el('kbd', { text: 'esc' }),
     el('span', { text: 'close' }),
   )
@@ -137,12 +220,35 @@ export function palette(ctx) {
   let lit = 0
   let opener = null
   let going = false
+  /** The task whose agent what is typed goes to, or null for Tade. */
+  let telling = null
+  /** The act waiting for its second press: its row's key, or null. */
+  let asked = null
 
   const talkNow = () => (view === null ? undefined : talkOf(view.store))
 
   const draw = () => {
     if (view === null) return
-    rows = commandsFor(input.value, { ...jumpsOf(view.store), talk: talkNow() ?? null })
+    if (telling !== null) {
+      // In *Tell* mode the list is the one thing Enter will do.
+      const typed = input.value.trim()
+      rows = [
+        {
+          kind: 'steer',
+          group: `Tell ${telling.id}`,
+          label: typed === '' ? 'Type what to tell its agent' : typed,
+          icon: 'send',
+          match: [],
+          key: 'steer',
+        },
+      ]
+    } else {
+      rows = commandsFor(input.value, {
+        ...jumpsOf(view.store, view.may?.acts),
+        talk: talkNow() ?? null,
+        recent: recentIn(),
+      })
+    }
     if (lit >= rows.length) lit = Math.max(0, rows.length - 1)
     const drawn = []
     let group = null
@@ -158,10 +264,9 @@ export function palette(ctx) {
       drawn,
       (one) => one.key,
       createRow,
-      (one, row) => fillRow(one, row, lit),
+      (one, row) => fillRow(one, row, lit, asked),
     )
-    const on = rows[lit]
-    if (on === undefined) input.removeAttribute('aria-activedescendant')
+    if (rows[lit] === undefined) input.removeAttribute('aria-activedescendant')
     else input.setAttribute('aria-activedescendant', `pal-${lit}`)
     talkIn()
   }
@@ -170,7 +275,9 @@ export function palette(ctx) {
   const talkIn = () => {
     const talk = talkNow()
     const may = mayRead(view.store, 'talk')
-    const shown = may ? chatOf(view.store).slice(-LINES) : []
+    // With something typed the list is what matters, and the conversation
+    // steps back to its one line of standing.
+    const shown = may && input.value.trim() === '' ? chatOf(view.store).slice(-LINES) : []
     keyed(lines, shown, (line) => line.id, createLine, fillLine)
     lines.hidden = shown.length === 0
     const word =
@@ -194,24 +301,67 @@ export function palette(ctx) {
     if (reason === '') why.body.hidden = true
   }
 
+  const tell = (task) => {
+    telling = task
+    chip.hidden = task === null
+    textIn(chip, task === null ? '' : task.id.split('/').at(-1))
+    input.setAttribute('placeholder', task === null ? 'Ask Tade, or jump to…' : 'Tell its agent…')
+    input.value = ''
+    lit = 0
+    draw()
+    input.focus()
+  }
+
+  /** One press of a door, and what came of it in Tade's own words. */
+  const send = async (path, body) => {
+    going = true
+    const answer = await ctx.ask('POST', path, body)
+    going = false
+    const came = afterAnswer(answer, ctx.sentence(answer))
+    textIn(status, came.said)
+    return came
+  }
+
   const run = async (row) => {
-    if (row === undefined) return
+    if (row === undefined || going) return
     if (row.kind === 'go') {
+      remember({ path: row.path, label: row.label, icon: row.icon })
       shut()
       ctx.go(row.path)
       return
     }
+    const task = row.task === undefined ? null : (view?.store.rows.tasks.get(row.task) ?? null)
+    if (row.kind === 'tell') {
+      if (task !== null) tell(task)
+      return
+    }
+    if (row.kind === 'act') {
+      if (task === null) return
+      // Twice for what asking again does not undo, as on the task's own page.
+      if (confirms(row.verb) && asked !== row.key) {
+        asked = row.key
+        draw()
+        return
+      }
+      asked = null
+      await send(`/api/act/${row.verb}`, bodyFor(row.verb, task, keyOf(), ctx.revOf(), row.typed))
+      draw()
+      return
+    }
+    if (row.kind === 'steer') {
+      const said = input.value.trim()
+      const target = view?.store.rows.tasks.get(telling?.id) ?? telling
+      if (said === '' || target === null) return
+      const came = await send(
+        '/api/act/steer',
+        bodyFor('steer', target, keyOf(), ctx.revOf(), { said }),
+      )
+      if (came.clear) tell(null)
+      return
+    }
     const talk = talkNow()
-    if (going || talk === null || talk === undefined) return
-    going = true
-    const answer = await ctx.ask(
-      'POST',
-      '/api/ask/ask',
-      askBody(talk, keyOf(), ctx.revOf(), input.value.trim()),
-    )
-    going = false
-    const came = afterAnswer(answer, ctx.sentence(answer))
-    textIn(status, came.said)
+    if (talk === null || talk === undefined) return
+    const came = await send('/api/ask/ask', askBody(talk, keyOf(), ctx.revOf(), input.value.trim()))
     // **Only what actually happened clears the field.** A `409` is the
     // conversation having moved, and what somebody typed stays where it is.
     if (came.clear) input.value = ''
@@ -224,6 +374,7 @@ export function palette(ctx) {
     node.hidden = false
     document.documentElement.classList.add('pal-open')
     lit = 0
+    asked = null
     draw()
     input.focus()
   }
@@ -233,17 +384,22 @@ export function palette(ctx) {
     node.hidden = true
     document.documentElement.classList.remove('pal-open')
     textIn(status, '')
+    telling = null
+    chip.hidden = true
+    input.setAttribute('placeholder', 'Ask Tade, or jump to…')
     opener?.focus?.()
   }
 
   input.addEventListener('input', () => {
     lit = 0
+    asked = null
     draw()
   })
   input.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       lit = Math.max(0, movedTo(lit, rows.length, event.key === 'ArrowDown' ? 1 : -1))
+      asked = null
       draw()
       list.querySelector(`#pal-${lit}`)?.scrollIntoView?.({ block: 'nearest' })
       return
@@ -253,16 +409,23 @@ export function palette(ctx) {
       void run(rows[lit])
       return
     }
+    if (event.key === 'Backspace' && input.value === '' && telling !== null) {
+      event.preventDefault()
+      tell(null)
+      return
+    }
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      shut()
+      if (telling !== null) tell(null)
+      else shut()
     }
   })
   list.addEventListener('click', (event) => {
     const option = event.target.closest?.('[role="option"]')
     if (option === null || option === undefined) return
-    void run(rows[Number(option.getAttribute('data-at'))])
+    lit = Number(option.getAttribute('data-at'))
+    void run(rows[lit])
   })
   scrim.addEventListener('click', shut)
   close.addEventListener('click', shut)
@@ -309,23 +472,49 @@ function createRow(row) {
     return el('li', { class: 'pal-group', attrs: { role: 'presentation' } })
   }
   const node = el('li', { attrs: { role: 'option' } })
-  into(node, icon('bolt'), el('span', { class: 'pal-label' }), el('span', { class: 'pal-kind' }))
+  const words = el('span', { class: 'pal-words' })
+  into(words, el('span', { class: 'pal-label' }), el('span', { class: 'pal-sub' }))
+  into(node, icon('bolt'), words, el('span', { class: 'pal-kind' }))
   return node
 }
 
-function fillRow(node, row, lit) {
+/** What the right-hand column says a row will do when Enter is pressed. */
+function kindSaid(row, again) {
+  if (again) return 'Again to confirm'
+  if (row.kind === 'ask') return 'Ask Tade'
+  if (row.kind === 'steer') return 'Send'
+  if (row.kind === 'tell') return 'Then type'
+  if (row.kind === 'act') return 'Do'
+  return row.hint !== undefined && row.hint !== '' ? row.hint : 'Go'
+}
+
+function fillRow(node, row, lit, asked) {
   if (row.head === true) {
     textIn(node, row.group)
     return
   }
-  const [glyph, label, kind] = node.children
+  const [glyph, words, kind] = node.children
+  const [label, sub] = words.children
   node.setAttribute('id', `pal-${row.at}`)
   node.setAttribute('data-at', String(row.at))
   node.setAttribute('aria-selected', row.at === lit ? 'true' : 'false')
+  node.classList.toggle('is-asked', asked === row.key)
   iconIn(glyph, row.icon)
   toneOn(glyph, row.tone ?? '')
-  textIn(label, row.label)
-  textIn(kind, row.kind === 'ask' ? 'Ask Tade' : 'Go')
+  // The typed letters lit inside the label: built as text nodes and `<mark>`s,
+  // never as markup, and rebuilt only when the label or the letters moved.
+  const want = `${row.label}|${(row.match ?? []).join(',')}`
+  if (label.getAttribute('data-was') !== want) {
+    label.setAttribute('data-was', want)
+    label.textContent = ''
+    for (const part of litOf(row.label, row.match ?? [])) {
+      label.append(part.on ? el('mark', { text: part.text }) : document.createTextNode(part.text))
+    }
+  }
+  textIn(sub, row.sub ?? '')
+  sub.hidden = (row.sub ?? '') === ''
+  textIn(kind, kindSaid(row, asked === row.key))
+  kind.classList.toggle('is-key', row.kind === 'go' && (row.hint ?? '') !== '')
 }
 
 function createLine() {

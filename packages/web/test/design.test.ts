@@ -26,7 +26,7 @@ const TOKENS = read('tokens.css')
 // five files for length and one stylesheet for every rule here: a selector is
 // in whichever of them it belongs to, and nothing in this file cares which —
 // except the breakpoints, which are in order within each file.
-const SHEETS = ['frame.css', 'away.css', 'dash.css', 'palette.css', 'dock.css']
+const SHEETS = ['frame.css', 'away.css', 'dash.css', 'palette.css', 'dock.css', 'motion.css']
 const AWAY = SHEETS.map(read).join('\n')
 const CSS = `${TOKENS}\n${AWAY}`
 const HTML = read('index.html')
@@ -264,9 +264,21 @@ describe('reach and motion', () => {
     expect(TOKENS).toContain('@media (prefers-reduced-motion: reduce)')
     expect(TOKENS).toMatch(/animation-duration:\s*1ms !important/)
     expect(TOKENS).toMatch(/transition-duration:\s*1ms !important/)
-    // And the skeleton never shimmers, which is the one thing that would
-    // animate on a page that is otherwise still.
-    expect(AWAY).not.toContain('@keyframes')
+    // **Motion is named, and only the live signals repeat.** Every
+    // `@keyframes` is one of these, in `motion.css` and nowhere else; and an
+    // animation that runs for ever is one of the three that stand for a
+    // process rather than a fact — an agent working, a figure not read yet, a
+    // machine being asked again. A fourth that loops is a page that never
+    // settles, and has to argue for itself here.
+    const named = [...AWAY.matchAll(/@keyframes\s+([\w-]+)/g)].map((one) => one[1])
+    expect(named.sort()).toEqual(['bump', 'pulse', 'rise', 'shimmer', 'sweep'])
+    expect(read('motion.css')).toContain('@keyframes')
+    for (const name of SHEETS.filter((one) => one !== 'motion.css')) {
+      expect(read(name), name).not.toContain('@keyframes')
+    }
+    for (const found of AWAY.matchAll(/animation:\s*([\w-]+)[^;]*infinite/g)) {
+      expect(['pulse', 'shimmer', 'sweep'], found[0]).toContain(found[1])
+    }
   })
 
   it('uses `!important` only where it is named, with its argument', () => {

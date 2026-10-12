@@ -20,7 +20,18 @@
 
 import { createAgentRow, fillAgentRow } from './agents.js'
 import { barIn, barOf, ringIn, ringOf, shareIn } from './charts.js'
-import { classOn, el, empty, glyphOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
+import {
+  classOn,
+  el,
+  empty,
+  figureIn,
+  glyphOf,
+  into,
+  keyed,
+  markIn,
+  textIn,
+  toneOn,
+} from './dom.js'
 import { ageSaid, count, money, planPressure, tokensSaid } from './figures.js'
 import { taskMark } from './glyphs.js'
 import { icon } from './icons.js'
@@ -277,8 +288,11 @@ function tileOf(spec) {
 
 function tilesIn(made, glance, view) {
   const had = view.store.had
+  // Nothing read yet is a shimmer where the figure will be (`motion.css`),
+  // never a dash that reads as *nobody recorded it* and never a nought; a
+  // figure that moves afterwards flashes once (`figureIn`).
   const said = (one, figure, under, label) => {
-    textIn(one.figure, had ? figure : '—')
+    figureIn(one.figure, had ? figure : '')
     textIn(one.under, had ? under : '')
     one.node.setAttribute('aria-label', had ? label : `${label}: not read yet`)
   }

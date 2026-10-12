@@ -228,7 +228,7 @@ export function navCounts(links, counts) {
     if (one.counts === null) continue
     const n = counts[one.counts] ?? 0
     // Nothing at nought: a badge of `0` on an icon is a badge nobody reads.
-    textIn(one.figure, n === 0 ? '' : String(n))
+    textIn(one.figure, n === 0 ? '' : n > 99 ? '99+' : String(n))
     one.figure.setAttribute('aria-label', `${n} ${NOUNS[one.counts] ?? one.counts}`)
   }
 }

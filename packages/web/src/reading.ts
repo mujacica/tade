@@ -60,8 +60,16 @@ export interface WebReading {
    * one collection whose whole value is the text: a budget that cut them to a
    * count on the snapshot would be answering a different question from the one
    * somebody opening the notes page is asking.
+   *
+   * `after` is the page's own cursor — the `next` of the page before, which
+   * the snapshot's notes carry on `pages.notes.next` — so a phone that has
+   * read the newest two hundred asks for the next two hundred, and a note that
+   * went in the meantime starts the walk over and says so (`restarted`).
+   * Paging that list means paging *every* note, as the snapshot lists them,
+   * so `undefined` is every note and `null` is still the notes about
+   * everything — the one scope a note can have that names no project.
    */
-  notes(scope: string | null): Page<NoteRow>
+  notes(scope: string | null | undefined, after?: string | null): Page<NoteRow>
   /**
    * One agent, for a device that has its page open: what it has been doing,
    * and — where this device was granted `lanes` — the last rows of its screen.
@@ -157,8 +165,8 @@ export function projector(
     snapshot(): Snapshot {
       return held
     },
-    notes(scope: string | null): Page<NoteRow> {
-      return notesOf(input, scope, budget)
+    notes(scope: string | null | undefined, after: string | null = null): Page<NoteRow> {
+      return notesOf(input, scope, budget, after)
     },
     agent(task: string): AgentOut {
       return agentOf(input.reach, input.tasks, task, opts.agent?.(task) ?? null, AGENT)
@@ -218,11 +226,13 @@ export function inScope(note: string | null, scope: string | null): boolean {
  */
 export function notesOf(
   input: SnapshotInput,
-  scope: string | null,
+  scope: string | null | undefined,
   budget: Budget = BUDGET,
   after: string | null = null,
 ): Page<NoteRow> {
-  const rows = noteRows(input.notes, input.reach, budget).filter((row) => inScope(row.scope, scope))
+  const rows = noteRows(input.notes, input.reach, budget).filter(
+    (row) => scope === undefined || inScope(row.scope, scope),
+  )
   if (!has(input.reach, 'notes')) return withheld<NoteRow>(rows.length)
   const newest = [...rows].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
   return pageOf(newest, budget.notes, (row) => row.id, after)

@@ -112,6 +112,62 @@
   color: var(--tab);
 }
 
+/* A row's words: the name, with what was typed lit in it, and its title under. */
+.pal-words {
+  display: grid;
+  min-width: 0;
+  line-height: var(--lead-tight);
+}
+
+.pal-label mark {
+  background: none;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.pal-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* A screen's keys, drawn as keys. */
+.pal-kind.is-key {
+  padding: 0 var(--s1);
+  border-radius: 5px;
+  border: 1px solid var(--chrome);
+  background: var(--raised);
+  color: var(--pressed);
+  font-family: var(--font-mono);
+}
+
+/* A press that wants its second: the row turns to the one colour that means *this counts*. */
+.pal-list [role="option"].is-asked {
+  background: color-mix(in srgb, var(--amber) 16%, var(--panel));
+}
+
+.pal-list [role="option"].is-asked .pal-kind {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* Who what is typed goes to, in *Tell* mode: the task, as a chip in the field. */
+.pal-chip {
+  flex: 0 0 auto;
+  max-width: 40%;
+  padding: 2px var(--s2);
+  border-radius: var(--r3);
+  background: color-mix(in srgb, var(--cyan) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent);
+  color: var(--cyan);
+  font-size: var(--step--1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pal-label {
   overflow: hidden;
   text-overflow: ellipsis;

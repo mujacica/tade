@@ -1,0 +1,299 @@
+/*
+  Motion: every animation on the page, by name, in one file.
+
+  **Motion says that something happened, and nothing else.** A screen arriving
+  rises into place; a figure that changed under somebody's eyes flashes once;
+  a toast comes and goes; something not yet read shimmers where it will be; a
+  machine being asked again draws a line sweeping under the header; and an
+  agent at work breathes — the one motion that repeats, because *working* is
+  the one state that is a process rather than a fact.
+
+  **Everything here stops for reduced motion** (`tokens.css` sets every
+  duration to 1ms and every count to one), and a hidden page draws nothing, so
+  a phone in a pocket is not kept awake by a dot. Transform and opacity only,
+  which a browser composites without laying the page out again.
+
+  `test/design.test.ts` holds the names: a new `@keyframes` is a line there
+  with its argument, and only the live signals may repeat for ever.
+*/
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bump {
+  0% {
+    color: var(--amber-light);
+    transform: scale(1.06);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.6);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* ── a screen arriving ─────────────────────────────────────────────────────── */
+
+/* A navigation builds a screen fresh (`boot.js`), and the new one rises in. */
+.enter {
+  animation: rise var(--ease-sheet) both;
+}
+
+/* What arrives inside a screen that is already up: a card, a tile, a toast. */
+.tile,
+.card.want,
+main a.proj,
+.toast {
+  animation: rise var(--ease-sheet) both;
+}
+
+/* The tiles arrive one after the other, a beat apart, left to right. */
+.tile:nth-child(2) {
+  animation-delay: 30ms;
+}
+.tile:nth-child(3) {
+  animation-delay: 60ms;
+}
+.tile:nth-child(4) {
+  animation-delay: 90ms;
+}
+.tile:nth-child(5) {
+  animation-delay: 120ms;
+}
+.tile:nth-child(6) {
+  animation-delay: 150ms;
+}
+
+/* ── a figure that moved ───────────────────────────────────────────────────── */
+
+.bump {
+  display: inline-block;
+  animation: bump 600ms var(--ease-sheet);
+}
+
+/* ── working: the one thing that breathes ──────────────────────────────────── */
+
+/*
+  A ring that grows out of a working agent's dot and fades, every two seconds,
+  wherever an agent at work is drawn: a row, the dock, a card, a page's head.
+  The dot and the word beside it say *working*; the ring says *right now*.
+*/
+.glyph.t-working {
+  position: relative;
+}
+
+.glyph.t-working::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin: -0.375rem 0 0 -0.375rem;
+  border-radius: var(--r3);
+  background: var(--amber);
+  pointer-events: none;
+  animation: pulse 2s cubic-bezier(0.2, 0, 0, 1) infinite;
+}
+
+/* The live dot in the header breathes the same way, in its own tone. */
+.fresh .dot.is-live {
+  position: relative;
+}
+
+.fresh .dot.is-live::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: -0.25rem 0 0 -0.25rem;
+  border-radius: var(--r3);
+  background: var(--green);
+  animation: pulse 3s cubic-bezier(0.2, 0, 0, 1) infinite;
+}
+
+/* ── not read yet ──────────────────────────────────────────────────────────── */
+
+/*
+  Before the first snapshot every figure is a shimmer where it will be, and a
+  list is a block of the same — the four drawings' *coming*, on the page's own
+  shapes rather than a spinner over nothing.
+*/
+.is-loading .tile-figure:empty,
+.is-loading .tile-under:empty,
+.is-loading .rows:empty,
+.is-loading .queue:empty,
+.is-loading .projects-grid:empty,
+.skeleton span {
+  display: block;
+  border-radius: var(--r1);
+  background:
+    linear-gradient(90deg, var(--surface) 0%, var(--raised) 50%, var(--surface) 100%) 0 0 / 200%
+    100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.is-loading .tile-figure:empty {
+  width: 3.5rem;
+  height: 2rem;
+}
+
+.is-loading .tile-under:empty {
+  width: 6rem;
+  height: 0.875rem;
+  margin-block-start: var(--s1);
+}
+
+.is-loading .rows:empty,
+.is-loading .queue:empty {
+  height: 9rem;
+  border: 0;
+}
+
+.is-loading .projects-grid:empty {
+  height: 10rem;
+}
+
+/* ── the machine being asked again ─────────────────────────────────────────── */
+
+/* A line sweeping under the header while the page reconnects. */
+.is-reconnecting .top::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: -1px;
+  width: 40%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  animation: sweep 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.top {
+  overflow: hidden;
+}
+
+/* ── a press, felt ─────────────────────────────────────────────────────────── */
+
+.press,
+.tab,
+.tile,
+.icon,
+.cmd,
+main a.proj,
+.signals a,
+.places a {
+  transition-property: background, border-color, color, transform;
+  transition-duration: 140ms;
+}
+
+.press:active:not(:disabled),
+.tab:active,
+.tile:active,
+.icon:active,
+main a.proj:active {
+  transform: scale(0.97);
+}
+
+/* ── the toasts ────────────────────────────────────────────────────────────── */
+
+/*
+  At the foot on a phone, over the tab bar where the thumb is; at the corner
+  of a desk, out of the work's way. One link each, to the work it is about.
+*/
+.toasts {
+  position: fixed;
+  inset-inline: var(--s3);
+  bottom: calc(var(--s7) + var(--s6) + env(safe-area-inset-bottom));
+  z-index: 7;
+  display: grid;
+  gap: var(--s2);
+  pointer-events: none;
+}
+
+a.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
+  padding: var(--s2) var(--s4);
+  border-radius: var(--r2);
+  background: color-mix(in srgb, var(--raised) 92%, transparent);
+  border: 1px solid var(--control);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--lift);
+  color: var(--bright);
+  text-decoration: none;
+  transition:
+    opacity var(--ease-sheet),
+    transform var(--ease-sheet);
+}
+
+a.toast.leaving {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.toast-words {
+  display: grid;
+  min-width: 0;
+  line-height: var(--lead-tight);
+}
+
+.toast-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.toast-word {
+  font-size: var(--step--1);
+}
+
+@media (min-width: 768px) {
+  .toasts {
+    inset-inline: auto var(--s5);
+    bottom: var(--s5);
+    width: 22rem;
+  }
+}

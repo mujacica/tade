@@ -297,8 +297,15 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'stream':
         return stream(req, res, device)
       case 'notes': {
-        const scope = queryOf(req.url ?? '/').get('scope')
-        return json(res, opts.readingFor(reachOf(device)).notes(scope))
+        // Two names, each matched against the device's own notes and never
+        // used to build anything: a scope is compared with a note's scope,
+        // and a cursor with a note's id (`pageOf`). One that names nothing
+        // starts the walk over and says so.
+        // No `scope` at all is every note, as the snapshot lists them — the
+        // list a page walks with `after`.
+        const query = queryOf(req.url ?? '/')
+        const scope = query.has('scope') ? query.get('scope') : undefined
+        return json(res, opts.readingFor(reachOf(device)).notes(scope, query.get('after')))
       }
       case 'agent': {
         const task = `${found.params.project ?? ''}/${found.params.task ?? ''}`

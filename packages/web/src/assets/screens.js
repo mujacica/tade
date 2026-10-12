@@ -35,6 +35,7 @@ import {
 } from './dom.js'
 import { count, money, onPlan, sinceSaid, tokensSaid } from './figures.js'
 import { checkMark, taskMark } from './glyphs.js'
+import { quickActs } from './quick.js'
 import { pathOf } from './routes.js'
 import {
   createQueueRow,
@@ -56,7 +57,7 @@ import { omitted, projectAt, queueIn, spendFold, spendSince, taskAt, tasksIn } f
 export function projectScreen(where, ctx) {
   const node = el('div')
   const head = el('div', { class: 'page-head' })
-  const back = el('a', { class: 'back', text: '‹ Now', attrs: { href: '/' } })
+  const back = el('a', { class: 'back', text: '‹ Overview', attrs: { href: '/' } })
   const title = el('h1', { text: where.project })
   const figure = el('span', { class: 'figure' })
   into(head, title, figure)
@@ -282,7 +283,14 @@ export function taskScreen(where, ctx) {
   const head = el('div', { class: 'page-head' })
   const glyph = glyphOf(taskMark('queued'))
   const title = el('h1', { text: where.task })
-  into(head, glyph, title)
+  // The state again as a pill beside the name: the word in its tone's tint,
+  // so what the glyph says is readable at a glance from across a desk.
+  const pill = el('span', { class: 'pill' })
+  into(head, glyph, title, pill)
+  // The presses this device was granted, under the name and above the fold:
+  // on a phone the full controls are a long scroll down, and the answer to an
+  // agent that is waiting is the reason somebody opened this page.
+  const quick = ctx === undefined || ctx === null ? null : quickActs(ctx, { tell: false })
   const gone = el('p', { class: 'empty' })
 
   const state = section('STATE')
@@ -302,7 +310,7 @@ export function taskScreen(where, ctx) {
   into(lead, state.node, ...(pane?.nodes ?? []))
   into(facts, asked.node, agent.node, work.node, checks.node, rest.node)
   into(grid, lead, facts)
-  into(node, back, head, gone, grid)
+  into(node, back, head, quick?.node, gone, grid)
   // **Every control the page has, built once** — one block per verb, in the
   // order `SHOWN` gives, each hidden until the row says it may be asked for.
   // Built here rather than per update, so what somebody has typed into one
@@ -320,6 +328,9 @@ export function taskScreen(where, ctx) {
       if (task === null) return
       pane?.update(view)
       markIn(glyph, taskMark(task.state))
+      textIn(pill, taskMark(task.state).word)
+      quick?.update(task, view)
+      toneOn(pill, taskMark(task.state).tone)
       stateIn(made, task, view)
       askedIn(asked, task, view.may)
       agentIn(made, task, view.may)

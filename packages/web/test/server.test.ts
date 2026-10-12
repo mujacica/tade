@@ -253,6 +253,31 @@ describe('the worker, as a browser is served it', () => {
   })
 })
 
+describe('the notes, a page at a time', () => {
+  it('lists every note with no scope, as the snapshot does, and one scope’s with one', async () => {
+    // The page walks the snapshot's own list with `after`, so the route with
+    // no scope has to be that list: every note this device may count.
+    const one = await start()
+    const paired = await pair(one)
+    const every = await ask(one, '/api/notes', { headers: { cookie: paired.cookie } })
+    const elsewhere = await ask(one, '/api/notes?scope=tade', {
+      headers: { cookie: paired.cookie },
+    })
+    expect(said(every).total).toBe(2)
+    expect(said(elsewhere).total).toBe(0)
+  })
+
+  it('reads a cursor as a name to compare and nothing else', async () => {
+    const one = await start()
+    const paired = await pair(one)
+    const page = await ask(one, '/api/notes?after=../../etc/passwd', {
+      headers: { cookie: paired.cookie },
+    })
+    expect(page.status).toBe(200)
+    expect(said(page).rows).toEqual([])
+  })
+})
+
 describe('what a device is told about keeping anything', () => {
   it('is booleans beside the device list, and no names', async () => {
     const one = await start({ installing: true, keepsView: true })

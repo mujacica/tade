@@ -238,24 +238,42 @@ declare module '*/assets/charts.js' {
 
 declare module '*/assets/commands.js' {
   export const GROUP_MOST: number
+  export const RECENT_MOST: number
+  export function matchOf(label: string, query: string): { score: number; at: number[] } | null
   export function scoreOf(label: string, query: string): number | null
   export function commandsFor(
     query: string,
     from: {
       talk?: { mine?: boolean; busy?: boolean } | null
-      tasks?: readonly { id: string; path: string; icon?: string; tone?: string }[]
+      tasks?: readonly {
+        id: string
+        path: string
+        title?: string | null
+        icon?: string
+        tone?: string
+        wants?: boolean
+        acts?: readonly { verb: string; word: string; typed?: object; icon: string }[]
+      }[]
       projects?: readonly string[]
-      screens?: readonly { label: string; icon: string; path: string }[]
+      screens?: readonly { label: string; icon: string; path: string; hint?: string }[]
+      recent?: readonly { path: string; label: string; icon?: string }[]
     },
   ): {
-    kind: 'ask' | 'go'
+    kind: 'ask' | 'go' | 'act' | 'tell'
     group: string
     label: string
     icon: string
     path?: string
+    task?: string
+    match: number[]
     key: string
   }[]
   export function movedTo(at: number, rows: number, by: number): number
+  export function rememberedWith(
+    recent: readonly { path: string; label: string; icon?: string }[],
+    one: { path: string; label: string; icon?: string },
+  ): { path: string; label: string; icon?: string }[]
+  export function litOf(label: string, at: readonly number[]): { text: string; on: boolean }[]
 }
 
 declare module '*/assets/overview.js' {
@@ -276,7 +294,11 @@ declare module '*/assets/overview.js' {
 }
 
 declare module '*/assets/palette.js' {
-  export function jumpsOf(store: unknown): {
+  export function actsOn(task: unknown, acts: unknown): { verb: string; word: string }[]
+  export function jumpsOf(
+    store: unknown,
+    acts?: unknown,
+  ): {
     tasks: { id: string; path: string; icon: string; tone: string }[]
     projects: string[]
     screens: { label: string; icon: string; path: string }[]
@@ -451,4 +473,19 @@ declare module '*/assets/agents.js' {
     agents: readonly T[],
   ): { project: string; agents: T[] }[]
   export function runsOn(task: { harness: string | null; model: string | null }): string
+}
+
+declare module '*/assets/toasts.js' {
+  export const MOST: number
+  export const STANDS_MS: number
+  export function statesOf(
+    tasks: readonly { id: string; state: string; agents?: number }[],
+  ): Map<string, { state: string; running: boolean }>
+  export function transitionsOf(
+    was: Map<string, { state: string; running: boolean }> | null,
+    is: Map<string, { state: string; running: boolean }>,
+  ): { id: string; kind: string }[]
+  export function shownOf(
+    changes: readonly { id: string; kind: string }[],
+  ): { id: string; kind: string; word: string; icon: string; tone: string }[]
 }

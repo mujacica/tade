@@ -263,3 +263,47 @@ export function hintOf(said, klass = 'hint-body') {
   })
   return { press, body }
 }
+
+/**
+ * Write a figure, and mark that it moved: `bump` replays a short flash on the
+ * node so a number that changed under somebody's eyes is seen to have.
+ *
+ * Only on a change — a beat that wrote the same figure again is not news —
+ * and only after the first write, which is arriving rather than changing.
+ */
+export function figureIn(node, said) {
+  const want = said === null || said === undefined ? '' : String(said)
+  if (node.textContent === want) return false
+  const first = node.textContent === ''
+  node.textContent = want
+  if (!first) {
+    node.classList.remove('bump')
+    // Reading a layout property restarts the animation the class names.
+    void node.offsetWidth
+    node.classList.add('bump')
+  }
+  return true
+}
+
+/**
+ * `hintOf` for more than one sentence: a `?` and a region to put them in.
+ *
+ * The region is the caller's to fill, and is hidden until asked for; the
+ * press says what it is about in its label, since a `?` alone is a glyph.
+ */
+export function foldOf(label) {
+  hints += 1
+  const id = `fold${hints}`
+  const press = el('button', {
+    class: 'hint',
+    text: '?',
+    attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': id, 'aria-label': label },
+  })
+  const body = el('div', { class: 'fold', attrs: { id } })
+  body.hidden = true
+  press.addEventListener('click', () => {
+    body.hidden = !body.hidden
+    press.setAttribute('aria-expanded', body.hidden ? 'false' : 'true')
+  })
+  return { press, body }
+}

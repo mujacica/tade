@@ -642,9 +642,9 @@ export class Away implements Subject {
       get rev() {
         return held.rev
       },
-      notes: (scope) => {
+      notes: (scope, after) => {
         this.catchUp(reach, held)
-        return held.notes(scope)
+        return held.notes(scope, after)
       },
       agent: (task) => {
         // **This request's reach, not the projector's.** The device list is

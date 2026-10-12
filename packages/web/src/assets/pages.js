@@ -1,17 +1,6 @@
-// The eight screens that are a list or a table: the queue, the checks, the
-// reviews, the money, the findings, the notes, this device, and pairing one.
-//
-// Two of these are the ones that most have to not lie, and they are the reason
-// this file is longer than it looks.
-//
-// **The money.** `usdOnPlan` goes below a rule and in **no** total, because a
-// subscription paid a flat fee and nobody was charged those turns; `~` marks
-// any bucket with an estimate in it; `≥` appears wherever some tokens had no
-// rate, or wherever the snapshot left tasks out, because a sum over what
-// arrived is a floor; and `—` is nobody wrote it down, never a nought. There are
-// no period buttons on this page: the projection carries one figure per task
-// and not a series, so *today* is a question this data cannot answer and a
-// control offering it would be a lie with a tab on it.
+// The screens that are a list or a table: the queue, the checks, the reviews,
+// the findings, the notes, this device, and pairing one. The money is
+// `spend.js`.
 //
 // **The checks.** A rollup is what a run *here* adds up to, so `unknown` is
 // first-class and is never folded into a pass. A check that cannot run here
@@ -22,7 +11,7 @@
 // with a `<caption>` and `<th scope>`.
 
 import { ringOf, shareIn } from './charts.js'
-import { classOn, el, empty, into, keyed, textIn } from './dom.js'
+import { classOn, el, empty, foldOf, into, keyed, textIn } from './dom.js'
 import {
   ageSaid,
   count,
@@ -280,234 +269,6 @@ export function reviewsScreen() {
   }
 }
 
-/* ── the money ─────────────────────────────────────────────────────────────── */
-
-export function spendScreen() {
-  const node = el('div')
-  const made = section('SPEND', { top: true })
-  const big = el('p', { class: 'big' })
-  const under = el('p', { class: 'big-under' })
-  const kinds = dl()
-  const outside = el('div', { class: 'outside' })
-  const planWhy = el('p', { class: 'aside' })
-  const planSaid = el('p', { class: 'num big-under' })
-  const planNot = el('p', {
-    class: 'unknown',
-    text: 'not in the total — a subscription already paid for these',
-  })
-  into(outside, planWhy, planSaid, planNot)
-  // The caveats are built once and shown or hidden, so a figure somebody is
-  // reading does not move down the page because a new one appeared under it.
-  const scope = el('p', {
-    class: 'caveat',
-    text: 'This device was not granted what the work costs, so every figure here is a dash. What each device may read is decided at the machine, and the Devices screen lists what this one was given.',
-  })
-  const floor = el('p', {
-    class: 'unknown',
-    text: '— some tasks are not on this page, so this is a floor',
-  })
-  const noMoney = el('p', { class: 'unknown' })
-  const unrated = el('p', {
-    class: 'unknown',
-    text: '— some of these tokens ran on a model no rate here knows',
-  })
-  // **The period, said rather than denied.** The sentence that used to be here
-  // said this was not a figure for a day — and it is one: the window folds
-  // spend from its own midnight, so without this a phone reads a dash on a
-  // task that cost forty dollars yesterday as *not recorded*.
-  const covers = el('p', { class: 'unknown' })
-  const caveats = { scope, floor, noMoney, unrated, covers }
-  into(made.body, big, under, kinds, outside, scope, floor, noMoney, unrated, covers)
-
-  const plans = section('PLAN WINDOWS')
-  const planList = el('ul', { class: 'rows' })
-  const noPlans = empty('no harness here reported a plan window')
-  into(plans.body, planList, noPlans)
-
-  const by = section('BY PROJECT')
-  const wrap = el('div', {
-    class: 'scrolls',
-    attrs: { tabindex: '0', role: 'region', 'aria-label': 'Spend by project, scrollable' },
-  })
-  const table = el('table')
-  const caption = el('caption', { text: 'Folded over the tasks on this page.' })
-  const headRow = el('tr')
-  for (const [name, klass] of [
-    ['Project', ''],
-    ['Money', 'figure'],
-    ['Tokens', 'figure'],
-    ['On a plan', 'figure'],
-  ]) {
-    into(headRow, el('th', { class: klass, text: name, attrs: { scope: 'col' } }))
-  }
-  const body = el('tbody')
-  into(table, caption, into(el('thead'), headRow), body)
-  into(wrap, table)
-  into(by.body, wrap)
-  into(node, made.node, plans.node, by.node)
-
-  return {
-    node,
-    update(view) {
-      const tasks = rowsOf(view.store, 'tasks')
-      const partial = omitted(view.store, 'tasks') > 0
-      const fold = spendFold(tasks, partial)
-      const paid = money(fold, view.may.spend)
-      textIn(big, paid.said === '—' ? '—' : `${partial ? '≥' : ''}${paid.said}`)
-      textIn(under, paid.said === '—' ? paid.why : 'billed')
-      const tokens = tokensSaid(fold)
-      dlIn(kinds, [
-        ['exact', fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null],
-        ['estimated', fold.usdEstimated > 0 ? `~$${fold.usdEstimated.toFixed(2)}` : null],
-        ['tokens', tokens === null ? null : tokens.said],
-        ['unpriced', tokens === null || tokens.unpriced === '' ? null : tokens.unpriced],
-      ])
-      planEquivalentIn({ outside, planWhy, planSaid, planNot }, fold)
-      caveatsIn(caveats, fold, view.may.spend, spendSince(view.store))
-      const rows = plansOf(view.store)
-      textIn(plans.figure, count(rows.length))
-      noPlans.hidden = rows.length > 0
-      textIn(
-        noPlans,
-        nothingSaid(
-          view.may.spend,
-          omitted(view.store, 'plans'),
-          'no harness here reported a plan window',
-        ),
-      )
-      keyed(
-        planList,
-        rows,
-        (row) => row.id,
-        createPlanRow,
-        (one, row) => fillPlanRow(one, row, view),
-      )
-      const names = projectsOf(view.store)
-      keyed(
-        body,
-        names,
-        (row) => row.name,
-        createSpendRow,
-        (one, row) => fillSpendRow(one, row, view),
-      )
-    },
-  }
-}
-
-/**
- * What a subscription's turns would have cost at list — **below a rule, in no
- * total, and labelled as what it is.**
- *
- * `≥` whenever some of those tokens ran on a model no rate here knows, because
- * the figure is then a floor and drawing it as a total would simply be wrong.
- */
-function planEquivalentIn(made, fold) {
-  const plan = onPlan(fold)
-  made.outside.hidden = plan === null
-  if (plan === null) return
-  textIn(made.planWhy, plan.why)
-  textIn(made.planSaid, plan.said)
-}
-
-/**
- * Every way this figure is incomplete, said beside it rather than smoothed.
- *
- * Shown and hidden rather than built and thrown away, so a figure somebody is
- * reading does not move down the page because a caveat appeared under it.
- */
-function caveatsIn(made, fold, granted, since) {
-  // The sentence the two-word column cannot carry, said once where there is
-  // room: a dash here is about this device's reach and not about the work.
-  made.scope.hidden = granted
-  for (const one of ['floor', 'noMoney', 'unrated', 'covers']) made[one].hidden = !granted
-  if (!granted) return
-  // Null where nothing has been folded yet, which is `unknown` and is said by
-  // saying nothing rather than by naming a date in 1970.
-  sayIn(made.covers, sinceSaid(since))
-  made.floor.hidden = !fold.partial
-  sayIn(
-    made.noMoney,
-    fold.unknown > 0 ? `— ${fold.unknown} tasks here reported no money at all` : null,
-  )
-  made.unrated.hidden = fold.tokensUnpriced === 0
-}
-
-function createPlanRow() {
-  const node = el('li')
-  const body = el('div')
-  const name = el('span', { class: 'name' })
-  const meter = el('span', { class: 'meter' })
-  const under = el('span', { class: 'under' })
-  into(body, ringOf('plan'), name, meter, under)
-  return into(node, body)
-}
-
-/**
- * One account's plan windows.
- *
- * **A plan is not money**: what is drawn is the share of a window that is used
- * up, which is the service's own number, and `resets in` beside it. A harness
- * that said nothing says `cannot tell` in its own words — the projection
- * carries that sentence, so this does not invent one.
- */
-function fillPlanRow(node, plan, view) {
-  const [body] = node.children
-  const [ring, name, meter, under] = body.children
-  // The fullest window as the ring beside the name: the one that runs out first.
-  const most = Math.max(...(plan.windows ?? []).map((one) => one.used), -1)
-  shareIn(ring, most < 0 ? null : most, most < 0 ? '' : planBar(most).pressure)
-  textIn(name, `${plan.harness}${plan.account === null ? '' : ` · ${plan.account.words}`}`)
-  if (plan.cannotTell !== null && plan.cannotTell !== undefined) {
-    textIn(meter, '—')
-    textIn(under, plan.cannotTell)
-    classOn(meter, 'is-fine', false)
-    return
-  }
-  if (plan.pays === 'per-token') {
-    textIn(meter, '')
-    textIn(under, 'per-token — no window')
-    return
-  }
-  const lines = []
-  let worst = 'fine'
-  for (const window of plan.windows) {
-    const bar = planBar(window.used)
-    if (bar.pressure === 'tight' || (bar.pressure === 'warm' && worst === 'fine')) {
-      worst = bar.pressure
-    }
-    const resets = untilSaid(window.resetsAt, view.asOf)
-    lines.push(
-      `${window.label} ${bar.bar} ${bar.said}${resets === null ? ' · no reset said' : ` · resets in ${resets}`}`,
-    )
-  }
-  textIn(meter, plan.windows.length === 0 ? '—' : '')
-  textIn(under, lines.join('\n') || 'no window was reported')
-  for (const one of ['is-fine', 'is-warm', 'is-tight']) classOn(under, one, one === `is-${worst}`)
-  classOn(under, 'meter', lines.length > 0)
-}
-
-function createSpendRow() {
-  const node = el('tr')
-  for (let at = 0; at < 4; at += 1) {
-    into(node, el('td', { class: at === 0 ? '' : 'figure' }))
-  }
-  return node
-}
-
-function fillSpendRow(node, project, view) {
-  const cells = node.children
-  const tasks = tasksIn(view.store, project.name)
-  const fold = spendFold(tasks, omitted(view.store, 'tasks') > 0)
-  const paid = money(fold, view.may.spend)
-  textIn(cells[0], project.name)
-  textIn(cells[1], paid.said === '—' ? '—' : `${fold.partial ? '≥' : ''}${paid.said}`)
-  cells[1].setAttribute('aria-label', paid.said === '—' ? paid.why : paid.said)
-  const tokens = tokensSaid(fold)
-  textIn(cells[2], tokens === null ? '—' : tokens.said)
-  const plan = onPlan(fold)
-  textIn(cells[3], plan === null ? '—' : plan.said)
-}
-
 /* ── the findings ──────────────────────────────────────────────────────────── */
 
 /**
@@ -569,38 +330,83 @@ function whose(finding) {
  * the page that Tade was *told* rather than derived, and it is rendered with
  * `textContent` and in the shape it was typed.
  */
-export function notesScreen() {
+export function notesScreen(ctx = null) {
   const node = el('div')
   const made = section('NOTES', { top: true })
-  const list = el('ul', { class: 'rows' })
+  const list = el('ul', { class: 'rows notes' })
+  // **The older pages, asked for, not sent.** The snapshot carries the newest
+  // notes and a cursor past them (`pages.notes.next`); each press asks the
+  // machine for the page after it (`/api/notes?after=`), and what came is
+  // drawn under the newest. Notes are append-only, so a page once read stays
+  // true — and a cursor the machine no longer knows starts over and says so.
+  const older = el('ul', { class: 'rows notes' })
   const none = empty('nothing written down')
-  into(made.body, list, none)
+  into(made.body, list, older, none)
+  const more = el('button', { class: 'press ghost more-page', attrs: { type: 'button' } })
+  const moreSaid = el('p', { attrs: { role: 'status' } })
   const left = el('p', { class: 'unknown' })
-  into(node, made.node, left)
+  into(node, made.node, more, moreSaid, left)
 
-  return {
-    node,
-    update(view) {
-      const rows = notesOf(view.store)
-      textIn(made.figure, count(rows.length))
-      made.figure.setAttribute('aria-label', `${rows.length} notes`)
-      none.hidden = rows.length > 0
-      keyed(
-        list,
-        rows,
-        (row) => row.id,
-        createNoteRow,
-        (one, row) => fillNoteRow(one, row, view),
-      )
-      textIn(
-        none,
-        nothingSaid(view.may.notes, omitted(view.store, 'notes'), 'nothing written down'),
-      )
-      const n = omitted(view.store, 'notes')
-      textIn(left, n === 0 || !view.may.notes ? '' : `${n} older notes are not on this page`)
-      left.hidden = n === 0 || !view.may.notes
-    },
+  let held = []
+  let cursor = null
+  let asking = false
+  let last = null
+
+  more.addEventListener('click', async () => {
+    if (ctx === null || asking || cursor === null) return
+    asking = true
+    more.disabled = true
+    const answer = await ctx.ask('GET', `/api/notes?after=${encodeURIComponent(cursor)}`)
+    asking = false
+    more.disabled = false
+    if (answer.status !== 200 || answer.body === null) {
+      textIn(moreSaid, ctx.sentence(answer))
+      return
+    }
+    const page = answer.body
+    held = page.restarted === true ? [...page.rows] : [...held, ...page.rows]
+    cursor = page.next ?? null
+    textIn(
+      moreSaid,
+      page.restarted === true ? 'The notes moved; started again from the newest.' : '',
+    )
+    if (last !== null) draw(last)
+  })
+
+  const draw = (view) => {
+    last = view
+    const rows = notesOf(view.store)
+    const shown = new Set(rows.map((row) => row.id))
+    const extra = held.filter((row) => !shown.has(row.id))
+    const total = view.store.pages.notes?.total ?? rows.length
+    textIn(made.figure, count(total))
+    made.figure.setAttribute('aria-label', `${total} notes`)
+    none.hidden = rows.length > 0
+    keyed(
+      list,
+      rows,
+      (row) => row.id,
+      createNoteRow,
+      (one, row) => fillNoteRow(one, row, view),
+    )
+    keyed(
+      older,
+      extra,
+      (row) => row.id,
+      createNoteRow,
+      (one, row) => fillNoteRow(one, row, view),
+    )
+    textIn(none, nothingSaid(view.may.notes, omitted(view.store, 'notes'), 'nothing written down'))
+    if (cursor === null && held.length === 0) cursor = view.store.pages.notes?.next ?? null
+    const n = Math.max(0, total - rows.length - extra.length)
+    const may = view.may.notes === true
+    more.hidden = !may || n === 0 || cursor === null || ctx === null
+    textIn(more, `Show older · ${n}`)
+    textIn(left, n === 0 || !may || !more.hidden ? '' : `${n} older notes are not on this page`)
+    left.hidden = n === 0 || !may || !more.hidden
   }
+
+  return { node, update: draw }
 }
 
 /* ── this device, and the others ───────────────────────────────────────────── */
