@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { settingsOf } from '@tade/core'
+import { ConfigSchema, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { PROJECTS, scopeHere, scopesOf } from '../src/panels/settings/scopes.ts'
 import { type SettingsPanel, settingsPanel, visibleSettings } from '../src/panels/settings/state.ts'
@@ -43,6 +43,18 @@ describe('the Projects page, which is one project at a time', () => {
     expect(scopeHere('', PROJECTS, groups)).toBe('checkout')
     expect(scopeHere('gone', PROJECTS, groups)).toBe('checkout')
     expect(scopeHere('search', PROJECTS, groups)).toBe('search')
+  })
+
+  it('says there are none where there are none, rather than that nothing matched', () => {
+    // The words are the group's own (`scoped.none`), and a page with no scope
+    // to be on has no rows to show: not an empty form under a selector.
+    const empty = settingsOf(ConfigSchema.parse({}))
+    expect(scopesOf(PROJECTS, empty)).toEqual([])
+    expect(scopeHere('', PROJECTS, empty)).toBeNull()
+    expect(visibleSettings(settingsPanel(PROJECTS), empty)).toEqual([])
+    const said = plainRows(drawnAt(PROJECTS, { settings: empty })).join('\n')
+    expect(said).toContain('No projects are open.')
+    expect(said).not.toContain('Nothing here matches.')
   })
 
   it('offers every project to click, and the one you are on is the one drawn', () => {
