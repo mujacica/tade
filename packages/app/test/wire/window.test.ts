@@ -4,7 +4,9 @@ import { ConfigSchema } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { initialState } from '../../src/model.ts'
+import { acknowledge, FLASH_MS } from '../../src/flash.ts'
+import { type AppState, initialState, ORCHESTRATOR_TAB, withTranscript } from '../../src/model.ts'
+import { fromThinker, type ThinkerEvent } from '../../src/transcript.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Window } from '../../src/wire/window.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
@@ -308,5 +310,114 @@ describe('how the window says a moment', () => {
     const date = window.facts().date
     now.at += 3 * 86_400_000
     expect(window.facts().date).toBe(date)
+  })
+})
+
+describe('answering where you are looking', () => {
+  let terminal: FakeTerminal
+  let client: Workbench
+  const { start, click, find } = windowUnderTest((wired) => {
+    terminal = wired.terminal
+    client = wired.client
+  })
+  const shown = (text: string) => screenOf(terminal.written).some((row) => row.includes(text))
+
+  it('flashes a press that worked over the foot, never in the conversation, and lets it go', async () => {
+    const clock = { at: Date.now() }
+    await start({ now: () => clock.at })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const mute = find('Mute')
+    click(mute.col + 1, mute.row)
+    const said = 'muted: nothing will be said or played'
+    await until('the flash', () => shown(said))
+    const rows = screenOf(terminal.written)
+    // On the rule over the foot's own buttons, and nowhere else on screen.
+    expect(rows.filter((row) => row.includes(said))).toHaveLength(1)
+    expect(rows.findIndex((row) => row.includes(said))).toBe(find('Settings').row - 1)
+    // Nothing else asks for a frame: the window owes one when the flash runs out.
+    clock.at += FLASH_MS
+    await until('the flash to go', () => !shown(said))
+  })
+
+  it('marks the conversation’s tab when something lands in it behind a terminal', async () => {
+    const listeners: Array<(event: ThinkerEvent) => void> = []
+    const opened = await client.openTerminal({ project: 'app' })
+    await client.write(opened.id, 'echo the-shell-is-here\r')
+    await start({
+      thinker: {
+        onEvent: (listener) => {
+          listeners.push(listener)
+          return () => {}
+        },
+        ask: async () => '',
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tabs = () => screenOf(terminal.written).find((row) => row.includes('orchestrator')) ?? ''
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until('the terminal in front', () => shown('the-shell-is-here'), 20_000)
+    expect(tabs()).not.toContain('•')
+
+    for (const listener of listeners) listener({ type: 'message', text: 'The build is green.' })
+    await until('the mark', () => tabs().includes('orchestrator •'))
+
+    // Going to it is reading it.
+    const orchestrator = find('orchestrator')
+    click(orchestrator.col + 1, orchestrator.row)
+    await until('the answer', () => shown('The build is green.'))
+    expect(tabs()).not.toContain('•')
+    // And leaving it again with nothing new is nothing to come back for.
+    const again = find('terminal 1')
+    click(again.col + 1, again.row)
+    await until('the terminal in front again', () => shown('the-shell-is-here'))
+    expect(tabs()).not.toContain('•')
+  })
+})
+
+describe('the frame the window owes', () => {
+  function windowOver(state: { now: AppState }, now: { at: number }): Window {
+    const wire = {
+      opts: { config: ConfigSchema.parse({}), home: '/tmp/tade-home' },
+      get state() {
+        return state.now
+      },
+      now: () => now.at,
+    } as unknown as Wiring
+    return new Window(wire, { setTitle: () => {}, stop: async () => {} })
+  }
+
+  it('is one when a flash runs out, and none while it is still up', () => {
+    const now = { at: 10_000 }
+    const state = { now: acknowledge(initialState(), 'copied ~/README.md', 10_000) }
+    const window = windowOver(state, now)
+    expect(window.facts().flash).toBe('copied ~/README.md')
+    expect(window.turned()).toBe(false)
+    now.at += FLASH_MS
+    expect(window.turned()).toBe(true)
+    expect(window.facts().flash).toBeNull()
+    expect(window.turned()).toBe(false)
+  })
+
+  it('reads the conversation as read only where a frame drew it in front', () => {
+    const now = { at: 10_000 }
+    const state = { now: { ...initialState(), bottom: 'app/terminals/1' } }
+    const window = windowOver(state, now)
+    const land = (text: string) => {
+      state.now = withTranscript(
+        state.now,
+        fromThinker(state.now.transcript, { type: 'message', text }, now.at),
+      )
+    }
+    land('The build is green.')
+    expect(window.facts().unread).toBe(true)
+    // Still unread on every frame until somebody goes to it.
+    expect(window.facts().unread).toBe(true)
+    state.now = { ...state.now, bottom: ORCHESTRATOR_TAB }
+    expect(window.facts().unread).toBe(false)
+    state.now = { ...state.now, bottom: 'app/terminals/1' }
+    expect(window.facts().unread).toBe(false)
+    land('And the deploy.')
+    expect(window.facts().unread).toBe(true)
   })
 })

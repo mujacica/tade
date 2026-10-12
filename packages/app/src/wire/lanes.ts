@@ -1,5 +1,6 @@
 import { chatTaskOf, HARNESS_CHOICES, isChatLane, type LaneId } from '@tade/core'
 import { openChat } from '@tade/workbench'
+import { acknowledge } from '../flash.ts'
 import type { Frame, LaneView } from '../frame.ts'
 import { halvesOf } from '../layout.ts'
 import {
@@ -7,7 +8,6 @@ import {
   activeTerminal,
   laneShown,
   noteTyping,
-  notice,
   setHeld,
   showTerminal,
 } from '../model.ts'
@@ -35,6 +35,7 @@ import {
 import {
   type Actions,
   type Menus,
+  notify,
   type Prompts,
   type Subject,
   type Wiring,
@@ -277,13 +278,17 @@ export class Lanes implements Subject {
         if (!panel.target) return
         await this.wire.opts.client.setTitle(panel.target as LaneId, text)
         await this.wire.live?.refresh()
-        this.wire.put(notice({ ...this.wire.state, panel: null }, `renamed to ${text}`))
+        this.wire.put(
+          acknowledge({ ...this.wire.state, panel: null }, `renamed to ${text}`, this.wire.now()),
+        )
       },
       'rename-terminal': async (panel, text) => {
         if (!panel.target) return
         await this.wire.opts.client.renameTerminal(panel.target, text)
         await this.wire.live?.refresh()
-        this.wire.put(notice({ ...this.wire.state, panel: null }, `renamed to ${text}`))
+        this.wire.put(
+          acknowledge({ ...this.wire.state, panel: null }, `renamed to ${text}`, this.wire.now()),
+        )
       },
       'run-command': async (panel, text) => {
         if (!panel.target) return
@@ -694,7 +699,7 @@ export class Lanes implements Subject {
       await this.showTerminal(opened.id)
       return opened.name
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
       this.wire.draw()
       return null
     }
@@ -704,9 +709,7 @@ export class Lanes implements Subject {
   async openTerminal(name: string | null = null, cwd?: string): Promise<string | null> {
     const project = this.wire.state.project
     if (!project) {
-      this.wire.put(
-        notice(this.wire.state, 'open a project first: a terminal starts in its folder'),
-      )
+      notify(this.wire, 'open a project first: a terminal starts in its folder')
       this.wire.draw()
       return null
     }
@@ -720,7 +723,7 @@ export class Lanes implements Subject {
       await this.showTerminal(opened.id)
       return opened.name
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
       this.wire.draw()
       return null
     }

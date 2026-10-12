@@ -49,7 +49,7 @@ export function renderStrip(
     left.text(tail, skin.chrome)
     bar = left.build().text
   } else {
-    const tabs = bottomTabs(state, width, skin, pointer, frame.now ?? 0)
+    const tabs = bottomTabs(state, width, skin, pointer, frame.now ?? 0, frame.unread === true)
     bar = tabs.text
     barHits = tabs.hits
   }

@@ -132,6 +132,8 @@ export interface Skin {
   toggle(on: boolean, state: SwitchState): string
   /** The microphone is open. */
   transmit(text: string): string
+  /** An acknowledgement, for a moment (`flash.ts`). Pass the spaces you want inside. */
+  flash(text: string): string
 
   /**
    * A list item as a tab: its row on a ground with a blank column either side,
@@ -578,6 +580,7 @@ export const PLAIN: Skin = {
   // and they take the two columns the paint does not need.
   toggle: (on) => (on ? '[   ███] on ' : '[███   ] off'),
   transmit: identity,
+  flash: identity,
   // Without colour the one you are on is marked the way focus is marked everywhere else.
   item: (row, band) => (band === 'selected' ? `▌${row} ` : ` ${row} `),
   marker: () => '▌',
@@ -692,6 +695,8 @@ export const COLOUR: Skin = {
   // The microphone open, said on the red: dark letters, because that is what
   // the red carries. White on it is 3:1 and was the worst-read thing drawn.
   transmit: paint(`${bg(TONE.red)}${fg(inkOn(TONE.red))}${BOLD}`),
+  // Done, said on the green the way the microphone is said on the red.
+  flash: paint(`${bg(TONE.green)}${fg(inkOn(TONE.green))}`),
   item: (row, band) => {
     if (!band) return ` ${row} `
     const ground = TAB_GROUNDS[band]

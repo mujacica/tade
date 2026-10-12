@@ -25,11 +25,11 @@ import {
 import type { WorkflowHeld } from '../away-factory.ts'
 import type { Frame, IntakeOpenView } from '../frame.ts'
 import { inboxEmptyMeans, inboxEmptySays } from '../intake-view.ts'
-import { notice, withTranscript } from '../model.ts'
+import { withTranscript } from '../model.ts'
 import { type IntakePanel, intakePanel } from '../panels/intake/state.ts'
 import type { PanelInputs } from '../panels.ts'
 import { problem, tadeDid } from '../transcript.ts'
-import { type Actions, type Subject, type Submits, type Wiring, why } from './context.ts'
+import { type Actions, notify, type Subject, type Submits, type Wiring, why } from './context.ts'
 import { sayDue } from './intake-reply.ts'
 import { type FactoryHeld, nothingHandedOver } from './web-beat.ts'
 import {
@@ -560,7 +560,7 @@ export class Intake implements Subject {
       await this.read(panel.item)
     } catch (err) {
       this.said(panel.item, null, why(err))
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }

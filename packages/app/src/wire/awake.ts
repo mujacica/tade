@@ -8,8 +8,7 @@ import {
   stringEnv,
 } from '@tade/core'
 import type { Frame } from '../frame.ts'
-import { notice } from '../model.ts'
-import { type Actions, type Subject, type Wiring, why } from './context.ts'
+import { type Actions, notify, type Subject, type Wiring, why } from './context.ts'
 
 // Holding the machine awake while Tade is open, and the button that says so.
 //
@@ -200,7 +199,7 @@ export class Awake implements Subject {
   }
 
   private say(said: string): void {
-    this.wire.put(notice(this.wire.state, said))
+    notify(this.wire, said)
     this.wire.draw()
   }
 }

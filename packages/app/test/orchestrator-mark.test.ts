@@ -82,3 +82,30 @@ describe('the mark on the orchestrator’s own tab', () => {
     expect(new Set([0, 100, 200, 300].map(at)).size).toBe(4)
   })
 })
+
+describe('the mark for what landed in it while you were elsewhere', () => {
+  /** The tab row as drawn with the window's answer to whether there is anything unread. */
+  const tabsWith = (state: AppState, unread: boolean): string =>
+    plain(
+      draw(state, { width: 120, height: 30, screen: '', now: NOW, unread }).rows.find((row) =>
+        row.includes('orchestrator'),
+      ) ?? '',
+    )
+  const elsewhere = (state: AppState): AppState => ({ ...state, bottom: 'checkout/terminals/1' })
+
+  it('says so on the tab, in a shape no agent’s mark has', () => {
+    expect(tabsWith(elsewhere(quiet()), true)).toContain('orchestrator •')
+    expect(tabsWith(elsewhere(quiet()), false)).not.toContain('•')
+    for (const mark of ['working', 'idle', 'needs-you', 'failed', 'done', 'parked'] as const) {
+      expect(markGlyph(mark, NOW)).not.toBe('•')
+    }
+  })
+
+  it('gives way to the turning mark, in the same columns, so the tabs beside it stay put', () => {
+    const turning = tabsWith(elsewhere(working(quiet())), true)
+    expect(turning).toContain(`orchestrator ${markGlyph('working', NOW)}`)
+    expect(turning).not.toContain('•')
+    const done = tabsWith(elsewhere(quiet()), true)
+    expect(done.indexOf('tests')).toBe(turning.indexOf('tests'))
+  })
+})

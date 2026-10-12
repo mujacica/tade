@@ -7,6 +7,7 @@ import {
   fromTurn,
   interrupted,
   problem,
+  REPEAT_MS,
   said,
   suggest,
   TRANSCRIPT_MAX,
@@ -160,6 +161,34 @@ describe('the conversation', () => {
     let current = tadeDid(emptyTranscript(), 'opened tade/agent-1 where it left off', 0)
     current = tadeDid(current, 'opened tade/agent-1 where it left off', 1)
     expect(text(current)).toEqual(['● opened tade/agent-1 where it left off'])
+  })
+
+  it('says the same line again once it has gone unsaid for a while', () => {
+    // The second press on something that failed the same way, a while later:
+    // an answer, where it used to be nothing at all.
+    const once = tadeDid(emptyTranscript(), 'tmux is not installed', 0)
+    const again = tadeDid(once, 'tmux is not installed', REPEAT_MS)
+    expect(again.entries.filter((entry) => entry.kind === 'tade')).toHaveLength(2)
+    // And another line in between is no reason to say it sooner.
+    const between = tadeDid(said(once, 'Morning.', 1_000), 'tmux is not installed', 2_000)
+    expect(between.entries.filter((entry) => entry.kind === 'tade')).toHaveLength(1)
+  })
+
+  it('keeps a warning that goes on to one line, for as long as it goes on', () => {
+    // Every status beat, two seconds apart, for a minute: soon is counted from
+    // the last time it was said, kept or not, so it never gets old enough.
+    let current = emptyTranscript()
+    for (let at = 0; at <= 60_000; at += 2_000) current = tadeDid(current, 'status cannot say', at)
+    expect(current.entries).toHaveLength(1)
+    // Dropped is dropped: the line on screen is the one that was there.
+    expect(current.entries[0]?.at).toBe(0)
+  })
+
+  it('remembers only the lines saying again would still drop', () => {
+    let current = emptyTranscript()
+    for (let i = 0; i < 50; i++) current = tadeDid(current, `line ${i}`, i * 1_000)
+    expect(Object.keys(current.heard).length).toBeLessThanOrEqual(REPEAT_MS / 1_000)
+    expect(current.heard['line 49']).toBe(49_000)
   })
 
   it('offers a suggestion as something to click', () => {

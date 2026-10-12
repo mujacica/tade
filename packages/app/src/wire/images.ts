@@ -16,7 +16,6 @@ import {
   activeTerminal,
   focusTask,
   leaveLine,
-  notice,
   ORCHESTRATOR_TAB,
   openLine,
   removeAttachment,
@@ -26,6 +25,7 @@ import { imageMenuItems, type MenuItem, menuPanel } from '../panels/menu/state.t
 import {
   type Actions,
   type Menus,
+  notify,
   type Subject,
   type Wiring,
   type WorkerImageFile,
@@ -164,7 +164,7 @@ export class Images implements Subject {
     if (kind === 'agent') {
       const pane = this.wire.state.panes.find((one) => one.task === id)
       if (!pane?.lane) {
-        this.wire.put(notice(this.wire.state, `open ${pane ? shownName(pane) : id}'s agent first`))
+        notify(this.wire, `open ${pane ? shownName(pane) : id}'s agent first`)
         this.wire.draw()
         return
       }
@@ -173,12 +173,12 @@ export class Images implements Subject {
       this.wire.put({ ...leaveLine(focusTask(this.wire.state, id)), keyboard: 'pane' })
       await this.wire.opts.client
         .write(pane.lane as LaneId, asPaste(paths.join(' ')))
-        .catch((err) => this.wire.put(notice(this.wire.state, why(err))))
+        .catch((err) => notify(this.wire, why(err)))
     } else if (kind === 'terminal') {
       this.wire.put({ ...leaveLine(this.wire.state), bottom: id, keyboard: 'terminal' })
       await this.wire.opts.client
         .write(id as LaneId, paths.map(shellQuote).join(' '))
-        .catch((err) => this.wire.put(notice(this.wire.state, why(err))))
+        .catch((err) => notify(this.wire, why(err)))
     }
     this.deps.soonTick()
     this.wire.draw()
@@ -211,7 +211,7 @@ export class Images implements Subject {
       this.attach([path])
       return
     }
-    this.wire.put(notice(this.wire.state, 'no picture on the clipboard — ⌘V pastes text'))
+    notify(this.wire, 'no picture on the clipboard — ⌘V pastes text')
     this.wire.draw()
   }
 

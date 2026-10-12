@@ -655,7 +655,7 @@ describe('the orchestrator strip', () => {
   })
 
   it('shows the latest news', () => {
-    expect(renderApp(notice(state(), 'refunds needs you'), frame()).join('\n')).toContain(
+    expect(renderApp(notice(state(), 'refunds needs you', 0), frame()).join('\n')).toContain(
       'refunds needs you',
     )
   })

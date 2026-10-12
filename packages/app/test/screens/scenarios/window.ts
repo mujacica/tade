@@ -271,6 +271,24 @@ export const WINDOW_SCREENS: Scenario[] = [
     }),
   },
   {
+    name: 'a-press-answered',
+    about:
+      'A press that worked, said for a moment in the rule over the foot, and the orchestrator ' +
+      'answering behind a terminal: a mark on its tab where its turning mark goes.',
+    state: {
+      ...withTerminals(base(), [
+        { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+      ]),
+      bottom: 'checkout/terminals/1',
+      keyboard: 'terminal',
+    },
+    frame: frame({
+      flash: 'copied ~/src/checkout/src/webhooks.ts',
+      unread: true,
+      terminal: { screen: '~/src/checkout (main) $ ' },
+    }),
+  },
+  {
     name: 'reading-back-a-terminal',
     about:
       'A terminal scrolled back through what it printed: the bar on the right says how far back, and the foot of it offers the newest line again.',

@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { conversationShown, flashing, unreadSince } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import {
   asRemembered,
@@ -22,7 +23,7 @@ import {
 } from '../model.ts'
 import { narrowing } from '../queue-view.ts'
 import { windowTitle } from '../title.ts'
-import { onATurn } from '../transcript.ts'
+import { type Entry, onATurn } from '../transcript.ts'
 import { type Actions, clockOf, type Subject, tilde, type Wiring, whenShort } from './context.ts'
 
 // The window as a window: how big its regions are, what it says in the
@@ -64,6 +65,10 @@ export class Window implements Subject {
   private grown: number | null = null
   /** Whether the frame on screen was drawn with it grown: a hold running out is a frame owed. */
   private drawnGrown = false
+  /** The flash the frame on screen was drawn with: one running out is a frame owed too. */
+  private drawnFlash: string | null = null
+  /** The newest line of the conversation a frame drew where it could be read (`unreadSince`). */
+  private seen: Entry | null = null
   /**
    * How a moment is said, made again only when the day changes — the one thing
    * about now that `whenShort` reads. A new one every frame was a field no
@@ -90,6 +95,11 @@ export class Window implements Subject {
     this.drawnAt = now
     const layout = this.layout()
     this.drawnGrown = layout.grow === true
+    const state = this.wire.state
+    const flash = flashing(state, now)
+    this.drawnFlash = flash
+    const unread = unreadSince(state, this.seen)
+    if (conversationShown(state)) this.seen = state.transcript.entries.at(-1) ?? null
     return {
       layout,
       home: tilde(this.wire.opts.home),
@@ -98,6 +108,8 @@ export class Window implements Subject {
       clock: this.clockOn(now),
       date: this.date,
       looking: this.wire.live?.hasLooked !== true,
+      flash,
+      unread,
     }
   }
 
@@ -333,12 +345,13 @@ export class Window implements Subject {
    * Whether a look that read nothing new is still worth a frame: something on
    * screen turns, and has turned since the frame on screen was drawn
    * (`turnedSince`) — ten frames a second at most, which is what a spinner
-   * moves — or the bottom panel's hold on its room ran out since.
+   * moves — or the bottom panel's hold on its room, or a flash, ran out since.
    */
   turned(): boolean {
     return (
       turnedSince(this.wire.state, this.drawnAt, this.wire.now()) ||
-      this.growing() !== this.drawnGrown
+      this.growing() !== this.drawnGrown ||
+      flashing(this.wire.state, this.wire.now()) !== this.drawnFlash
     )
   }
 

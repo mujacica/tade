@@ -1,5 +1,5 @@
 import { matchActions, parseCommand } from '../commands.ts'
-import { focusTask, notice } from '../model.ts'
+import { focusTask } from '../model.ts'
 import type { ExtensionViewPanel } from '../panels/extensions/setup.ts'
 import { type MenuSubject, menuPanel } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
@@ -9,6 +9,7 @@ import type { Panel, PanelInputs } from '../panels.ts'
 import {
   type Actions,
   menuOf,
+  notify,
   type Pressed,
   type Prompts,
   promptFailed,
@@ -104,12 +105,12 @@ export class Router {
     const { name, rest } = parseCommand(said)
     const [chosen] = matchActions(this.wire.state, name)
     if (!chosen) {
-      this.wire.put(notice(this.wire.state, `no command like ${said}`))
+      notify(this.wire, `no command like ${said}`)
       this.wire.draw()
       return
     }
     if (!chosen.ready) {
-      this.wire.put(notice(this.wire.state, chosen.about))
+      notify(this.wire, chosen.about)
       this.wire.draw()
       return
     }
@@ -224,7 +225,7 @@ export class Router {
     return {
       '/quit': () => void this.deps.stop(),
       '/help': () => {
-        this.wire.put(notice(this.wire.state, HELP))
+        notify(this.wire, HELP)
         this.wire.draw()
       },
     }

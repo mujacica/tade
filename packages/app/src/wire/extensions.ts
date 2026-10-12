@@ -9,7 +9,7 @@ import {
 } from '@tade/extensions-core'
 import type { Frame } from '../frame.ts'
 import type { Linker } from '../links.ts'
-import { type AppState, notice, ORCHESTRATOR_TAB, openSchedule, withTranscript } from '../model.ts'
+import { type AppState, ORCHESTRATOR_TAB, openSchedule, withTranscript } from '../model.ts'
 import type { PanelContext } from '../panels/context.ts'
 import {
   type ExtensionSetupPanel,
@@ -766,14 +766,14 @@ export class Extensions implements Subject {
     const host = this.wire.opts.extensions
     const found = host?.actions().find((one) => one.extension.name === name && one.action.id === id)
     if (!host || !found) {
-      this.wire.put(notice(this.wire.state, `no extension action ${name}:${id}`))
+      this.wire.note(`no extension action ${name}:${id}`)
       this.wire.draw()
       return
     }
     const { action } = found
     const project = this.wire.state.project
     if (action.project && !project) {
-      this.wire.put(notice(this.wire.state, 'open a project first: this works on one'))
+      this.wire.note('open a project first: this works on one')
       this.wire.draw()
       return
     }

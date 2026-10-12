@@ -80,6 +80,11 @@ export interface Transcript {
    * so it is never read against a turn it was not about.
    */
   stopped: boolean
+  /**
+   * When each of Tade's own lines was last said, kept or not, for as long as
+   * saying it again would be dropped (`tadeDid`).
+   */
+  heard: Record<string, number>
 }
 
 /** Enough to scroll back through a morning; older entries fall off the top. */
@@ -106,7 +111,7 @@ export function onATurn(transcript: Transcript): boolean {
 }
 
 export function emptyTranscript(): Transcript {
-  return { entries: [], thinking: null, stopped: false }
+  return { entries: [], thinking: null, stopped: false, heard: {} }
 }
 
 function push(transcript: Transcript, entry: Entry): Transcript {
@@ -345,13 +350,30 @@ export function said(transcript: Transcript, text: string, at: number): Transcri
 }
 
 /**
- * Something Tade did or noticed, as a line of its own. The same line said
- * again soon after — a warning every poll — is not said twice.
+ * How long a line of Tade's own has to have gone unsaid before saying it again
+ * is a second line: past a status beat or two, short of anybody pressing the
+ * same thing again to see whether it worked.
+ */
+export const REPEAT_MS = 5_000
+
+/**
+ * Something Tade did or noticed, as a line of its own.
+ *
+ * The same line said again soon after — a warning every poll — is not said
+ * twice, and *soon* is counted from the last time it was said, kept or not, so
+ * a warning that goes on is one line for as long as it goes on. It used to be
+ * any of the last twelve lines, however old: the second click on something
+ * that failed the same way a minute later said nothing at all, and a click
+ * with no answer reads as one that did not land.
  */
 export function tadeDid(transcript: Transcript, text: string, at: number): Transcript {
-  const recent = transcript.entries.slice(-12)
-  if (recent.some((entry) => entry.kind === 'tade' && entry.text === text)) return transcript
-  return push(transcript, { kind: 'tade', text, at })
+  const last = transcript.heard[text]
+  const heard: Record<string, number> = { [text]: at }
+  for (const [said, when] of Object.entries(transcript.heard)) {
+    if (said !== text && at - when < REPEAT_MS) heard[said] = when
+  }
+  if (last !== undefined && at - last < REPEAT_MS) return { ...transcript, heard }
+  return push({ ...transcript, heard }, { kind: 'tade', text, at })
 }
 
 /**

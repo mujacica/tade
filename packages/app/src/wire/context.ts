@@ -10,6 +10,7 @@ import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
 import type { Open } from '../editor.ts'
+import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import type { clipboardImage, WatchClipboard } from '../images.ts'
 import type { LayoutPrefs } from '../layout.ts'
@@ -124,7 +125,7 @@ export function wiringFor(
     layout: () => window.layout(),
     openedAt: opts.now?.() ?? Date.now(),
     draw: () => window.draw(),
-    note: (err) => window.put(notice(window.state(), why(err))),
+    note: (err) => window.put(notice(window.state(), why(err), window.now())),
     outbox,
   }
 }
@@ -339,8 +340,8 @@ export interface Wiring {
   /** Ask for a frame. */
   draw(): void
   /**
-   * Say what went wrong in the strip: the `notice(state, why(err))` pattern,
-   * written once. It does not draw — most callers are mid-flow and draw at the
+   * Say what went wrong in the conversation: the `notice(state, why(err), now)`
+   * pattern, written once. It does not draw — most callers are mid-flow and draw at the
    * end — so a caller that is finished asks for the frame itself.
    */
   note(err: unknown): void
@@ -452,6 +453,22 @@ export function menuOf(subjects: readonly Subject[], kind: MenuSubject['kind']):
   return null
 }
 
+/**
+ * Say something in the conversation: `notice`, with the window's clock. Like
+ * `note`, it does not draw.
+ */
+export function notify(wire: Wiring, text: string | null): void {
+  wire.put(notice(wire.state, text, wire.now()))
+}
+
+/**
+ * Say that a press did what it was asked, for a moment, where you are looking
+ * (`acknowledge`) — never what went wrong, which is `notify`'s. It does not draw.
+ */
+export function flash(wire: Wiring, text: string): void {
+  wire.put(acknowledge(wire.state, text, wire.now()))
+}
+
 /** A path the way you would type it. */
 export function tilde(path: string): string {
   const home = process.env.HOME
@@ -471,7 +488,8 @@ export async function copySaying(
   write: (data: string) => void,
 ): Promise<void> {
   const copied = await copyText(text, write)
-  wire.put(notice(wire.state, copied ? `copied ${text}` : text))
+  if (copied) flash(wire, `copied ${text}`)
+  else notify(wire, text)
   wire.draw()
 }
 
@@ -483,14 +501,8 @@ export async function copySpanSaying(
 ): Promise<void> {
   const copied = await copyText(text, write)
   const lines = text.split('\n').length
-  wire.put(
-    notice(
-      wire.state,
-      copied
-        ? `copied ${lines > 1 ? `${lines} lines` : `${text.length} characters`}`
-        : 'could not copy',
-    ),
-  )
+  if (copied) flash(wire, `copied ${lines > 1 ? `${lines} lines` : `${text.length} characters`}`)
+  else notify(wire, 'could not copy')
   wire.draw()
 }
 

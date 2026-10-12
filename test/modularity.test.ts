@@ -390,6 +390,7 @@ const PURE = [
   'packages/web/src/stream.ts',
   'packages/web/src/surface.ts',
   'packages/app/src/commands.ts',
+  'packages/app/src/flash.ts',
   'packages/app/src/frame.ts',
   'packages/app/src/reality.ts',
   'packages/app/src/happening.ts',

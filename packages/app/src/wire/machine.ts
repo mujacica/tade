@@ -2,12 +2,11 @@ import { HARNESS_CHOICES } from '@tade/core'
 import type { AccountView } from '@tade/workbench'
 import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
 import type { Frame } from '../frame.ts'
-import { notice } from '../model.ts'
 import { accountActions } from '../panels/settings/accounts.ts'
 import { ACCOUNTS, settingsPanel, updateActions } from '../panels/settings/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import type { Ui } from '../screen.ts'
-import { type Actions, type Prompts, type Subject, type Wiring, why } from './context.ts'
+import { type Actions, notify, type Prompts, type Subject, type Wiring, why } from './context.ts'
 
 // What Tade needs of the machine, and who it runs as: the programs installed
 // here, what is current, and each harness's own accounts.
@@ -259,7 +258,7 @@ export class Machine implements Subject {
       this.wire.state.project ?? Object.keys(this.wire.opts.config.projects)[0] ?? null
     if (!project) {
       // No project, no folder to open a shell in. The command is the answer.
-      this.wire.put(notice(this.wire.state, `Run it yourself: ${command}`))
+      notify(this.wire, `Run it yourself: ${command}`)
       this.wire.draw()
       return
     }

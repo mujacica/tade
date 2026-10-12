@@ -11,6 +11,7 @@ import {
   titlesOf,
   writeSetting,
 } from '@tade/core'
+import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import {
   moveProject,
@@ -233,14 +234,15 @@ export class Projects implements Subject {
         const project = panel.target
         try {
           const name = await this.renameTo(project, text)
-          // The short of it on the notice line, where a sentence does not fit.
+          // The short of it, for a moment, where a sentence does not fit.
           // What it did *not* move is still said in full where somebody is
           // reading rather than glancing: the tool's answer, and the setting's
           // own `means` on the page this rename is a shortcut to.
           this.wire.put(
-            notice(
+            acknowledge(
               { ...this.wire.state, panel: null },
               name === '' ? `${project} is ${project} again` : `${project} shows as ${name}`,
+              this.wire.now(),
             ),
           )
         } catch (err) {
@@ -610,7 +612,9 @@ export class Projects implements Subject {
     // Opened, and nothing started. A project with no agents lands on the empty
     // screen, which is a place rather than a gap; an agent comes from a task or
     // from somebody asking for one.
-    this.wire.put(notice(selectProject(this.wire.state, name), `opened ${name}`))
+    this.wire.put(
+      acknowledge(selectProject(this.wire.state, name), `opened ${name}`, this.wire.now()),
+    )
     await this.wire.live?.refresh()
     return `Opened ${name} at ${tilde(full)}${made ? ', a new git repository' : ''}.`
   }
@@ -769,6 +773,7 @@ export class Projects implements Subject {
       notice(
         elsewhere ? selectProject(state, elsewhere) : { ...state, project: null, focused: null },
         `closed ${name}${working.length > 0 ? ` · ${working.length === 1 ? 'an agent is' : `${working.length} agents are`} still working in it` : ''}`,
+        this.wire.now(),
       ),
     )
     await this.wire.live?.refresh()

@@ -577,6 +577,10 @@ export interface Frame {
   /** Text extensions know how to open, made clickable wherever it is shown. */
   linkers?: readonly Linker[]
   now?: number
+  /** The acknowledgement showing now (`flashing`), drawn in the rule over the foot. */
+  flash?: string | null
+  /** Something landed in the conversation while it was not in front (`unreadSince`). */
+  unread?: boolean
   /**
    * How a moment is said: `18:00`. The machine's own time unless given, which
    * the screens tests do, so a screen does not change with the time zone.

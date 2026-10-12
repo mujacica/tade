@@ -1,9 +1,10 @@
+import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
-import { notice } from '../model.ts'
 import { noteMenuItems } from '../panels/menu/state.ts'
 import { noteHeadlinePanel, notePanel, promptPanel } from '../panels/small/state.ts'
 import {
   type Actions,
+  flash,
   type Menus,
   type Prompts,
   promptFailed,
@@ -82,7 +83,7 @@ export class Notes implements Subject {
       note: (panel, text) => {
         const scope = panel.everywhere ? null : this.wire.state.project
         this.wire.opts.client.remember(text, scope, 'window')
-        this.wire.put(notice({ ...this.wire.state, panel: null }, 'noted'))
+        this.wire.put(acknowledge({ ...this.wire.state, panel: null }, 'noted', this.wire.now()))
       },
       'note-headline': (panel, text) => {
         const was = this.noteBehind(panel.target)
@@ -91,7 +92,7 @@ export class Notes implements Subject {
         // back: the words are handed over exactly as they were kept.
         this.wire.opts.client.remember(was.text, was.scope, 'window', text)
         this.wire.opts.client.forget({ at: was.at, text: was.text }, 'window')
-        this.wire.put(notice({ ...this.wire.state, panel: null }, 'noted'))
+        this.wire.put(acknowledge({ ...this.wire.state, panel: null }, 'noted', this.wire.now()))
       },
       'edit-note': async (panel, text, choice) => {
         // A note's page offers what its menu does, and each does exactly the
@@ -120,7 +121,7 @@ export class Notes implements Subject {
           this.wire.opts.client.remember(text, was.scope, 'window', was.summary ?? null)
           this.wire.opts.client.forget({ at: was.at, text: was.text }, 'window')
         }
-        this.wire.put(notice({ ...this.wire.state, panel: null }, 'noted'))
+        this.wire.put(acknowledge({ ...this.wire.state, panel: null }, 'noted', this.wire.now()))
       },
     }
   }
@@ -174,9 +175,7 @@ export class Notes implements Subject {
   /** Take a note back. It is not recalled again, by anyone, after a restart too. */
   forget(note: Note): void {
     const forgot = this.wire.opts.client.forget(note, 'window')
-    this.wire.put(
-      notice(this.wire.state, forgot ? 'forgot that note' : 'that note was already forgotten'),
-    )
+    flash(this.wire, forgot ? 'forgot that note' : 'that note was already forgotten')
     this.wire.draw()
   }
 }

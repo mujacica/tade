@@ -19,8 +19,9 @@ import {
 } from '@tade/core'
 import { type ExtensionHost, type Finding, troubleOf, troubleUntil } from '@tade/extensions-core'
 import { readEverMade } from '@tade/workbench/schedules'
+import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
-import { notice, openSchedule, type ScheduleView, withTranscript } from '../model.ts'
+import { openSchedule, type ScheduleView, withTranscript } from '../model.ts'
 import { scheduleMenuItems } from '../panels/menu/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import { foundMessage, scheduleView, scheduleViews, watchesListed } from '../queue.ts'
@@ -29,6 +30,7 @@ import { problem, tadeDid } from '../transcript.ts'
 import {
   type Actions,
   type Menus,
+  notify,
   type Prompts,
   type Subject,
   saidLately,
@@ -173,7 +175,11 @@ export class Schedules implements Subject {
           by: 'you',
         })
         this.wire.put(
-          notice({ ...this.wire.state, panel: null }, `now called ${kept?.name ?? text}`),
+          acknowledge(
+            { ...this.wire.state, panel: null },
+            `now called ${kept?.name ?? text}`,
+            this.wire.now(),
+          ),
         )
       },
     }
@@ -211,7 +217,7 @@ export class Schedules implements Subject {
         }
         const said =
           change === 'remove' ? 'is removed' : change === 'pause' ? 'is paused' : 'is back on'
-        this.wire.put(notice(this.wire.state, `${id} ${said}`))
+        notify(this.wire, `${id} ${said}`)
       }
     } catch (err) {
       this.wire.note(err)
@@ -547,7 +553,7 @@ export class Schedules implements Subject {
     if (acting.length === 0) {
       const said = `${one.name} looked: ${looked.found.length === 0 ? 'found nothing' : 'nothing new'}`
       if (asked) {
-        this.wire.put(notice(this.wire.state, said))
+        notify(this.wire, said)
         this.wire.draw()
       }
       return said

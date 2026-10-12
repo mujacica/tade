@@ -29,6 +29,7 @@ import {
   type Actions,
   configPathOf,
   type Menus,
+  notify,
   type Pressed,
   type Subject,
   type Submits,
@@ -389,14 +390,12 @@ export class Routes implements Subject {
       const chosen = await this.wire.opts.client.setAgentThinking(task, level)
       const loaded = await loadConfig(configPathOf(this.wire.opts))
       if (loaded.ok) this.deps.useConfig(loaded.config)
-      this.wire.put(
-        notice(
-          this.wire.state,
-          `${task} thinks at ${chosen} from its next turn, and new agents start there`,
-        ),
+      notify(
+        this.wire,
+        `${task} thinks at ${chosen} from its next turn, and new agents start there`,
       )
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }
@@ -453,7 +452,7 @@ export class Routes implements Subject {
   async chooseAccount(task: string, account: string): Promise<void> {
     const worktree = this.wire.live?.worktreeOf(task)
     if (!worktree) {
-      this.wire.put(notice(this.wire.state, `I cannot find where ${task} works`))
+      notify(this.wire, `I cannot find where ${task} works`)
       this.wire.draw()
       return
     }
@@ -464,14 +463,12 @@ export class Routes implements Subject {
         account: account || null,
       })
       const as = done.account ?? 'its own sign-in'
-      this.wire.put(
-        notice(
-          this.wire.state,
-          `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}`,
-        ),
+      notify(
+        this.wire,
+        `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}`,
       )
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     await this.deps.loadAccounts()
     this.wire.draw()
@@ -481,21 +478,19 @@ export class Routes implements Subject {
   async chooseHarness(task: string, harness: string): Promise<void> {
     const worktree = this.wire.live?.worktreeOf(task)
     if (!worktree) {
-      this.wire.put(notice(this.wire.state, `I cannot find where ${task} works`))
+      notify(this.wire, `I cannot find where ${task} works`)
       this.wire.draw()
       return
     }
     try {
       const done = await this.wire.opts.client.setAgentHarness({ task, worktree, harness })
       await this.learnHarness(task)
-      this.wire.put(
-        notice(
-          this.wire.state,
-          `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}`,
-        ),
+      notify(
+        this.wire,
+        `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}`,
       )
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     await this.wire.live?.refresh()
     this.wire.draw()
@@ -565,9 +560,7 @@ export class Routes implements Subject {
         const loaded = await loadConfig(configPathOf(this.wire.opts))
         if (loaded.ok) this.deps.useConfig(loaded.config)
         this.wire.put({ ...this.wire.state, panel: null })
-        this.wire.put(
-          notice(this.wire.state, `the orchestrator is moving to ${chosen.model ?? id}`),
-        )
+        notify(this.wire, `the orchestrator is moving to ${chosen.model ?? id}`)
         this.wire.draw()
         await this.wire.opts.restartThinker?.()
       } else {
@@ -579,6 +572,7 @@ export class Routes implements Subject {
           notice(
             { ...this.wire.state, panel: null },
             `${panel.for} is switching to ${chosen.id}, and new agents start on it`,
+            this.wire.now(),
           ),
         )
       }

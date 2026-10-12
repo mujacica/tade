@@ -3,8 +3,8 @@ import { checksFor } from '@tade/core'
 import type { ListSection } from '@tade/extensions-core'
 import type { ActionsView, Frame } from '../frame.ts'
 import type { Live } from '../live.ts'
-import { notice, ORCHESTRATOR_TAB, showingActions } from '../model.ts'
-import type { Actions, Subject, Wiring } from './context.ts'
+import { ORCHESTRATOR_TAB, showingActions } from '../model.ts'
+import { type Actions, flash, notify, type Subject, type Wiring } from './context.ts'
 
 // A check that nobody ran is not a check that passed, and this is the window's
 // end of that: the button that runs a task's own checks, and the tail of what
@@ -133,16 +133,14 @@ export class Checks implements Subject {
   async run(task: string): Promise<void> {
     if (this.running.has(task)) {
       /* the same press twice: the first one is still going */
-      this.wire.put(notice(this.wire.state, `${task} is already running its checks`))
+      notify(this.wire, `${task} is already running its checks`)
       this.wire.draw()
       return
     }
     const host = this.wire.opts.extensions
     const project = task.split('/')[0] ?? task
     if (!host) {
-      this.wire.put(
-        notice(this.wire.state, 'no extensions are loaded, so nothing can run them here'),
-      )
+      notify(this.wire, 'no extensions are loaded, so nothing can run them here')
       this.wire.draw()
       return
     }
@@ -203,12 +201,7 @@ export class Checks implements Subject {
         next,
         chosen[check] === undefined ? '' : String(chosen[check]),
       )
-      this.wire.put(
-        notice(
-          this.wire.state,
-          runs ? `${check} will not run here` : `${check} will run here from now on`,
-        ),
-      )
+      flash(this.wire, runs ? `${check} will not run here` : `${check} will run here from now on`)
       // The page is a query, so it says the new answer on its next look — and
       // a page somebody is watching has to move within the second.
       live?.hurryUp(task)

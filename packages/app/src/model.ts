@@ -178,8 +178,10 @@ export interface AppState {
    * line addressed to Tade. Shown, so they are never simply missing.
    */
   held: string | null
-  /** One line of transient news for the footer. */
+  /** What Tade last said about something it did: in the conversation (`notice`) or a flash. */
   notice: string | null
+  /** An acknowledgement, drawn for a moment where you are looking (`acknowledge`, `flash.ts`). */
+  flash: { text: string; at: number } | null
   /**
    * You have moved focus yourself, so nothing may move it for you again. Until
    * then the first task is a better opening view than an empty pane.
@@ -350,6 +352,7 @@ export function initialState(): AppState {
     historySearch: null,
     held: null,
     notice: null,
+    flash: null,
     chose: false,
     hover: null,
     pressed: null,
@@ -1612,11 +1615,12 @@ export function setHeld(state: AppState, held: string | null): AppState {
 
 /**
  * Something Tade did or noticed, said in the conversation — where it stays,
- * rather than on a line the next one overwrote before it was read.
+ * rather than on a line the next one overwrote before it was read. What only
+ * says a press was done is `acknowledge`'s.
  */
-export function notice(state: AppState, notice: string | null): AppState {
+export function notice(state: AppState, notice: string | null, at: number): AppState {
   if (notice === null) return { ...state, notice }
-  return { ...state, notice, transcript: tadeDid(state.transcript, notice, 0) }
+  return { ...state, notice, transcript: tadeDid(state.transcript, notice, at) }
 }
 
 /**

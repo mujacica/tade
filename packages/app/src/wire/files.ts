@@ -10,8 +10,9 @@ import {
   openerForLink,
   openerForReveal,
 } from '../editor.ts'
+import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
-import { focusTask, notice, shownName, toggleFolder, viewLane } from '../model.ts'
+import { focusTask, shownName, toggleFolder, viewLane } from '../model.ts'
 import { type FilePanel, filePanel, savedFile, showsDiff } from '../panels/file/state.ts'
 import { fileBodySize } from '../panels/file/view.ts'
 import { branchMenuItems, changeMenuItems, fileMenuItems } from '../panels/menu/state.ts'
@@ -22,7 +23,9 @@ import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
 import {
   type Actions,
+  flash,
   type Menus,
+  notify,
   type Prompts,
   promptFailed,
   type Subject,
@@ -241,7 +244,9 @@ export class Files implements Subject {
             panel,
             out.stderr.split('\n')[0] ?? 'git would not make it',
           )
-        this.wire.put(notice({ ...this.wire.state, panel: null }, `on ${text}`))
+        this.wire.put(
+          acknowledge({ ...this.wire.state, panel: null }, `on ${text}`, this.wire.now()),
+        )
       },
       'rename-branch': async (panel, text) => {
         const here = this.hereOnDisk()
@@ -264,7 +269,9 @@ export class Files implements Subject {
             worktree: here,
             title: text,
           })
-          this.wire.put(notice({ ...this.wire.state, panel: null }, `on ${made}`))
+          this.wire.put(
+            acknowledge({ ...this.wire.state, panel: null }, `on ${made}`, this.wire.now()),
+          )
         } else {
           const name = text.startsWith('tade/') ? text : `tade/${text}`
           const out = await git(here, ['branch', '-m', current, name])
@@ -274,7 +281,9 @@ export class Files implements Subject {
               panel,
               out.stderr.split('\n')[0] ?? 'git would not rename it',
             )
-          this.wire.put(notice({ ...this.wire.state, panel: null }, `renamed to ${name}`))
+          this.wire.put(
+            acknowledge({ ...this.wire.state, panel: null }, `renamed to ${name}`, this.wire.now()),
+          )
         }
         await this.wire.live?.refresh()
       },
@@ -333,11 +342,9 @@ export class Files implements Subject {
     }
     try {
       await this.open(opener)
-      this.wire.put(
-        notice(this.wire.state, `opened ${where} in ${editor === 'system' ? 'its app' : editor}`),
-      )
+      flash(this.wire, `opened ${where} in ${editor === 'system' ? 'its app' : editor}`)
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }
@@ -420,9 +427,9 @@ export class Files implements Subject {
     try {
       const opener = openerForLink(url)
       if (opener.kind === 'detached') await this.open(opener)
-      this.wire.put(notice(this.wire.state, `opened ${url}`))
+      flash(this.wire, `opened ${url}`)
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }
@@ -434,7 +441,7 @@ export class Files implements Subject {
     const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
     const worktree = pane ? this.wire.live?.worktreeOf(pane.task) : null
     if (!pane || !worktree) {
-      this.wire.put(notice(this.wire.state, 'open an agent first: a shell starts in its worktree'))
+      notify(this.wire, 'open an agent first: a shell starts in its worktree')
       this.wire.draw()
       return
     }
@@ -457,7 +464,7 @@ export class Files implements Subject {
       await this.wire.live?.refresh()
       this.wire.put(viewLane(this.wire.state, pane.task, id))
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }
@@ -571,14 +578,8 @@ export class Files implements Subject {
       case 'pull': {
         if (!here) break
         const out = await git(here, ['pull', '--ff-only'], 60_000)
-        this.wire.put(
-          notice(
-            this.wire.state,
-            out.ok
-              ? `pulled ${branch || 'the branch'}`
-              : `pull failed: ${out.stderr.split('\n')[0]}`,
-          ),
-        )
+        if (out.ok) flash(this.wire, `pulled ${branch || 'the branch'}`)
+        else notify(this.wire, `pull failed: ${out.stderr.split('\n')[0]}`)
         break
       }
       case 'copy':
@@ -591,10 +592,7 @@ export class Files implements Subject {
         if (!focused) break
         const first = this.wire.live?.changes(focused.task)[0]
         if (first) await this.openChange(focused.task, first.path)
-        else
-          this.wire.put(
-            notice(this.wire.state, `${shownName(focused)} has not changed anything yet`),
-          )
+        else notify(this.wire, `${shownName(focused)} has not changed anything yet`)
         break
       }
       default:
@@ -607,7 +605,7 @@ export class Files implements Subject {
     try {
       await this.open(openerForReveal(path, folder))
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
       this.wire.draw()
     }
   }
@@ -631,7 +629,7 @@ export class Files implements Subject {
       })
       return
     }
-    this.wire.put(notice({ ...this.wire.state, panel: null }, `on ${name}`))
+    this.wire.put(acknowledge({ ...this.wire.state, panel: null }, `on ${name}`, this.wire.now()))
     await this.wire.live?.refresh()
   }
 
@@ -652,7 +650,9 @@ export class Files implements Subject {
       })
       return
     }
-    this.wire.put(notice({ ...this.wire.state, panel: null }, `discarded ${path}`))
+    this.wire.put(
+      acknowledge({ ...this.wire.state, panel: null }, `discarded ${path}`, this.wire.now()),
+    )
   }
   /**
    * A changed file, opened in the editor with git's answer drawn into it: the
@@ -725,7 +725,7 @@ export class Files implements Subject {
     const pane = this.wire.state.panes.find((p) => p.task === task)
     this.wire.put({ ...focusTask(this.wire.state, task), panel: null })
     if (!pane?.lane) {
-      this.wire.put(notice(this.wire.state, `open ${task}'s agent first, then ask`))
+      notify(this.wire, `open ${task}'s agent first, then ask`)
       return
     }
     this.wire.put(viewLane(this.wire.state, task, pane.lane))

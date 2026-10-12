@@ -56,6 +56,7 @@ import {
   type Actions,
   clockOf,
   configPathOf,
+  notify,
   type Subject,
   type Thinker,
   type Wiring,
@@ -250,7 +251,7 @@ export class Orchestrator implements Subject {
    */
   attach(thinker: Thinker): void {
     this.use(thinker)
-    this.wire.put(notice(this.wire.state, 'orchestrator ready'))
+    notify(this.wire, 'orchestrator ready')
     this.wire.draw()
   }
 
@@ -292,9 +293,7 @@ export class Orchestrator implements Subject {
    */
   movedTo(model: { provider: string; id: string }): void {
     this.saveModel(model)
-    this.wire.put(
-      notice(this.wire.state, `the orchestrator is now on ${model.provider}/${model.id}`),
-    )
+    notify(this.wire, `the orchestrator is now on ${model.provider}/${model.id}`)
     this.wire.draw()
   }
 
@@ -331,7 +330,7 @@ export class Orchestrator implements Subject {
         ),
       ),
     )
-    this.wire.put(notice(this.wire.state, null))
+    notify(this.wire, null)
     this.wire.draw()
   }
   /** Borrow the terminal for a flow on the shared screen, then put the window back. */
@@ -343,7 +342,7 @@ export class Orchestrator implements Subject {
       await runScreen({ title: 'Tade', terminal: this.deps.terminal }, flow)
     } catch (err) {
       if (!(err instanceof ScreenCancelled)) {
-        this.wire.put(notice(this.wire.state, why(err)))
+        notify(this.wire, why(err))
       }
     } finally {
       this.borrowing = false
@@ -360,7 +359,7 @@ export class Orchestrator implements Subject {
   async chooseThinking(level: string): Promise<void> {
     const chosen = THINKING_LEVELS.find((one) => one === level.trim().toLowerCase())
     if (!chosen) {
-      this.wire.put(notice(this.wire.state, `${level} is not a thinking level`))
+      notify(this.wire, `${level} is not a thinking level`)
       this.wire.draw()
       return
     }
@@ -369,18 +368,16 @@ export class Orchestrator implements Subject {
       const loaded = await loadConfig(configPathOf(this.wire.opts))
       if (loaded.ok) this.deps.useConfig(loaded.config)
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
       this.wire.draw()
       return
     }
     const trouble = await this.tellThinking(chosen)
-    this.wire.put(
-      notice(
-        this.wire.state,
-        trouble
-          ? `the orchestrator will think at ${chosen} when it next starts: ${trouble}`
-          : `the orchestrator thinks at ${chosen} from its next reply, and starts there`,
-      ),
+    notify(
+      this.wire,
+      trouble
+        ? `the orchestrator will think at ${chosen} when it next starts: ${trouble}`
+        : `the orchestrator thinks at ${chosen} from its next reply, and starts there`,
     )
     this.wire.draw()
   }
@@ -417,7 +414,7 @@ export class Orchestrator implements Subject {
     const offers = this.thinker?.offers
     if (!this.thinker?.interrupt || !offers?.interrupt.shown) {
       const why = offers?.interrupt.note ?? 'cannot be stopped once it has started'
-      this.wire.put(notice(this.wire.state, `${offers?.harness ?? 'the orchestrator'} ${why}`))
+      notify(this.wire, `${offers?.harness ?? 'the orchestrator'} ${why}`)
       this.wire.draw()
       return
     }
@@ -429,10 +426,11 @@ export class Orchestrator implements Subject {
         notice(
           withTranscript(this.wire.state, interrupted(this.wire.state.transcript)),
           'stopped the orchestrator',
+          this.wire.now(),
         ),
       )
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }
@@ -451,7 +449,7 @@ export class Orchestrator implements Subject {
         async (ui) => {
           try {
             const done = await this.runCommand(command, ui)
-            if (done) this.wire.put(notice(this.wire.state, done))
+            if (done) notify(this.wire, done)
           } catch (err) {
             // Shown here and waited on, rather than thrown out to a window
             // that is about to redraw over it: an explanation that leaves with
@@ -464,7 +462,7 @@ export class Orchestrator implements Subject {
     } catch (err) {
       // ctrl+c closes the form, not Tade.
       if (!(err instanceof ScreenCancelled)) {
-        this.wire.put(notice(this.wire.state, err instanceof Error ? err.message : String(err)))
+        notify(this.wire, err instanceof Error ? err.message : String(err))
       }
     } finally {
       this.borrowing = false
@@ -683,8 +681,7 @@ export class Orchestrator implements Subject {
       if (item.ask) transcript = suggest(transcript, item.said, item.ask, at)
     }
     this.wire.put(withTranscript({ ...this.wire.state, bottom: ORCHESTRATOR_TAB }, transcript))
-    if (found.problems.length > 0)
-      this.wire.put(notice(this.wire.state, found.problems.join(' · ')))
+    if (found.problems.length > 0) notify(this.wire, found.problems.join(' · '))
     this.wire.draw()
     return composed.spoken
   }

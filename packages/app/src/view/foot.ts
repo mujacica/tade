@@ -27,7 +27,7 @@ import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
 import { blockAt, laneRegion, pointedIn, screenRows, scrolledBar, typingIn } from './lane.ts'
 import { gutterBeside } from './rows.ts'
-import { dollars, shortModel, tokens } from './text.ts'
+import { dollars, shortened, shortModel, tokens } from './text.ts'
 
 // Along the bottom: the orchestrator and the terminals on tabs, the few
 // buttons that are not about an agent, and what the whole thing has cost.
@@ -127,6 +127,9 @@ const SLOT = {
   tokens: widthOf('999k tok'),
 }
 
+/** The conversation's tab has something in it nobody has seen: a shape no agent's mark has. */
+const UNREAD = '•'
+
 /**
  * The bottom panel's row of tabs, drawn on its top edge: the orchestrator,
  * each terminal of the project you are in, `+` for another, and on the right
@@ -139,6 +142,7 @@ export function bottomTabs(
   skin: Skin,
   pointer: Pointer,
   now = 0,
+  unread = false,
 ): { text: string; hits: Hit[] } {
   const edge: Target = { kind: 'divider', edge: 'bottom' }
   const lit = state.resizing === 'bottom' || sameTarget(state.hover, edge)
@@ -154,9 +158,14 @@ export function bottomTabs(
   // the moment you are looking at a terminal instead — and only while it is
   // actually on a turn, like the marks on a project's tab: a mark kept in
   // reserve all day is a tab that never says anything.
-  const working = onATurn(state.transcript)
+  //
+  // Something said in it while you were looking at another tab (`unread`)
+  // takes the same place, so a turn that ends while you are away hands its
+  // column from one mark to the other and the tabs beside it stay where they
+  // are. What it is doing outranks what it did.
+  const mark = onATurn(state.transcript) ? markGlyph('working', now) : unread ? UNREAD : null
   row.tab(
-    working ? `orchestrator ${markGlyph('working', now)}` : 'orchestrator',
+    mark ? `orchestrator ${mark}` : 'orchestrator',
     orchestrator,
     state.bottom === ORCHESTRATOR_TAB,
   )
@@ -608,7 +617,22 @@ export function renderFoot(
     return row.used + 1 + probe.used <= width
   })
   row.right(status(fits ?? tries[tries.length - 1] ?? full))
-  return stack([{ text: skin.chrome('─'.repeat(width)), hits: [] }, row.build()])
+  return stack([{ text: ruled(frame.flash ?? null, width, skin), hits: [] }, row.build()])
+}
+
+/**
+ * The rule over the foot, carrying the flash while there is one (`flash.ts`).
+ * Nothing is drawn on it and nothing on it is pressed, so what is said there
+ * covers no control and moves no row, at any width; and it is the edge of the
+ * window, where the eye goes for what just happened.
+ */
+function ruled(flash: string | null, width: number, skin: Skin): string {
+  const lead = '── '
+  if (!flash || width < widthOf(lead) + 8) return skin.chrome('─'.repeat(width))
+  // A column for the space after it and one for the rule it runs back into.
+  const said = shortened(` ${flash} `, width - widthOf(lead) - 2)
+  const rest = Math.max(0, width - widthOf(lead) - widthOf(said))
+  return `${skin.chrome(lead)}${skin.flash(said)}${skin.chrome(` ${'─'.repeat(Math.max(0, rest - 1))}`)}`
 }
 
 /**

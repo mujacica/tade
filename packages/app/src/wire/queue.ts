@@ -19,7 +19,7 @@ import {
   startFrom,
 } from '@tade/core'
 import { intakeStands } from '@tade/workbench'
-import { notice, type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
+import { type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
 import {
   describeQueue,
   describeSchedule,
@@ -30,7 +30,15 @@ import {
 } from '../queue.ts'
 import { QUEUE_SCOPES } from '../queue-view.ts'
 import { tadeDid } from '../transcript.ts'
-import { type Actions, clockOf, type Subject, type Wiring, whenShort, why } from './context.ts'
+import {
+  type Actions,
+  clockOf,
+  notify,
+  type Subject,
+  type Wiring,
+  whenShort,
+  why,
+} from './context.ts'
 // Type-only, so it is erased and no module edge exists between the two
 // subjects: the queue's tools answer for schedules as well, and this is the
 // shape of what `queue_schedule` takes. What it *does* is the schedules'.
@@ -294,7 +302,7 @@ export class Queue implements Subject {
       const answer = await this.tools().change(
         change === 'first' ? { change: 'order', order, by: 'you' } : { task, change, by: 'you' },
       )
-      this.wire.put(notice(this.wire.state, answer))
+      notify(this.wire, answer)
     } catch (err) {
       this.wire.note(err)
     }

@@ -8,6 +8,7 @@ import {
 } from '@tade/core'
 import { slugify } from '@tade/voice-core'
 import { lostChats, reopenChat, type Workbench } from '@tade/workbench'
+import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { doneTasks, focusTask, nextWaiting, notice, shownName, whichProject } from '../model.ts'
 import { type AgentOffers, menuItems, queueMenuItems } from '../panels/menu/state.ts'
@@ -20,7 +21,9 @@ import {
 } from '../panels/small/state.ts'
 import {
   type Actions,
+  flash,
   type Menus,
+  notify,
   type Prompts,
   type Subject,
   type Submits,
@@ -144,7 +147,7 @@ export class Agents implements Subject {
         const done = doneTasks(this.wire.state)
         this.wire.put(
           done.length === 0
-            ? notice(this.wire.state, 'no agent here has finished yet')
+            ? notice(this.wire.state, 'no agent here has finished yet', this.wire.now())
             : {
                 ...this.wire.state,
                 // The ones carrying a document nobody has read, named before
@@ -171,9 +174,7 @@ export class Agents implements Subject {
       '/open': (rest) => {
         const task = this.findTask(rest)
         if (!task) {
-          this.wire.put(
-            notice(this.wire.state, rest ? `no agent like ${rest}` : 'which agent? /open name'),
-          )
+          notify(this.wire, rest ? `no agent like ${rest}` : 'which agent? /open name')
           this.deps.prefill('/open ')
           return
         }
@@ -260,7 +261,11 @@ export class Agents implements Subject {
         })
         await this.wire.live?.refresh()
         this.wire.put(
-          notice({ ...this.wire.state, panel: null }, `${panel.target} is now called ${title}`),
+          acknowledge(
+            { ...this.wire.state, panel: null },
+            `${panel.target} is now called ${title}`,
+            this.wire.now(),
+          ),
         )
       },
     }
@@ -316,16 +321,17 @@ export class Agents implements Subject {
       case 'copy-branch':
         if (facts) {
           const copied = await this.deps.copyToClipboard(facts.branch)
-          this.wire.put(notice(this.wire.state, copied ? `copied ${facts.branch}` : facts.branch))
+          if (copied) flash(this.wire, `copied ${facts.branch}`)
+          else notify(this.wire, facts.branch)
         }
         break
       case 'mark-done':
         try {
           await this.wire.opts.client.markDone(task, { by: 'you' })
           await this.wire.live?.refresh()
-          this.wire.put(notice(this.wire.state, `${task} is finished`))
+          flash(this.wire, `${task} is finished`)
         } catch (err) {
-          this.wire.put(notice(this.wire.state, why(err)))
+          notify(this.wire, why(err))
         }
         break
       case 'park': {
@@ -335,11 +341,9 @@ export class Agents implements Subject {
         try {
           await this.wire.opts.client.parkTask(task, parked)
           await this.wire.live?.refresh()
-          this.wire.put(
-            notice(this.wire.state, parked ? `parked ${task}` : `picked ${task} up again`),
-          )
+          flash(this.wire, parked ? `parked ${task}` : `picked ${task} up again`)
         } catch (err) {
-          this.wire.put(notice(this.wire.state, why(err)))
+          notify(this.wire, why(err))
         }
         break
       }
@@ -377,7 +381,7 @@ export class Agents implements Subject {
     // Nothing to ask about, so nothing to leave open: a failure is said where you look.
     if (this.wire.state.panel?.kind === 'confirm-remove' && this.wire.state.panel.error) {
       const error = this.wire.state.panel.error
-      this.wire.put(notice({ ...this.wire.state, panel: null }, error))
+      this.wire.put(notice({ ...this.wire.state, panel: null }, error, this.wire.now()))
     }
     this.wire.draw()
   }
@@ -389,7 +393,9 @@ export class Agents implements Subject {
       return
     }
     await this.wire.live?.refresh()
-    this.wire.put(notice({ ...this.wire.state, panel: null }, `removed ${panel.task}`))
+    this.wire.put(
+      acknowledge({ ...this.wire.state, panel: null }, `removed ${panel.task}`, this.wire.now()),
+    )
   }
 
   /**
@@ -461,7 +467,7 @@ export class Agents implements Subject {
       failed.length === 0
         ? `closed ${closed} finished agent${closed === 1 ? '' : 's'}`
         : `closed ${closed} of ${panel.tasks.length} — ${failed.join('; ')}`
-    this.wire.put(notice({ ...this.wire.state, panel: null }, said))
+    this.wire.put(notice({ ...this.wire.state, panel: null }, said, this.wire.now()))
   }
   /**
    * A new agent in the project you are in: its own branch and worktree, pi in
@@ -472,26 +478,26 @@ export class Agents implements Subject {
   async newAgent(said: string): Promise<void> {
     const projects = Object.keys(this.wire.opts.config.projects)
     if (projects.length === 0) {
-      this.wire.put(notice(this.wire.state, 'no projects yet — Open project adds one'))
+      notify(this.wire, 'no projects yet — Open project adds one')
       this.wire.draw()
       return
     }
     const { project, intent } = whichProject(said, projects, this.wire.state.project)
     if (!project) {
-      this.wire.put(notice(this.wire.state, `which project? /new ${projects.join(' · ')}`))
+      notify(this.wire, `which project? /new ${projects.join(' · ')}`)
       this.deps.prefill('/new ')
       return
     }
     // A second click before the first agent exists must not make a second one.
     if (this.starting) return
     this.starting = true
-    this.wire.put(notice(this.wire.state, `starting a new agent in ${project}…`))
+    flash(this.wire, `starting a new agent in ${project}…`)
     this.wire.draw()
     try {
       const id = await this.startTask(project, intent)
-      this.wire.put(focusTask(notice(this.wire.state, `${id} is ready`), id))
+      this.wire.put(focusTask(acknowledge(this.wire.state, `${id} is ready`, this.wire.now()), id))
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     } finally {
       this.starting = false
     }
@@ -563,9 +569,9 @@ export class Agents implements Subject {
         title: task.title,
       })
       await this.wire.live?.refresh()
-      this.wire.put(notice(this.wire.state, `${task.title} is working on ${branch}`))
+      notify(this.wire, `${task.title} is working on ${branch}`)
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }
@@ -607,7 +613,7 @@ export class Agents implements Subject {
     if (!task) return
     const worktree = this.wire.live?.worktreeOf(task)
     if (!worktree) {
-      this.wire.put(notice(this.wire.state, `I do not know where ${task} works`))
+      notify(this.wire, `I do not know where ${task} works`)
       this.wire.draw()
       return
     }
@@ -620,10 +626,10 @@ export class Agents implements Subject {
       // first instruction a second time would do the work again.
       await this.wire.opts.client.reopenAgent({ task: task as never, cwd: worktree })
       await this.wire.live?.refresh()
-      const told = notice(this.wire.state, `opened ${task} where it left off`)
+      const told = acknowledge(this.wire.state, `opened ${task} where it left off`, this.wire.now())
       this.wire.put(focus ? focusTask(told, task) : told)
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     } finally {
       this.opening.delete(task)
     }
@@ -656,9 +662,7 @@ export class Agents implements Subject {
     this.reopened.add(task)
     await this.wire.opts.client.stopAgent(task)
     await this.wire.live?.refresh()
-    this.wire.put(
-      notice(this.wire.state, `${task} stopped by ${by} — its branch and worktree stay`),
-    )
+    notify(this.wire, `${task} stopped by ${by} — its branch and worktree stay`)
     this.wire.draw()
   }
 
@@ -675,7 +679,7 @@ export class Agents implements Subject {
     try {
       await this.wire.opts.client.reopenAgent({ task: task as never, cwd: worktree })
       await this.wire.live?.refresh()
-      this.wire.put(notice(this.wire.state, `${by} opened ${task} where it left off`))
+      notify(this.wire, `${by} opened ${task} where it left off`)
     } finally {
       this.opening.delete(task)
     }
@@ -687,7 +691,7 @@ export class Agents implements Subject {
   async stopAgent(said: string): Promise<void> {
     const task = this.findTask(said) ?? this.wire.state.focused
     if (!task) {
-      this.wire.put(notice(this.wire.state, 'which agent? /stop name'))
+      notify(this.wire, 'which agent? /stop name')
       this.deps.prefill('/stop ')
       return
     }
@@ -696,9 +700,9 @@ export class Agents implements Subject {
       this.reopened.add(task)
       await this.wire.opts.client.stopAgent(task)
       await this.wire.live?.refresh()
-      this.wire.put(notice(this.wire.state, `${task} stopped — its branch and worktree stay`))
+      flash(this.wire, `${task} stopped — its branch and worktree stay`)
     } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+      notify(this.wire, why(err))
     }
     this.wire.draw()
   }
@@ -730,9 +734,9 @@ export class Agents implements Subject {
         allow,
         ...(allow ? {} : { reason: 'denied from the window' }),
       })
-      this.wire.put(notice(this.wire.state, `${allow ? 'approved' : 'denied'}: ${pending.summary}`))
+      flash(this.wire, `${allow ? 'approved' : 'denied'}: ${pending.summary}`)
     } catch (err) {
-      this.wire.put(notice(this.wire.state, err instanceof Error ? err.message : String(err)))
+      notify(this.wire, err instanceof Error ? err.message : String(err))
     }
     this.wire.draw()
   }

@@ -6,7 +6,7 @@ import type { Frame } from '../frame.ts'
 import { happeningIn, happeningOn } from '../happening.ts'
 import type { Target } from '../hits.ts'
 import { askedAbout, shortlist, worthAsking } from '../meant.ts'
-import { focusTask, glyph, MARK_TONES, markOf, notice, projects } from '../model.ts'
+import { focusTask, glyph, MARK_TONES, markOf, projects } from '../model.ts'
 import { searchPanel } from '../panels/search/state.ts'
 import { keysPanel } from '../panels/small/state.ts'
 import {
@@ -22,7 +22,7 @@ import {
   TEXT_MIN,
 } from '../search.ts'
 import { doing } from '../view/rows.ts'
-import { type Actions, type Subject, type Submits, type Wiring, why } from './context.ts'
+import { type Actions, notify, type Subject, type Submits, type Wiring, why } from './context.ts'
 
 // Search matches letters, and asking is what happens when they are not enough.
 //
@@ -370,12 +370,12 @@ export class Search implements Subject {
             .filter((entry): entry is SearchEntry => entry !== undefined)
           this.meant = { said, entries }
           this.results = null
-          for (const problem of answer.problems) this.wire.put(notice(this.wire.state, problem))
+          for (const problem of answer.problems) notify(this.wire, problem)
           this.wire.draw()
         })
         .catch((err: unknown) => {
           // Never the reason search shows nothing: it shows what it always did.
-          this.wire.put(notice(this.wire.state, why(err)))
+          notify(this.wire, why(err))
         })
         .finally(() => {
           if (this.askingAbout === said) this.askingAbout = null
@@ -412,7 +412,7 @@ export class Search implements Subject {
       case 'changes': {
         const first = this.wire.live?.changes(arg)[0]
         if (first) await this.deps.openChange(arg, first.path)
-        else this.wire.put(notice(this.wire.state, `${arg} has not changed anything yet`))
+        else notify(this.wire, `${arg} has not changed anything yet`)
         break
       }
       case 'project':

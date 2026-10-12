@@ -601,7 +601,7 @@ export class App {
         this.tui.requestNews(event.urgency === 'blocking')
       },
       onWarning: (message) => {
-        this.state = notice(this.state, message)
+        this.state = notice(this.state, message, this.now())
         this.draw()
       },
       onChange: () => this.draw(),

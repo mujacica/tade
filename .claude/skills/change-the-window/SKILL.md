@@ -44,6 +44,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `diff.ts` | A unified diff as drawable lines | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Tade | a terminal |
 | `transcript.ts` | The conversation with the orchestrator as entries, folded from what it does | a terminal |
+| `flash.ts` | What is said back where you are looking: an acknowledgement's flash (`acknowledge`, `flashing`), and whether the conversation has something unread (`unreadSince`) | a terminal |
 | `transcript-view.ts` | That conversation laid out to a width: wrapped, formatted, spinning | a terminal |
 | `images.ts` | Pictures: recognising a dropped path, reading the clipboard, reading bytes | a terminal |
 | `links.ts` | A row of someone else's text with its links and file references clickable | a terminal |
@@ -159,8 +160,15 @@ regions in a cycle now.
   and a floor of the spinner turning through all ten of its frames while nothing else changed.
 - **Work you start for someone is shown in the conversation.** An extension's action, the brief, a
   failure of the orchestrator: add it to `state.transcript` (`ran`, `said`, `suggest`, `problem` in
-  `transcript.ts`) rather than as a `notice`, which the next notice overwrites and which has no room
-  for the reason.
+  `transcript.ts`), where there is room for the reason.
+- **A press that worked flashes; anything that went wrong is said.** `flash(wire, …)` (`acknowledge`)
+  is for *copied*, *approved*, *opened* — the press did what it said — and is drawn for `FLASH_MS` in
+  the rule over the foot, which covers no control; the Window subject owes the frame that takes it
+  away (`turned`). A refusal, a failure or anything somebody acts on is `notify(wire, …)` (`notice`)
+  or `wire.note(err)`, into the conversation, because a flash is gone before the reason is read. The
+  conversation's tab wears `•` in its turning mark's columns when a line lands while it is not in
+  front (`unreadSince`, with the newest line a frame drew in front kept by the Window subject), and a
+  line of Tade's own is said again once it has gone unsaid for `REPEAT_MS` (`tadeDid`).
 - **Every exchange shows its reasoning** (`→ verb · task · "why"`). A wrong guess must be visible and
   correctable, never silently obeyed.
 - **A surface is options and values; the explanation lives where somebody asks for it.** Every drawn

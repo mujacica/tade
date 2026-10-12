@@ -6,7 +6,7 @@ import type { Frame } from '../frame.ts'
 import { keyCaps } from '../keys.ts'
 import { activeTerminal, notice, openLine, setListening } from '../model.ts'
 import { writeSetting } from '../settings.ts'
-import { type Actions, configPathOf, type Subject, type Wiring, why } from './context.ts'
+import { type Actions, configPathOf, flash, type Subject, type Wiring, why } from './context.ts'
 
 /** A sentence that starts with a capital, because it is read out as one. */
 function capitalise(text: string): string {
@@ -255,7 +255,9 @@ export class Voice implements Subject {
       this.listenTo(this.recording)
     } catch (err) {
       // Say why, once, then fall back to typing rather than swallowing it.
-      this.wire.put(setListening(openLine(notice(this.wire.state, why(err))), true))
+      this.wire.put(
+        setListening(openLine(notice(this.wire.state, why(err), this.wire.now())), true),
+      )
     }
     this.wire.draw()
   }
@@ -282,13 +284,17 @@ export class Voice implements Subject {
         vocabulary: [...words.tasks, ...words.projects],
       })
       this.wire.put({
-        ...notice(this.wire.state, heard.text ? null : 'nothing heard'),
+        ...notice(this.wire.state, heard.text ? null : 'nothing heard', this.wire.now()),
         hearing: false,
       })
       this.wire.draw()
       this.deps.say(heard.text)
     } catch (err) {
-      this.wire.put({ ...notice(this.wire.state, why(err)), hearing: false, talkingSince: null })
+      this.wire.put({
+        ...notice(this.wire.state, why(err), this.wire.now()),
+        hearing: false,
+        talkingSince: null,
+      })
       this.wire.draw()
     } finally {
       if (clip) rmSync(clip.path, { force: true })
@@ -310,9 +316,7 @@ export class Voice implements Subject {
         voice: { ...this.wire.opts.config.surfaces.voice, muted },
       },
     })
-    this.wire.put(
-      notice(this.wire.state, muted ? 'muted: nothing will be said or played' : 'sound back on'),
-    )
+    flash(this.wire, muted ? 'muted: nothing will be said or played' : 'sound back on')
     this.wire.draw()
   }
 

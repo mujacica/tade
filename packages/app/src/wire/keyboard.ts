@@ -34,7 +34,6 @@ import {
   focusNumber,
   keyAction,
   leaveLine,
-  notice,
   ORCHESTRATOR_TAB,
   openLine,
   projectNumber,
@@ -47,7 +46,7 @@ import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelKey } from '../panels.ts'
 import type { Skin } from '../skin.ts'
 import { terminalSplitShown, typingLane } from '../split.ts'
-import type { Subject, Wiring } from './context.ts'
+import { notify, type Subject, type Wiring } from './context.ts'
 
 // Where a keystroke goes, and what it does when it gets there.
 //
@@ -273,11 +272,9 @@ export class Keyboard implements Subject {
         this.deps.decide(false)
         return { consume: true }
       case 'help':
-        this.wire.put(
-          notice(
-            this.wire.state,
-            'tab switches · ctrl+space talks · a/d answers · ctrl+c clears, then quits',
-          ),
+        notify(
+          this.wire,
+          'tab switches · ctrl+space talks · a/d answers · ctrl+c clears, then quits',
         )
         this.wire.draw()
         return { consume: true }
