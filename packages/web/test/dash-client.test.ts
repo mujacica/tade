@@ -18,7 +18,7 @@ import { glanceOf, projectShape } from '../src/assets/overview.js'
 import { deviceWord, STEPS, stepOf } from '../src/assets/pair.js'
 import { actsOn, jumpsOf } from '../src/assets/palette.js'
 import { quickWord } from '../src/assets/quick.js'
-import { barsFor } from '../src/assets/shell.js'
+import { barsFor, ENDING_WARNS_MS, endingBar } from '../src/assets/shell.js'
 import { applySnapshot, emptyStore } from '../src/assets/store.js'
 import { reasonFor, reasonWord } from '../src/assets/talk.js'
 import {
@@ -371,5 +371,21 @@ describe('pairing, as four steps', () => {
     expect(deviceWord('Mozilla/5.0 (Linux; Android 15; Pixel 9) Mobile')).toBe('Android phone')
     expect(deviceWord('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBe('Mac')
     expect(deviceWord('')).toBe('')
+  })
+})
+
+describe('a session about to run out', () => {
+  const now = Date.parse('2026-10-12T12:00:00.000Z')
+  const at = (ms: number) => new Date(now + ms).toISOString()
+
+  it('says so three days ahead, with the time left, and not before', () => {
+    expect(endingBar(at(ENDING_WARNS_MS + 60_000), now)).toBeNull()
+    expect(endingBar(at(2 * 3_600_000), now)?.lead).toBe('Signs out in 2h 0m')
+  })
+
+  it('says nothing once it has ended, or for a session it cannot read', () => {
+    expect(endingBar(at(-1), now)).toBeNull()
+    expect(endingBar(undefined, now)).toBeNull()
+    expect(endingBar('not a moment', now)).toBeNull()
   })
 })

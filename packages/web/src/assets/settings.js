@@ -35,7 +35,8 @@ import {
   settingsSaid,
   shownOf,
 } from './acts.js'
-import { el, into, textIn } from './dom.js'
+import { el, hintOf, into, textIn } from './dom.js'
+import { icon } from './icons.js'
 import { section } from './rows.js'
 import { keyOf } from './screens.js'
 
@@ -92,28 +93,50 @@ export function settingsScreen(ctx) {
 
   const groupNode = (group) => {
     const part = section(group.title.toUpperCase())
-    const list = el('ul', { class: 'rows' })
+    const list = el('ul', { class: 'settings-list' })
     for (const row of group.settings) into(list, rowNode(row))
     into(part.body, list)
     return part.node
   }
 
   const rowNode = (row) => {
-    const item = el('li', { class: 'field' })
-    const name = el('p', {
-      class: 'name',
-      text: row.scope === null ? row.title : `${row.scope} — ${row.title}`,
-    })
-    const value = el('p', { class: 'said', text: shownOf(row) })
-    const means = el('p', { class: 'unknown', text: row.means })
-    into(item, name, value, means)
-    if (!row.live) into(item, el('p', { class: 'unknown', text: 'applies when Tade next starts' }))
+    // **A setting is a name and a value on one line**, the value as a pill;
+    // what its options mean, and why it cannot be changed from here, are one
+    // `?` each — the sentences are kept whole, and asked for rather than set
+    // under every row.
+    const item = el('li', { class: 'setting' })
+    const line = el('div', { class: 'setting-line' })
+    const name = el('span', { class: 'setting-name' })
+    if (row.scope !== null) into(name, el('span', { class: 'chip', text: row.scope }))
+    into(name, el('span', { text: row.title }))
+    const value = el('span', { class: 'setting-value', text: shownOf(row) })
+    into(line, name, value)
+    if (row.means !== '') {
+      const means = hintOf(row.means)
+      into(line, means.press)
+      into(item, line, means.body)
+    } else {
+      into(item, line)
+    }
+    const tags = el('div', { class: 'setting-tags' })
+    if (!row.live) into(tags, tagOf('refresh', 'on restart', 'applies when Tade next starts'))
     const standing = settingStanding(row, acts)
     if (standing.kind === 'no' && standing.why !== '') {
-      into(item, el('p', { class: 'empty', text: standing.why }))
+      into(tags, tagOf('laptop', 'at the machine', standing.why))
     }
+    if (tags.children.length > 0) into(item, tags)
     if (standing.kind === 'yes') into(item, controlFor(row, value))
     return item
+  }
+
+  /** A word with its icon, and the sentence behind it one `?` away. */
+  const tagOf = (drawn, word, why) => {
+    const node = el('span', { class: 'setting-tag' })
+    const hint = hintOf(why, 'empty')
+    into(node, icon(drawn), el('span', { text: word }), hint.press)
+    const wrap = el('span', { class: 'setting-tag-wrap' })
+    into(wrap, node, hint.body)
+    return wrap
   }
 
   /**

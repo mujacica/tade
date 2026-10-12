@@ -54,6 +54,7 @@ import {
   barsFor,
   barsIn,
   crossing,
+  endingBar,
   freshIn,
   heldOn,
   insideIn,
@@ -413,6 +414,8 @@ function paint() {
  */
 function offered() {
   const said = []
+  const ending = endingBar(held.session?.until, Date.now())
+  if (ending !== null && outside === null) said.push(ending)
   if (refused !== null) {
     // **The silent failure, said once.** A browser on a plain address over a
     // network refuses a worker, a cache and an install without a word, so a

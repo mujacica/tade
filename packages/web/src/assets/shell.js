@@ -492,6 +492,29 @@ export function barsFor(standing, connection, store, now, tries, extra = []) {
   return said
 }
 
+/** How long before a session ends the page starts saying so. */
+export const ENDING_WARNS_MS = 3 * 24 * 60 * 60 * 1000
+
+/**
+ * The bar for a session about to run out, or null — pure, so a test holds it.
+ *
+ * A phone that is signed out in the middle of a trip, with nothing having
+ * said so, is a phone somebody has to walk back to the machine for. Three
+ * days ahead, a bar with the time left; past the end, nothing, because the
+ * next read answers `401` and the page is the pairing screen anyway.
+ */
+export function endingBar(until, now) {
+  const ends = typeof until === 'string' ? Date.parse(until) : Number.NaN
+  if (Number.isNaN(ends) || ends <= now || ends - now > ENDING_WARNS_MS) return null
+  return {
+    key: 'ending',
+    tone: 'is-stale',
+    glyph: '◷',
+    lead: `Signs out in ${duration(ends - now)}`,
+    under: 'Pair this device again at the machine before then to carry on without a gap.',
+  }
+}
+
 /** The keys, listed where `?` and the header button both reach them. */
 function keySheet() {
   const list = el('dl')

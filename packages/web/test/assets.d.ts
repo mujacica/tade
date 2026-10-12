@@ -206,6 +206,11 @@ declare module '*/assets/shell.js' {
     tries: number,
     extra?: readonly unknown[],
   ): { key: string; glyph: string; lead: string; under?: string; tone?: string }[]
+  export const ENDING_WARNS_MS: number
+  export function endingBar(
+    until: string | undefined,
+    now: number,
+  ): { key: string; lead: string; under: string } | null
   export function crossing(was: Set<string> | null, is: Set<string>): string
   export function titleFor(where: { view: string; project?: string; task?: string }): string
 }

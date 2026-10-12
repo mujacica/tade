@@ -169,3 +169,112 @@
 .runs {
   font-family: var(--font-mono);
 }
+
+/* ── settings ──────────────────────────────────────────────────────────────── */
+
+/*
+  A setting is one row of a panel: its name, and its value as a pill at the
+  end; a tag under it for what it is (*on restart*, *at the machine*), each
+  with its sentence one `?` away; and, where this device may change it, the
+  box and its press on one line.
+*/
+.settings-list {
+  display: grid;
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
+  overflow: hidden;
+}
+
+.setting {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+}
+
+.setting + .setting {
+  border-block-start: var(--border);
+}
+
+.setting-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 2rem;
+}
+
+.setting-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--bright);
+}
+
+.setting-value {
+  flex: 0 1 auto;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px var(--s3);
+  border-radius: var(--r3);
+  background: var(--raised);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--body);
+}
+
+.setting .hint-body {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.setting-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s4);
+}
+
+/* A tag and its sentence: side by side with the next tag, the sentence under all. */
+.setting-tag-wrap {
+  display: contents;
+}
+
+.setting-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  justify-self: start;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.setting-tag .ic {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.setting-tag-wrap .empty {
+  flex: 1 0 100%;
+  order: 1;
+  padding-block: 0 var(--s2);
+  font-size: var(--step--1);
+}
+
+/* The box and its press on one line where there is room. */
+.setting > div:last-child:not(.setting-tags) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.setting > div:last-child:not(.setting-tags) > select,
+.setting > div:last-child:not(.setting-tags) > input {
+  flex: 1 1 12rem;
+  max-width: none;
+}
