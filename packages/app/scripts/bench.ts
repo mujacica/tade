@@ -16,12 +16,15 @@ import {
   sizeNamed,
 } from '../test/bench.ts'
 import { seedHome } from './capture.ts'
+import { benchOpen } from './open.ts'
 
 // What the window costs, and what it owes the person typing at it.
 //
 //   pnpm bench                     both, every size
 //   pnpm bench frames              what composing a frame costs — pure, no terminal
 //   pnpm bench window              the real window in a real terminal, idle then loaded
+//   pnpm bench open                time to the first frame on a seeded home (`scripts/open.ts`)
+//   pnpm bench open --journal ~/.tade   the same with that home's journal and index copied in
 //   pnpm bench --size 160x45       one size instead of all three
 //   pnpm bench --rounds 40         how many times each screen is drawn (frames)
 //   pnpm bench --steady 4          how many runs of each screen with a lane printing (frames)
@@ -68,7 +71,16 @@ const repo = join(here, '..', '..', '..')
 const args = process.argv.slice(2)
 
 /** Every flag that takes the word after it, so that word is not read as a mode. */
-const TAKES = ['--size', '--rounds', '--warm', '--steady', '--keys', '--load']
+const TAKES = [
+  '--size',
+  '--rounds',
+  '--warm',
+  '--steady',
+  '--keys',
+  '--load',
+  '--runs',
+  '--journal',
+]
 
 const modes = args.filter((arg, at) => !arg.startsWith('--') && !TAKES.includes(args[at - 1] ?? ''))
 const numberArg = (name: string, fallback: number, least = 1): number => {
@@ -509,9 +521,19 @@ async function windows(sizes: readonly Size[]): Promise<void> {
 const sizes = sizeArg()
 const wanted = modes.length > 0 ? modes : ['frames', 'window']
 for (const mode of wanted) {
-  if (mode !== 'frames' && mode !== 'window' && mode !== 'all') {
-    throw new Error(`no bench called ${mode}: it is frames, window or all`)
+  if (mode !== 'frames' && mode !== 'window' && mode !== 'open' && mode !== 'all') {
+    throw new Error(`no bench called ${mode}: it is frames, window, open or all`)
   }
 }
 if (wanted.includes('frames') || wanted.includes('all')) frames(sizes)
 if (wanted.includes('window') || wanted.includes('all')) await windows(sizes)
+if (wanted.includes('open') || wanted.includes('all')) {
+  const journal = args.indexOf('--journal')
+  await benchOpen({
+    // One size, because what is timed is the open and not the drawing.
+    size: args.includes('--size') ? (sizes[0] ?? SIZES[1]) : SIZES[1],
+    runs: numberArg('runs', 3),
+    journal: journal < 0 ? null : (args[journal + 1] ?? null),
+    say,
+  })
+}

@@ -190,7 +190,7 @@ async function sayWhatItWeighs(io: Io, json: boolean): Promise<void> {
     weight.droppable > 0
       ? `  It may be ${maxMb} MB, so ${count(weight.droppable)} of the sampled lines` +
           ` (${mb(weight.droppableBytes)}) go the next time a window opens.`
-      : `  It may be ${maxMb} MB, so there is nothing to drop.`,
+      : `  It may be ${maxMb} MB, so nothing goes the next time a window opens.`,
   )
   io.out('')
   io.out(`${weight.indexPath}  ${mb(weight.indexBytes)}`)

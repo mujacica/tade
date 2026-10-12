@@ -72,6 +72,13 @@ nothing anywhere reads back: 232,324 of 270,784 lines, 42 MB of 54, in eleven da
   are fsync'd and only then renamed over the journal, so a crash anywhere before the rename leaves
   it exactly as it was. The caller holds the home lock: this rewrites the truth, and two writers
   would interleave.
+- **A compaction has to be worth `LEAST_GAIN` (3%) of the file, and deciding not to reads nothing.**
+  A journal whose record alone is over the ceiling can never get under it, and before this every
+  open that found a new sample rewrote 54 MB to reclaim 0.5 (14 of 26 opens). The look that decides
+  is remembered in `events.jsonl.survey` — derived, safe to delete — keyed on the file's size and
+  inode: every byte appended since could be a sample, and fitting never takes more than the file is
+  over by plus a line, so the smaller of those bounds the gain without a read. Declining is always
+  safe, which is why a stale or odd survey may only ever make it decline, never drop.
 - **Not a roll.** Rolling bounds the file and not the fold, and both ways out are worse: readers
   that do not follow it, so every total silently gets smaller on the day it happens — the one
   failure this codebase names as worse than no statistic at all — or readers that do, and the fold
@@ -84,5 +91,9 @@ nothing anywhere reads back: 232,324 of 270,784 lines, 42 MB of 54, in eleven da
   full disk will be looking: `tade logs --size`, the Journal settings group's `about`, and the top of
   `event-index.ts`. It is derived, roughly twice the journal (110 MB against 54), and rebuilt
   whenever it disagrees with the file — so `rm events.jsonl.db*` costs one rebuild on the next open.
-  A compaction throws it away itself, and on `compactedAway` rather than on the sequence numbers: the
-  newest line is always kept, so `maxSeq` still agrees with a file the index no longer describes.
+  A compaction is not a disagreement: it hands back the lines it dropped (`Compaction.gone`) and the
+  index forgets those rows by number and type, then is held to the file by `maxSeq` **and** row
+  count — the newest line is always kept, so `maxSeq` alone still agrees with a file the index no
+  longer describes. Anything else that disagrees is `rebuild()`, which builds the three secondary
+  indexes after the rows (4.1–4.7 s → under 1 s over 136k events) and empties the write-ahead log.
+  An index that cannot be built is no index — reads scan the file — never an empty one.

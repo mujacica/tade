@@ -16,7 +16,9 @@ import { type Compaction, compactJournal } from './compact.ts'
 import { EventIndex } from './event-index.ts'
 
 // events.jsonl is the truth: append-only, one JSON object per line. The SQLite
-// index is derived and rebuilt whenever it disagrees with the file.
+// index is derived and rebuilt whenever it disagrees with the file — and a
+// compaction is not a disagreement: the rows for the lines it dropped are
+// taken out, by number, and the index is checked against the file afterwards.
 
 /**
  * What a closed journal answers an append with.
@@ -108,25 +110,9 @@ export class EventLog {
           return null
         })
       : null
-    // After a compaction the index holds rows for lines that are no longer in
-    // the file. Whether its `maxSeq` still agrees depends on whether the line
-    // the file ended with survived, which is exactly the thing that is not
-    // always true — so it is never the test. It is derived, so it is thrown
-    // away whenever anything was dropped: deleting the file is what reclaims
-    // the disk (110 MB against a 54 MB journal on the machine this was
-    // measured on), and `-wal` and `-shm` go with it, because a database file
-    // without them is not a smaller database, it is a database missing its
-    // last writes.
-    const compactedAway = (compacted?.dropped ?? 0) > 0
-    if (compactedAway && indexPath) {
-      await Promise.all(
-        ['', '-wal', '-shm'].map((suffix) =>
-          rm(`${indexPath}${suffix}`, { force: true }).catch(() => {}),
-        ),
-      )
-    }
     const fh = await open(opts.path, 'a')
-    const { lastSeq, corrupt } = await scanTail(opts.path)
+    const tail = await scanTail(opts.path)
+    const { lastSeq, corrupt } = tail
     // A number already handed out is never handed out again. Compaction may
     // have dropped the line the file ended with — the one case where the tail
     // reaches lower than the file once did — so the counter starts at the
@@ -137,20 +123,24 @@ export class EventLog {
     const from = Math.max(lastSeq, compacted?.seqHigh ?? 0)
 
     let index = indexPath === null ? null : EventIndex.open(indexPath)
-    // `compactedAway` and not only the sequence numbers: a delete that did not
-    // happen — a permission, a file something else is holding — leaves an
-    // index whose `maxSeq` agrees with a file it no longer describes, and an
-    // index answering about events that are not in the truth is the one thing
-    // derived state may never do. The disk is the lesser half of this.
-    if (index && (compactedAway || index.maxSeq() !== lastSeq)) {
-      // The index disagrees with the log (crash, deletion, manual edit): rebuild.
+    if (index && indexPath) {
       try {
-        index.clear()
-        index.insertMany(await readAll(opts.path))
+        if (!agrees(index, compacted, tail)) index.rebuild(await readAll(opts.path))
       } catch {
+        // An index that could not be brought into line is thrown away with its
+        // write-ahead log — a database file beside a log that is not its own is
+        // not a smaller database — and built once from nothing. One that will
+        // not build either is no index: reads scan the file, which is slower
+        // and right, where an empty index would answer that nothing happened.
         index.close()
-        if (indexPath) await rm(indexPath, { force: true })
-        index = indexPath === null ? null : EventIndex.open(indexPath)
+        await forgetIndex(indexPath)
+        index = EventIndex.open(indexPath)
+        try {
+          index?.rebuild(await readAll(opts.path))
+        } catch {
+          index?.close()
+          index = null
+        }
       }
     }
     const log = new EventLog(opts.path, fh, from, index, opts.subscriberQueue ?? 1_000)
@@ -336,20 +326,62 @@ function drain(sub: Subscriber): void {
  * `compactJournal`'s own return closes the ordinary case; this closes that
  * window, and costs a field read on one line per window open.
  */
-async function scanTail(path: string): Promise<{ lastSeq: number; corrupt: number }> {
+async function scanTail(path: string): Promise<Tail> {
   let lastSeq = 0
   let corrupt = 0
+  let parsed = 0
   for await (const e of iterate(path)) {
     if (e === null) {
       corrupt++
       continue
     }
+    parsed++
     if (e.seq > lastSeq) lastSeq = e.seq
     if (e.type !== 'journal_compacted') continue
     const high = e.detail.seq_high
     if (typeof high === 'number' && Number.isFinite(high) && high > lastSeq) lastSeq = high
   }
-  return { lastSeq, corrupt }
+  return { lastSeq, corrupt, parsed }
+}
+
+/** What reading the journal through on open found. */
+interface Tail {
+  lastSeq: number
+  /** Lines that would not parse, which no index holds. */
+  corrupt: number
+  /** Lines that did, which is how many rows an index of this file holds. */
+  parsed: number
+}
+
+/**
+ * Whether the index describes the file as it is, after anything a compaction
+ * took out of the file has been taken out of the index too.
+ *
+ * Ordinarily by the highest number alone: the index is written after the file,
+ * line by line, so a crash leaves it behind and a hand edit leaves it ahead,
+ * and either moves `maxSeq` off the tail. A compaction is the one change that
+ * takes lines out from the middle, so there the rows go by number — 2,377 of
+ * them is a few milliseconds, where deleting the database and building it
+ * again was seven seconds of a window open before it drew anything — and the
+ * count is checked as well as the top, because a delete that missed is an
+ * index answering about lines that are not in the truth, which is the one
+ * thing derived state may never do. It is not what shrinks the disk: the
+ * pages the rows were on are reused by the rows that come next.
+ */
+function agrees(index: EventIndex, compacted: Compaction | null, tail: Tail): boolean {
+  const gone = compacted?.gone ?? []
+  if (gone.length === 0) return index.maxSeq() === tail.lastSeq
+  index.forget(gone)
+  return index.maxSeq() === tail.lastSeq && index.count() === tail.parsed
+}
+
+/** Delete the index and its write-ahead files, which is always safe: it is derived. */
+async function forgetIndex(indexPath: string): Promise<void> {
+  await Promise.all(
+    ['', '-wal', '-shm'].map((suffix) =>
+      rm(`${indexPath}${suffix}`, { force: true }).catch(() => {}),
+    ),
+  )
 }
 
 /**

@@ -1,4 +1,5 @@
-import { appendFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import type { TadeEvent, Urgency } from '@tade/core'
 import { describe, expect, it } from 'vitest'
@@ -170,6 +171,29 @@ describe('EventLog', () => {
       await rebuilt.close()
     })
 
+    it('reads the file rather than an empty index when the index cannot be built', async () => {
+      const p = paths()
+      const log = await EventLog.open(p)
+      await log.append({ type: 'lane_opened', lane: 'a/b/agent' })
+      await log.append({ type: 'turn_done', task: 'a/b' })
+      await log.close()
+      // A line that parses and that no row can be made of — written by hand,
+      // without the urgency every row is indexed by — and the index behind.
+      appendFileSync(p.path, '{"seq":3,"ts":"2026-09-11T09:00:00.000Z","type":"said"}\n')
+      rmSync(p.indexPath, { force: true })
+
+      const reopened = await EventLog.open(p)
+      // An index that was thrown away and never filled answers that nothing
+      // ever happened; with none, the file is read, which is slower and right.
+      expect(reopened.index).toBeNull()
+      expect((await reopened.read({})).map((e) => e.type)).toEqual([
+        'lane_opened',
+        'turn_done',
+        'said',
+      ])
+      await reopened.close()
+    })
+
     it('survives a corrupt index database', async () => {
       const p = paths()
       const log = await EventLog.open(p)
@@ -273,6 +297,61 @@ describe('EventIndex', () => {
     expect(index.count()).toBe(0)
     index.insertMany(events)
     expect(index.query({ task: 'app/x', minUrgency: 'notable' })).toEqual(before)
+    index.close()
+  })
+
+  it('builds the indexes after the rows when it is built again, and ends with all three', () => {
+    const p = paths()
+    const index = EventIndex.open(p.indexPath)!
+    const events: TadeEvent[] = Array.from({ length: 200 }, (_, i) => ({
+      ...event(i % 7 === 0 ? 'blocking' : 'trace', i + 1),
+      task: i % 3 === 0 ? 'app/x' : null,
+    }))
+    index.insertMany(events.slice(0, 50))
+    // What was there before is not what is there after: exactly the events
+    // handed over, answering as an index built row by row would.
+    index.rebuild(events.slice(100))
+    expect(index.count()).toBe(100)
+    // The write-ahead log a build leaves is emptied rather than kept beside
+    // the database for as long as the window is open: 88 MB of it, after a
+    // rebuild of the journal this was measured on.
+    expect(statSync(`${p.indexPath}-wal`).size).toBe(0)
+    const rowByRow = EventIndex.open(join(p.dir, 'row-by-row.db'))!
+    rowByRow.insertMany(events.slice(100))
+    for (const filter of [{ task: 'app/x' }, { minUrgency: 'blocking' as const }, { since: 150 }]) {
+      expect(index.query(filter)).toEqual(rowByRow.query(filter))
+    }
+    rowByRow.close()
+    index.close()
+    // The indexes are what make a read by task, type or urgency cheap; a
+    // rebuild that dropped them and never made them again would still answer
+    // every query above, slowly.
+    const Database = createRequire(import.meta.url)('better-sqlite3') as new (
+      path: string,
+    ) => { prepare(sql: string): { all(): Array<{ name: string }> }; close(): void }
+    const db = new Database(p.indexPath)
+    const names = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' ORDER BY name")
+      .all()
+      .map((row) => row.name)
+    db.close()
+    expect(names).toEqual(['events_rank', 'events_task', 'events_type'])
+  })
+
+  it('forgets only the rows it is told, by number and by the word each was written as', () => {
+    const p = paths()
+    const index = EventIndex.open(p.indexPath)!
+    index.insertMany(Array.from({ length: 10 }, (_, i) => event('trace', i + 1)))
+    const gone = index.forget([
+      { seq: 3, type: 'output' },
+      // The same number under another word is another line: a hand edit, or
+      // a number handed out twice. The row for the line still there stays.
+      { seq: 4, type: 'usage' },
+      // A line that was never indexed, which is nothing to take out.
+      { seq: 99, type: 'output' },
+    ])
+    expect(gone).toBe(1)
+    expect(index.query({}).map((e) => e.seq)).toEqual([1, 2, 4, 5, 6, 7, 8, 9, 10])
     index.close()
   })
 })

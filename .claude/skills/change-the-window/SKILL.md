@@ -996,7 +996,9 @@ accepted on a story is a perf change nobody can undo later.
   change measures the same twice (`packages/app/test/bench.ts`). `pnpm bench window` is the whole
   program: it opens the real `tade app` in a real pty, types at it, and reports keystroke-to-echo
   from outside and the four frame points from inside, idle and then with the machine loaded
-  (`--load`, `--keys`, `--rounds`, `--size`).
+  (`--load`, `--keys`, `--rounds`, `--size`). `pnpm bench open` is the time to the first frame on a
+  seeded home, and `--journal ~/.tade` copies that home's journal and index in, which is what an
+  open on a real home costs (`packages/app/scripts/open.ts`).
 - **`TADE_TIMING`** turns the four probes on in any window: `frameOf` (plus one per subject), `draw`,
   `doRender` and `write`. `TADE_TIMING=1` prints a table when the window closes; a path writes it
   there as JSON. Off, they cost a boolean (`packages/app/src/timing.ts`, `wire/paint.ts`).
