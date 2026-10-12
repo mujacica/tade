@@ -418,6 +418,37 @@ export function changedSays(lead: string, started: readonly string[], lines: rea
   return [head, ...lines.map((line) => `- ${line}`)].join('\n')
 }
 
+/**
+ * What removing work answers once its waits were handed on (`dependents:
+ * inherit`): which pieces took them over, then where each stands now. One a
+ * task file would not take (`HandedOn`'s `problem`) still waits on the task
+ * that went, so it is named with why, and its state says it is held.
+ */
+export function handedOnSays(
+  task: string,
+  handed: readonly { task: string; problem?: string }[],
+  started: readonly string[],
+  now: readonly string[],
+): string {
+  if (handed.length === 0) {
+    return changedSays(`${task} is removed. Nothing waited on it.`, started, [])
+  }
+  const took = handed.flatMap((one) => (one.problem === undefined ? [one.task] : []))
+  const lines = [
+    ...handed.flatMap((one) =>
+      one.problem === undefined
+        ? []
+        : [`${one.task} could not take over what ${task} waited on: ${one.problem}`],
+    ),
+    ...now,
+  ]
+  const lead =
+    took.length > 0
+      ? `${task} is removed, and ${joined(took)} ${took.length === 1 ? 'takes' : 'take'} over its waits`
+      : `${task} is removed`
+  return changedSays(`${lead}${lines.length > 0 ? ':' : '.'}`, started, lines)
+}
+
 /** Queued work and where each stands, in lines, oldest first. */
 export function describeQueue(
   items: readonly Queued[],

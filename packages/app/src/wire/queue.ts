@@ -25,6 +25,7 @@ import {
   changedSays,
   describeQueue,
   describeSchedule,
+  handedOnSays,
   heldMessage,
   nowSays,
   planAnswer,
@@ -590,22 +591,8 @@ export class Queue implements Subject {
     }
     const about = handed.map((one) => one.task)
     const started = await this.settle(about, by)
-    const took = handed.flatMap((one) => ('after' in one ? [one.task] : []))
-    const lines = [
-      ...handed.flatMap((one) =>
-        'problem' in one
-          ? [`${one.task} could not take over what ${task} waited on: ${one.problem}`]
-          : [],
-      ),
-      ...this.nowOf(about.filter((one) => !started.includes(one))),
-    ]
-    if (about.length === 0)
-      return changedSays(`${task} is removed. Nothing waited on it.`, started, [])
-    const lead =
-      took.length > 0
-        ? `${task} is removed, and ${joined(took)} ${took.length === 1 ? 'takes' : 'take'} over its waits`
-        : `${task} is removed`
-    return changedSays(`${lead}${lines.length > 0 ? ':' : '.'}`, started, lines)
+    const now = this.nowOf(about.filter((one) => !started.includes(one)))
+    return handedOnSays(task, handed, started, now)
   }
 
   /**

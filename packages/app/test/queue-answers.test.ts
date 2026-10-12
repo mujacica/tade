@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changedSays, nowSays } from '../src/queue.ts'
+import { changedSays, handedOnSays, nowSays } from '../src/queue.ts'
 
 // What a change to queued work answers with: where each piece stands once the
 // queue has looked again, in a sentence that says what happens next and
@@ -50,6 +50,47 @@ describe('where queued work stands after a change', () => {
     )
     expect(changedSays('Done.', [], ['app/a is paused', 'app/c is next'])).toBe(
       'Done.\n- app/a is paused\n- app/c is next',
+    )
+  })
+})
+
+describe('what removing work says once its waits were handed on', () => {
+  it('says who took them over and where each stands, or that nothing waited on it', () => {
+    expect(handedOnSays('app/b', [], [], [])).toBe('app/b is removed. Nothing waited on it.')
+    expect(
+      handedOnSays(
+        'app/b',
+        [{ task: 'app/c' }],
+        [],
+        ['app/c waits on app/a, and starts by itself once that has finished'],
+      ),
+    ).toBe(
+      'app/b is removed, and app/c takes over its waits: app/c waits on app/a, and starts by itself once that has finished.',
+    )
+    // What it took over had already finished, so it started.
+    expect(handedOnSays('app/b', [{ task: 'app/c' }], ['app/c'], [])).toBe(
+      'app/b is removed, and app/c takes over its waits. Started app/c.',
+    )
+  })
+
+  it('names what could not take them over, and why, beside where it stands', () => {
+    expect(
+      handedOnSays(
+        'app/b',
+        [{ task: 'app/c', problem: 'EACCES: permission denied' }, { task: 'app/d' }],
+        [],
+        ['app/c is held: app/b was removed before it finished', 'app/d is next'],
+      ),
+    ).toBe(
+      [
+        'app/b is removed, and app/d takes over its waits:',
+        '- app/c could not take over what app/b waited on: EACCES: permission denied',
+        '- app/c is held: app/b was removed before it finished',
+        '- app/d is next',
+      ].join('\n'),
+    )
+    expect(handedOnSays('app/b', [{ task: 'app/c', problem: 'gone' }], [], ['app/c is held'])).toBe(
+      'app/b is removed:\n- app/c could not take over what app/b waited on: gone\n- app/c is held',
     )
   })
 })

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type PlannedAgent, taskDir } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -218,6 +218,46 @@ describe('changing queued work', () => {
     expect((await readTaskFile(home, 'app/one'))?.start?.after).toEqual([])
     expect((await readTaskFile(home, 'app/four'))?.start?.after).toEqual([])
   })
+
+  // As root nothing is refused for its mode, so there is nothing to see.
+  it.skipIf(process.getuid?.() === 0)(
+    'names what could not take over the waits, and leaves it waiting on the task that went',
+    async () => {
+      await client.changeQueued({
+        task: 'app/three',
+        change: 'after',
+        after: [{ task: 'two', why: '' }],
+        by: 'you',
+      })
+      const file = join(taskDir(home, 'app/three'), 'task.yaml')
+      chmodSync(file, 0o444)
+      try {
+        const handed = await handOnWaits(
+          client,
+          { task: 'app/two', by: 'orchestrator' },
+          async () => {
+            const gone = await client.removeTask({
+              root: repo.root,
+              worktree: repo.root,
+              branch: '',
+              task: 'app/two',
+              force: true,
+            })
+            if (!gone.removed) throw new Error(gone.reason)
+          },
+        )
+        expect(handed).toEqual([{ task: 'app/three', problem: expect.stringMatching(/EACCES/) }])
+      } finally {
+        chmodSync(file, 0o644)
+      }
+      // Nothing is said that did not happen: the queue holds it on the removal.
+      expect((await readTaskFile(home, 'app/three'))?.start?.after).toEqual([
+        { task: 'app/two', why: '' },
+      ])
+      const lines = await client.events({ types: ['queue_changed'], task: 'app/three' })
+      expect(lines.map((line) => line.detail.inherited)).toEqual([undefined])
+    },
+  )
 
   it('lets only one of two waits written at once close a loop', async () => {
     const both = await Promise.allSettled([
