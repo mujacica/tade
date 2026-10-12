@@ -93,7 +93,7 @@ a.name:hover {
   display: flex;
   align-items: center;
   gap: var(--s2);
-  min-height: calc(var(--tap) + var(--s3));
+  min-height: 3.25rem;
   margin-inline: calc(-1 * var(--s4));
   padding-inline: var(--s4);
   padding-block: calc(var(--s1) + env(safe-area-inset-top)) var(--s1);
@@ -189,6 +189,7 @@ a.name:hover {
 
 .cmd:hover {
   color: var(--bright);
+  background: var(--panel);
 }
 
 kbd {
@@ -197,10 +198,10 @@ kbd {
   padding: 0 var(--s1);
   min-width: 1.5rem;
   justify-content: center;
-  border-radius: var(--r1);
-  border: 1px solid var(--chrome);
-  background: transparent;
-  color: var(--pressed);
+  border-radius: 4px;
+  border: var(--border);
+  background: var(--surface);
+  color: var(--heading);
   font-family: var(--font-ui);
   font-size: var(--step--1);
   line-height: 1.5;
@@ -231,32 +232,22 @@ kbd {
 }
 
 /*
-  From a tablet up the clock is a box whose edge is how the page stands: green
-  while live, amber while asking again, red when nothing answers. The dot and
-  the words say it; the edge is where the eye finds it.
+  From a tablet up the clock is the header's quiet status: the dot and the
+  words, pushed to the end, with a hairline pill round them so it reads as one
+  thing. The dot says how the page stands; the words say since when.
 */
 @media (min-width: 768px) {
   .fresh {
     flex: 0 1 auto;
     margin-inline-start: auto;
-    min-height: 2rem;
+    min-height: 1.75rem;
     padding-inline: var(--s3);
     border-radius: var(--r3);
-    background: var(--panel);
     border: var(--border);
   }
 
-  .fresh:has(.dot.is-live) {
-    border-color: color-mix(in srgb, var(--green) 45%, var(--line));
-  }
-
-  .fresh:has(.dot.is-stale),
-  .fresh:has(.dot.is-reconnecting) {
-    border-color: var(--amber);
-  }
-
   .fresh:has(.dot.is-gone) {
-    border-color: var(--red);
+    border-color: color-mix(in srgb, var(--red) 45%, var(--line));
   }
 }
 
@@ -303,6 +294,7 @@ kbd {
 
 .icon:hover {
   color: var(--bright);
+  background: var(--panel);
 }
 
 /* ── the bars: stale, unreachable, closed, resynced, and a read that failed ── */
@@ -318,9 +310,9 @@ kbd {
 }
 
 /*
-  One line each: the glyph, the lead, a `?` for the rest, and a press where
-  there is one. Flat, with its tone on the edge — a hairline round it and a
-  bar down its start, as every state on the page is drawn.
+  One line each: the glyph in its tone, the lead, a `?` for the rest, and a
+  press where there is one — a panel like any other, its edge warmed by its
+  tone.
 */
 .bar {
   display: grid;
@@ -344,8 +336,7 @@ kbd {
 }
 
 .bar.is-gone {
-  border-color: var(--red);
-  border-inline-start-width: 3px;
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
 }
 
 .bar.is-gone .glyph {
@@ -354,7 +345,6 @@ kbd {
 
 .bar.is-stale {
   border-color: var(--amber-dark);
-  border-inline-start: 3px solid var(--amber);
 }
 
 .bar.is-stale .glyph {
@@ -377,9 +367,9 @@ kbd {
 }
 
 /*
-  The `?` behind which a sentence waits: a 44px target with a small square
-  drawn in it, so it is a thumb's reach without being a thumb's size on the
-  page.
+  The `?` behind which a sentence waits: a full-size target with a small
+  ring drawn in it, so it is a thumb's reach without being a thumb's size on
+  the page.
 */
 .hint {
   position: relative;
@@ -399,9 +389,10 @@ kbd {
   position: absolute;
   inset-block-start: 50%;
   inset-inline-start: 50%;
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1.25rem;
+  height: 1.25rem;
   translate: -50% -50%;
+  border-radius: var(--round);
   border: 1px solid var(--chrome);
   transition: border-color var(--ease);
 }
@@ -488,10 +479,9 @@ kbd {
   line-height: 1.1;
 }
 
-/* Where you are, in amber, with its line over it, and said to a screen reader as well. */
+/* Where you are, in amber, and said to a screen reader as well. */
 .tab[aria-current="page"] {
   color: var(--amber);
-  box-shadow: inset 0 2px 0 var(--amber);
 }
 
 /* A count is a badge on the icon's shoulder, and nothing at nought. */
@@ -501,13 +491,13 @@ kbd {
   left: calc(50% + 4px);
 }
 
-/* Tade, in the middle: an amber square, the one primary press on the bar. */
+/* Tade, in the middle: an amber disc, the one primary press on the bar. */
 .tab-ask .ask-disc {
   display: grid;
   place-items: center;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: var(--r3);
+  border-radius: var(--round);
   background: var(--amber);
   color: var(--ink);
 }
@@ -552,7 +542,7 @@ main[tabindex="-1"]:focus {
 }
 
 .section {
-  margin-block-end: var(--s5);
+  margin-block-end: var(--s6);
 }
 
 .section-head {
@@ -564,44 +554,34 @@ main[tabindex="-1"]:focus {
 }
 
 /*
-  The one uppercase on the page: a section's label, small and tracked, the way
-  a dashboard labels a group. It carries an `aria-label` in sentence case so a
-  screen reader reads a heading rather than spelling it.
+  A heading in sentence case, as an application sets one: the source's
+  `WANTS YOU` lowered and its first letter raised again, so it reads as
+  *Wants you* on the page exactly as its `aria-label` says it. A group's
+  heading is a line of bold body text with its count quiet beside it; a
+  screen's own name is the title, set large.
 */
 .section-head h2,
 .section-head h1 {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
-  font-size: var(--step--1);
+  font-size: var(--step-0);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--heading);
-}
-
-/*
-  A screen's own name is its title, not a group's label: the same words, set
-  large and in sentence case — lowered, and its first letter raised again, so
-  `WANTS YOU` in the source reads as *Wants you* on the page exactly as its
-  `aria-label` already says it.
-*/
-.section-head h1 {
   text-transform: lowercase;
-  letter-spacing: var(--tight);
-  font-size: var(--step-2);
   color: var(--bright);
 }
 
-.section-head h1::first-letter {
+.section-head :is(h1, h2)::first-letter {
   text-transform: uppercase;
 }
 
-/* A section that explains itself does it with a `?` beside its heading. */
-.section-head:has(> .hint) > :is(h1, h2) {
-  flex: 0 1 auto;
+.section-head h1 {
+  letter-spacing: var(--tight);
+  font-size: var(--step-2);
 }
 
-.section-head > .hint + .figure {
+/* What follows the count goes to the end of the line: a fold, a chip, a link. */
+.section-head > .figure + *,
+.section-head > .section-fold {
   margin-inline-start: auto;
 }
 
@@ -614,10 +594,14 @@ main[tabindex="-1"]:focus {
 }
 
 .section-head .figure {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  color: var(--bright);
+  color: var(--heading);
   font-size: var(--step-0);
+}
+
+/* A screen's title keeps its figure at the end of the line. */
+.section-head:has(> h1) > .figure {
+  margin-inline-start: auto;
 }
 
 .page-head {
@@ -743,28 +727,32 @@ main[tabindex="-1"]:focus {
     transform: none;
   }
 
+  /* A count on an icon is a small badge on its shoulder. */
   .rail-items .count {
     position: absolute;
-    top: 3px;
-    inset-inline-end: 4px;
+    top: 2px;
+    inset-inline-end: 2px;
+    min-width: 1rem;
+    padding-inline: 4px;
+    line-height: 1rem;
+    background: var(--raised);
+    color: var(--pressed);
+  }
+
+  .rail-items .count.is-loud {
+    background: var(--violet);
+    color: var(--ink);
   }
 
   .rail-items > a:hover {
+    background: var(--panel);
     color: var(--bright);
   }
 
+  /* Where you are: a step lighter, its icon in amber. */
   .rail-items > a[aria-current="page"] {
+    background: var(--surface);
     color: var(--amber);
-  }
-
-  /* `▌` — the window's own marker for where you are, 3px of amber. */
-  .rail-items > a[aria-current="page"]::before {
-    content: "";
-    position: absolute;
-    inset-inline-start: calc(-1 * var(--s2));
-    inset-block: 10px;
-    width: 2px;
-    background: var(--amber);
   }
 
   /*

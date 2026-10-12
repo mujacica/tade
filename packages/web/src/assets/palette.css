@@ -343,6 +343,15 @@ a.pal-whole:hover {
   }
 }
 
+/* Who said it and when: a quiet line over the words, as the dock's is. */
+.rows.chat > li > .aside {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--heading);
+}
+
 /* A person's lines on the right, one step lighter; Tade's on the left. */
 .rows.chat > li.is-asked {
   justify-items: end;
@@ -376,6 +385,50 @@ a.pal-whole:hover {
   grid-column: 1 / -1;
 }
 
-.composer-dock textarea {
+/*
+  **The box is one rounded field that holds its own press**, as a chat's is:
+  the field's edge round both, the text area bare inside it, and Ask at its
+  end. Only while there is a box — a composer that can only say why not is
+  that line, not an empty field.
+*/
+:is(.composer, .composer-dock .section-head + div):has(> textarea:not([hidden])) {
+  padding: var(--s1) var(--s1) var(--s1) var(--s3);
+  border-radius: var(--r4);
+  border: 1px solid var(--chrome);
+  background: var(--panel);
+  transition: border-color var(--ease);
+}
+
+:is(.composer, .composer-dock .section-head + div):has(> textarea:focus-visible) {
+  border-color: var(--amber);
+}
+
+:is(.composer, .composer-dock .section-head + div) > textarea {
   margin: 0;
+  max-width: none;
+  min-height: var(--tap);
+  padding: var(--s2) 0;
+  border: 0;
+  background: transparent;
+  resize: none;
+  max-height: 200px;
+}
+
+/* The field's own edge is its focus; the text area inside it draws none. */
+:is(.composer, .composer-dock .section-head + div) > textarea:focus-visible {
+  outline-color: transparent;
+}
+
+:is(.composer, .composer-dock .section-head + div) .press {
+  min-height: var(--tap);
+  padding-inline: var(--s3);
+  border-radius: calc(var(--r4) - 4px);
+  background: var(--amber);
+  border: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+:is(.composer, .composer-dock .section-head + div) .press:hover:not(:disabled) {
+  background: var(--amber-light);
 }

@@ -39,6 +39,7 @@ const SETTLED = `Promise.all(document.getAnimations()
  * drawing bug it is about does **not** turn it red.
  */
 export const CONTROLS = `(() => {
+  const TAP = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tap')) || 44
   const NAMED = {
     'SET ASIDE': 'park',
     'TELL ITS AGENT': 'steer',
@@ -72,7 +73,7 @@ export const CONTROLS = `(() => {
     }
     for (const one of press) {
       const box = one.getBoundingClientRect()
-      if (box.height < 44 || box.width < 44) {
+      if (box.height < TAP || box.width < TAP) {
         small.push(head + ': ' + Math.round(box.width) + 'x' + Math.round(box.height))
       }
     }
@@ -118,13 +119,15 @@ export const SAID_MOVED = `[...document.querySelectorAll('main [role="status"]')
  * the same page and the answers would be about four different moments.
  */
 export const SHAPE = `${SETTLED}.then(() => (() => {
+  // The page's own floor, --tap: 44px to a thumb, 32px to a mouse at a desk.
+  const TAP = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tap')) || 44
   const small = []
   for (const one of document.querySelectorAll('a, button')) {
     const box = one.getBoundingClientRect()
     if (box.width === 0 && box.height === 0) continue
     // A link inside somebody's own words is text, not a target.
     if (one.closest('.said') !== null) continue
-    if (box.height < 44 || box.width < 24) {
+    if (box.height < TAP || box.width < 24) {
       small.push(one.tagName.toLowerCase() + '.' + one.className + ' ' +
         Math.round(box.width) + '×' + Math.round(box.height))
     }

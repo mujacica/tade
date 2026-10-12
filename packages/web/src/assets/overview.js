@@ -145,7 +145,7 @@ export function nowScreen(ctx = null) {
   const inbox = el('a', { class: 'ui-chip t-wants', attrs: { href: '/inbox' } })
   into(inbox, icon('inbox'), el('span'))
   wants.heading.after(inbox)
-  const cards = el('div', { class: 'cards wants-cards' })
+  const cards = el('div', { class: 'ui-panel cards wants-cards' })
   const clear = el('div', { class: 'all-clear' })
   into(clear, icon('check'), el('span', { text: 'All clear' }))
   into(wants.body, cards, clear)
@@ -188,13 +188,15 @@ export function nowScreen(ctx = null) {
   const closedList = el('div', { class: 'chips' })
   into(closed.body, closedList)
 
-  // Every account's quota — the 5 hours, the week — as a bar each.
+  // Every account's quota — the 5 hours, the week — as a bar each, on the
+  // same line as the figures where there is room for both.
   const quotas = quotasSection()
+  quotas.node.classList.add('ov-quotas')
+  into(top.body, quotas.node)
 
   into(
     node,
     top.node,
-    quotas.node,
     wants.node,
     projects.node,
     working.node,

@@ -164,13 +164,11 @@
 }
 
 /*
-  What it runs on, under its name: a harness and a model are mono, as in the
-  window — one line, cut with an ellipsis, so a long account never makes a row
+  What it runs on, under its name — one line, cut with an ellipsis, so a long account never makes a row
   three lines tall; the whole of it is on the agent's own page.
 */
 .runs {
   min-width: 0;
-  font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

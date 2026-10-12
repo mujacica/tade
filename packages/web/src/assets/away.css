@@ -47,9 +47,9 @@
   grid-template-columns: 1.5rem 1fr auto;
   gap: 2px var(--s3);
   align-items: baseline;
-  /* 44px even though the text is one line: a row is a tap target. */
+  /* A full target even though the text is one line: a row is a tap target. */
   min-height: calc(var(--tap) + var(--s2));
-  padding: var(--s3) var(--s4);
+  padding: var(--s2) var(--s4);
   color: inherit;
   text-decoration: none;
   transition: background var(--ease);
@@ -57,11 +57,6 @@
 
 .rows > li > a:hover {
   background: var(--surface);
-}
-
-/* A row's name lights under the pointer, as the reference's links do. */
-.rows > li > a:hover .name {
-  color: var(--amber-light);
 }
 
 /*
@@ -82,11 +77,10 @@
   vertical-align: -0.15em;
 }
 
-/* The row the keyboard is on, and the one `j`/`k` moves: the window's `▌`. */
+/* The row the keyboard is on, and the one `j`/`k` moves: a step lighter again. */
 .rows > li.on > a,
 .rows > li.on > div {
-  background: var(--surface);
-  box-shadow: inset 2px 0 0 var(--amber);
+  background: var(--raised);
 }
 
 .glyph {
@@ -121,9 +115,9 @@
   font-size: var(--step--1);
 }
 
-/* A row whose agent has gone quiet: the word is in the row; this is its edge. */
-.stalled {
-  box-shadow: inset 3px 0 0 var(--amber-dark);
+/* A row whose agent has gone quiet: the word is in the row; its name dims. */
+.stalled .name {
+  color: var(--pressed);
 }
 
 /* ── the state words, each beside its glyph ────────────────────────────────── */
@@ -186,20 +180,21 @@
   color: var(--bright);
 }
 
-/* ── the queue, as an indented list with connectors ────────────────────────── */
+/* ── the queue: a row each, and what it waits on beside it ───────────────── */
 
 /*
-  A dependency graph at 390px is unreadable and a list is not. The edges are
-  drawn with a connector glyph and an indent, which is how the window itself
-  draws the queue — and it reads fine.
+  A dependency graph at 390px is unreadable and a list is not. Each piece of
+  queued work is one row — its mark, its name, and what it waits on in quiet
+  words after it (under it on a phone) — and a second thing it waits on is a
+  second quiet line, not a drawn edge.
 */
 .queue > li {
   display: grid;
-  grid-template-columns: auto 1.5rem 1fr auto;
-  gap: var(--s2);
+  grid-template-columns: auto 1rem minmax(0, 1fr) auto;
+  gap: 2px var(--s3);
   align-items: center;
   padding: var(--s2) var(--s4);
-  min-height: var(--tap);
+  min-height: calc(var(--tap) + var(--s2));
 }
 
 .queue > li + li {
@@ -207,14 +202,17 @@
 }
 
 .queue .order {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--heading);
+  font-size: var(--step--1);
   text-align: end;
 }
 
 .queue .waits {
   grid-column: 3 / -1;
+  margin: 0;
+  padding: 0;
+  border: 0;
   /* A grid item is as wide as its longest word unless told otherwise, and a
      task id is one long word: at 360px, with the reason beside it, the row
      pushed the page 18px wider than the screen. */
@@ -226,12 +224,12 @@
 
 .queue .wait {
   display: block;
+  padding: 0;
 }
 
-/* Line art, and only line art: the words beside it carry the fact. */
+/* The window's connector glyph is for a terminal; here the line itself says it. */
 .queue .waits .edge {
-  color: var(--chrome);
-  font-family: var(--font-mono);
+  display: none;
 }
 
 /* ── tables: checks and spend, the only things allowed wider than the page ─── */
@@ -270,12 +268,11 @@ tr:last-child td {
   border-block-end: 0;
 }
 
-/* A column's name: small, and ruled off from the rows — no band of fill. */
+/* A column's name: small and quiet, ruled off from the rows. */
 th {
   color: var(--heading);
   font-size: var(--step--1);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 500;
 }
 
 tbody tr:hover td {
@@ -294,7 +291,7 @@ th.figure {
 .big {
   font-variant-numeric: tabular-nums;
   font-size: var(--step-4);
-  font-weight: 300;
+  font-weight: 600;
   letter-spacing: var(--tight);
   color: var(--bright);
   line-height: var(--lead-tight);
@@ -378,10 +375,10 @@ th.figure {
 
 .block {
   margin-block: var(--s2);
-  padding: var(--s3);
+  padding: var(--s2) var(--s3);
   border-radius: var(--r1);
   border: var(--border);
-  background: var(--ground);
+  background: var(--surface);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--bright);
@@ -441,16 +438,17 @@ th.figure {
   background: var(--amber-light);
 }
 
-/* The other presses: outlined, as the reference's are — the edge lights under the pointer. */
+/* The other presses: a step up from the panel, a hairline round them. */
 .press.quietly {
-  background: transparent;
-  border: 1px solid var(--chrome);
+  background: var(--surface);
+  border: 1px solid var(--control);
   color: var(--ink-light);
+  font-weight: 500;
 }
 
 .press.quietly:hover:not(:disabled) {
-  background: transparent;
-  border-color: var(--heading);
+  background: var(--raised);
+  border-color: var(--hovered);
 }
 
 .press:disabled {
@@ -620,7 +618,8 @@ select {
   padding: var(--s4);
   border-radius: var(--r4);
   background: var(--panel);
-  border: 1px solid var(--chrome);
+  border: 1px solid var(--control);
+  box-shadow: var(--lift);
 }
 
 .sheet dl {
@@ -661,18 +660,22 @@ select {
 
 /*
   **Nothing here, drawn one way everywhere** (`empty()` and every `nothing`):
-  where the rows would be, a quiet word after a small open ring, on the line
-  the first row would start — no box, no dashes: an empty list reads as empty
-  rather than as a list that failed to draw, and it looks the same on every
-  screen and in the dock.
+  where the rows would be, a quiet word after a small open ring, centred in a
+  panel the shape of the list — an empty list reads as empty rather than as a
+  list that failed to draw, and it looks the same on every screen and in the
+  dock.
 */
 .nothing {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--s2);
-  min-height: var(--tap);
-  padding-block: var(--s2);
+  min-height: 4rem;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  border: var(--border);
   color: var(--heading);
+  text-align: center;
 }
 
 .nothing::before {

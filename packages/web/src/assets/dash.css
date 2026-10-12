@@ -13,38 +13,38 @@
 
 /* ── tiles: the overview's figures ─────────────────────────────────────────── */
 
+/*
+  The top of the overview is one line at a desk: the four figures and the
+  quotas beside them (`overview.js` puts the quotas in the same section). On
+  a phone the figures are two by two and the quotas under them.
+*/
+.ov-top > div:not(.section-head) {
+  display: grid;
+  gap: var(--s4);
+}
+
+.ov-top .ov-quotas {
+  margin: 0;
+}
+
 .tiles {
   display: grid;
   gap: var(--s3);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* As many across as fit, so four figures are one row wherever there is room. */
-@media (min-width: 768px) {
-  .tiles {
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  }
-}
-
-@media (min-width: 768px) {
-  .tiles .tile-figure {
-    font-size: var(--step-4);
-  }
-}
-
 /*
-  A tile, as the reference dashboard draws one: its label small along the top
-  with its icon, the figure set large and light, and a line under it. Flat and
-  square; the whole tile is the link to where the rest of it is, and under the
-  pointer its edge lights, never its fill.
+  A tile: its icon and word small along the top, the figure set large, and a
+  line under it saying what the figure is made of. The whole tile is the link
+  to where the rest of it is, a step lighter under the pointer.
 */
 .tile {
   position: relative;
   display: grid;
   align-content: start;
   gap: var(--s1);
-  min-height: 8rem;
-  padding: var(--s3) var(--s4) var(--s4);
+  min-height: 7rem;
+  padding: var(--s4);
   overflow: hidden;
 }
 
@@ -58,8 +58,7 @@ main a.tile {
   gap: var(--s2);
   color: var(--heading);
   font-size: var(--step--1);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 500;
 }
 
 .tile-ic {
@@ -74,12 +73,12 @@ main a.tile {
 }
 
 .tile-figure {
-  margin-block-start: var(--s3);
+  margin-block-start: var(--s2);
   font-size: var(--step-3);
-  font-weight: 300;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tight);
-  line-height: 1;
+  line-height: 1.1;
   color: var(--bright);
 }
 
@@ -91,14 +90,7 @@ main a.tile {
   text-overflow: ellipsis;
 }
 
-/*
-  A tile whose figure is somebody's to act on wears its tone — on its edge,
-  its icon and its figure, and nowhere as a fill.
-*/
-.tile-wants.is-hot {
-  border-color: var(--violet);
-}
-
+/* A figure that is somebody's to act on wears its tone: its icon and its number. */
 .tile-wants.is-hot .tile-ic,
 .tile-wants.is-hot .tile-figure {
   color: var(--violet);
@@ -209,10 +201,6 @@ main a.tile {
 }
 
 /* ── the overview's own pieces ─────────────────────────────────────────────── */
-
-.wants-cards {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
-}
 
 .all-clear {
   display: flex;
@@ -361,30 +349,53 @@ main .places a {
   gap: var(--s2);
 }
 
-/* ── cards: what wants you ─────────────────────────────────────────────────── */
+/* ── what wants you: a list of rows, each with its presses ─────────────────── */
+
+/*
+  Each piece of work that wants somebody is a row in one panel, as an issue
+  list draws them: its mark, its name with its project after it, why in
+  `deriveState`'s own words under the name, how long ago at the end, and the
+  presses on the right at a desk (under it on a phone). The name is the link,
+  stretched over the row, and the presses sit above it.
+*/
+/* One column of rows, whatever `.cards` would reflow a grid of cards into. */
+.cards.wants-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.wants-cards:empty {
+  display: none;
+}
 
 .card {
   position: relative;
   display: grid;
   align-content: start;
-  gap: var(--s2);
-  padding: var(--s4);
-  transition: border-color var(--ease);
+  gap: var(--s1) var(--s4);
+  padding: var(--s3) var(--s4);
+  transition: background var(--ease);
 }
 
-/* The state's tone on the card's edge — a bar down its start — and nowhere as a fill. */
-.card.is-wants {
-  border-inline-start: 3px solid var(--violet);
+.wants-cards > .card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
-.card.is-failed {
-  border-inline-start: 3px solid var(--red);
+.wants-cards > .card + .card {
+  border-block-start: var(--border);
+}
+
+.wants-cards > .card:hover {
+  background: var(--surface);
 }
 
 .card-top {
   display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
-  gap: var(--s2);
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  gap: var(--s3);
   align-items: center;
 }
 
@@ -393,8 +404,12 @@ main .places a {
   that is not a press goes to the task — and the presses sit above it.
 */
 main a.card-link {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s2);
   min-width: 0;
+  min-height: var(--tap);
   color: var(--bright);
   text-decoration: none;
   line-height: var(--lead-tight);
@@ -404,25 +419,28 @@ main a.card-link {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: var(--r2);
-}
-
-.card-project {
-  color: var(--heading);
-  font-size: var(--step--1);
 }
 
 .card-name {
-  font-size: var(--step-1);
+  order: 1;
+  min-width: 0;
+  font-size: var(--step-0);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.card-project {
+  order: 2;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
 .card .why {
-  color: var(--body);
-  font-size: var(--step-0);
+  padding-inline-start: calc(1rem + var(--s3));
+  color: var(--heading);
+  font-size: var(--step--1);
 }
 
 /*
@@ -431,9 +449,10 @@ main a.card-link {
 */
 .card .asked {
   justify-self: start;
+  margin-inline-start: calc(1rem + var(--s3));
 }
 
-/* The presses on a card, above its stretched link. */
+/* The presses on a row, above its stretched link. */
 .quick {
   position: relative;
   z-index: 1;
@@ -441,12 +460,32 @@ main a.card-link {
   flex-wrap: wrap;
   gap: var(--s2);
   margin-block-start: var(--s1);
+  padding-inline-start: calc(1rem + var(--s3));
 }
 
 .quick-said {
   flex: 1 0 100%;
   color: var(--body);
   font-size: var(--step--1);
+}
+
+/* At a desk the presses go to the right of the row, level with its name. */
+@container (min-width: 44rem) {
+  .wants-cards > .card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .wants-cards > .card > :not(.quick) {
+    grid-column: 1;
+  }
+
+  .wants-cards > .card > .quick {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 /* The screen a cold open with nothing answering draws, from what was kept. */
@@ -470,19 +509,31 @@ main {
   container-type: inline-size;
 }
 
-@container (min-width: 32rem) {
+@container (min-width: 34rem) {
   .tiles {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-@container (min-width: 60rem) {
-  .tiles {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+/*
+  With room for both, the figures and the quotas share the top line: the
+  figures two by two beside the quotas, and all four in a row once there is
+  room for that as well.
+*/
+@container (min-width: 44rem) {
+  .ov-top > div:not(.section-head) {
+    grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
+    align-items: start;
   }
 
-  .tile-figure {
-    font-size: var(--step-4);
+  .ov-top .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 70rem) {
+  .ov-top .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -591,8 +642,9 @@ main {
   font-size: var(--step--1);
 }
 
-/* The presses under a task's name, before its sections. */
+/* The presses under a task's name, before its sections: flush with the title. */
 .page-head + .quick {
+  padding-inline-start: 0;
   margin-block-end: var(--s5);
 }
 

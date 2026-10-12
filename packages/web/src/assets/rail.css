@@ -4,18 +4,16 @@
   and a press at the foot that folds the whole rail to its icons (`shell.js`).
   Below 1100px the rail is the tablet's icon rail in `frame.css`, and folded
   it is that again.
+
+  **An application's sidebar**: its own column ruled off from the work, rows
+  of icon and word with their count at the end, a row under the pointer a
+  step lighter, and where you are a step lighter again with its icon in
+  amber — never a bar, never a box round it.
 */
 
-/* ── a wider desk: the rail gains its words, its categories and the projects ── */
-
-/*
-  Everything here is scoped to a rail that is not folded: folded, a desk's rail
-  is the tablet's — icons with their words under the pointer, and the projects
-  along the top again.
-*/
 @media (min-width: 1100px) {
   .frame:not(.rail-mini) {
-    grid-template-columns: 13.5rem minmax(0, 1fr);
+    grid-template-columns: 15rem minmax(0, 1fr);
   }
 
   .frame:not(.rail-mini) > .projects {
@@ -26,9 +24,8 @@
     grid-row: 1 / span 2;
   }
 
-  /* The sidebar is its own column, ruled off from the work by a hairline. */
   .rail {
-    max-height: calc(100vh - var(--tap) - var(--s6));
+    max-height: calc(100vh - 3.25rem - var(--s5));
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-block-end: var(--s3);
@@ -41,41 +38,72 @@
 
   .frame:not(.rail-mini) .rail-group {
     display: grid;
-    gap: 2px;
+    gap: 1px;
   }
 
   .frame:not(.rail-mini) .rail-group + .rail-group {
-    margin-block-start: var(--s2);
+    margin-block-start: var(--s4);
   }
 
-  /* A category's name, and the press that folds it: a label, as a section's is. */
+  /* A category's name, and the press that folds it: small and quiet. */
   .frame:not(.rail-mini) .rail-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     min-height: var(--tap);
-    padding-inline: var(--s3) var(--s2);
+    padding-inline: var(--s2);
+    border-radius: var(--r1);
     color: var(--heading);
     font-size: var(--step--1);
-    font-weight: 600;
-    letter-spacing: 0.04em;
+    font-weight: 500;
     cursor: pointer;
+  }
+
+  .frame:not(.rail-mini) .rail-head .twist {
+    opacity: 0;
+    transition: opacity var(--ease);
   }
 
   .frame:not(.rail-mini) .rail-head:hover {
     color: var(--bright);
   }
 
+  .frame:not(.rail-mini) .rail-head:hover .twist,
+  .frame:not(.rail-mini) .rail-head:focus-visible .twist,
+  .frame:not(.rail-mini) .rail-head[aria-expanded="false"] .twist {
+    opacity: 1;
+  }
+
   .frame:not(.rail-mini) .rail-items {
     display: grid;
-    gap: 2px;
+    gap: 1px;
   }
 
   .frame:not(.rail-mini) .rail-items > a {
-    grid-template-columns: 1.25rem 1fr auto;
+    grid-template-columns: 1rem minmax(0, 1fr) auto;
     justify-items: start;
     gap: var(--s3);
-    padding-inline: var(--s3);
+    padding-inline: var(--s2);
+    color: var(--pressed);
+  }
+
+  .frame:not(.rail-mini) .rail-items > a .ic {
+    width: 1rem;
+    height: 1rem;
+    color: var(--tab);
+  }
+
+  .frame:not(.rail-mini) .rail-items > a:hover .ic {
+    color: var(--bright);
+  }
+
+  .frame:not(.rail-mini) .rail-items > a[aria-current="page"] {
+    color: var(--bright);
+    font-weight: 500;
+  }
+
+  .frame:not(.rail-mini) .rail-items > a[aria-current="page"] .ic {
+    color: var(--amber);
   }
 
   .frame:not(.rail-mini) .rail-items .label {
@@ -90,6 +118,13 @@
 
   .frame:not(.rail-mini) .rail-items .count {
     position: static;
+    background: none;
+    color: var(--heading);
+  }
+
+  .frame:not(.rail-mini) .rail-items .count.is-loud {
+    background: var(--violet);
+    color: var(--ink);
   }
 
   /* The projects' tree: a project, its counts, and the press that opens it. */
@@ -99,7 +134,7 @@
 
   .tree-row {
     display: grid;
-    grid-template-columns: 1.75rem minmax(0, 1fr);
+    grid-template-columns: 1.5rem minmax(0, 1fr);
     align-items: center;
   }
 
@@ -107,7 +142,7 @@
     display: grid;
     place-items: center;
     min-height: var(--tap);
-    min-width: 1.75rem;
+    min-width: 1.5rem;
     border-radius: var(--r1);
     color: var(--tab);
     cursor: pointer;
@@ -132,36 +167,53 @@
   .tree-task {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: var(--s2);
+    gap: var(--s1);
     align-items: center;
     min-height: var(--tap);
     padding-inline: var(--s2);
     border-radius: var(--r1);
-    color: var(--body);
+    color: var(--pressed);
     text-decoration: none;
+    transition:
+      background var(--ease),
+      color var(--ease);
+  }
+
+  .tree-link .ui-count {
+    min-width: 1rem;
+    padding-inline: 2px;
+  }
+
+  /* A project's tasks hang off a hairline under its name. */
+  .tree-project > ul {
+    margin-inline-start: calc(1.5rem + var(--s2));
+    padding-inline-start: var(--s2);
+    border-inline-start: var(--border);
   }
 
   .tree-task {
-    grid-template-columns: 1.25rem minmax(0, 1fr);
-    margin-inline-start: 1.75rem;
-    min-height: 2.75rem;
+    grid-template-columns: 1rem minmax(0, 1fr);
+    gap: var(--s2);
     font-size: var(--step--1);
   }
 
   .tree-task .glyph {
     font-size: var(--step--1);
+    line-height: 1;
   }
 
   .tree-link:hover,
   .tree-task:hover {
+    background: var(--panel);
     color: var(--bright);
   }
 
-  /* Where you are: amber, with the window's `▌` down its start — never a fill. */
+  /* Where you are: a step lighter, and the word bright. */
   .tree-link[aria-current="page"],
   .tree-task[aria-current="page"] {
-    color: var(--amber);
-    box-shadow: inset 2px 0 0 var(--amber);
+    background: var(--surface);
+    color: var(--bright);
+    font-weight: 500;
   }
 
   .tree-name {
@@ -182,6 +234,7 @@
   }
 
   .rail-fold:hover {
+    background: var(--panel);
     color: var(--bright);
   }
 
@@ -191,6 +244,6 @@
 
   .frame:not(.rail-mini) .rail-fold {
     justify-items: start;
-    padding-inline: var(--s3);
+    padding-inline: var(--s2);
   }
 }
