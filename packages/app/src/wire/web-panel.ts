@@ -1,11 +1,10 @@
 import { networkInterfaces } from 'node:os'
 import {
-  ACTING_IS_NOT_YOU,
   ACTING_IS_NOT_YOU_SHORT,
   DEVICES_SEEN_BY_AGENTS,
-  LAN_IS_PLAINTEXT,
+  LAN_IS_PLAINTEXT_SHORT,
   routesOf,
-  TALKING_IS_NOT_YOU,
+  SETTINGS_FROM_AWAY_SHORT,
   TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
 import {
@@ -18,8 +17,10 @@ import {
   type Surface,
   type Tickets,
 } from '@tade/web'
+import { AWAY_CONTROLS } from '../panels/away/state.ts'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
 import type { Panel } from '../panels.ts'
+import { RUNS, SEES } from './web-grants.ts'
 
 // What the pairing panel draws, and where a phone should go to reach this
 // machine.
@@ -52,12 +53,6 @@ export interface PanelFacts {
   streams: number
   problem: string | null
   now: number
-  /**
-   * Drawn on the Away page of Settings rather than in the panel: what a device
-   * may do is said there in the domain's short clauses, because each setting
-   * under it says its own and the whole sentence is one press away (`/away`).
-   */
-  brief?: boolean
 }
 
 /** How long a ticket is good for, and how long somebody has to answer the door. */
@@ -96,17 +91,45 @@ export function awayView(facts: PanelFacts): AwayView {
     acting: facts.surface.acting,
     talking: facts.surface.talking,
     configuring: facts.surface.configuring,
-    acts: facts.brief ? `${cap(ACTING_IS_NOT_YOU_SHORT)}.` : ACTING_IS_NOT_YOU,
-    talks: facts.brief ? `${cap(TALKING_IS_NOT_YOU_SHORT)}.` : TALKING_IS_NOT_YOU,
-    lan: LAN_IS_PLAINTEXT,
-    agents: `${cap(DEVICES_SEEN_BY_AGENTS)}, which is why this list shows every device there is.`,
+    help: grantsHelp(facts.surface),
+    lan: LAN_IS_PLAINTEXT_SHORT,
+    agents: DEVICES_SEEN_BY_AGENTS,
     problem: facts.problem,
   }
 }
 
-/** A clause begun as a sentence. */
-function cap(said: string): string {
-  return `${said[0]?.toUpperCase() ?? ''}${said.slice(1)}`
+/**
+ * What each of a device's controls grants, in one clause, for the foot to say
+ * while the pointer is on it — the moment somebody is deciding whether to
+ * press it.
+ *
+ * **The domain's own clauses where it has one** (`_SHORT`, said once so no
+ * control can say the comfortable half), and the strip's own words where it
+ * does not: what a press says it did is what pointing at it says it does. The
+ * whole sentences are each setting's `means` — search, `tade config` and
+ * `tade_settings` read them — and the README's.
+ */
+export function grantsHelp(
+  surface: Pick<Surface, 'acting' | 'talking' | 'configuring'>,
+): Readonly<Record<string, string>> {
+  return {
+    // Only the controls that are drawn, so the foot keeps the rows of the
+    // longest clause somebody could actually point at and no more.
+    ...(surface.acting
+      ? {
+          [AWAY_CONTROLS.act]: `act: ${ACTING_IS_NOT_YOU_SHORT}`,
+          [AWAY_CONTROLS.agents]: `agents: ${RUNS.agents}`,
+          [AWAY_CONTROLS.projects]: `projects: ${RUNS.projects}`,
+        }
+      : {}),
+    ...(surface.talking ? { [AWAY_CONTROLS.talk]: `talk: ${TALKING_IS_NOT_YOU_SHORT}` } : {}),
+    ...(surface.configuring
+      ? { [AWAY_CONTROLS.configure]: `configure: ${SETTINGS_FROM_AWAY_SHORT}` }
+      : {}),
+    [AWAY_CONTROLS.see]: `lanes: ${SEES.lanes}; only paths and keys are taken out`,
+    [AWAY_CONTROLS.settings]: `settings: ${SEES.settings}; a key is said as set or not set`,
+    [AWAY_CONTROLS.revoke]: '×: disconnect this device now',
+  }
 }
 
 /**

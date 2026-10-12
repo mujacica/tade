@@ -47,20 +47,18 @@ export const DEVICE_MAY = 'A paired device may'
 // the whole of it, every domain sentence included, because it is still what
 // search, `tade config` and `tade_settings` read.
 //
-// **Nine of the thirteen are `live: false`, honestly.** The route table is
-// built when the listener comes up, and the epoch a connected phone holds is
-// per server start — so changing one under a running listener would have to
-// tear down and rebuild something somebody is looking at. Saying *takes effect
-// on restart* is the honest answer; doing nothing and saying nothing is the
-// setting Tade accepts and ignores.
-//
-// **`enabled` is `live: true`**, because there is nothing to tear down in the
-// direction people press it: off to on brings the listener up with whatever the
-// rest says, and on to off closes it, which is the direction that takes
-// authority away and is owed at once (`Away.follow`). **The three push ones and
-// the key are `live: true` too**: a notification is not a route, it is decided
-// on the window's own beat out of the config the window holds, so there is no
-// table built at start-up for a change to be behind.
+// **All thirteen are `live: true`.** `enabled` brings the listener up or
+// closes it at once (`Away.follow`). The nine the listener is built from — who
+// can reach it, the port, the trusted hostnames and every capability — waited
+// for a restart, because the route table and the epoch a connected phone holds
+// are made when the listener comes up; a change to any of them while it is on
+// now closes it and brings it up again (`web-follow.ts`), so a page open on a
+// phone comes back with a snapshot, as it would after opening Tade again. A
+// listener left as it was under a config that had moved on was the panel
+// drawing the config's bind and minting a code for an address nothing
+// listened on. **The push ones and the key** are read on the window's own beat
+// out of the config it holds, so there was never anything for them to wait
+// behind.
 
 export function awayGroup(config: Config): SettingGroup {
   const web = config.surfaces.web
@@ -123,7 +121,7 @@ export function awayGroup(config: Config): SettingGroup {
         value: web.bind,
         fallback: 'loopback',
         type: { kind: 'choice', options: ['loopback', 'lan'] },
-        live: false,
+        live: true,
         keywords: ['network', 'wifi', 'plaintext', 'interface', 'expose'],
       },
       {
@@ -135,7 +133,7 @@ export function awayGroup(config: Config): SettingGroup {
         value: String(web.port),
         fallback: '7654',
         type: { kind: 'number' },
-        live: false,
+        live: true,
       },
       {
         path: 'surfaces.web.trusted_hosts',
@@ -146,7 +144,7 @@ export function awayGroup(config: Config): SettingGroup {
         value: web.trusted_hosts.join(' '),
         fallback: 'none',
         type: { kind: 'text', placeholder: 'studio.yak-bebop.ts.net' },
-        live: false,
+        live: true,
         keywords: ['tailscale', 'tailnet', 'tunnel', 'cloudflare', 'reverse proxy', 'origin'],
       },
       {
@@ -182,12 +180,11 @@ export function awayGroup(config: Config): SettingGroup {
         value: String(web.acting),
         fallback: 'true',
         type: { kind: 'flag' },
-        // `false` like the rest, and honestly asymmetric: turning it **on**
-        // needs a restart because the route table is built with the listener,
-        // and turning it **off** is read at every act, so the direction that
-        // takes authority away is immediate. Said that way round rather than
-        // claimed to be live.
-        live: false,
+        // `true`: the route table is built with the listener, and a change
+        // builds the listener again (`web-follow.ts`). Off is also read at
+        // every act, so the direction that takes authority away holds even
+        // while that is under way.
+        live: true,
         keywords: ['act', 'acting', 'approve', 'steer', 'park', 'change', 'answer', 'verb'],
       },
       {
@@ -206,11 +203,9 @@ export function awayGroup(config: Config): SettingGroup {
         value: String(web.orchestrator),
         fallback: 'true',
         type: { kind: 'flag' },
-        // `false` like the rest, and asymmetric the same way `acting` is:
-        // turning it on needs a restart because the route table is built with
-        // the listener, and turning it off is read at every turn — so the
-        // direction that takes authority away is immediate.
-        live: false,
+        // `true` the way `acting` is: the listener is built again, and off is
+        // read at every turn as well.
+        live: true,
         keywords: ['ask', 'talk', 'chat', 'message', 'orchestrator', 'conversation', 'prompt'],
       },
       {
@@ -228,9 +223,9 @@ export function awayGroup(config: Config): SettingGroup {
         value: String(web.drafts),
         fallback: 'true',
         type: { kind: 'flag' },
-        // `false` like the rest, and asymmetric the same way: on waits for the
-        // route table the listener builds, off is read at every save.
-        live: false,
+        // `true` the way `acting` is: the listener is built again, and off is
+        // read at every save as well.
+        live: true,
         keywords: ['draft', 'drafts', 'workflow', 'template', 'designer', 'edit', 'form'],
       },
       {
@@ -246,9 +241,9 @@ export function awayGroup(config: Config): SettingGroup {
         value: String(web.settings),
         fallback: 'true',
         type: { kind: 'flag' },
-        // `false` like the rest, and asymmetric the same way: on waits for the
-        // route table the listener builds, off is read at every change.
-        live: false,
+        // `true` the way `acting` is: the listener is built again, and off is
+        // read at every change as well.
+        live: true,
         keywords: ['settings', 'config', 'configure', 'setting', 'preferences'],
       },
       {
@@ -266,11 +261,11 @@ export function awayGroup(config: Config): SettingGroup {
         value: String(web.install),
         fallback: 'true',
         type: { kind: 'flag' },
-        // `false` like the rest, and honestly so: what `/sw.js` answers with
-        // is built when the listener comes up, so both directions wait for a
-        // restart — and then the *device* waits until it next reaches this
-        // machine, which is said in the sentence rather than implied.
-        live: false,
+        // `true`: what `/sw.js` answers with is built when the listener comes
+        // up, and a change builds it again. The *device* still waits until it
+        // next reaches this machine, which is said in the sentence rather than
+        // implied.
+        live: true,
         keywords: [
           'install',
           'pwa',
@@ -297,10 +292,10 @@ export function awayGroup(config: Config): SettingGroup {
         value: String(web.offline),
         fallback: 'true',
         type: { kind: 'flag' },
-        // `false` like the rest. Turning it off clears what is on a device the
-        // next time that device reaches this machine, which is the same
-        // *told, not assumed* rule the row above has.
-        live: false,
+        // `true`, by the listener being built again. Turning it off clears
+        // what is on a device the next time that device reaches this machine,
+        // which is the same *told, not assumed* rule the row above has.
+        live: true,
         keywords: ['offline', 'cache', 'last seen', 'counts', 'stale', 'train', 'aeroplane'],
       },
       {

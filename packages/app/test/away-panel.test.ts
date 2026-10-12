@@ -4,24 +4,26 @@ import {
   ACTING_IS_NOT_YOU_SHORT,
   ConfigSchema,
   DEVICES_SEEN_BY_AGENTS,
-  LAN_IS_PLAINTEXT,
+  LAN_IS_PLAINTEXT_SHORT,
   TALKING_IS_NOT_YOU,
   TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
 import { blocksFor, codeFor, surfaceOf } from '@tade/web'
 import { describe, expect, it } from 'vitest'
+import type { Target } from '../src/hits.ts'
 import { AWAY_CONTROLS, awayClick, awayKey, awayPanel } from '../src/panels/away/state.ts'
 import type { AwayView } from '../src/panels/away/view.ts'
 import type { PanelContext } from '../src/panels/context.ts'
 import { drawPanel } from '../src/panels/context.ts'
 import { settingsClick, settingsPanel } from '../src/panels/settings/state.ts'
 import { skinFor } from '../src/skin.ts'
-import { awayView, codeShownOn } from '../src/wire/web-panel.ts'
+import { awayView, codeShownOn, grantsHelp } from '../src/wire/web-panel.ts'
 
-// The away panel's rules that no golden can be trusted to notice: that the two
-// sentences are drawn whole and cannot be scrolled away, that a code is never
-// drawn cut, that the region offers a bar when it scrolls, and that the only
-// way to say yes to a device is the key that means yes.
+// The away panel's rules that no golden can be trusted to notice: that the
+// clause about this machine's agents cannot be scrolled away, that what a
+// grant does is one clause under the pointer and never a paragraph, that a
+// code is never drawn cut, that the region offers a bar when it scrolls, and
+// that the only way to say yes to a device is the key that means yes.
 //
 // The goldens are `test/screens/__screens__/away-*`; this is what they cannot
 // say, because a golden passes on a drawing that is wrong in a way nobody
@@ -31,7 +33,7 @@ const URL = 'http://studio.local:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
 
 function view(over: Partial<AwayView> = {}): AwayView {
   const code = codeFor(URL)
-  return {
+  const made: AwayView = {
     listening: true,
     bind: 'loopback',
     bound: ['127.0.0.1:7654', '[::1]:7654'],
@@ -41,7 +43,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
     asking: null,
     talking: false,
     configuring: false,
-    talks: TALKING_IS_NOT_YOU,
+    help: {},
     devices: [
       {
         id: '00112233445566aa',
@@ -60,23 +62,28 @@ function view(over: Partial<AwayView> = {}): AwayView {
     ],
     streams: 1,
     acting: false,
-    acts: ACTING_IS_NOT_YOU,
-    lan: LAN_IS_PLAINTEXT,
-    agents: `${DEVICES_SEEN_BY_AGENTS}, which is why this list shows every device there is.`,
+    lan: LAN_IS_PLAINTEXT_SHORT,
+    agents: DEVICES_SEEN_BY_AGENTS,
     problem: null,
     ...over,
   }
+  return { ...made, help: over.help ?? grantsHelp(made) }
 }
 
-function drawn(
-  over: Partial<AwayView> = {},
-  size: { width?: number; height?: number; date?: (at: number) => string } = {},
-) {
+interface Size {
+  width?: number
+  height?: number
+  date?: (at: number) => string
+  /** What the pointer is on. */
+  hover?: Target
+}
+
+function drawn(over: Partial<AwayView> = {}, size: Size = {}) {
   const ctx = {
     width: size.width ?? 120,
     height: size.height ?? 34,
     skin: skinFor({}, false),
-    pointer: { hover: null, pressed: null },
+    pointer: { hover: size.hover ?? null, pressed: null },
     // A whole ISO string by default, so a golden is a golden — and twenty-odd
     // columns the real window spends on `11 Sep`. A test about **what fits on
     // a row** has to use the shape the window actually draws, or it is a test
@@ -88,20 +95,32 @@ function drawn(
   return drawPanel(awayPanel(), ctx).panel
 }
 
-const said = (
-  over?: Partial<AwayView>,
-  size?: { width?: number; height?: number; date?: (at: number) => string },
-) =>
+/** What the panel says, its box and its lines taken away: one run of words. */
+const words = (text: string) =>
+  text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^[^│]*│/, '')
+        .replace(/│[^│]*$/, '')
+        .trim(),
+    )
+    .filter((line) => line !== '')
+    .join(' ')
+
+const said = (over?: Partial<AwayView>, size?: Size) =>
   drawn(over, size)
     .rows.map((row) => stripTerminalSequences(row))
     .join('\n')
 
-describe('the two sentences', () => {
-  it('draws the LAN one whole, on the bind that earns it', () => {
+describe('the two clauses', () => {
+  it('says what a LAN bind is above the code, in the domain’s one clause', () => {
     const text = said({ bind: 'lan', reachable: ['192.168.1.10'] })
-    // Whole, in the words the domain says once: a warning cut at *anybody on
-    // the same* is a warning that stopped being one.
-    for (const word of LAN_IS_PLAINTEXT.split(/\s+/)) expect(text, word).toContain(word)
+    // Before the code, because the moment to say it is before somebody holds a
+    // phone up to the screen; the whole of it, with the way out, is the bind
+    // setting's own `means`.
+    expect(text).toContain(LAN_IS_PLAINTEXT_SHORT)
+    expect(text.indexOf(LAN_IS_PLAINTEXT_SHORT)).toBeLessThan(text.indexOf('█'))
   })
 
   it('does not say it on a loopback bind, where it is not true', () => {
@@ -110,19 +129,84 @@ describe('the two sentences', () => {
 
   it('draws the one about this machine’s agents however short the window is', () => {
     // In the foot, which is never scrolled: the device list is the mitigation
-    // and the sentence is what says so, and a person who cannot see it is a
+    // and the clause is what says so, and a person who cannot see it is a
     // person who was not told.
     for (const height of [40, 24, 14, 10]) {
-      expect(said({}, { height }), String(height)).toContain('could pair itself')
+      expect(said({}, { height }), String(height)).toContain(DEVICES_SEEN_BY_AGENTS)
     }
   })
 
-  it('keeps Disconnect everything reachable at every height', () => {
-    for (const height of [40, 24, 14, 10]) {
-      const ids = drawn({}, { height }).hits.map((hit) =>
+  it('keeps Disconnect everything reachable at every height and width', () => {
+    for (const [width, height] of [
+      [120, 40],
+      [120, 24],
+      [120, 14],
+      [120, 10],
+      [60, 24],
+      [44, 24],
+    ] as const) {
+      const ids = drawn({}, { width, height }).hits.map((hit) =>
         hit.target.kind === 'control' ? hit.target.id : '',
       )
-      expect(ids, String(height)).toContain(AWAY_CONTROLS.all)
+      expect(ids, `${width}×${height}`).toContain(AWAY_CONTROLS.all)
+      // And the clause with it, whole — wrapped onto lines of its own where the
+      // two do not fit beside each other, never cut.
+      expect(words(said({}, { width, height })), `${width}×${height}`).toContain(
+        DEVICES_SEEN_BY_AGENTS,
+      )
+    }
+  })
+})
+
+describe('what a grant does', () => {
+  const everything = { acting: true, talking: true, configuring: true }
+  const onAct: Target = { kind: 'control', id: `${AWAY_CONTROLS.act}00112233445566aa` }
+  const onTalk: Target = { kind: 'control', id: `${AWAY_CONTROLS.talk}00112233445566aa` }
+
+  it('is no paragraph at all, with every capability on', () => {
+    // What it once was: the whole of acting and the whole of talking above the
+    // list, read every time the panel opened. The whole sentences are each
+    // setting's `means` and the README's.
+    const text = said(everything, { height: 80 })
+    for (const word of ['overrule', 'refused in code', 'Trusted hostnames', 'which is why']) {
+      expect(text, word).not.toContain(word)
+    }
+    expect(text).not.toContain(ACTING_IS_NOT_YOU.slice(0, 40))
+    expect(text).not.toContain(TALKING_IS_NOT_YOU.slice(0, 40))
+  })
+
+  it('is one clause in the foot while the pointer is on its control', () => {
+    expect(said(everything, { height: 80, hover: onAct })).toContain(
+      `act: ${ACTING_IS_NOT_YOU_SHORT}`,
+    )
+    expect(said(everything, { height: 80, hover: onTalk })).toContain(
+      `talk: ${TALKING_IS_NOT_YOU_SHORT}`,
+    )
+    // Nothing pointed at, nothing said.
+    expect(said(everything, { height: 80 })).not.toContain(ACTING_IS_NOT_YOU_SHORT)
+  })
+
+  it('moves nothing when it appears: the foot keeps its rows whatever is pointed at', () => {
+    // A foot that grew under the pointer would move the chip it explains out
+    // from under it — so every row of the panel is the same row with or
+    // without the clause in it, the clause's own rows excepted.
+    for (const width of [120, 60]) {
+      const still = drawn(everything, { width, height: 80 }).rows
+      const pointed = drawn(everything, { width, height: 80, hover: onAct }).rows
+      expect(pointed.length, String(width)).toBe(still.length)
+      const differ = still.filter((row, at) => row !== pointed[at])
+      expect(differ.length, String(width)).toBeGreaterThan(0)
+      expect(differ.length, String(width)).toBeLessThanOrEqual(3)
+    }
+  })
+
+  it('names only the controls that are drawn', () => {
+    const off = grantsHelp({ acting: false, talking: false, configuring: false })
+    expect(Object.keys(off)).not.toContain(AWAY_CONTROLS.act)
+    expect(Object.keys(off)).not.toContain(AWAY_CONTROLS.talk)
+    // The reading grants and the `×` are drawn on every row, whatever is on.
+    for (const always of [AWAY_CONTROLS.see, AWAY_CONTROLS.settings, AWAY_CONTROLS.revoke]) {
+      expect(Object.keys(off)).toContain(always)
     }
   })
 })
@@ -148,16 +232,40 @@ describe('the code', () => {
     expect(joined).toContain(URL)
   })
 
+  it('cuts neither how long the code has left nor what is bound, however narrow', () => {
+    // The two figures on the panel somebody reads off it — moved onto lines
+    // of their own rather than cut at the edge, the control beside them too.
+    for (const width of [120, 60, 44]) {
+      const text = words(said({}, { width, height: 60 }))
+      expect(text, String(width)).toContain('1:24 left')
+      expect(text, String(width)).toMatch(/127\.0\.0\.1:7654\s+\[::1\]:7654/)
+      const ids = drawn({}, { width, height: 60 }).hits.map((hit) =>
+        hit.target.kind === 'control' ? hit.target.id : '',
+      )
+      expect(ids, String(width)).toContain(AWAY_CONTROLS.code)
+    }
+  })
+
   it('says there is no network rather than offering a code nobody can reach', () => {
     const text = said({ bind: 'lan', reachable: [] })
     expect(text).toContain('No network')
     expect(text).not.toContain('/pair#t=')
   })
 
-  it('says nothing is listening when nothing is, and offers no code', () => {
-    const text = said({ listening: false, bound: [], ticket: null, code: [] })
-    expect(text).toContain('Nothing is listening')
-    expect(text).toContain('Settings → Away view')
+  it('says it is off in one line, offers no code, and the way to the switch', () => {
+    const off = { listening: false, bound: [], ticket: null, code: [] }
+    const text = said(off)
+    expect(text).toContain('Off — nothing is listening')
+    expect(text).not.toContain('/pair#t=')
+    // A control and not a sentence saying where the switch is: the strip's own
+    // action, so the panel and the chip go to the same place.
+    const actions = drawn(off).hits.map((hit) =>
+      hit.target.kind === 'action' ? hit.target.name : '',
+    )
+    expect(actions).toContain('away-settings')
+    for (const gone of ['nothing to pair with', 'open Tade again', 'Turn it on']) {
+      expect(text).not.toContain(gone)
+    }
   })
 })
 
@@ -317,14 +425,6 @@ describe('letting one device act', () => {
     expect(text).toContain('[act]')
   })
 
-  it('says what a device acting is, whole, above the list', () => {
-    // The same placement and the same argument as the LAN warning above the
-    // code: the moment to read what a device will be able to do is before
-    // granting it.
-    const text = said({ acting: true }, { height: 64 })
-    for (const word of ACTING_IS_NOT_YOU.split(/\s+/)) expect(text, word).toContain(word)
-  })
-
   it('says nothing about acting where it is off, even with a device granted it', () => {
     // A grant that was made and then the setting turned off: the honest
     // drawing is the one that matches what the server will do, which is
@@ -411,14 +511,6 @@ describe('letting one device talk to Tade', () => {
     expect(text).toContain('[talk]')
   })
 
-  it('says what a device talking to Tade is, whole, above the list', () => {
-    // The whole sentence, never cut: the half that says what the narrowing
-    // actually is — a closed list of tools, in code — is the half somebody
-    // deciding needs, and the half that would go first.
-    const text = said({ talking: true }, { height: 96 })
-    for (const word of TALKING_IS_NOT_YOU.split(/\s+/)) expect(text, word).toContain(word)
-  })
-
   it('says nothing about talking where it is off, even with a device granted it', () => {
     const text = said(
       {
@@ -467,7 +559,7 @@ describe('on the Away page of Settings', () => {
     }
   })
 
-  it('says what a device may do in the short clauses there, and whole in the panel', () => {
+  it('says what a device may do in the domain’s own clauses, there and in the panel', () => {
     const facts = {
       surface: surfaceOf(ConfigSchema.parse({ surfaces: { web: { enabled: true } } }).surfaces.web),
       bound: [],
@@ -480,16 +572,11 @@ describe('on the Away page of Settings', () => {
       problem: null,
       now: 0,
     }
-    expect(awayView(facts).acts).toBe(ACTING_IS_NOT_YOU)
-    // The domain's own clauses, begun as a sentence: never a third wording.
-    expect(awayView({ ...facts, brief: true }).acts).toBe(
-      'A device acts as a request, never as your own words.',
-    )
-    expect(awayView({ ...facts, brief: true }).acts.slice(1)).toContain(
-      ACTING_IS_NOT_YOU_SHORT.slice(1),
-    )
-    expect(awayView({ ...facts, brief: true }).talks.slice(1)).toContain(
-      TALKING_IS_NOT_YOU_SHORT.slice(1),
-    )
+    const view = awayView(facts)
+    // Never a third wording: the clause the domain says once, after the chip's name.
+    expect(view.help[AWAY_CONTROLS.act]).toBe(`act: ${ACTING_IS_NOT_YOU_SHORT}`)
+    expect(view.help[AWAY_CONTROLS.talk]).toBe(`talk: ${TALKING_IS_NOT_YOU_SHORT}`)
+    expect(view.lan).toBe(LAN_IS_PLAINTEXT_SHORT)
+    expect(view.agents).toBe(DEVICES_SEEN_BY_AGENTS)
   })
 })

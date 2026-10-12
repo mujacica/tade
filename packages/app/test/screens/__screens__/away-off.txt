@@ -4,20 +4,20 @@
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▌ ! stripe-v15   880k tok   █│                                                                                         
  ▌   wants you to approve…   █│                                                                                         
-                       ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮                       
-   ⠋ refunds         $0│                                                                        │                       
-     working           │ ○ Off — nothing is listening                                           │                       
+                             █│                                                                                         
+   ⠋ refunds         $0.62   █│                                                                                         
+     working           ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮                       
                        │                                                                        │                       
- ▸ SMART QUEUE         │ Nothing is listening, so there is nothing to pair with.                │                       
- ▸ SCHEDULES           │ Turn it on in Settings → Away view.                                    │                       
- ▸ INTAKE              │                                                                        │                       
- ▾ CHANGES  3        vs│ DEVICES                                                                │                       
-  M package.json       │ No device has been paired.                                             │                       
-  A …/webhooks.test.ts │                                                                        │                       
-  M src/webhooks.ts   +│ An agent on this machine could pair itself, which is why this list     │                       
-                       │ shows every device there is.                                           │                       
- ▾ FILES               │                                                Disconnect everything   │                       
-   ▾ src/              ╰────────────────────────────────────────────────────────────────────────╯                       
+ ▸ SMART QUEUE         │ ○ Off — nothing is listening                    Settings › Away view   │                       
+ ▸ SCHEDULES           │                                                                        │                       
+ ▸ INTAKE              │ DEVICES                                                                │                       
+ ▾ CHANGES  3        vs│ No device has been paired.                                             │                       
+  M package.json       │                                                                        │                       
+  A …/webhooks.test.ts │ an agent on this machine could pair itself     Disconnect everything   │                       
+  M src/webhooks.ts   +╰────────────────────────────────────────────────────────────────────────╯                       
+                             ▕│  ▸ bash npm i stripe@15                                                                 
+ ▾ FILES                     ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   ▾ src/                    ▕│  │ bash  npm i stripe@15                                        │                       
        webhooks.test.ts      ▕│  │   Allow once     Deny                                        │                       
        webhooks.ts           ▕│  ╰──────────────────────────────────────────────────────────────╯                       
    ▸ test/                   ▕│                                                                                         

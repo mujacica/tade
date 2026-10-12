@@ -85,8 +85,7 @@ describe('the away view, turned on from Settings', () => {
     await until('the link', () => terminal.written.includes(`http://localhost:${port}/pair#`))
     expect(await answers(port)).toBe(true)
     const page = screenOf(terminal.written).join('\n')
-    expect(page).toContain('Open the link in a browser on this machine')
-    expect(page).toContain('Tade will ask you here before letting it in.')
+    expect(page).toContain('Open the link on this machine')
     expect(page).toContain('DEVICES')
     expect(page).toContain('No device has been paired.')
     expect(page).toContain('█')
@@ -101,6 +100,39 @@ describe('the away view, turned on from Settings', () => {
       screenOf(terminal.written).every((line) => !(line ?? '').includes('/pair#')),
     )
     expect(client.config.surfaces.web.enabled).toBe(false)
+  })
+
+  it('waits for nothing to start again: no row on the page says it would', async () => {
+    await onTheAwayPage(await freePort())
+    const page = screenOf(terminal.written).join('\n')
+    expect(page).toContain('Who can reach it')
+    expect(page).not.toContain('on restart')
+  })
+
+  it('moves to a port typed on the page while it listens, and the code with it', async () => {
+    const first = await freePort()
+    await onTheAwayPage(first)
+    const row = find('Serve the away view')
+    click(row.col + 1, row.row)
+    terminal.press(' ')
+    await until('the link', () => terminal.written.includes(`http://localhost:${first}/pair#`))
+    expect(await answers(first)).toBe(true)
+
+    // The number, opened with enter, emptied and typed into as a person would,
+    // and left with enter.
+    const second = await freePort()
+    const port = find('Port')
+    click(port.col + 1, port.row)
+    terminal.press('\r')
+    terminal.press('\x15')
+    terminal.press(String(second))
+    terminal.written = ''
+    terminal.press('\r')
+    await until('the new port', async () => await answers(second))
+    expect(await answers(first)).toBe(false)
+    expect(client.config.surfaces.web.port).toBe(second)
+    // The page draws a code for the listener there is, never the one there was.
+    await until('the new link', () => terminal.written.includes(`http://localhost:${second}/pair#`))
   })
 
   it('mints a new code from the page, once the one it showed is gone', async () => {

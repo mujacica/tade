@@ -32,6 +32,9 @@ export const LAN_IS_PLAINTEXT =
   'and the session cookie with it. `tailscale serve localhost:7654` gives a phone HTTPS while ' +
   'Tade keeps listening on this machine alone, which is a smaller surface than this one.'
 
+/** The short clause, for the one line the away panel gives what it is listening as. */
+export const LAN_IS_PLAINTEXT_SHORT = 'plain HTTP: anybody on the same wifi can read it'
+
 /**
  * Why a cookie prefix is not the answer to a port, said where somebody would
  * otherwise believe it is.

@@ -3,7 +3,7 @@
  ▾ ╭─ AWAY VIEW ────────────────────────────────── esc ─╮ ac
    │                                                    │───
  ▌ │ ● On, on this machine alone                        │he 
- ▌ │ 127.0.0.1:7654  [::1]:7654                         │   
+ ▌ │ 127.0.0.1:7654 [::1]:7654                          │   
    │                                                    │   
    │                                                    │−4 
    │                                                    │   
@@ -14,8 +14,8 @@
  ▾ │      █▄  █ ▀█▀█▄▀▀  ███▀▀▄▀▀█▀▀▀█▀█▄ ▀             │   
 ━  │      █ ▄▄  ▀▀▀   ██▀█▄▄ ▄ ▄██▀▄   ▀ █              │  ━
    │                                                    │   
-   │ An agent on this machine could pair itself, which  │  ▕
-   │ is why this list shows every device there is.      │  ▕
+   │                                                    │  ▕
+   │ an agent on this machine could pair itself         │  ▕
    │                            Disconnect everything   │  ▕
  ❯ ╰────────────────────────────────────────────────────╯✓✗▕
 ────────────────────────────────────────────────────────────

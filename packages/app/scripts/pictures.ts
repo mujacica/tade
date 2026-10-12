@@ -308,22 +308,21 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'away-pairing',
     crop: 'panel',
     about:
-      'The away view in the window, on and on this machine alone: the two addresses it is bound ' +
-      'to, a QR code to scan a phone in with, and — under it, where somebody is deciding — that ' +
-      'an agent on this machine could pair itself, with Disconnect everything beside it.',
+      'The away view in the window, on and on this machine alone: one line saying so with the ' +
+      'two addresses it is bound to, a QR code to scan a phone in with, and at the foot that an ' +
+      'agent on this machine could pair itself, with Disconnect everything beside it.',
   },
   {
     file: 'away-devices.svg',
     scenario: 'away-acting-granted',
     crop: 'panel',
     about:
-      'The away view with acting on: above the list, the whole of what a paired device may do — ' +
-      'stopping an agent or closing a project only where it was granted each — and what it can ' +
-      'never reach, which is a setting beyond that, a credential, a command, a new agent, a ' +
-      'push, a merge and a check overruled. Under it every device there is, each with what it ' +
-      'was granted to read in the words it was granted, may act and may stop agents on the one ' +
-      'that has them, and a chip beside each to grant or take back acting, stopping agents and ' +
-      'closing projects. Nothing to scan, because claiming a code burns it.',
+      'The away view with acting on: every device there is, each with what it was granted to ' +
+      'read in the words it was granted, may act and may stop agents on the one that has them, ' +
+      'and a chip beside each to grant or take back acting, stopping agents, closing projects, ' +
+      'seeing screens and reading settings. The pointer is on one act chip, so the foot says ' +
+      'in one clause what it grants: a device acts as a request, never as your own words. ' +
+      'Nothing to scan, because claiming a code burns it.',
   },
   {
     file: 'away-settings.svg',
@@ -331,10 +330,10 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       'The away view in Settings, turned on from its own switch: under it at once the code to ' +
-      'scan, the link to open in a browser, how to use them here and what a phone needs, and ' +
-      'every device with a chip per grant and Disconnect everything — then who may reach it, ' +
-      'the port, and what a paired device may do as short names under one heading, each on by ' +
-      'default and each still nothing until a device is granted it at this machine.',
+      'scan, the link to open on this machine, and every device with a chip per grant and ' +
+      'Disconnect everything — then who may reach it, the port, and what a paired device may ' +
+      'do as short names under one heading, each on by default, each applied as it is changed, ' +
+      'and each still nothing until a device is granted it at this machine.',
   },
   {
     file: 'intake.svg',

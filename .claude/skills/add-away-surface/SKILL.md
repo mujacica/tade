@@ -75,9 +75,9 @@ a device still has none of the scopes that change anything until somebody at thi
 | the delta merge and the selectors | `src/assets/store.js` |
 | the router, the stream, the keyboard | `src/assets/boot.js` |
 | the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts`; the desk and `lanes` in `scripts/browser-desk.ts` |
-| the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` — `follow` brings it up and down as the switch changes |
+| the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` — `follow` brings it up, down, or up again as a setting it was built from changes (`web-follow.ts`, `builtFrom`) |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
-| what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with four goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy |
+| what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with six goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy. A status line, the code and link, the devices and the controls; what a chip grants is one clause in the foot while the pointer is on it (`grantsHelp` in `wire/web-panel.ts`), never a paragraph above the list |
 | the strip's `remote off` / `remote 2` chip | `Away.facts` (`Frame.remote`, off the listener and its streams, never the config), drawn in `view/foot.ts`. The beat draws when the streams open differ from what the last **frame** drew, not the last beat: a page that opens and closes between two beats is otherwise left on screen |
 | the terminal's end of it | `packages/cli/src/commands/web.ts` |
 
@@ -93,8 +93,8 @@ a device still has none of the scopes that change anything until somebody at thi
   `surfaces.web.push`, `SETTINGS` is `surfaces.web.settings`. `halvesFor` hands
   over the matching interface and nothing else, so with a setting off a crafted
   call is the `404` of a path nobody built. Each one's `unlocked()` is re-read
-  at every act, turn, save, subscribe and change: on waits for a restart, off
-  is now.
+  at every act, turn, save, subscribe and change: on builds the listener
+  again (`web-follow.ts`), and off is now.
 - **`PUSHES` is the one second table whose subject is not the work**, which is
   why it has no receipt and no entity revision: a subscription is *this browser
   saying where to reach it*, so a repeat meets its own row (one per device, last
@@ -144,9 +144,9 @@ a device still has none of the scopes that change anything until somebody at thi
 - **Acting is a second table a setting turns on, and absence is the enforcement.** `routesFor`
   adds `ACTS` only where `surfaces.web.acting` is true, and the window hands over a `WebActing`
   only there — so with it off a crafted call is the `404` of a path nobody built, not a `403`
-  naming a setting. Turning it **on** needs a restart (the table is built with the listener);
-  turning it **off** is read at every act (`WebActing.unlocked`). Asymmetric in the direction that
-  takes authority away, and the setting's own `means` says so.
+  naming a setting. Turning it **on** builds the listener again, because the table is built with
+  it; turning it **off** does too, and is also read at every act (`WebActing.unlocked`), so the
+  direction that takes authority away holds while the listener is still being rebuilt.
 - **A verb is a method, never a name and a payload.** There is no `run(verb, args)` anywhere:
   `verbs.ts` parses a body into an `Asked` that already knows how to do itself, so nothing
   downstream switches on a name and there is no shape a path, a command, a credential or a new
@@ -415,6 +415,7 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
 
 - `LAN_IS_PLAINTEXT` — on a LAN anybody on the wifi reads every page and the cookie, and
   `tailscale serve` is the way out. **Never** say a LAN is secure, encrypted, private or safe.
+  `LAN_IS_PLAINTEXT_SHORT` is the clause the panel says under its status line.
 - `COOKIES_IGNORE_PORTS` — RFC 6265 §8.5, and **no cookie prefix changes it**. `__Host-` gives real
   `Domain`/`Path` guarantees and nothing about ports; the honest mitigations are the session being
   bound to the exact host it was minted for, and TLS.
@@ -448,13 +449,16 @@ somebody argues otherwise there. A tier is a property of the path, so
 `packages/core/test/reach.test.ts` asserts it by path rather than through what Settings happens
 to list.
 
-**The capability keys are `live: false`, honestly.** The route table is built when the listener comes
-up and the epoch a connected phone holds is per server start, so changing one under a running
-listener would have to tear down and rebuild something somebody is looking at. Saying *takes effect
-on restart* is the honest answer; doing nothing and saying nothing is the setting Tade accepts and
-ignores. **`enabled` is the exception and is live** (`Away.follow`, from `Settings.use`): off to on has
-nothing to tear down, and on to off is the direction owed at once. The push keys are live for their
-own reason — a notification is decided on the beat, not routed.
+**Every key is `live: true`, and the listener is what moves.** `enabled` brings it up or down
+(`Away.follow`, from `Settings.use`). The rest of the surface — `bind`, `port`, `trusted_hosts` and
+every capability — is what the route table and the epoch are made from when it comes up, so a change
+to any of it while it listens closes it and brings it up again (`builtFrom`, `turnTo` in
+`wire/web-follow.ts`). A phone with a page open is cut off and comes back on the new epoch with a
+snapshot, which is what opening Tade again does to it; its session is a line in the device list and
+outlives the listener. It used to say *on restart*, and the listener left as it was under a config
+that had moved on was the panel drawing `lan` over a loopback bind and a code for an address nothing
+listened on. `push_details` is the one part left out of `builtFrom`: it is read off the config on
+the beat, so changing it cuts nobody off.
 
 **A new key here is a visible change**, so it redraws the README's pictures in the same commit
 (`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is

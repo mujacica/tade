@@ -1,12 +1,8 @@
-import {
-  ACTING_IS_NOT_YOU,
-  DEVICES_SEEN_BY_AGENTS,
-  LAN_IS_PLAINTEXT,
-  TALKING_IS_NOT_YOU,
-} from '@tade/core'
+import { DEVICES_SEEN_BY_AGENTS, LAN_IS_PLAINTEXT_SHORT } from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
-import { awayPanel } from '../../../src/panels/away/state.ts'
+import { AWAY_CONTROLS, awayPanel } from '../../../src/panels/away/state.ts'
 import type { AwayView } from '../../../src/panels/away/view.ts'
+import { grantsHelp } from '../../../src/wire/web-panel.ts'
 import { base, frame, type Scenario, utcDate } from './fixtures.ts'
 
 // The away view, as the window shows it.
@@ -22,10 +18,6 @@ const URL = 'http://studio.local:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
 /** The strip's chip while it listens, with the one device below that has a page open. */
 const LISTENING = { on: true, devices: 1 }
 
-const AGENTS = `${DEVICES_SEEN_BY_AGENTS[0]?.toUpperCase() ?? ''}${DEVICES_SEEN_BY_AGENTS.slice(
-  1,
-)}, which is why this list shows every device there is.`
-
 /** What the away subject hands the panel: on, a code, two devices. Settings' scenario draws it too. */
 export function awayFixture(over: Partial<AwayView> = {}): AwayView {
   return view(over)
@@ -33,7 +25,7 @@ export function awayFixture(over: Partial<AwayView> = {}): AwayView {
 
 function view(over: Partial<AwayView> = {}): AwayView {
   const code = codeFor(URL)
-  return {
+  const made: AwayView = {
     listening: true,
     bind: 'loopback',
     bound: ['127.0.0.1:7654', '[::1]:7654'],
@@ -75,22 +67,23 @@ function view(over: Partial<AwayView> = {}): AwayView {
     acting: false,
     talking: false,
     configuring: false,
-    acts: ACTING_IS_NOT_YOU,
-    talks: TALKING_IS_NOT_YOU,
-    lan: LAN_IS_PLAINTEXT,
-    agents: AGENTS,
+    help: {},
+    lan: LAN_IS_PLAINTEXT_SHORT,
+    agents: DEVICES_SEEN_BY_AGENTS,
     problem: null,
     ...over,
   }
+  // The clauses for the controls the flags draw, as the subject hands them over.
+  return { ...made, help: over.help ?? grantsHelp(made) }
 }
 
 export const AWAY_SCREENS: Scenario[] = [
   {
     name: 'away-off',
     about:
-      'The away view before anybody turns it on: nothing is listening, nothing can be paired, ' +
-      'and what would turn it on said plainly rather than offered as a button that writes a ' +
-      'setting the window would not read until it restarted.',
+      'The away view before anybody turns it on: one line saying it is off, with the way to the ' +
+      'switch beside it, and the devices — none — because the list is the mitigation whether ' +
+      'or not anything listens.',
     state: { ...base(), panel: awayPanel() },
     frame: frame({
       date: utcDate,
@@ -118,8 +111,8 @@ export const AWAY_SCREENS: Scenario[] = [
   {
     name: 'away-on-the-network',
     about:
-      'On the network, which is a second decision from being on at all: what anybody on the ' +
-      'same wifi can read is said above the code, with the way out in the same breath.',
+      'On the network, which is a second decision from being on at all: that anybody on the ' +
+      'same wifi can read it is one clause above the code, before anybody holds a phone up.',
     state: { ...base(), panel: awayPanel() },
     frame: frame({
       date: utcDate,
@@ -173,16 +166,18 @@ export const AWAY_SCREENS: Scenario[] = [
     name: 'away-acting-granted',
     about:
       'Acting on, which is the state the list exists for: what each device may read in the ' +
-      'words it was granted, ‘may act’ on the one row that has it, and above the list the ' +
-      'whole of what acting can never reach — said where somebody is granting it rather than ' +
-      'in a document. No code outstanding, because the panel somebody opens to read their own ' +
-      'devices is not the one they opened to add a phone. One device may also stop agents, and ' +
-      'each row has a chip for that and one for closing projects, neither implied by `act`. ' +
-      'Taller than the rest, because the sentence above the list is the whole of what acting ' +
-      'is and the list under it is what the picture is for.',
-    state: { ...base(), panel: awayPanel() },
+      'words it was granted, ‘may act’ on the one row that has it, and a chip per grant. The ' +
+      'pointer is on the first device’s `act`, so the foot says in one clause what pressing it ' +
+      'grants — the moment somebody is deciding. No code outstanding, because the panel ' +
+      'somebody opens to read their own devices is not the one they opened to add a phone. One ' +
+      'device may also stop agents, and each row has a chip for that and one for closing ' +
+      'projects, neither implied by `act`.',
+    state: {
+      ...base(),
+      hover: { kind: 'control', id: `${AWAY_CONTROLS.act}00112233445566aa` },
+      panel: awayPanel(),
+    },
     frame: frame({
-      height: 42,
       date: utcDate,
       remote: LISTENING,
       panel: {

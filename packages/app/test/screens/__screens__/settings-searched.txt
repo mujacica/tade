@@ -3,28 +3,28 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  push                       │ Matching “push”                                                                │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass █│ What agents push                 never                                ▾       █│    
+ ▌  │  Agents             bypass █│ What agents push                  never                                ▾      █│    
     │                            █│                                                                               █│    
-   ⠋│  Models                    █│▌Needed before                    push                                 ▾       █│    
-    │                            █│▌                                when a push or commit needs a green run       █│    
-    │  Orchestrator              █│▌                                behind it — held only under approvals.mode p… █│    
+   ⠋│  Models                    █│▌Needed before                     push                                 ▾      █│    
+    │                            █│▌                                 when a push or commit needs a green run      █│    
+    │  Orchestrator              █│▌                                 behind it — held only under approvals.mode … █│    
  ▸ S│                            █│▌                                                                              █│    
- ▸ S│  Checks                    █│ Push to talk                       ctrl   +   space       Change…             █│    
+ ▸ S│  Checks                    █│ Push to talk                        ctrl   +   space       Change…            █│    
  ▸ I│                            █│                                                                               █│    
- ▾ C│  Voice                     █│ Notification signing key         generated when it is first needed            █│    
+ ▾ C│  Voice                     █│ Notification signing key          generated when it is first needed           █│    
   M │                            █│                                                                               █│    
   A │  Window                    █│ A PAIRED DEVICE MAY                                                           █│    
-  M │                            █│ Act                             ────████ on                      ↻ on restart █│    
+  M │                            █│ Act                              ────████ on                                  █│    
     │  Away view                 █│                                                                               █│    
- ▾ F│                            █│ Talk to Tade                    ────████ on                      ↻ on restart █│    
+ ▾ F│                            █│ Talk to Tade                     ────████ on                                  █│    
    ▾│  Intake                    █│                                                                               █│    
-    │                            █│ Change settings                 ────████ on                      ↻ on restart ▕│    
+    │                            █│ Change settings                  ────████ on                                  ▕│    
     │  Projects              ● 1 █│                                                                               ▕│    
-   ▸│                            █│ Get notifications               ────████ on                                   ▕│    
+   ▸│                            █│ Get notifications                ────████ on                                  ▕│    
 ━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│ Get work names in them          ────████ on                                   ▕│    
+    │                            █│ Get work names in them           ────████ on                                  ▕│    
     │  Telemetry                 █│                                                                               ▕│   ▕
-    │                            ▕│ checkout — What is pushed        never                                ▾       ▕│   ▕
+    │                            ▕│ checkout — What is pushed         never                                ▾      ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

@@ -17,9 +17,9 @@ import { type ConfiguringDeps, webConfiguring } from './web-settings.ts'
 // crafted call meets the same `404` as a path nobody built, rather than a `403`
 // naming a setting — because an off capability is not a thing to probe. And
 // each one's `unlocked()` is read again at every act, every turn and every
-// save, so turning a setting **off** takes authority away now while turning one
-// **on** waits for the route table a restart builds. Asymmetric in the
-// direction that takes authority away, and each setting's own words say so.
+// save, so turning a setting **off** takes authority away at the very next one,
+// even while the listener is being built again with the new table
+// (`web-follow.ts`) — which is also how turning one **on** gets its routes.
 //
 // **Its own file so the rule above is written once**, and so `web.ts`'s `open`
 // reads as the listener coming up rather than as three nested conditionals.

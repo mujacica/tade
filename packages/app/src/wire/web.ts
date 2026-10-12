@@ -53,6 +53,7 @@ import {
   talkFor,
   upSinceOf,
 } from './web-beat.ts'
+import { builtFrom, turnTo } from './web-follow.ts'
 import { widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownKeys, Lanes } from './web-lanes.ts'
@@ -181,8 +182,8 @@ export class Away implements Subject {
   private readonly lanes: Lanes
   /** One line in the journal, said in the strip if it would not go in (`web-told.ts`). */
   private readonly log: (told: Told) => Promise<void>
-  /** What `enabled` the listener was last brought up or taken down for, and the turn doing it. */
-  private wanted = false
+  /** What the listener was last brought up for (`builtFrom`), null for down, and the turn doing it. */
+  private wanted: string | null = null
   private turning: Promise<void> = Promise.resolve()
   /** The devices the strip's chip last drew: one more or fewer since is a frame owed. */
   private readers = 0
@@ -207,24 +208,20 @@ export class Away implements Subject {
     )
   }
 
-  /**
-   * The listener made to match the config as a setting changes (`Settings.use`):
-   * up with whatever the rest says, and down at once, the direction that takes
-   * authority away. One turn after another, never two listeners on a port, and
-   * a code minted as it comes up for a page that draws one.
-   */
+  /** The listener made to match the config as a setting changes (`Settings.use`, `web-follow.ts`). */
   follow(): void {
-    const want = surfaceOf(this.config().surfaces.web).enabled
-    if (want === this.wanted) return
+    const want = builtFrom(surfaceOf(this.config().surfaces.web))
+    const was = this.wanted
+    if (want === was) return
     this.wanted = want
-    this.turning = this.turning
-      .then(() => (want ? this.open() : this.stop()))
-      .then(() => (want && codeShownOn(this.wire.state.panel) !== null ? this.mint() : undefined))
-      .catch((err: unknown) => {
-        this.problem = err instanceof Error ? err.message : String(err)
-        this.deps.news(`the away view could not ${want ? 'start' : 'stop'}: ${this.problem}`)
-      })
-      .finally(() => this.wire.draw())
+    const failed = (what: string, err: unknown) => {
+      this.problem = err instanceof Error ? err.message : String(err)
+      this.deps.news(`the away view could not ${what}: ${this.problem}`)
+    }
+    const mint = () => (codeShownOn(this.wire.state.panel) === null ? undefined : this.mint())
+    const away = { open: () => this.open(), stop: () => this.stop(), mint, failed }
+    // One turn after another, never two listeners on a port.
+    this.turning = this.turning.then(() => turnTo(was, want, away)).finally(() => this.wire.draw())
   }
 
   /**
@@ -237,8 +234,9 @@ export class Away implements Subject {
    */
   async open(): Promise<void> {
     const surface = surfaceOf(this.config().surfaces.web)
-    this.wanted = surface.enabled
+    this.wanted = builtFrom(surface)
     if (!surface.enabled || this.server !== null) return
+    this.problem = null
     const server = webServer({
       home: this.wire.opts.home,
       surface,
@@ -296,13 +294,15 @@ export class Away implements Subject {
     await this.push.open()
   }
 
-  /** Close every stream, then the listener, and no code outlives it. Safe twice, and before `open`. */
+  /** Close every stream, then the listener; no code or question at the door outlives it. Safe twice. */
   async stop(): Promise<void> {
     const server = this.server
     this.server = null
     this.projectors.clear()
     this.caughtUp.clear()
     this.tickets.clear()
+    this.asking?.answer({ let: false, why: 'nobody answered' })
+    this.asking = null
     if (server === null) return
     await server.close()
     await this.log({ type: 'web_enabled', detail: { enabled: false } })
@@ -466,7 +466,7 @@ export class Away implements Subject {
 
   panel(): Frame['panel'] {
     const where = codeShownOn(this.wire.state.panel)
-    return where === null ? {} : { away: this.view(where === 'settings') }
+    return where === null ? {} : { away: this.view() }
   }
 
   /** The strip's chip (`Frame.remote`): what is listening, and how many devices are reading. */
@@ -587,7 +587,7 @@ export class Away implements Subject {
   }
 
   /** What the panel draws, out of what this subject holds at this moment. */
-  private view(brief = false): AwayView {
+  private view(): AwayView {
     const now = this.wire.now()
     const ticket = this.tickets.outstanding(now)[0] ?? null
     return awayView({
@@ -601,7 +601,6 @@ export class Away implements Subject {
       streams: this.streams.count,
       problem: this.problem,
       now,
-      brief,
     })
   }
 

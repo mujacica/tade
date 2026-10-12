@@ -237,9 +237,9 @@ export interface AskingDeps {
 /**
  * The two methods, and nothing else reachable.
  *
- * `unlocked` is read at every turn: the route table was built when the window
- * started, so turning the setting **off** has to mean something before the
- * next restart. Turning it on waits, and the setting's own words say so.
+ * `unlocked` is read at every turn: the route table was built when the
+ * listener came up, so turning the setting **off** has to mean something
+ * before it is built again (`web-follow.ts`), which is also when on applies.
  */
 export function webAsking(deps: AskingDeps): WebAsking {
   return {

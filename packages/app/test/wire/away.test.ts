@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema, LOCAL, startOfToday } from '@tade/core'
+import { ConfigSchema, LAN_IS_PLAINTEXT_SHORT, LOCAL, startOfToday } from '@tade/core'
 import { readDevices, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
@@ -187,7 +187,12 @@ async function wiring(
     },
   })
   open.push(away)
-  return { away, home, news, decided, logged, at: () => state, drawn: () => draws }
+  /** The config changed under it, as Settings hands one over (`Settings.use`), and followed. */
+  const use = (web: Record<string, unknown>) => {
+    ;(wire.opts as { config: unknown }).config = ConfigSchema.parse({ surfaces: { web } })
+    away.follow()
+  }
+  return { away, home, news, decided, logged, use, at: () => state, drawn: () => draws }
 }
 
 describe('its lifetime', () => {
@@ -238,6 +243,126 @@ describe('its lifetime', () => {
     const { away, logged } = await wiring({ web: { enabled: true } })
     await expect(away.stop()).resolves.toBeUndefined()
     expect(logged).toEqual([])
+  })
+})
+
+describe('following the switch', () => {
+  /** What a request to this machine at `port` answers, or null where nothing does. */
+  async function status(port: number, path = '/'): Promise<number | null> {
+    try {
+      const answer = await fetch(`http://127.0.0.1:${port}${path}`, {
+        method: path === '/' ? 'GET' : 'POST',
+        signal: AbortSignal.timeout(2_000),
+      })
+      return answer.status
+    } catch {
+      return null
+    }
+  }
+
+  async function until(what: string, done: () => Promise<boolean>): Promise<void> {
+    const by = Date.now() + 5_000
+    while (!(await done())) {
+      if (Date.now() > by) throw new Error(`timed out waiting for ${what}`)
+      await new Promise((settle) => setTimeout(settle, 20))
+    }
+  }
+
+  it('comes up when it is turned on and goes when it is turned off, with no restart', async () => {
+    const port = await freePort()
+    const { away, use } = await wiring({ web: { port } })
+    await away.open()
+    expect(await status(port)).toBeNull()
+    use({ enabled: true, port })
+    await until('the listener', async () => (await status(port)) !== null)
+    // The strip's chip says what is listening, not what the config wishes.
+    expect(away.facts().remote).toEqual({ on: true, devices: 0 })
+    use({ enabled: false, port })
+    await until('the listener gone', async () => (await status(port)) === null)
+    expect(away.facts().remote).toEqual({ on: false, devices: 0 })
+  })
+
+  it('is built again when what it was built from changes under it', async () => {
+    // A port moved while it listens: the old one answers nothing and the new
+    // one answers, rather than a listener left where it was under a config
+    // that had moved on — which is a panel drawing one thing and a code for
+    // an address nothing listens on.
+    const first = await freePort()
+    const { away, use, logged } = await wiring({ web: { enabled: true, port: first } })
+    await away.open()
+    expect(await status(first)).not.toBeNull()
+    const second = await freePort()
+    use({ enabled: true, port: second })
+    await until('the new port', async () => (await status(second)) !== null)
+    expect(await status(first)).toBeNull()
+    const lines = logged.filter((one) => one.type === 'web_enabled').map((one) => one.detail)
+    expect(lines.map((one) => one.enabled)).toEqual([true, false, true])
+    expect(lines.at(-1)?.port).toBe(second)
+  })
+
+  it('has a capability’s routes the moment it is turned on, and none the moment it is off', async () => {
+    // Acting's table is built with the listener, so this was *on restart*: a
+    // crafted call to it is the `404` of a path nobody built until the
+    // listener is built again with it.
+    const port = await freePort()
+    const { away, use } = await wiring({ web: { enabled: true, port, acting: false } })
+    await away.open()
+    expect(await status(port, '/api/act/park')).toBe(404)
+    use({ enabled: true, port, acting: true })
+    await until('the acting routes', async () => {
+      const answered = await status(port, '/api/act/park')
+      return answered !== null && answered !== 404
+    })
+    use({ enabled: true, port, acting: false })
+    await until('no acting routes', async () => (await status(port, '/api/act/park')) === 404)
+  })
+
+  it('is left alone by a change it reads on the beat', async () => {
+    // Work names in a notification are read off the config at every beat, so
+    // changing them is not a reason to cut off every phone with a page open.
+    const port = await freePort()
+    const { away, use, logged } = await wiring({ web: { enabled: true, port } })
+    await away.open()
+    use({ enabled: true, port, push_details: false })
+    use({ enabled: true, port, push_details: true })
+    await new Promise((settle) => setTimeout(settle, 50))
+    expect(logged.filter((one) => one.type === 'web_enabled')).toHaveLength(1)
+  })
+
+  it('answers a device at the door when the listener it came through goes', async () => {
+    // Nobody answered, rather than a question left on the panel for a listener
+    // that is not there — where a late *let it in* would write down a device
+    // no phone holds the credential for.
+    const port = await freePort()
+    const { away, use } = await wiring({ web: { enabled: true, port } })
+    await away.open()
+    const answered = asking(away)
+    use({ enabled: true, port: await freePort() })
+    await expect(answered).resolves.toEqual({ let: false, why: 'nobody answered' })
+    expect(away.panel()?.away?.asking ?? null).toBeNull()
+  })
+
+  it('says it could not start again rather than going quiet', async () => {
+    const port = await freePort()
+    const { away, use, news } = await wiring({ web: { enabled: true, port } })
+    await away.open()
+    // Somebody else on the port it is moving to, at both spellings of this
+    // machine: said, and nothing of Tade's listens.
+    const busy = await freePort()
+    const taken = ['127.0.0.1', '::1'].map(() => createServer())
+    await Promise.all(
+      taken.map(
+        (one, at) =>
+          new Promise<void>((done) => one.listen(busy, at === 0 ? '127.0.0.1' : '::1', done)),
+      ),
+    )
+    try {
+      use({ enabled: true, port: busy })
+      await until('the reason', async () => news.join(' ').includes(`port ${busy}`))
+      expect(away.facts().remote?.on).toBe(false)
+    } finally {
+      await Promise.all(taken.map((one) => new Promise((done) => one.close(done))))
+    }
   })
 })
 
@@ -417,14 +542,14 @@ describe('what the panel is told', () => {
     expect(view.agents.toLowerCase()).toContain('agent on this machine could pair itself')
   })
 
-  it('carries the LAN sentence whole, whichever bind it is on', async () => {
+  it('carries the LAN clause, whichever bind it is on', async () => {
     const { away } = await wiring({ web: { enabled: true } })
     await away.open()
     const view = await viewOf(away)
-    // Carried always and drawn only on a `lan` bind, so the panel cannot show
-    // half of it: the words are the domain's, said once (`LAN_IS_PLAINTEXT`).
+    // Carried always and drawn only on a `lan` bind, in the domain's words
+    // (`LAN_IS_PLAINTEXT_SHORT`); the whole sentence is the bind row's `means`.
+    expect(view.lan).toBe(LAN_IS_PLAINTEXT_SHORT)
     expect(view.lan).toContain('same wifi')
-    expect(view.lan).toContain('tailscale serve')
   })
 
   it('mints a code whose URL is for this machine, with the ticket in its fragment', async () => {

@@ -457,25 +457,33 @@ screen shows is a grant of its own, per device and off for every one: the last r
 while that page is open, with machine paths and every key Tade knows of taken out. Nothing on the
 page types into an agent; what you say goes through Tade.
 
-What each device may read is granted here, per device, in the words it is granted in — and what a
-granted one can never reach is said in the same panel, where you are granting it. Publishing a
-workflow, turning a source on and granting anything stay acts at this machine: **no route for any
-of them exists**, and every act a device does take is in the journal under its own id. Both pictures
-below are this end of it — the window; what a phone opens is a page, held to its look by a browser
-rather than drawn here.
+What each device may read and do is granted here, per device, a chip each, and pointing at a chip
+says in one line what it grants. The whole of it: a request from a paired device is never your own
+words. Granted acting, it can answer what an agent is waiting on, tell one something, hold or
+release queued work, add a note or a line to what a task is told, mark work finished and approve a
+request a grant here already allowed — and, granted each, stop or reopen an agent and close or
+reopen a project. It can never change a setting beyond its own switch, read a credential, run a
+command, start an agent that never ran, push, merge or overrule a check, and it acts only from this
+machine or an `https` name you trusted. A message from one reaches the same conversation you type
+into, cannot authorise a setting change however it is phrased, and is answered with Tade's tools
+narrowed in code to that device's own view. Publishing a workflow, turning a source on and granting
+anything stay acts at this machine: **no route for any of them exists**, and every act a device does
+take is in the journal under its own id. Both pictures below are this end of it — the window; what a
+phone opens is a page, held to its look by a browser rather than drawn here.
 
 <table>
 <tr>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg" alt="The away view in the window, on this machine alone: the addresses it is bound to, a QR code to scan a phone in with, and that an agent on this machine could pair itself"></td>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away-devices.svg" alt="The away view with acting on: what a paired device may do and what it can never reach, and every device with what it was granted"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away.svg" alt="The away view in the window, on this machine alone: one line with the addresses it is bound to, a QR code to scan a phone in with, and that an agent on this machine could pair itself"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/away-devices.svg" alt="The away view with acting on: every device with what it was granted and a chip per grant, and in one line what the chip under the pointer grants"></td>
 </tr>
 </table>
 
 Turning it on is one switch, in Settings › Away view, and the code, its link and the devices appear
 under it at once. The strip at the foot of the window says which it is — `remote off`, or `remote 2`
 in green for the devices with a page open — and pressing it goes to that switch, or to the code once
-something is listening. The switch is off until you turn it; every step under it is on, and each is
-still nothing to a device until you grant that device here:
+something is listening. The switch is off until you turn it; every step under it is on, each
+applies as you change it — the listener is built again, and a phone with a page open comes back on
+it — and each is still nothing to a device until you grant that device here:
 
 | Switch | Default | What it adds |
 |---|---|---|

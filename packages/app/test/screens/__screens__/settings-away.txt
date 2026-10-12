@@ -7,24 +7,24 @@
     │                            █│▌                          on: listening while this window is open, with the   █│    
    ⠋│  Models                    █│▌                          code to pair shown here                             █│    
     │                            █│▌                                                                              █│    
-    │  Orchestrator              █│ Who can reach it            ◉ loopback     ○ lan                 ↻ on restart █│    
+    │  Orchestrator              █│ Who can reach it            ◉ loopback     ○ lan                              █│    
  ▸ S│                            █│                                                                               █│    
- ▸ S│  Checks                    █│ Port                        ‹   7654   ›                         ↻ on restart █│    
+ ▸ S│  Checks                    █│ Port                        ‹   7654   ›                                      █│    
  ▸ I│                            █│                                                                               █│    
- ▾ C│  Voice                     █│ Trusted hostnames          none                                  ↻ on restart █│    
+ ▾ C│  Voice                     █│ Trusted hostnames          none                                               █│    
   M │                            █│                                                                               █│    
   A │  Window                    █│ Notification signing key   generated when it is first needed                  █│    
   M │                            █│                                                                               █│    
     │▌ Away view                 █│ A PAIRED DEVICE MAY                                                           █│    
- ▾ F│▌                           █│ Act                       ────████ on                            ↻ on restart █│    
+ ▾ F│▌                           █│ Act                       ────████ on                                         █│    
    ▾│  Intake                    █│                                                                               █│    
-    │                            █│ Talk to Tade              ────████ on                            ↻ on restart █│    
+    │                            █│ Talk to Tade              ────████ on                                         █│    
     │  Projects              ● 1 █│                                                                               █│    
-   ▸│                            █│ Save draft workflows      ────████ on                            ↻ on restart ▕│    
+   ▸│                            █│ Save draft workflows      ────████ on                                         ▕│    
 ━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│ Change settings           ────████ on                            ↻ on restart ▕│    
+    │                            █│ Change settings           ────████ on                                         ▕│    
     │  Telemetry                 █│                                                                               ▕│   ▕
-    │                            ▕│ Install the page          ────████ on                            ↻ on restart ▕│   ▕
+    │                            ▕│ Install the page          ────████ on                                         ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

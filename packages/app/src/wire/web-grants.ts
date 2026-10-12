@@ -100,7 +100,7 @@ async function written(
 }
 
 /** What each reading grant with a control lets a device see, in the strip's words. */
-const SEES = {
+export const SEES = {
   lanes: 'see agents’ screens',
   settings: 'read the settings',
 } as const
@@ -173,7 +173,7 @@ export async function letOneConfigure(
 }
 
 /** What each lifecycle scope lets a device do, in the strip's words. */
-const RUNS = {
+export const RUNS = {
   agents: 'stop an agent or open it again',
   projects: 'close a project or open it again',
 } as const

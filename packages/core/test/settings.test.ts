@@ -610,12 +610,9 @@ describe('the Away page', () => {
     expect(row('surfaces.web.acting')?.means).toContain(ACTING_IS_NOT_YOU)
     expect(row('surfaces.web.acting')?.short).toContain(ACTING_IS_NOT_YOU_SHORT)
     expect(row('surfaces.web.push_key')?.short).toContain(SEEN_BY_AGENTS)
-    // Only the switch itself applies at once; the route table waits for a restart.
-    expect(rows.filter((one) => one.live).map((one) => one.path)).toEqual([
-      'surfaces.web.enabled',
-      'surfaces.web.push_key',
-      'surfaces.web.push',
-      'surfaces.web.push_details',
-    ])
+    // Every row applies as it is changed, and none says *on restart*: what the
+    // listener is built from builds it again (`web-follow.ts`), and the rest is
+    // read on the beat.
+    expect(rows.filter((one) => !one.live).map((one) => one.path)).toEqual([])
   })
 })

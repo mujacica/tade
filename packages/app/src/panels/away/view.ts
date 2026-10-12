@@ -1,3 +1,4 @@
+import { sameTarget, type Target } from '../../hits.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
 import { bodyRows, type Line, panelSize } from '../frame.ts'
@@ -17,12 +18,22 @@ import { AWAY_CONTROLS, type AwayPanel, awayPanel } from './state.ts'
 // against one having been minted by something on this machine
 // (`DEVICES_AND_AGENTS`).
 //
+// **Options and values, and a clause where somebody is deciding.** It once
+// said all of acting and all of talking above the list, two paragraphs read
+// every time the panel opened, plus how to turn it on and why the list is
+// whole. What a grant does is now one line in the foot, for the chip under
+// the pointer — the moment somebody is about to press it — in the domain's
+// short clauses (`help`); the whole sentences are each setting's `means`, the
+// README and `add-away-surface`. What is listening is a status line, and the
+// one sentence a person must not miss is one clause beside Disconnect
+// everything.
+//
 // **Nothing cuts its own rows to fit.** The middle — the code, the question
 // and the device list — is one scrolling region: a code drawn half and a
 // device list ending in `+3 more` are the same bug, and on a short terminal
-// what you do is scroll. The head (what is on) and the foot (the sentence
-// about this machine's agents, and Disconnect everything) are always drawn,
-// because those two are the ones a person must not be able to miss.
+// what you do is scroll. The head (what is on) and the foot (the clause about
+// this machine's agents, and Disconnect everything) are always drawn, because
+// those two are the ones a person must not be able to miss.
 
 /** Everything the panel draws, as the subject that owns the server has it. */
 export interface AwayView {
@@ -53,9 +64,7 @@ export interface AwayView {
    * **What it decides is whether the per-device control exists at all.** A
    * button that cannot do what it says is worse than no button, and with
    * acting off there is no route for one to reach — so the row is drawn
-   * exactly as it was before this existed. Said above the list when it *is*
-   * on, because the moment to read what a device will be able to do is before
-   * granting it.
+   * exactly as it was before this existed.
    */
   acting: boolean
   /**
@@ -71,13 +80,16 @@ export interface AwayView {
    * read the way the two above are — with it off the chip is not drawn.
    */
   configuring: boolean
-  /** Said when talking is on. `TALKING_IS_NOT_YOU`, verbatim. */
-  talks: string
-  /** Said when acting is on. `ACTING_IS_NOT_YOU`, verbatim. */
-  acts: string
-  /** Said when a LAN bind is on. `LAN_IS_PLAINTEXT`, verbatim. */
+  /**
+   * What each device's control grants, by the control's prefix in
+   * `AWAY_CONTROLS`: one clause each, drawn in the foot while the pointer is
+   * on that control. Every value is drawn in the same rows, so the foot is as
+   * tall as the longest of them whatever is pointed at.
+   */
+  help: Readonly<Record<string, string>>
+  /** Said under the status line when a LAN bind is on. `LAN_IS_PLAINTEXT_SHORT`. */
   lan: string
-  /** Said always. `DEVICES_SEEN_BY_AGENTS`, as the one clause a control gets. */
+  /** Said always, beside Disconnect everything. `DEVICES_SEEN_BY_AGENTS`. */
   agents: string
   /** What could not be done, in Tade's own words. */
   problem: string | null
@@ -135,7 +147,7 @@ export function away(panel: AwayPanel, ctx: PanelContext): Drawn {
     )
   }
 
-  const head = headOf(view, ctx, inner)
+  const head = headOf(view, ctx, inner, true)
   const foot = footOf(view, ctx, inner)
   const middle = middleOf(panel, view, ctx, inner)
   const space = Math.max(1, room - head.length - foot.length)
@@ -167,30 +179,42 @@ export function away(panel: AwayPanel, ctx: PanelContext): Drawn {
  */
 export function awayLines(view: AwayView, ctx: PanelContext, inner: number): Line[] {
   return [
-    ...headOf(view, ctx, inner).slice(1),
+    ...headOf(view, ctx, inner, false).slice(1),
     ...middleOf(awayPanel(), view, ctx, inner).lines,
     ...footOf(view, ctx, inner),
   ]
 }
 
-/** What is on, and to whom. Always drawn, and always first. */
-function headOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
+/**
+ * What is on, and to whom, in one line with what is bound beside it. Always
+ * drawn, and always first.
+ *
+ * Off, the panel offers the way to the switch (`away-settings`, the strip's
+ * chip's own action) rather than a sentence saying where it is — and not on
+ * the Settings page, which is where that switch already is.
+ */
+function headOf(view: AwayView, ctx: PanelContext, inner: number, panel: boolean): Line[] {
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
   const lines: Line[] = [blank(inner)]
-  lines.push(row().space().text(state(view), tone(view, skin)).build())
-  if (view.listening) {
-    lines.push(
-      row()
-        .space()
-        .text(view.bound.join('  ') || 'nothing is bound', skin.hint)
-        .build(),
-    )
+  const settings: Target = { kind: 'action', name: 'away-settings' }
+  if (!view.listening) {
+    const off = { said: state(view), tone: tone(view, skin) }
+    const go = (r: Row) => r.button('Settings › Away view', settings).space()
+    lines.push(...(panel ? withControl(row, inner, off, go, settings) : said(row, inner, off)))
+  } else {
+    // What is bound beside it where both fit, and under it where they do not:
+    // an address is never what gets cut.
+    const bound = view.bound.join('  ') || 'nothing is bound'
+    const one = state(view).length + 2 + bound.length + 2 <= inner
+    const status = row().space().text(state(view), tone(view, skin))
+    if (one) lines.push(status.space(2).text(bound, skin.hint).build())
+    else lines.push(status.build(), ...said(row, inner, { said: bound, tone: skin.hint }))
   }
   if (view.bind === 'lan' && view.listening) {
     // Above the code, because the moment to say this is before somebody holds
-    // a phone up to the screen — and whole, because the half of this sentence
-    // that says what to do about it is the half people act on.
+    // a phone up to the screen. One clause: the whole of it, with the way out,
+    // is the bind setting's own `means`.
     for (const said of wrap(view.lan, inner - 3)) {
       lines.push(row().space().text(said, skin.waiting).build())
     }
@@ -208,77 +232,9 @@ function middleOf(
 ): { lines: Line[]; chosen: { from: number; to: number } | null } {
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
-  const lines: Line[] = []
-
-  if (!view.listening) {
-    lines.push(
-      row()
-        .space()
-        .text('Nothing is listening, so there is nothing to pair with.', skin.hint)
-        .build(),
-    )
-    lines.push(row().space().text('Turn it on in Settings → Away view.', skin.hint).build())
-  } else if (view.bind === 'lan' && view.reachable.length === 0) {
-    // `routesOf` says there is no way off this machine. A code for an address
-    // nobody can reach is worse than saying so.
-    lines.push(
-      row().space().text('No network: nothing could reach this machine.', skin.bad).build(),
-    )
-  } else if (view.ticket === null) {
-    lines.push(
-      row()
-        .right((r) => r.button('New code', { kind: 'control', id: AWAY_CONTROLS.code }).space())
-        .build(),
-    )
-  } else {
-    // **A code that does not fit is not drawn.** `fitTo` would cut every row
-    // of it to the panel's width, and a cut QR is one that scans as nothing
-    // while looking exactly like one that works — the single worst thing this
-    // panel could draw. Said instead, with the address, which is the half a
-    // narrow window can still carry.
-    const widest = Math.max(0, ...view.code.map((line) => line.length))
-    if (view.code.length === 0 || widest + 2 > inner) {
-      for (const part of wrap(
-        'This window is too narrow to draw the code — widen it.',
-        inner - 3,
-      )) {
-        lines.push(row().space().text(part, skin.waiting).build())
-      }
-    } else {
-      for (const line of view.code) lines.push(row().space(2).text(line, skin.you).build())
-    }
-    lines.push(blank(inner))
-    // Over as many lines as it takes. An address is the one thing on this
-    // panel somebody may have to read out or type, so a cut one is no address
-    // at all — and unlike a sentence it cannot be broken on a space.
-    for (const part of chunks(view.ticket.url, inner - 2)) {
-      lines.push(row().space().text(part, skin.you).build())
-    }
-    // How to use it, in what is true of this address: a phone can only follow
-    // a code to a name it can reach, and `localhost` on a phone is the phone.
-    const phone = view.bind === 'lan' || view.ticket.url.startsWith('https://')
-    const how = phone
-      ? 'Scan it with your phone, or open the link in a browser'
-      : 'Open the link in a browser on this machine'
-    lines.push(
-      row()
-        .space()
-        .text(`${how} — ${left(view.ticket.secondsLeft)}`, skin.hint)
-        .build(),
-    )
-    if (!phone) {
-      for (const part of wrap('A phone needs a trusted hostname or lan to reach it.', inner - 3)) {
-        lines.push(row().space().text(part, skin.hint).build())
-      }
-    }
-    lines.push(
-      row()
-        .space()
-        .text('Tade will ask you here before letting it in.', skin.hint)
-        .right((r) => r.chip('New code', { kind: 'control', id: AWAY_CONTROLS.code }).space())
-        .build(),
-    )
-  }
+  // Off, there is nothing to pair with and the status line has said so; the
+  // devices still follow, because the list is the mitigation either way.
+  const lines: Line[] = view.listening ? pairingOf(view, ctx, inner) : []
 
   if (view.asking !== null) {
     lines.push(blank(inner))
@@ -320,7 +276,9 @@ function middleOf(
     )
   }
 
-  lines.push(blank(inner))
+  // A row between the devices and whatever is above them in this region, and
+  // none where nothing is: the head already ends in one.
+  if (lines.length > 0) lines.push(blank(inner))
   lines.push(
     row()
       .space()
@@ -329,24 +287,6 @@ function middleOf(
       .text(view.streams === 0 ? '' : `${view.streams} open`, skin.hint)
       .build(),
   )
-  if (view.acting) {
-    // Above the list, because the moment to read what a device will be able to
-    // do is before granting it — the same placement and the same argument as
-    // the LAN warning above the code. Whole, never cut: the half of this
-    // sentence that says what acting can never reach is the half people act on.
-    for (const said of wrap(view.acts, inner - 3)) {
-      lines.push(row().space().text(said, skin.waiting).build())
-    }
-  }
-  if (view.talking) {
-    // Its own paragraph, above the list, for the same reason acting's is: the
-    // moment to read what a device will be able to do is before granting it.
-    // Whole, never cut — the half that says what the narrowing actually is, is
-    // the half somebody deciding needs.
-    for (const said of wrap(view.talks, inner - 3)) {
-      lines.push(row().space().text(said, skin.waiting).build())
-    }
-  }
   if (view.devices.length === 0) {
     lines.push(row().space().text('No device has been paired.', skin.hint).build())
     return { lines, chosen: null }
@@ -365,31 +305,135 @@ function middleOf(
   return { lines, chosen: { from, to: (starts[which + 1] ?? lines.length) - 1 } }
 }
 
-/** The two things a person must not be able to scroll past. */
+/** The code, its link and how to use them, or why there is none: what a listener offers. */
+function pairingOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
+  const { skin } = ctx
+  const row = () => new Row(inner, skin, ctx.pointer)
+  const code: Target = { kind: 'control', id: AWAY_CONTROLS.code }
+  if (view.bind === 'lan' && view.reachable.length === 0) {
+    // `routesOf` says there is no way off this machine. A code for an address
+    // nobody can reach is worse than saying so.
+    return [row().space().text('No network: nothing could reach this machine.', skin.bad).build()]
+  }
+  if (view.ticket === null)
+    return [
+      row()
+        .right((r) => r.button('New code', code).space())
+        .build(),
+    ]
+  const lines: Line[] = []
+  // **A code that does not fit is not drawn.** `fitTo` would cut every row of
+  // it to the panel's width, and a cut QR is one that scans as nothing while
+  // looking exactly like one that works — the single worst thing this panel
+  // could draw. Said instead, with the address, which is the half a narrow
+  // window can still carry.
+  const widest = Math.max(0, ...view.code.map((line) => line.length))
+  if (view.code.length === 0 || widest + 2 > inner) {
+    for (const part of wrap('This window is too narrow to draw the code — widen it.', inner - 3)) {
+      lines.push(row().space().text(part, skin.waiting).build())
+    }
+  } else {
+    for (const line of view.code) lines.push(row().space(2).text(line, skin.you).build())
+  }
+  lines.push(blank(inner))
+  // Over as many lines as it takes. An address is the one thing on this panel
+  // somebody may have to read out or type, so a cut one is no address at all —
+  // and unlike a sentence it cannot be broken on a space.
+  for (const part of chunks(view.ticket.url, inner - 2)) {
+    lines.push(row().space().text(part, skin.you).build())
+  }
+  // How to use it, in what is true of this address: a phone can only follow a
+  // code to a name it can reach, and `localhost` on a phone is the phone — what
+  // to name instead is the Trusted hostnames row's to say.
+  const phone = view.bind === 'lan' || view.ticket.url.startsWith('https://')
+  const how = `${phone ? 'Scan it, or open the link' : 'Open the link on this machine'} — ${left(view.ticket.secondsLeft)}`
+  lines.push(
+    ...withControl(
+      row,
+      inner,
+      { said: how, tone: skin.hint },
+      (r) => r.chip('New code', code).space(),
+      code,
+    ),
+  )
+  return lines
+}
+
+/**
+ * The foot, which is never scrolled: what the control under the pointer
+ * grants, anything that went wrong, and the clause about this machine's agents
+ * beside Disconnect everything — the two things a person must not be able to
+ * scroll past.
+ *
+ * **The help keeps its rows whatever is pointed at**, as many as the longest
+ * clause in `help` needs at this width: a foot that grew a row under the
+ * pointer would move the chip it is explaining out from under it.
+ */
 function footOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
-  const lines: Line[] = [blank(inner)]
-  for (const said of wrap(view.agents, inner - 3)) {
-    lines.push(row().space().text(said, skin.hint).build())
+  const lines: Line[] = []
+  const room =
+    view.devices.length === 0
+      ? 1
+      : Math.max(1, ...Object.values(view.help).map((one) => wrap(one, inner - 3).length))
+  const pointed = helpFor(view, ctx.pointer.hover)
+  const said = pointed === null ? [] : wrap(pointed, inner - 3)
+  for (let at = 0; at < room; at += 1) {
+    const part = said[at]
+    lines.push(part === undefined ? blank(inner) : row().space().text(part, skin.hint).build())
   }
   if (view.problem !== null) {
     lines.push(row().space().text(`▲ ${view.problem}`, skin.bad).build())
   }
+  const all: Target = { kind: 'control', id: AWAY_CONTROLS.all }
   lines.push(
-    row()
-      .right((r) =>
+    ...withControl(
+      row,
+      inner,
+      { said: view.agents, tone: skin.hint },
+      (r) =>
         r
-          .button(
-            'Disconnect everything',
-            { kind: 'control', id: AWAY_CONTROLS.all },
-            view.devices.length === 0 ? 'off' : 'danger',
-          )
+          .button('Disconnect everything', all, view.devices.length === 0 ? 'off' : 'danger')
           .space(),
-      )
-      .build(),
+      all,
+    ),
   )
   return lines
+}
+
+/** What the control under the pointer grants, or null where it is not one of a device's. */
+function helpFor(view: AwayView, hover: Target | null): string | null {
+  if (hover?.kind !== 'control') return null
+  const found = Object.entries(view.help).find(([prefix]) => hover.id.startsWith(prefix))
+  return found === undefined ? null : found[1]
+}
+
+/**
+ * A line with its control pinned at the right, or the control on a line of
+ * its own under it where the two do not fit: `Row` drops a right-hand group
+ * that does not fit whole, and **a control is never what gets cut**.
+ */
+function withControl(
+  row: () => Row,
+  inner: number,
+  text: Said,
+  control: (r: Row) => Row,
+  target: Target,
+): Line[] {
+  const one = row().space().text(text.said, text.tone).right(control).build()
+  const drawn = one.hits.some((hit) => sameTarget(hit.target, target))
+  return drawn ? [one] : [...said(row, inner, text), row().right(control).build()]
+}
+
+/** Words in one tone, as many lines as they take: wrapped, never cut. */
+interface Said {
+  said: string
+  tone: (text: string) => string
+}
+
+function said(row: () => Row, inner: number, text: Said): Line[] {
+  return wrap(text.said, inner - 3).map((part) => row().space().text(part, text.tone).build())
 }
 
 /**

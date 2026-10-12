@@ -1,9 +1,4 @@
-import {
-  ACTING_IS_NOT_YOU_SHORT,
-  ConfigSchema,
-  settingsOf,
-  TALKING_IS_NOT_YOU_SHORT,
-} from '@tade/core'
+import { ConfigSchema, settingsOf } from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
 import { settingsPanel } from '../../../src/panels/settings/state.ts'
 import { awayFixture } from './away.ts'
@@ -239,15 +234,12 @@ function settingsFacts(intake: Record<string, unknown> = {}, web: Record<string,
 function awayOn() {
   const url = 'http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
   const code = codeFor(url)
-  const sentence = (said: string) => `${said[0]?.toUpperCase() ?? ''}${said.slice(1)}.`
   const fixture = awayFixture({ acting: true, talking: true, configuring: true })
   return {
     ...fixture,
     ticket: { url, secondsLeft: 84 },
     code: code === null ? [] : blocksFor(code),
     devices: fixture.devices.slice(0, 1),
-    acts: sentence(ACTING_IS_NOT_YOU_SHORT),
-    talks: sentence(TALKING_IS_NOT_YOU_SHORT),
   }
 }
 
@@ -344,9 +336,10 @@ export const SETTINGS_SCREENS: Scenario[] = [
     name: 'settings-away-on',
     about:
       'The away view turned on from its own switch, and what it is for drawn under it: the ' +
-      'code, the link to open in a browser, how to use them on this machine and what a phone ' +
-      'needs, and every device with a chip per grant — then what a paired device may do, as ' +
-      'names under one heading, each on, each still nothing until a device is granted it.',
+      'code, the link to open on this machine, and every device with a chip per grant — then ' +
+      'who may reach it, the port and what a paired device may do, as names under one heading, ' +
+      'each on, each still nothing until a device is granted it, and none waiting for Tade to ' +
+      'start again.',
     state: { ...base(), panel: { ...settingsPanel('away'), row: 0 } },
     frame: frame({
       date: utcDate,

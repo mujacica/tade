@@ -1,39 +1,31 @@
    T A D E      checkout !⠋    search ✓    infra        +           ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2           ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮5 ▾     high ▾     ×   
-                       │                                                                        │───────────────────────
- ▌ ! stripe-v15   880k │ ● On, on this machine alone                                            │                       
- ▌   wants you to appro│ 127.0.0.1:7654  [::1]:7654                                             │                       
+ ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ! stripe-v15   880k tok   █│                                                                                         
+ ▌   wants you to approve…   █│                                                                                         
+                       ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮                       
+   ⠋ refunds         $0│                                                                        │                       
+     working           │ ● On, on this machine alone  127.0.0.1:7654  [::1]:7654                │                       
                        │                                                                        │                       
-   ⠋ refunds         $0│                                                             New code   │                       
-     working           │                                                                        │                       
-                       │ DEVICES 1 open                                                         │                       
- ▸ SMART QUEUE         │ A request from a paired device is never your own words. On work you    │                       
- ▸ SCHEDULES           │ already set up it can answer what an agent is waiting on, tell one     │                       
- ▸ INTAKE              │ something, hold or release queued work, add a note or a line to what   │                       
- ▾ CHANGES  3        vs│ a task is told, mark work finished, and approve a request a grant      │                       
-  M package.json       │ here already allowed. Where you granted that device each of them, it   │                       
-  A …/webhooks.test.ts │ can also stop an agent or open a stopped one again where it left off,  │                       
-  M src/webhooks.ts   +│ and close a project or open a closed one again: closing deletes        │                       
-                       │ nothing and stops nothing, but the project’s own settings go with it   │                       
- ▾ FILES               │ and opening it puts back only where it lives. Beyond that one line,    │                       
-   ▾ src/              │ acting can never change a setting — that is a switch of its own —      │                       
-       webhooks.test.ts│ read a credential, run a command, start an agent that has never run,   │                       
-       webhooks.ts     │ push, merge or overrule a check. Acting needs this machine itself or   │                       
-   ▸ test/             │ an https origin you named in Trusted hostnames, so a credential that   │                       
-     package.json      │ crossed a network in the clear never buys one — and every act is in    │                       
-     README.md         │ the journal under the device that took it.                             │                       
-                       │ › iPhone ● now Fri 11 Sep 09:12 · titles · may act · may stop agents   │                       
- ▸ NOTES  4            │                        act   agents   projects   lanes   settings   ×  │                       
- ▾ GIT                 │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows                │                       
-   repo     ~/src/check│                        act   agents   projects   lanes   settings   ×  │                       
-   branch   …de/stripe-│   kitchen screen ○ Thu 10 Sep 18:02 · names and counts                 │                       
-   from     main       │                        act   agents   projects   lanes   settings   ×  │                       
-━   orchestrator     + │                                                                        │━━━━━━━━━   ⤢     ▾   ━
-                       │ An agent on this machine could pair itself, which is why this list     │                       
-                       │ shows every device there is.                                           │                      ▕
-                       │                                                Disconnect everything   │                      ▕
-                       ╰────────────────────────────────────────────────────────────────────────╯                      ▕
+ ▸ SMART QUEUE         │                                                             New code   │                       
+ ▸ SCHEDULES           │                                                                        │                       
+ ▸ INTAKE              │ DEVICES 1 open                                                         │                       
+ ▾ CHANGES  3        vs│ › iPhone ● now Fri 11 Sep 09:12 · titles · may act · may stop agents   │                       
+  M package.json       │                        act   agents   projects   lanes   settings   ×  │                       
+  A …/webhooks.test.ts │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows                │                       
+  M src/webhooks.ts   +│                        act   agents   projects   lanes   settings   ×  │                       
+                       │   kitchen screen ○ Thu 10 Sep 18:02 · names and counts                 │                       
+ ▾ FILES               │                        act   agents   projects   lanes   settings   ×  │                       
+   ▾ src/              │ act: a device acts as a request, never as your own words               │                       
+       webhooks.test.ts│ an agent on this machine could pair itself     Disconnect everything   │                       
+       webhooks.ts     ╰────────────────────────────────────────────────────────────────────────╯                       
+   ▸ test/                   ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

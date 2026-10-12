@@ -5,6 +5,7 @@ import {
   DRAFTS_ARE_NOT_PUBLISHED_SHORT,
   INSTALLED_IS_NOT_REVOCABLE,
   INSTALLED_IS_NOT_REVOCABLE_SHORT,
+  LAN_IS_PLAINTEXT_SHORT,
   LAST_VIEW_IS_A_COPY,
   LAST_VIEW_IS_A_COPY_SHORT,
   LOCAL_ONLY_ACTS,
@@ -512,11 +513,17 @@ describe('the sentences', () => {
     expect(LAN_IS_PLAINTEXT).toContain('plain HTTP')
     expect(LAN_IS_PLAINTEXT).toContain('same wifi')
     expect(LAN_IS_PLAINTEXT).toContain('tailscale serve')
+    // And the clause the away panel says, which keeps the fact and leaves the
+    // way out to the bind row's own sentence — short enough for one line there.
+    expect(LAN_IS_PLAINTEXT_SHORT).toContain('plain HTTP')
+    expect(LAN_IS_PLAINTEXT_SHORT).toContain('same wifi')
+    expect(LAN_IS_PLAINTEXT_SHORT.length).toBeLessThan(60)
   })
 
   it('never promise a LAN is private', () => {
     for (const sentence of [
       LAN_IS_PLAINTEXT,
+      LAN_IS_PLAINTEXT_SHORT,
       COOKIES_IGNORE_PORTS,
       DEVICES_AND_AGENTS,
       ACTING_IS_NOT_YOU,

@@ -7,53 +7,53 @@
     │                            ▕│▌                          on: listening while this window is open, with the   █│    
    ⠋│  Models                    ▕│▌                          code to pair shown here                             █│    
     │                            ▕│▌                                                                              █│    
-    │  Orchestrator              ▕│ ● On, on this machine alone                                                   █│    
- ▸ S│                            ▕│ 127.0.0.1:7654  [::1]:7654                                                    █│    
+    │  Orchestrator              ▕│ ● On, on this machine alone  127.0.0.1:7654  [::1]:7654                       █│    
+ ▸ S│                            ▕│                                                                               █│    
  ▸ S│  Checks                    ▕│                                                                               █│    
  ▸ I│                            ▕│                                                                               █│    
- ▾ C│  Voice                     ▕│                                                                               █│    
-  M │                            ▕│      █▀▀▀▀▀█ ███▄▄█▀▀█▀█▀▄▀ █  █▀▀▀▀▀█                                        █│    
-  A │  Window                    ▕│      █ ███ █ ▄▀    ▄ ▄▀ ▀▀ █▄  █ ███ █                                        █│    
-  M │                            ▕│      █ ▀▀▀ █  ▀ █▄▄▀  ▄▄▄▀█▀▀█ █ ▀▀▀ █                                        █│    
-    │▌ Away view                 ▕│      ▀▀▀▀▀▀▀ █ █▄█ ▀ ▀▄█ █ █▄█ ▀▀▀▀▀▀▀                                        █│    
- ▾ F│▌                           ▕│      ▀ ▀█▄▀▀▀▄▄▄▀▄ █  ▀▀▄▀█▄█  █  █▄▀▀                                        █│    
-   ▾│  Intake                    ▕│      ▀█▀█▄▀▀▄▄▀▀ █▄█  ▀▄▄▄▀█▀▄▀██▀█ ██                                        █│    
-    │                            ▕│       ▀▀ ▀▀▀▄▀██ ▄  ▀▄▄█▄█▀█▀█▄ █▀▀▄█                                         █│    
-    │  Projects              ● 1 ▕│      ▀▀█ ▀ ▀█▄▄▀  ▀▀▀█ ▄█ ██▄▄ ▀▄█▄█                                          █│    
-   ▸│                            ▕│      ▀▀█ ▀▀▀▀█▄█  ▀▄█▀▄▀▀ ▀▀█▄██ ██▀ ▄                                        █│    
-    │  Journal                   ▕│       █ ▀█ ▀▄▀██▀ ▄ █▀▀ ▄   ▄ █ ▄█ ▀█                                         █│    
-    │                            ▕│      ▄▀▄▀█▀▀▀ ▄▄▀▄█▀▄  █████▄█ ▄▀▀█▀▀▄                                        █│    
-    │  Telemetry                 ▕│       ▄█▄ ▀▀ ▄ ▀█▄ ▀ █▀▄▄█ █▀▀▀▄ █▀▀█▀                                        █│    
- ▸ N│                            ▕│      ▀  ▀▀ ▀ ▄█ ▄ ▄▀█ █ ██ ▄▄█▀▀▀██ █                                         █│    
- ▾ G│  Shortcuts                 ▕│      █▀▀▀▀▀█ █▄▄▀▀▄  ▀  ██▄ ██ ▀ █ ▄▀                                         █│    
-   r│                            ▕│      █ ███ █ ▄ █▄▀█▀  █▄▄██▀██▀▀▀▀ ▀ █                                        █│    
-   b│  Accounts              ● 3 ▕│      █ ▀▀▀ █ ▀▀█▄ ▀▀▄▄▄█     ▀ ▀▀▄▀▀ ▄                                        █│    
-   f│                            ▕│      ▀▀▀▀▀▀▀ ▀▀▀▀ ▀ ▀ ▀▀▀▀▀▀▀  ▀   ▀                                          █│    
+ ▾ C│  Voice                     ▕│      █▀▀▀▀▀█ ███▄▄█▀▀█▀█▀▄▀ █  █▀▀▀▀▀█                                        █│    
+  M │                            ▕│      █ ███ █ ▄▀    ▄ ▄▀ ▀▀ █▄  █ ███ █                                        █│    
+  A │  Window                    ▕│      █ ▀▀▀ █  ▀ █▄▄▀  ▄▄▄▀█▀▀█ █ ▀▀▀ █                                        █│    
+  M │                            ▕│      ▀▀▀▀▀▀▀ █ █▄█ ▀ ▀▄█ █ █▄█ ▀▀▀▀▀▀▀                                        █│    
+    │▌ Away view                 ▕│      ▀ ▀█▄▀▀▀▄▄▄▀▄ █  ▀▀▄▀█▄█  █  █▄▀▀                                        █│    
+ ▾ F│▌                           ▕│      ▀█▀█▄▀▀▄▄▀▀ █▄█  ▀▄▄▄▀█▀▄▀██▀█ ██                                        █│    
+   ▾│  Intake                    ▕│       ▀▀ ▀▀▀▄▀██ ▄  ▀▄▄█▄█▀█▀█▄ █▀▀▄█                                         █│    
+    │                            ▕│      ▀▀█ ▀ ▀█▄▄▀  ▀▀▀█ ▄█ ██▄▄ ▀▄█▄█                                          █│    
+    │  Projects              ● 1 ▕│      ▀▀█ ▀▀▀▀█▄█  ▀▄█▀▄▀▀ ▀▀█▄██ ██▀ ▄                                        █│    
+   ▸│                            ▕│       █ ▀█ ▀▄▀██▀ ▄ █▀▀ ▄   ▄ █ ▄█ ▀█                                         █│    
+    │  Journal                   ▕│      ▄▀▄▀█▀▀▀ ▄▄▀▄█▀▄  █████▄█ ▄▀▀█▀▀▄                                        █│    
+    │                            ▕│       ▄█▄ ▀▀ ▄ ▀█▄ ▀ █▀▄▄█ █▀▀▀▄ █▀▀█▀                                        █│    
+    │  Telemetry                 ▕│      ▀  ▀▀ ▀ ▄█ ▄ ▄▀█ █ ██ ▄▄█▀▀▀██ █                                         █│    
+ ▸ N│                            ▕│      █▀▀▀▀▀█ █▄▄▀▀▄  ▀  ██▄ ██ ▀ █ ▄▀                                         █│    
+ ▾ G│  Shortcuts                 ▕│      █ ███ █ ▄ █▄▀█▀  █▄▄██▀██▀▀▀▀ ▀ █                                        █│    
+   r│                            ▕│      █ ▀▀▀ █ ▀▀█▄ ▀▀▄▄▄█     ▀ ▀▀▄▀▀ ▄                                        █│    
+   b│  Accounts              ● 3 ▕│      ▀▀▀▀▀▀▀ ▀▀▀▀ ▀ ▀ ▀▀▀▀▀▀▀  ▀   ▀                                          █│    
+   f│                            ▕│                                                                               █│    
    w│  Updates                   ▕│                                                                               █│    
    p│                            ▕│                                                                               █│    
-    │                            ▕│                                                                               █│    
     │                            ▕│ http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8                          █│    
-    │                            ▕│ Open the link in a browser on this machine — 1:24 left                        █│    
-    │                            ▕│ A phone needs a trusted hostname or lan to reach it.                          █│    
-    │                            ▕│ Tade will ask you here before letting it in.                        New code  █│    
+    │                            ▕│ Open the link on this machine — 1:24 left                           New code  █│    
     │                            ▕│                                                                               █│    
     │                            ▕│ DEVICES 1 open                                                                █│    
-    │                            ▕│ A device acts as a request, never as your own words.                          █│    
-    │                            ▕│ A device talks to Tade as a request, never as your own words.                 █│    
     │                            ▕│ › iPhone ● now Fri 11 Sep 09:12 · titles, intent                              █│    
     │                            ▕│            act   agents   projects   talk   configure   lanes   settings   ×  █│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ an agent on this machine could pair itself            Disconnect everything   █│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ Who can reach it            ◉ loopback     ○ lan                              █│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ Port                        ‹   7654   ›                                      █│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ Trusted hostnames          none                                               █│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ Notification signing key   generated when it is first needed                  █│    
     │                            ▕│                                                                               ▕│    
-    │                            ▕│ An agent on this machine could pair itself, which is why this list shows      ▕│    
-    │                            ▕│ every device there is.                                                        ▕│    
-    │                            ▕│                                                       Disconnect everything   ▕│    
+    │                            ▕│ A PAIRED DEVICE MAY                                                           ▕│    
+    │                            ▕│ Act                       ────████ on                                         ▕│    
     │                            ▕│                                                                               ▕│    
-    │                            ▕│ Who can reach it            ◉ loopback     ○ lan                 ↻ on restart ▕│    
+━   │                            ▕│ Talk to Tade              ────████ on                                         ▕│   ━
     │                            ▕│                                                                               ▕│    
-    │                            ▕│ Port                        ‹   7654   ›                         ↻ on restart ▕│    
-    │                            ▕│                                                                               ▕│    
-━   │                            ▕│ Trusted hostnames          none                                  ↻ on restart ▕│   ━
-    │                            ▕│                                                                               ▕│    
-    │                            ▕│ Notification signing key   generated when it is first needed                  ▕│   ▕
+    │                            ▕│ Save draft workflows      ────████ on                                         ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
