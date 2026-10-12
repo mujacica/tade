@@ -32,6 +32,19 @@ const queued = (task: string, touches: string[]): Queued => ({
   start: { after: [], prompt: '', touches },
 })
 
+/** An agent at work: a real task, with its own workspace, and a run the journal opened. */
+async function atWork(
+  client: Workbench,
+  task: string,
+  root: string,
+  workspace: 'checkout' | 'worktree',
+) {
+  const [project = '', slug = ''] = task.split('/')
+  const made = await client.createTask({ project, slug, intent: slug, root, workspace })
+  await client.log.append({ type: 'run_started', task, run: `${task}/agent`, detail: {} })
+  return made
+}
+
 describe('the look at a project’s tree before work starts', () => {
   it('reads the project’s own mode, so one is inert and the other is real at once', async () => {
     const shared = mkrepo()
@@ -54,10 +67,9 @@ describe('the look at a project’s tree before work starts', () => {
     })
     opened.push({ live, client })
 
-    // An agent at work in each: a run the journal opened and never closed.
-    for (const task of ['shop/refunds', 'docs/guide']) {
-      await client.log.append({ type: 'run_started', task, detail: {} })
-    }
+    // An agent at work in each, where its project puts it.
+    await atWork(client, 'shop/refunds', shared.root, 'checkout')
+    await atWork(client, 'docs/guide', apart.root, 'worktree')
     // And each has changed a file of the same name in its own repository.
     shared.write({ 'src/charge.ts': 'charged\n' })
     apart.write({ 'src/charge.ts': 'charged\n' })
@@ -78,10 +90,11 @@ describe('the look at a project’s tree before work starts', () => {
     })
     // A worktree each: nothing is being changed under anybody, so there is
     // nothing to read and no git call is made — the tree is not evidence at
-    // all, and saying otherwise would hold work that cannot collide.
+    // all, and saying otherwise would hold work that cannot collide. Nor is
+    // its agent in any checkout: it is in a tree of its own.
     expect(reality?.get('docs')).toMatchObject({
       workspace: 'worktree',
-      working: ['docs/guide'],
+      working: [],
       dirty: [],
       committed: [],
     })
@@ -107,7 +120,7 @@ describe('the look at a project’s tree before work starts', () => {
     })
     opened.push({ live, client })
 
-    await client.log.append({ type: 'run_started', task: 'shop/refunds', detail: {} })
+    await atWork(client, 'shop/refunds', shared.root, 'checkout')
     shared.write({ 'src/charge.ts': 'charged\n' })
     shared.git('add', 'src/charge.ts')
     shared.git(
@@ -124,6 +137,46 @@ describe('the look at a project’s tree before work starts', () => {
     expect(live.queueFacts().reality?.get('shop')).toMatchObject({
       workspace: 'checkout',
       committed: [{ task: 'shop/refunds', paths: ['src/charge.ts'] }],
+    })
+  }, 30_000)
+
+  it('counts only who is really in the checkout: not a worktree of its own, a lane gone or a task removed', async () => {
+    // tade on 2026-10-11: a watch's CI fix in a worktree, relaunched and
+    // removed, was named in every hold in the checkout for a day after.
+    const shared = mkrepo()
+    const home = mkdtempSync(join(tmpdir(), 'tade-at-work-'))
+    const client = await Workbench.open({ home })
+    // Written before the window opens, so what it knows of them is the
+    // whole-history read, as it was when the window had been closed and opened.
+    await atWork(client, 'shop/refunds', shared.root, 'checkout')
+    // Work that cannot share a tree gets a worktree whatever the project says.
+    await atWork(client, 'shop/ci-fix', shared.root, 'worktree')
+    const gone = await atWork(client, 'shop/gone', shared.root, 'checkout')
+    const { worktree, branch } = gone
+    const removed = await client.removeTask({ root: shared.root, worktree, branch, task: gone.id })
+    expect(removed.removed).toBe(true)
+    await atWork(client, 'shop/stopped', shared.root, 'checkout')
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({
+        projects: { shop: { root: shared.root, workspace: 'checkout' } },
+      }),
+      home,
+      tadeHome: home,
+      pollMs: 600_000,
+      now: () => NOW,
+    })
+    opened.push({ live, client })
+    // And one heard while it is open: an agent whose lane went, with no exit written for its run.
+    await client.log.append({ type: 'lane_exited', lane: 'shop/stopped/agent', detail: {} })
+    shared.write({ 'src/charge.ts': 'charged\n' })
+
+    await live.refresh()
+    await live.lookAtTrees([queued('shop/add-refunds', ['src/charge.ts'])])
+    expect(live.queueFacts().reality?.get('shop')).toMatchObject({
+      workspace: 'checkout',
+      working: ['shop/refunds'],
+      dirty: ['src/charge.ts'],
     })
   }, 30_000)
 })

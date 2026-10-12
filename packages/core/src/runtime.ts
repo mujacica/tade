@@ -266,6 +266,15 @@ export class RuntimeFold {
     return this.started
   }
 
+  /**
+   * The runs nothing has said ended, each with its task and when it began:
+   * what `report` counts to `now`, before its ceiling — which is how long a
+   * run's *time* may be believed, not whether the agent is there.
+   */
+  get openRuns(): readonly { task: string | null; at: number }[] {
+    return [...this.open.values()].map((run) => ({ task: run.task, at: run.at }))
+  }
+
   add(event: TadeEvent): void {
     this.lines++
     if (event.type === 'run_started' && event.run) this.started.set(event.run, runFactsOf(event))

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Finished } from '../src/done.ts'
-import type { EventType, TadeEvent } from '../src/events.ts'
+import { type EventType, type ReadableEventType, type TadeEvent, typeNow } from '../src/events.ts'
 import type { StartCondition, TaskState } from '../src/model.ts'
 import {
+  AT_WORK_READS,
+  atWorkFrom,
   collidesNow,
   describeQueueState,
   inWrittenOrder,
@@ -16,6 +18,7 @@ import {
   startFrom,
   writtenOrder,
 } from '../src/queue.ts'
+import { RUNTIME_EVENTS, runsFoldedFrom } from '../src/runtime.ts'
 
 const NOW = Date.parse('2026-09-15T13:00:00Z')
 
@@ -495,5 +498,174 @@ describe('where queued work in a worktree begins', () => {
     const after = [{ task: 'api/oauth-scopes' }, { task: 'cli/bump' }]
     expect(startFrom(after, upstream, 'main', 'cli')).toEqual(['tade/bump'])
     expect(startFrom([{ task: 'api/oauth-scopes' }], upstream, 'main', 'cli')).toEqual(['main'])
+  })
+})
+
+describe('who is at work in a checkout', () => {
+  const line = (
+    id: number,
+    ts: string,
+    // Old names included: a journal from before the rename is read, not refused.
+    type: ReadableEventType,
+    task: string | null,
+    over: Partial<TadeEvent> = {},
+  ): TadeEvent => ({
+    seq: id,
+    ts,
+    type: type as EventType,
+    urgency: 'notable',
+    task,
+    lane: null,
+    run: null,
+    detail: {},
+    ...over,
+  })
+  const started = (id: number, ts: string, task: string) =>
+    line(id, ts, 'run_started', task, { run: `${task}/agent` })
+  const listed = (tasks: Record<string, 'checkout' | 'worktree'>) =>
+    new Map(Object.entries(tasks).map(([task, workspace]) => [task, { workspace }]))
+  const done = (tasks: string[]) =>
+    new Map<string, Finished>(tasks.map((task) => [task, { at: '', by: 'agent', summary: '' }]))
+  const none = done([])
+  const ts = '2026-10-12T01:00:00.000Z'
+
+  // tade's journal, line for line: a watch's CI fix in a worktree of its own,
+  // stopped, relaunched, removed two seconds later, and its lane found gone
+  // once the window opened again. No `run_exited` answered the second start,
+  // and the reading this replaced had it in tade's checkout for 22 hours —
+  // named in every hold, as a task no tool would take.
+  const ghost = 'tade/check-macos-latest-and-check-ubuntu-2'
+  const incident: TadeEvent[] = [
+    line(441864, '2026-10-10T22:10:52.809Z', 'task_created', ghost, {
+      detail: { workspace: 'worktree' },
+    }),
+    started(441866, '2026-10-10T22:10:56.444Z', ghost),
+    line(445064, '2026-10-11T03:59:05.404Z', 'run_exited', ghost, {
+      run: `${ghost}/agent`,
+      detail: { stopped: true },
+    }),
+    started(445066, '2026-10-11T03:59:06.886Z', ghost),
+    line(445068, '2026-10-11T03:59:08.591Z', 'task_removed', ghost, { detail: { forced: true } }),
+    line(455734, '2026-10-11T13:26:00.369Z', 'tade_closing', null),
+    line(455756, '2026-10-11T13:27:09.850Z', 'lane_exited', ghost, {
+      lane: `${ghost}/agent`,
+      detail: { reason: 'gone: lanes do not outlive Tade under this driver' },
+    }),
+    line(455764, '2026-10-11T13:27:09.889Z', 'tade_opened', null),
+    line(466069, '2026-10-12T00:24:31.095Z', 'tade_closing', null),
+    line(466093, '2026-10-12T00:24:42.056Z', 'tade_opened', null),
+    // The four agents really in tade's checkout when the holds were written.
+    started(468040, '2026-10-12T01:53:16.753Z', 'tade/front-agent-stays-still'),
+    started(468292, '2026-10-12T02:00:27.245Z', 'tade/open-paints-first'),
+    started(468585, '2026-10-12T02:05:43.768Z', 'tade/away-settings-compact-defaults'),
+    started(468790, '2026-10-12T02:10:08.004Z', 'tade/documents-outlive-tasks'),
+  ]
+  const here = [
+    'tade/away-settings-compact-defaults',
+    'tade/documents-outlive-tasks',
+    'tade/front-agent-stays-still',
+    'tade/open-paints-first',
+  ]
+  // What status listed at 02:20: those four, each in the checkout. Not the removed one.
+  const tade = listed(Object.fromEntries(here.map((task) => [task, 'checkout' as const])))
+
+  it('is the four agents in tade’s checkout on 2026-10-11, and not the CI fix removed the day before', () => {
+    const at = atWorkFrom(incident, 'tade', { tasks: tade, finished: none })
+    expect([...at.keys()].sort()).toEqual(here)
+    expect(at.get('tade/open-paints-first')).toBe(Date.parse('2026-10-12T02:00:27.245Z'))
+    // Even were it still listed, in the checkout: the journal ended its run.
+    const still = new Map([...tade, [ghost, { workspace: 'checkout' as const }]])
+    expect(atWorkFrom(incident, 'tade', { tasks: still, finished: none }).has(ghost)).toBe(false)
+  })
+
+  it('so a hold names only who is there, and nothing holds where only the removed one was', () => {
+    const item = queued('tade/lane-echo-owed-to-key', { touches: ['packages/app/src/app.ts'] })
+    const seen = (working: string[]): Reality => ({
+      workspace: 'checkout',
+      working,
+      dirty: ['packages/app/src/app.ts'],
+      committed: [],
+    })
+    const working = [...atWorkFrom(incident, 'tade', { tasks: tade, finished: none }).keys()]
+    expect(collidesNow(item, seen(working))?.because).not.toContain(ghost)
+    // With the four finished, the change is no agent's at work — a person's
+    // own, as far as anybody can tell — and holds nothing.
+    const after = [...atWorkFrom(incident, 'tade', { tasks: tade, finished: done(here) }).keys()]
+    expect(after).toEqual([])
+    expect(collidesNow(item, seen(after))).toBeNull()
+  })
+
+  it('is over the moment anything runtime takes as the end of a run says so', () => {
+    const task = 'shop/refunds'
+    const open = [started(1, ts, task)]
+    const shop = listed({ [task]: 'checkout' })
+    expect([...atWorkFrom(open, 'shop', { tasks: shop, finished: none }).keys()]).toEqual([task])
+    const ends = [
+      line(2, ts, 'run_exited', task, { run: `${task}/agent` }),
+      // By its lane alone: the process the run was is gone.
+      line(2, ts, 'lane_exited', null, { lane: `${task}/agent` }),
+      line(2, ts, 'task_removed', task),
+      line(2, ts, 'tade_closing', null),
+      line(2, ts, 'tade_opened', null),
+      // Read by what it means now: the window wrote this before the rename.
+      line(2, ts, 'wilco_closing', null),
+    ]
+    for (const end of ends) {
+      const at = atWorkFrom([...open, end], 'shop', { tasks: shop, finished: none })
+      expect(at.size, end.type).toBe(0)
+    }
+  })
+
+  it('is no task status has stopped listing, none in a worktree of its own, and none finished', () => {
+    const open = ['shop/refunds', 'shop/ci-fix', 'shop/gone', 'shop/done', 'docs/guide'].map(
+      (task, at) => started(at + 1, ts, task),
+    )
+    const tasks = listed({
+      'shop/refunds': 'checkout',
+      // A watch's work that cannot share a tree: a worktree, whatever the project says.
+      'shop/ci-fix': 'worktree',
+      'shop/done': 'checkout',
+      'docs/guide': 'checkout',
+    })
+    const at = atWorkFrom(open, 'shop', { tasks, finished: done(['shop/done']) })
+    expect([...at.keys()]).toEqual(['shop/refunds'])
+  })
+
+  it('is still at work between turns, from when its run began, and again once relaunched', () => {
+    const task = 'shop/refunds'
+    const shop = listed({ [task]: 'checkout' })
+    const run = { run: `${task}/agent` }
+    const between = [
+      started(1, '2026-10-12T01:00:00.000Z', task),
+      line(2, '2026-10-12T01:01:00.000Z', 'turn_started', task, run),
+      line(3, '2026-10-12T01:05:00.000Z', 'turn_done', task, run),
+      // A second start with nothing ended between is the same run seen twice.
+      started(4, '2026-10-12T01:06:00.000Z', task),
+    ]
+    const since = (events: TadeEvent[]) =>
+      atWorkFrom(events, 'shop', { tasks: shop, finished: none }).get(task)
+    expect(since(between)).toBe(Date.parse('2026-10-12T01:00:00.000Z'))
+    const relaunched = [
+      ...between,
+      line(5, '2026-10-12T01:10:00.000Z', 'run_exited', task, {
+        ...run,
+        detail: { stopped: true },
+      }),
+      started(6, '2026-10-12T01:10:01.000Z', task),
+    ]
+    expect(since(relaunched)).toBe(Date.parse('2026-10-12T01:10:01.000Z'))
+  })
+
+  it('reads everything runtime takes as the end of a run, so the two never disagree', () => {
+    const task = 'shop/refunds'
+    const start = started(1, ts, task)
+    const ending: string[] = []
+    for (const type of RUNTIME_EVENTS) {
+      const said = line(2, ts, type, task, { lane: `${task}/agent`, run: `${task}/agent` })
+      if (runsFoldedFrom([start, said]).openRuns.length === 0) ending.push(typeNow(type))
+    }
+    expect(ending.length).toBeGreaterThan(0)
+    for (const type of ending) expect(AT_WORK_READS, type).toContain(type)
+    for (const type of AT_WORK_READS) expect(RUNTIME_EVENTS, type).toContain(type)
   })
 })

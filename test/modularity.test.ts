@@ -39,8 +39,9 @@ const BUDGET: Record<string, number> = {
   // no clock and no `Live`. It was never this file's subject, which is the
   // polling and the holding, and it was what left no room for a fact the strip
   // needed. The pacing constants stayed, because how often something is read
-  // belongs with the reading of it.
-  'packages/app/src/live.ts': 1_150,
+  // belongs with the reading of it. 1,150 -> 1,133 when who is at work in a
+  // checkout became core's `atWorkFrom`, a fold that agrees with runtime.
+  'packages/app/src/live.ts': 1_133,
   // Was 2,000. What came out is `commands.ts`: the small grammar of what you
   // can *ask* the window for — the list, whether each can be done now, how a
   // typed line splits into a verb and what it is for — which is a different

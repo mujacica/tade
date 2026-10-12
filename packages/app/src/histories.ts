@@ -1,4 +1,4 @@
-import { RUNTIME_EVENTS, type TadeEvent } from '@tade/core'
+import { AT_WORK_READS, RUNTIME_EVENTS, type TadeEvent } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { aboutRoot } from './away-lifecycle.ts'
 
@@ -21,9 +21,10 @@ export const JOURNAL = 500
 
 /** What decides where queued work stands, read from the whole journal rather than its tail. */
 export const QUEUE_READS = [
-  'task_removed',
-  'run_started',
-  'run_exited',
+  // Who is at work in a checkout (`atWorkFrom`): a run, and everything that
+  // ends one — a lane going and a window closing included, or a run runtime
+  // closed a day ago is an agent in every hold since.
+  ...AT_WORK_READS,
   'failed',
   'queue_started',
   'queue_held',

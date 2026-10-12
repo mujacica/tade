@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
+  atWorkFrom,
   type Config,
   type DoneRule,
   type Effort,
@@ -239,7 +240,7 @@ export class Live {
   private met: { task: string; rule: DoneRule }[] = []
   /** Tasks whose agent has ever started: queued work that has started is not queued. */
   private started = new Set<string>()
-  /** What the queue reads: removals, runs, failures, and every choice made about queued work. */
+  /** What the queue reads: removals, runs and their ends, failures, every choice about queued work. */
   private readonly queueEvents: TadeEvent[] = []
   /** What each schedule and watch has done, kept as a tally and its newest (`schedule-fold.ts`). */
   private readonly schedules = new ScheduleFold()
@@ -414,7 +415,9 @@ export class Live {
     // worktree each and another sharing its checkout, a look that asked the
     // machine held the wrong one and read the wrong tree for the other.
     const workspace = workspaceFor(this.opts.config, project)
-    const at = this.atWork(project)
+    // The tasks as the last look listed them, each with its own workspace.
+    const facts = { tasks: this.upstreams, finished: this.finished }
+    const at = atWorkFrom(this.queueEvents, project, facts)
     const working = [...at.keys()].sort()
     const bare: Reality = { workspace, working, dirty: [], committed: [] }
     // In worktrees nothing is changed under anybody, so there is nothing to
@@ -423,26 +426,6 @@ export class Live {
     const root = this.opts.config.projects[project]?.root
     if (!root || working.length === 0) return bare
     return { workspace, working, ...(await treeIn(root, at)) }
-  }
-
-  /**
-   * The agents at work in a project now, and when each started — a run the
-   * journal opened and never closed. An agent between turns is still in the
-   * checkout and still about to change things, which is why this is its run
-   * and not whether status happens to call it `working` this second.
-   */
-  private atWork(project: string): Map<string, number> {
-    const open = new Map<string, number>()
-    for (const event of this.queueEvents) {
-      const task = event.task
-      if (!task?.startsWith(`${project}/`)) continue
-      if (event.type === 'run_started') open.set(task, Date.parse(event.ts))
-      if (event.type === 'run_exited') open.delete(task)
-    }
-    // Work that is finished is work whatever starts next builds on, not work
-    // going on around it.
-    for (const task of this.finished.keys()) open.delete(task)
-    return open
   }
 
   /** What each task could hand queued work to begin from: its branch, where it is, its rule. */

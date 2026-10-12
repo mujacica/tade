@@ -1,7 +1,8 @@
 import type { Finished } from './done.ts'
-import type { TadeEvent } from './events.ts'
+import { type EventType, type TadeEvent, typeNow } from './events.ts'
 import type { DoneRule, StartCondition, TaskState } from './model.ts'
 import { producesProblem } from './produces.ts'
+import { RuntimeFold } from './runtime.ts'
 
 // Work asked for now and started later.
 //
@@ -54,12 +55,75 @@ export interface QueueFacts {
  */
 export interface Reality {
   workspace: 'checkout' | 'worktree'
-  /** The agents at work in it now, by task. */
+  /** The agents at work in it now, by task (`atWorkFrom`). */
   working: readonly string[]
   /** Changed and not committed, whoever changed them. */
   dirty: readonly string[]
   /** What each agent at work has committed since it started, by task. */
   committed: readonly { task: string; paths: readonly string[] }[]
+}
+
+/**
+ * What `atWorkFrom` reads: what opens a run, and everything `RuntimeFold`
+ * takes as the end of one. A reader that hands it less keeps a run open that
+ * runtime has closed.
+ */
+export const AT_WORK_READS = [
+  'run_started',
+  'run_exited',
+  'lane_exited',
+  'task_removed',
+  'tade_opened',
+  'tade_closing',
+] as const satisfies readonly EventType[]
+
+const READS: ReadonlySet<EventType> = new Set(AT_WORK_READS)
+
+export interface AtWorkFacts {
+  /**
+   * Every task there is, with its own workspace — out of its task file, never
+   * its project's. A task not in it has gone.
+   */
+  tasks: ReadonlyMap<string, { workspace: 'checkout' | 'worktree' }>
+  finished: ReadonlyMap<string, Finished>
+}
+
+/**
+ * The agents at work in a project's checkout now, and when each started.
+ *
+ * A run counts while `RuntimeFold` would call it open — no exit, no lane gone,
+ * no removal, no window closing or opening since — so the queue and the Spend
+ * page can never disagree about whether an agent is there. Its ceiling is not
+ * applied: that bounds how long a run's time may be believed, and dropping an
+ * agent that is there could only let work start under it.
+ *
+ * And only a task that still exists, in this checkout, and unfinished. On
+ * 2026-10-11 a watch's CI fix, in a worktree of its own and removed two seconds
+ * after a relaunch the day before, was named in every hold in tade's checkout:
+ * the reading this replaced saw only `run_started` and `run_exited`.
+ *
+ * An agent between turns is still here and still about to change things,
+ * which is why this is its run and not whether status calls it `working`.
+ */
+export function atWorkFrom(
+  events: readonly TadeEvent[],
+  project: string,
+  facts: AtWorkFacts,
+): Map<string, number> {
+  const fold = new RuntimeFold()
+  for (const event of events) if (READS.has(typeNow(event.type))) fold.add(event)
+  const at = new Map<string, number>()
+  for (const run of fold.openRuns) {
+    const task = run.task
+    if (!task?.startsWith(`${project}/`)) continue
+    // A watch's work that cannot share a tree has a worktree whatever the
+    // project says, so whose checkout it is in is the task's own answer.
+    if (facts.tasks.get(task)?.workspace !== 'checkout') continue
+    // Finished work is what whatever starts next builds on, not work going on around it.
+    if (facts.finished.has(task)) continue
+    at.set(task, Math.min(run.at, at.get(task) ?? run.at))
+  }
+  return at
 }
 
 /** What queued work would land in the middle of, and why that is held. */
