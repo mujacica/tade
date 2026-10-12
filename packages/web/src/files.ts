@@ -27,6 +27,8 @@ export interface Files {
   asset(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean>
   /** The worker, with its version in front of it. False for a folder with none. */
   worker(req: IncomingMessage, res: ServerResponse): Promise<boolean>
+  /** Forget what was read, so the next request reads the folder again (`reloading.ts`). */
+  reset(): void
 }
 
 /**
@@ -40,9 +42,14 @@ export interface Files {
  */
 export function filesFor(opts: { serving: boolean }): Files {
   let assets: Map<string, Asset> | null = null
-  const packed = packing()
+  let packed = packing()
   let worker: Served | null = null
   return {
+    reset() {
+      assets = null
+      worker = null
+      packed = packing()
+    },
     async asset(req, res, path) {
       assets ??= await readAssets()
       const found = assetFor(path, assets)

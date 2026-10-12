@@ -214,6 +214,8 @@ let wanted = null
 let broke = []
 /** Whether a new shell is installed and waiting for somebody to say when. */
 let newer = false
+/** Whether the page's own files changed on the machine and a reload is owed. */
+let changed = false
 /**
  * Why this browser kept no copy, where the machine offered one — or null.
  *
@@ -430,6 +432,16 @@ function offered() {
           : 'Everything else here works exactly as it does now.',
     })
   }
+  if (changed) {
+    said.push({
+      key: 'changed',
+      tone: 'is-stale',
+      glyph: '↻',
+      lead: 'This page changed on the machine.',
+      under: 'Nothing reloads while something is typed here. Reload when it is sent or kept.',
+      press: { said: 'Reload', does: () => location.reload() },
+    })
+  }
   if (!newer) return said
   said.push({
     key: 'update',
@@ -513,6 +525,22 @@ function openStream() {
     // Anything else would be a page pretending it still has a session — and
     // everything this device kept goes with the session.
     void signedOut()
+  })
+  source.addEventListener('reload', () => {
+    // **The page's own files changed** — only ever said by a Tade running
+    // from its repository (`reloading.ts`). Reloaded at once, unless
+    // somebody has typed something into a box: then it is the bar with its
+    // press, because nothing reloads a page somebody is typing in.
+    alive()
+    const typed = [...document.querySelectorAll('textarea, input')].some(
+      (one) => one.value.trim() !== '' && one.offsetParent !== null,
+    )
+    if (!typed) {
+      location.reload()
+      return
+    }
+    changed = true
+    paint()
   })
   source.addEventListener('too_many', () => {
     seen = { ...seen, ended: 'This device has too many pages of Tade open.' }

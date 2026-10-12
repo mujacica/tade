@@ -302,6 +302,18 @@ export class Streams {
   }
 
   /**
+   * Every open page is told its own files changed, and goes on streaming.
+   *
+   * Only ever called by a listener running from the repository, when the
+   * folder it serves changes on disk (`reloading.ts`): the page decides what
+   * to do about it, and never reloads over something somebody typed.
+   */
+  reloadAll(): void {
+    const frame = sseFrame({ event: 'reload', data: {} })
+    for (const peer of [...this.peers]) peer.send(frame, peer.wroteAt)
+  }
+
+  /**
    * Every stream ends, having been told why.
    *
    * Synchronous and with nothing to await: there is no acknowledgement worth

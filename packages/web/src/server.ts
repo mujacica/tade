@@ -25,6 +25,7 @@ import { carryPairing } from './paired.ts'
 import { type Sink, Streams } from './peers.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
+import { fromSource, watchFolder } from './reloading.ts'
 import { askingOf, codeOf, header, inTime, labelOf, pathOf, queryOf, readBody } from './request.ts'
 import { type Route, routeFor, routesFor } from './routes.ts'
 import {
@@ -125,6 +126,7 @@ export function webServer(opts: ServerOptions): WebServer {
   // The files, read on demand and kept: `files.ts` owns both of them and the
   // one decision they share, which is what `/sw.js` answers with.
   const files = filesFor({ serving: opts.surface.installing })
+  let unwatch: () => void = () => {}
   const servers: Server[] = []
   const bound: string[] = []
   const boundHosts: string[] = []
@@ -725,6 +727,15 @@ export function webServer(opts: ServerOptions): WebServer {
           boundHosts.push(at.address)
         }
       }
+      // **Live reload, from the repository only** (`reloading.ts`): the
+      // folder changed on disk, so what was read is dropped and every open
+      // page is told. An installed Tade is never this.
+      if (fromSource() && bound.length > 0) {
+        unwatch = watchFolder(assetsDir(), () => {
+          files.reset()
+          streams.reloadAll()
+        })
+      }
       return bound
     },
     get streams() {
@@ -733,6 +744,8 @@ export function webServer(opts: ServerOptions): WebServer {
     epoch,
     async close(): Promise<void> {
       stopping = true
+      unwatch()
+      unwatch = () => {}
       opts.tickets.clear()
       // Every open stream is told why before the listener goes, which is the
       // difference between a page that says *Tade is closing* and one that
