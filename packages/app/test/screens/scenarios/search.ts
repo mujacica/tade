@@ -1,5 +1,5 @@
 import { searchPanel } from '../../../src/panels/search/state.ts'
-import { type SearchEntry, searchResults } from '../../../src/search.ts'
+import { type SearchEntry, searchFile, searchResults } from '../../../src/search.ts'
 import { base, checkout, frame, type Scenario } from './fixtures.ts'
 
 // Search: letters matched against what Tade already has, and the shortlist
@@ -60,8 +60,8 @@ function searched(query: string, meant?: readonly SearchEntry[]): SearchEntry[] 
   return searchResults(query, {
     entries: agents,
     files: [
-      ...files.map((path) => ({ root: checkout, path })),
-      ...files.map((path) => ({ root: stripeTree, path })),
+      ...files.map((path) => searchFile(checkout, path)),
+      ...files.map((path) => searchFile(stripeTree, path)),
     ],
     // A whole sentence is grepped for like anything else and found nowhere,
     // which is the other half of why anybody was asked about it.

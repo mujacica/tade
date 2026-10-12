@@ -11,6 +11,7 @@ import {
   parseQuery,
   pathTyped,
   type SearchEntry,
+  searchFile,
   searchResults,
 } from '../src/search.ts'
 
@@ -27,7 +28,7 @@ const files = [
   'src/payments/stripe/web/hook-handlers.ts',
   'test/webhooks.test.ts',
   'README.md',
-].map((path) => ({ root, path }))
+].map((path) => searchFile(root, path))
 const entries: SearchEntry[] = [
   { id: 'task:checkout/refunds', kind: 'agent', label: 'refunds', mark: '○', complete: '@refunds' },
   { id: 'run:new-agent', kind: 'action', label: 'New agent', mark: '›', complete: '>New agent' },
@@ -68,6 +69,32 @@ describe('results', () => {
       'test/webhooks.test.ts',
     ])
     expect(found.every((entry) => entry.kind === 'file')).toBe(true)
+  })
+
+  it('keeps the best of a long list exactly as sorting all of it would have', () => {
+    // Two worktrees holding the same files, so every name ties with itself:
+    // what is held while scanning must come out as the whole list sorted and
+    // cut, the first worktree's copy first.
+    const names = ['webhooks.ts', 'web-hooks.ts', 'hooks.ts', 'webhook.test.ts', 'README.md']
+    const paths = ['api', 'web', 'hooks', 'lib'].flatMap((dir) =>
+      names.flatMap((name) => [`src/${dir}/${name}`, `${dir}/${name}`]),
+    )
+    const all = [root, agent].flatMap((place) => paths.map((path) => searchFile(place, path)))
+    const sorted = all
+      .map((file) => ({ file, found: fuzzy('WebHk', file.path) }))
+      .filter((one) => one.found !== null)
+      .sort(
+        (a, b) =>
+          (b.found?.score ?? 0) - (a.found?.score ?? 0) || a.file.path.localeCompare(b.file.path),
+      )
+    expect(sorted.length).toBeGreaterThan(12)
+    const found = searchResults('WebHk', { entries: [], files: all, matches: [] })
+    expect(found.map((entry) => `${entry.detail} ${entry.label}`)).toEqual(
+      sorted.slice(0, 12).map((one) => `${one.file.root.label} ${one.file.path}`),
+    )
+    expect(found.map((entry) => entry.hits)).toEqual(
+      sorted.slice(0, 12).map((one) => one.found?.hits),
+    )
   })
 
   it('opens a file at the line asked for', () => {

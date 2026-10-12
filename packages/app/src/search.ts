@@ -110,9 +110,21 @@ export function parseQuery(raw: string): Query {
  * path. Null when it does not match at all.
  */
 export function fuzzy(query: string, text: string): { score: number; hits: number[] } | null {
-  const q = query.toLowerCase().replace(/\s+/g, '')
+  return matched(letters(query), text, text.toLowerCase())
+}
+
+/** A query as its letters are matched: lower case, with no spaces. */
+function letters(query: string): string {
+  return query.toLowerCase().replace(/\s+/g, '')
+}
+
+/**
+ * `fuzzy`, given the query as `letters` and the text already lower-cased (`t`):
+ * what a list of files is matched with, so that neither is worked out again
+ * for every file on every keystroke.
+ */
+function matched(q: string, text: string, t: string): { score: number; hits: number[] } | null {
   if (q === '') return { score: 0, hits: [] }
-  const t = text.toLowerCase()
   const name = t.lastIndexOf('/') + 1
 
   const whole = t.lastIndexOf(q)
@@ -153,11 +165,28 @@ function boundary(text: string, at: number): boolean {
   return /[a-z]/.test(before) && /[A-Z]/.test(here)
 }
 
+/**
+ * A file in a place search looks, lower-cased once, when the list was made:
+ * every keystroke matches every file there is, and lower-casing each one again
+ * per key was a second copy of the whole list each time.
+ */
+export interface SearchFile {
+  root: SearchRoot
+  path: string
+  /** `path` in lower case, which is what the letters are matched against. */
+  lower: string
+}
+
+/** A file as search keeps it. */
+export function searchFile(root: SearchRoot, path: string): SearchFile {
+  return { root, path, lower: path.toLowerCase() }
+}
+
 export interface SearchSources {
   /** Agents, approvals, actions, projects, settings: everything known without looking at disk. */
   entries: readonly SearchEntry[]
   /** Every file in every place searched. */
-  files: readonly { root: SearchRoot; path: string }[]
+  files: readonly SearchFile[]
   /** Lines found inside files for the text being searched, once git has answered. */
   matches: readonly Match[]
   /** What each terminal has printed, as plain text, for finding lines in. */
@@ -522,31 +551,50 @@ function saidIn(text: string, about: string | undefined): string | null {
   return null
 }
 
+/** A file that matched, and how well. */
+interface Ranked {
+  file: SearchFile
+  score: number
+  hits: number[]
+}
+
 function fileResults(query: Query, files: SearchSources['files'], limit: number): SearchEntry[] {
   if (query.text === '') return []
-  const ranked: { entry: SearchEntry; score: number }[] = []
+  const q = letters(query.text)
+  // Only the best `limit` are held while scanning, best first. A keystroke
+  // matches every file in every worktree, and sorting all that matched to
+  // keep twelve was most of what it cost: a file no better than the last of
+  // those is one comparison and gone.
+  const best: Ranked[] = []
   for (const file of files) {
-    const found = fuzzy(query.text, file.path)
+    const found = matched(q, file.path, file.lower)
     if (!found) continue
-    const place = `${file.root.path}/${file.path}`
-    ranked.push({
-      score: found.score,
-      entry: {
-        id: openId(place, query.line, query.column),
-        kind: 'file',
-        label: file.path,
-        detail: file.root.label,
-        mark: '□',
-        ...(query.line ? { note: `line ${query.line}` } : {}),
-        complete: file.path,
-        hits: found.hits,
-      },
-    })
+    const one = { file, score: found.score, hits: found.hits }
+    const last = best.at(-1)
+    if (best.length >= limit && last && !ahead(one, last)) continue
+    const at = best.findIndex((kept) => ahead(one, kept))
+    if (at < 0) best.push(one)
+    else best.splice(at, 0, one)
+    if (best.length > limit) best.pop()
   }
-  return ranked
-    .sort((a, b) => b.score - a.score || a.entry.label.localeCompare(b.entry.label))
-    .slice(0, limit)
-    .map((one) => one.entry)
+  return best.map(({ file, hits }) => ({
+    id: openId(`${file.root.path}/${file.path}`, query.line, query.column),
+    kind: 'file',
+    label: file.path,
+    detail: file.root.label,
+    mark: '□',
+    ...(query.line ? { note: `line ${query.line}` } : {}),
+    complete: file.path,
+    hits,
+  }))
+}
+
+/**
+ * Whether one file ranks above another: the better score, then the name. A tie
+ * is never ahead, so of two the same, the one found first stays first.
+ */
+function ahead(a: Ranked, b: Ranked): boolean {
+  return a.score > b.score || (a.score === b.score && a.file.path.localeCompare(b.file.path) < 0)
 }
 
 function matchResults(text: string, matches: readonly Match[], limit: number): SearchEntry[] {

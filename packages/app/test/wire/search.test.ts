@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { ConfigSchema } from '@tade/core'
 import { ExtensionHost, type MeantRequest } from '@tade/extensions-core'
 import { describe, expect, it } from 'vitest'
+import { stringify } from 'yaml'
 import { asPaste } from '../../src/input.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -89,6 +90,44 @@ describe('the window, finding things', () => {
     for (const char of '#refundtwice') terminal.press(char)
     // Case does not matter, and the line is said with the file.
     await until('the line inside the file', () => terminal.written.includes('ledger.ts:1'))
+  })
+
+  it('looks in a shared checkout once, however many agents work in it', async () => {
+    // Two agents beside the project in its own checkout, so the project and
+    // each of them name one folder: three places that are one. Written rather
+    // than `addTask`ed, which gives a task a worktree of its own.
+    for (const name of ['billing', 'payouts']) {
+      const dir = join(home, 'projects', 'app', 'tasks', name)
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(
+        join(dir, 'task.yaml'),
+        stringify({
+          id: `app/${name}`,
+          project: 'app',
+          intent_spoken: `do ${name}`,
+          created: '2026-09-11T09:14:22Z',
+          workspace: 'checkout',
+          parked: false,
+        }),
+      )
+    }
+    writeFileSync(join(repo.root, 'ledger.ts'), 'export const refundTwice = false\n')
+    await start()
+    await until('the agents sharing it', () => terminal.written.includes('payouts'))
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    const screen = () => screenOf(terminal.written).join('\n')
+
+    for (const char of 'ledger') terminal.press(char)
+    await until('the file', () => terminal.written.includes('□ ledger.ts'))
+    // One row, under the project's own name rather than an agent's.
+    expect(/(?<!IN) FILES \((\d+)\)/.exec(screen())?.[1]).toBe('1')
+    expect(screen()).toContain('□ ledger.ts  app')
+
+    terminal.press('\x15')
+    for (const char of '#refundtwice') terminal.press(char)
+    await until('the line inside the file', () => terminal.written.includes('ledger.ts:1'))
+    expect(/IN FILES \((\d+)\)/.exec(screen())?.[1]).toBe('1')
   })
 })
 

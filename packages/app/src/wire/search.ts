@@ -1,4 +1,5 @@
 import { access, constants, stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { expandHome, type SettingGroup, settingLabel } from '@tade/core'
 import { grep, listFiles, type Match, type SearchRoot } from '../finder.ts'
 import type { Frame } from '../frame.ts'
@@ -15,6 +16,8 @@ import {
   parseQuery,
   pathTyped,
   type SearchEntry,
+  type SearchFile,
+  searchFile,
   searchResults,
   TEXT_MIN,
 } from '../search.ts'
@@ -113,7 +116,7 @@ export class Search implements Subject {
   private askingWith: AbortController | null = null
   private askTimer: NodeJS.Timeout | null = null
   /** Every file in every place search looks, and when they were listed. */
-  private files: { at: number; files: { root: SearchRoot; path: string }[] } | null = null
+  private files: { at: number; files: SearchFile[] } | null = null
   /** What each terminal has printed, read when search opens. */
   private terminalTexts: { id: string; name: string; project: string; text: string }[] = []
   /**
@@ -182,7 +185,7 @@ export class Search implements Subject {
     const roots = this.roots()
     void Promise.all(
       roots.map(async (root) =>
-        (await listFiles(root.path).catch(() => [])).map((path) => ({ root, path })),
+        (await listFiles(root.path).catch(() => [])).map((path) => searchFile(root, path)),
       ),
     ).then((lists) => {
       this.files = { at: this.wire.now(), files: lists.flat() }
@@ -586,7 +589,7 @@ export class Search implements Subject {
     return { tasks, projects: byProject }
   }
 
-  /** Every place an agent works, and every project, for search to look in. */
+  /** Every place an agent works, and every project, for search to look in: each once. */
   private roots(): SearchRoot[] {
     const roots: SearchRoot[] = Object.entries(this.wire.opts.config.projects).map(
       ([name, project]) => ({
@@ -600,7 +603,17 @@ export class Search implements Subject {
       if (worktree)
         roots.push({ path: worktree, label: `${pane.project} › ${pane.name}`, task: pane.task })
     }
-    return roots
+    // In a shared checkout every agent's worktree *is* the project's root, so
+    // ten agents had it listed, grepped and every file in it matched eleven
+    // times a keystroke. The first name a folder came under is the one it
+    // keeps, and the projects come first. By the path made absolute and
+    // normal, not a look at the disk: status names a shared checkout with the
+    // very string the config does.
+    const seen = new Set<string>()
+    return roots.filter((root) => {
+      const at = resolve(root.path)
+      return !seen.has(at) && seen.add(at) !== undefined
+    })
   }
 }
 
