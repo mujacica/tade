@@ -59,6 +59,11 @@
   background: var(--surface);
 }
 
+/* A row's name lights under the pointer, as the reference's links do. */
+.rows > li > a:hover .name {
+  color: var(--amber-light);
+}
+
 /*
   A row with no mark of its own still lines up: its name takes the mark's
   column with its own, and the line under it starts where the name does.
@@ -77,10 +82,11 @@
   vertical-align: -0.15em;
 }
 
-/* The row the keyboard is on, and the one `j`/`k` moves. */
+/* The row the keyboard is on, and the one `j`/`k` moves: the window's `▌`. */
 .rows > li.on > a,
 .rows > li.on > div {
-  background: var(--chosen);
+  background: var(--surface);
+  box-shadow: inset 2px 0 0 var(--amber);
 }
 
 .glyph {
@@ -148,11 +154,12 @@
 
 /* ── the project sub-navigation: scrollable, never collapsed into `+3 more` ── */
 
+/* Tabs as a desk draws them: words along a hairline, an amber line under the one you are on. */
 .tabstrip {
   display: flex;
-  gap: var(--s1);
+  gap: var(--s5);
   margin-block-end: var(--s5);
-  padding: var(--s1);
+  border-block-end: var(--border);
   overflow-x: auto;
   scroll-snap-type: x proximity;
 }
@@ -164,20 +171,18 @@
   align-items: center;
   gap: var(--s2);
   min-height: var(--tap);
-  padding-inline: var(--s3);
-  border-radius: var(--r1);
+  padding-inline: 0;
   color: var(--tab);
   text-decoration: none;
   white-space: nowrap;
 }
 
 .tabstrip a[aria-current="page"] {
-  background: var(--raised);
   color: var(--amber);
+  box-shadow: inset 0 -2px 0 var(--amber);
 }
 
 .tabstrip a:hover {
-  background: var(--surface);
   color: var(--bright);
 }
 
@@ -265,10 +270,15 @@ tr:last-child td {
   border-block-end: 0;
 }
 
+/* A column's name: small, and ruled off from the rows — no band of fill. */
 th {
   color: var(--heading);
   font-size: var(--step--1);
   font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+tbody tr:hover td {
   background: var(--surface);
 }
 
@@ -284,7 +294,7 @@ th.figure {
 .big {
   font-variant-numeric: tabular-nums;
   font-size: var(--step-4);
-  font-weight: 600;
+  font-weight: 300;
   letter-spacing: var(--tight);
   color: var(--bright);
   line-height: var(--lead-tight);
@@ -370,7 +380,8 @@ th.figure {
   margin-block: var(--s2);
   padding: var(--s3);
   border-radius: var(--r1);
-  background: var(--raised);
+  border: var(--border);
+  background: var(--ground);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   color: var(--bright);
@@ -430,13 +441,16 @@ th.figure {
   background: var(--amber-light);
 }
 
+/* The other presses: outlined, as the reference's are — the edge lights under the pointer. */
 .press.quietly {
-  background: var(--control);
-  color: var(--ink-light); /* a grey ground takes the light one */
+  background: transparent;
+  border: 1px solid var(--chrome);
+  color: var(--ink-light);
 }
 
 .press.quietly:hover:not(:disabled) {
-  background: var(--hovered);
+  background: transparent;
+  border-color: var(--heading);
 }
 
 .press:disabled {
@@ -606,8 +620,7 @@ select {
   padding: var(--s4);
   border-radius: var(--r4);
   background: var(--panel);
-  border: 1px solid var(--raised);
-  box-shadow: var(--lift);
+  border: 1px solid var(--chrome);
 }
 
 .sheet dl {
@@ -648,21 +661,18 @@ select {
 
 /*
   **Nothing here, drawn one way everywhere** (`empty()` and every `nothing`):
-  where the rows would be, a quiet word centred in a hairline box with a small
-  open ring before it — an empty list reads as empty rather than as a list
-  that failed to draw, and it looks the same on every screen and in the dock.
+  where the rows would be, a quiet word after a small open ring, on the line
+  the first row would start — no box, no dashes: an empty list reads as empty
+  rather than as a list that failed to draw, and it looks the same on every
+  screen and in the dock.
 */
 .nothing {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: var(--s2);
-  min-height: 3.5rem;
-  padding: var(--s3) var(--s4);
-  border-radius: var(--r2);
-  border: 1px dashed var(--chrome);
+  min-height: var(--tap);
+  padding-block: var(--s2);
   color: var(--heading);
-  text-align: center;
 }
 
 .nothing::before {
@@ -670,7 +680,7 @@ select {
   flex: 0 0 auto;
   width: 0.625rem;
   height: 0.625rem;
-  border-radius: var(--r3);
+  border-radius: var(--round);
   border: 1.5px solid var(--chrome);
 }
 

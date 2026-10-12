@@ -106,16 +106,22 @@
   --s6: 32px;
   --s7: 48px;
 
-  --r1: 8px; /* chips, fields, buttons */
-  --r2: 12px; /* cards, tiles */
-  --r3: 999px; /* pills and dots */
-  --r4: 16px; /* sheets, the command bar */
+  /*
+    **Square, as the window is.** Tade draws boxes with box-drawing lines, and
+    the page draws them the same way: no rounded corner on any box, card,
+    field, button, tag or sheet. The one exception is a thing that is a point
+    and not a box — a status dot, a live pulse, a chart's ring — which is
+    `--round`.
+  */
+  --r1: 0; /* chips, fields, buttons */
+  --r2: 0; /* cards, tiles */
+  --r3: 0; /* tags and counts */
+  --r4: 0; /* sheets, the command bar */
+  --round: 50%; /* a dot, a pulse, a ring — never a box */
 
   /* The floor for every interactive target, both axes. */
   --tap: 44px;
   --border: 1px solid var(--line);
-  /* The only shadow in the design: what floats over the page — the command bar, a sheet. */
-  --lift: 0 16px 48px #000000b3, 0 0 0 1px #00000080;
   /* The wordmark's height, which sizes all of it (`frame.css`). */
   --word: 1.375rem;
   /*

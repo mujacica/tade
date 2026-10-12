@@ -116,18 +116,17 @@
   height: 1.125rem;
 }
 
-/* Done: amber's tint and a tick in amber — the same tone as the line to it. */
+/* Done: an amber edge and a tick in amber — the same tone as the line to it. */
 .step[data-state="done"] .step-dot {
-  background: color-mix(in srgb, var(--amber) 16%, var(--panel));
+  background: var(--panel);
+  border: 1px solid var(--amber);
   color: var(--amber);
 }
 
-/* Where you are: solid, with a ring of its own tint so it reads as the one. */
+/* Where you are: solid amber, the one thing on the card that is. */
 .step[data-state="now"] .step-dot {
   background: var(--amber);
   color: var(--ink);
-  /* Opaque, mixed into the card's own ground, so the track never shows through it. */
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 18%, var(--panel));
 }
 
 .step-words {
@@ -171,8 +170,6 @@
   justify-content: center;
   gap: var(--s3);
   min-height: 4rem;
-  border-radius: var(--r2);
-  background: var(--surface);
   color: var(--bright);
   font-weight: 600;
 }
@@ -182,12 +179,12 @@
   position: relative;
   width: 0.75rem;
   height: 0.75rem;
-  border-radius: var(--r3);
+  border-radius: var(--round);
   background: var(--amber);
 }
 
 .pair-done {
-  background: color-mix(in srgb, var(--green) 10%, var(--surface));
+  border-color: var(--green);
   color: var(--green);
 }
 

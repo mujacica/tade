@@ -63,7 +63,7 @@ export function projectScreen(where, ctx) {
   const title = el('h1', { text: where.project })
   const figure = el('span', { class: 'figure' })
   into(head, title, figure)
-  const strip = el('nav', { class: 'tabstrip ui-panel', attrs: { 'aria-label': 'This project' } })
+  const strip = el('nav', { class: 'tabstrip', attrs: { 'aria-label': 'This project' } })
   const gone = el('p', { class: 'empty nothing' })
 
   const agents = section('AGENTS')
@@ -713,6 +713,8 @@ function taskChecksIn(made, task) {
   // The coloured word says it; a second copy in the section's figure is the
   // same fact twice on one line.
   textIn(made.checksWord, mark.word)
+  // Not run here is said by its note, with the reason one `?` away; once is enough.
+  made.checksWord.hidden = task.checks.state === 'unknown'
   toneOn(made.checksWord, mark.tone)
   dlIn(made.checksNames, [
     ['red', task.checks.failed.length === 0 ? null : task.checks.failed.join(', ')],

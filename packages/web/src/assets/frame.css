@@ -129,8 +129,9 @@ a.name:hover {
   stroke: none;
 }
 
-/* A word's box is 11 by 3 (`WORD_BOX`): 5.5em of letters by 1.5em of line. */
-.word {
+/* A word's box is 11 by 3 (`WORD_BOX`): 5.5em of letters by 1.5em of line. Scoped
+   to the mark: `.word` is also a state's word on a task's page. */
+.wordmark .word {
   display: block;
   flex: 0 0 auto;
   width: calc(var(--word) * 11 / 3);
@@ -187,7 +188,6 @@ a.name:hover {
 }
 
 .cmd:hover {
-  background: var(--raised);
   color: var(--bright);
 }
 
@@ -197,9 +197,9 @@ kbd {
   padding: 0 var(--s1);
   min-width: 1.5rem;
   justify-content: center;
-  border-radius: 5px;
+  border-radius: var(--r1);
   border: 1px solid var(--chrome);
-  background: var(--raised);
+  background: transparent;
   color: var(--pressed);
   font-family: var(--font-ui);
   font-size: var(--step--1);
@@ -231,9 +231,9 @@ kbd {
 }
 
 /*
-  From a tablet up the clock is a pill, tinted by how the page stands: green
+  From a tablet up the clock is a box whose edge is how the page stands: green
   while live, amber while asking again, red when nothing answers. The dot and
-  the words say it; the tint is where the eye finds it.
+  the words say it; the edge is where the eye finds it.
 */
 @media (min-width: 768px) {
   .fresh {
@@ -247,19 +247,16 @@ kbd {
   }
 
   .fresh:has(.dot.is-live) {
-    background: color-mix(in srgb, var(--green) 7%, var(--panel));
-    border-color: color-mix(in srgb, var(--green) 22%, transparent);
+    border-color: color-mix(in srgb, var(--green) 45%, var(--line));
   }
 
   .fresh:has(.dot.is-stale),
   .fresh:has(.dot.is-reconnecting) {
-    background: color-mix(in srgb, var(--amber) 8%, var(--panel));
-    border-color: var(--amber-dark);
+    border-color: var(--amber);
   }
 
   .fresh:has(.dot.is-gone) {
-    background: color-mix(in srgb, var(--red) 8%, var(--panel));
-    border-color: color-mix(in srgb, var(--red) 35%, transparent);
+    border-color: var(--red);
   }
 }
 
@@ -305,7 +302,6 @@ kbd {
 }
 
 .icon:hover {
-  background: var(--raised);
   color: var(--bright);
 }
 
@@ -323,8 +319,8 @@ kbd {
 
 /*
   One line each: the glyph, the lead, a `?` for the rest, and a press where
-  there is one. A tinted wash of its tone and a hairline of the same — the
-  status pill's construction at the width of the page.
+  there is one. Flat, with its tone on the edge — a hairline round it and a
+  bar down its start, as every state on the page is drawn.
 */
 .bar {
   display: grid;
@@ -348,8 +344,8 @@ kbd {
 }
 
 .bar.is-gone {
-  border-color: color-mix(in srgb, var(--red) 45%, transparent);
-  background: color-mix(in srgb, var(--red) 8%, var(--panel));
+  border-color: var(--red);
+  border-inline-start-width: 3px;
 }
 
 .bar.is-gone .glyph {
@@ -358,7 +354,7 @@ kbd {
 
 .bar.is-stale {
   border-color: var(--amber-dark);
-  background: color-mix(in srgb, var(--amber) 6%, var(--panel));
+  border-inline-start: 3px solid var(--amber);
 }
 
 .bar.is-stale .glyph {
@@ -381,10 +377,12 @@ kbd {
 }
 
 /*
-  The `?` behind which a sentence waits: a 44px target with a small disc drawn
-  in it, so it is a thumb's reach without being a thumb's size on the page.
+  The `?` behind which a sentence waits: a 44px target with a small square
+  drawn in it, so it is a thumb's reach without being a thumb's size on the
+  page.
 */
 .hint {
+  position: relative;
   flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
@@ -393,14 +391,29 @@ kbd {
   color: var(--heading);
   font-size: var(--step--1);
   font-weight: 600;
-  background: radial-gradient(circle, var(--raised) 0 0.6875rem, transparent 0.7rem);
   cursor: pointer;
+}
+
+.hint::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  width: 1.375rem;
+  height: 1.375rem;
+  translate: -50% -50%;
+  border: 1px solid var(--chrome);
+  transition: border-color var(--ease);
 }
 
 .hint:hover,
 .hint[aria-expanded="true"] {
   color: var(--bright);
-  background: radial-gradient(circle, var(--control) 0 0.6875rem, transparent 0.7rem);
+}
+
+.hint:hover::before,
+.hint[aria-expanded="true"]::before {
+  border-color: var(--heading);
 }
 
 /* ── navigation ────────────────────────────────────────────────────────────── */
@@ -433,24 +446,22 @@ kbd {
 }
 
 /*
-  The tab bar: floating over the page on the panel's ground, a pill with the
-  phone's inset under it. Five places: three, Tade in the middle, and More.
+  The tab bar: flush with the foot of the screen on the panel's ground, a
+  hairline over it and the phone's inset under it — no float, no blur, no
+  shadow. Five places: three, Tade in the middle, and More. Where you are is
+  an amber line over the tab, as a desk's tabs draw it.
 */
 .tabs {
   position: fixed;
-  inset-inline: var(--s3);
-  bottom: calc(var(--s2) + env(safe-area-inset-bottom));
+  inset-inline: 0;
+  bottom: 0;
   z-index: 6;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: center;
-  padding: var(--s1);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
-  border: 1px solid var(--raised);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  box-shadow: var(--lift);
+  padding: 0 var(--s1) env(safe-area-inset-bottom);
+  background: var(--panel);
+  border-block-start: var(--border);
 }
 
 .tab {
@@ -460,8 +471,7 @@ kbd {
   align-content: center;
   gap: 2px;
   min-height: var(--tap);
-  padding-block: var(--s1);
-  border-radius: 18px;
+  padding-block: var(--s2);
   color: var(--tab);
   text-decoration: none;
   font-size: var(--step--1);
@@ -478,9 +488,10 @@ kbd {
   line-height: 1.1;
 }
 
-/* Where you are, in amber, and said to a screen reader as well. */
+/* Where you are, in amber, with its line over it, and said to a screen reader as well. */
 .tab[aria-current="page"] {
   color: var(--amber);
+  box-shadow: inset 0 2px 0 var(--amber);
 }
 
 /* A count is a badge on the icon's shoulder, and nothing at nought. */
@@ -490,13 +501,12 @@ kbd {
   left: calc(50% + 4px);
 }
 
-/* Tade, in the middle: an amber disc, the one primary press on the bar. */
+/* Tade, in the middle: an amber square, the one primary press on the bar. */
 .tab-ask .ask-disc {
   display: grid;
   place-items: center;
   width: 2.5rem;
   height: 2.5rem;
-  margin-block-start: -2px;
   border-radius: var(--r3);
   background: var(--amber);
   color: var(--ink);
@@ -542,7 +552,7 @@ main[tabindex="-1"]:focus {
 }
 
 .section {
-  margin-block-end: var(--s6);
+  margin-block-end: var(--s5);
 }
 
 .section-head {
@@ -652,12 +662,12 @@ main[tabindex="-1"]:focus {
     padding-inline: var(--s5);
   }
 
+  /* A field, drawn as every field is: the chrome's edge on the page's own ground. */
   .cmd {
     flex: 0 1 22rem;
     justify-content: flex-start;
     margin-inline: var(--s4) auto;
-    border: 1px solid var(--raised);
-    background: var(--panel);
+    border: 1px solid var(--chrome);
   }
 
   .cmd:hover {
@@ -740,12 +750,10 @@ main[tabindex="-1"]:focus {
   }
 
   .rail-items > a:hover {
-    background: var(--raised);
     color: var(--bright);
   }
 
   .rail-items > a[aria-current="page"] {
-    background: var(--surface);
     color: var(--amber);
   }
 
@@ -755,8 +763,7 @@ main[tabindex="-1"]:focus {
     position: absolute;
     inset-inline-start: calc(-1 * var(--s2));
     inset-block: 10px;
-    width: 3px;
-    border-radius: var(--r3);
+    width: 2px;
     background: var(--amber);
   }
 

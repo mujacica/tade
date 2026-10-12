@@ -27,9 +27,7 @@
 .scrim {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--ground) 72%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--ground) 80%, transparent);
 }
 
 .pal {
@@ -40,8 +38,7 @@
   padding-block-end: env(safe-area-inset-bottom);
   border-radius: var(--r4) var(--r4) 0 0;
   background: var(--panel);
-  border: 1px solid var(--raised);
-  box-shadow: var(--lift);
+  border: 1px solid var(--chrome);
   overflow: hidden;
   transition:
     transform var(--ease-sheet),
@@ -145,9 +142,9 @@
   font-family: var(--font-mono);
 }
 
-/* A press that wants its second: the row turns to the one colour that means *this counts*. */
+/* A press that wants its second: the row's edge turns to the one colour that means *this counts*. */
 .pal-list [role="option"].is-asked {
-  background: color-mix(in srgb, var(--amber) 16%, var(--panel));
+  box-shadow: inset 2px 0 0 var(--amber);
 }
 
 .pal-list [role="option"].is-asked .pal-kind {
@@ -191,7 +188,7 @@
 .pal-standing .dot {
   width: 0.5rem;
   height: 0.5rem;
-  border-radius: var(--r3);
+  border-radius: var(--round);
   background: currentColor;
 }
 
@@ -364,7 +361,7 @@ a.pal-whole:hover {
 }
 
 .rows.chat > li.is-problem > div {
-  background: color-mix(in srgb, var(--red) 10%, var(--surface));
+  box-shadow: inset 2px 0 0 var(--red);
 }
 
 /* The box and its press side by side, the reason and the answer under both. */

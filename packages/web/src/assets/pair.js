@@ -184,13 +184,13 @@ export function pairScreen(ctx) {
   )
   into(controls, label, field, press, why)
 
-  const waiting = el('div', { class: 'pair-waiting' })
+  const waiting = el('div', { class: 'ui-panel pair-waiting' })
   into(
     waiting,
     el('span', { class: 'pair-pulse', attrs: { 'aria-hidden': 'true' } }),
     el('span', { text: 'Waiting for the machine' }),
   )
-  const paired = el('div', { class: 'pair-done' })
+  const paired = el('div', { class: 'ui-panel pair-done' })
   const tick = el('span', { class: 'pair-tick', attrs: { 'aria-hidden': 'true' } })
   into(tick, icon('check'))
   into(paired, tick, el('span', { text: 'Paired' }))

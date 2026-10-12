@@ -4,19 +4,21 @@
   **A screen composes these and adds only what is its own** — a panel is a
   panel on the queue, in Settings and in the dock; a count is a count on the
   tab bar, in the rail and in the project tree. `ui.js` makes each one, so a
-  screen asks for a pill rather than writing a span with five declarations
-  beside it, and a change to how a pill looks is one rule here.
+  screen asks for a tag rather than writing a span with five declarations
+  beside it, and a change to how one looks is one rule here.
 
-  The construction is the system's (`tokens.css`): a surface one step up from
-  what it sits on and a hairline round it, a state as a tint of its own tone
-  with the tone as its text, amber for the one thing that is pressed or where
-  you are, and every control a 44px target.
+  **Flat and square, as the window is.** A box is a fill one step up from the
+  page and a hairline round it, with square corners (`tokens.css`). Nothing is
+  a gradient, nothing is a tinted fill and nothing casts a shadow: **a state
+  is the colour of an edge** — a box's border, a tag's outline, a count's
+  figure — and amber is the one thing pressed or where you are. Every control
+  is a 44px target.
 
   Loaded after the tokens and before everything else, so a screen's own rule
   — the one place a component is allowed to differ — always wins.
 */
 
-/* ── panel: a container of rows, one step up from the page ─────────────────── */
+/* ── panel: a container of rows ────────────────────────────────────────────── */
 
 .ui-panel {
   border-radius: var(--r2);
@@ -25,36 +27,104 @@
   overflow: hidden;
 }
 
-/* ── card: a thing of its own, one step up again ───────────────────────────── */
+/* ── box: a group of rows, with its label inside ─────────────────────────────── */
+
+/*
+  **A group of rows is one box with its label inside it** (`rows.js`'s
+  `section`), the way the
+  reference dashboard draws a panel: the label and its figure along the top
+  under a hairline, the rows beneath flush to the edges, and no second frame
+  round the list; a group of controls the same, its fields and presses inset.
+  A screen's own title (an `h1`) is never boxed, a group of cards stays a
+  grid of boxes rather than a box of boxes, and a group that can only say why
+  not (`is-off`) stays a line.
+*/
+.section:has(> .section-head > h2):not(
+  .is-off,
+  .composer-dock,
+  :has(> div > :is(.cards, .projects-grid, .tiles, .chips))
+) {
+  background: var(--panel);
+  border: var(--border);
+}
+
+.section:has(> .section-head > h2):not(
+    .is-off,
+    .composer-dock,
+    :has(> div > :is(.cards, .projects-grid, .tiles, .chips))
+  )
+  > .section-head {
+  margin: 0;
+  padding: var(--s1) var(--s2) var(--s1) var(--s4);
+  min-height: 2.75rem;
+  border-block-end: var(--border);
+}
+
+.section:has(> .section-head > h2):not(
+    .is-off,
+    .composer-dock,
+    :has(> div > :is(.cards, .projects-grid, .tiles, .chips))
+  )
+  > div
+  > .ui-panel {
+  border: 0;
+  background: transparent;
+}
+
+/* A body with no rows in it is inset as one, so a field is as wide as the box's inside. */
+.section:has(> .section-head > h2):not(
+  .is-off,
+  .composer-dock,
+  :has(> div > :is(.cards, .projects-grid, .tiles, .chips))
+) > div:not(:has(> .ui-panel)) {
+  padding: var(--s3) var(--s4);
+}
+
+.section:has(> .section-head > h2):not(
+    .is-off,
+    .composer-dock,
+    :has(> div > :is(.cards, .projects-grid, .tiles, .chips))
+  )
+  > div:has(> .ui-panel)
+  > :not(.ui-panel),
+.section:has(> .section-head > h2):not(
+    .is-off,
+    .composer-dock,
+    :has(> div > :is(.cards, .projects-grid, .tiles, .chips))
+  )
+  > .hint-body {
+  margin: var(--s3) var(--s4);
+}
+
+/* ── card: a thing of its own ──────────────────────────────────────────────── */
 
 .ui-card {
   position: relative;
   border-radius: var(--r2);
-  background: var(--surface);
+  background: var(--panel);
   border: var(--border);
   color: inherit;
   text-decoration: none;
-  transition:
-    border-color var(--ease),
-    background var(--ease);
+  transition: border-color var(--ease);
 }
 
-/* A card that is a link lights its edge under the pointer. */
+/* A card that is a link lights its edge under the pointer — the edge, never the fill. */
 a.ui-card:hover,
 .ui-card.is-link:hover {
-  border-color: var(--control);
+  border-color: var(--chrome);
 }
 
-/* ── pill: a word or a value, soft, in its tone ────────────────────────────── */
+/* ── tag: a word or a value, outlined in its tone ──────────────────────────── */
 
 .ui-pill {
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
   max-width: 100%;
-  padding: 2px var(--s3);
+  padding: 1px var(--s2);
   border-radius: var(--r3);
-  background: var(--raised);
+  border: 1px solid var(--chrome);
+  background: transparent;
   color: var(--body);
   font-size: var(--step--1);
   line-height: 1.5;
@@ -72,31 +142,31 @@ a.ui-card:hover,
   height: 0.9375rem;
 }
 
-/* A state's pill is its tone's tint, with the tone as its text. */
+/* A state's tag: its tone as the outline, and the tone as its text. */
 .ui-pill.t-wants {
-  background: color-mix(in srgb, var(--violet) 14%, transparent);
+  border-color: var(--violet);
 }
 
 .ui-pill.t-failed {
-  background: color-mix(in srgb, var(--red) 14%, transparent);
+  border-color: var(--red);
 }
 
 .ui-pill.t-working {
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  border-color: var(--amber);
 }
 
 .ui-pill.t-done {
-  background: color-mix(in srgb, var(--green) 14%, transparent);
+  border-color: var(--green);
 }
 
 /* ── count: how many, on a tab, a rail entry, a project ────────────────────── */
 
 .ui-count {
   display: inline-block;
-  min-width: 1.25rem;
+  min-width: 1.375rem;
   padding-inline: 5px;
   border-radius: var(--r3);
-  background: var(--chosen);
+  border: 1px solid var(--chrome);
   color: var(--bright);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -109,34 +179,35 @@ a.ui-card:hover,
   display: none;
 }
 
-/* What wants you, soft; and the same, solid, where it must be seen at a glance. */
+/* What it counts is its edge and its figure; the loud one, solid, is what wants you. */
 .ui-count.is-wants {
-  background: color-mix(in srgb, var(--violet) 18%, transparent);
+  border-color: var(--violet);
   color: var(--violet);
 }
 
 .ui-count.is-working {
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  border-color: var(--amber);
   color: var(--amber);
 }
 
 .ui-count.is-done {
-  background: color-mix(in srgb, var(--green) 14%, transparent);
+  border-color: var(--green);
   color: var(--green);
 }
 
 .ui-count.is-failed {
-  background: color-mix(in srgb, var(--red) 14%, transparent);
+  border-color: var(--red);
   color: var(--red);
 }
 
 .ui-count.is-loud {
+  border-color: var(--violet);
   background: var(--violet);
   color: var(--ink);
   font-weight: 700;
 }
 
-/* ── chip: a press shaped like a pill — a filter, a project, a link ─────────── */
+/* ── chip: a press shaped like a tag — a filter, a project, a link ─────────── */
 
 .ui-chip {
   display: inline-flex;
@@ -145,22 +216,20 @@ a.ui-card:hover,
   min-height: var(--tap);
   padding-inline: var(--s3);
   border-radius: var(--r3);
-  background: var(--panel);
-  border: var(--border);
+  background: transparent;
+  border: 1px solid var(--line);
   color: var(--body);
   font: inherit;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background var(--ease),
     border-color var(--ease),
     color var(--ease);
 }
 
 .ui-chip:hover {
-  background: var(--surface);
-  border-color: var(--control);
+  border-color: var(--chrome);
   color: var(--bright);
 }
 
@@ -169,18 +238,16 @@ a.ui-card:hover,
   height: 1rem;
 }
 
-/* Pressed, or where you are: the one accent, as everywhere. */
+/* Pressed, or where you are: the one accent, on the edge and the word. */
 .ui-chip[aria-pressed="true"],
 .ui-chip[aria-current="page"] {
-  background: color-mix(in srgb, var(--amber) 10%, var(--panel));
-  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+  border-color: var(--amber);
   color: var(--amber);
 }
 
 /* A chip about what wants you wears that tone. */
 .ui-chip.t-wants {
-  background: color-mix(in srgb, var(--violet) 10%, var(--panel));
-  border-color: color-mix(in srgb, var(--violet) 40%, transparent);
+  border-color: var(--violet);
   color: var(--violet);
 }
 
@@ -216,6 +283,7 @@ a.ui-card:hover,
 .ui-callout {
   padding: var(--s3) var(--s4);
   border-radius: var(--r1);
+  border: var(--border);
   border-inline-start: 3px solid var(--amber-dark);
   background: var(--panel);
   color: var(--heading);
@@ -225,16 +293,16 @@ a.ui-card:hover,
 
 .ui-callout.is-bad {
   border-inline-start-color: var(--red);
-  background: color-mix(in srgb, var(--red) 8%, var(--panel));
   color: var(--bright);
 }
 
 /* ── timeline: what happened, in order, on a rule ──────────────────────────── */
 
 /*
-  Primer's timeline: each moment a node on one vertical rule, its words beside
-  it and how long ago at the end. The rule starts at the first node and stops
-  at the last, so the line is the history and nothing else.
+  Primer's timeline, and the reference dashboard's: each moment a square node
+  on one vertical rule, its words beside it and how long ago at the end. The
+  rule starts at the first node and stops at the last, so the line is the
+  history and nothing else.
 */
 .ui-timeline {
   display: grid;
@@ -255,7 +323,7 @@ a.ui-card:hover,
   inset-block: 0;
   inset-inline-start: calc(0.875rem - 0.5px);
   width: 1px;
-  background: var(--raised);
+  background: var(--chrome);
 }
 
 .ui-timeline > li:first-child > div::before {
@@ -278,8 +346,8 @@ a.ui-card:hover,
   width: 1.75rem;
   height: 1.75rem;
   border-radius: var(--r3);
-  background: var(--panel);
-  border: var(--border);
+  background: var(--ground);
+  border: 1px solid var(--chrome);
   font-size: var(--step--1);
   line-height: 1;
 }
@@ -328,10 +396,10 @@ a.ui-card:hover,
 /* ── problem: what went wrong, and the one thing to do ─────────────────────── */
 
 /*
-  Red, with its icon, in two short parts — what happened, strong; what to do,
-  quieter — and a press at the end where the page can do it. One shape for a
-  refused press, a failed read, an expired code and a machine that is not
-  answering, so trouble always looks like trouble and never like a sentence.
+  Red on its edges, with its icon, in two short parts — what happened, strong;
+  what to do, quieter — and a press at the end where the page can do it. One
+  shape for a refused press, a failed read, an expired code and a machine
+  that is not answering, so trouble always looks like trouble.
 */
 .ui-problem {
   display: grid;
@@ -340,8 +408,9 @@ a.ui-card:hover,
   align-items: center;
   padding: var(--s3) var(--s4);
   border-radius: var(--r2);
-  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
-  background: color-mix(in srgb, var(--red) 10%, var(--panel));
+  border: 1px solid var(--red);
+  border-inline-start-width: 3px;
+  background: var(--panel);
   color: var(--bright);
 }
 

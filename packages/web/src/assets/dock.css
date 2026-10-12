@@ -87,12 +87,12 @@
   }
 
   .side a:hover {
-    background: var(--raised);
+    background: var(--surface);
   }
 
   .side a[aria-current="page"] {
-    background: var(--chosen);
     color: var(--amber);
+    box-shadow: inset 2px 0 0 var(--amber);
   }
 
   /*
