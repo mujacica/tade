@@ -944,7 +944,9 @@ export class Workbench {
     if (!root) {
       throw new Error(`unknown project "${req.project}": add it to config.yaml or pass a root`)
     }
-    await this.guardName(`${req.project}/${req.slug}`)
+    // Refuse a name any task has had: the rule, and the journal it is asked of, are `tasks.ts`'.
+    const created = () => this.log.read({ types: ['task_created'] })
+    await guardName({ keyOf: this.keyOf(), created }, `${req.project}/${req.slug}`)
     const workspace = req.workspace ?? workspaceFor(this.config, req.project)
     if ((req.done === 'committed' || req.done === 'merged') && workspace !== 'worktree') {
       // In a shared checkout nothing is any one agent's to commit or merge.
@@ -1014,6 +1016,7 @@ export class Workbench {
         },
         createTask: (req) => this.createTask(req),
         resolveModel: (said) => this.resolveModel(said),
+        keyOf: this.keyOf(),
       },
       plan,
       by,
@@ -1338,17 +1341,9 @@ export class Workbench {
     })
   }
 
-  /** Refuse a name any task has had: the rule, and the journal it is asked of, are `tasks.ts`'. */
-  private guardName(id: string): Promise<void> {
-    return guardName(
-      {
-        keyOf: Object.values(this.adapters).map(
-          (adapter) => (name: string) => adapter.conversationKey(name as TaskId),
-        ),
-        created: () => this.log.read({ types: ['task_created'] }),
-      },
-      id,
-    )
+  /** Each harness's own answer for what conversation a task name makes, for `guardName`'s rule. */
+  private keyOf(): ((id: string) => string)[] {
+    return Object.values(this.adapters).map((one) => (id) => one.conversationKey(id as TaskId))
   }
 
   /**

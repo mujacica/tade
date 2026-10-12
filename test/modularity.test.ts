@@ -106,8 +106,9 @@ const BUDGET: Record<string, number> = {
   // reconciliation in each (~300 lines), to `workbench/src/reconcile.ts`, where
   // they can be tested as folds over a journal instead of through an open
   // workbench. 2,459 -> 2,426 when `changeQueued` went to `queue-changes.ts`,
-  // as it learned to write what queued work waits on and is told.
-  'packages/workbench/src/workbench.ts': 2_426,
+  // as it learned to write what queued work waits on and is told; 2,421 when
+  // `guardName`'s harness keys became one method a plan asks too.
+  'packages/workbench/src/workbench.ts': 2_421,
   'packages/workbench/src/workers.ts': 1_100,
   // Its harness — a fake adapter, a supervisor and a log — is now
   // `workers-harness.ts`, which is the half of the file that was not about any

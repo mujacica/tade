@@ -34,6 +34,17 @@ const stringList = (description: string) => ({
   items: { type: 'string' },
 })
 
+/**
+ * What queued work says it will change, said once for `tade_plan` and for
+ * `retell`. In a shared checkout the start-time look holds work while any file
+ * it lists is uncommitted (`collidesNow`), so a whole folder, or a file nearly
+ * every change here ends by touching, held work for as long as the checkout
+ * was busy — on 2026-10-11, a README and a file-size budget listed for a
+ * one-sentence change.
+ */
+export const TOUCHES =
+  'the files it will change, by path, as you read the code: not whole folders, and not files nearly every change in this project ends up touching (its README pictures, a file-size budget) unless the work is about them. Where agents share one checkout, any listed file somebody has left uncommitted, or any file in a listed folder, holds its start'
+
 export function queueTools(
   rpc: (method: string, params: Record<string, unknown>) => Promise<unknown>,
 ): OrchestratorTool[] {
@@ -102,7 +113,7 @@ export function queueTools(
         },
         replace: { type: 'boolean', description: 'for after: instead of what it waits on now' },
         prompt: string('for retell: what its agent is told when it starts, instead'),
-        touches: stringList('for retell: the files it will change, instead'),
+        touches: stringList(`for retell, instead of what it says now: ${TOUCHES}`),
       },
       ['change'],
     ),

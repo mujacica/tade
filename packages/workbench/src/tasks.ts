@@ -761,17 +761,29 @@ export async function guardName(
   },
   id: string,
 ): Promise<void> {
-  const keys = deps.keyOf.map((key) => key(id))
   const created = await deps.created().catch(() => [])
-  const clash = created.find(
-    (event) =>
-      event.task &&
-      (event.task === id || deps.keyOf.some((key, n) => key(event.task as string) === keys[n])),
-  )?.task
+  const clash = sameConversation(
+    deps.keyOf,
+    created.map((event) => event.task),
+    id,
+  )
   if (!clash) return
   throw new Error(
     clash === id
       ? `${id} was used before, and a task's name is never used twice: pick another`
       : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
+  )
+}
+
+/** The first of these names that is `id`, or makes the same conversation in some harness. */
+export function sameConversation(
+  keyOf: readonly ((id: string) => string)[],
+  names: readonly (string | null)[],
+  id: string,
+): string | undefined {
+  const keys = keyOf.map((key) => key(id))
+  return (
+    names.find((name) => name && (name === id || keyOf.some((key, n) => key(name) === keys[n]))) ??
+    undefined
   )
 }

@@ -182,6 +182,14 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   cannot look is said when it starts going wrong, not at every look.
 - **People decide what was held.** The orchestrator is told and asks the person; their choice is a
   `queue_changed`, read back by the rule.
+- **A plan is refused whole, names included, and every reason in one answer.** `makePlan` asks
+  `guardName`'s rule (`sameConversation`, with each harness's `keyOf`) of every agent before
+  anything is written — a name any task has had, one that would carry on its conversation, two in
+  the plan that would be one — and says them all with a free numbered name each. `effort_named` is
+  written after that, and only when the sentence is new. Asked one task at a time as each was made,
+  a plan made its first task, threw on its second, and the next attempt was refused over the task
+  it had left behind. What still fails after the checks (a disk, git) is named, not removed:
+  removing never gives a name back, and what was made is a prefix that waits only on what exists.
 - **A plan is changed by writing on the work it made, never by removing it and planning it again.**
   `after` adds to what queued work waits on, or with `replace` swaps it; `retell` changes what its
   agent is told or what it says it will touch. Both write the task file's `start` — the one place
