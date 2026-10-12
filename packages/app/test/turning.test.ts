@@ -1,5 +1,8 @@
+import type { InboxRow, InboxWork } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { initialState, SPIN_MS, spinner, turnedSince, turning, withTasks } from '../src/model.ts'
+import type { ActionsView, CheckView } from '../src/frame.ts'
+import { initialState, SPIN_MS, spinner, withTasks } from '../src/model.ts'
+import { turnedSince, turning, untilTurns } from '../src/turning.ts'
 
 // What makes a look a frame: something on screen turning, and having turned
 // since the frame that is there. The window asks this on every look, which is
@@ -45,6 +48,47 @@ describe('whether anything on screen turns', () => {
       }),
     ).toBe(true)
   })
+
+  // Two that are not the state's, and turned only when something else drew:
+  // the ACTIONS page and the side's INTAKE section each draw a spinner of
+  // their own, out of what the frame was handed.
+  it('is true while a check runs on the ACTIONS page, or a run is going', () => {
+    const quiet = initialState()
+    expect(turning(quiet, { actions: page() })).toBe(false)
+    expect(turning(quiet, { actions: null })).toBe(false)
+    expect(turning(quiet, { actions: page({ checks: [check('running')] }) })).toBe(true)
+    // Pressed, before the run has written anything down: `Running…` and its
+    // tenths of a second, with every check still saying what it said before.
+    const asked = { since: 1_000, by: 'you', done: 0, total: 1 }
+    expect(turning(quiet, { actions: page({ running: asked }) })).toBe(true)
+  })
+
+  it('is true while a request down INTAKE in the project in front has work going', () => {
+    const here = { ...initialState(), project: 'shop' }
+    const going = request('started', [work({ started: true })])
+    expect(turning(here, { intake: [going] })).toBe(true)
+    // Finished, it wears the finished mark; proposed, it waits on a person.
+    expect(turning(here, { intake: [request('started', [work({ finished: true })])] })).toBe(false)
+    expect(turning(here, { intake: [request('proposed', [work({})])] })).toBe(false)
+    // The side draws only the project in front's, and a folded heading none.
+    expect(turning({ ...here, project: 'elsewhere' }, { intake: [going] })).toBe(false)
+    expect(turning({ ...here, folded: ['intake'] }, { intake: [going] })).toBe(false)
+  })
+})
+
+describe('when the spinner next turns', () => {
+  it('is the next boundary, never the moment itself', () => {
+    expect(untilTurns(1_000)).toBe(SPIN_MS)
+    expect(untilTurns(1_001)).toBe(SPIN_MS - 1)
+    expect(untilTurns(1_099)).toBe(1)
+    for (const now of [0, 1, 37, 99, 100, 12_345, 1_760_000_000_042]) {
+      const at = now + untilTurns(now)
+      expect(at % SPIN_MS).toBe(0)
+      // One glyph on, and only one: the frame drawn then is the next one.
+      expect(Math.floor(at / SPIN_MS)).toBe(Math.floor(now / SPIN_MS) + 1)
+      expect(spinner(at)).not.toBe(spinner(now))
+    }
+  })
 })
 
 describe('whether a look is worth a frame', () => {
@@ -78,3 +122,91 @@ describe('whether a look is worth a frame', () => {
     expect(turnedSince(working, Number.NEGATIVE_INFINITY, 0)).toBe(true)
   })
 })
+
+function check(state: string): CheckView {
+  return {
+    id: 'tests',
+    title: null,
+    run: null,
+    state,
+    required: true,
+    skip: null,
+    chosen: null,
+    needs: [],
+    summary: null,
+    seconds: null,
+    startedAt: null,
+    at: null,
+    commit: 'a1b2c3d',
+    carried: false,
+    counts: [],
+    places: [],
+    more: 0,
+    tail: [],
+  }
+}
+
+function page(over: Partial<ActionsView> = {}): ActionsView {
+  return {
+    task: 'shop/refunds',
+    branch: 'tade/refunds',
+    base: 'main',
+    ahead: 1,
+    behind: 0,
+    dirty: 0,
+    shared: false,
+    commit: 'a1b2c3d',
+    mine: [],
+    others: [],
+    review: null,
+    checks: [check('passed'), check('failed')],
+    rollup: 'fail',
+    source: 'the commit hook',
+    unread: [],
+    running: null,
+    notes: [],
+    ...over,
+  }
+}
+
+function work(over: Partial<InboxWork>): InboxWork {
+  return {
+    task: 'shop/req-7',
+    parked: false,
+    started: false,
+    finished: false,
+    held: null,
+    state: null,
+    ...over,
+  }
+}
+
+function request(state: InboxRow['state'], work: InboxWork[]): InboxRow {
+  return {
+    item: 'cli:req-7',
+    source: 'cli',
+    externalId: 'req-7',
+    requester: 'kim',
+    project: 'shop',
+    grant: 'surfaces.intake.sources.cli',
+    said: [],
+    unsent: [],
+    template: null,
+    revision: '1',
+    taken: '1',
+    hash: 'sha256:9f2c',
+    ref: 'req-7.0001.json',
+    url: '',
+    watch: 'intake.cli',
+    schedule: 'intake-cli',
+    mode: 'propose',
+    tasks: work.map((one) => one.task),
+    work,
+    state,
+    because: '',
+    attempts: 0,
+    tries: 3,
+    replies: 0,
+    at: 1_000,
+  }
+}

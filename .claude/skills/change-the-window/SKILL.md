@@ -10,6 +10,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | File | Holds | Testable without |
 |---|---|---|
 | `model.ts` | What is shown, as data: panes, projects, focus, key meanings | a terminal |
+| `turning.ts` | Whether anything on screen turns — the state's and the frame's — and when the spinner next does (`turning`, `turnedSince`, `untilTurns`) | a terminal |
 | `layout.ts` | How the window is divided, and where you were in each project when you closed it (`Spot`, `whereYouWere`, `standingIn`, `worthKeeping`) | a terminal |
 | `keys.ts` | Which keystrokes the window claims and what it calls them | a terminal |
 | `split.ts` | A pane cut in two: which lane the second half draws, which half types | a terminal |
@@ -158,7 +159,12 @@ regions in a cycle now.
   (`turnedSince`, asked through `Window.turned` with the moment the last frame was drawn for). Never
   "anything is working" — that passed every look, thirty a second with a lane printing in front of
   you, to move a spinner that moves ten. `frame.probe.test.ts` holds both ends: a ceiling on frames,
-  and a floor of the spinner turning through all ten of its frames while nothing else changed.
+  and a floor of a whole turn drawn one glyph a frame while nothing else changed.
+- **The spinner has a clock of its own** (`Window.drew`): every frame winds one timer to the next
+  `SPIN_MS` boundary while anything in it turns, and the boundary asks for news. Looks alone moved it
+  at five frames a second, two or three glyphs a jump, whenever nothing printed in front. What turns
+  is `turning` (`turning.ts`), and it reads the frame too — a check running on ACTIONS, INTAKE's
+  going work — so a spinner you add outside the state is added there, or it stands still.
 - **Work you start for someone is shown in the conversation.** An extension's action, the brief, a
   failure of the orchestrator: add it to `state.transcript` (`ran`, `said`, `suggest`, `problem` in
   `transcript.ts`), where there is room for the reason.

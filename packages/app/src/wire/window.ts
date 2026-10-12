@@ -19,11 +19,11 @@ import {
   ORCHESTRATOR_TAB,
   shownName,
   toggleDone,
-  turnedSince,
 } from '../model.ts'
 import { narrowing } from '../queue-view.ts'
 import { windowTitle } from '../title.ts'
 import { type Entry, onATurn } from '../transcript.ts'
+import { type Shown, turnedSince, turning, untilTurns } from '../turning.ts'
 import { type Actions, clockOf, type Subject, tilde, type Wiring, whenShort } from './context.ts'
 
 // The window as a window: how big its regions are, what it says in the
@@ -44,6 +44,8 @@ export interface WindowDeps {
   setTitle(title: string): void
   /** Close it. The answer to having asked, or to there being nothing to ask about. */
   stop(): Promise<void>
+  /** A frame for news (`TimedScreen.requestNews`): what the spinner's clock asks for. */
+  news(): void
 }
 
 export class Window implements Subject {
@@ -67,6 +69,10 @@ export class Window implements Subject {
   private drawnGrown = false
   /** The flash the frame on screen was drawn with: one running out is a frame owed too. */
   private drawnFlash: string | null = null
+  /** What the frame on screen showed turning that the state does not hold (`Shown`). */
+  private shown: Shown = {}
+  /** The spinner's own clock, while anything on screen turns: the moment it next does. */
+  private spinning: { at: number; timer: ReturnType<typeof setTimeout> } | null = null
   /** The newest line of the conversation a frame drew where it could be read (`unreadSince`). */
   private seen: Entry | null = null
   /**
@@ -349,10 +355,64 @@ export class Window implements Subject {
    */
   turned(): boolean {
     return (
-      turnedSince(this.wire.state, this.drawnAt, this.wire.now()) ||
+      turnedSince(this.wire.state, this.drawnAt, this.wire.now(), this.shown) ||
       this.growing() !== this.drawnGrown ||
       flashing(this.wire.state, this.wire.now()) !== this.drawnFlash
     )
+  }
+
+  /**
+   * A frame was drawn: while anything in it turns, a frame is owed on the
+   * spinner's next boundary, and this is the clock that asks for it.
+   *
+   * The spinner had no clock of its own. It moved when a look found it had
+   * (`turned`), and looks come every quarter second unless the lane in front
+   * prints — so with nothing printing in front of you it drew at about five
+   * frames a second, two or three glyphs at a jump. One timer, wound by every
+   * frame to the boundary after the moment that frame was drawn for: a frame
+   * drawn for anything else in between winds it again rather than adding one.
+   *
+   * What it asks for is news, so it shares a frame with whatever else is news
+   * and is never drawn sooner than `NEWS_MS` after the last frame — ten a
+   * second, and a terminal slow to take them still paces them.
+   */
+  drew(frame: Shown & Pick<Frame, 'now'>): void {
+    this.shown = frame
+    const from = frame.now ?? this.wire.now()
+    if (turning(this.wire.state, frame)) this.wind(from)
+    else this.stopTurning()
+  }
+
+  /** Stop the spinner's clock: nothing turns, or the window is closing. */
+  stopTurning(): void {
+    if (this.spinning) clearTimeout(this.spinning.timer)
+    this.spinning = null
+  }
+
+  /** Set the clock for the spinner's next boundary after `from`, unless it already is. */
+  private wind(from: number): void {
+    const at = from + untilTurns(from)
+    if (this.spinning?.at === at) return
+    this.stopTurning()
+    const timer = setTimeout(() => this.turn(from, at), at - from)
+    timer.unref?.()
+    this.spinning = { at, timer }
+  }
+
+  /**
+   * The boundary came: a frame, if anything still turns. A timer can land a
+   * moment before the wall clock says it is due — the event loop keeps a clock
+   * of its own — and then it is set again for the rest; a clock that has not
+   * moved at all since it was set is a test's, which nothing will turn.
+   */
+  private turn(from: number, at: number): void {
+    this.spinning = null
+    const now = this.wire.now()
+    if (now < at) {
+      if (now > from) this.wind(now)
+      return
+    }
+    if (turnedSince(this.wire.state, this.drawnAt, now, this.shown)) this.deps.news()
   }
 
   /** Where you are, as the title says it: the project and the agent in front. */

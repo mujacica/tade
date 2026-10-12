@@ -1368,33 +1368,6 @@ export function doneTasks(state: AppState): AgentPane[] {
   return agentsHere(state).filter((pane) => markOf(pane) === 'done')
 }
 
-/**
- * Whether anything on screen turns: the orchestrator on a turn, one of its
- * tools running, or an agent working in any project — every project's tab
- * wears its agents' marks, and the right of the top row counts all of them.
- */
-export function turning(state: AppState): boolean {
-  if (onATurn(state.transcript)) return true
-  if (state.transcript.entries.some((one) => one.kind === 'tool' && one.state === 'running'))
-    return true
-  return state.panes.some((pane) => markOf(pane) === 'working')
-}
-
-/**
- * Whether a look that read nothing new in either lane is still worth a frame:
- * something turns, and the spinner shows another frame at `now` than it did
- * on the frame drawn at `drawn`.
- *
- * What a frame is news about, rather than whether anything is working. Asked
- * that way it passed every look while any agent worked, and a lane printing in
- * front of you asks for a look up to thirty times a second — thirty frames to
- * show a spinner that moves ten. A rule of the moments, never of a clock read
- * here, so the window asks it with the moment its last frame was drawn for.
- */
-export function turnedSince(state: AppState, drawn: number, now: number): boolean {
-  return turning(state) && Math.floor(now / SPIN_MS) !== Math.floor(drawn / SPIN_MS)
-}
-
 /** Show or hide the agents that have finished. */
 export function toggleDone(state: AppState): AppState {
   return { ...state, hidingDone: !state.hidingDone }

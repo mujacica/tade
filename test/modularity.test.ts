@@ -409,6 +409,7 @@ const PURE = [
   'packages/app/src/selection.ts',
   'packages/app/src/skin.ts',
   'packages/app/src/spend.ts',
+  'packages/app/src/turning.ts',
   'packages/app/src/ui.ts',
   'packages/app/src/view.ts',
   'packages/app/src/width.ts',

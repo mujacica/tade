@@ -284,7 +284,7 @@ describe('how the window says a moment', () => {
       state: initialState(),
       now: () => now.at,
     } as unknown as Wiring
-    return new Window(wire, { setTitle: () => {}, stop: async () => {} })
+    return new Window(wire, { setTitle: () => {}, stop: async () => {}, news: () => {} })
   }
 
   it('hands the frame one clock all day, and another one the next', () => {
@@ -384,7 +384,7 @@ describe('the frame the window owes', () => {
       },
       now: () => now.at,
     } as unknown as Wiring
-    return new Window(wire, { setTitle: () => {}, stop: async () => {} })
+    return new Window(wire, { setTitle: () => {}, stop: async () => {}, news: () => {} })
   }
 
   it('is one when a flash runs out, and none while it is still up', () => {

@@ -219,6 +219,7 @@ export class App {
     this.window = new Window(this.wire, {
       setTitle: (title) => this.terminal.setTitle(title),
       stop: () => this.stop(),
+      news: () => this.tui.requestNews(),
     })
     this.machine = new Machine(this.wire, {
       reload: () => this.window.reload(),
@@ -539,6 +540,7 @@ export class App {
     if (this.stopped) return
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
+    this.window.stopTurning()
     this.looks.stop()
     this.mouse.letGo()
     this.lanes.stopWatching()
@@ -675,14 +677,16 @@ export class App {
 
     this.tui.addChild(
       this.mouse.component(
-        (width) => ({
-          state: this.state,
-          frame: frameOf(
+        (width) => {
+          const frame = frameOf(
             this.subjects,
             { width, height: Math.max(6, this.terminal.rows), skin: this.skin },
             this.state.panel,
-          ),
-        }),
+          )
+          // The spinner's own clock, wound by what this frame shows turning.
+          this.window.drew(frame)
+          return { state: this.state, frame }
+        },
         () => this.now(),
       ),
     )

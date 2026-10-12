@@ -61,6 +61,63 @@ function turnsIn(written: string): Set<string> {
   )
 }
 
+const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+
+/**
+ * How many glyphs the orchestrator's tab turned between each two frames that
+ * drew it in `written`. A frame that drew it again on the glyph it already
+ * showed drew it for something else, and says nothing about the turning.
+ */
+function stepsIn(written: string): number[] {
+  const seen = Array.from(written.matchAll(/orchestrator ([⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏])/g), (one) =>
+    SPINNER.indexOf(one[1] ?? ''),
+  )
+  const steps: number[] = []
+  for (let at = 1; at < seen.length; at++) {
+    const step = ((seen[at] ?? 0) - (seen[at - 1] ?? 0) + SPINNER.length) % SPINNER.length
+    if (step > 0) steps.push(step)
+  }
+  return steps
+}
+
+/** The most frames in a row that each turned the spinner one glyph on, and no further. */
+function evenRun(steps: readonly number[]): number {
+  let best = 0
+  let run = 0
+  for (const step of steps) {
+    run = step === 1 ? run + 1 : 0
+    best = Math.max(best, run)
+  }
+  return best
+}
+
+/**
+ * Both ends of a spinner turning, from here on in what the window writes.
+ *
+ * The floor is what a person sees: a whole turn, one glyph a frame. Not "every
+ * glyph appeared" — a spinner drawn five times a second jumping two or three
+ * at a time shows all ten within a second or two and reads as a stutter — and
+ * not "it changed once": the status beat redraws every two seconds on its own.
+ * Said once over a wait rather than counted, so a starved runner that drops a
+ * frame here and there passes as soon as it draws ten in a row, and a window
+ * that never does waits until the deadline and says what for.
+ *
+ * The ceiling: ten a second for the spinner, and room for the frames a status
+ * beat and a git look ask for on their own. Thirty-three is what the old gate
+ * drew with a lane printing in front, one for every look.
+ */
+async function turnsEvenly(terminal: FakeTerminal, timings: Timings): Promise<void> {
+  const from = timings.spans().draw?.count ?? 0
+  const mark = terminal.written.length
+  const started = Date.now()
+  await until('a whole turn of the spinner, one glyph a frame', () => {
+    return evenRun(stepsIn(terminal.written.slice(mark))) >= SPINNER.length
+  })
+  await new Promise((resolve) => setTimeout(resolve, Math.max(0, started + 2_000 - Date.now())))
+  const frames = ((timings.spans().draw?.count ?? 0) - from) / ((Date.now() - started) / 1000)
+  expect(frames, `${frames.toFixed(1)} frames a second`).toBeLessThan(16)
+}
+
 /** What the lane has repainted, as the window has drawn it. Null while nothing is. */
 function repaintShown(terminal: FakeTerminal): number | null {
   for (const row of screenOf(terminal.written)) {
@@ -134,10 +191,10 @@ describe('what the frame loop costs', () => {
   // is the one it would draw now, the window draws ten a second.
   //
   // So a ceiling, and a floor under it that fails loudly where a frame is
-  // missed: the spinner has to have *turned* on screen while nothing else did.
-  // The ceiling is a rate, never a rate the machine has to reach: a starved
-  // runner looks less often and draws fewer frames, which passes, and the floor
-  // is the spinner having moved at all over the wait, never how many times.
+  // missed: the spinner has to have *turned* on screen while nothing else did,
+  // one glyph a frame (`turnsEvenly`). The ceiling is a rate, never a rate the
+  // machine has to reach: a starved runner draws fewer frames, which passes,
+  // and the floor is a run of them said once over the wait, never a count.
   it('draws a turning spinner as often as it turns, over a lane that prints nothing new', async () => {
     const timings = new Timings(true)
     const stop = probing(timings)
@@ -160,24 +217,29 @@ describe('what the frame loop costs', () => {
         screenOf(terminal.written).some((row) => row.includes('STANDING STILL row 0')),
       )
 
-      const from = timings.spans().draw?.count ?? 0
-      const mark = terminal.written.length
-      const started = Date.now()
-      // The floor: it turns, on screen, while the lane in front says nothing
-      // new — through every one of its ten frames. Not "it changed once": the
-      // status beat redraws every two seconds on its own, and a frame drawn
-      // only by that lands on the same glyph each time, twenty spinner frames
-      // later. So a gate that never passes for the spinner waits here until
-      // the deadline, and says what for.
-      await until('the spinner to turn through all ten of its frames', () => {
-        return turnsIn(terminal.written.slice(mark)).size === 10
-      })
-      await new Promise((resolve) => setTimeout(resolve, Math.max(0, started + 2_000 - Date.now())))
-      const frames = ((timings.spans().draw?.count ?? 0) - from) / ((Date.now() - started) / 1000)
-      // The ceiling: ten a second for the spinner, and room for the frames a
-      // status beat and a git look ask for on their own. Thirty-three is what
-      // the old gate drew here, one for every look.
-      expect(frames, `${frames.toFixed(1)} frames a second`).toBeLessThan(16)
+      // It turns, on screen, while the lane in front says nothing new.
+      await turnsEvenly(terminal, timings)
+    } finally {
+      stop()
+    }
+  })
+
+  // And with nothing printing in front at all, which is most of the time: the
+  // orchestrator thinking with its own tab in front, agents working out of
+  // view. Looks come every quarter second then, and the spinner moved only
+  // when one did — about five frames a second, two or three glyphs at a jump,
+  // `0, 2, 5, 7, 0…`. The spinner has a clock of its own now (`Window.drew`).
+  it('turns one glyph a frame with nothing in front printing', async () => {
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    try {
+      await start({ frameMs: 250, thinker: { ask: () => new Promise<string>(() => {}) } })
+      await until('the first frame', () => terminal.written.includes('refunds'))
+      terminal.press('\x00')
+      for (const char of 'what is going on') terminal.press(char)
+      terminal.press('\r')
+      await until('the orchestrator to be on a turn', () => turnsIn(terminal.written).size > 0)
+      await turnsEvenly(terminal, timings)
     } finally {
       stop()
     }
