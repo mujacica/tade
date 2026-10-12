@@ -22,7 +22,7 @@
 import { classOn, el, glyphOf, hintOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
 import { clockOf, duration, shortClockOf } from './figures.js'
 import { freshMark, taskMark } from './glyphs.js'
-import { icon } from './icons.js'
+import { icon, wordmark } from './icons.js'
 import { backoffAt, partsOf } from './live.js'
 import { GROUPS, MORE_TAB, NAV, navFor, pathOf, placeOf, TITLES, taskPath } from './routes.js'
 import { projectsOf, tasksIn } from './store.js'
@@ -51,7 +51,7 @@ export function shell(desk = null) {
 
   const top = el('header', { class: 'top' })
   const brand = el('a', { class: 'brand', attrs: { href: '/', 'aria-label': 'Tade, overview' } })
-  into(brand, icon('mark', 'mark'), el('span', { class: 'brand-word', text: 'Tade' }))
+  into(brand, wordmark())
   const ask = el('button', {
     class: 'cmd',
     attrs: { type: 'button', 'aria-label': 'Ask Tade, or go anywhere', 'aria-haspopup': 'dialog' },

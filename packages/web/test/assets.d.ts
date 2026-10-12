@@ -230,6 +230,7 @@ declare module '*/assets/talk.js' {
 
 declare module '*/assets/icons.js' {
   export const ICONS: readonly string[]
+  export const WORDS: readonly string[]
 }
 
 declare module '*/assets/charts.js' {

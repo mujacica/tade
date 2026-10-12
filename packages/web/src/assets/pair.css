@@ -28,11 +28,9 @@
   border: var(--border);
 }
 
-.pair-mark .ic {
-  width: 2.5rem;
-  height: 2.5rem;
-  fill: var(--amber);
-  stroke: none;
+/* The whole wordmark, `AWAY` too: the card has the room the header does not. */
+.pair-mark .wordmark {
+  --word: 1.75rem;
 }
 
 .pair-card h1 {

@@ -56,15 +56,56 @@ function spaceOf() {
   return document.querySelector('svg.sprite')?.namespaceURI ?? null
 }
 
+/** One icon, as a node: `<svg class="ic"><use href="#i-name"/></svg>`. */
+export function icon(name, extra = '') {
+  const klass = extra === '' ? `ic ic-${name}` : `ic ic-${name} ${extra}`
+  return drawn(`i-${name}`, klass, '0 0 24 24')
+}
+
 /**
- * One icon, as a node: `<svg class="ic"><use href="#i-name"/></svg>`.
+ * The wordmark's words, each a box of its own in the sprite (`#w-tade`,
+ * `#w-away`): tade-web's `T A D E` in Tade Mono Bold, black on amber, and
+ * `A W A Y` beside it in the same letters, white on `--amber-dark`.
+ *
+ * **Drawn, not typed**, because the page loads no webfont and the system face
+ * is not that one. The letters are the outlines of Iosevka Term Bold 34.8.1
+ * (what Tade Mono is cut from), read out of tade-web's `build/font` in font
+ * units and moved, unscaled, to where tade-web's rule for `.mk` puts them — a
+ * column of tracking between letters, two of ground before them, one after —
+ * with the cap height centred in the line. `test/mark.test.ts` holds every
+ * point to its letter's column.
+ */
+export const WORDS = ['tade', 'away']
+
+/** A word's box in the sprite's units: 5.5em by 1.5em, of a 1000-unit em. */
+const WORD_BOX = '0 0 5500 1500'
+
+/**
+ * Tade's mark: the favicon's two squares, then the words.
+ *
+ * One image with one name, so a screen reader says *Tade away* once rather
+ * than three drawings; inside a link that names itself, the link's word wins.
+ */
+export function wordmark() {
+  const node = document.createElement('span')
+  node.className = 'wordmark'
+  node.setAttribute('role', 'img')
+  node.setAttribute('aria-label', 'Tade away')
+  node.append(
+    icon('mark', 'mark'),
+    ...WORDS.map((word) => drawn(`w-${word}`, `word word-${word}`, WORD_BOX)),
+  )
+  return node
+}
+
+/**
+ * One `<use>` of a symbol: `<svg class="…"><use href="#id"/></svg>`.
  *
  * Without a sprite — a page some test built without the shell — an empty span
  * of the same size, so the layout holds and nothing throws.
  */
-export function icon(name, extra = '') {
+function drawn(id, klass, box) {
   const space = spaceOf()
-  const klass = extra === '' ? `ic ic-${name}` : `ic ic-${name} ${extra}`
   if (space === null) {
     const none = document.createElement('span')
     none.className = klass
@@ -73,11 +114,11 @@ export function icon(name, extra = '') {
   }
   const svg = document.createElementNS(space, 'svg')
   svg.setAttribute('class', klass)
-  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('viewBox', box)
   svg.setAttribute('aria-hidden', 'true')
   svg.setAttribute('focusable', 'false')
   const use = document.createElementNS(space, 'use')
-  use.setAttribute('href', `#i-${name}`)
+  use.setAttribute('href', `#${id}`)
   svg.append(use)
   return svg
 }

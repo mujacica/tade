@@ -104,22 +104,65 @@ a.name:hover {
 .brand {
   display: flex;
   align-items: center;
-  /* A link whose box is the height of its text is one a thumb misses. */
+  /* A link whose box is the height of its mark is one a thumb misses. */
   min-height: var(--tap);
-  gap: var(--s2);
-  color: var(--bright);
   text-decoration: none;
-  font-size: var(--step-1);
-  font-weight: 600;
-  letter-spacing: var(--tight);
 }
 
-/* The mark: two squares of amber, the only branding on the page. */
-.brand .mark {
-  width: 1.375rem;
-  height: 1.375rem;
+/*
+  The wordmark (`icons.js`), the only branding on the page: the favicon's two
+  squares, then tade-web's `T A D E` and `A W A Y` boxed edge to edge. Amber
+  takes the dark ink, and `--amber-dark` is a mid ground, so it takes the light
+  one. All of it is sized off `--word` (`tokens.css`), the boxes' height, so a
+  bigger mark is one number.
+*/
+.wordmark {
+  display: flex;
+  align-items: center;
+}
+
+.wordmark .mark {
+  width: var(--word);
+  height: var(--word);
+  margin-inline-end: calc(var(--word) * 4 / 11);
   fill: var(--amber);
   stroke: none;
+}
+
+/* A word's box is 11 by 3 (`WORD_BOX`): 5.5em of letters by 1.5em of line. */
+.word {
+  display: block;
+  flex: 0 0 auto;
+  width: calc(var(--word) * 11 / 3);
+  height: var(--word);
+}
+
+.word-tade {
+  fill: var(--amber);
+  color: var(--ink);
+}
+
+/* A pixel over the amber's own ground: two boxes meeting on a fraction of a
+   pixel each fade their edge into the page, and that is a dark seam. */
+.word-away {
+  margin-inline-start: -1px;
+  fill: var(--amber-dark);
+  color: var(--ink-light);
+}
+
+/*
+  At 360px the freshness clock matters more than the second half of a wordmark
+  somebody is already looking at. The squares and `TADE` stay, 2px shorter, and
+  `AWAY` goes — which leaves `live · 14:32` its room with 10px to spare.
+*/
+@media (max-width: 479px) {
+  .brand .wordmark {
+    --word: 1.25rem;
+  }
+
+  .brand .word-away {
+    display: none;
+  }
 }
 
 /*

@@ -21,7 +21,7 @@
 // that is asleep.
 
 import { el, into, textIn } from './dom.js'
-import { icon, iconIn } from './icons.js'
+import { icon, iconIn, wordmark } from './icons.js'
 
 /** The four steps, in order: what each is called and what it is drawn as. */
 export const STEPS = [
@@ -71,7 +71,7 @@ export function pairScreen(ctx) {
   const node = el('div', { class: 'pair' })
   const card = el('section', { class: 'pair-card', attrs: { 'aria-labelledby': 'pair-head' } })
   const mark = el('span', { class: 'pair-mark' })
-  into(mark, icon('mark'))
+  into(mark, wordmark())
   const title = el('h1', { text: 'Pair this device', attrs: { id: 'pair-head' } })
 
   // What the machine could not be reached about, before anything else.
