@@ -21,7 +21,14 @@ import { quickWord } from '../src/assets/quick.js'
 import { barsFor } from '../src/assets/shell.js'
 import { applySnapshot, emptyStore } from '../src/assets/store.js'
 import { reasonFor, reasonWord } from '../src/assets/talk.js'
-import { MOST, shownOf, statesOf, transitionsOf } from '../src/assets/toasts.js'
+import {
+  LOG_MOST,
+  loggedWith,
+  MOST,
+  shownOf,
+  statesOf,
+  transitionsOf,
+} from '../src/assets/toasts.js'
 import { assetsDir } from '../src/assets.ts'
 import { projector } from '../src/reading.ts'
 import { blocked, EVERY, input, NOW, plan, reach, task } from './fixtures.ts'
@@ -320,6 +327,15 @@ describe('what just changed', () => {
       { id: 'p/d', kind: 'merged' },
       { id: 'p/f', kind: 'started' },
     ])
+  })
+
+  it('keeps a short log of them, newest first, for the overview to look back on', () => {
+    let log = loggedWith([], [{ id: 'p/a', kind: 'wants' }], 1)
+    log = loggedWith(log, [{ id: 'p/b', kind: 'finished' }], 2)
+    expect(log.map((one) => one.id)).toEqual(['p/b', 'p/a'])
+    for (let n = 0; n < 40; n += 1) log = loggedWith(log, [{ id: `p/${n}`, kind: 'started' }], n)
+    expect(log).toHaveLength(LOG_MOST)
+    expect(new Set(log.map((one) => one.key)).size).toBe(LOG_MOST)
   })
 
   it('counts the rest into one past a few, rather than filling the screen', () => {

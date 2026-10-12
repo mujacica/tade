@@ -26,6 +26,7 @@ import {
   empty,
   figureIn,
   glyphOf,
+  hintOf,
   into,
   keyed,
   markIn,
@@ -56,6 +57,7 @@ import {
   tasksIn,
   wantsYou,
 } from './store.js'
+import { changesSeen, KINDS } from './toasts.js'
 
 /* ── the figures, as pure folds over what the store holds ──────────────────── */
 
@@ -155,6 +157,15 @@ export function nowScreen(ctx = null) {
   const idle = empty('none running')
   into(working.body, agentList, idle)
 
+  // **What changed while this page was open**, newest first: the toasts'
+  // own crossings, kept for a glance back — and only those, so a reload
+  // starts it over and its `?` says so.
+  const recent = section('CHANGES')
+  const recentWhy = hintOf('Since this page opened. A reload starts it over.')
+  recent.figure.before(recentWhy.press)
+  const recentList = el('ul', { class: 'rows' })
+  into(recent.body, recentWhy.body, recentList)
+
   const signals = section('ELSEWHERE')
   const signalList = el('ul', { class: 'signals' })
   const shown = SIGNALS.map((one) => signalOf(one))
@@ -167,7 +178,16 @@ export function nowScreen(ctx = null) {
   const closedList = el('div', { class: 'chips' })
   into(closed.body, closedList)
 
-  into(node, top.node, wants.node, projects.node, working.node, signals.node, closed.node)
+  into(
+    node,
+    top.node,
+    wants.node,
+    projects.node,
+    working.node,
+    recent.node,
+    signals.node,
+    closed.node,
+  )
 
   return {
     node,
@@ -213,6 +233,16 @@ export function nowScreen(ctx = null) {
         (one, task) => fillAgentRow(one, task, view),
       )
       idle.hidden = agents.length > 0 || !view.store.had
+
+      const log = changesSeen()
+      recent.node.hidden = log.length === 0
+      keyed(
+        recentList,
+        log,
+        (one) => one.key,
+        createChange,
+        (one, change) => fillChange(one, change, view),
+      )
 
       for (const one of shown) one.update(view)
 
@@ -556,4 +586,33 @@ function signalOf(spec) {
       toneOn(figure, n !== null && n > 0 ? spec.tone : '')
     },
   }
+}
+
+/* ── what changed ──────────────────────────────────────────────────────────── */
+
+function createChange() {
+  const node = el('li')
+  const link = el('a', { attrs: { href: '/' } })
+  into(
+    link,
+    el('span', { class: 'glyph' }),
+    el('span', { class: 'name' }),
+    el('span', { class: 'aside' }),
+    el('span', { class: 'under' }),
+  )
+  return into(node, link)
+}
+
+function fillChange(node, change, view) {
+  const [link] = node.children
+  const [glyph, name, age, word] = link.children
+  const kind = KINDS[change.kind]
+  link.setAttribute('href', taskPath(change.id))
+  glyph.textContent = ''
+  glyph.append(icon(kind?.icon ?? 'bolt'))
+  toneOn(glyph, kind?.tone ?? '')
+  textIn(name, change.id)
+  textIn(word, kind?.word ?? change.kind)
+  toneOn(word, kind?.tone ?? '')
+  textIn(age, ageSaid(new Date(change.at).toISOString(), view.asOf, view.frozen) ?? '')
 }

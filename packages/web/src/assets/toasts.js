@@ -35,7 +35,7 @@ export const STANDS_MS = 6000
  * no agent gaining one is work starting. Everything else — a reason changing,
  * a figure moving — is a delta, not news.
  */
-const KINDS = {
+export const KINDS = {
   wants: { word: 'wants you', icon: 'flag', tone: 't-wants' },
   failed: { word: 'failed', icon: 'alert', tone: 't-failed' },
   finished: { word: 'finished', icon: 'check', tone: 't-done' },
@@ -94,6 +94,26 @@ export function shownOf(changes) {
   ]
 }
 
+/** How many changes the page remembers having seen. */
+export const LOG_MOST = 12
+
+/**
+ * The changes this page has seen since it opened, newest first, each with
+ * the moment it saw it — held in memory and nowhere else, so a reload starts
+ * the list over and the overview says that is what it is.
+ */
+const seen = []
+
+export function changesSeen() {
+  return seen
+}
+
+/** A list of changes with the newest in front, each once, and no longer than `most`. */
+export function loggedWith(log, changes, at, most = LOG_MOST) {
+  const fresh = changes.map((one) => ({ ...one, at, key: `${one.id}|${one.kind}|${at}` }))
+  return [...fresh, ...log].slice(0, most)
+}
+
 export function toasts() {
   const node = el('aside', { class: 'toasts', attrs: { 'aria-label': 'What just changed' } })
   let was = null
@@ -136,6 +156,11 @@ export function toasts() {
       const is = statesOf(tasks)
       const changes = transitionsOf(was, is)
       was = is
+      if (changes.length > 0) {
+        const next = loggedWith(seen, changes, Date.now())
+        seen.length = 0
+        seen.push(...next)
+      }
       // Only for a page that is live and in front of somebody: a hidden tab
       // catching up, or a page reconnecting with a backlog, is not news.
       if (!live || document.visibilityState !== 'visible') return

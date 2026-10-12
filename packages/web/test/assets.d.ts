@@ -477,6 +477,13 @@ declare module '*/assets/agents.js' {
 
 declare module '*/assets/toasts.js' {
   export const MOST: number
+  export const LOG_MOST: number
+  export function loggedWith(
+    log: readonly { id: string; kind: string; at: number; key: string }[],
+    changes: readonly { id: string; kind: string }[],
+    at: number,
+    most?: number,
+  ): { id: string; kind: string; at: number; key: string }[]
   export const STANDS_MS: number
   export function statesOf(
     tasks: readonly { id: string; state: string; agents?: number }[],
