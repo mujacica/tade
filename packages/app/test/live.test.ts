@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Live } from '../src/live.ts'
 import {
+  approvalId,
   CHANGED_FORMAT,
   changedFrom,
   changesFrom,
@@ -23,6 +24,7 @@ import {
   diffFrom,
   knownTasks,
   snapshotsFrom,
+  tabsFrom,
   withUntracked,
 } from '../src/reality.ts'
 
@@ -157,6 +159,21 @@ describe('snapshotsFrom', () => {
     expect(snapshots.find((s) => s.task === 'checkout/refunds')?.waiting).toBe(false)
   })
 
+  // Which request it is, so an answer from the window answers the card that was
+  // on screen and never whichever has become the oldest by the time it lands.
+  it('names the request the card is, the oldest first', () => {
+    const [snapshot] = snapshotsFrom(
+      workspace([task('checkout/refunds', 'working')]),
+      [
+        { ...approval('checkout/refunds'), requestId: 'q2', summary: 'bash: rm -rf dist', at: 2 },
+        approval('checkout/refunds'),
+      ],
+      [],
+    )
+    expect(snapshot?.approval).toEqual({ tool: 'bash', summary: 'bash: npm test', id: 'r1:q1' })
+    expect(approvalId({ run: 'r1', requestId: 'q1' } as PendingApproval)).toBe('r1:q1')
+  })
+
   it('keeps a stable order, so the sidebar does not jump around', () => {
     const tasks = [task('checkout/zebra', 'working'), task('checkout/alpha', 'working')]
     expect(snapshotsFrom(workspace(tasks), [], []).map((s) => s.task)).toEqual([
@@ -167,6 +184,32 @@ describe('snapshotsFrom', () => {
 
   it('has nothing to show when there is nothing', () => {
     expect(snapshotsFrom(workspace([]), [], [])).toEqual([])
+  })
+})
+
+describe('tabsFrom', () => {
+  // The lower pane's tabs, read by every look and by the window the moment it
+  // opens one: the two must agree, or a new tab moves when the look lands.
+  it('puts the chats first, then the terminals, and leaves out what has gone', () => {
+    const tabs = tabsFrom([
+      lane({
+        id: 'checkout/terminals/1',
+        task: 'checkout/terminals',
+        kind: 'terminal',
+        title: 'tests',
+        startedAt: 1,
+      }),
+      lane({ id: 'chats/1/agent', task: 'chats/1', kind: 'agent', title: 'pi', startedAt: 2 }),
+      lane({
+        id: 'checkout/terminals/2',
+        task: 'checkout/terminals',
+        kind: 'terminal',
+        alive: false,
+      }),
+      lane({}),
+    ])
+    expect(tabs.map((tab) => tab.id)).toEqual(['chats/1/agent', 'checkout/terminals/1'])
+    expect(tabs[1]).toEqual({ id: 'checkout/terminals/1', project: 'checkout', name: 'tests' })
   })
 })
 
