@@ -1,6 +1,13 @@
-import { ConfigSchema, settingsOf } from '@tade/core'
+import {
+  ACTING_IS_NOT_YOU_SHORT,
+  ConfigSchema,
+  settingsOf,
+  TALKING_IS_NOT_YOU_SHORT,
+} from '@tade/core'
+import { blocksFor, codeFor } from '@tade/web'
 import { settingsPanel } from '../../../src/panels/settings/state.ts'
-import { base, frame, type Scenario } from './fixtures.ts'
+import { awayFixture } from './away.ts'
+import { base, frame, type Scenario, utcDate } from './fixtures.ts'
 
 // Settings: the categories down the side, one of them open beside them, and
 // what the page does as the window narrows.
@@ -203,7 +210,7 @@ const UPDATES_SHOWN = {
   ],
 }
 
-function settingsFacts(intake: Record<string, unknown> = {}) {
+function settingsFacts(intake: Record<string, unknown> = {}, web: Record<string, unknown> = {}) {
   const config = ConfigSchema.parse({
     projects: {
       checkout: { root: '~/src/checkout', budget: { usd_per_day: 5 } },
@@ -216,6 +223,7 @@ function settingsFacts(intake: Record<string, unknown> = {}) {
         attention: { budget: 6, quiet: '22:00-07:00' },
       },
       intake,
+      web,
     },
   })
   return {
@@ -224,6 +232,22 @@ function settingsFacts(intake: Record<string, unknown> = {}) {
     configPath: '~/.tade/config.yaml',
     releases: true,
     budgetWarnings: 1,
+  }
+}
+
+/** The away view as the Away page of Settings is handed it: on, on this machine, one phone paired. */
+function awayOn() {
+  const url = 'http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
+  const code = codeFor(url)
+  const sentence = (said: string) => `${said[0]?.toUpperCase() ?? ''}${said.slice(1)}.`
+  const fixture = awayFixture({ acting: true, talking: true, configuring: true })
+  return {
+    ...fixture,
+    ticket: { url, secondsLeft: 84 },
+    code: code === null ? [] : blocksFor(code),
+    devices: fixture.devices.slice(0, 1),
+    acts: sentence(ACTING_IS_NOT_YOU_SHORT),
+    talks: sentence(TALKING_IS_NOT_YOU_SHORT),
   }
 }
 
@@ -308,13 +332,27 @@ export const SETTINGS_SCREENS: Scenario[] = [
   {
     name: 'settings-away',
     about:
-      'The away view’s own group, on a machine nobody has turned it on at: a switch per ' +
-      'decision and every one of them off, the two that are not switches — who may reach it, ' +
-      'and the port — between the first and the rest, and the restart mark on the ones that are ' +
-      'read when the listener is built. The page that makes “off by default” something ' +
-      'somebody can see rather than read.',
+      'The away view’s own group, on a machine nobody has turned it on at: its switch off, ' +
+      'who may reach it, the port, the trusted names and the signing key under it, then what a ' +
+      'paired device may do as short names under one heading — every one of them on, so ' +
+      'turning the first on is the one click — with the restart mark on the ones read when ' +
+      'the listener is built.',
     state: { ...base(), panel: { ...settingsPanel('away'), row: 0 } },
     frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-away-on',
+    about:
+      'The away view turned on from its own switch, and what it is for drawn under it: the ' +
+      'code, the link to open in a browser, how to use them on this machine and what a phone ' +
+      'needs, and every device with a chip per grant — then what a paired device may do, as ' +
+      'names under one heading, each on, each still nothing until a device is granted it.',
+    state: { ...base(), panel: { ...settingsPanel('away'), row: 0 } },
+    frame: frame({
+      date: utcDate,
+      height: 64,
+      panel: { ...settingsFacts({}, { enabled: true }), away: awayOn() },
+    }),
   },
   {
     name: 'settings-with-long-names',

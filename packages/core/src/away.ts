@@ -85,8 +85,9 @@ export const DEVICES_SEEN_BY_AGENTS = 'an agent on this machine could pair itsel
  *
  * The two facts a person needs before the switch and not after it: that it
  * dies with the window, so a bookmark tapped with Tade closed is a connection
- * error and not an empty control room; and that it can change nothing, which
- * is what makes turning it on a small decision.
+ * error and not an empty control room. What a device may change is the other
+ * fact, and it is not this sentence's: it is granted per device, at this
+ * machine, in the pairing list.
  */
 export const AWAY_IS_WHILE_OPEN =
   'The away view answers only while this window is open: close Tade and nothing is listening, ' +
@@ -324,7 +325,7 @@ export const PUSH_SAYS_NOTHING =
   'without being unlocked — and never more than that device was granted to read anyway.'
 
 /** The short clause, for the one line a control gets. */
-export const PUSH_SAYS_NOTHING_SHORT = 'a count and no text at all unless you turn details on'
+export const PUSH_SAYS_NOTHING_SHORT = 'a count and no text at all unless details are on'
 
 /**
  * What push cannot do, said where somebody would otherwise assume it.
@@ -356,7 +357,7 @@ export const PUSH_IS_WHILE_OPEN_SHORT =
  * **Two switches, deliberately, and this is the sentence that says so.** This
  * one lets a device *ask*; the other is the browser's own permission prompt on
  * the phone, which nothing here can press and no setting can stand in for.
- * Both are off until somebody says otherwise, and in two different places.
+ * This one is on by default and the phone's never is: two places, two facts.
  *
  * The iOS limit is in it because it is the one that looks like a bug: Safari
  * offers the prompt only to a page that was added to the home screen, and
@@ -398,17 +399,26 @@ export const PUSH_KEY_IS_GENERATED =
  * way it composes `IntakeSurface`, and `surfaceOf` (`@tade/web`'s
  * `surface.ts`) is still the one reader.
  *
- * **Off, and the default is the decision.** `enabled` is a listener on this
- * machine; `bind` is whether that listener is on your network; `acting` is
- * whether a paired device may change anything at all; `orchestrator` is
- * whether one may say something to the model that holds the tools. Four
- * decisions, never one, because conflating the first two is how a laptop in a
- * cafe serves its control room to the cafe, conflating the third with either
- * is how reading from the sofa turns into acting from anywhere, and the fourth
- * is a different kind of thing again — bounded verbs against free text.
- * All of them are `never` in `reach.ts` by subtree: each changes who can reach
- * Tade, or what they can do. `install` and `offline` below are the two that do
- * neither, and `reach.ts` names them `asked`.
+ * **`enabled` is off, and that default is the decision; everything under it
+ * is on.** `enabled` is a listener on this machine, and nothing is served
+ * without it. The capability keys under it — `acting`, `orchestrator`,
+ * `drafts`, `settings`, `install`, `offline`, `push`, `push_details` — default
+ * to on, because the person asked for turning the away view on to be one click
+ * to a working setup rather than a second page of switches. What that trades is
+ * said where it is decided: each key still only *offers* a capability, and a
+ * device has none of the ones that change anything until somebody at this
+ * machine grants it, per device, in the pairing list (`allowDevice`) — the one
+ * door a scope widens through. `bind` stays `loopback`: it is a choice of
+ * network rather than an on, and `lan` is the clear.
+ *
+ * Still separate decisions, never one switch, because conflating `enabled` and
+ * `bind` is how a laptop in a cafe serves its control room to the cafe,
+ * conflating `acting` with either is how reading from the sofa turns into
+ * acting from anywhere, and `orchestrator` is a different kind of thing again —
+ * bounded verbs against free text. All of them are `never` in `reach.ts` by
+ * subtree: each changes who can reach Tade, or what they can do. `install` and
+ * `offline` below are the two that do neither, and `reach.ts` names them
+ * `asked`.
  */
 export const WebSurface = z
   .strictObject({
@@ -439,8 +449,10 @@ export const WebSurface = z
     /**
      * Whether a paired device may change anything at all.
      *
-     * **A third decision, and `false` is the whole of Phase 1's guarantee.**
-     * With this off there is no acting route in the table at all
+     * **A third decision.** On by default since turning the away view on was
+     * made one click (see above), and still nothing on its own: a device acts
+     * only once granted at this machine. With this off there is no acting
+     * route in the table at all
      * (`routesFor`), so a crafted call is the same `404` as a path nobody
      * built — read-only is enforced by absence rather than by a flag a bug
      * could get past. It is not enough on its own either: a device still
@@ -454,7 +466,7 @@ export const WebSurface = z
      * every act, which is the asymmetry worth having: the direction that
      * takes away authority is immediate.
      */
-    acting: z.boolean().default(false),
+    acting: z.boolean().default(true),
     /**
      * Whether a paired device may talk to the orchestrator.
      *
@@ -481,7 +493,7 @@ export const WebSurface = z
      * **off** is read at every turn, so the direction that takes authority
      * away is immediate.
      */
-    orchestrator: z.boolean().default(false),
+    orchestrator: z.boolean().default(true),
     /**
      * Whether a paired device may save a draft workflow.
      *
@@ -505,7 +517,7 @@ export const WebSurface = z
      * **off** is read at every save, so the direction that takes authority
      * away is immediate.
      */
-    drafts: z.boolean().default(false),
+    drafts: z.boolean().default(true),
     /**
      * Whether a paired device may change a setting.
      *
@@ -527,7 +539,7 @@ export const WebSurface = z
      * `acting` does: the route table is built with the listener. Turning it
      * **off** is read at every change.
      */
-    settings: z.boolean().default(false),
+    settings: z.boolean().default(true),
     /**
      * Whether a device may install the shell and open it with nothing
      * to ask.
@@ -552,7 +564,7 @@ export const WebSurface = z
      * name and never a plain address on a network
      * (`OFFLINE_NEEDS_HTTPS`).
      */
-    install: z.boolean().default(false),
+    install: z.boolean().default(true),
     /**
      * Whether a device may keep a few counts on its own disk.
      *
@@ -563,7 +575,7 @@ export const WebSurface = z
      * a moment and no text whatever, which is `LAST_VIEW_IS_A_COPY`'s
      * list and not a promise about care.
      */
-    offline: z.boolean().default(false),
+    offline: z.boolean().default(true),
     /**
      * Whether a device that installed the shell may be sent a notification.
      *
@@ -576,10 +588,10 @@ export const WebSurface = z
      * **And it is still only half of the switch.** This one lets a device
      * *ask*; the other half is the browser's own permission prompt on the
      * phone, which nothing on this machine can press and no setting can stand
-     * in for (`PUSH_NEEDS_A_GESTURE`). Both are off until somebody says
-     * otherwise, in two different places, because "the laptop is willing" and
-     * "this phone agreed" are different facts and conflating them is how a
-     * setting turns into a subscription nobody asked for.
+     * in for (`PUSH_NEEDS_A_GESTURE`). This half is on by default; the phone's
+     * half never is, because "the laptop is willing" and "this phone agreed"
+     * are different facts and conflating them is how a setting turns into a
+     * subscription nobody asked for.
      *
      * What it grants is **not** reading: a notification carries a count and no
      * text (`PUSH_SAYS_NOTHING`), it goes through the phone's own push service
@@ -590,15 +602,16 @@ export const WebSurface = z
      * direction that takes authority away is immediate, as it is for the three
      * capability keys above.
      */
-    push: z.boolean().default(false),
+    push: z.boolean().default(true),
     /**
      * Whether a notification may name the work it is about.
      *
      * **A ninth decision, narrowed under the eighth, and the trade is in
-     * `PUSH_SAYS_NOTHING`.** Off — the default — a notification is a count: a
-     * phone is told *two things want you* and has to be unlocked to learn
-     * which. On, it carries the name of the work, which a push service keeps
-     * until the phone takes it and a lock screen draws without being unlocked.
+     * `PUSH_SAYS_NOTHING`.** Off, a notification is a count: a phone is told
+     * *two things want you* and has to be unlocked to learn which. On — the
+     * default, with the rest — it carries the name of the work, which a push
+     * service keeps until the phone takes it and a lock screen draws without
+     * being unlocked.
      *
      * It is a setting and not a per-device grant because what it decides is
      * what may appear on a lock screen, which is one answer for every phone of
@@ -607,7 +620,7 @@ export const WebSurface = z
      * this can only ever reach as far as that device's own reading already
      * does.
      */
-    push_details: z.boolean().default(false),
+    push_details: z.boolean().default(true),
     /**
      * The key notifications are signed with (RFC 8292), as the config holds it.
      *

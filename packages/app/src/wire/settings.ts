@@ -92,6 +92,12 @@ export interface SettingsDeps {
   releases(): boolean
   /** The anti-sleep hold is taken or dropped to match what the config now says. */
   holdSleep(): void
+  /**
+   * The away view: its listener brought up or down to match what the config
+   * now says, and its pairing controls, which the Away page draws under the
+   * switch that turned it on (`Away.follow`, `Away.carry`).
+   */
+  away(): { follow(): void; carry(control: string): Promise<void> }
 }
 
 export class Settings implements Subject {
@@ -189,6 +195,7 @@ export class Settings implements Subject {
     if (choice.startsWith('account:')) await this.deps.accountAction(choice)
     if (choice.startsWith('updates:')) await this.deps.updateAction(choice)
     if (choice === 'mic-test') await this.deps.testMicrophone()
+    if (choice.startsWith('away-')) await this.deps.away().carry(choice)
   }
 
   /**
@@ -373,6 +380,9 @@ export class Settings implements Subject {
     // rather than in the button, so the page, the button and a tool changing
     // it on somebody's word all reach the machine the same way.
     this.deps.holdSleep()
+    // And the away view is listening or not, for the same reason: the switch is
+    // where somebody expects the code to appear, not the next time Tade starts.
+    this.deps.away().follow()
   }
 
   /**

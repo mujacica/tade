@@ -228,6 +228,7 @@ export class App {
       copy: (text) => copyText(text, (data) => this.terminal.write(data)),
       releases: () => kittyActive(this.terminal),
       holdSleep: () => this.awake.apply(),
+      away: () => this.away,
     })
     this.awake = new Awake(
       this.wire,
@@ -619,8 +620,7 @@ export class App {
     void live.looked.then(() => this.agents.reopenLost())
     // Whatever the config says about sleep, made true of the machine.
     this.awake.apply()
-    // Only where a person turned it on: with `surfaces.web.enabled` false this
-    // constructs nothing and no socket exists.
+    // Only where a person turned it on: off, nothing is constructed and no socket exists.
     await this.away.open()
 
     const attention = this.opts.config.surfaces.voice.attention

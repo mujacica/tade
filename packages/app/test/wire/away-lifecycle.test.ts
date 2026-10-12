@@ -558,7 +558,7 @@ describe('granting it, at the machine', () => {
     await off.away.reread()
     off.show()
     await press(off, `${AWAY_CONTROLS.projects}${DEVICE}`)
-    expect(off.away.panel()?.away?.problem).toContain('Let a paired device act')
+    expect(off.away.panel()?.away?.problem).toContain('“Act”')
     expect(off.away.panel()?.away?.devices[0]?.mayClose).toBe(false)
   })
 })

@@ -449,6 +449,36 @@ describe('what the person’s own words reach under intake and the away view', (
     const offline = row('surfaces.web.offline')
     expect(namedBy(offline, ['let it work offline on the train'])).not.toBeNull()
   })
+
+  it('answers every row of the Away page the same way, with its capabilities on by default', () => {
+    // Turning everything under the away view on by default moved nothing here:
+    // a default is not a reach. The two that let nobody in and no device do
+    // anything are the person's to say; every door, every grant and everything
+    // sent through somebody else's push service is no words at all — and that
+    // includes turning one *off*, because a reach is a property of the path.
+    const away = settingsOf(ConfigSchema.parse({})).find((group) => group.id === 'away')
+    const reach = Object.fromEntries(
+      (away?.settings ?? []).map((one) => [one.path, settingReach(one.path).reach]),
+    )
+    expect(reach).toEqual({
+      'surfaces.web.enabled': 'never',
+      'surfaces.web.bind': 'never',
+      'surfaces.web.port': 'never',
+      'surfaces.web.trusted_hosts': 'never',
+      'surfaces.web.push_key': 'never',
+      'surfaces.web.acting': 'never',
+      'surfaces.web.orchestrator': 'never',
+      'surfaces.web.drafts': 'never',
+      'surfaces.web.settings': 'never',
+      'surfaces.web.install': 'asked',
+      'surfaces.web.offline': 'asked',
+      'surfaces.web.push': 'never',
+      'surfaces.web.push_details': 'never',
+    })
+    // Still named by what somebody would say, under the shorter titles.
+    expect(namedBy(row('surfaces.web.install'), ['install the page on my phone'])).not.toBeNull()
+    expect(namedBy(row('surfaces.web.offline'), ['keep its last view offline'])).not.toBeNull()
+  })
 })
 
 describe('whether the person themselves named it', () => {

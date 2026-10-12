@@ -56,6 +56,7 @@ function world() {
     setupChanged: () => {},
     silence: () => {},
     holdSleep: () => {},
+    away: () => ({ follow: () => {}, carry: async () => {} }),
   } as never)
   return { settings, asked, config: () => readFileSync(join(home, 'config.yaml'), 'utf8') }
 }

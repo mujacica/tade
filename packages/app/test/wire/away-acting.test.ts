@@ -343,7 +343,7 @@ describe('letting one device act, at the machine', () => {
     one.show()
     await grant(one.away, '00112233445566aa')
     // Said on the panel where the control was pressed, never swallowed.
-    expect(one.away.panel()?.away?.problem).toContain('Let a paired device act')
+    expect(one.away.panel()?.away?.problem).toContain('“Act”')
   })
 
   it('says so when there is no such device', async () => {

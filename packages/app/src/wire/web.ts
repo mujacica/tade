@@ -57,9 +57,10 @@ import { widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownKeys, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
-import { awayView, mintPairing } from './web-panel.ts'
+import { awayView, codeShownOn, mintPairing } from './web-panel.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
+import { toldTo } from './web-told.ts'
 
 // The window's end of the away view: the server's lifetime, the pairing panel,
 // and the beat that moves the projection on.
@@ -178,10 +179,16 @@ export class Away implements Subject {
   private held: AwayHeld | null = null
   /** Agents' screens, read only while a device granted them is looking. */
   private readonly lanes: Lanes
+  /** One line in the journal, said in the strip if it would not go in (`web-told.ts`). */
+  private readonly log: (told: Told) => Promise<void>
+  /** What `enabled` the listener was last brought up or taken down for, and the turn doing it. */
+  private wanted = false
+  private turning: Promise<void> = Promise.resolve()
 
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
     this.deps = deps
+    this.log = toldTo(wire, (said) => deps.news(said))
     this.lanes = new Lanes({
       capture: (lane, lines) => wire.opts.client.capture(lane as never, lines, false),
       now: () => wire.now(),
@@ -199,16 +206,37 @@ export class Away implements Subject {
   }
 
   /**
-   * Start listening, if a person turned it on.
+   * The listener made to match the config as a setting changes (`Settings.use`):
+   * up with whatever the rest says, and down at once, the direction that takes
+   * authority away. One turn after another, never two listeners on a port, and
+   * a code minted as it comes up for a page that draws one.
+   */
+  follow(): void {
+    const want = surfaceOf(this.config().surfaces.web).enabled
+    if (want === this.wanted) return
+    this.wanted = want
+    this.turning = this.turning
+      .then(() => (want ? this.open() : this.stop()))
+      .then(() => (want && codeShownOn(this.wire.state.panel) !== null ? this.mint() : undefined))
+      .catch((err: unknown) => {
+        this.problem = err instanceof Error ? err.message : String(err)
+        this.deps.news(`the away view could not ${want ? 'start' : 'stop'}: ${this.problem}`)
+      })
+      .finally(() => this.wire.draw())
+  }
+
+  /**
+   * Start listening, if a person turned it on: from `begin`, and from `follow`.
    *
-   * Called once, from `begin`. A `web_enabled` line goes in the journal with
-   * what it came up as and what it actually bound — the second half being
-   * what a config cannot say, and the half somebody reading the journal a
-   * month later needs in order to know whether anything was reachable at all.
+   * A `web_enabled` line goes in the journal with what it came up as and what
+   * it actually bound — the second half being what a config cannot say, and
+   * the half somebody reading the journal a month later needs in order to
+   * know whether anything was reachable at all.
    */
   async open(): Promise<void> {
     const surface = surfaceOf(this.config().surfaces.web)
-    if (!surface.enabled) return
+    this.wanted = surface.enabled
+    if (!surface.enabled || this.server !== null) return
     const server = webServer({
       home: this.wire.opts.home,
       surface,
@@ -266,12 +294,13 @@ export class Away implements Subject {
     await this.push.open()
   }
 
-  /** Close every stream, then the listener. Safe twice, and safe before `open`. */
+  /** Close every stream, then the listener, and no code outlives it. Safe twice, and before `open`. */
   async stop(): Promise<void> {
     const server = this.server
     this.server = null
     this.projectors.clear()
     this.caughtUp.clear()
+    this.tickets.clear()
     if (server === null) return
     await server.close()
     await this.log({ type: 'web_enabled', detail: { enabled: false } })
@@ -433,13 +462,9 @@ export class Away implements Subject {
     this.wire.draw()
   }
 
-  facts(): Partial<Frame> {
-    return {}
-  }
-
   panel(): Frame['panel'] {
-    if (this.wire.state.panel?.kind !== 'away') return {}
-    return { away: this.view() }
+    const where = codeShownOn(this.wire.state.panel)
+    return where === null ? {} : { away: this.view(where === 'settings') }
   }
 
   inputs(): PanelInputs {
@@ -478,8 +503,8 @@ export class Away implements Subject {
     }
   }
 
-  /** What the panel's own controls do. The panel stays open while they happen. */
-  private async carry(control: string): Promise<void> {
+  /** What the panel's own controls do, there or on the Away page of Settings. It stays open. */
+  async carry(control: string): Promise<void> {
     this.problem = null
     try {
       if (control === AWAY_CONTROLS.code) this.mint()
@@ -563,7 +588,7 @@ export class Away implements Subject {
   }
 
   /** What the panel draws, out of what this subject holds at this moment. */
-  private view(): AwayView {
+  private view(brief = false): AwayView {
     const now = this.wire.now()
     const ticket = this.tickets.outstanding(now)[0] ?? null
     return awayView({
@@ -577,6 +602,7 @@ export class Away implements Subject {
       streams: this.streams.count,
       problem: this.problem,
       now,
+      brief,
     })
   }
 
@@ -770,30 +796,5 @@ export class Away implements Subject {
 
   private config(): Config {
     return this.wire.opts.config
-  }
-
-  /**
-   * One line in the journal, and **said in the strip if it would not go in**.
-   *
-   * A journal that will not take a line is not a reason a request fails — a
-   * phone must not get a `500` because a disk is full — but it may not be
-   * swallowed either: `web_paired` and `web_did` are the audit, and "every act
-   * one takes is in the journal under its id" is half of what stands against a
-   * device somebody else let in. A line that silently did not land would make
-   * that sentence quietly untrue, so the failure goes where a person reading
-   * the window will see it.
-   */
-  private async log(told: Told): Promise<void> {
-    try {
-      await this.wire.opts.client.log.append({
-        type: told.type,
-        ...(told.task === undefined ? {} : { task: told.task }),
-        detail: told.detail,
-      })
-    } catch (err) {
-      this.deps.news(
-        `the away view could not write ${told.type} down: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
   }
 }

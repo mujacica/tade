@@ -616,6 +616,9 @@ function clicked(
   const [verb, ...rest] = control.split(':')
   const arg = rest.join(':')
   const setting = rows.find((row) => row.path === arg.split('=')[0])
+  // The away view's own controls, drawn under its switch on the Away page:
+  // carried out by the subject that holds the listener, and the page stays.
+  if (verb?.startsWith('away-')) return { panel, submit: true, choice: control }
   switch (verb) {
     case 'done':
       return close

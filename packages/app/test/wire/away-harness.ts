@@ -200,6 +200,15 @@ export interface MachineOptions {
   settings?: boolean
 }
 
+/** Off here unless a test turns one on, though each is on by default: nothing rides along. */
+const ONLY_WHAT_IS_ASKED = {
+  drafts: false,
+  install: false,
+  offline: false,
+  push: false,
+  push_details: false,
+} as const
+
 export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const repo = mkrepo()
   const home = tmp('tade-away-act-')
@@ -227,6 +236,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
           acting: over.acting ?? true,
           orchestrator: over.talking === true,
           settings: over.settings === true,
+          ...ONLY_WHAT_IS_ASKED,
         },
         ...(over.intake === true ? { intake: INTAKE } : {}),
       },
@@ -478,6 +488,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
             port,
             acting: over.acting ?? true,
             orchestrator: over.talking === true,
+            ...ONLY_WHAT_IS_ASKED,
           },
         },
       })

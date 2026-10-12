@@ -244,7 +244,7 @@ describe('the two grants, which are keypresses at this machine', () => {
     one.show()
     expect(one.away.panel()?.away?.configuring).toBe(false)
     await press(one, `${AWAY_CONTROLS.configure}${DEVICE}`)
-    expect(one.away.panel()?.away?.problem).toContain('Let a paired device change a setting')
+    expect(one.away.panel()?.away?.problem).toContain('“Change settings”')
     expect((await readDevices(one.home)).devices[0]?.scopes).not.toContain('configure')
     // Reading needs no setting: nothing it grants can change anything.
     await press(one, `${AWAY_CONTROLS.settings}${DEVICE}`)

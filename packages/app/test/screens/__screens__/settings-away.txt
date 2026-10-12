@@ -3,28 +3,28 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Away view                                                                      │────
  ▌ !│                             │                                                                                │    
- ▌  │  Agents             bypass █│▌Serve the away view             ████──── off                     ↻ on restart █│    
-    │                            █│▌                                on: a listener while the window is open, for  █│    
-   ⠋│  Models                    █│▌                                devices you pair at the machine; off: nothin… █│    
+ ▌  │  Agents             bypass █│▌Serve the away view       ████──── off                                        █│    
+    │                            █│▌                          on: listening while this window is open, with the   █│    
+   ⠋│  Models                    █│▌                          code to pair shown here                             █│    
     │                            █│▌                                                                              █│    
-    │  Orchestrator              █│ Who can reach it                  ◉ loopback     ○ lan           ↻ on restart █│    
+    │  Orchestrator              █│ Who can reach it            ◉ loopback     ○ lan                 ↻ on restart █│    
  ▸ S│                            █│                                                                               █│    
- ▸ S│  Checks                    █│ Port                              ‹   7654   ›                   ↻ on restart █│    
+ ▸ S│  Checks                    █│ Port                        ‹   7654   ›                         ↻ on restart █│    
  ▸ I│                            █│                                                                               █│    
- ▾ C│  Voice                     █│ Let a paired device act         ████──── off                     ↻ on restart █│    
+ ▾ C│  Voice                     █│ Trusted hostnames          none                                  ↻ on restart █│    
   M │                            █│                                                                               █│    
-  A │  Window                    █│ Let a paired device talk to T…  ████──── off                     ↻ on restart █│    
+  A │  Window                    █│ Notification signing key   generated when it is first needed                  █│    
   M │                            █│                                                                               █│    
-    │▌ Away view                 █│ Let a paired device save a dr…  ████──── off                     ↻ on restart █│    
- ▾ F│▌                           █│                                                                               █│    
-   ▾│  Intake                    █│ Let a paired device change a …  ████──── off                     ↻ on restart █│    
-    │                            █│                                                                               █│    
-    │  Projects              ● 1 █│ Let a device install it         ████──── off                     ↻ on restart █│    
-   ▸│                            █│                                                                               ▕│    
-━   │  Journal                   █│ Let a device keep what it las…  ████──── off                     ↻ on restart ▕│   ━
-    │                            █│                                                                               ▕│    
-    │  Telemetry                 █│ Send notifications to a device  ████──── off                                  ▕│   ▕
-    │                            ▕│                                                                               ▕│   ▕
+    │▌ Away view                 █│ A PAIRED DEVICE MAY                                                           █│    
+ ▾ F│▌                           █│ Act                       ────████ on                            ↻ on restart █│    
+   ▾│  Intake                    █│                                                                               █│    
+    │                            █│ Talk to Tade              ────████ on                            ↻ on restart █│    
+    │  Projects              ● 1 █│                                                                               █│    
+   ▸│                            █│ Save draft workflows      ────████ on                            ↻ on restart ▕│    
+━   │  Journal                   █│                                                                               ▕│   ━
+    │                            █│ Change settings           ────████ on                            ↻ on restart ▕│    
+    │  Telemetry                 █│                                                                               ▕│   ▕
+    │                            ▕│ Install the page          ────████ on                            ↻ on restart ▕│   ▕
     │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

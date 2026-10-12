@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ACTING_IS_NOT_YOU, ACTING_IS_NOT_YOU_SHORT } from '../src/away.ts'
 import { ConfigSchema } from '../src/config.ts'
 import { PUSH_BY_DEFAULT } from '../src/project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from '../src/secrets.ts'
@@ -12,6 +13,7 @@ import {
   settingsOf,
   stepped,
 } from '../src/settings.ts'
+import { DEVICE_MAY } from '../src/settings-away.ts'
 
 // The settings worth putting in front of somebody, and what writing one back
 // does to the file they wrote by hand.
@@ -569,5 +571,51 @@ describe('what agents do with finished work', () => {
     expect(projectRow({ workspace: 'checkout' })?.fallback).toBe('never')
     // And the machine's answer, where there is one, is still what it follows.
     expect(projectRow({ workspace: 'worktree' }, { push: 'branch' })?.fallback).toBe('branch')
+  })
+})
+
+describe('the Away page', () => {
+  const away = settingsOf(ConfigSchema.parse({})).find((group) => group.id === 'away')
+  const rows = away?.settings ?? []
+
+  it('names each row in a few words, so nothing on the page is cut', () => {
+    // The page cuts a name past half its width with an ellipsis, and eight
+    // rows that each began *Let a paired device* were cut on every terminal.
+    expect(rows.length).toBe(13)
+    for (const one of rows) {
+      expect(one.title.length, one.path).toBeLessThanOrEqual(24)
+      expect(one.title, one.path).not.toMatch(/^Let a/)
+    }
+  })
+
+  it('puts what a paired device may do under one heading, and nothing else under it', () => {
+    expect(rows.filter((one) => one.section === DEVICE_MAY).map((one) => one.path)).toEqual([
+      'surfaces.web.acting',
+      'surfaces.web.orchestrator',
+      'surfaces.web.drafts',
+      'surfaces.web.settings',
+      'surfaces.web.install',
+      'surfaces.web.offline',
+      'surfaces.web.push',
+      'surfaces.web.push_details',
+    ])
+  })
+
+  it('draws what fits in two lines, and keeps the whole of it where search reads', () => {
+    for (const one of rows) {
+      expect((one.short ?? one.means).length, one.path).toBeLessThanOrEqual(104)
+    }
+    const row = (path: string) => rows.find((one) => one.path === path)
+    // The domain's sentences are cut from the drawing and not from the program.
+    expect(row('surfaces.web.acting')?.means).toContain(ACTING_IS_NOT_YOU)
+    expect(row('surfaces.web.acting')?.short).toContain(ACTING_IS_NOT_YOU_SHORT)
+    expect(row('surfaces.web.push_key')?.short).toContain(SEEN_BY_AGENTS)
+    // Only the switch itself applies at once; the route table waits for a restart.
+    expect(rows.filter((one) => one.live).map((one) => one.path)).toEqual([
+      'surfaces.web.enabled',
+      'surfaces.web.push_key',
+      'surfaces.web.push',
+      'surfaces.web.push_details',
+    ])
   })
 })

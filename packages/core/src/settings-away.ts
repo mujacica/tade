@@ -1,24 +1,34 @@
 import {
   ACTING_IS_NOT_YOU,
+  ACTING_IS_NOT_YOU_SHORT,
   AWAY_IS_WHILE_OPEN,
   DEVICES_SEEN_BY_AGENTS,
   DRAFTS_ARE_NOT_PUBLISHED,
+  DRAFTS_ARE_NOT_PUBLISHED_SHORT,
   INSTALLED_IS_NOT_REVOCABLE,
   LAN_IS_PLAINTEXT,
   LAST_VIEW_IS_A_COPY,
+  LAST_VIEW_IS_A_COPY_SHORT,
   OFFLINE_NEEDS_HTTPS,
+  OFFLINE_NEEDS_HTTPS_SHORT,
   PUSH_GOES_THROUGH_A_STRANGER,
+  PUSH_GOES_THROUGH_A_STRANGER_SHORT,
   PUSH_IS_WHILE_OPEN,
   PUSH_KEY_IS_GENERATED,
   PUSH_NEEDS_A_GESTURE,
+  PUSH_NEEDS_A_GESTURE_SHORT,
   PUSH_SAYS_NOTHING,
   PUSH_SAYS_NOTHING_SHORT,
   SETTINGS_FROM_AWAY,
+  SETTINGS_FROM_AWAY_SHORT,
 } from './away.ts'
 import type { Config } from './config.ts'
-import { TALKING_IS_NOT_YOU } from './origin.ts'
-import { KEYS_AND_AGENTS } from './secrets.ts'
+import { TALKING_IS_NOT_YOU, TALKING_IS_NOT_YOU_SHORT } from './origin.ts'
+import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import type { SettingGroup } from './settings.ts'
+
+/** The heading the capability rows are drawn under: what a paired device may do. */
+export const DEVICE_MAY = 'A paired device may'
 
 // The away view's thirteen controls, as a person changes them.
 //
@@ -30,26 +40,34 @@ import type { SettingGroup } from './settings.ts'
 // sentence the domain says once (`away.ts`) so that no control can say the
 // comfortable half of it.
 //
-// **Ten of the thirteen are `live: false`, honestly.** The listener comes up
-// when the window starts, and the epoch a connected phone holds is per server
-// start — so turning one on mid-session would have to tear down and rebuild
-// something somebody is looking at. Saying *takes effect on restart* is the
-// honest answer; doing nothing and saying nothing is the setting Tade accepts
-// and ignores.
+// **The page is names and values.** A row's title is what it is — the
+// capability rows are short verbs under one heading (`DEVICE_MAY`) rather than
+// eight sentences that each began *Let a paired device* and were cut off — and
+// what one does is `short`, drawn only under the row you are on. `means` keeps
+// the whole of it, every domain sentence included, because it is still what
+// search, `tade config` and `tade_settings` read.
 //
-// **The three push ones and the key are `live: true`, equally honestly**, and
-// the difference is where they are read. A notification is not a route: it is
-// decided on the window's own beat, out of the config the window holds, so
-// there is no table built at start-up for a change to be behind. Both
-// directions take effect at the next beat — which is a second or two, and is
-// what somebody who has just turned notifications off is owed.
+// **Nine of the thirteen are `live: false`, honestly.** The route table is
+// built when the listener comes up, and the epoch a connected phone holds is
+// per server start — so changing one under a running listener would have to
+// tear down and rebuild something somebody is looking at. Saying *takes effect
+// on restart* is the honest answer; doing nothing and saying nothing is the
+// setting Tade accepts and ignores.
+//
+// **`enabled` is `live: true`**, because there is nothing to tear down in the
+// direction people press it: off to on brings the listener up with whatever the
+// rest says, and on to off closes it, which is the direction that takes
+// authority away and is owed at once (`Away.follow`). **The three push ones and
+// the key are `live: true` too**: a notification is not a route, it is decided
+// on the window's own beat out of the config the window holds, so there is no
+// table built at start-up for a change to be behind.
 
 export function awayGroup(config: Config): SettingGroup {
   const web = config.surfaces.web
   return {
     id: 'away',
     title: 'Away view',
-    about: `One page, served from this machine, to a phone you paired by scanning a code in the window. It shows what is working, what is queued, what is stopped and what it cost, and until you turn Acting on it can change nothing. ${AWAY_IS_WHILE_OPEN} Off by default, and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
+    about: `One page, served from this machine, to a device you pair by scanning the code this page shows once it is on, or by opening its link. It shows what is working, what is queued, what is stopped and what it cost; anything a device may change beyond that is granted per device, at this machine. ${AWAY_IS_WHILE_OPEN} Off by default and everything under it on, so turning it on is the one click — and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
     keywords: [
       'away',
       'web',
@@ -64,6 +82,9 @@ export function awayGroup(config: Config): SettingGroup {
       'pair',
       'pairing',
       'qr',
+      'code',
+      'link',
+      'url',
       'device',
       'devices',
       'lan',
@@ -80,15 +101,14 @@ export function awayGroup(config: Config): SettingGroup {
         path: 'surfaces.web.enabled',
         title: 'Serve the away view',
         means:
-          'on: a listener while the window is open, for devices you pair at the machine; off: nothing is listening at all',
+          'on: listening now, while the window is open, with the code and link to pair a device shown here; off: nothing is listening at all',
+        short: 'on: listening while this window is open, with the code to pair shown here',
         value: String(web.enabled),
         fallback: 'false',
         type: { kind: 'flag' },
-        // Honestly `false`: the listener comes up when the window starts and
-        // the epoch a connected phone holds is per server start, so turning
-        // this on mid-session would have to tear down and rebuild something
-        // a person is looking at. Said rather than half-done.
-        live: false,
+        // `true` both ways (`Away.follow`): off to on has no listener to tear
+        // down, and on to off is the direction owed at once.
+        live: true,
       },
       {
         path: 'surfaces.web.bind',
@@ -98,6 +118,8 @@ export function awayGroup(config: Config): SettingGroup {
         // up serving its control room to the café.
         title: 'Who can reach it',
         means: `loopback: this machine alone, which is what a tunnel or tailscale serve connects to; lan: every interface, in the clear. ${LAN_IS_PLAINTEXT}`,
+        short:
+          'loopback: this machine, and a tunnel to it; lan: your network, in the clear, and never to act',
         value: web.bind,
         fallback: 'loopback',
         type: { kind: 'choice', options: ['loopback', 'lan'] },
@@ -109,10 +131,39 @@ export function awayGroup(config: Config): SettingGroup {
         title: 'Port',
         means:
           'the port it listens on, and the one the pairing code carries. Already in use is said and nothing listens — never a quiet bind somewhere else',
+        short: 'what it listens on and the code carries; one in use is said, never swapped',
         value: String(web.port),
         fallback: '7654',
         type: { kind: 'number' },
         live: false,
+      },
+      {
+        path: 'surfaces.web.trusted_hosts',
+        title: 'Trusted hostnames',
+        means:
+          'names beyond this machine’s own addresses that may reach it — a tailnet name, a tunnel. This is also the only way an https origin off this machine is trusted, because no forwarded header is ever read: a proxy is trusted by being named here, never by what it writes in a header',
+        short: 'a tailnet or tunnel name: the only way an https origin off this machine is trusted',
+        value: web.trusted_hosts.join(' '),
+        fallback: 'none',
+        type: { kind: 'text', placeholder: 'studio.yak-bebop.ts.net' },
+        live: false,
+        keywords: ['tailscale', 'tailnet', 'tunnel', 'cloudflare', 'reverse proxy', 'origin'],
+      },
+      {
+        path: 'surfaces.web.push_key',
+        // The key, shown as itself like every other key Tade keeps, and the
+        // only one that is **generated** rather than pasted — which is why its
+        // own sentence is here as well as `KEYS_AND_AGENTS`. Clearing it is
+        // the revocation lever, and the row says so, because a field nobody
+        // can see the point of is a field somebody pastes something into.
+        title: 'Notification signing key',
+        short: `${SEEN_BY_AGENTS}; generated here, and clearing it revokes every subscription`,
+        means: `${PUSH_KEY_IS_GENERATED} ${KEYS_AND_AGENTS}`,
+        value: web.push_key,
+        fallback: 'generated when it is first needed',
+        type: { kind: 'text', placeholder: 'generated — clear this to mint a new one' },
+        live: true,
+        keywords: ['vapid', 'key', 'secret', 'sign', 'signing', 'revoke', 'rotate'],
       },
       {
         path: 'surfaces.web.acting',
@@ -124,10 +175,12 @@ export function awayGroup(config: Config): SettingGroup {
         // away panel, and the request needs this machine or an https host you
         // named — which is why the sentence says what acting can never reach
         // rather than leaving it to be inferred.
-        title: 'Let a paired device act',
+        title: 'Act',
+        section: DEVICE_MAY,
+        short: `answer, steer and queue, once granted per device; ${ACTING_IS_NOT_YOU_SHORT}`,
         means: `on: a device you have granted it can answer an approval, tell an agent something, change what is queued, mark work finished, write a note, add to what a task is told, and approve a request a grant here already allowed — and, granted those too, stop or reopen an agent and close or reopen a project; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
         value: String(web.acting),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         // `false` like the rest, and honestly asymmetric: turning it **on**
         // needs a restart because the route table is built with the listener,
@@ -146,10 +199,12 @@ export function awayGroup(config: Config): SettingGroup {
         // for anything. The sentence says what the narrowing is rather than
         // promising the model behaves, because a paragraph in a prompt is
         // information and this is the control somebody decides on.
-        title: 'Let a paired device talk to Tade',
+        title: 'Talk to Tade',
+        section: DEVICE_MAY,
+        short: `send it a message, once granted; ${TALKING_IS_NOT_YOU_SHORT}`,
         means: `on: a device you have granted it can send a message into the same conversation you type into, and is answered in words; off: there is no route to send one. ${TALKING_IS_NOT_YOU}`,
         value: String(web.orchestrator),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         // `false` like the rest, and asymmetric the same way `acting` is:
         // turning it on needs a restart because the route table is built with
@@ -166,10 +221,12 @@ export function awayGroup(config: Config): SettingGroup {
         // once somebody here publishes it. The sentence names what it cannot
         // reach, because *bounded* is the word a comfortable version of it
         // would keep while dropping the bound.
-        title: 'Let a paired device save a draft workflow',
+        title: 'Save draft workflows',
+        section: DEVICE_MAY,
+        short: `fill in a drafted workflow a field at a time; ${DRAFTS_ARE_NOT_PUBLISHED_SHORT}`,
         means: `on: a device you have granted it can fill in one field at a time of a workflow that is already drafted; off: there is no route to save one. ${DRAFTS_ARE_NOT_PUBLISHED}`,
         value: String(web.drafts),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         // `false` like the rest, and asymmetric the same way: on waits for the
         // route table the listener builds, off is read at every save.
@@ -182,10 +239,12 @@ export function awayGroup(config: Config): SettingGroup {
         // Acting: Acting's verbs are about work, and this writes the config.
         // The sentence is the list of what it reaches, because *only the
         // harmless ones* is the word a comfortable version would keep.
-        title: 'Let a paired device change a setting',
+        title: 'Change settings',
+        section: DEVICE_MAY,
+        short: `once granted per device; ${SETTINGS_FROM_AWAY_SHORT}`,
         means: `on: a device you have granted it can change the few settings an ordinary request is enough for; off: there is no route to change one. ${SETTINGS_FROM_AWAY}`,
         value: String(web.settings),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         // `false` like the rest, and asymmetric the same way: on waits for the
         // route table the listener builds, off is read at every change.
@@ -200,10 +259,12 @@ export function awayGroup(config: Config): SettingGroup {
         // out by trying it: that a browser refuses all of it off a secure
         // origin, and that turning it off again is something a device has to
         // be *told*, which happens when it next reaches this machine.
-        title: 'Let a device install it',
+        title: 'Install the page',
+        section: DEVICE_MAY,
+        short: `on a home screen, never your work; ${OFFLINE_NEEDS_HTTPS_SHORT}`,
         means: `on: a paired device can add this to a home screen and open it with nothing to ask, showing the page and never your work; off: a device that installed it is served a worker that removes it again. ${OFFLINE_NEEDS_HTTPS} ${INSTALLED_IS_NOT_REVOCABLE}`,
         value: String(web.install),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         // `false` like the rest, and honestly so: what `/sw.js` answers with
         // is built when the listener comes up, so both directions wait for a
@@ -229,10 +290,12 @@ export function awayGroup(config: Config): SettingGroup {
         // open. The sentence is a *list* of what is kept, because minimal and
         // redacted are the words a comfortable version of it would keep while
         // dropping what was actually on the disk.
-        title: 'Let a device keep what it last saw',
+        title: 'Keep its last view',
+        section: DEVICE_MAY,
+        short: `opens offline on ${LAST_VIEW_IS_A_COPY_SHORT}`,
         means: `on: an installed device keeps a few counts and the moment they were true, so opening it with nothing to ask says what it last knew; off: it opens with nothing. ${LAST_VIEW_IS_A_COPY}`,
         value: String(web.offline),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         // `false` like the rest. Turning it off clears what is on a device the
         // next time that device reaches this machine, which is the same
@@ -248,10 +311,12 @@ export function awayGroup(config: Config): SettingGroup {
         // by trying it — that this is only half the switch, and that a closed
         // laptop sends nothing — and says them before the switch rather than
         // after it.
-        title: 'Send notifications to a device',
+        title: 'Get notifications',
+        section: DEVICE_MAY,
+        short: `${PUSH_GOES_THROUGH_A_STRANGER_SHORT}; ${PUSH_NEEDS_A_GESTURE_SHORT}`,
         means: `on: a device that installed this and allowed notifications is sent one when work wants you, gets stuck, goes red or finishes — ${PUSH_SAYS_NOTHING_SHORT}; off: nothing is sent. ${PUSH_NEEDS_A_GESTURE} ${PUSH_GOES_THROUGH_A_STRANGER} ${PUSH_IS_WHILE_OPEN}`,
         value: String(web.push),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         // `true`, and honestly: a notification is decided on the window's own
         // beat out of the config it holds, so there is no start-up table for
@@ -280,39 +345,15 @@ export function awayGroup(config: Config): SettingGroup {
         // that granted both at once would be a yes to a question nobody was
         // asked. The sentence is the list of what is sent, because *generic*
         // is the word a comfortable version of it would keep.
-        title: 'Let a notification name the work',
+        title: 'Get work names in them',
+        section: DEVICE_MAY,
+        short: 'the name of the work on a lock screen, never more than that device may read',
         means: `on: a notification carries the name of the piece of work it is about; off: it carries a count and no text at all. ${PUSH_SAYS_NOTHING} It can never say more than that device was granted to read.`,
         value: String(web.push_details),
-        fallback: 'false',
+        fallback: 'true',
         type: { kind: 'flag' },
         live: true,
         keywords: ['details', 'payload', 'title', 'generic', 'redacted', 'privacy', 'lock screen'],
-      },
-      {
-        path: 'surfaces.web.push_key',
-        // The key, shown as itself like every other key Tade keeps, and the
-        // only one that is **generated** rather than pasted — which is why its
-        // own sentence is here as well as `KEYS_AND_AGENTS`. Clearing it is
-        // the revocation lever, and the row says so, because a field nobody
-        // can see the point of is a field somebody pastes something into.
-        title: 'Notification signing key',
-        means: `${PUSH_KEY_IS_GENERATED} ${KEYS_AND_AGENTS}`,
-        value: web.push_key,
-        fallback: 'generated when it is first needed',
-        type: { kind: 'text', placeholder: 'generated — clear this to mint a new one' },
-        live: true,
-        keywords: ['vapid', 'key', 'secret', 'sign', 'signing', 'revoke', 'rotate'],
-      },
-      {
-        path: 'surfaces.web.trusted_hosts',
-        title: 'Trusted hostnames',
-        means:
-          'names beyond this machine’s own addresses that may reach it — a tailnet name, a tunnel. This is also the only way an https origin off this machine is trusted, because no forwarded header is ever read: a proxy is trusted by being named here, never by what it writes in a header',
-        value: web.trusted_hosts.join(' '),
-        fallback: 'none',
-        type: { kind: 'text', placeholder: 'studio.yak-bebop.ts.net' },
-        live: false,
-        keywords: ['tailscale', 'tailnet', 'tunnel', 'cloudflare', 'reverse proxy', 'origin'],
       },
     ],
   }

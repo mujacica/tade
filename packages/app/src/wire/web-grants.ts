@@ -156,7 +156,7 @@ export async function letOneConfigure(
   id: string,
 ): Promise<Granted> {
   if (!deps.configuring()) {
-    throw new Error('turn on “Let a paired device change a setting” in Settings → Away view first')
+    throw new Error('turn on “Change settings” in Settings → Away view first')
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
@@ -195,7 +195,7 @@ export async function letOneRun(
   scope: keyof typeof RUNS,
 ): Promise<Granted> {
   if (!deps.acting()) {
-    throw new Error('turn on “Let a paired device act” in Settings → Away view first')
+    throw new Error('turn on “Act” in Settings → Away view first')
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')

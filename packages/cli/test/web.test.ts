@@ -219,7 +219,9 @@ describe('tade web', () => {
   })
 
   it('says nothing about notifications where they are off', async () => {
-    writeFileSync(join(home, 'config.yaml'), 'surfaces:\n  web:\n    enabled: true\n')
+    // Off by its own key: notifications are on by default now, with the rest.
+    const off = 'surfaces:\n  web:\n    enabled: true\n    push: false\n'
+    writeFileSync(join(home, 'config.yaml'), off)
     const said = await tade('web', 'status')
     expect(said.stdout).not.toContain('notification')
     const json = JSON.parse((await tade('web', 'status', '--json')).stdout) as {

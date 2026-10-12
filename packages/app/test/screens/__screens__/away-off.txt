@@ -9,7 +9,7 @@
      working           │ ○ Off — nothing is listening                                           │                       
                        │                                                                        │                       
  ▸ SMART QUEUE         │ Nothing is listening, so there is nothing to pair with.                │                       
- ▸ SCHEDULES           │ Turn it on in Settings → Away view, then open Tade again.              │                       
+ ▸ SCHEDULES           │ Turn it on in Settings → Away view.                                    │                       
  ▸ INTAKE              │                                                                        │                       
  ▾ CHANGES  3        vs│ DEVICES                                                                │                       
   M package.json       │ No device has been paired.                                             │                       

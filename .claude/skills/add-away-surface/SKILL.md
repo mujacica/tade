@@ -8,7 +8,9 @@ description: Add or change what the away view serves — a route, a verb a devic
 The away view is `packages/web` plus the window's own end of it: a contract, a pure projection, a
 `node:http` server behind pairing, a session and a guard, and a listener the window owns and dies
 with. **It is off by default and listens on this machine alone**, and turning either of those round
-is a person's act with its own setting in `reach.ts`'s `never` subtree.
+is a person's act with its own setting in `reach.ts`'s `never` subtree. **Every capability under the
+switch is on by default** (the person asked for turning it on to be one click), which grants nothing:
+a device still has none of the scopes that change anything until somebody at this machine grants it.
 
 | Changing | File |
 |---|---|
@@ -73,9 +75,9 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | the delta merge and the selectors | `src/assets/store.js` |
 | the router, the stream, the keyboard | `src/assets/boot.js` |
 | the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts`; the desk and `lanes` in `scripts/browser-desk.ts` |
-| the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` |
+| the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` — `follow` brings it up and down as the switch changes |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
-| what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with four goldens in `test/screens/scenarios/away.ts` |
+| what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with four goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy |
 | the terminal's end of it | `packages/cli/src/commands/web.ts` |
 
 ## The rules that break things quietly
@@ -445,10 +447,13 @@ somebody argues otherwise there. A tier is a property of the path, so
 `packages/core/test/reach.test.ts` asserts it by path rather than through what Settings happens
 to list.
 
-**All eight are `live: false`, honestly.** The listener comes up when the window starts and the epoch
-a connected phone holds is per server start, so turning one on mid-session would have to tear down
-and rebuild something somebody is looking at. Saying *takes effect on restart* is the honest answer;
-doing nothing and saying nothing is the setting Tade accepts and ignores.
+**The capability keys are `live: false`, honestly.** The route table is built when the listener comes
+up and the epoch a connected phone holds is per server start, so changing one under a running
+listener would have to tear down and rebuild something somebody is looking at. Saying *takes effect
+on restart* is the honest answer; doing nothing and saying nothing is the setting Tade accepts and
+ignores. **`enabled` is the exception and is live** (`Away.follow`, from `Settings.use`): off to on has
+nothing to tear down, and on to off is the direction owed at once. The push keys are live for their
+own reason — a notification is decided on the beat, not routed.
 
 **A new key here is a visible change**, so it redraws the README's pictures in the same commit
 (`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is

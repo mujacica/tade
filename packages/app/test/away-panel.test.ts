@@ -1,17 +1,22 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import {
   ACTING_IS_NOT_YOU,
+  ACTING_IS_NOT_YOU_SHORT,
+  ConfigSchema,
   DEVICES_SEEN_BY_AGENTS,
   LAN_IS_PLAINTEXT,
   TALKING_IS_NOT_YOU,
+  TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
-import { blocksFor, codeFor } from '@tade/web'
+import { blocksFor, codeFor, surfaceOf } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { AWAY_CONTROLS, awayClick, awayKey, awayPanel } from '../src/panels/away/state.ts'
 import type { AwayView } from '../src/panels/away/view.ts'
 import type { PanelContext } from '../src/panels/context.ts'
 import { drawPanel } from '../src/panels/context.ts'
+import { settingsClick, settingsPanel } from '../src/panels/settings/state.ts'
 import { skinFor } from '../src/skin.ts'
+import { awayView, codeShownOn } from '../src/wire/web-panel.ts'
 
 // The away panel's rules that no golden can be trusted to notice: that the two
 // sentences are drawn whole and cannot be scrolled away, that a code is never
@@ -392,8 +397,9 @@ describe('letting one device talk to Tade', () => {
       // **The date the window actually draws**, because this is the one test
       // about what fits on a row: a row that fills its width loses its pinned
       // chips whole rather than half-drawn (`Row.build`), and `×` is the chip
-      // that must never be the one that goes.
-      { height: 72, date: () => '11 Sep' },
+      // that must never be the one that goes. Tall enough for the code, how to
+      // use it and the two sentences above the list, so the row is in view.
+      { height: 76, date: () => '11 Sep' },
     )
     // **Both, on the row, in words.** Two grants is two facts, and a list that
     // folded them into one would be a list somebody reads to answer the wrong
@@ -438,5 +444,52 @@ describe('letting one device talk to Tade', () => {
     )
     expect(text).not.toContain('may talk')
     expect(text).not.toContain('refused in code')
+  })
+})
+
+describe('on the Away page of Settings', () => {
+  it('is drawn on that page and the panel, and nowhere else — not in a search', () => {
+    expect(codeShownOn(awayPanel())).toBe('panel')
+    expect(codeShownOn(settingsPanel('away'))).toBe('settings')
+    // A search's rows are every page's, and a code among them would be nobody's.
+    expect(codeShownOn(settingsPanel('away', 'serve'))).toBeNull()
+    expect(codeShownOn(settingsPanel('voice'))).toBeNull()
+    expect(codeShownOn(null)).toBeNull()
+  })
+
+  it('hands the panel’s own controls to the subject that holds them, and stays', () => {
+    const page = settingsPanel('away')
+    for (const control of [AWAY_CONTROLS.code, `${AWAY_CONTROLS.act}00112233445566aa`]) {
+      const outcome = settingsClick(page, control, {})
+      expect(outcome.submit, control).toBe(true)
+      expect(outcome.choice, control).toBe(control)
+      expect(outcome.panel, control).toBe(page)
+    }
+  })
+
+  it('says what a device may do in the short clauses there, and whole in the panel', () => {
+    const facts = {
+      surface: surfaceOf(ConfigSchema.parse({ surfaces: { web: { enabled: true } } }).surfaces.web),
+      bound: [],
+      listening: true,
+      ticket: null,
+      asking: null,
+      devices: [],
+      live: new Set<string>(),
+      streams: 0,
+      problem: null,
+      now: 0,
+    }
+    expect(awayView(facts).acts).toBe(ACTING_IS_NOT_YOU)
+    // The domain's own clauses, begun as a sentence: never a third wording.
+    expect(awayView({ ...facts, brief: true }).acts).toBe(
+      'A device acts as a request, never as your own words.',
+    )
+    expect(awayView({ ...facts, brief: true }).acts.slice(1)).toContain(
+      ACTING_IS_NOT_YOU_SHORT.slice(1),
+    )
+    expect(awayView({ ...facts, brief: true }).talks.slice(1)).toContain(
+      TALKING_IS_NOT_YOU_SHORT.slice(1),
+    )
   })
 })

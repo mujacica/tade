@@ -2,6 +2,7 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import { HARNESS_CHOICES, type Setting, type SettingGroup, settingLabel } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { blank, box, NO_POINTER, type Pointer, Row } from '../../ui.ts'
+import { awayLines } from '../away/view.ts'
 import { cap, padTo, sideWidth, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext, PanelDrawing } from '../context.ts'
 import {
@@ -372,6 +373,13 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   // ones about a search.
 
   rows.forEach((setting, at) => {
+    // A heading where the kind of row changes — the away view's capabilities,
+    // under what they are of — and nothing where it does not: a page is a
+    // heading and then controls, and a second heading is only for a second kind.
+    if (setting.section !== undefined && setting.section !== rows[at - 1]?.section) {
+      const heading = cap(setting.section.toUpperCase(), form - 2)
+      body.push(new Row(form, skin).space().text(heading, skin.label).build())
+    }
     const focused = panel.focus === 'form' && at === panel.row
     // The focused row's control is drawn as though pointed at, so the keyboard
     // and the pointer say the same thing — the row's own light comes from the
@@ -480,7 +488,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
           : { mark: '▲', text: 'no key releases here — talking toggles', tone: skin.waiting }
         : wide
           ? { mark: '', text: wide, tone: skin.hint }
-          : { mark: '', text: setting.means, tone: skin.hint }
+          : { mark: '', text: setting.short ?? setting.means, tone: skin.hint }
       // Said under the control where that leaves it room to be read, and
       // under the name where it does not.
       const aligned = 1 + layout.label + GAP
@@ -516,6 +524,14 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     for (const own of lines) {
       const built = wholeRow(own)
       body.push(band ? { text: band(built.text), hits: built.hits } : built)
+    }
+    // What the switch just turned on, under it: the code, its link, how to use
+    // them and the devices — the away panel's own lines (`awayLines`), never a
+    // second drawing of them. Outside the row's band, so the code is drawn on
+    // the page's own ground, which is the ground it was made to scan against.
+    const away = ctx.away
+    if (setting.path === 'surfaces.web.enabled' && away && (away.listening || away.problem)) {
+      body.push(...awayLines(away, ctx, form), blank(form))
     }
   })
 

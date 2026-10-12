@@ -35,6 +35,9 @@ const NOTHING_ELSE: SettingsDeps = {
   copy: () => Promise.resolve(false),
   releases: () => false,
   holdSleep: () => {},
+  // Nothing to follow: `surfaces.web` is a `never` subtree, so no change from
+  // away can turn the listener on or off.
+  away: () => ({ follow: () => {}, carry: () => Promise.resolve() }),
 }
 
 /**

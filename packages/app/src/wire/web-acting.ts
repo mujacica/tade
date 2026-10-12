@@ -649,7 +649,7 @@ export async function letOneAct(
   id: string,
 ): Promise<Granted> {
   if (!deps.acting()) {
-    throw new Error('turn on “Let a paired device act” in Settings → Away view first')
+    throw new Error('turn on “Act” in Settings → Away view first')
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
@@ -685,7 +685,7 @@ export async function letOneTalk(
   id: string,
 ): Promise<Granted> {
   if (!deps.talking()) {
-    throw new Error('turn on “Let a paired device talk to Tade” in Settings → Away view first')
+    throw new Error('turn on “Talk to Tade” in Settings → Away view first')
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')

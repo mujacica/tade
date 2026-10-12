@@ -23,6 +23,11 @@ const AGENTS = `${DEVICES_SEEN_BY_AGENTS[0]?.toUpperCase() ?? ''}${DEVICES_SEEN_
   1,
 )}, which is why this list shows every device there is.`
 
+/** What the away subject hands the panel: on, a code, two devices. Settings' scenario draws it too. */
+export function awayFixture(over: Partial<AwayView> = {}): AwayView {
+  return view(over)
+}
+
 function view(over: Partial<AwayView> = {}): AwayView {
   const code = codeFor(URL)
   return {

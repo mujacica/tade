@@ -76,21 +76,18 @@ export interface Setting {
   title: string
   /** What changing it does, in one sentence. */
   means: string
+  /** The page's line under the row you are on, where `means` would run past it; `means` is still what search and `tade config` read. */
+  short?: string
+  /** The heading the page draws this row under, on a page with more than one kind of row. */
+  section?: string
   /** What it is now, as text. Empty when nothing is set. */
   value: string
   /** What happens when nothing is set. */
   fallback: string
   type: SettingKind
-  /**
-   * Whether changing it takes effect at once. Anything read when Tade starts
-   * says so instead, because a setting that looks applied and is not is worse
-   * than one that waits honestly.
-   */
+  /** Whether a change takes effect at once; one that waits for a restart says so, honestly. */
   live: boolean
-  /**
-   * Other words that should find it, for what its title and `means` do not
-   * happen to say. Searching for the thing you want should find it.
-   */
+  /** Other words that should find it, for what its title and `means` do not happen to say. */
   keywords?: readonly string[]
   /**
    * What this setting is one of, where a group holds the same settings over

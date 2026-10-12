@@ -490,18 +490,55 @@ describe('the orchestrator, configuring Tade', () => {
 
   it('lets a paired phone install the page when asked, and opens no door', async () => {
     const config = await tools()
-    await theySaid('let my phone install the away view')
+    // On by default now, so the change worth asking for is the other way.
+    await theySaid('stop letting my phone install the away view')
     await config.change({
       path: 'surfaces.web.install',
-      value: 'true',
-      said: 'let my phone install the away view',
+      value: 'false',
+      said: 'stop letting my phone install the away view',
     })
-    expect(client.config.surfaces.web.install).toBe(true)
+    expect(client.config.surfaces.web.install).toBe(false)
     await theySaid('serve the away view')
     await expect(
       config.change({ path: 'surfaces.web.enabled', value: 'true', said: 'serve the away view' }),
     ).rejects.toThrow(/not mine to change/)
     expect(client.config.surfaces.web.enabled).toBe(false)
+  })
+
+  it('reaches what a device keeps when asked, and no grant of the Away page however it is asked', async () => {
+    // Every capability under the away view is on by default, and turning one
+    // on or off is still the person's at the keyboard alone: a grant widens
+    // what a device — and so an agent that paired itself — may do, and push
+    // is somewhere Tade sends things. No words reach them, either way round.
+    const config = await tools()
+    await theySaid('stop my phone keeping its last view offline')
+    await config.change({
+      path: 'surfaces.web.offline',
+      value: 'false',
+      said: 'stop my phone keeping its last view offline',
+    })
+    expect(client.config.surfaces.web.offline).toBe(false)
+    for (const [path, said] of [
+      ['surfaces.web.acting', 'stop letting my phone act'],
+      ['surfaces.web.orchestrator', 'stop letting my phone talk to tade'],
+      ['surfaces.web.drafts', 'stop letting my phone save draft workflows'],
+      ['surfaces.web.settings', 'stop letting my phone change settings'],
+      ['surfaces.web.push', 'stop sending notifications to my phone, push off'],
+      ['surfaces.web.push_details', 'stop putting work names in push details'],
+    ] as const) {
+      await theySaid(said)
+      await expect(config.change({ path, value: 'false', said }), path).rejects.toThrow(
+        /not mine to change/,
+      )
+    }
+    expect(client.config.surfaces.web).toMatchObject({
+      acting: true,
+      orchestrator: true,
+      drafts: true,
+      settings: true,
+      push: true,
+      push_details: true,
+    })
   })
 
   it('never reads the notification signing key back, though its row is on the Away page', async () => {

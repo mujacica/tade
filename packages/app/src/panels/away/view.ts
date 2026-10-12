@@ -1,7 +1,7 @@
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
 import { bodyRows, type Line, panelSize } from '../frame.ts'
-import { AWAY_CONTROLS, type AwayPanel } from './state.ts'
+import { AWAY_CONTROLS, type AwayPanel, awayPanel } from './state.ts'
 
 // The AWAY VIEW panel: what is listening, the code to scan, who is asking to
 // be let in, and every device that already is.
@@ -155,6 +155,24 @@ export function away(panel: AwayPanel, ctx: PanelContext): Drawn {
   return box('AWAY VIEW', [...head, ...drawn.rows, ...foot], width, skin, { corner: 'esc' })
 }
 
+/**
+ * The panel's body with no box and no scrolling of its own: what is on, the
+ * code and its link, whoever is asking, the devices, and the foot.
+ *
+ * For the Away page of Settings, which draws it under the switch that turned
+ * the away view on — the same lines rather than a second drawing of them, so
+ * the two can never say different things about one code. The page is its own
+ * scrolling region; no device is chosen in it, because the keyboard there
+ * walks the settings.
+ */
+export function awayLines(view: AwayView, ctx: PanelContext, inner: number): Line[] {
+  return [
+    ...headOf(view, ctx, inner).slice(1),
+    ...middleOf(awayPanel(), view, ctx, inner).lines,
+    ...footOf(view, ctx, inner),
+  ]
+}
+
 /** What is on, and to whom. Always drawn, and always first. */
 function headOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
   const { skin } = ctx
@@ -199,12 +217,7 @@ function middleOf(
         .text('Nothing is listening, so there is nothing to pair with.', skin.hint)
         .build(),
     )
-    lines.push(
-      row()
-        .space()
-        .text('Turn it on in Settings → Away view, then open Tade again.', skin.hint)
-        .build(),
-    )
+    lines.push(row().space().text('Turn it on in Settings → Away view.', skin.hint).build())
   } else if (view.bind === 'lan' && view.reachable.length === 0) {
     // `routesOf` says there is no way off this machine. A code for an address
     // nobody can reach is worse than saying so.
@@ -241,15 +254,23 @@ function middleOf(
     for (const part of chunks(view.ticket.url, inner - 2)) {
       lines.push(row().space().text(part, skin.you).build())
     }
+    // How to use it, in what is true of this address: a phone can only follow
+    // a code to a name it can reach, and `localhost` on a phone is the phone.
+    const phone = view.bind === 'lan' || view.ticket.url.startsWith('https://')
+    const how = phone
+      ? 'Scan it with your phone, or open the link in a browser'
+      : 'Open the link in a browser on this machine'
     lines.push(
       row()
         .space()
-        .text(
-          `Scan it with the phone you want to use — ${left(view.ticket.secondsLeft)}`,
-          skin.hint,
-        )
+        .text(`${how} — ${left(view.ticket.secondsLeft)}`, skin.hint)
         .build(),
     )
+    if (!phone) {
+      for (const part of wrap('A phone needs a trusted hostname or lan to reach it.', inner - 3)) {
+        lines.push(row().space().text(part, skin.hint).build())
+      }
+    }
     lines.push(
       row()
         .space()

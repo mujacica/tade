@@ -327,15 +327,14 @@ export const PICTURES: readonly Picture[] = [
   },
   {
     file: 'away-settings.svg',
-    scenario: 'settings-away',
+    scenario: 'settings-away-on',
     crop: 'panel',
     about:
-      'The away view in Settings on a machine nobody has turned it on at: a switch per decision ' +
-      'and every one of them off — serve it at all, let a paired device act, let one talk to ' +
-      'Tade, let one save a draft workflow, let one install the page, let one keep what it last ' +
-      'saw, let one be sent notifications and let a notification name the work — with who may ' +
-      'reach it and the port between the first and the rest, and the restart mark on the ones ' +
-      'that are read when the listener is built.',
+      'The away view in Settings, turned on from its own switch: under it at once the code to ' +
+      'scan, the link to open in a browser, how to use them here and what a phone needs, and ' +
+      'every device with a chip per grant and Disconnect everything — then who may reach it, ' +
+      'the port, and what a paired device may do as short names under one heading, each on by ' +
+      'default and each still nothing until a device is granted it at this machine.',
   },
   {
     file: 'intake.svg',

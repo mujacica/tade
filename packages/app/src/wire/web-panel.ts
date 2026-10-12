@@ -1,10 +1,12 @@
 import { networkInterfaces } from 'node:os'
 import {
   ACTING_IS_NOT_YOU,
+  ACTING_IS_NOT_YOU_SHORT,
   DEVICES_SEEN_BY_AGENTS,
   LAN_IS_PLAINTEXT,
   routesOf,
   TALKING_IS_NOT_YOU,
+  TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
 import {
   blocksFor,
@@ -17,6 +19,7 @@ import {
   type Tickets,
 } from '@tade/web'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
+import type { Panel } from '../panels.ts'
 
 // What the pairing panel draws, and where a phone should go to reach this
 // machine.
@@ -49,6 +52,12 @@ export interface PanelFacts {
   streams: number
   problem: string | null
   now: number
+  /**
+   * Drawn on the Away page of Settings rather than in the panel: what a device
+   * may do is said there in the domain's short clauses, because each setting
+   * under it says its own and the whole sentence is one press away (`/away`).
+   */
+  brief?: boolean
 }
 
 /** How long a ticket is good for, and how long somebody has to answer the door. */
@@ -87,12 +96,28 @@ export function awayView(facts: PanelFacts): AwayView {
     acting: facts.surface.acting,
     talking: facts.surface.talking,
     configuring: facts.surface.configuring,
-    acts: ACTING_IS_NOT_YOU,
-    talks: TALKING_IS_NOT_YOU,
+    acts: facts.brief ? `${cap(ACTING_IS_NOT_YOU_SHORT)}.` : ACTING_IS_NOT_YOU,
+    talks: facts.brief ? `${cap(TALKING_IS_NOT_YOU_SHORT)}.` : TALKING_IS_NOT_YOU,
     lan: LAN_IS_PLAINTEXT,
-    agents: `${DEVICES_SEEN_BY_AGENTS[0]?.toUpperCase() ?? ''}${DEVICES_SEEN_BY_AGENTS.slice(1)}, which is why this list shows every device there is.`,
+    agents: `${cap(DEVICES_SEEN_BY_AGENTS)}, which is why this list shows every device there is.`,
     problem: facts.problem,
   }
+}
+
+/** A clause begun as a sentence. */
+function cap(said: string): string {
+  return `${said[0]?.toUpperCase() ?? ''}${said.slice(1)}`
+}
+
+/**
+ * Where the code is drawn now: the panel, the Away page of Settings, or
+ * nowhere. Settings draws it only on that page and not in a search, where the
+ * rows are every page's and a code among them would be nobody's.
+ */
+export function codeShownOn(panel: Panel | null): 'panel' | 'settings' | null {
+  if (panel?.kind === 'away') return 'panel'
+  const page = panel?.kind === 'settings' && panel.category === 'away' && panel.search === ''
+  return page ? 'settings' : null
 }
 
 /** Seconds left until a deadline, and never a negative number. */
