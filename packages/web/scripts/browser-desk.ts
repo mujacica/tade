@@ -56,7 +56,10 @@ const DESK = `(() => {
   }
   return {
     projects: shown('nav.projects'),
-    tree: shown('.rail-tree') && document.querySelectorAll('.rail-tree .tree-project').length > 0,
+    // Laid out, not only displayed: the tree's own display is a list's at
+    // every width, and the rail around it is what is off on a phone.
+    tree: (document.querySelector('.rail-tree')?.getClientRects().length ?? 0) > 0 &&
+      document.querySelectorAll('.rail-tree .tree-project').length > 0,
     side: shown('nav.side'),
     strip: shown('section.strip'),
     tabs: shown('nav.tabs'),

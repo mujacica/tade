@@ -337,3 +337,36 @@ export function stateIn(node, state) {
   void node.offsetWidth
   node.classList.add('changed')
 }
+
+/** Which sections somebody folded, for as long as the page is open. */
+const folded = new Set()
+
+/**
+ * Make a section fold: a press in its header that hides its body and shows
+ * it again, with `aria-expanded`, remembered by `key` while the page is
+ * open — so a delta, or coming back to the screen, leaves it as it was left.
+ */
+export function foldable(made, key) {
+  hints += 1
+  const id = `fold-body${hints}`
+  made.body.setAttribute('id', id)
+  const press = el('button', {
+    class: 'section-fold',
+    attrs: { type: 'button', 'aria-controls': id },
+  })
+  const set = (open) => {
+    made.body.hidden = !open
+    press.setAttribute('aria-expanded', open ? 'true' : 'false')
+    press.setAttribute('aria-label', `${open ? 'Fold' : 'Unfold'} ${made.heading.textContent}`)
+    made.node.classList.toggle('is-folded', !open)
+  }
+  press.addEventListener('click', () => {
+    const open = made.body.hidden
+    if (open) folded.delete(key)
+    else folded.add(key)
+    set(open)
+  })
+  set(!folded.has(key))
+  made.figure.after(press)
+  return press
+}

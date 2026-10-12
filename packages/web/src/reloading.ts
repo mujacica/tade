@@ -9,6 +9,9 @@ import { type FSWatcher, watch } from 'node:fs'
 // — and nothing else is. There is no setting for it, so there is no setting
 // to leave on.
 //
+// Asked for by the window's own listener (`liveReload`) and by nothing else,
+// so a test or the browser harness never has a page reloaded under it.
+//
 // When the folder the listener serves changes on disk, the listener drops what
 // it read and every open page is told (`Streams.reloadAll`); the page reloads
 // itself unless somebody has typed something into it (`boot.js`). A save is

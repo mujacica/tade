@@ -730,7 +730,7 @@ export function webServer(opts: ServerOptions): WebServer {
       // **Live reload, from the repository only** (`reloading.ts`): the
       // folder changed on disk, so what was read is dropped and every open
       // page is told. An installed Tade is never this.
-      if (fromSource() && bound.length > 0) {
+      if (opts.liveReload === true && fromSource() && bound.length > 0) {
         unwatch = watchFolder(assetsDir(), () => {
           files.reset()
           streams.reloadAll()

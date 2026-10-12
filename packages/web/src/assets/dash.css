@@ -305,7 +305,7 @@ main a.proj:hover .proj-go {
 }
 
 .stat.is-zero {
-  color: var(--chrome);
+  color: var(--heading);
 }
 
 .proj-foot {
@@ -842,4 +842,92 @@ main a.check-card:hover {
 .tree-count.is-working {
   background: color-mix(in srgb, var(--amber) 14%, transparent);
   color: var(--amber);
+}
+
+/* A row of filter chips: the one pressed is lit, each with its count. */
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-end: var(--s4);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s3);
+  border-radius: var(--r3);
+  background: var(--panel);
+  border: var(--border);
+  color: var(--body);
+  cursor: pointer;
+  transition:
+    background var(--ease),
+    border-color var(--ease),
+    color var(--ease);
+}
+
+.filter-chip:hover {
+  border-color: var(--control);
+  color: var(--bright);
+}
+
+.filter-chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--cyan) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
+  color: var(--cyan);
+}
+
+.filter-chip .num {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* The queue: a project's name over its rows, and what each waits on close under it. */
+.section > h3.aside {
+  margin-block-end: var(--s2);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.queue .waits {
+  margin-inline-start: 0;
+}
+
+/* A section's fold: a chevron at the end of its header, turned while open. */
+.section-fold {
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  min-height: var(--tap);
+  margin-inline-end: calc(-1 * var(--s2));
+  border-radius: var(--r1);
+  color: var(--tab);
+  cursor: pointer;
+}
+
+.section-fold::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-inline-end: 1.75px solid currentColor;
+  border-block-end: 1.75px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--ease);
+}
+
+.section-fold[aria-expanded="false"]::before {
+  transform: rotate(-45deg);
+}
+
+.section-fold:hover {
+  color: var(--bright);
+  background: var(--panel);
+}
+
+.section.is-folded {
+  margin-block-end: var(--s4);
 }

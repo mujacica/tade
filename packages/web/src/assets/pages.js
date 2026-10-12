@@ -86,32 +86,77 @@ export function nothingSaid(may, total, nothing) {
 export function queueScreen() {
   const node = el('div')
   const made = section('QUEUE', { top: true })
+  // **A filter by standing**, a chip each with its count: what can start next
+  // is one tap from the whole queue, and a chip at nought is not offered.
+  // The standing is `queueStateOf`'s, off the wire — this only counts it.
+  const chips = el('div', { class: 'filter', attrs: { role: 'group', 'aria-label': 'Show' } })
+  let only = null
+  const chipsBy = new Map()
+  for (const kind of [null, ...QUEUE_KINDS]) {
+    const chip = el('button', {
+      class: 'filter-chip',
+      attrs: { type: 'button', 'aria-pressed': kind === null ? 'true' : 'false' },
+    })
+    into(
+      chip,
+      el('span', { text: kind === null ? 'All' : QUEUE_WORDS[kind] }),
+      el('span', { class: 'num' }),
+    )
+    chip.addEventListener('click', () => {
+      only = kind
+      for (const [one, node] of chipsBy)
+        node.setAttribute('aria-pressed', one === only ? 'true' : 'false')
+      if (last !== null) draw(last)
+    })
+    chipsBy.set(kind, chip)
+    into(chips, chip)
+  }
+  let last = null
   const groups = el('div')
   const none = empty('nothing queued')
-  into(made.body, groups, none)
+  into(made.body, chips, groups, none)
   const left = el('p', { class: 'unknown' })
   into(node, made.node, left)
 
-  return {
-    node,
-    update(view) {
-      const rows = queueIn(view.store, null)
-      textIn(made.figure, count(rows.length))
-      made.figure.setAttribute('aria-label', `${rows.length} queued`)
-      none.hidden = rows.length > 0
-      const projects = [...new Set(rows.map((row) => row.project))].sort()
-      keyed(
-        groups,
-        projects,
-        (name) => name,
-        createQueueGroup,
-        (one, name) => fillQueueGroup(one, name, rows, view),
-      )
-      const n = omitted(view.store, 'queue')
-      textIn(left, n === 0 ? '' : `${n} more pieces of queued work are not on this page`)
-      left.hidden = n === 0
-    },
+  const draw = (view) => {
+    last = view
+    const every = queueIn(view.store, null)
+    for (const [kind, chip] of chipsBy) {
+      const n = kind === null ? every.length : every.filter((row) => row.state.kind === kind).length
+      textIn(chip.lastChild, String(n))
+      chip.hidden = kind !== null && n === 0 && only !== kind
+    }
+    const rows = only === null ? every : every.filter((row) => row.state.kind === only)
+    textIn(made.figure, count(every.length))
+    made.figure.setAttribute('aria-label', `${rows.length} queued`)
+    none.hidden = rows.length > 0
+    const projects = [...new Set(rows.map((row) => row.project))].sort()
+    keyed(
+      groups,
+      projects,
+      (name) => name,
+      createQueueGroup,
+      (one, name) => fillQueueGroup(one, name, rows, view),
+    )
+    const n = omitted(view.store, 'queue')
+    textIn(left, n === 0 ? '' : `${n} more pieces of queued work are not on this page`)
+    left.hidden = n === 0
+    chips.hidden = every.length === 0
   }
+
+  return { node, update: draw }
+}
+
+/** The standings a filter chip is offered for, in the order they are drawn. */
+const QUEUE_KINDS = ['ready', 'waiting', 'scheduled', 'held', 'paused']
+
+/** Each standing's word on its chip: `queueMark`'s own, made a heading. */
+const QUEUE_WORDS = {
+  ready: 'Next',
+  waiting: 'Waiting',
+  scheduled: 'Scheduled',
+  held: 'Held',
+  paused: 'Paused',
 }
 
 function createQueueGroup() {

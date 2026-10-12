@@ -66,6 +66,10 @@ export interface Halving {
 /** Which halves this surface hands over, and nothing about what they do. */
 export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOptions> {
   return {
+    // The window's own listener asks for its pages to reload when their
+    // files change — which is only ever true from the repository
+    // (`reloading.ts`); a test's listener never asks.
+    liveReload: true,
     // **Handed over only where the setting says so**, so with acting off
     // there is no `WebActing` and no acting route — a crafted call meets the
     // same `404` as a path nobody built. `unlocked()` is read again at every

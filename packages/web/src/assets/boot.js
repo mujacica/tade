@@ -746,13 +746,18 @@ function wireKeys() {
         return
       case 'j':
       case 'k': {
-        const rows = [...shown.main.querySelectorAll('li > a, li > div > a')]
+        // Rows, and the cards that stand in for rows: a piece of work that
+        // wants you and a project are each one stop, like a row.
+        const rows = [
+          ...shown.main.querySelectorAll('li > a, li > div > a, a.card-link, a.proj, a.tile'),
+        ].filter((one) => one.offsetParent !== null)
         if (rows.length === 0) return
         event.preventDefault()
         on = Math.max(0, Math.min(rows.length - 1, on + (event.key === 'j' ? 1 : -1)))
         rows[on]?.focus()
         for (const [at, row] of rows.entries()) {
-          classOn(row.closest('li'), 'on', at === on)
+          const item = row.closest('li')
+          if (item !== null) classOn(item, 'on', at === on)
         }
         return
       }

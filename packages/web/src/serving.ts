@@ -93,6 +93,13 @@ export interface ServerOptions {
    */
   readingFor: (reach: Reach) => WebReading
   /**
+   * Watch the page's own files and tell open pages when they change
+   * (`reloading.ts`). The window's own listener asks for it; a test or the
+   * browser harness does not, so a file somebody else saves mid-run reloads
+   * nothing under them. Even asked, it is only ever on from the repository.
+   */
+  liveReload?: boolean
+  /**
    * Ask the person at the machine. The one authorisation nothing remote can
    * obtain, and the reason a stolen ticket is worth nothing.
    */

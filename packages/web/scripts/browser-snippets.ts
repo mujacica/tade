@@ -12,6 +12,18 @@
 // focused, what is selected, what axe found.
 
 /**
+ * Every animation that ends, ended: a screen's rise and its tiles' (`motion.css`).
+ *
+ * What is measured — contrast, the size of a target — is the page a person
+ * reads, not a frame into a fade: a box mid-translate measures 43.9999px tall
+ * and a label at half opacity fails a contrast it does not have. The ones
+ * that never end (an agent breathing, a shimmer) are not waited for.
+ */
+const SETTLED = `Promise.all(document.getAnimations()
+  .filter((one) => one.effect && one.effect.getTiming().iterations !== Infinity)
+  .map((one) => one.finished.catch(() => null)))`
+
+/**
  * What one task screen's control blocks look like.
  *
  * Which verbs have a control, which have a reason instead, which targets are
@@ -105,7 +117,7 @@ export const SAID_MOVED = `[...document.querySelectorAll('main [role="status"]')
  * One snippet rather than four, because four would mean four layout passes of
  * the same page and the answers would be about four different moments.
  */
-export const SHAPE = `(() => {
+export const SHAPE = `${SETTLED}.then(() => (() => {
   const small = []
   for (const one of document.querySelectorAll('a, button')) {
     const box = one.getBoundingClientRect()
@@ -129,16 +141,22 @@ export const SHAPE = `(() => {
     room: window.innerWidth,
     small,
   }
-})()`
+})())`
 
 /**
  * axe, on the page as it stands, and **serious or critical only**.
  *
  * A harness that failed on every `moderate` is one somebody turns off. What is
  * asked here is the half that is not a matter of taste.
+ *
+ * **After the page has settled**: a screen rises in and its tiles follow
+ * (`motion.css`), and contrast measured a frame into a fade is the contrast of
+ * text a person never reads at that opacity. So every animation that ends is
+ * waited for first; the ones that never do — an agent breathing, a shimmer —
+ * are not, and are measured as they are.
  */
-export const AXE = `axe.run({ runOnly: { type: 'tag',
-  values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }).then((answer) =>
+export const AXE = `${SETTLED}.then(() => axe.run({ runOnly: { type: 'tag',
+  values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } })).then((answer) =>
   answer.violations
     .filter((one) => one.impact === 'serious' || one.impact === 'critical')
     .map((one) => ({ id: one.id, impact: one.impact, nodes: one.nodes.length,

@@ -25,6 +25,7 @@ import {
   el,
   empty,
   figureIn,
+  foldable,
   glyphOf,
   hintOf,
   into,
@@ -135,6 +136,7 @@ export function nowScreen(ctx = null) {
   const made = glanceTiles(tiles)
 
   const wants = section('WANTS YOU')
+  foldable(wants, 'overview:wants')
   wants.node.setAttribute('id', 'wants')
   const inbox = el('a', { class: 'chip chip-link t-wants', attrs: { href: '/inbox' } })
   into(inbox, icon('inbox'), el('span'))
@@ -145,6 +147,7 @@ export function nowScreen(ctx = null) {
   into(wants.body, cards, clear)
 
   const projects = section('PROJECTS')
+  foldable(projects, 'overview:projects')
   const grid = el('div', { class: 'projects-grid' })
   const left = el('p', { class: 'unknown' })
   into(projects.body, grid, left)
@@ -152,6 +155,7 @@ export function nowScreen(ctx = null) {
   // Every agent at work, here on a phone and a tablet; at a desk the dock
   // beside the work has the same list (`desk.js`), and this one steps aside.
   const working = section('AGENTS')
+  foldable(working, 'overview:agents')
   working.node.classList.add('ov-agents')
   const agentList = el('ul', { class: 'rows' })
   const idle = empty('none running')
@@ -161,12 +165,14 @@ export function nowScreen(ctx = null) {
   // own crossings, kept for a glance back — and only those, so a reload
   // starts it over and its `?` says so.
   const recent = section('CHANGES')
+  foldable(recent, 'overview:changes')
   const recentWhy = hintOf('Since this page opened. A reload starts it over.')
   recent.figure.before(recentWhy.press)
   const recentList = el('ul', { class: 'rows' })
   into(recent.body, recentWhy.body, recentList)
 
   const signals = section('ELSEWHERE')
+  foldable(signals, 'overview:elsewhere')
   const signalList = el('ul', { class: 'signals' })
   const shown = SIGNALS.map((one) => signalOf(one))
   into(signalList, ...shown.map((one) => one.node))
