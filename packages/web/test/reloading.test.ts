@@ -24,13 +24,15 @@ describe('watching the folder', () => {
   it('says once per burst of writes, a beat after the last', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-reload-'))
     let said = 0
-    const stop = watchFolder(dir, () => (said += 1), 40)
+    // A settle long enough that a loaded machine writing three files in a
+    // row still writes them inside it: the claim is one reload per burst.
+    const stop = watchFolder(dir, () => (said += 1), 400)
     try {
-      for (const name of ['a.css', 'b.js', 'a.css']) await writeFile(join(dir, name), name)
-      const until = Date.now() + 3_000
+      await Promise.all(['a.css', 'b.js', 'c.css'].map((name) => writeFile(join(dir, name), name)))
+      const until = Date.now() + 5_000
       while (said === 0 && Date.now() < until) await new Promise((done) => setTimeout(done, 20))
-      // A beat more, to see that the burst stayed one.
-      await new Promise((done) => setTimeout(done, 150))
+      // Longer than the settle again, to see that the burst stayed one.
+      await new Promise((done) => setTimeout(done, 600))
       expect(said).toBe(1)
     } finally {
       stop()
