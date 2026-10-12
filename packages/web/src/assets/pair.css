@@ -48,16 +48,6 @@
   letter-spacing: var(--tight);
 }
 
-.pair-gone {
-  display: flex;
-  gap: var(--s2);
-  align-items: flex-start;
-}
-
-.pair-gone .ic {
-  color: var(--red);
-}
-
 .steps {
   display: grid;
   counter-reset: step;

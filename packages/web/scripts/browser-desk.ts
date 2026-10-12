@@ -127,10 +127,7 @@ export async function deskAt(
   try {
     // The pane's own sentence: at a desk the strip says the conversation is
     // not granted either, and that is a different fact.
-    await until(
-      page,
-      `document.querySelector('main').innerText.includes('Its screen is not granted')`,
-    )
+    await until(page, `document.querySelector('main').innerText.includes('Screen not granted')`)
     const words = String(await page.evaluate('document.body.innerText'))
     if (words.includes(ROW)) found('lanes', at, 'fail', 'a row of its screen is on the page')
     else found('lanes', at, 'pass', 'told it is not granted, and shown no row of it')

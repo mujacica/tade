@@ -64,7 +64,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | the credential | `src/sessions.ts` |
 | the device list | `src/devices.ts` — `<home>/web-devices.jsonl` |
 | the headers and the content policy | `src/headers.ts` |
-| what a refusal says | `src/errors.ts` |
+| what a refusal says | `src/errors.ts` — and what the **page** draws for one is `src/assets/trouble.js`: a title and a fix per kind, never the body's own text, drawn by `ui.js`'s `problem`/`answerIn` (red, an icon, one press). A new kind there is a row here or `trouble-client.test.ts` fails |
 | the config | `surfaces.web` in `@tade/core`'s `away.ts`, read only by `surfaceOf`; `awayProblems` says any key that is on and cannot mean what it says |
 | the sentences that may never get comfortable | `packages/core/src/away.ts`, re-exported by `src/surface.ts` |
 | the browser's files | `src/assets/` — `.html`/`.css`/`.js`/`.png`/`.webmanifest` only, **never `.ts`** |

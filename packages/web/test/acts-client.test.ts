@@ -361,11 +361,14 @@ describe('what happens to what somebody typed', () => {
       clear: true,
       said: 'written down',
       moved: false,
+      trouble: null,
     })
     for (const error of ERRORS) {
       const came = afterAnswer({ status: 409, body: { error } }, 'something changed')
       expect(came.clear, error).toBe(false)
       expect(came.said, error).toBe('something changed')
+      // Trouble is drawn as trouble, except the world having moved, which is news.
+      expect(came.trouble === null, error).toBe(error === 'gone' || error === 'stale')
     }
   })
 

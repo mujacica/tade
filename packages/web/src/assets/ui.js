@@ -60,3 +60,54 @@ export function note(word, sentence, drawn) {
   into(node, line, hint.body)
   return node
 }
+
+/**
+ * A problem: what went wrong, red, with its icon, in a few words, the one
+ * thing to do, and a press where the page can do it (`trouble.js` has the
+ * words). Hidden until `problemIn` gives it one; `role="alert"`, so a screen
+ * reader hears it once as it arrives.
+ */
+export function problem() {
+  const node = el('div', { class: 'ui-problem', attrs: { role: 'alert' } })
+  const words = el('span', { class: 'ui-problem-words' })
+  into(words, el('strong'), el('span'))
+  const press = el('button', { class: 'press small', attrs: { type: 'button' } })
+  press.hidden = true
+  into(node, icon('alert'), words, press)
+  node.hidden = true
+  return node
+}
+
+/**
+ * Show a problem, or hide it with null. `action` is `{ word, run }` for the one
+ * press that answers it, or nothing where the fix is at the machine.
+ */
+export function problemIn(node, trouble, action = null) {
+  node.hidden = trouble === null
+  if (trouble === null) return
+  const [, words, press] = node.children
+  textIn(words.firstChild, trouble.title)
+  textIn(words.lastChild, trouble.fix)
+  press.hidden = action === null
+  if (action !== null) {
+    textIn(press, action.word)
+    press.onclick = action.run
+  }
+}
+
+/**
+ * A status line that is Tade's sentence when a press worked and a problem when
+ * it did not: the one node every press already has, so no screen grows a
+ * second one. `trouble` is `troubleOf`'s answer, null for a success.
+ */
+export function answerIn(node, said, trouble) {
+  node.classList.toggle('ui-problem', trouble !== null)
+  node.classList.toggle('is-inline', trouble !== null)
+  if (trouble === null) {
+    textIn(node, said)
+    return
+  }
+  const words = el('span', { class: 'ui-problem-words' })
+  into(words, el('strong', { text: trouble.title }), el('span', { text: trouble.fix }))
+  node.replaceChildren(icon('alert'), words)
+}

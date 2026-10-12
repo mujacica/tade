@@ -24,6 +24,8 @@
 //   the project and the state at the act. A page that lied here would get a
 //   `403`, which is the right way round.
 
+import { troubleOf } from './trouble.js'
+
 /** The verbs a task's page draws a control for, in the order they are drawn. */
 export const SHOWN = [
   'answer',
@@ -308,6 +310,12 @@ export function afterAnswer(answer, sentence) {
     // are the two it should not apologise for, so they are named rather than
     // lumped in with a failure.
     moved: answer?.body?.error === 'gone' || answer?.body?.error === 'stale',
+    // What went wrong and what to do, for a refusal that is trouble (`trouble.js`);
+    // null for a success and for the world having moved, which is news, not trouble.
+    trouble:
+      ok || answer?.body?.error === 'gone' || answer?.body?.error === 'stale'
+        ? null
+        : troubleOf(answer),
   }
 }
 

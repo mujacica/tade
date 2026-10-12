@@ -36,7 +36,8 @@ import { el, into } from './dom.js'
 import { clockOf, count, duration } from './figures.js'
 import { CACHE_PREFIX } from './install.js'
 import { intakeWaiting, omitted, projectsOf, rowsOf } from './store.js'
-import { callout } from './ui.js'
+import { TROUBLES } from './trouble.js'
+import { note, problem, problemIn } from './ui.js'
 
 /**
  * The whole of what may be on that disk.
@@ -180,10 +181,23 @@ export function lastSeenScreen(view, now) {
   // note). Then the counts it last knew, as tiles, and when.
   const head = el('div', { class: 'page-head' })
   into(head, el('h1', { text: 'Tade isn’t answering' }))
-  const when = callout(
-    `${since === null ? 'Last seen: unknown' : `Last seen ${duration(since)} ago`}${told === null ? '' : ` · as of ${told}`}. This device cannot reach the machine: the laptop may be asleep, or Tade closed there. Below is what this device was last told — not what is happening now, and nothing here can be acted on.`,
+  // What happened and the one thing to do, as every problem on the page is;
+  // then when it was last seen, with what the tiles are one `?` away.
+  const trouble = problem()
+  problemIn(trouble, TROUBLES.offline, {
+    word: 'Try again',
+    run: () => globalThis.location.reload(),
+  })
+  const when = el('p', {
+    class: 'unknown',
+    text: `${since === null ? 'last seen: unknown' : `last seen ${duration(since)} ago`}${told === null ? '' : ` · as of ${told}`}`,
+  })
+  const last = note(
+    'last known',
+    'What this device was last told — not what is happening now — and nothing here can be acted on. Tade answers only while its window is open on the machine.',
+    'clock',
   )
-  into(node, head, when)
+  into(node, head, trouble, when, last)
   const tiles = el('div', { class: 'tiles' })
   for (const [said, n] of [
     ['Wants you', view.wantsYou],
@@ -201,17 +215,8 @@ export function lastSeenScreen(view, now) {
     )
     into(tiles, tile)
   }
-  into(
-    node,
-    tiles,
-    el('p', {
-      class: 'ui-callout',
-      // **What to do, rather than a promise this screen cannot keep.** It has
-      // no beat and patches nothing — there is nothing to refresh into — so
-      // saying it fills in by itself would be a page waiting for something
-      // that is never coming.
-      text: 'Tade answers only while its window is open on the machine. Open it there, then reload this page.',
-    }),
-  )
+  // **What to do, rather than a promise this screen cannot keep**: it has no
+  // beat and patches nothing, so its press is *try again*, never a wait.
+  into(node, tiles)
   return { node, update() {} }
 }

@@ -33,7 +33,7 @@ import { nothingSaid } from './pages.js'
 import { pathOf, requestPath, safeHref, taskPath } from './routes.js'
 import { createLocally, dl, dlIn, fillLocally, rowFor, sayIn, section } from './rows.js'
 import { intakeAt, intakeOf, intakeWaiting, mayRead, omitted, sourcesOf } from './store.js'
-import { panel } from './ui.js'
+import { answerIn, panel } from './ui.js'
 
 /* ── what has been handed over ─────────────────────────────────────────────── */
 
@@ -422,7 +422,7 @@ function approveIn(parent, ctx) {
     void ctx.ask('POST', '/api/act/intake', body).then((answer) => {
       press.disabled = false
       const came = afterAnswer(answer, ctx.sentence(answer))
-      textIn(said, came.said)
+      answerIn(said, came.said, came.trouble)
       textIn(press, wordsFor('intake', held ?? {}))
       // **The key is kept across a retry and minted again only once it
       // happened**: a press whose answer never arrived is a press whose repeat

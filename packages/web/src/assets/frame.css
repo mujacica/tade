@@ -586,6 +586,23 @@ main[tabindex="-1"]:focus {
   text-transform: uppercase;
 }
 
+/* A section that explains itself does it with a `?` beside its heading. */
+.section-head:has(> .hint) > :is(h1, h2) {
+  flex: 0 1 auto;
+}
+
+.section-head > .hint + .figure {
+  margin-inline-start: auto;
+}
+
+.section > .hint-body {
+  max-width: 60ch;
+  margin-block: calc(-1 * var(--s1)) var(--s3);
+  color: var(--heading);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
 .section-head .figure {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

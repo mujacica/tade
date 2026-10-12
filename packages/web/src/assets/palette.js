@@ -34,6 +34,7 @@ import { MORE, NAV, pathOf, taskPath } from './routes.js'
 import { keyOf } from './screens.js'
 import { agentsOf, chatOf, mayRead, projectsOf, talkOf, wantsYou } from './store.js'
 import { reasonFor, saidOn, whoSaid } from './talk.js'
+import { answerIn } from './ui.js'
 
 /** How many lines of the conversation the bar shows under the field. */
 const LINES = 4
@@ -319,7 +320,7 @@ export function palette(ctx) {
     going = false
     const came = afterAnswer(answer, ctx.sentence(answer))
     if (came.ok) felt()
-    textIn(status, came.said)
+    answerIn(status, came.said, came.trouble)
     return came
   }
 

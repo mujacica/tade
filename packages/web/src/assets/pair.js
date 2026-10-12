@@ -13,8 +13,12 @@
 // address bar as it is read (`boot.js`); it is presented once and burned on
 // the claim, so a refusal or a deadline means a new code, never a retry; the
 // person at the machine decides; and what letting this device in will let it
-// read is said **at the moment of deciding**, beside the press — the one
-// sentence on this screen that may not be folded away.
+// read is said **at the moment of deciding**, beside the press: *read only*,
+// with the whole of what it reads one `?` away.
+//
+// **Trouble is red and short** (`trouble.js`): an expired code, a refusal or a
+// machine that is not answering is what happened and what to do, at the top of
+// the card with a press to start over — never a quiet step back.
 //
 // **A phone scans and a computer opens a link** (`formOf`): the page guesses
 // which it is on from the browser and the pointer, and says the step that fits
@@ -27,7 +31,8 @@
 
 import { el, into, textIn } from './dom.js'
 import { icon, iconIn, wordmark } from './icons.js'
-import { callout } from './ui.js'
+import { TROUBLES, troubleOf } from './trouble.js'
+import { note, problem, problemIn } from './ui.js'
 
 const OPEN = {
   key: 'open',
@@ -129,16 +134,11 @@ export function pairScreen(ctx) {
   into(mark, wordmark())
   const title = el('h1', { text: 'Pair this device', attrs: { id: 'pair-head' } })
 
-  // What the machine could not be reached about, before anything else.
-  const gone = el('p', { class: 'ui-callout is-bad pair-gone' })
-  into(
-    gone,
-    icon('alert'),
-    el('span', {
-      text: 'Tade isn’t answering. The machine may be asleep, or Tade closed there.',
-    }),
-  )
-  gone.hidden = ctx.outside?.() !== 'unreachable'
+  // What went wrong, before anything else: the machine not answering, or the
+  // code that ran out — red, in a few words, with the one thing to do.
+  const trouble = problem()
+  const again = { word: 'Start over', run: () => ctx.go('/pair', { replace: true, reload: true }) }
+  if (ctx.outside?.() === 'unreachable') problemIn(trouble, TROUBLES.offline, again)
 
   let form = formOf(
     globalThis.navigator?.userAgent,
@@ -175,9 +175,12 @@ export function pairScreen(ctx) {
   field.value = deviceWord(globalThis.navigator?.userAgent)
   const press = el('button', { class: 'press pair-press', attrs: { type: 'button' } })
   into(press, el('span', { text: 'Pair' }), icon('chevron'))
-  // **Said where somebody is deciding**, and so not behind a `?`.
-  const why = callout(
-    'Tade will ask at the machine before this device is let in. It will be able to read every project, task, note, check and figure — including what you have typed into Tade, as you typed it — and to change nothing.',
+  // **Said where somebody is deciding**: what letting it in grants, as two
+  // words beside the press and the whole of it one `?` away.
+  const why = note(
+    'read only',
+    'Tade asks at the machine first. This device will read every project, task, note, check and figure — what you typed into Tade included — and change nothing.',
+    'checks',
   )
   into(controls, label, field, press, why)
 
@@ -192,7 +195,6 @@ export function pairScreen(ctx) {
   into(tick, icon('check'))
   into(paired, tick, el('span', { text: 'Paired' }))
 
-  const said = el('p', { attrs: { role: 'status' } })
   // A guess about a device is wrong for somebody: one press says otherwise.
   const other = el('button', { class: 'press ghost pair-other', attrs: { type: 'button' } })
   const otherIcon = icon('laptop')
@@ -202,7 +204,7 @@ export function pairScreen(ctx) {
     form = OTHER[form].form
     draw()
   })
-  into(card, mark, title, gone, steps, controls, waiting, paired, said, other)
+  into(card, mark, title, trouble, steps, controls, waiting, paired, other)
   into(node, card)
 
   const ticket = ctx.ticket()
@@ -235,7 +237,7 @@ export function pairScreen(ctx) {
     const pair = async () => {
       if (phase !== 'idle') return
       phase = 'asking'
-      textIn(said, '')
+      problemIn(trouble, null)
       draw()
       const answer = await ctx.ask('POST', '/api/pair', { ticket, label: field.value })
       if (answer.status === 201) {
@@ -249,7 +251,7 @@ export function pairScreen(ctx) {
       // was presented, so the way on is a new code, from step two.
       phase = 'refused'
       draw()
-      textIn(said, `${ctx.sentence(answer)} Scan a new code in the window.`)
+      problemIn(trouble, troubleOf(answer, 'pair'), again)
     }
     press.addEventListener('click', () => void pair())
     field.addEventListener('keydown', (event) => {

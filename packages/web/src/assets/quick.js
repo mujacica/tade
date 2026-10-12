@@ -16,11 +16,12 @@
 // because telling an agent something is a sentence and a card is no place to
 // write one.
 
-import { bodyFor, confirms, controlsFor } from './acts.js'
+import { afterAnswer, bodyFor, confirms, controlsFor } from './acts.js'
 import { classOn, el, felt, into, textIn } from './dom.js'
 import { icon } from './icons.js'
 import { taskPath } from './routes.js'
 import { keyOf } from './screens.js'
+import { answerIn } from './ui.js'
 
 /** The verbs a card offers a press for, in the order they are drawn. */
 export const QUICK = ['answer', 'done', 'park']
@@ -66,7 +67,8 @@ export function quickActs(ctx, opts = {}) {
     going = false
     press.disabled = false
     if (answer.status === 200) felt()
-    textIn(said, answer.status === 200 ? (answer.body?.said ?? 'done') : ctx.sentence(answer))
+    const came = afterAnswer(answer, ctx.sentence(answer))
+    answerIn(said, came.said, came.trouble)
   }
 
   const pressOf = (verb, word, kind, typed, drawn) => {

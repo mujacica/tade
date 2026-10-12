@@ -179,11 +179,7 @@ async function coldOffline(run: PwaRun, page: Page): Promise<void> {
     // **Said, not left blank.** An offline page that drew the frame and
     // nothing else would be the §5.10 failure in its purest form: nothing is
     // running, said by a page that simply could not ask.
-    if (
-      !words.includes('cannot reach') &&
-      !words.includes('not answering') &&
-      !words.includes('pair')
-    ) {
+    if (!words.includes('reach tade') && !words.includes('answering') && !words.includes('pair')) {
       throw new Error('the shell loaded and said nothing about not being able to ask')
     }
     run.found(

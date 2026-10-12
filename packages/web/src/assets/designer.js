@@ -36,7 +36,7 @@ import {
   section,
 } from './rows.js'
 import { mayRead, omitted, workflowAt, workflowsOf } from './store.js'
-import { panel } from './ui.js'
+import { answerIn, note, panel } from './ui.js'
 
 /* ── the workflows ─────────────────────────────────────────────────────────── */
 
@@ -345,7 +345,7 @@ function formIn(parent, ctx) {
     const body = draftBody(held, scope, field.id, box.value, key, ctx.revOf())
     void ctx.ask('POST', '/api/draft/save', body).then((answer) => {
       const came = afterAnswer(answer, ctx.sentence(answer))
-      textIn(said, came.said)
+      answerIn(said, came.said, came.trouble)
       if (came.clear) box.value = ''
     })
   }
@@ -426,7 +426,11 @@ const SHOWS = {
 function shapeIn(parent) {
   const columns = el('div', { class: 'layers' })
   const none = el('p', { class: 'empty nothing' })
-  const says = el('p', { class: 'unknown' })
+  const says = note(
+    'per request',
+    'What one run of this would make — which repository, which names, what it may spend — is answered on the request it is stamped for.',
+    'inbox',
+  )
   into(parent, columns, none, says)
   return {
     update(row, view) {
@@ -453,12 +457,7 @@ function shapeIn(parent) {
             places.filter((place) => place.depth === n),
           ),
       )
-      sayIn(
-        says,
-        places.length === 0
-          ? ''
-          : 'what one run of this would actually make — which repository, which names, what it may spend — is answered on the request it is stamped for',
-      )
+      says.hidden = places.length === 0
     },
   }
 }

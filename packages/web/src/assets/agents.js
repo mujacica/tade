@@ -26,6 +26,7 @@ import { taskMark } from './glyphs.js'
 import { taskPath } from './routes.js'
 import { section } from './rows.js'
 import { agentsOf, omitted } from './store.js'
+import { troubleOf, troubleSaid, UNKNOWN_TROUBLE } from './trouble.js'
 import { panel } from './ui.js'
 
 /** How often a page that is looking asks again: the window's own beat. */
@@ -39,13 +40,11 @@ const EVERY_MS = 2000
  * the page lying four times out of five.
  */
 export const WHY_SAID = {
-  'not granted':
-    'Its screen is not granted to this device. That is a control in the away panel, at the machine.',
-  'no agent': 'No agent is running on this task, so there is no screen to show.',
-  'not read yet': 'Reading its screen — it arrives with the window’s next look.',
-  'could not read':
-    'Its screen could not be read just now. The window at the machine still shows it.',
-  'not here': 'This task is not on this device, or is not there.',
+  'not granted': 'Screen not granted — grant it at the machine',
+  'no agent': 'No agent running',
+  'not read yet': 'Reading the screen…',
+  'could not read': 'Couldn’t read the screen — the window at the machine still shows it',
+  'not here': 'Not on this device',
 }
 
 /**
@@ -306,7 +305,7 @@ export function agentPane(where, ctx) {
         answer = got.body
         failed = null
       } else {
-        failed = ctx.sentence(got)
+        failed = troubleSaid(troubleOf(got) ?? UNKNOWN_TROUBLE)
       }
       draw()
     }

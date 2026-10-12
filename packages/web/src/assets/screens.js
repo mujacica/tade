@@ -50,7 +50,7 @@ import {
   section,
 } from './rows.js'
 import { omitted, projectAt, queueIn, spendFold, spendSince, taskAt, tasksIn } from './store.js'
-import { note, panel } from './ui.js'
+import { answerIn, note, panel } from './ui.js'
 
 /* The overview is `overview.js`: the landing screen has grown its own file. */
 
@@ -117,9 +117,9 @@ export function projectScreen(where, ctx) {
       textIn(
         gone,
         project === null
-          ? 'This project is not on this device, or is not there.'
+          ? 'Not on this device'
           : shut
-            ? 'Closed. Nothing in it was deleted, and any agent working in it is still working.'
+            ? 'Closed — nothing deleted, agents still working'
             : '',
       )
       for (const one of [agents.node, queue.node, checks.node, spend.node, tiles, strip]) {
@@ -178,27 +178,24 @@ export function projectScreen(where, ctx) {
 function foldsOf(checks, spend) {
   const made = {
     checks: dl(),
-    quiet: el('p', { class: 'unknown' }),
+    quiet: note('not run here', 'A check nobody ran here is not a check that passed.', 'clock'),
     spend: dl(),
     outside: el('div', { class: 'outside' }),
     planWhy: el('p', { class: 'aside' }),
     planSaid: el('p', { class: 'num' }),
-    planNot: el('p', {
-      class: 'unknown',
-      text: 'not in the total — a subscription already paid for these',
-    }),
     noMoney: el('p', { class: 'unknown' }),
-    floor: el('p', {
-      class: 'unknown',
-      text: '— some tasks are not on this page, so this is a floor',
-    }),
+    floor: note(
+      'a floor',
+      'Some tasks are not on this page, so this is at least what was spent.',
+      'alert',
+    ),
     scope: el('p', { class: 'unknown', text: '— not granted to this device' }),
     // What period the figures above cover. Said here as well as on the Spend
     // screen, because a dash on either reads as *nothing was spent* without
     // it (`sinceSaid`).
     covers: el('p', { class: 'unknown' }),
   }
-  into(made.outside, made.planWhy, made.planSaid, made.planNot)
+  into(made.outside, made.planWhy, made.planSaid)
   into(checks.body, made.checks, made.quiet)
   into(spend.body, made.scope, made.spend, made.outside, made.noMoney, made.floor, made.covers)
   return made
@@ -222,7 +219,8 @@ function checksIn(section_, made, tasks) {
     ['red', count(red), `${red} red`],
     ['not run here', count(quiet), `${quiet} not run here`],
   ])
-  sayIn(made.quiet, quiet > 0 ? '— a check nobody ran here is not a check that passed' : null)
+  // The row says *not run here*; what that is not is one `?` away.
+  made.quiet.hidden = quiet === 0
 }
 
 /**
@@ -258,10 +256,7 @@ function spendIn(section_, made, tasks, partial, may, since = null) {
     textIn(made.planWhy, plan.why)
     textIn(made.planSaid, plan.said)
   }
-  sayIn(
-    made.noMoney,
-    fold.unknown > 0 ? `— ${fold.unknown} of these reported no money at all` : null,
-  )
+  sayIn(made.noMoney, fold.unknown > 0 ? `— ${fold.unknown} unreported` : null)
   made.floor.hidden = !fold.partial
 }
 
@@ -436,7 +431,7 @@ function blockFor(verb, ctx) {
     press.disabled = false
     if (deny !== null) deny.disabled = false
     const came = afterAnswer(answer, ctx.sentence(answer))
-    textIn(said, came.said)
+    answerIn(said, came.said, came.trouble)
     // **Only what actually happened clears the box.** A `409` is the world
     // having moved, and throwing away a paragraph somebody typed on a phone
     // because of it is the one failure they cannot undo.
@@ -597,12 +592,12 @@ function partsOf(state, agent, work, checks, rest) {
       'the whole of what it asked is in the window, at the machine',
       'laptop',
     ),
-    stalled: el('p', { class: 'unknown', text: 'nothing has moved here for a while' }),
+    stalled: note('stalled', 'Nothing has moved here for a while.', 'clock'),
     queue: panel('ul', 'queue'),
     agent: dl(),
-    noHarness: el('p', { class: 'unknown', text: 'no harness was written down' }),
+    noHarness: el('p', { class: 'unknown', text: 'no harness' }),
     work: dl(),
-    noBranch: el('p', { class: 'unknown', text: 'this task has no branch of its own' }),
+    noBranch: el('p', { class: 'unknown', text: 'no branch of its own' }),
     shared: note(
       'shared checkout',
       'other agents work in this checkout, so uncommitted work here is nobody’s',
@@ -634,16 +629,15 @@ function partsOf(state, agent, work, checks, rest) {
 }
 
 function stateIn(made, task, view) {
-  const mark = taskMark(task.state)
-  textIn(made.word, mark.word)
-  toneOn(made.word, mark.tone)
+  // The state's word is the pill beside the title; here only why.
+  made.word.hidden = true
   textIn(made.why, task.reason)
   const approval = task.approval
   // **The tool's name, and never its arguments.** A command's arguments are the
   // field that reliably holds a path and a credential, and the place to read
   // the whole of one is the window, at the machine, where the person who has to
   // decide is.
-  sayIn(made.asked, approval ? `waiting for you to answer: ${approval.tool}` : null)
+  sayIn(made.asked, approval ? approval.tool : null)
   made.askedWhy.hidden = !approval
   made.stalled.hidden = !task.stalled
   const queue = view.store.rows.queue.get(task.id)
@@ -674,7 +668,7 @@ function askedIn(made, task, may) {
     return
   }
   const said = task.intent ?? task.title
-  into(made.body, proseOf(said, true) ?? empty('nobody wrote down what this is for'))
+  into(made.body, proseOf(said, true) ?? empty('nothing written down'))
   if (task.intent !== null && task.title !== null) {
     into(made.body, el('p', { class: 'aside', text: 'as a title' }), proseOf(task.title))
   }

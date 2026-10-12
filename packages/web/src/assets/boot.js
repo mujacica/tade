@@ -876,6 +876,6 @@ start().catch(() => {
   // request did not finish. Said in the page's own words rather than left blank.
   document.body.replaceChildren(
     el('main', { attrs: { id: 'main' } }),
-    el('p', { class: 'empty', text: 'Tade is not answering. Reload this page.' }),
+    el('p', { class: 'empty', text: 'Tade isn’t answering · Reload this page' }),
   )
 })

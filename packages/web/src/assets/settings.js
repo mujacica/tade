@@ -38,7 +38,8 @@ import {
 import { el, hintOf, into, textIn } from './dom.js'
 import { section } from './rows.js'
 import { keyOf } from './screens.js'
-import { callout, note, panel } from './ui.js'
+import { troubleOf, UNKNOWN_TROUBLE } from './trouble.js'
+import { answerIn, note, panel } from './ui.js'
 
 /**
  * The screen: built once on open, again after a change, and **never by a
@@ -50,7 +51,11 @@ export function settingsScreen(ctx) {
   const top = section('SETTINGS', { top: true })
   const said = el('p', { class: 'empty nothing' })
   const withheld = el('p', { class: 'unknown' })
-  const keys = callout('A key or a token is said as set or not set and is never shown here.')
+  const keys = note(
+    'keys hidden',
+    'A key or a token is said as set or not set, and never shown here.',
+    'settings',
+  )
   const groups = el('div')
   into(top.body, said, withheld, keys)
   into(node, top.node, groups)
@@ -83,7 +88,7 @@ export function settingsScreen(ctx) {
       answer = got.body
     } else {
       answer = { granted: false, groups: [], withheld: 0 }
-      textIn(said, ctx.sentence(got))
+      answerIn(said, '', troubleOf(got) ?? UNKNOWN_TROUBLE)
     }
     draw()
   }
@@ -168,7 +173,7 @@ export function settingsScreen(ctx) {
       asked = false
       settle()
       const came = afterAnswer(got, ctx.sentence(got))
-      textIn(status, came.said)
+      answerIn(status, came.said, came.trouble)
       // What is true now goes beside the box, and the box is left alone: a
       // `409` is the world having moved, not a reason to throw away a value.
       const now = got.body?.rev

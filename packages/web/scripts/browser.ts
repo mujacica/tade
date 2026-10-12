@@ -593,7 +593,7 @@ async function pairIn(page: Page, origin: string, ticket: string, at: string) {
     await page.goto(`${origin}/pair#t=${ticket}`, { waitUntil: READY })
     await page.waitForSelector('#label', { timeout: 10_000 })
     await page.fill('#label', 'the harness')
-    await page.click('button.press')
+    await page.click('button.pair-press')
     await page.waitForURL(`${origin}/`, { timeout: 15_000 })
     await page.waitForSelector('header .brand', { timeout: 10_000 })
     // And the ticket is gone from the address bar, which is rule two of the

@@ -324,3 +324,51 @@ a.ui-card:hover,
   flex-wrap: wrap;
   gap: 0 var(--s4);
 }
+
+/* ── problem: what went wrong, and the one thing to do ─────────────────────── */
+
+/*
+  Red, with its icon, in two short parts — what happened, strong; what to do,
+  quieter — and a press at the end where the page can do it. One shape for a
+  refused press, a failed read, an expired code and a machine that is not
+  answering, so trouble always looks like trouble and never like a sentence.
+*/
+.ui-problem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: center;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  background: color-mix(in srgb, var(--red) 10%, var(--panel));
+  color: var(--bright);
+}
+
+.ui-problem > .ic {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--red);
+}
+
+.ui-problem-words {
+  display: grid;
+  gap: 2px;
+  line-height: var(--lead-tight);
+}
+
+.ui-problem-words > span {
+  color: var(--pressed);
+  font-size: var(--step--1);
+}
+
+/* The same, on a status line under a press: no press of its own, a step tighter. */
+.ui-problem.is-inline {
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: var(--s2) var(--s3);
+}
+
+/* A status line written empty after a problem keeps the class; empty is gone. */
+.ui-problem:empty {
+  display: none;
+}

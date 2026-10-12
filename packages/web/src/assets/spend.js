@@ -28,24 +28,18 @@ export function spendScreen() {
   const outside = el('div', { class: 'outside' })
   const planWhy = el('p', { class: 'aside' })
   const planSaid = el('p', { class: 'num big-under' })
-  const planNot = el('p', {
-    class: 'unknown',
-    text: 'not in the total — a subscription already paid for these',
-  })
-  into(outside, planWhy, planSaid, planNot)
+  // `plan.why` already says *not in the total*; nothing more on the page.
+  into(outside, planWhy, planSaid)
   // The caveats are built once and shown or hidden, so a figure somebody is
   // reading does not move down the page because a new one appeared under it.
   const scope = callout(
     'This device was not granted what the work costs, so every figure here is a dash. What each device may read is decided at the machine, and the Devices screen lists what this one was given.',
   )
-  const floor = el('p', {
-    class: 'unknown',
-    text: '— some tasks are not on this page, so this is a floor',
-  })
+  const floor = el('p', { class: 'unknown', text: '≥ some tasks are not on this page' })
   const noMoney = el('p', { class: 'unknown' })
   const unrated = el('p', {
     class: 'unknown',
-    text: '— some of these tokens ran on a model no rate here knows',
+    text: '~ some tokens ran on a model with no known rate',
   })
   // **The period, said rather than denied.** The sentence that used to be here
   // said this was not a figure for a day — and it is one: the window folds
@@ -111,7 +105,7 @@ export function spendScreen() {
             : tokens.unpriced.replace(/ unpriced$/, ''),
         ],
       ])
-      planEquivalentIn({ outside, planWhy, planSaid, planNot }, fold)
+      planEquivalentIn({ outside, planWhy, planSaid }, fold)
       caveatsIn(caveats, fold, view.may.spend, spendSince(view.store))
       const rows = plansOf(view.store)
       textIn(plans.figure, count(rows.length))

@@ -12,16 +12,7 @@
 
 import { ringIn, ringOf } from './charts.js'
 import { classOn, el, empty, into, keyed, textIn, toneOn } from './dom.js'
-import {
-  ageSaid,
-  count,
-  money,
-  onPlan,
-  planBar,
-  sinceSaid,
-  tokensSaid,
-  untilSaid,
-} from './figures.js'
+import { ageSaid, count, untilSaid } from './figures.js'
 import { checkMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { NOT_OFFERED, OFF, ON, PUSH_SAID, pushState, subscribe, unsubscribe } from './push.js'
@@ -46,16 +37,14 @@ import {
   findingsOf,
   notesOf,
   omitted,
-  plansOf,
   projectsOf,
   queueIn,
   reviewsOf,
   rowsOf,
-  spendFold,
-  spendSince,
   tasksIn,
 } from './store.js'
-import { callout, countIn, count as countOf, panel } from './ui.js'
+import { troubleOf, UNKNOWN_TROUBLE } from './trouble.js'
+import { answerIn, countIn, count as countOf, note, panel } from './ui.js'
 
 /**
  * What an empty list says, which is **two different nothings**.
@@ -315,19 +304,17 @@ export function reviewsScreen() {
   // Without the grant the link to each review is withheld, so **every** task
   // reads as unoffered. Said before the lists rather than left to look like a
   // repository where nobody reviews anything.
-  const scope = el('p', { class: 'ui-callout' })
+  const scope = note(
+    'reviews not granted',
+    'This device was not granted the reviews, so nothing here can say whether a branch was offered for merge.',
+    'reviews',
+  )
   into(node, scope, open.node, quiet.node)
 
   return {
     node,
     update(view) {
       scope.hidden = view.may.reviews
-      textIn(
-        scope,
-        view.may.reviews
-          ? ''
-          : 'This device was not granted the reviews, so nothing here can say whether a branch was offered for merge.',
-      )
       const { offered, unoffered } = reviewsOf(view.store)
       textIn(open.figure, count(offered.length))
       open.figure.setAttribute('aria-label', `${offered.length} offered for merge`)
@@ -365,17 +352,14 @@ export function reviewsScreen() {
  */
 export function findingsScreen() {
   const node = el('div')
-  const made = section('FINDINGS', { top: true })
+  const made = section('FINDINGS', {
+    top: true,
+    hint: 'A judge answers questions; it never decides. A probability is not a verdict, and the account under one is the agent’s own testimony.',
+  })
   const list = panel('ul', 'rows')
   const none = empty('no findings')
   into(made.body, list, none)
-  into(
-    node,
-    made.node,
-    callout(
-      'A judge answers questions; it never decides. A probability is not a verdict, and the account under one is the agent’s own testimony.',
-    ),
-  )
+  into(node, made.node)
 
   return {
     node,
@@ -443,7 +427,7 @@ export function notesScreen(ctx = null) {
     asking = false
     more.disabled = false
     if (answer.status !== 200 || answer.body === null) {
-      textIn(moreSaid, ctx.sentence(answer))
+      answerIn(moreSaid, '', troubleOf(answer) ?? UNKNOWN_TROUBLE)
       return
     }
     const page = answer.body
@@ -518,17 +502,12 @@ export function devicesScreen(ctx) {
   // the machine, and `pushState` reads the phone's own answer rather than a
   // row in a file — so a permission somebody took back in their browser's
   // settings draws as blocked here instead of as on.
-  const telling = section('NOTIFICATIONS')
+  const telling = section('NOTIFICATIONS', {
+    hint: 'A count of what wants you and nothing else — no project, no task, no title — unless details are turned on at the machine. Relayed by your browser’s push service, which cannot read it; sent only while Tade’s window is open and the machine awake, and never caught up.',
+  })
   const tellingSaid = el('p', { attrs: { role: 'status' } })
   const tell = el('button', { class: 'press' })
-  into(
-    telling.body,
-    tellingSaid,
-    tell,
-    callout(
-      'A notification says how many pieces of work want you and nothing else — no project, no task, no title — unless details are turned on at the machine. It is relayed by your browser’s own push service, which cannot read it, and it is sent only while Tade’s window is open and the machine is awake. Nothing is caught up afterwards.',
-    ),
-  )
+  into(telling.body, tellingSaid, tell)
   /** What the *phone* says, which is the one thing this screen cannot derive. */
   let standing = null
   /**
@@ -569,7 +548,9 @@ export function devicesScreen(ctx) {
     drawTelling()
   })
 
-  const others = section('DEVICES')
+  const others = section('DEVICES', {
+    hint: 'Every device let in is listed here; disconnecting one is done at the machine and needs no network. Nothing on that machine is contained: anything there runs as you.',
+  })
   const list = panel('ul', 'rows')
   const loading = el('p', { class: 'empty', text: 'asking…' })
   into(others.body, list, loading)
@@ -592,18 +573,10 @@ export function devicesScreen(ctx) {
       return
     }
     out.disabled = false
-    textIn(said, ctx.sentence(answer))
+    answerIn(said, '', troubleOf(answer) ?? UNKNOWN_TROUBLE)
   })
 
-  into(
-    node,
-    mine.node,
-    telling.node,
-    others.node,
-    callout(
-      'Every device that has been let in is listed here, and disconnecting one is done at the machine and needs no network. Nothing running on that machine is contained: anything there runs as you.',
-    ),
-  )
+  into(node, mine.node, telling.node, others.node)
 
   return {
     node,
@@ -740,12 +713,8 @@ export function nowhereScreen() {
   const node = el('div', { class: 'column' })
   into(
     node,
-    el('h1', { text: 'Nothing here' }),
-    el('p', {
-      class: 'empty',
-      text: 'This address is not one of Tade’s screens. It may belong to a newer version than this page.',
-    }),
-    el('a', { text: 'Go to the overview', attrs: { href: '/' } }),
+    el('h1', { text: 'Not found' }),
+    el('a', { class: 'press', text: 'Overview', attrs: { href: '/' } }),
   )
   return { node, update() {} }
 }

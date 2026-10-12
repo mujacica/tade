@@ -13,7 +13,7 @@
 // Nothing here decides anything about a task. `state`, `reason`, `wantsYou` and
 // every count came off the wire already derived; what is here is the drawing.
 
-import { classOn, el, glyphOf, into, markIn, proseOf, stateIn, textIn } from './dom.js'
+import { classOn, el, glyphOf, hintOf, into, markIn, proseOf, stateIn, textIn } from './dom.js'
 import { ageSaid, shortClockOf } from './figures.js'
 import {
   checkMark,
@@ -48,9 +48,16 @@ export function section(title, opts = {}) {
     attrs: { id, 'aria-label': sentence(title) },
   })
   const figure = el('span', { class: 'figure' })
-  into(head, heading, figure)
+  into(head, heading)
+  // What the section is, when it needs saying: one `?` beside the heading,
+  // the sentence under it only when asked — never a paragraph on the page.
+  const hint = opts.hint === undefined ? null : hintOf(opts.hint)
+  if (hint !== null) into(head, hint.press)
+  into(head, figure)
   const body = el('div')
-  into(node, head, body)
+  into(node, head)
+  if (hint !== null) into(node, hint.body)
+  into(node, body)
   return { node, body, figure, heading }
 }
 

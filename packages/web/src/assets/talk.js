@@ -6,6 +6,7 @@ import { nothingSaid } from './pages.js'
 import { section } from './rows.js'
 import { keyOf } from './screens.js'
 import { chatOf, omitted, talkOf } from './store.js'
+import { answerIn } from './ui.js'
 
 // The conversation with Tade, and the one box on this page that sends words.
 //
@@ -191,7 +192,7 @@ export function composerOf(ctx, words) {
     const answer = await ctx.ask('POST', `/api/ask/${what}`, body)
     going = false
     const came = afterAnswer(answer, ctx.sentence(answer))
-    textIn(said, came.said)
+    answerIn(said, came.said, came.trouble)
     if (came.clear && what === 'ask') {
       box.value = ''
       draft.set('')

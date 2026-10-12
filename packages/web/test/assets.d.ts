@@ -373,7 +373,13 @@ declare module '*/assets/acts.js' {
   export function afterAnswer(
     answer: unknown,
     sentence: string,
-  ): { ok: boolean; clear: boolean; said: string; moved: boolean }
+  ): {
+    ok: boolean
+    clear: boolean
+    said: string
+    moved: boolean
+    trouble: { title: string; fix: string } | null
+  }
   export function confirms(verb: string): boolean
   export function wordsFor(verb: string, row: unknown): string
   export function headingFor(verb: string): string
@@ -511,4 +517,18 @@ declare module '*/assets/pair.js' {
   export function formOf(agent: string | undefined, coarse: boolean | undefined): string
   export function stepOf(ticket: boolean, phase: string): number
   export function deviceWord(agent: string | undefined): string
+}
+
+declare module '*/assets/trouble.js' {
+  export interface Trouble {
+    title: string
+    fix: string
+  }
+  export const TROUBLES: Record<string, Trouble>
+  export const UNKNOWN_TROUBLE: Trouble
+  export function troubleOf(
+    answer: { status: number; body: unknown } | null | undefined,
+    where?: string,
+  ): Trouble | null
+  export function troubleSaid(trouble: Trouble): string
 }
