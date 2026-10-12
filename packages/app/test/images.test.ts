@@ -1,11 +1,13 @@
+import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   asPaste,
+  type ClipboardCopy,
   clipboardImage,
-  clipboardState,
   filePaths,
   handOffFiles,
   imagePaths,
@@ -13,6 +15,7 @@ import {
   readImage,
   shellQuote,
   shellWords,
+  watchClipboard,
 } from '../src/images.ts'
 import { imageMenuItems } from '../src/panels/menu/state.ts'
 
@@ -157,23 +160,193 @@ describe('who a picture is for', () => {
   })
 })
 
+/** What a watch told, and a way to wait for the next of it that needs no clock. */
+function listening() {
+  const told: (ClipboardCopy | null)[] = []
+  let wake = () => {}
+  return {
+    told,
+    hear: (found: ClipboardCopy | null) => {
+      told.push(found)
+      wake()
+    },
+    heard: (count: number) =>
+      new Promise<void>((resolve) => {
+        const check = () => {
+          if (told.length >= count) resolve()
+          else wake = check
+        }
+        check()
+      }),
+  }
+}
+
+/** Is this process still there? */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Which process group a process is in, or null where nothing can be asked. */
+function groupOf(pid: number): string | null {
+  try {
+    return execFileSync('ps', ['-o', 'pgid=', '-p', String(pid)], { encoding: 'utf8' }).trim()
+  } catch {
+    return null
+  }
+}
+
+/** Waits on a thing the machine does, never on a sleep it is measured over. */
+async function eventually(ok: () => boolean, what: string): Promise<void> {
+  const deadline = Date.now() + 10_000
+  while (!ok()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
 describe('a picture on the clipboard', () => {
-  it('is told apart by which copy it is, on macOS and Linux', async () => {
-    expect(await clipboardState('darwin', async () => ({ ok: true, stdout: '324 1\n' }))).toEqual({
-      copy: '324',
-      image: true,
-    })
-    expect(await clipboardState('darwin', async () => ({ ok: true, stdout: '325 0' }))).toEqual({
-      copy: '325',
-      image: false,
-    })
-    expect(await clipboardState('darwin', async () => ({ ok: false, stdout: '' }))).toBeNull()
-    expect(
-      await clipboardState('linux', async (command) => ({
-        ok: command === 'wl-paste',
-        stdout: command === 'wl-paste' ? 'image/png\ntext/plain\n' : '',
-      })),
-    ).toMatchObject({ image: true })
-    expect(await clipboardState('win32')).toBeNull()
+  afterEach(() => {
+    vi.useRealTimers()
   })
+
+  it('is watched on macOS by one process of its own, told a line at a time, until stopped', async () => {
+    // A stand-in for osascript that says its own pid as the copy, then a line
+    // split across two writes, then something that is not a line of its at all.
+    const script = `process.stdout.write(process.pid + ' 1\\n12'); setTimeout(() => process.stdout.write(' 0\\nnonsense\\n'), 20); setInterval(() => {}, 1000)`
+    const { told, hear, heard } = listening()
+    const watch = watchClipboard(hear, {
+      platform: 'darwin',
+      watcher: { command: process.execPath, args: ['-e', script] },
+    })
+    await heard(2)
+    const pid = Number(told[0]?.copy)
+    expect(told).toEqual([
+      { copy: String(pid), image: true },
+      { copy: '12', image: false },
+    ])
+    // Its own process group, or Terminal names the window after it.
+    const theirs = groupOf(pid)
+    if (theirs) expect(theirs).toBe(String(pid))
+    watch.stop()
+    watch.stop()
+    await eventually(() => !alive(pid), 'the watcher to be stopped')
+    // Stopped is not "cannot tell": nothing more is said.
+    expect(told).toHaveLength(2)
+  })
+
+  it('says a watcher that ended by itself as unknown, and starts another a while later, not at once', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { told, hear, heard } = listening()
+    const watch = watchClipboard(hear, {
+      platform: 'darwin',
+      watcher: { command: process.execPath, args: ['-e', `process.stdout.write('5 0\\n')`] },
+    })
+    await heard(2)
+    expect(told).toEqual([{ copy: '5', image: false }, null])
+    // The next one waits on a timer, which is the only thing that starts it.
+    expect(vi.getTimerCount()).toBe(1)
+    await vi.advanceTimersByTimeAsync(30_000)
+    await heard(3)
+    expect(told[2]).toEqual({ copy: '5', image: false })
+    watch.stop()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('is asked on Linux every few seconds, one ask at a time, until stopped', async () => {
+    vi.useFakeTimers()
+    const { told, hear } = listening()
+    let types = 'image/png\ntext/plain\n'
+    const watch = watchClipboard(hear, {
+      platform: 'linux',
+      exec: async (command) => ({
+        ok: command === 'wl-paste',
+        stdout: command === 'wl-paste' ? types : '',
+      }),
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(told).toEqual([{ copy: 'image/png\ntext/plain', image: true }])
+    types = 'text/plain\n'
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(told.at(-1)).toEqual({ copy: 'text/plain', image: false })
+    watch.stop()
+    await vi.advanceTimersByTimeAsync(9_000)
+    expect(told).toHaveLength(2)
+  })
+
+  it('falls back to xclip on Linux, and says null where nothing can read it', async () => {
+    vi.useFakeTimers()
+    const xclip = listening()
+    const none = listening()
+    const watches = [
+      watchClipboard(xclip.hear, {
+        platform: 'linux',
+        exec: async (command) => ({
+          ok: command === 'xclip',
+          stdout: command === 'xclip' ? 'TARGETS\nimage/png\n' : '',
+        }),
+      }),
+      watchClipboard(none.hear, {
+        platform: 'linux',
+        exec: async () => ({ ok: false, stdout: '' }),
+      }),
+    ]
+    await vi.advanceTimersByTimeAsync(0)
+    for (const watch of watches) watch.stop()
+    expect(xclip.told).toEqual([{ copy: 'TARGETS\nimage/png', image: true }])
+    expect(none.told).toEqual([null])
+  })
+
+  it('is told nothing on Linux once stopped, even an answer already on its way', async () => {
+    vi.useFakeTimers()
+    const { told, hear } = listening()
+    watchClipboard(hear, {
+      platform: 'linux',
+      exec: async () => ({ ok: true, stdout: 'image/png\n' }),
+    }).stop()
+    await vi.advanceTimersByTimeAsync(9_000)
+    expect(told).toEqual([])
+  })
+
+  it('is told nothing anywhere else', () => {
+    const { told, hear } = listening()
+    watchClipboard(hear, { platform: 'win32' }).stop()
+    expect(told).toEqual([])
+  })
+
+  // The real watcher, on the one platform it runs on. It reads the
+  // pasteboard's count and the kinds of thing on it — never what was copied.
+  it.runIf(process.platform === 'darwin')(
+    'ends itself on macOS once the window that started it is gone, crash or not',
+    async () => {
+      const images = fileURLToPath(new URL('../src/images.ts', import.meta.url))
+      // A window that starts the watch, says the watcher's pid once it has
+      // heard from it, and goes without stopping anything — as a crash would.
+      const window = `
+        import { execFileSync } from 'node:child_process'
+        const { watchClipboard } = await import(${JSON.stringify(images)})
+        watchClipboard((found) => {
+          if (!found) return
+          const pid = execFileSync('pgrep', ['-P', String(process.pid), 'osascript'], { encoding: 'utf8' }).trim()
+          process.stdout.write(pid + ' ' + found.copy + '\\n', () => process.exit(0))
+        })
+        setInterval(() => {}, 1000)
+      `
+      const child = spawn(process.execPath, ['--input-type=module', '-e', window], {
+        stdio: ['ignore', 'pipe', 'inherit'],
+      })
+      let said = ''
+      child.stdout.on('data', (chunk: Buffer) => {
+        said += chunk.toString('utf8')
+      })
+      await new Promise((resolve) => child.once('close', resolve))
+      const [pid, copy] = said.trim().split(' ')
+      expect(copy).toMatch(/^\d+$/)
+      await eventually(() => !alive(Number(pid)), 'the watcher to end with its window')
+    },
+  )
 })

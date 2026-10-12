@@ -302,7 +302,7 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         // fails whichever test happened to move it (`view/last-frame.ts`).
         checkLastFrame: true,
         // Never the machine's own clipboard: what a developer copied is not a test's to read.
-        clipboard: { state: async () => null, image: async () => null },
+        clipboard: { watch: () => ({ stop: () => {} }), image: async () => null },
         // Never the machine's own desktop either: what would have opened is
         // recorded for the test to read, and nothing is spawned.
         open: async (opener) => {

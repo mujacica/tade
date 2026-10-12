@@ -1,9 +1,11 @@
+import { type ChildProcess, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
+import type { Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
-import { runProgram } from '@tade/core'
+import { located, runProgram } from '@tade/core'
 
 // Pictures: screenshots dropped on the window or pasted into it.
 //
@@ -166,37 +168,211 @@ const run: Run = async (command, args) => {
 }
 
 /**
- * Whether the clipboard holds a picture, and which copy it is: a number that
- * changes whenever anything is copied, so a picture already offered, or
- * attached, is not offered again. Null where it cannot be told.
- *
- * Asked, never waited on: Cmd+V on a picture pastes nothing in most macOS
- * terminals — they paste text, and a screenshot has none — so the window has
- * to notice the picture itself to offer it.
+ * What is on the clipboard: which copy it is — a number that changes whenever
+ * anything is copied, so a picture already offered, or attached, is not
+ * offered again — and whether it is a picture.
  */
-export async function clipboardState(
-  platform: NodeJS.Platform = process.platform,
-  exec: Run = run,
-): Promise<{ copy: string; image: boolean } | null> {
-  if (platform === 'darwin') {
-    const asked = await exec('osascript', [
-      '-l',
-      'JavaScript',
-      '-e',
-      'ObjC.import("AppKit"); var pb = $.NSPasteboard.generalPasteboard; var t = ObjC.deepUnwrap(pb.types) || []; pb.changeCount + " " + (t.some(function (x) { return /png|tiff/i.test(x) }) ? 1 : 0)',
-    ])
-    const [copy, image] = asked.stdout.trim().split(' ')
-    return asked.ok && copy ? { copy, image: image === '1' } : null
+export interface ClipboardCopy {
+  copy: string
+  image: boolean
+}
+
+/** A clipboard being watched. Stopping it ends whatever was watching; twice is fine. */
+export interface ClipboardWatch {
+  stop(): void
+}
+
+/** Watch the clipboard: told what is on it, null where that cannot be told, until stopped. */
+export type WatchClipboard = (told: (found: ClipboardCopy | null) => void) => ClipboardWatch
+
+/** How often the clipboard is asked, where it cannot be watched. */
+export const CLIPBOARD_ASK_MS = 3_000
+
+/** How long after a watcher ended by itself another is started. */
+const WATCH_AGAIN_MS = 30_000
+
+/**
+ * The macOS watcher, run by `osascript`: the pasteboard's count looked at once
+ * a second inside it, and a line — the count, then 1 for a picture — written
+ * only when the count moved. It ends itself once Tade is no longer its parent:
+ * a window killed outright runs no stop, and what it started is handed to
+ * launchd, which is what `getppid` says from then on.
+ */
+const WATCHER = `function run(argv) {
+  ObjC.import('AppKit'); ObjC.import('unistd')
+  var tade = Number(argv[0]), out = $.NSFileHandle.fileHandleWithStandardOutput
+  var pb = $.NSPasteboard.generalPasteboard, last = -1
+  while ($.getppid() === tade) {
+    var copy = pb.changeCount
+    if (copy !== last) {
+      last = copy
+      var image = (ObjC.deepUnwrap(pb.types) || []).some(function (t) { return /png|tiff/i.test(t) })
+      out.writeData($(copy + ' ' + (image ? 1 : 0) + '\\n').dataUsingEncoding($.NSUTF8StringEncoding))
+    }
+    delay(1)
   }
-  if (platform === 'linux') {
-    const listed =
-      (await exec('wl-paste', ['--list-types'])).stdout ||
-      (await exec('xclip', ['-selection', 'clipboard', '-t', 'TARGETS', '-o'])).stdout
-    if (!listed) return null
-    // No count to tell copies apart: the types stand in for one.
-    return { copy: listed.trim(), image: /image\/(png|jpeg|tiff)/.test(listed) }
+}`
+
+export interface WatchOptions {
+  platform?: NodeJS.Platform
+  /** What watches, where the clipboard is watched: `osascript` running `WATCHER` unless given. */
+  watcher?: { command: string; args: readonly string[] }
+  /** What asks, where the clipboard is asked. */
+  exec?: Run
+  /** How often it is asked. */
+  everyMs?: number
+}
+
+/**
+ * The clipboard, watched: `told` hears which copy is on it and whether that is
+ * a picture as soon as it can be told, again whenever it changes, and null
+ * where it cannot be told — until `stop`.
+ *
+ * Cmd+V on a picture pastes nothing in most macOS terminals — they paste
+ * text, and a screenshot has none — so the window has to notice the picture
+ * itself to offer it. It used to ask: an `osascript` every three seconds while
+ * the orchestrator's line was open, twenty processes a minute, each spawned on
+ * the thread that draws. On macOS one watcher now lives for as long as it is
+ * wanted, in its own process group like everything Tade starts, and costs
+ * nothing between copies; Linux has no count to watch, so it is still asked
+ * every few seconds, through `runProgram`. Anywhere else nothing is told.
+ *
+ * A watcher that ends by itself is said as null and started again a while
+ * later, never at once, so a machine where it cannot run is not asked twenty
+ * times a minute instead.
+ */
+export function watchClipboard(
+  told: (found: ClipboardCopy | null) => void,
+  options: WatchOptions = {},
+): ClipboardWatch {
+  const platform = options.platform ?? process.platform
+  if (platform === 'darwin')
+    return watched(
+      told,
+      options.watcher ?? {
+        command: 'osascript',
+        args: ['-l', 'JavaScript', '-e', WATCHER, String(process.pid)],
+      },
+    )
+  if (platform === 'linux')
+    return asked(told, options.exec ?? run, options.everyMs ?? CLIPBOARD_ASK_MS)
+  return { stop: () => {} }
+}
+
+/** A watcher's line: the count, then 1 for a picture. Null for anything else. */
+function copyOf(line: string): ClipboardCopy | null {
+  const [copy, image] = line.trim().split(' ')
+  return copy && /^\d+$/.test(copy) ? { copy, image: image === '1' } : null
+}
+
+/** One long-lived watcher, read a line at a time. */
+function watched(
+  told: (found: ClipboardCopy | null) => void,
+  watcher: { command: string; args: readonly string[] },
+): ClipboardWatch {
+  let child: ChildProcess | null = null
+  let again: NodeJS.Timeout | undefined
+  let stopped = false
+  const later = () => {
+    if (stopped) return
+    told(null)
+    again = setTimeout(start, WATCH_AGAIN_MS)
+    again.unref()
   }
-  return null
+  function start(): void {
+    let one: ChildProcess
+    try {
+      // Its own process group, or Terminal names the window after it for as
+      // long as it lives, which here is as long as the line is open.
+      one = spawn(located(watcher.command), [...watcher.args], {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+    } catch {
+      later()
+      return
+    }
+    child = one
+    let ended = false
+    const end = () => {
+      if (ended) return
+      ended = true
+      if (child === one) child = null
+      later()
+    }
+    // A spawn that fails does so asynchronously, and an unhandled `error` on a
+    // child takes the window down with it.
+    one.once('error', end)
+    one.once('close', end)
+    let partial = ''
+    one.stdout?.setEncoding('utf8')
+    one.stdout?.on('data', (chunk: string) => {
+      const lines = (partial + chunk).split('\n')
+      partial = lines.pop() ?? ''
+      for (const line of lines) {
+        const found = copyOf(line)
+        if (found && !stopped) told(found)
+      }
+    })
+    // Never what keeps the window's process alive: its stop, or Tade being
+    // gone, ends it.
+    one.unref()
+    ;(one.stdout as Socket | null)?.unref()
+  }
+  start()
+  return {
+    stop: () => {
+      if (stopped) return
+      stopped = true
+      clearTimeout(again)
+      try {
+        child?.kill()
+      } catch {
+        // Already gone, which is what was wanted.
+      }
+    },
+  }
+}
+
+/** Asked every `everyMs`, one ask at a time. */
+function asked(
+  told: (found: ClipboardCopy | null) => void,
+  exec: Run,
+  everyMs: number,
+): ClipboardWatch {
+  let stopped = false
+  let asking = false
+  const ask = () => {
+    if (asking) return
+    asking = true
+    void askLinux(exec)
+      .catch(() => null)
+      .then((found) => {
+        if (!stopped) told(found)
+      })
+      .finally(() => {
+        asking = false
+      })
+  }
+  ask()
+  const timer = setInterval(ask, everyMs)
+  timer.unref()
+  return {
+    stop: () => {
+      stopped = true
+      clearInterval(timer)
+    },
+  }
+}
+
+/** What Linux's clipboard holds, asked of wl-paste, then xclip. */
+async function askLinux(exec: Run): Promise<ClipboardCopy | null> {
+  const listed =
+    (await exec('wl-paste', ['--list-types'])).stdout ||
+    (await exec('xclip', ['-selection', 'clipboard', '-t', 'TARGETS', '-o'])).stdout
+  if (!listed) return null
+  // No count to tell copies apart: the types stand in for one.
+  return { copy: listed.trim(), image: /image\/(png|jpeg|tiff)/.test(listed) }
 }
 
 /**

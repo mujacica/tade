@@ -1,14 +1,16 @@
-import { basename } from 'node:path'
-import type { LaneId } from '@tade/core'
+import { basename, join } from 'node:path'
+import { type LaneId, taskDir } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import {
   asPaste,
+  type ClipboardCopy,
+  type ClipboardWatch,
   clipboardImage,
-  clipboardState,
   handOffFiles,
   isImagePath,
   readImage,
   shellQuote,
+  watchClipboard,
 } from '../images.ts'
 import {
   activeTerminal,
@@ -34,9 +36,6 @@ import {
 // message it came with: dropped or pasted, it is asked who it is for, and what
 // goes to the orchestrator waits for the next thing you say and nothing after.
 
-/** How often the clipboard is looked at for a picture, while the orchestrator's line is open. */
-const CLIPBOARD_MS = 3_000
-
 /** What this subject needs from the rest of the window. */
 export interface ImagesDeps {
   /** Look at the lanes sooner than the next beat: something was just typed at one. */
@@ -57,15 +56,14 @@ export class Images implements Subject {
   private readonly deps: ImagesDeps
   /**
    * A picture on the clipboard, noticed while the orchestrator's line is open:
-   * the copy offered, the copy already taken or turned down, and when it was
-   * last looked at.
+   * the copy offered, and the copy already taken or turned down.
    */
-  private readonly clipboard: {
-    offered: string | null
-    seen: string | null
-    askedAt: number
-    asking: boolean
-  } = { offered: null, seen: null, askedAt: Number.NEGATIVE_INFINITY, asking: false }
+  private readonly clipboard: { offered: string | null; seen: string | null } = {
+    offered: null,
+    seen: null,
+  }
+  /** The clipboard being watched, which it is only while the orchestrator's line is open. */
+  private watch: ClipboardWatch | null = null
 
   constructor(wire: Wiring, deps: ImagesDeps) {
     this.wire = wire
@@ -129,7 +127,8 @@ export class Images implements Subject {
    * What goes with the prompt of an agent the orchestrator starts while
    * answering you: the files you attached, copied into the task's own folder.
    */
-  handOff(dir: string): Promise<{ note: string; images: WorkerImageFile[] }> {
+  handOff(task: string): Promise<{ note: string; images: WorkerImageFile[] }> {
+    const dir = join(taskDir(this.wire.opts.home, task), 'attachments')
     return handOffFiles(this.deps.answering(), dir)
   }
 
@@ -217,29 +216,33 @@ export class Images implements Subject {
   }
 
   /**
-   * While the orchestrator's line is open, notice a picture on the clipboard
-   * and offer it: pasting one with Cmd+V sends nothing a terminal can pass on.
-   * Asked every few seconds at most, and only then.
+   * While the orchestrator's line is open, the clipboard is watched for a
+   * picture to offer: pasting one with Cmd+V sends nothing a terminal can pass
+   * on. Only then — opening the line starts the watch, and closing it or the
+   * window stops it (`stop`), because what the watch costs is a process.
    */
   look(): void {
     if (this.wire.state.dictation === null) {
       this.clipboard.offered = null
+      this.stop()
       return
     }
-    if (this.clipboard.asking || this.wire.now() - this.clipboard.askedAt < CLIPBOARD_MS) return
-    this.clipboard.asking = true
-    this.clipboard.askedAt = this.wire.now()
-    void (this.wire.opts.clipboard?.state ?? clipboardState)()
-      .then((found) => {
-        const offer = found?.image && found.copy !== this.clipboard.seen ? found.copy : null
-        if (offer !== this.clipboard.offered) {
-          this.clipboard.offered = offer
-          this.wire.draw()
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        this.clipboard.asking = false
-      })
+    if (this.watch) return
+    this.watch = (this.wire.opts.clipboard?.watch ?? watchClipboard)((found) => this.heard(found))
+  }
+
+  /** Stop watching the clipboard: the line closed, or the window did. Twice is fine. */
+  stop(): void {
+    this.watch?.stop()
+    this.watch = null
+  }
+
+  /** What is on the clipboard now: offered, unless it is the copy already taken or turned down. */
+  private heard(found: ClipboardCopy | null): void {
+    const open = this.wire.state.dictation !== null
+    const offer = open && found?.image && found.copy !== this.clipboard.seen ? found.copy : null
+    if (offer === this.clipboard.offered) return
+    this.clipboard.offered = offer
+    this.wire.draw()
   }
 }

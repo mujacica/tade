@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal } from '@earendil-works/pi-tui'
-import { type Arming, attentionFor, taskDir, titlesOf } from '@tade/core'
+import { type Arming, attentionFor, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -513,12 +513,9 @@ export class App {
     return this.closed
   }
 
-  /**
-   * What goes with the prompt of an agent the orchestrator starts while
-   * answering you: the files you attached, copied where it works.
-   */
+  /** What goes with the prompt of an agent the orchestrator starts: what you attached (`Images`). */
   handOff(task: string): Promise<{ note: string; images: WorkerImageFile[] }> {
-    return this.images.handOff(join(taskDir(this.opts.home, task), 'attachments'))
+    return this.images.handOff(task)
   }
 
   async stop(): Promise<void> {
@@ -528,6 +525,7 @@ export class App {
     if (this.soon) clearTimeout(this.soon)
     this.mouse.letGo()
     this.lanes.stopWatching()
+    this.images.stop()
     // The machine goes back to sleeping as it did, here rather than anywhere
     // later: the hold is Tade's for exactly as long as Tade is open.
     this.awake.release()

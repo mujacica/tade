@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { asPaste } from '../../src/images.ts'
+import { asPaste, type ClipboardCopy } from '../../src/images.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 /**
@@ -25,9 +25,18 @@ describe('the window, taking a picture', () => {
   it('offers a screenshot on the clipboard, and attaches it from an empty paste or a click', async () => {
     const shot = join(tmp('tade-shot-'), 'shot.png')
     writeFileSync(shot, Buffer.from('89504e470d0a1a0a', 'hex'))
-    let copy = '7'
+    // The clipboard as the window watches it: what is on it said as the watch
+    // starts, and said again here when something new is copied.
+    let tell: (found: ClipboardCopy | null) => void = () => {}
     await start({
-      clipboard: { state: async () => ({ copy, image: true }), image: async () => shot },
+      clipboard: {
+        watch: (told) => {
+          tell = told
+          told({ copy: '7', image: true })
+          return { stop: () => {} }
+        },
+        image: async () => shot,
+      },
     })
     await until('the first frame', () => terminal.written.includes('refunds'))
     // Open the line: the picture on the clipboard is offered.
@@ -52,15 +61,41 @@ describe('the window, taking a picture', () => {
     // going with the message is something to throw away — and something new
     // copied: offered again on the line, which ctrl+c empties without closing.
     terminal.press('\x03')
-    copy = '8'
-    await until(
-      'the next copy offered',
-      () =>
-        screenOf(terminal.written).some((row) =>
-          row.includes('Attach the screenshot on the clipboard'),
-        ),
-      8_000,
+    tell({ copy: '8', image: true })
+    await until('the next copy offered', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('Attach the screenshot on the clipboard'),
+      ),
     )
+  })
+
+  it('watches the clipboard only while the line is open, and never after the window', async () => {
+    let started = 0
+    let watching = 0
+    const app = await start({
+      clipboard: {
+        watch: () => {
+          started += 1
+          watching += 1
+          return {
+            stop: () => {
+              watching -= 1
+            },
+          }
+        },
+        image: async () => null,
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    await until('the watch, once the line is open', () => watching === 1)
+    // Escape on an empty line steps off it, and what the watch costs goes with it.
+    terminal.press('\x1b')
+    await until('the watch to stop with the line', () => watching === 0)
+    terminal.press('\x00')
+    await until('a watch again', () => started === 2 && watching === 1)
+    await app.stop()
+    expect(watching).toBe(0)
   })
 
   it('asks who a dropped screenshot is for, and sends it with what you say next', async () => {

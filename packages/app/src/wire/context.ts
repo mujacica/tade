@@ -11,7 +11,7 @@ import type { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
 import type { Open } from '../editor.ts'
 import type { Frame } from '../frame.ts'
-import type { clipboardImage, clipboardState } from '../images.ts'
+import type { clipboardImage, WatchClipboard } from '../images.ts'
 import type { LayoutPrefs } from '../layout.ts'
 import type { Live } from '../live.ts'
 import { type AppState, notice } from '../model.ts'
@@ -139,9 +139,12 @@ export interface WorkerImageFile {
 export interface AppOptions {
   client: Workbench
   config: Config
-  /** The system clipboard's pictures: what is there, and saving it. The machine's own unless given. */
+  /**
+   * The system clipboard's pictures: watching what is there, and saving it.
+   * The machine's own unless given.
+   */
   clipboard?: {
-    state: typeof clipboardState
+    watch: WatchClipboard
     image: typeof clipboardImage
   }
   /**

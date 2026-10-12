@@ -793,9 +793,12 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   chip. A bare character is too small a target.
 - **Cmd+V never reaches the window with a picture**: macOS terminals paste text, and a screenshot
   has none. So the orchestrator's line offers a picture it finds on the clipboard
-  (`clipboardState`, only while the line is open, every few seconds), ctrl+v attaches it, and an
-  empty paste — what some terminals send for a picture — is taken as ctrl+v. Tests pass a stub
-  `clipboard`: a developer's clipboard is not a test's to read.
+  (`watchClipboard`, only while the line is open), ctrl+v attaches it, and an empty paste — what
+  some terminals send for a picture — is taken as ctrl+v. It is **watched, never asked**: one
+  `osascript` that lives while the line is open, in its own group, prints a line only when the
+  pasteboard's count moves and ends itself once Tade is not its parent, where an ask every three
+  seconds was twenty processes a minute; Linux has no count, so it is still asked. Tests pass a
+  stub `clipboard`: a developer's clipboard is not a test's to read.
 - **The mouse selects.** Dragging over anything that is not a control selects text and copies it on
   release; the terminal cannot, because the window reports the mouse. The rules are in **Selecting
   text** — a selection is bounded to its region's columns and anchored in its lines, never in the rows
