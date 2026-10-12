@@ -575,6 +575,7 @@ export class App {
       tadeHome: this.opts.home,
       ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
       ...(this.opts.now ? { now: this.opts.now } : {}),
+      openedAt: this.wire.openedAt,
       status: this.opts.status,
       onTasks: (tasks, moved) => {
         this.state = withTasks(this.state, tasks)

@@ -146,6 +146,14 @@ describe('what an ordinary request reaches', () => {
     expect(settingReach('journal.max_mb').reach).toBe('asked')
   })
 
+  it('does not include how much a lane keeps to scroll back through', () => {
+    // `asked`, decided: the drivers' section widens nothing an agent may do,
+    // hands nobody anything and sends nothing anywhere. The worst a sentence
+    // can do with it is a lane that keeps less history or costs more memory,
+    // from the next open on — somebody's own, so not `open` either.
+    expect(settingReach('drivers.pty.scrollback').reach).toBe('asked')
+  })
+
   it('does not include how long decided documents are kept, though it can delete one', () => {
     // `asked`, decided: it widens nothing an agent may do and sends nothing
     // anywhere, and the worst a sentence can do with it is age out documents
@@ -238,6 +246,7 @@ describe('the shape of the rule', () => {
       'approvals',
       'checks',
       'documents',
+      'drivers',
       'extensions',
       'journal',
       'mcp',

@@ -315,6 +315,33 @@ describe('what the journal keeps', () => {
   })
 })
 
+describe('what a lane keeps to scroll back through', () => {
+  it('is 10,000 lines unasked, which is what it was before it was a setting', () => {
+    const r = parseConfig('')
+    expect(r.ok && r.config.drivers.pty.scrollback).toBe(10_000)
+  })
+
+  it('takes the number somebody wrote', () => {
+    const r = parseConfig('drivers:\n  pty:\n    scrollback: 2000\n')
+    expect(r.ok && r.config.drivers.pty.scrollback).toBe(2_000)
+  })
+
+  it('refuses none, a fraction, more than the machine should hold, and a misspelling', () => {
+    for (const [yaml, path] of [
+      ['drivers:\n  pty:\n    scrollback: 0\n', 'drivers.pty.scrollback'],
+      ['drivers:\n  pty:\n    scrollback: 2.5\n', 'drivers.pty.scrollback'],
+      ['drivers:\n  pty:\n    scrollback: 1000000\n', 'drivers.pty.scrollback'],
+      ['drivers:\n  pty:\n    scrolback: 2000\n', 'drivers.pty.scrolback'],
+      ['drivers:\n  ghostty: {}\n', 'drivers.ghostty'],
+    ] as const) {
+      const r = parseConfig(yaml)
+      expect(r.ok, yaml).toBe(false)
+      if (r.ok) continue
+      expect(r.issues[0]?.path).toBe(path)
+    }
+  })
+})
+
 describe('loadConfig', () => {
   it('treats a missing file as defaults', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))

@@ -205,15 +205,27 @@ export interface RuntimeReport {
   byProvider: Record<string, Runtime>
 }
 
-/** A run that has begun and not yet ended. */
-interface Open {
+/**
+ * A run, as much of it as how long it took needs: what it was on, when it
+ * began and ended, and its turns — never the lines it was read from.
+ */
+interface Run {
   task: string | null
-  model: string
+  /** Its id, which is what its usage said it ran on is looked up by (`said`), at the asking. */
+  run: string | null
+  /** What `run_started` asked for: the fallback under the other two. */
+  asked: string
+  /** What it said while it ran that it was on (`run_model`), which wins over both. */
+  ranOn: string | null
   /** Which harness, sign-in and provider it was started on. */
   facts: RunFacts
   at: number
   /** The lane it lives in, whose going ends it. */
   lane: string | null
+  /** When it ended; null while nothing has said it did. */
+  end: number | null
+  /** Each turn that ended in it, a beginning and an end apiece, one after the other. */
+  turns: number[]
   /**
    * When the turn in flight began, or null between turns. One at a time: a
    * harness that says a turn began while one already is, is saying again that
@@ -223,77 +235,44 @@ interface Open {
    * time climb past the wall clock it is a part of.
    */
   turnAt: number | null
-  /** What the turns that have ended in it add up to, already clipped. */
-  worked: number
   /** Whether any turn has been seen to begin in it. */
   sawTurn: boolean
   /** A turn ended that we never saw begin, so what it worked cannot be known. */
   unknown: boolean
 }
 
-export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow): RuntimeReport {
-  const since = window.since ?? 0
-  const now = window.now
-  const report: RuntimeReport = {
-    total: noRuntime(),
-    byProject: {},
-    byTask: {},
-    byModel: {},
-    byHarness: {},
-    byAccount: {},
-    byProvider: {},
-  }
-  const said = window.said
-  const open = new Map<string, Open>()
+/**
+ * How long the agents ran, folded one line at a time and asked of any window.
+ *
+ * `runtimeFrom` is this over a list. A window open for days hands it each line
+ * as it is written and keeps no list at all: a run that has ended is one small
+ * record whatever it said on the way, and its turns are two numbers each — so
+ * what is kept grows by the turn rather than by the line, and nothing of it
+ * depends on the window it is asked about, which is only applied in `report`.
+ */
+export class RuntimeFold {
+  private readonly open = new Map<string, Run>()
+  private readonly ended: Run[] = []
+  private readonly started = new Map<string, RunFacts>()
+  private lines = 0
 
-  const close = (key: string, end: number, running: boolean): void => {
-    const run = open.get(key)
-    if (!run) return
-    open.delete(key)
-    // Only the part of it that falls inside the window is this window's.
-    const from = Math.max(run.at, since)
-    const to = Math.min(end, now)
-    if (to <= from) return
-    const ms = to - from
-    // A turn still in flight when the run ends worked right up to the end of
-    // it: an agent killed mid-thought was thinking until it was killed.
-    if (run.turnAt !== null) worked(run, run.turnAt, end)
-    // Never more than the run itself. Turns fall inside their run by
-    // construction, so this only ever bites on a clock that jumped — and a
-    // part being larger than its whole is the one answer nobody could read.
-    const working = Math.min(run.worked, ms)
-    const project = (run.task ?? '').split('/')[0] || 'elsewhere'
-    const buckets = [
-      report.total,
-      into(report.byProject, project),
-      into(report.byModel, run.model),
-      into(report.byHarness, run.facts.harness),
-      into(report.byAccount, accountBucket(run.facts)),
-      into(report.byProvider, run.facts.provider),
-    ]
-    if (run.task) buckets.push(into(report.byTask, run.task))
-    for (const bucket of buckets) {
-      bucket.ms += ms
-      bucket.runs += 1
-      if (running) bucket.running = true
-      // A run that cannot say adds its count and not its time: nothing here
-      // may age an unanswerable question into a nought.
-      if (run.unknown) bucket.workingUnknown += 1
-      else bucket.workingMs += working
-    }
+  /** How many lines it has been handed: the same count asked the same question is the same answer. */
+  get size(): number {
+    return this.lines
   }
 
-  /** A turn's span, clipped to the window, added to the run that held it. */
-  const worked = (run: Open, start: number, end: number): void => {
-    const from = Math.max(start, since)
-    const to = Math.min(end, now)
-    if (to > from) run.worked += to - from
-    run.turnAt = null
+  /** What each run was, read off its `run_started` — what `runFactsFrom` reads over a list. */
+  get facts(): ReadonlyMap<string, RunFacts> {
+    return this.started
   }
 
-  for (const event of events) {
+  add(event: TadeEvent): void {
+    this.lines++
+    if (event.type === 'run_started' && event.run) this.started.set(event.run, runFactsOf(event))
     const at = Date.parse(event.ts)
-    if (!Number.isFinite(at)) continue
+    if (!Number.isFinite(at)) return
+    const open = this.open
+    const close = (key: string) => this.close(key, at)
     switch (typeNow(event.type)) {
       case 'run_started': {
         // A second start with no exit between is the same run seen twice:
@@ -305,12 +284,15 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
         if (!open.has(key)) {
           open.set(key, {
             task: event.task,
-            model: (event.run ? said?.get(event.run) : undefined) ?? modelOf(event),
+            run: event.run,
+            asked: modelOf(event),
+            ranOn: null,
             facts: runFactsOf(event),
             at,
             lane: event.lane ?? event.run,
+            end: null,
+            turns: [],
             turnAt: null,
-            worked: 0,
             sawTurn: false,
             unknown: false,
           })
@@ -323,7 +305,7 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
         // its model, which is the most `said` can do for an older journal.
         const run = open.get(keyOf(event))
         const { name } = modelIn(event)
-        if (run && name !== UNRECORDED) run.model = name
+        if (run && name !== UNRECORDED) run.ranOn = name
         break
       }
       case 'turn_started': {
@@ -339,7 +321,10 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
       case 'turn_done': {
         const run = runFor(open, event)
         if (!run) break
-        if (run.turnAt !== null) worked(run, run.turnAt, at)
+        if (run.turnAt !== null) {
+          run.turns.push(run.turnAt, at)
+          run.turnAt = null
+        }
         // A turn that ended and never began. Every turn of a journal written
         // before Tade wrote beginnings down looks like this, which is the
         // whole of why this run's working time is unanswerable rather than
@@ -351,30 +336,117 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
       case 'run_exited':
         // By run id, and by task for an exit that lost it: a run left open
         // would otherwise count to now for ever.
-        if (open.has(keyOf(event))) close(keyOf(event), at, false)
-        else if (event.task) closeTask(open, event.task, (key) => close(key, at, false))
+        if (open.has(keyOf(event))) close(keyOf(event))
+        else if (event.task) closeTask(open, event.task, close)
         break
       case 'lane_exited':
         // By lane and only by lane: the process the run was is gone.
-        if (event.lane) closeLane(open, event.lane, (key) => close(key, at, false))
+        if (event.lane) closeLane(open, event.lane, close)
         break
       case 'task_removed':
-        if (event.task) closeTask(open, event.task, (key) => close(key, at, false))
+        if (event.task) closeTask(open, event.task, close)
         break
       case 'tade_closing':
       case 'tade_opened':
-        for (const key of [...open.keys()]) close(key, at, false)
+        for (const key of [...open.keys()]) close(key)
         break
     }
   }
-  // Whatever is still open is still running — for as long as a run with
-  // nothing written after it can honestly be believed to be.
-  for (const [key, run] of [...open]) {
-    const ceiling = run.at + OPEN_RUN_CEILING
-    if (ceiling < now) close(key, ceiling, false)
-    else close(key, now, true)
+
+  private close(key: string, end: number): void {
+    const run = this.open.get(key)
+    if (!run) return
+    this.open.delete(key)
+    // A turn still in flight when the run ends worked right up to the end of
+    // it: an agent killed mid-thought was thinking until it was killed.
+    if (run.turnAt !== null) run.turns.push(run.turnAt, end)
+    run.turnAt = null
+    run.end = end
+    this.ended.push(run)
   }
-  return report
+
+  /** How long the agents ran inside one window, as of `now`. */
+  report(window: RuntimeWindow): RuntimeReport {
+    const report: RuntimeReport = {
+      total: noRuntime(),
+      byProject: {},
+      byTask: {},
+      byModel: {},
+      byHarness: {},
+      byAccount: {},
+      byProvider: {},
+    }
+    for (const run of this.ended) counted(report, run, run.end ?? run.at, false, window)
+    // Whatever is still open is still running — for as long as a run with
+    // nothing written after it can honestly be believed to be.
+    for (const run of this.open.values()) {
+      const ceiling = run.at + OPEN_RUN_CEILING
+      if (ceiling < window.now) counted(report, run, ceiling, false, window)
+      else counted(report, run, window.now, true, window)
+    }
+    return report
+  }
+}
+
+/** A list of lines, folded the way a window folds them as they are written. */
+export function runsFoldedFrom(events: readonly TadeEvent[]): RuntimeFold {
+  const fold = new RuntimeFold()
+  for (const event of events) fold.add(event)
+  return fold
+}
+
+export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow): RuntimeReport {
+  return runsFoldedFrom(events).report(window)
+}
+
+/** One run, ended at `end`, added to every bucket it counts towards — only the part inside the window. */
+function counted(
+  report: RuntimeReport,
+  run: Run,
+  end: number,
+  running: boolean,
+  window: RuntimeWindow,
+): void {
+  const since = window.since ?? 0
+  const now = window.now
+  const from = Math.max(run.at, since)
+  const to = Math.min(end, now)
+  if (to <= from) return
+  const ms = to - from
+  // Each turn clipped to the window, and one still in flight working up to
+  // the end the run is counted to.
+  let worked = 0
+  const span = (start: number, stop: number) => {
+    const clipped = Math.min(stop, now) - Math.max(start, since)
+    if (clipped > 0) worked += clipped
+  }
+  for (let at = 0; at < run.turns.length; at += 2) span(run.turns[at] ?? 0, run.turns[at + 1] ?? 0)
+  if (run.turnAt !== null) span(run.turnAt, end)
+  // Never more than the run itself. Turns fall inside their run by
+  // construction, so this only ever bites on a clock that jumped — and a
+  // part being larger than its whole is the one answer nobody could read.
+  const working = Math.min(worked, ms)
+  const project = (run.task ?? '').split('/')[0] || 'elsewhere'
+  // What it said while it ran, then what its usage said, then what was asked for.
+  const model = run.ranOn ?? (run.run ? window.said?.get(run.run) : undefined) ?? run.asked
+  const buckets = [
+    report.total,
+    into(report.byProject, project),
+    into(report.byModel, model),
+    into(report.byHarness, run.facts.harness),
+    into(report.byAccount, accountBucket(run.facts)),
+    into(report.byProvider, run.facts.provider),
+  ]
+  if (run.task) buckets.push(into(report.byTask, run.task))
+  for (const bucket of buckets) {
+    bucket.ms += ms
+    bucket.runs += 1
+    if (running) bucket.running = true
+    // A run that cannot say adds its count and not its time: nothing here
+    // may age an unanswerable question into a nought.
+    if (run.unknown) bucket.workingUnknown += 1
+    else bucket.workingMs += working
+  }
 }
 
 /**
@@ -383,7 +455,7 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
  * `run_exited` takes, for the same reason: a turn attributed to nothing is a
  * turn whose time is lost.
  */
-function runFor(open: Map<string, Open>, event: TadeEvent): Open | undefined {
+function runFor(open: Map<string, Run>, event: TadeEvent): Run | undefined {
   const found = open.get(keyOf(event))
   if (found) return found
   if (!event.task) return undefined
@@ -396,11 +468,11 @@ function keyOf(event: TadeEvent): string {
   return event.run ?? `task:${event.task ?? ''}`
 }
 
-function closeTask(open: Map<string, Open>, task: string, close: (key: string) => void): void {
+function closeTask(open: Map<string, Run>, task: string, close: (key: string) => void): void {
   for (const [key, run] of [...open]) if (run.task === task) close(key)
 }
 
-function closeLane(open: Map<string, Open>, lane: string, close: (key: string) => void): void {
+function closeLane(open: Map<string, Run>, lane: string, close: (key: string) => void): void {
   for (const [key, run] of [...open]) if (run.lane === lane) close(key)
 }
 

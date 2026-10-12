@@ -315,6 +315,23 @@ export const ConfigSchema = z
         adopt: z.boolean().default(true),
       })
       .prefault({}),
+    /** What each driver is made with, by its name in the workbench's registry. Read on open. */
+    drivers: z
+      .strictObject({
+        pty: z
+          .strictObject({
+            /**
+             * Lines each lane keeps to scroll back through. Every line is memory
+             * for as long as the lane lives, in every lane, and fewer is history
+             * nobody gets back — so lowering it is a person's call, and it
+             * stays where it always was. Capped at ten times that, past which
+             * thirteen full lanes stop being a cost and start being the machine.
+             */
+            scrollback: z.int().positive().max(100_000).default(10_000),
+          })
+          .prefault({}),
+      })
+      .prefault({}),
     orchestrator: z
       .strictObject({
         harness: Harness.default('pi'),

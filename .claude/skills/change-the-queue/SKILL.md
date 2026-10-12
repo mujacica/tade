@@ -167,7 +167,11 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   holding it writes what held it (`queue_held`: what it was waiting on, a start that failed, or the
   files that had changed under it and whose).
 - **Read from the whole journal.** Live keeps only the last 500 events; anything a rule reads goes
-  in `QUEUE_READS`, or a busy morning makes the queue forget.
+  in `QUEUE_READS`, or a busy morning makes the queue forget. Except what a schedule did:
+  `schedule_fired`, `watch_checked` and `watch_found` go to `ScheduleFold` (`app/src/schedule-fold.ts`),
+  which keeps how many times each schedule ran, every finding, where the next look starts and only
+  the newest runs and looks to draw — two lines a look were 24 MB of a window. A rule that needs more
+  of them than that is a new tally there, never the lines back in the queue's list.
 - **One pass at a time.** Each pass is single-flight (`advancing`, `scheduling`, `lookingWith`), and
   what is being started is remembered until the journal says it started.
 - **Nothing happens silently, and nothing is said twice.** What the window did is a transcript line

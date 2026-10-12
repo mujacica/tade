@@ -1,3 +1,4 @@
+import type { Config } from '@tade/core'
 import type { WorkspaceDriver } from '@tade/drivers-core'
 import type { Reporter } from '@tade/telemetry'
 import type { EventLog } from './events.ts'
@@ -13,7 +14,8 @@ import { drivers, type MakeDriver } from './registry.ts'
  */
 export async function chooseDriver(opts: {
   wanted: string
-  fallback: string
+  /** Where to go instead (`workspace.fallback`), and what each driver is made with (`drivers`). */
+  config: Pick<Config, 'workspace' | 'drivers'>
   home: string
   /** Injectable so the choice can be tested without uninstalling anything. */
   registry?: Record<string, MakeDriver>
@@ -21,24 +23,26 @@ export async function chooseDriver(opts: {
   trouble?: (problem: Error) => void
 }): Promise<{ driver: WorkspaceDriver; warning: string }> {
   const registry = opts.registry ?? drivers
+  const instead = opts.config.workspace.fallback
+  const made = opts.config.drivers
   const make = registry[opts.wanted]
   if (!make) throw new Error(`unknown workspace driver: ${opts.wanted}`)
-  const driver = make(opts.home, opts.trouble)
+  const driver = make(opts.home, opts.trouble, made)
   const availability = await driver.available()
   if (availability.ok) return { driver, warning: '' }
 
-  const makeFallback = opts.fallback === opts.wanted ? undefined : registry[opts.fallback]
+  const makeFallback = instead === opts.wanted ? undefined : registry[instead]
   if (!makeFallback) {
     throw new Error(`workspace.driver is ${opts.wanted}, and ${availability.reason}`)
   }
-  const fallback = makeFallback(opts.home, opts.trouble)
+  const fallback = makeFallback(opts.home, opts.trouble, made)
   const second = await fallback.available()
-  if (!second.ok) throw new Error(`neither ${opts.wanted} nor ${opts.fallback} can run here`)
+  if (!second.ok) throw new Error(`neither ${opts.wanted} nor ${instead} can run here`)
   return {
     driver: fallback,
     warning:
       `workspace.driver is ${opts.wanted}, and ${availability.reason}. ` +
-      `Using ${opts.fallback} instead` +
+      `Using ${instead} instead` +
       (fallback.capabilities.detach ? '.' : ', so agents will not outlive this window.'),
   }
 }

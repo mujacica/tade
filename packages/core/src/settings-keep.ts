@@ -53,6 +53,17 @@ export function keepGroup(config: Config): SettingGroup {
         live: false,
         keywords: ['documents', 'research', 'analysis', 'cleanup', 'clean up', 'keep'],
       },
+      {
+        path: 'drivers.pty.scrollback',
+        title: 'Lane scrollback',
+        means:
+          'lines each lane keeps to scroll back through, when lanes run under pty; every line is memory in every lane for as long as it lives, and fewer is history you cannot get back',
+        value: String(config.drivers.pty.scrollback),
+        fallback: '10,000 lines',
+        type: { kind: 'number', unit: 'lines' } as const,
+        live: false,
+        keywords: ['scrollback', 'scroll back', 'terminal', 'lines', 'memory', 'ram', 'pty'],
+      },
     ],
   }
 }

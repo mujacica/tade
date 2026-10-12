@@ -81,10 +81,10 @@ export class Spend implements Subject {
     // Not before the journal is read: a page of nothing would be a page of noughts.
     if (panel?.kind !== 'spend' || !live || live.spendToday() === null) return null
     const now = this.wire.now()
-    const key = `${panel.window}|${panel.by}|${live.spending.length}|${live.runs.length}`
+    const key = `${panel.window}|${panel.by}|${live.spending.size}|${live.runs.size}`
     const folded = this.folded
     if (folded && folded.key === key && now - folded.at < REFOLD_MS) return folded.view
-    const view = spendView(live.spending, {
+    const view = spendView(live.spending.events, {
       window: panel.window,
       by: panel.by,
       now,

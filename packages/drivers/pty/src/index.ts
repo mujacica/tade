@@ -120,6 +120,7 @@ interface Lane {
 }
 
 const DEFAULTS = {
+  // What `drivers.pty.scrollback` defaults to as well: a driver made without a config keeps the same.
   scrollback: 10_000,
   replayBytes: 256 * 1024,
   cols: 120,

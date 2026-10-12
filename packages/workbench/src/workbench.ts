@@ -328,7 +328,7 @@ export class Workbench {
       journal = log
       const { driver, warning } = await chooseDriver({
         wanted: opts.driver ?? config.workspace.driver,
-        fallback: config.workspace.fallback,
+        config,
         home: opts.home,
         trouble: troubleSaid(log, opts.report),
       })

@@ -341,8 +341,15 @@ in midnights rather than rolling hours, so `7 days` is this one and the six befo
 - **`all` means `live.spending` is the whole journal**, so the page's fold is kept rather than re-done
   per frame (`REFOLD_MS`, `wire/spend.ts`): four folds a second over forty-six thousand usage events
   is the cost of a page nobody could otherwise ask the question on. Keyed on what went into it — the
-  range, the grouping, the two event counts — and re-done a second later whatever, because a run
+  range, the grouping, the two folds' sizes — and re-done a second later whatever, because a run
   still going counts up to now. Held by `test/live.probe.test.ts`, as a ratio against one cold fold.
+- **A window keeps the whole journal folded, never a line apiece**, so one left open for days does
+  not grow by the turn. Usage lines alike in everything but their counts are one line with the counts
+  added (`UsageFold`, `core/src/spend-fold.ts`): 86,778 lines were 3,072 and every answer the same,
+  held against `spendFrom` over the lines themselves by `core/test/spend-fold.test.ts`. Runtime is
+  `RuntimeFold`, one record per run, of which `runtimeFrom` is the list-shaped door. A new **count**
+  on a usage line goes in `COUNTS` there, or lines differing in it are simply never merged; anything
+  else on one is kept as it was.
 - **What the money bought is not on this page.** Commits and check runs are an agent's own record and
   are on its ACTIONS page in full — every commit with what it changed, every check with what it
   printed — so two summary lines of the same thing here were a second, shorter answer to a question
@@ -372,8 +379,9 @@ things.
 
 **A new range to read it over.** Add the id to `SpendWindow`, a row to `SPEND_WINDOWS` with the word
 for an empty one (`over`), and the arithmetic to `sinceOf` — all three in `app/src/spend.ts`, because
-an extension's page reads the same list. Check what `live.spending` holds reaches that far back, and
-that the tabs still fit: past one line they wrap under their own word (`tabRow`), and a tab off the
+an extension's page reads the same list. It must begin on a quarter hour or at the moment the window
+opened — the grain `UsageFold` merges at, held by `test/spend-ranges.test.ts` — and the tabs must still
+fit: past one line they wrap under their own word (`tabRow`), and a tab off the
 edge is a range nobody can reach.
 
 **A new way to group it.** Add the id to `SpendBy` and `SPEND_BY` (`app/src/spend.ts`), and make the

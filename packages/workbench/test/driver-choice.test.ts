@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { ConfigSchema, type LaneId } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
 import { noReporter, type Trouble } from '@tade/telemetry'
@@ -6,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { chooseDriver, troubleSaid } from '../src/driver-choice.ts'
 import { EventLog } from '../src/events.ts'
+import { drivers } from '../src/registry.ts'
 
 // Where lanes go when the driver you asked for is not on this machine.
 //
@@ -19,13 +21,16 @@ const unavailable = (id: string, reason: string) => () =>
     available: async () => ({ ok: false, reason }),
   }) as unknown as PtyDriver
 
+/** A config whose `workspace.fallback` is this, and everything else as unasked. */
+const fallingBackTo = (fallback: 'pty' | 'tmux') => ConfigSchema.parse({ workspace: { fallback } })
+
 describe('choosing a driver', () => {
   const home = '/tmp/tade-choice'
 
   it('uses the one you asked for when it can', async () => {
     const chosen = await chooseDriver({
       wanted: 'pty',
-      fallback: 'pty',
+      config: fallingBackTo('pty'),
       home,
       registry: { pty: () => new PtyDriver() },
     })
@@ -36,7 +41,7 @@ describe('choosing a driver', () => {
   it('falls back, and says what happened and why', async () => {
     const chosen = await chooseDriver({
       wanted: 'tmux',
-      fallback: 'pty',
+      config: fallingBackTo('pty'),
       home,
       registry: { tmux: unavailable('tmux', 'tmux is not installed'), pty: () => new PtyDriver() },
     })
@@ -50,7 +55,7 @@ describe('choosing a driver', () => {
   it('says nothing alarming when the fallback can do the same job', async () => {
     const chosen = await chooseDriver({
       wanted: 'ghostly',
-      fallback: 'tmux',
+      config: fallingBackTo('tmux'),
       home,
       registry: {
         ghostly: unavailable('ghostly', 'no such terminal here'),
@@ -69,7 +74,7 @@ describe('choosing a driver', () => {
     const handed: Array<((problem: Error) => void) | undefined> = []
     const chosen = await chooseDriver({
       wanted: 'tmux',
-      fallback: 'pty',
+      config: fallingBackTo('pty'),
       home,
       registry: {
         tmux: (_home, trouble) => {
@@ -88,6 +93,60 @@ describe('choosing a driver', () => {
     handed[1]?.(new Error('the terminal emulators stopped'))
     expect(said).toEqual(['the terminal emulators stopped'])
   })
+
+  // `drivers.pty.scrollback`, from the config to the lanes: a setting that
+  // stopped at the registry would be one Tade accepts and ignores.
+  it('makes the pty driver with the scrollback the config says, and hands it to the fallback too', async () => {
+    const handed: unknown[] = []
+    await chooseDriver({
+      wanted: 'tmux',
+      home,
+      registry: {
+        tmux: (_home, _trouble, made) => {
+          handed.push(made)
+          return unavailable('tmux', 'no tmux')()
+        },
+        pty: (_home, _trouble, made) => {
+          handed.push(made)
+          return new PtyDriver()
+        },
+      },
+      config: ConfigSchema.parse({
+        workspace: { fallback: 'pty' },
+        drivers: { pty: { scrollback: 20 } },
+      }),
+    })
+    expect(handed).toEqual([{ pty: { scrollback: 20 } }, { pty: { scrollback: 20 } }])
+
+    const make = drivers.pty
+    if (!make) throw new Error('no pty driver in the registry')
+    const kept = async (made?: { pty: { scrollback: number } }) => {
+      const driver = make(home, undefined, made)
+      try {
+        const lane = 'keep/long' as LaneId
+        await driver.open({
+          id: lane,
+          cwd: process.cwd(),
+          command: process.execPath,
+          args: [
+            '-e',
+            "for (let i = 0; i < 300; i++) console.log('line ' + i)\nsetInterval(() => {}, 1000)",
+          ],
+          cols: 80,
+          rows: 10,
+        })
+        await expect
+          .poll(() => driver.capture(lane, { lines: 10 }), { timeout: 10_000 })
+          .toContain('line 299')
+        return (await driver.screen(lane)).lines
+      } finally {
+        await driver.shutdown()
+      }
+    }
+    // Twenty lines above a screen of ten, where unasked it keeps all of it.
+    expect(await kept({ pty: { scrollback: 20 } })).toBeLessThanOrEqual(30)
+    expect(await kept()).toBeGreaterThanOrEqual(300)
+  }, 30_000)
 
   // And what it says reaches the two places it has to: the journal, which is
   // where somebody reads what went wrong, and the reporter, where it is counted.
@@ -118,7 +177,7 @@ describe('choosing a driver', () => {
     await expect(
       chooseDriver({
         wanted: 'tmux',
-        fallback: 'tmux',
+        config: fallingBackTo('tmux'),
         home,
         registry: { tmux: unavailable('tmux', 'tmux is not installed') },
       }),
@@ -129,7 +188,7 @@ describe('choosing a driver', () => {
     await expect(
       chooseDriver({
         wanted: 'tmux',
-        fallback: 'pty',
+        config: fallingBackTo('pty'),
         home,
         registry: {
           tmux: unavailable('tmux', 'no tmux'),
@@ -141,7 +200,7 @@ describe('choosing a driver', () => {
 
   it('is an error, not a fallback, when the name means nothing at all', async () => {
     await expect(
-      chooseDriver({ wanted: 'nowhere', fallback: 'pty', home, registry: {} }),
+      chooseDriver({ wanted: 'nowhere', config: fallingBackTo('pty'), home, registry: {} }),
     ).rejects.toThrow(/unknown workspace driver/)
   })
 })

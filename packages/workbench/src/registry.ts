@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { givesWay, type LaneId, LaneKind, niced, taskDir } from '@tade/core'
+import { type Config, givesWay, type LaneId, LaneKind, niced, taskDir } from '@tade/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
@@ -31,7 +31,7 @@ import type { EventLog } from './events.ts'
  * kill each other's agents.
  */
 export const drivers: Record<string, MakeDriver> = {
-  pty: (_home, trouble) => new PtyDriver({ trouble }),
+  pty: (_home, trouble, made) => new PtyDriver({ trouble, scrollback: made?.pty.scrollback }),
   tmux: (home) => new TmuxDriver({ session: tmuxSession(home) }),
 }
 
@@ -40,8 +40,16 @@ export const drivers: Record<string, MakeDriver> = {
  * was carried on through — the pty driver's emulators dying, say, which leaves
  * every lane running and every screen drawn from what was known. A driver with
  * nothing of that kind to say takes no notice of it.
+ *
+ * And with the config's `drivers` section, where each driver finds what it is
+ * made with under its own name. Absent, it is made as it always was: asking
+ * the machine whether it can run one needs no config at all.
  */
-export type MakeDriver = (home: string, trouble?: (problem: Error) => void) => WorkspaceDriver
+export type MakeDriver = (
+  home: string,
+  trouble?: (problem: Error) => void,
+  made?: Config['drivers'],
+) => WorkspaceDriver
 
 /**
  * The tmux session a home's lanes live in. Stable, so reopening finds the same

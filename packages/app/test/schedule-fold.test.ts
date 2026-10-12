@@ -1,0 +1,96 @@
+import { type TadeEvent, watchedFrom } from '@tade/core'
+import { describe, expect, it } from 'vitest'
+import { KEPT, ScheduleFold } from '../src/schedule-fold.ts'
+
+// What a window keeps of each schedule in place of every line it wrote. The
+// claim is that what is read off it is what the whole journal says, except
+// how far back the runs and looks to draw go — so that is what is tested,
+// against `watchedFrom` over every line.
+
+let seq = 0
+const T0 = Date.parse('2026-10-01T00:00:00Z')
+
+const line = (
+  type: string,
+  minutes: number,
+  detail: Record<string, unknown>,
+  task: string | null = null,
+): TadeEvent =>
+  ({
+    seq: ++seq,
+    ts: new Date(T0 + minutes * 60_000).toISOString(),
+    type,
+    urgency: 'routine',
+    task,
+    lane: null,
+    run: null,
+    detail,
+  }) as TadeEvent
+
+const fired = (minutes: number, ran = true, schedule = 'nightly') =>
+  line('schedule_fired', minutes, {
+    schedule,
+    due: new Date(T0 + minutes * 60_000).toISOString(),
+    missed: 0,
+    ran,
+  })
+
+const looked = (minutes: number, detail: Record<string, unknown>, schedule = 'review') =>
+  line('watch_checked', minutes, { schedule, found: 0, fresh: [], left: 0, ...detail })
+
+const folded = (lines: readonly TadeEvent[]) => {
+  const fold = new ScheduleFold()
+  for (const one of lines) fold.add(one)
+  return fold
+}
+
+describe('what a schedule has done, folded', () => {
+  it('counts every run it ever had, and keeps the newest to draw', () => {
+    const lines = Array.from({ length: KEPT * 3 }, (_, i) => fired(i * 5, i % 4 !== 0))
+    const { ran, runs } = folded([...lines, fired(1, true, 'other')]).runsOf('nightly')
+    // What a schedule that runs N times stops at: every run, not the drawn ones.
+    expect(ran).toBe(lines.filter((one) => one.detail.ran).length)
+    expect(runs).toHaveLength(KEPT)
+    expect(runs.at(-1)?.due).toBe(T0 + (KEPT * 3 - 1) * 5 * 60_000)
+    expect(runs.map((one) => one.due)).toEqual([...runs.map((one) => one.due)].sort())
+    expect(folded([]).runsOf('nightly')).toEqual({ ran: 0, runs: [] })
+  })
+
+  it('says what a watch has done as the whole journal does, but for how many looks are kept', () => {
+    const lines = [
+      looked(0, { since: 'cursor-1' }),
+      line('watch_found', 1, { schedule: 'review', key: 'pr:1', title: 'One' }, 'app/one'),
+      // Every look after the one that said where to start could not look —
+      // more of them than are kept — so where the next starts is a look long
+      // gone from the newest.
+      ...Array.from({ length: KEPT + 5 }, (_, i) =>
+        looked(2 + i, { problem: 'nothing answered', trouble: 'unreachable' }),
+      ),
+      line('watch_found', 90, { schedule: 'review', key: 'pr:2', title: 'Two', told: 'you' }),
+      looked(91, { since: 'other', problem: 'refused' }, 'elsewhere'),
+    ]
+    const all = watchedFrom(lines, 'review')
+    const kept = folded(lines).watchedOf('review')
+    expect(all.since).toBe('cursor-1')
+    expect(kept.since).toBe(all.since)
+    expect(kept.seen).toEqual(all.seen)
+    expect(kept.findings).toEqual(all.findings)
+    expect(kept.looks).toEqual(all.looks.slice(0, KEPT))
+  })
+
+  it('takes a later look that worked and said nothing as where the next starts', () => {
+    const lines = [
+      looked(0, { since: 'cursor-1' }),
+      looked(1, { since: '' }),
+      ...Array.from({ length: KEPT }, (_, i) => looked(2 + i, { problem: 'no' })),
+    ]
+    expect(watchedFrom(lines, 'review').since).toBeNull()
+    expect(folded(lines).watchedOf('review').since).toBeNull()
+  })
+
+  it('reads nothing off a line that names no schedule', () => {
+    const fold = folded([line('schedule_fired', 0, { due: 'x' }), line('watch_found', 0, {})])
+    expect(fold.runsOf('undefined')).toEqual({ ran: 0, runs: [] })
+    expect(fold.watchedOf('undefined').findings).toEqual([])
+  })
+})

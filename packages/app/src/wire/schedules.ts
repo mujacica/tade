@@ -25,6 +25,7 @@ import { openSchedule, type ScheduleView, withTranscript } from '../model.ts'
 import { scheduleMenuItems } from '../panels/menu/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import { foundMessage, scheduleView, scheduleViews, watchesListed } from '../queue.ts'
+import { NEVER_RAN } from '../schedule-fold.ts'
 import { hush, unhush } from '../schedules-view.ts'
 import { problem, tadeDid } from '../transcript.ts'
 import {
@@ -373,17 +374,12 @@ export class Schedules implements Subject {
     const watches = this.wire.opts.extensions?.watches() ?? []
     for (const one of this.wire.opts.client.schedules()) {
       if (one.paused) continue
-      const runs = live.runsOf(one.id)
+      const { ran, runs } = live.runsOf(one.id)
       const last = Math.max(
         runs.at(-1)?.due ?? Number.NEGATIVE_INFINITY,
         this.fired.get(one.id) ?? Number.NEGATIVE_INFINITY,
       )
-      const due = dueNow(
-        one,
-        Number.isFinite(last) ? last : null,
-        runs.filter((run) => run.ran).length,
-        now,
-      )
+      const due = dueNow(one, Number.isFinite(last) ? last : null, ran, now)
       if (!due) continue
       if (due.run && !(await mayRun(this.network, one.does, watches, now))) continue
       await this.fire(one, due).catch((err) => {
@@ -704,7 +700,7 @@ export class Schedules implements Subject {
       },
       req.by ?? 'orchestrator',
     )
-    const view = scheduleView(kept, this.wire.live?.runsOf(kept.id) ?? [], now)
+    const view = scheduleView(kept, this.wire.live?.runsOf(kept.id) ?? NEVER_RAN, now)
     this.wire.draw()
     const next = view.next.map((at) => whenShort(at, now))
     return `${kept.name} (${kept.id}): ${view.when}, ${view.does}. ${next.length > 0 ? `Next: ${next.join(', ')}.` : 'It has nothing left to run.'}${waits}`

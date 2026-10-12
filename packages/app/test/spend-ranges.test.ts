@@ -78,6 +78,22 @@ describe('how far back the page can look', () => {
     expect(sinceOf('all', NOW, opened)).toBe(0)
   })
 
+  // A window keeps its usage merged a quarter hour at a time (`UsageFold`), so
+  // a range may begin on a quarter hour or at the moment the window opened and
+  // nowhere else: one beginning inside a quarter hour would count it whole.
+  // Every hour of a year, so a change of clocks in this zone is crossed.
+  it('begins every range on a quarter hour, or where the window opened', () => {
+    const opened = NOW - 3_600_000 + 1_234
+    for (let hour = 0; hour < 366 * 24; hour++) {
+      const now = Date.parse('2026-01-01T00:00:00.000Z') + hour * 3_600_000 + 1_234
+      for (const { id } of SPEND_WINDOWS) {
+        const since = sinceOf(id, now, opened)
+        if (id === 'window') expect(since).toBe(opened)
+        else if (since % (15 * 60_000) !== 0) expect.fail(`${id} at ${new Date(now).toISOString()}`)
+      }
+    }
+  })
+
   it('reads the whole journal when it is asked to, and today when it is not', () => {
     // Ten months old, so it is in the journal and in no shorter range.
     const lastYear = usage('2025-11-02T09:00:00.000Z', { usd: 3 })

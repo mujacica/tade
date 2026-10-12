@@ -18,6 +18,7 @@ import {
 import type { WatchOffer } from '@tade/extensions-core'
 import { type AppState, type QueueRow, queueTree, queueViewOf, type ScheduleView } from './model.ts'
 import { shownBy } from './queue-view.ts'
+import { NEVER_RAN, type ScheduleRuns } from './schedule-fold.ts'
 
 // What the queue and the schedules say, in words: to the journal when something
 // starts, to the orchestrator when something is held or it asks, to you in the
@@ -127,11 +128,9 @@ export function scheduleMakes(view: ScheduleView): 'agents' | 'tells' {
   return view.kind === 'agent' ? 'agents' : 'tells'
 }
 
-/** What the journal says each schedule did: its runs, and a watch's looks. */
+/** What the journal says each schedule did: how often it ran and its newest runs, and a watch's looks. */
 export interface ScheduleJournal {
-  runsOf(
-    schedule: string,
-  ): readonly { due: number; ran: boolean; missed: number; task: string | null }[]
+  runsOf(schedule: string): ScheduleRuns
   watchedOf(schedule: string): Watched
 }
 
@@ -144,7 +143,7 @@ export function scheduleViews(
   return schedules.map((one) =>
     scheduleView(
       one,
-      journal?.runsOf(one.id) ?? [],
+      journal?.runsOf(one.id) ?? NEVER_RAN,
       now,
       one.does.kind === 'watch' ? journal?.watchedOf(one.id) : undefined,
     ),
@@ -154,12 +153,11 @@ export function scheduleViews(
 /** A schedule as SCHEDULES shows it, from what was set and what the journal says it did. */
 export function scheduleView(
   schedule: Schedule & { paused: boolean },
-  runs: readonly { due: number; ran: boolean; missed: number; task: string | null }[],
+  { ran, runs }: ScheduleRuns,
   now: number,
   watched?: Watched,
 ): ScheduleView {
   const last = runs.at(-1)?.due ?? null
-  const ran = runs.filter((run) => run.ran).length
   const created = Date.parse(schedule.created)
   const left = schedule.when.count === undefined ? 3 : Math.max(0, schedule.when.count - ran)
   const next = scheduleEnded(schedule, last, ran, now)

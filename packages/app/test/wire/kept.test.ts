@@ -64,7 +64,7 @@ describe('the schedules the SMART QUEUE shows', () => {
       get revision() {
         return revision
       },
-      runsOf: () => [],
+      runsOf: () => ({ ran: 0, runs: [] }),
       watchedOf: () => undefined,
     }
     const wire = {

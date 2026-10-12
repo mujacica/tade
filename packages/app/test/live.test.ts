@@ -644,9 +644,11 @@ describe('opening before looking', () => {
     }
     await live.refresh()
     for (const seq of appended) {
-      expect(live.spending.filter((event) => event.seq === seq)).toHaveLength(1)
       expect(live.events.filter((event) => event.seq === seq)).toHaveLength(1)
     }
+    // Handed to the usage fold once each, and so counted once each — the ten
+    // of them merged into one line, being one agent's in one quarter hour.
+    expect(live.spending.size).toBe(appended.length)
     expect(live.spendToday()?.total.tokens).toBe(appended.length)
   }, 30_000)
 })

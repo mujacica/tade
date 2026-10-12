@@ -15,9 +15,9 @@ import {
   queueStanding,
   queueStateOf,
   type Reality,
+  RuntimeFold,
   type RuntimeReport,
   ruleMet,
-  runtimeFrom,
   type SpendReport,
   spendFrom,
   startOfToday,
@@ -25,11 +25,11 @@ import {
   type TadeEvent,
   type TaskState,
   type Upstream,
+  UsageFold,
   type Watched,
   type WorkHistory,
   type WorkSummary,
   type Workspace,
-  watchedFrom,
   workedFrom,
   workspaceFor,
 } from '@tade/core'
@@ -55,6 +55,7 @@ import { type Histories, JOURNAL, QUEUE_READS, RUNTIME_READS, readHistories } fr
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
 import { snapshotsFrom } from './reality.ts'
+import { SCHEDULE_LINES, ScheduleFold, type ScheduleRuns } from './schedule-fold.ts'
 import { lookAtWork } from './work-look.ts'
 
 // Reached for alongside `Live` by everyone who reaches for either, so it is
@@ -77,14 +78,6 @@ export { knownTasks, snapshotsFrom } from './reality.ts'
  * invocations a minute to notice one commit is the opposite of light.
  */
 const LANDED_MS = 60_000
-
-/** A schedule's runs as the journal has them, newest last. */
-export interface ScheduleRun {
-  due: number
-  ran: boolean
-  missed: number
-  task: string | null
-}
 
 /** How long a folder listing is good for. */
 const LISTING_MS = 2_000
@@ -113,6 +106,8 @@ export interface LiveOptions {
   tadeHome: string
   cwd?: string
   pollMs?: number
+  /** When the window opened, which "this window" on the Spend page is measured from. */
+  openedAt?: number
   /** Where status is looked at: a window's own child, closed by whoever made it; else here. */
   status?: StatusCollector
   now?: () => number
@@ -211,11 +206,11 @@ export class Live {
     }
   >()
   /**
-   * Every `usage` event there has ever been, which is what the Spend page can
-   * be asked for: it offers the whole journal as a range, and a list cut to a
-   * week is a range that quietly answers a different question.
+   * Every `usage` line there has ever been, merged where nothing could tell two
+   * apart (`UsageFold`): the Spend page offers the whole journal as a range,
+   * and a list cut to a week is a range that quietly answers a different question.
    */
-  private usage: TadeEvent[] = []
+  private readonly usage: UsageFold
   /** The last spend fold, and the day and the event count it was of. */
   private spent: { since: number; of: number; report: SpendReport } | null = null
   /** The last runtime fold: the day, the run events and the moment it was of. */
@@ -226,11 +221,11 @@ export class Live {
    */
   private lookedAtLanded = 0
   /**
-   * What says how long anything has run, from the whole journal rather than a
+   * How long anything has run, folded from the whole journal rather than a
    * window of it: a run that began last week and is still going is time spent
    * today, and a time filter would drop the start it is measured from.
    */
-  private runEvents: TadeEvent[] = []
+  private readonly runtime = new RuntimeFold()
   /** Which tasks have finished, from the whole journal: the last 500 events forget. */
   private finished = new Map<string, Finished>()
   /** Which tasks' agents have ended a turn since they last started. */
@@ -240,7 +235,9 @@ export class Live {
   /** Tasks whose agent has ever started: queued work that has started is not queued. */
   private started = new Set<string>()
   /** What the queue reads: removals, runs, failures, and every choice made about queued work. */
-  private queueEvents: TadeEvent[] = []
+  private readonly queueEvents: TadeEvent[] = []
+  /** What each schedule and watch has done, kept as a tally and its newest (`schedule-fold.ts`). */
+  private readonly schedules = new ScheduleFold()
   /** Every line that wrote where a project lives, from the whole journal: what reopening reads. */
   private roots: TadeEvent[] = []
   /** Queued work, and what it waits on, as the last refresh saw. */
@@ -267,6 +264,7 @@ export class Live {
 
   private constructor(opts: LiveOptions) {
     this.opts = opts
+    this.usage = new UsageFold(opts.openedAt ?? this.now())
     this.looker = opts.status ?? makeCollector('here')
     this.looked = new Promise((resolve) => {
       this.landed = resolve
@@ -304,12 +302,13 @@ export class Live {
   /** The whole-history lists, read: kept, and what was heard meanwhile counted after them. */
   private use(read: Histories): void {
     this.journal.push(...read.recent)
-    this.usage = read.usage
+    for (const event of read.usage) this.usage.add(event)
     this.finished = finishedFrom(read.told)
     this.worked = workedFrom(read.told)
-    this.runEvents = read.runs
-    this.queueEvents = read.queue
+    for (const event of read.runs) this.runtime.add(event)
     for (const event of read.queue) {
+      if (SCHEDULE_LINES.includes(event.type)) this.schedules.add(event)
+      else this.queueEvents.push(event)
       if (event.type === 'run_started' && event.task) this.started.add(event.task)
     }
     this.roots = read.roots
@@ -446,21 +445,14 @@ export class Live {
     return this.upstreams
   }
 
-  /** Each schedule's runs, from the whole journal, oldest first. */
-  runsOf(schedule: string): ScheduleRun[] {
-    return this.queueEvents
-      .filter((event) => event.type === 'schedule_fired' && event.detail.schedule === schedule)
-      .map((event) => ({
-        due: Date.parse(String(event.detail.due ?? event.ts)),
-        ran: event.detail.ran !== false,
-        missed: typeof event.detail.missed === 'number' ? event.detail.missed : 0,
-        task: event.task,
-      }))
+  /** How many times a schedule has run, from the whole journal, and its newest runs, oldest first. */
+  runsOf(schedule: string): ScheduleRuns {
+    return this.schedules.runsOf(schedule)
   }
 
-  /** What a watch schedule has done — its looks, what it found, where it looks next — from the whole journal. */
+  /** What a watch schedule has done — its newest looks, everything it found, where it looks next. */
   watchedOf(schedule: string): Watched {
-    return watchedFrom(this.queueEvents, schedule)
+    return this.schedules.watchedOf(schedule)
   }
 
   /**
@@ -832,14 +824,14 @@ export class Live {
       }))
   }
 
-  /** Every `usage` event the journal holds, for the Spend page's own ranges. */
-  get spending(): readonly TadeEvent[] {
+  /** Every `usage` line the journal holds, merged, for the Spend page's own ranges. */
+  get spending(): UsageFold {
     return this.usage
   }
 
-  /** Every event the Spend panel measures runtime from, oldest first. */
-  get runs(): readonly TadeEvent[] {
-    return this.runEvents
+  /** How long every run there has been took, for the Spend page to ask of its own ranges. */
+  get runs(): RuntimeFold {
+    return this.runtime
   }
 
   /** What an agent last said it runs on. */
@@ -856,8 +848,8 @@ export class Live {
    * What has been spent since midnight, in total and by task.
    *
    * Folded once per event rather than once per frame. `spendFrom` is pure and
-   * `usage` only ever grows, so the same count of events over the same day is
-   * the same answer — and this is read from `facts()`, which is four times a
+   * `usage` is only ever added to, so the same count of events over the same day
+   * is the same answer — and this is read from `facts()`, which is four times a
    * second, over every usage event there has ever been. Twenty-four thousand of
    * them was 3% of a core spent re-deriving a number that only moves when an
    * agent spends something, and on an idle window nothing ever does. The list
@@ -869,12 +861,15 @@ export class Live {
     if (!this.read) return null
     const since = startOfToday(this.now())
     const spent = this.spent
-    if (spent && spent.since === since && spent.of === this.usage.length) return spent.report
+    if (spent && spent.since === since && spent.of === this.usage.size) return spent.report
     // Priced the same way the Spend page prices it, so the strip's figure and
     // the page's are one number: a harness that says it prices nothing still
     // has a rate for the model it ran on.
-    const report = spendFrom(this.usage, { since, prices: pricesFrom(this.opts.config.prices) })
-    this.spent = { since, of: this.usage.length, report }
+    const report = spendFrom(this.usage.events, {
+      since,
+      prices: pricesFrom(this.opts.config.prices),
+    })
+    this.spent = { since, of: this.usage.size, report }
     return report
   }
 
@@ -894,11 +889,11 @@ export class Live {
     const ran = this.ran
     const still =
       ran?.since === since &&
-      ran.of === this.runEvents.length &&
+      ran.of === this.runtime.size &&
       (!ran.report.total.running || Math.floor(ran.at / 1000) === Math.floor(now / 1000))
     if (ran && still) return ran.report
-    const report = runtimeFrom(this.runEvents, { since, now })
-    this.ran = { since, of: this.runEvents.length, at: now, report }
+    const report = this.runtime.report({ since, now })
+    this.ran = { since, of: this.runtime.size, at: now, report }
     return report
   }
 
@@ -1124,8 +1119,8 @@ export class Live {
   private record(event: TadeEvent): void {
     this.revisions++
     this.journal.push(event)
-    if (event.type === 'usage') this.usage.push(event)
-    if ((RUNTIME_READS as readonly string[]).includes(event.type)) this.runEvents.push(event)
+    this.usage.add(event)
+    if ((RUNTIME_READS as readonly string[]).includes(event.type)) this.runtime.add(event)
     if (event.task && event.type === 'task_done') {
       for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)
     }
@@ -1134,7 +1129,8 @@ export class Live {
       this.started.add(event.task)
     }
     if (event.task && event.type === 'turn_done') this.worked.add(event.task)
-    if ((QUEUE_READS as readonly string[]).includes(event.type)) this.queueEvents.push(event)
+    if (SCHEDULE_LINES.includes(event.type)) this.schedules.add(event)
+    else if ((QUEUE_READS as readonly string[]).includes(event.type)) this.queueEvents.push(event)
     if (aboutRoot(event)) this.roots.push(event)
     if (this.journal.length > JOURNAL) this.journal.splice(0, this.journal.length - JOURNAL)
     this.opts.onEvent?.(event)

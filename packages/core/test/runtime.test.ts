@@ -4,6 +4,7 @@ import {
   duration,
   noRuntime,
   type Runtime,
+  RuntimeFold,
   runtimeFrom,
   runtimeSays,
   workedOf,
@@ -43,6 +44,53 @@ const started = (minutesAgo: number, over: Partial<TadeEvent> = {}) =>
   event('run_started', { ts: at(minutesAgo), detail: { model: 'claude-opus-5' }, ...over })
 const exited = (minutesAgo: number, over: Partial<TadeEvent> = {}) =>
   event('run_exited', { ts: at(minutesAgo), ...over })
+
+// What a window keeps instead of the lines: the same fold, handed each line as
+// it is written and asked whenever something draws — so asking it may never
+// change what it answers next, and a run that has ended is kept as one record.
+describe('RuntimeFold', () => {
+  const journal = () => [
+    started(90),
+    event('turn_started', { ts: at(85) }),
+    event('turn_done', { ts: at(80) }),
+    event('run_model', { ts: at(79), detail: { model: 'gpt-5' } }),
+    started(70, { task: 'checkout/search', run: 'checkout/search/agent' }),
+    event('turn_started', { ts: at(60) }),
+    exited(50),
+    event('turn_done', { ts: at(45), task: 'checkout/search', run: 'checkout/search/agent' }),
+    event('tade_closing', { ts: at(40), task: null, run: null }),
+    started(20),
+    event('turn_started', { ts: at(5) }),
+  ]
+
+  it('answers, asked between lines, what the whole list answers', () => {
+    const lines = journal()
+    const fold = new RuntimeFold()
+    for (const [index, line] of lines.entries()) {
+      fold.add(line)
+      const seen = lines.slice(0, index + 1)
+      for (const window of [{ now: NOW }, { since: Date.parse(at(75)), now: NOW }]) {
+        expect(fold.report(window)).toEqual(runtimeFrom(seen, window))
+        // And a second time: asking settles nothing it counts.
+        expect(fold.report(window)).toEqual(runtimeFrom(seen, window))
+      }
+    }
+    expect(fold.size).toBe(lines.length)
+    expect([...fold.facts.keys()].sort()).toEqual([
+      'checkout/refunds/agent',
+      'checkout/search/agent',
+    ])
+  })
+
+  it('names a run by what its usage said only at the asking, so a later word counts', () => {
+    const fold = new RuntimeFold()
+    fold.add(started(30, { detail: {} }))
+    fold.add(exited(10))
+    const said = (model: string) => new Map([['checkout/refunds/agent', model]])
+    expect(Object.keys(fold.report({ now: NOW, said: said('a') }).byModel)).toEqual(['a'])
+    expect(Object.keys(fold.report({ now: NOW, said: said('b') }).byModel)).toEqual(['b'])
+  })
+})
 
 describe('runtimeFrom', () => {
   it('has run for no time when nothing has run', () => {

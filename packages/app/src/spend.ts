@@ -17,10 +17,10 @@ import {
   planStandings,
   pricedOf,
   type Runtime,
+  RuntimeFold,
   type RuntimeReport,
   resetsIn,
-  runFactsFrom,
-  runtimeFrom,
+  runsFoldedFrom,
   type Spend,
   type SpendReport,
   spendFrom,
@@ -257,8 +257,11 @@ export function spendView(
     openedAt: number
     projects: readonly string[]
     budgets: Readonly<Record<string, Budget | undefined>>
-    /** Where runtime is read from, when the run events are not in `events` themselves. */
-    runs?: readonly TadeEvent[]
+    /**
+     * Where runtime is read from, when the run events are not in `events`
+     * themselves: the lines, or a window's fold of them (`Live.runs`).
+     */
+    runs?: readonly TadeEvent[] | RuntimeFold
     /** What each harness account can say about its plan, and what it last said. */
     plan?: readonly PlanSource[]
     /** Prices per model beyond the ones Tade ships, as `config.prices` holds them. */
@@ -267,20 +270,20 @@ export function spendView(
 ): SpendView {
   const since = sinceOf(opts.window, opts.now, opts.openedAt)
   const usage = events.filter((event) => event.type === 'usage' && Date.parse(event.ts) >= since)
-  const runEvents = opts.runs ?? events
+  const runs = opts.runs instanceof RuntimeFold ? opts.runs : runsFoldedFrom(opts.runs ?? events)
   // Runs are read unwindowed on both sides: what a run *was* does not depend
   // on which window you are looking at, and a run that began before this one
   // and is still going is time spent inside it.
   // Built once and asked three times: the panel redraws four times a second,
   // and rebuilding it per question is a pass over the whole journal each time.
-  const facts = runFactsFrom(runEvents)
+  const facts = runs.facts
   const report = spendFrom(usage, { since, runs: facts, prices: opts.prices })
   const models = lastModels(usage)
   // What each run turned out to be on, so the hours and the dollars of one
   // agent land on one row. A route asks for `anthropic/claude-opus-5` and
   // Claude Code answers `claude-opus-5`; timed by the ask and priced by the
   // answer, one agent was drawn as two models that never ran together.
-  const ran = runtimeFrom(runEvents, { since, now: opts.now, said: modelsSaid(events) })
+  const ran = runs.report({ since, now: opts.now, said: modelsSaid(events) })
 
   let rows: SpendRow[]
   if (opts.by === 'project') {
