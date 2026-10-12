@@ -18,16 +18,16 @@
                        │ in Trusted hostnames, so a credential that crossed a network in the    │                       
  ▾ FILES               │ clear never buys one — and every act is in the journal under the       │                       
    ▾ src/              │ device that took it.                                                   │                       
-       webhooks.test.ts│ › iPhone ● now Fri 11 Sep 09:12 · titles, intent · may act    act   ×  │                       
-       webhooks.ts     │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows       act   ×  │                       
-   ▸ test/             │   kitchen screen ○ Thu 10 Sep 18:02 · names and counts        act   ×  │                       
-━   orchestrator     + │                                                                        │━━━━━━━━━   ⤢     ▾   ━
-                       │ An agent on this machine could pair itself, which is why this list     │                       
+       webhooks.test.ts│ › iPhone ● now Fri 11 Sep 09:12 · titles, intent · may act             │                       
+       webhooks.ts     │                                                       act   lanes   ×  │                       
+   ▸ test/             │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows                │                       
+━   orchestrator     + │                                                       act   lanes   ×  │━━━━━━━━━   ⤢     ▾   ━
+                       │   kitchen screen ○ Thu 10 Sep 18:02 · names and counts                 │                       
+                       │                                                                        │                      ▕
+                       │ An agent on this machine could pair itself, which is why this list     │                      ▕
                        │ shows every device there is.                                           │                      ▕
                        │                                                Disconnect everything   │                      ▕
-                       ╰────────────────────────────────────────────────────────────────────────╯                      ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+ ❯ what you say   ◆ the╰────────────────────────────────────────────────────────────────────────╯                      ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -295,6 +295,10 @@ export function webServer(opts: ServerOptions): WebServer {
         const scope = queryOf(req.url ?? '/').get('scope')
         return json(res, opts.readingFor(reachOf(device)).notes(scope))
       }
+      case 'agent': {
+        const task = `${found.params.project ?? ''}/${found.params.task ?? ''}`
+        return json(res, opts.readingFor(reachOf(device)).agent(task))
+      }
       case 'devices':
         return json(
           res,

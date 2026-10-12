@@ -97,6 +97,8 @@ export interface AwayDevice {
   mayAct: boolean
   /** Whether it was granted `ask`: free text into the conversation. */
   mayTalk: boolean
+  /** Whether it was granted `lanes`: the last rows of agents' own screens. */
+  maySee: boolean
   /** Whether it has a live stream open now. */
   live: boolean
 }
@@ -311,20 +313,22 @@ function middleOf(
       lines.push(row().space().text(said, skin.waiting).build())
     }
   }
-  const first = lines.length
   if (view.devices.length === 0) {
     lines.push(row().space().text('No device has been paired.', skin.hint).build())
     return { lines, chosen: null }
   }
+  const starts: number[] = []
   for (const [at, device] of view.devices.entries()) {
-    lines.push(deviceLine(device, at === panel.chosen, view, ctx, inner))
+    starts.push(lines.length)
+    lines.push(...deviceLines(device, at === panel.chosen, view, ctx, inner))
   }
-  // Where the chosen row is in the whole region, so scrolling follows it: an
-  // offset anchored in the rows it was drawn on would move when the code did.
-  // Null until somebody moved the keyboard into the list — see `moved`.
+  // Where the chosen device is in the whole region, so scrolling follows it:
+  // an offset anchored in the rows it was drawn on would move when the code
+  // did. Null until somebody moved the keyboard into the list — see `moved`.
   if (!panel.moved) return { lines, chosen: null }
-  const at = first + Math.min(panel.chosen, view.devices.length - 1)
-  return { lines, chosen: { from: at, to: at } }
+  const which = Math.min(panel.chosen, view.devices.length - 1)
+  const from = starts[which] ?? lines.length - 1
+  return { lines, chosen: { from, to: (starts[which + 1] ?? lines.length) - 1 } }
 }
 
 /** The two things a person must not be able to scroll past. */
@@ -354,12 +358,40 @@ function footOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
   return lines
 }
 
+/**
+ * One device: one line where its controls fit beside what it is, two where
+ * they do not.
+ *
+ * **A control is never what gets cut.** `Row` drops a right-hand group that
+ * does not fit as a whole, so a long name, a date and three chips would lose
+ * the `×` along with the rest — and a device nobody can disconnect from the
+ * list is the one outcome this panel exists to prevent. Where the `×` did not
+ * make it onto the line, the controls get one of their own under it.
+ */
+function deviceLines(
+  device: AwayDevice,
+  chosen: boolean,
+  view: Pick<AwayView, 'acting' | 'talking'>,
+  ctx: PanelContext,
+  inner: number,
+): Line[] {
+  const revoke = `${AWAY_CONTROLS.revoke}${device.id}`
+  const one = deviceLine(device, chosen, view, ctx, inner, true)
+  const fits = one.hits.some((hit) => hit.target.kind === 'control' && hit.target.id === revoke)
+  if (fits) return [one]
+  return [
+    deviceLine(device, chosen, view, ctx, inner, false),
+    new Row(inner, ctx.skin, ctx.pointer).right((r) => chipsOf(r, device, view)).build(),
+  ]
+}
+
 function deviceLine(
   device: AwayDevice,
   chosen: boolean,
   view: Pick<AwayView, 'acting' | 'talking'>,
   ctx: PanelContext,
   inner: number,
+  controls: boolean,
 ): Line {
   const { skin } = ctx
   const acting = view.acting
@@ -376,7 +408,7 @@ function deviceLine(
     view.talking && device.mayTalk ? 'may talk' : '',
   ].filter(Boolean)
   const said = can.length === 0 ? reads : `${reads} · ${can.join(' · ')}`
-  return new Row(inner, skin, ctx.pointer)
+  const line = new Row(inner, skin, ctx.pointer)
     .space()
     .text(chosen ? '›' : ' ', skin.signal)
     .space()
@@ -385,38 +417,47 @@ function deviceLine(
     .text(device.live ? '● now' : '○', device.live ? skin.done : skin.hint)
     .space()
     .text(`${ctx.date(device.pairedAt)} · ${said}`, skin.hint)
-    .right((r) => {
-      // **Only where the setting is on.** With it off there is no route a
-      // grant could reach, so the control is not drawn rather than drawn and
-      // refused — and the row is byte-identical to what it was before any of
-      // this existed.
-      if (acting) {
-        // **One chip, one word, and the colour says which way it goes** —
-        // `danger`/`go` is the window's own pair for exactly this. The *state*
-        // is never colour alone: it is `· may act` in the row's own words
-        // above, which is also the half that has to be readable in a
-        // screenshot and in a `tade web devices` listing.
-        r.chip(
-          'act',
-          { kind: 'control', id: `${AWAY_CONTROLS.act}${device.id}` },
-          device.mayAct ? 'danger' : 'go',
-        ).space()
-      }
-      if (view.talking) {
-        // The same shape as the act chip and the same argument: one chip, one
-        // word, the colour saying which way it goes, and the *state* in the
-        // row's own words above rather than in colour alone.
-        r.chip(
-          'talk',
-          { kind: 'control', id: `${AWAY_CONTROLS.talk}${device.id}` },
-          device.mayTalk ? 'danger' : 'go',
-        ).space()
-      }
-      return r
-        .chip('×', { kind: 'control', id: `${AWAY_CONTROLS.revoke}${device.id}` }, 'danger')
-        .space()
-    })
-    .build()
+  return (controls ? line.right((r) => chipsOf(r, device, view)) : line).build()
+}
+
+/** One device's controls, the `×` last where the eye looks for it. */
+function chipsOf(r: Row, device: AwayDevice, view: Pick<AwayView, 'acting' | 'talking'>): Row {
+  // **Only where the setting is on.** With it off there is no route a grant
+  // could reach, so the control is not drawn rather than drawn and refused —
+  // and the row is byte-identical to what it was before any of this existed.
+  if (view.acting) {
+    // **One chip, one word, and the colour says which way it goes** —
+    // `danger`/`go` is the window's own pair for exactly this. The *state* is
+    // never colour alone: it is `· may act` in the row's own words, which is
+    // also the half that has to be readable in a screenshot and in a
+    // `tade web devices` listing.
+    r.chip(
+      'act',
+      { kind: 'control', id: `${AWAY_CONTROLS.act}${device.id}` },
+      device.mayAct ? 'danger' : 'go',
+    ).space()
+  }
+  if (view.talking) {
+    // The same shape as the act chip and the same argument: one chip, one
+    // word, the colour saying which way it goes, and the *state* in the row's
+    // own words rather than in colour alone.
+    r.chip(
+      'talk',
+      { kind: 'control', id: `${AWAY_CONTROLS.talk}${device.id}` },
+      device.mayTalk ? 'danger' : 'go',
+    ).space()
+  }
+  // **Always drawn**, unlike the two above: it grants reading, not doing, so
+  // there is no setting that could make it a button nothing can carry out. The
+  // state is `lanes` in the row's own words, as theirs is.
+  r.chip(
+    'lanes',
+    { kind: 'control', id: `${AWAY_CONTROLS.see}${device.id}` },
+    device.maySee ? 'danger' : 'go',
+  ).space()
+  return r
+    .chip('×', { kind: 'control', id: `${AWAY_CONTROLS.revoke}${device.id}` }, 'danger')
+    .space()
 }
 
 /** The one line that says what is on, and to whom. */

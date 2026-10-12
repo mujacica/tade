@@ -116,7 +116,32 @@ const AllowedLine = z.strictObject({
   scopes: z.array(z.enum(SCOPES)),
 })
 
-const Line = z.discriminatedUnion('kind', [PairedLine, RevokedLine, RenewedLine, AllowedLine])
+/**
+ * What a person at the machine let this device **read** beyond names and
+ * counts, in full.
+ *
+ * `allowed`'s twin for the other half of a device's reach: pairing writes the
+ * read grants once, and a keypress at the machine is the only thing that
+ * changes them afterwards — never a request, never a config key, for the
+ * reason `allowed` gives. The list is the whole grant, so a narrower one is
+ * the same line with less in it and the file stays the record of what
+ * happened.
+ */
+const GrantedLine = z.strictObject({
+  kind: z.literal('granted'),
+  device: z.string().regex(/^[0-9a-f]{16}$/),
+  at: z.string(),
+  /** What it may read now, in full. Never a delta: a list read back is the grant. */
+  granted: Granted,
+})
+
+const Line = z.discriminatedUnion('kind', [
+  PairedLine,
+  RevokedLine,
+  RenewedLine,
+  AllowedLine,
+  GrantedLine,
+])
 export type DeviceLine = z.infer<typeof Line>
 export type Paired = z.infer<typeof PairedLine>
 
@@ -195,6 +220,8 @@ export function devicesIn(text: string): { devices: Device[]; skipped: number } 
       // control. Taking a grant back is an `allowed` line with less in it.
       const scopes = parsed.scopes.includes('read') ? parsed.scopes : ['read', ...parsed.scopes]
       devices.set(parsed.device, { ...held, scopes })
+    } else if (parsed.kind === 'granted') {
+      devices.set(parsed.device, { ...held, granted: parsed.granted })
     } else devices.set(parsed.device, { ...held, until: Date.parse(parsed.until) })
   }
   return { devices: [...devices.values()], skipped }
@@ -247,6 +274,28 @@ export async function allowDevice(
     device,
     at: at.toISOString(),
     scopes: z.array(z.enum(SCOPES)).parse(scopes),
+  })
+}
+
+/**
+ * Let one device read more, or less. **A person at the machine, only** — the
+ * same door `allowDevice` is, for the read grants rather than the scopes.
+ *
+ * Written in full, for `allowDevice`'s reason, and parsed against `GRANTS` on
+ * the way in, so a word nothing reads cannot be written down as though it
+ * granted something.
+ */
+export async function grantDevice(
+  home: string,
+  device: string,
+  granted: readonly string[],
+  at: Date,
+): Promise<void> {
+  await appendDevice(home, {
+    kind: 'granted',
+    device,
+    at: at.toISOString(),
+    granted: Granted.parse(granted),
   })
 }
 

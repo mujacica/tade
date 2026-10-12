@@ -16,10 +16,12 @@
   saying so. The default for all four is a blank area that reads as broken,
   which is why none of them is left to chance.
 
-  Three breakpoints, content-driven and not device-driven: one column with a
-  bottom tab bar, then a glyph rail, then a named rail. `away.css` has the
-  screens that are drawn inside this, and the card grid there reflows on its own
-  with no breakpoint at all.
+  Four breakpoints, content-driven and not device-driven: one column with a
+  bottom tab bar, then a glyph rail with the projects along the top, then a
+  named rail, then the desk — the window's own shape, with the running agents
+  down the side and the conversation in a strip at the foot (`desk.js`).
+  `away.css` has the screens that are drawn inside this, and the card grid
+  there reflows on its own with no breakpoint at all.
 */
 /* ── the frame ─────────────────────────────────────────────────────────────── */
 
@@ -228,6 +230,17 @@ a.name:hover {
 }
 
 .rail {
+  display: none;
+}
+
+/*
+  The desk's three parts, off until there is room for them. Each is in the
+  document at every width — so the reading order is the same everywhere — and
+  each is turned on by its breakpoint below and by nothing else.
+*/
+.projects,
+.side,
+.strip {
   display: none;
 }
 
@@ -485,6 +498,48 @@ main[tabindex="-1"]:focus {
   .sheet {
     inset-block-end: var(--s5);
   }
+
+  /*
+    The projects, along the top as the window has them: each a name and the
+    counts that are true over every task in it. Wrapped rather than scrolled,
+    so a machine with nine projects is two lines and never a page wider than
+    the screen.
+  */
+  .projects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2);
+    padding-block-end: var(--s3);
+  }
+
+  .projects a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    min-height: var(--tap);
+    padding-inline: var(--s3);
+    border-radius: var(--r1);
+    background: var(--surface);
+    color: var(--bright);
+    text-decoration: none;
+    font-size: var(--step-0);
+  }
+
+  .projects a:hover {
+    background: var(--raised);
+  }
+
+  /* Where you are, in cyan, as the rail says it — and said to a screen reader. */
+  .projects a[aria-current="page"] {
+    color: var(--cyan);
+    box-shadow: inset 0 -3px 0 var(--cyan);
+  }
+
+  .projects .count {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--step--1);
+  }
 }
 
 /* ── desk: the rail gains its names ────────────────────────────────────────── */
@@ -507,6 +562,149 @@ main[tabindex="-1"]:focus {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     color: var(--heading);
+  }
+}
+
+/* ── desk: the window's own shape — agents down the side, Tade at the foot ── */
+
+@media (min-width: 1280px) {
+  .frame {
+    grid-template-columns: 11rem 16rem minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+  }
+
+  .rail,
+  .side {
+    grid-row: 1 / span 2;
+  }
+
+  main,
+  .strip {
+    grid-column: 3;
+  }
+
+  /*
+    Every agent running, down the side, held in view while the work scrolls:
+    the side list the window keeps. Its own scroll where there are more agents
+    than the screen is tall, and every row a link to that agent's own page.
+  */
+  .side {
+    display: block;
+    position: sticky;
+    top: calc(var(--tap) + var(--s4));
+    align-self: start;
+    max-height: calc(100vh - var(--tap) - var(--s6));
+    overflow-y: auto;
+  }
+
+  .side h3 {
+    margin-block: var(--s3) var(--s1);
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .side a {
+    display: grid;
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+    column-gap: var(--s2);
+    align-items: center;
+    min-height: var(--tap);
+    padding-inline: var(--s2);
+    border-radius: var(--r1);
+    color: var(--bright);
+    text-decoration: none;
+  }
+
+  .side a .glyph {
+    grid-row: 1 / span 2;
+  }
+
+  .side a .runs {
+    grid-column: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--heading);
+  }
+
+  .side a:hover {
+    background: var(--raised);
+  }
+
+  .side a[aria-current="page"] {
+    background: var(--chosen);
+    color: var(--cyan);
+  }
+
+  /*
+    The orchestrator's strip, at the foot of the work and held there: the
+    exchange that just happened and the box, as the window has its own. Its
+    lines are held to two rows each, because a strip that grew with a reply
+    would push the work it sits under off the screen.
+  */
+  .strip {
+    display: block;
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    padding-block: var(--s3);
+    background: var(--ground);
+    border-block-start: var(--border);
+  }
+
+  /* Outside `main`, so the floor every link in it gets is set here again. */
+  .strip .section-head a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+  }
+
+  .strip .lines {
+    display: grid;
+    gap: var(--s1);
+    margin-block-end: var(--s2);
+  }
+
+  .strip .lines li {
+    display: flex;
+    gap: var(--s3);
+    align-items: baseline;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .strip .who {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+  }
+
+  .strip .words {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--bright);
+  }
+
+  .strip .composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s2);
+    align-items: start;
+  }
+
+  .strip .composer > p {
+    grid-column: 1 / -1;
+  }
+
+  /* The state and the agent's own screen where the eye lands, the facts beside. */
+  .task-grid {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    gap: var(--s5);
+    align-items: start;
   }
 }
 

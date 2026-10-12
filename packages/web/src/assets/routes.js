@@ -79,6 +79,7 @@ export function viewOf(path) {
  * that is not here is a page that loads and then says it knows nothing.
  */
 const PLAIN = [
+  'agents',
   'queue',
   'inbox',
   'runs',
@@ -131,6 +132,7 @@ export const TITLES = {
   now: 'Now',
   project: 'Project',
   task: 'Task',
+  agents: 'Agents',
   queue: 'Queue',
   inbox: 'Handed over',
   request: 'Request',
@@ -180,6 +182,11 @@ export const NAV = [
 
 /** The weekly reads, listed on every screen's rail and under More on a phone. */
 export const MORE = [
+  // **Every agent running**, first under More because it is the window's own
+  // side list: what is at work right now, across every project, with what
+  // each runs on. On a desk it is a column of its own beside the screen
+  // (`desk.js`) and this entry is the same list a tap away everywhere else.
+  { view: 'agents', mark: '◉', label: 'Agents', counts: 'agents' },
   // First among the weekly reads, because it is the one that is read *because
   // something happened* rather than on a round: a reply arrived, or Tade is
   // answering somebody. The others are lists that are true whenever you look.

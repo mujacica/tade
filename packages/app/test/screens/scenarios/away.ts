@@ -41,6 +41,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
         reads: ['titles', 'intent'],
         mayAct: false,
         mayTalk: false,
+        maySee: false,
         live: true,
       },
       {
@@ -50,6 +51,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
         reads: [],
         mayAct: false,
         mayTalk: false,
+        maySee: false,
         live: false,
       },
     ],
@@ -170,6 +172,7 @@ export const AWAY_SCREENS: Scenario[] = [
               reads: ['titles', 'intent'],
               mayAct: true,
               mayTalk: false,
+              maySee: false,
               live: true,
             },
             {
@@ -179,6 +182,7 @@ export const AWAY_SCREENS: Scenario[] = [
               reads: ['titles', 'requests', 'workflows'],
               mayAct: false,
               mayTalk: false,
+              maySee: false,
               live: false,
             },
             {
@@ -188,6 +192,7 @@ export const AWAY_SCREENS: Scenario[] = [
               reads: [],
               mayAct: false,
               mayTalk: false,
+              maySee: false,
               live: false,
             },
           ],

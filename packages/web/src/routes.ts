@@ -146,6 +146,9 @@ export const ROUTES: readonly Route[] = [
   shellAt('/pair', 'pair page'),
   shellAt('/p/:project', 'project page'),
   shellAt('/t/:project/:task', 'task page'),
+  // Every agent running, across every project this device may read: the
+  // window's own side list, as a page of its own on a phone and a tablet.
+  shellAt('/agents', 'agents page'),
   shellAt('/queue', 'queue page'),
   // The factory floor. `:source`, `:id`, `:run` and `:name` are read and **not
   // used**, exactly as `:project` and `:task` are: the handler serves a file
@@ -218,6 +221,20 @@ export const ROUTES: readonly Route[] = [
   // retrying rather than hammering a port it will never get into.
   { method: 'GET', path: '/api/stream', name: 'stream', needs: 'read', mutates: false },
   { method: 'GET', path: '/api/notes', name: 'notes', needs: 'read', mutates: false },
+  // **One agent, read while somebody is looking at it.** A `GET`, like every
+  // other read, and it changes nothing about the work: what asking does is
+  // tell the window that a device is still looking, which is what keeps it
+  // reading that lane (`web-lanes.ts`) — and a page that stops asking stops
+  // that within a beat or two. The screen's rows are behind the device's own
+  // `lanes` grant, checked in the projection (`agentOf`) rather than here,
+  // because a grant is per device and this route is the same for all of them.
+  {
+    method: 'GET',
+    path: '/api/agent/:project/:task',
+    name: 'agent',
+    needs: 'read',
+    mutates: false,
+  },
   { method: 'GET', path: '/api/devices', name: 'devices', needs: 'read', mutates: false },
 
   // Signing out. A mutation, because it destroys a credential — and **its own

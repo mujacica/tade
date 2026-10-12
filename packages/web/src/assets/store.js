@@ -56,6 +56,7 @@ export const GRANTS = [
   'requests',
   'material',
   'workflows',
+  'lanes',
 ]
 
 const COLLECTIONS = [
@@ -192,6 +193,19 @@ export function projectsOf(store) {
 
 export function tasksIn(store, project) {
   return rowsOf(store, 'tasks').filter((task) => task.project === project)
+}
+
+/**
+ * Every task with an agent on it, by project and then by name.
+ *
+ * `agents` is the projection's own **count** of the agents attached — never a
+ * pid or a session — so this filters and sorts and decides nothing: a task
+ * whose agent stopped is not running, whatever state it is in, and one whose
+ * agent is running is listed whatever it is doing. The side list and the
+ * Agents screen read this and nothing else, so they cannot disagree.
+ */
+export function agentsOf(store) {
+  return rowsOf(store, 'tasks').filter((task) => (task.agents ?? 0) > 0)
 }
 
 export function taskAt(store, project, name) {

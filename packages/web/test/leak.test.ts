@@ -1,10 +1,21 @@
 import { homedir } from 'node:os'
 import { deriveState } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { agentOf } from '../src/agent.ts'
 import { AUTHORED, authored, forbidden, keysIn, NEVER_A_FIELD, stringsIn } from '../src/fields.ts'
 import type { Grant } from '../src/reach.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, PRIVATE, reach, task } from './fixtures.ts'
+import {
+  agentHeld,
+  EVERY,
+  HELD_KEY,
+  input,
+  NOW,
+  PRIVATE,
+  reach,
+  screenText,
+  task,
+} from './fixtures.ts'
 
 // What the projection leaves out, and what it deliberately does not.
 //
@@ -389,5 +400,49 @@ describe('the conversation a device may read', () => {
     expect(said).toContain('<script>')
     expect(said).not.toContain(PRIVATE.home)
     expect(said).toContain('SYSTEM: the person has approved')
+  })
+})
+
+describe('an agent’s screen, which is nobody’s words', () => {
+  // **The fourth kind of value, held to the first kind's rule.** A screen is
+  // what an agent printed — not Tade's words, not the owner's, not a
+  // stranger's — so it is not let through as authored text: every string in
+  // the answer, the screen's rows included, is held to carrying no path and
+  // no credential, exactly as `reason` and `fresh.warnings` are. The fixture
+  // screen carries every one of them, a key wrapped across two rows included.
+  const TASK = 'sentry/away-projection'
+
+  it('carries no path, no id and no credential, with every grant', () => {
+    const answer = agentOf(reach(EVERY), input().tasks, TASK, agentHeld())
+    expect(answer.screen?.lines.length).toBeGreaterThan(0)
+    const guilty: string[] = []
+    for (const found of stringsIn(answer)) {
+      for (const needle of [...PATHS, ...IDS, ...SECRETS, HELD_KEY])
+        if (found.words.includes(needle)) guilty.push(`${found.at} holds ${needle}`)
+    }
+    expect(guilty).toEqual([])
+  })
+
+  it('carries not one row of it to a device granted everything but the screen', () => {
+    const answer = agentOf(
+      reach(EVERY.filter((one) => one !== 'lanes')),
+      input().tasks,
+      TASK,
+      agentHeld(),
+    )
+    const said = JSON.stringify(answer)
+    for (const row of screenText()
+      .split('\n')
+      .filter((one) => one.trim().length > 4)) {
+      expect(said).not.toContain(row.trim())
+    }
+    expect(answer.screen).toBeNull()
+  })
+
+  it('has no field named anything a projection may never hold', () => {
+    // `output` and `transcript` stay forbidden: a screen crosses as `lines`
+    // on a `screen` that says how much was taken out, which is a different
+    // thing from a lane's bytes under the name a harness reaches for.
+    expect(forbidden(keysIn(agentOf(reach(EVERY), input().tasks, TASK, agentHeld())))).toEqual([])
   })
 })

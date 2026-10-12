@@ -79,6 +79,17 @@ export const AWAY_CONTROLS = {
    * the reason the act chip is drawn only where acting is.
    */
   talk: 'away-talk:',
+  /**
+   * Let one device see agents' screens, or take it back: `away-see:<id>`.
+   *
+   * **A reading grant, and the only one with a control after pairing**,
+   * because it is the one whose content Tade did not write: whatever an agent
+   * printed, scrubbed of paths and keys (`cleanScreen`) and nothing more. So
+   * it is off for every device until somebody here turns it on for one, and
+   * the row says `lanes` in its own words once they have. Drawn always — it
+   * needs no setting, because nothing it grants can change anything.
+   */
+  see: 'away-see:',
 } as const
 
 /**

@@ -9,9 +9,13 @@ import {
   type Workspace,
 } from '@tade/core'
 import {
+  AGENT,
+  type AgentIn,
+  agentOf,
   type Confirmed,
   type Device,
   factsOf,
+  has,
   type PairingAsk,
   type Projector,
   projector,
@@ -29,13 +33,14 @@ import {
   webServer,
 } from '@tade/web'
 import { awayCollections } from '../away.ts'
+import { activityIn } from '../away-activity.ts'
 import type { Frame } from '../frame.ts'
 import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
-import { letOneAct, letOneTalk, webActing } from './web-acting.ts'
+import { webActing } from './web-acting.ts'
 import { armingFor, type Talking, webAsking } from './web-asking.ts'
 import {
   type AwayBeat,
@@ -48,7 +53,9 @@ import {
   talkFor,
   upSinceOf,
 } from './web-beat.ts'
+import { widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
+import { knownKeys, Lanes } from './web-lanes.ts'
 import { awayView, mintPairing } from './web-panel.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
@@ -165,10 +172,16 @@ export class Away implements Subject {
    */
   private readonly upSince: number | null = upSinceOf()
   private held: AwayHeld | null = null
+  /** Agents' screens, read only while a device granted them is looking. */
+  private readonly lanes: Lanes
 
   constructor(wire: Wiring, deps: AwayDeps) {
     this.wire = wire
     this.deps = deps
+    this.lanes = new Lanes({
+      capture: (lane, lines) => wire.opts.client.capture(lane as never, lines, false),
+      now: () => wire.now(),
+    })
     // Out of the collections the beat already built: no look at the world.
     this.push = pushFor(wire, deps, {
       tasks: () => this.collections().tasks,
@@ -284,6 +297,9 @@ export class Away implements Subject {
     // it on this beat and nowhere else, which is what "no unbounded timers"
     // means mechanically.
     this.streams.beat(now)
+    // Agents' screens, for whoever is still looking: a comparison and a return
+    // when nobody is (`web-lanes.ts`), and never a wait on the driver.
+    this.lanes.beat(now)
     // And the one thing `streams.beat` cannot know: a device revoked somewhere
     // other than this window — `tade web revoke`, `tade web off`. Fired and
     // not awaited, because the beat is synchronous and the window draws on
@@ -456,15 +472,7 @@ export class Away implements Subject {
       else if (control === AWAY_CONTROLS.all) await this.revokeEverything()
       else if (control.startsWith(AWAY_CONTROLS.revoke)) {
         await this.revoke(control.slice(AWAY_CONTROLS.revoke.length))
-      } else if (control.startsWith(AWAY_CONTROLS.talk)) {
-        // Checked **before** `act`, because `away-talk:` and `away-act:` are
-        // different prefixes and the order of these branches is the order a
-        // reader checks them in; a prefix that is a prefix of another would be
-        // a control that silently did the other thing.
-        await this.letItTalk(control.slice(AWAY_CONTROLS.talk.length))
-      } else if (control.startsWith(AWAY_CONTROLS.act)) {
-        await this.letItAct(control.slice(AWAY_CONTROLS.act.length))
-      }
+      } else await widen(this.widening(), control)
     } catch (err) {
       // Said on the panel where the button was pressed, and never swallowed:
       // pressing Disconnect everything and watching nothing happen is the
@@ -480,62 +488,19 @@ export class Away implements Subject {
   }
 
   /**
-   * Let one device act, or take it back. **A keypress at this machine.**
-   *
-   * The only door a scope widens through, and there is deliberately no other:
-   * no route, no orchestrator tool and no config key, because the thing that
-   * grants authority is never reachable from inside the authority it granted
-   * (DESIGN.md §9.1). What it decides is in `web-acting.ts`; what is here is
-   * the window's half — the file, the line, and the sentence in the strip.
+   * What letting one device act, talk or see needs of this subject. **A
+   * keypress at this machine** is the only door, and `web-grants.ts` has why.
    */
-  private async letItAct(id: string): Promise<void> {
-    const granted = await letOneAct(
-      {
-        home: this.wire.opts.home,
-        acting: () => surfaceOf(this.config().surfaces.web).acting,
-        now: () => this.wire.now(),
-      },
-      this.devices,
-      id,
-    )
-    await this.log({
-      // The same kind of line as a device being let in or disconnected, and
-      // for the same reason: somebody who did not press the key is the one who
-      // most needs to see that it happened.
-      type: 'web_paired',
-      detail: { device: id, scopes: granted.scopes.join(' '), granted: 'at the machine' },
-    })
-    this.deps.news(granted.said)
-    await this.reread()
-  }
-
-  /**
-   * Let one device talk to Tade, or take it back. **A keypress at this
-   * machine**, and a second one from the act grant.
-   *
-   * The same door `letItAct` is and the same argument for there being no other
-   * one: the thing that grants authority is never reachable from inside the
-   * authority it granted. What it grants is `ask` and nothing else — a device
-   * that may talk and may not act can be answered in words and cannot change
-   * anything, because what a turn may *do* is read off the same `answer` and
-   * `steer` scopes the act control writes.
-   */
-  private async letItTalk(id: string): Promise<void> {
-    const granted = await letOneTalk(
-      {
-        home: this.wire.opts.home,
-        talking: () => surfaceOf(this.config().surfaces.web).talking,
-        now: () => this.wire.now(),
-      },
-      this.devices,
-      id,
-    )
-    await this.log({
-      type: 'web_paired',
-      detail: { device: id, scopes: granted.scopes.join(' '), granted: 'at the machine' },
-    })
-    this.deps.news(granted.said)
-    await this.reread()
+  private widening() {
+    return {
+      home: this.wire.opts.home,
+      config: () => this.config(),
+      now: () => this.wire.now(),
+      devices: () => this.devices,
+      log: (told: Told) => this.log(told),
+      news: (said: string) => this.deps.news(said),
+      reread: () => this.reread(),
+    }
   }
 
   /** Every device, and the outstanding code, gone. It needs no network. */
@@ -572,6 +537,7 @@ export class Away implements Subject {
     this.streams.revoke(id, 'signed out')
     this.projectors.delete(id)
     this.caughtUp.delete(id)
+    this.lanes.forget(id)
   }
 
   /** A fresh ticket for the address a phone would reach this on. */
@@ -638,6 +604,37 @@ export class Away implements Subject {
         this.catchUp(reach, held)
         return held.notes(scope)
       },
+      agent: (task) => {
+        // **This request's reach, not the projector's.** The device list is
+        // read at every request and a projector catches up on a beat, so a
+        // grant taken back a second ago is already gone here — and the
+        // collections are the ones this beat built, memoised, never a look.
+        const answer = agentOf(reach, this.collections().tasks, task, this.agentIn(reach, task))
+        // **Asking is looking**, and only a device that may read the screen,
+        // about a task it may read at all, makes the window read one: an
+        // ungranted phone with the page open costs the activity fold and no
+        // lane, and a crafted name for a task out of reach costs nothing.
+        if (answer.here && has(reach, 'lanes')) {
+          this.lanes.watch(reach.device, task, this.wire.now())
+        }
+        return answer
+      },
+    }
+  }
+
+  /**
+   * What the window holds of one agent: its activity out of the journal it
+   * already has, and the lane as last read on a beat. Never a read now.
+   */
+  private agentIn(reach: Reach, task: string): AgentIn {
+    const web = this.config().surfaces.web as unknown as Record<string, unknown>
+    const keys = () => knownKeys(this.wire.opts.extensions?.secrets() ?? [], web, process.env)
+    return {
+      activity: activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
+      lane: this.lanes.heldFor(task) ?? { kind: 'none', why: 'not read yet' },
+      // Only for a device that will be shown a screen: asking every extension
+      // for its keys is not free, and an ungranted answer has no screen.
+      known: has(reach, 'lanes') ? this.lanes.keys(keys) : [],
     }
   }
 

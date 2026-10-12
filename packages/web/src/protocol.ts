@@ -523,3 +523,92 @@ export const KEYED: { [C in Collection]: (row: Rows[C]) => string } = {
   runs: (row) => row.run,
   workflows: (row) => row.name,
 }
+
+/**
+ * What can be said about one moment in a task's life, as a closed list.
+ *
+ * Here rather than beside the projection that writes them (`agent.ts`), for
+ * the reason `said.ts` is a leaf: that file imports this one, and a list
+ * defined there and imported here is an import cycle that type-checks and then
+ * throws inside zod.
+ */
+export const ACTIVITY_KINDS = [
+  'made',
+  'state',
+  'started',
+  'stopped',
+  'turn',
+  'used',
+  'asked',
+  'allowed',
+  'refused',
+  'checked',
+  'committed',
+  'finished',
+  'told',
+  'failed',
+] as const
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
+
+/**
+ * Why an agent's screen is not in an answer, in a word.
+ *
+ * Five, and each is a different thing to do next: be granted it at the
+ * machine, start an agent, wait a beat, look at the machine, or find the task
+ * — which is why one word for all of them would be the page lying four times
+ * out of five.
+ */
+export const SCREEN_WHY = [
+  'not granted',
+  'no agent',
+  'not read yet',
+  'could not read',
+  'not here',
+] as const
+
+/** One moment in a task's life, in Tade's own words. */
+export const ActivityRowSchema = z.strictObject({
+  at: z.string(),
+  kind: z.enum(ACTIVITY_KINDS),
+  /** Tade's sentence, from a closed list and a checked name. Metadata. */
+  said: z.string(),
+})
+export type ActivityRow = z.infer<typeof ActivityRowSchema>
+
+/**
+ * One agent, as a device looking at it is told: what it has been doing, and
+ * the last rows of its own screen where this device was granted them.
+ *
+ * **Its own answer and not a collection**, because it is about one task and is
+ * read only while somebody is looking at that task: forty rows of a screen on
+ * every frame for every task would be a projection paying, twice a second, for
+ * screens nobody has open. `screen.ts` says what the rows may hold.
+ */
+export const AgentOutSchema = z.strictObject({
+  v: z.literal(PROTOCOL_VERSION),
+  /** `<project>/<task>`, as it was asked for. */
+  task: z.string(),
+  /** Whether this device may read this task at all. False is everything below empty. */
+  here: z.boolean(),
+  /** Newest first, as much as the budget allows. */
+  activity: z.array(ActivityRowSchema),
+  /** Whether there was more activity than is here: said, never a silent cut. */
+  more: z.boolean(),
+  screen: z
+    .strictObject({
+      /** The newest rows of what the agent's lane shows, cleaned (`screen.ts`). */
+      lines: z.array(z.string()),
+      /** When the window read it, by the server's own clock. */
+      at: z.string(),
+      /** Rows above these that are not here. */
+      above: z.int().nonnegative(),
+      /** Rows cut at the budget's width. */
+      cut: z.int().nonnegative(),
+      /** How many things were taken out. A count, never what. */
+      taken: z.int().nonnegative(),
+    })
+    .nullable(),
+  /** Why there is no screen. Null where there is one. */
+  why: z.enum(SCREEN_WHY).nullable(),
+})
+export type AgentOut = z.infer<typeof AgentOutSchema>

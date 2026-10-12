@@ -30,8 +30,13 @@ import { MORE, NAV, navFor, pathOf, TITLES } from './routes.js'
  *
  * Returns the parts the wiring writes into. Nothing here is rebuilt: a screen
  * is swapped inside `main`, and everything else is patched.
+ *
+ * `desk` is the three parts a desk adds (`desk.js`) — projects along the top,
+ * agents down the side, Tade at the foot — placed here so the reading order is
+ * the window's: what is open, what is running, the work, and then the
+ * conversation. Each is hidden by the stylesheet below its width.
  */
-export function shell() {
+export function shell(desk = null) {
   const skip = el('a', {
     class: 'skip',
     text: 'skip to what wants you',
@@ -69,7 +74,7 @@ export function shell() {
   const frame = el('div', { class: 'frame' })
   const rail = el('nav', { class: 'rail', attrs: { 'aria-label': 'Sections' } })
   const main = el('main', { attrs: { id: 'main' } })
-  into(frame, rail, main)
+  into(frame, rail, desk?.side, main, desk?.strip)
 
   const tabs = el('nav', { class: 'tabs', attrs: { 'aria-label': 'Sections' } })
 
@@ -88,7 +93,9 @@ export function shell() {
   const links = navLinks(rail, tabs)
 
   return {
-    parts: [skip, top, bars, frame, tabs, sheet, announce],
+    parts: [skip, top, bars, desk?.projects, frame, tabs, sheet, announce].filter(
+      (one) => one !== null && one !== undefined,
+    ),
     main,
     bars,
     dot,
@@ -155,6 +162,7 @@ export function navOn(links, where) {
 /** What each count is a count *of*, because `5` alone is read aloud as "five". */
 const NOUNS = {
   wantsYou: 'wanting you',
+  agents: 'agents running',
   queue: 'queued',
   reviews: 'offered for merge',
   findings: 'findings',
@@ -288,6 +296,7 @@ function keySheet() {
   const list = el('dl')
   for (const [key, what] of [
     ['g n', 'Now'],
+    ['g a', 'Agents'],
     ['g q', 'Queue'],
     ['g s', 'Spend'],
     ['g c', 'Checks'],

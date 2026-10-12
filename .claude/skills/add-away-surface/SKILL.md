@@ -32,6 +32,13 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | what kind of trouble a look ran into | `watch-looks.ts` in `@tade/core`, `troubleOf` in `@tade/extensions-core`, written down by `wire/schedules.ts` |
 | a request's own words, as a device reads them | `IntakeIn.material` in `src/factory.ts`, `Bodies` in `wire/web-factory.ts`, `MATERIAL_LABEL` in `@tade/core` |
 | what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
+| one agent looked into: the answer, its activity's words | `src/agent.ts` (`agentOf`, `activitySaid`), `AgentOutSchema` in `src/protocol.ts`, `GET /api/agent/:project/:task` in `src/routes.ts` |
+| what of an agent's screen may leave the machine | `src/screen.ts` — pure: the bounds, the wrap, the keys, the shapes, the paths |
+| when the window reads an agent's screen, and which keys it knows | `packages/app/src/wire/web-lanes.ts` (`Lanes`, `knownKeys`) |
+| what a task has been doing, out of the journal | `packages/app/src/away-activity.ts` — pure, an allow-list over types and fields |
+| the controls that widen one device (act, talk, lanes) | `packages/app/src/wire/web-grants.ts`, and `grantDevice` in `src/devices.ts` for a reading grant |
+| the desk: projects along the top, agents down the side, Tade at the foot | `src/assets/desk.js`, placed by `shell.js`, laid out in `frame.css` (1280px) |
+| the agents list and the pane on a task's page | `src/assets/agents.js` |
 | what the window hands the projection each beat | `packages/app/src/wire/web-beat.ts` |
 | adding to a task's context | `packages/workbench/src/context.ts` |
 | what has to be true of an **act** | `src/acts.ts` — pure, and `test/acts.test.ts` runs the cross-product |
@@ -63,7 +70,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | what a state looks like | `src/assets/glyphs.js` — glyph, word and tone, never colour alone |
 | the delta merge and the selectors | `src/assets/store.js` |
 | the router, the stream, the keyboard | `src/assets/boot.js` |
-| the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts` |
+| the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts`; the desk and `lanes` in `scripts/browser-desk.ts` |
 | the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
 | what the panel draws | `packages/app/src/panels/away/{state,view}.ts`, with four goldens in `test/screens/scenarios/away.ts` |
@@ -363,6 +370,37 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   refuses it is the point: a harness that loosened the header would be testing a page nobody is
   served.
 
+## An agent's screen, which is nobody's words
+
+`lanes` is the one reading grant whose content Tade did not write and nobody chose to: whatever an
+agent printed. Everything about it is in the direction of reading less.
+
+- **It is a grant, per device, off for every device**, made at the machine (`away-see:<id>`, a
+  `granted` line in `web-devices.jsonl` — `allowed`'s twin for the reading half of a reach). No
+  setting: nothing it grants can change anything, and the boundary is the scrubbing, which holds
+  whatever any device was granted.
+- **It is never on a snapshot.** It is its own answer (`/api/agent/...`), about one task, asked while
+  that task's page is open and visible. A screen on every row would be forty rows paid for twice a
+  second for every task.
+- **Asking is looking, and only looking reads.** A device granted `lanes`, asking about a task it may
+  read, makes `Lanes` watch that lane for `WATCH_MS`; the read is on the window's beat with a
+  deadline, one in flight per lane, at most `MOST_PER_DEVICE` lanes per device. No watch, no read —
+  `test/wire/web-lanes.test.ts` counts them — and a crafted name out of reach watches nothing.
+- **The answer is built from the request's reach, not the projector's.** The device list is read at
+  every request and a projector catches up on a beat, so a grant taken back is gone at the next ask.
+- **What leaves is cleaned at the boundary** (`cleanScreen`): every machine path by `withoutPaths`'
+  rule, every key Tade knows of by value (`knownKeys`: the config's, their variables, and every
+  variable of the window's environment named like a credential — the environment agents inherit),
+  anything shaped like a credential, a private key's whole block, and every character that reorders
+  or hides text. **Rows that fill the screen's width are joined first**, because a terminal wraps a
+  key onto two rows and neither row holds it. The last `SCREEN.lines` rows, each cut at
+  `SCREEN.width`, and the counts of what was left out. `GRANT_MEANS.lanes` says the other half:
+  anything else an agent printed is not taken out.
+- **Nothing types into a lane from away.** What a person says to an agent goes through `steer` or
+  through Tade (the strip's box is `talk.js`'s `composerOf`, the same ask flow).
+- **The page stops asking when it is left** (`screen.leave()` from the router), and the harness
+  counts the asks after leaving off the browser's own resource timeline.
+
 ## Seven sentences that may never get more comfortable
 
 In `src/surface.ts` (re-exported from `@tade/core`'s `away.ts`), said once so no control, README
@@ -487,8 +525,8 @@ method on `WebActing`, and a control in `acts.js`.
 table: a whole project's queue (it names no task, so it has no entity revision to echo and no replay
 could be told from a fresh ask), a diff, a review's text or a lane's output (each ships source or an
 agent's bytes to a phone and a browser cache — a *reading* grant with its own threat model, and a
-name `NEVER_A_FIELD` already refuses), and stopping an agent (not a hold, not undone by the same
-verb).
+name `NEVER_A_FIELD` already refuses; the third is now that grant, `lanes`, and still no verb), and
+stopping an agent (not a hold, not undone by the same verb).
 
 **Every verb makes two checks and they answer different questions.** `onTask` compares the revision
 the device echoed (`was`) against the one the projection would put on that row now — that one is
@@ -558,7 +596,9 @@ TADE_BROWSER='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
 ```
 
 It pairs a device through the real page, visits every route at 360/834/1440, runs axe, and checks the
-landmarks, the targets and that nothing scrolls sideways. **It pairs three times**: a device granted
+landmarks, the targets and that nothing scrolls sideways — at every width, not only the phone's.
+**It pairs exactly five times, which is the server's limit per address in ten minutes**, so a new
+check rides on a device already paired (`browser-desk.ts` does) rather than pairing a sixth. **It pairs three times**: a device granted
 nothing, which is what the honesty checks are for; one granted everything at the widest width —
 because every figure draws differently with the grant, and the page with actual money, notes and
 sign-ins on it is the one the owner will look at; and one granted **both acting tiers** at 360px,

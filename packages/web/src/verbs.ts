@@ -509,7 +509,9 @@ export const INTAKE: Verb = {
  * - **a diff, a review's text, a lane's output.** Each ships source or an
  *   agent's bytes to a phone and to a browser cache; that is a *reading*
  *   grant with its own threat model (`fields.ts`'s `NEVER_A_FIELD`), not a
- *   verb.
+ *   verb. The third is now that grant (`lanes`, `screen.ts`) and is still
+ *   no verb: nothing types into a lane from away, and what a person says to
+ *   an agent goes through `steer` or through Tade.
  * - **stopping an agent.** It is not a hold and not undoable by the same
  *   verb, and what a person wants after one is usually the lane in front of
  *   them.

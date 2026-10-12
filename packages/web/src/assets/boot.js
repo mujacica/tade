@@ -25,7 +25,9 @@
 // count. Nothing here ever draws the page empty because it could not ask.
 
 import { actsOf } from './acts.js'
+import { agentsScreen } from './agents.js'
 import { workflowScreen, workflowsScreen } from './designer.js'
+import { deskParts } from './desk.js'
 import { classOn, el, textIn } from './dom.js'
 import { inboxScreen, requestScreen } from './factory.js'
 import { forget, NOT_SECURE, startInstall, takeUpdate } from './install.js'
@@ -58,6 +60,7 @@ import {
   titleFor,
 } from './shell.js'
 import {
+  agentsOf,
   applyDelta,
   applySnapshot,
   asOf,
@@ -136,7 +139,6 @@ function sentence(answer) {
   return 'Something went wrong here.'
 }
 
-const shown = shell()
 const ctx = {
   ask,
   sentence,
@@ -179,6 +181,11 @@ const ctx = {
   },
 }
 
+// The frame, with the desk's three parts in it: built once, after the context
+// they send through, and patched on every paint like a screen.
+const desk = deskParts(ctx)
+const shown = shell(desk)
+
 let screen = null
 let where = { view: 'now' }
 let seen = { open: false, lastAt: Date.now(), ended: null }
@@ -207,6 +214,7 @@ const SCREENS = {
   now: () => nowScreen(),
   project: (at) => projectScreen(at),
   task: (at) => taskScreen(at, ctx),
+  agents: () => agentsScreen(),
   queue: () => queueScreen(),
   inbox: () => inboxScreen(),
   request: (at) => requestScreen(at, ctx),
@@ -247,6 +255,12 @@ function go(path, opts = {}) {
 function draw(at) {
   where = at
   const make = SCREENS[at.view] ?? SCREENS.nowhere
+  // **The screen being left stops whatever it was asking.** One has something
+  // to stop — an agent's page asks for its screen while it is open, and the
+  // asking is what keeps the machine reading that lane — and a screen that
+  // was never told it had been left would go on asking from a region nobody
+  // can see.
+  screen?.leave?.()
   screen = make(at)
   shown.main.replaceChildren(screen.node)
   document.title = titleFor(at)
@@ -296,6 +310,7 @@ function paint() {
   if (held.store.had) {
     navCounts(shown.links, {
       wantsYou: rowsOf(held.store, 'tasks').filter((task) => task.wantsYou).length,
+      agents: agentsOf(held.store).length,
       queue: held.store.rows.queue.size + omitted(held.store, 'queue'),
       // **What is waiting on somebody**, not how many requests there are: a
       // badge counting forty answered tickets is a badge nobody looks at
@@ -310,7 +325,7 @@ function paint() {
     })
   }
   keep(now)
-  screen?.update({
+  const view = {
     store: held.store,
     standing,
     asOf: clock.at,
@@ -332,7 +347,9 @@ function paint() {
       // nothing else.
       acts: actsOf(held.session),
     },
-  })
+  }
+  screen?.update(view)
+  desk.update(view)
 }
 
 /**
@@ -569,7 +586,15 @@ function wireBeat() {
  * phase, so there is no `/`. A key that looks like it works and does not is
  * worse than one that was never offered.
  */
-const GOES = { n: '/', q: '/queue', s: '/spend', c: '/checks', r: '/reviews', f: '/findings' }
+const GOES = {
+  n: '/',
+  a: '/agents',
+  q: '/queue',
+  s: '/spend',
+  c: '/checks',
+  r: '/reviews',
+  f: '/findings',
+}
 
 function wireKeys() {
   let going = false

@@ -348,3 +348,12 @@ declare module '*/assets/push.js' {
   }
   export function keyBytes(key: string): Uint8Array
 }
+
+declare module '*/assets/agents.js' {
+  /** One sentence per word of `SCREEN_WHY`. */
+  export const WHY_SAID: Readonly<Record<string, string>>
+  export function byProject<T extends { project: string }>(
+    agents: readonly T[],
+  ): { project: string; agents: T[] }[]
+  export function runsOn(task: { harness: string | null; model: string | null }): string
+}

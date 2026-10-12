@@ -1,4 +1,5 @@
 import { noSpend, type PlanStanding, type Spend } from '@tade/core'
+import type { ActivityIn, AgentIn } from '../src/agent.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from '../src/factory.ts'
 import type {
   ChatIn,
@@ -578,3 +579,79 @@ export function talk(over: Partial<TalkIn> = {}): TalkIn {
 
 /** The moment every test projects at, so a golden is a golden. */
 export const NOW = Date.parse('2026-10-08T14:30:00.000Z')
+
+/**
+ * A key Tade holds, under a string only this file says, shaped like nothing.
+ *
+ * The one `cleanScreen` can only find because the window handed it over in
+ * `known`: no prefix, no name beside it, nothing a pattern could see. That is
+ * the case `known` exists for, and a fixture whose keys all had an issuer's
+ * prefix would be the test passing on the patterns while the half that is a
+ * guarantee went unasked.
+ */
+export const HELD_KEY = 'Hq4ZpLw8Rt2Ks6VnYc3T'
+
+/**
+ * What an agent's screen really looks like on a bad afternoon: the file it
+ * read, the command it ran, the environment it printed, a key it pasted, and a
+ * private key it should never have `cat`ted — every one under a string only
+ * this file says, so a test looks for the string rather than for a kind of
+ * string.
+ *
+ * Two rows are the terminal's own wrap of one long line (`wide` columns), so
+ * the key on them is in neither row whole: the case a scrubber that reads row
+ * by row walks straight past.
+ */
+export function screenText(wide = 100): string {
+  // Ten of the key's characters on each side of the wrap, and the first row
+  // exactly as wide as the screen — which is what makes it the widest row.
+  const wrapped = `${'  const KEY = "'.padStart(wide - 10)}${HELD_KEY}" // the adapter's own`
+  const rows = [
+    '  ✻ Reading the adapter',
+    `  $ cat ${PRIVATE.root}/src/adapter.ts`,
+    `  ANTHROPIC_API_KEY=${PRIVATE.credential}`,
+    `  GITHUB_TOKEN=${PRIVATE.opaque}`,
+    `  curl -H "Authorization: Bearer ${PRIVATE.credential}" https://example.invalid`,
+    `  see ${PRIVATE.windows}\\notes.txt`,
+    '-----BEGIN OPENSSH PRIVATE KEY-----',
+    'b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW',
+    '-----END OPENSSH PRIVATE KEY-----',
+    // A right-to-left override, which makes a row read differently from the
+    // bytes it is made of.
+    '  done \u202Eevil\u202C here',
+    // The wrap: one line, cut by the terminal at exactly `wide` columns.
+    wrapped.slice(0, wide),
+    wrapped.slice(wide, wide * 2),
+    '  4 files touched, the tests pass',
+    '',
+    '',
+  ]
+  return rows.join('\n')
+}
+
+/** One of each kind of moment, newest first, the way the window hands them over. */
+export function activity(): ActivityIn[] {
+  const at = (minute: number) =>
+    Date.parse(`2026-10-08T14:${String(minute).padStart(2, '0')}:00.000Z`)
+  return [
+    { at: at(29), kind: 'checked', what: 'tests', ok: true },
+    { at: at(28), kind: 'used', what: 'Bash', ok: null },
+    // A harness that named a tool after the file it came from: a name that is
+    // a path is dropped from the sentence, never carried in it.
+    { at: at(27), kind: 'used', what: `${PRIVATE.root}/bin/tool`, ok: null },
+    { at: at(26), kind: 'state', what: 'working', ok: null },
+    { at: at(25), kind: 'state', what: 'not-a-state', ok: null },
+    { at: at(24), kind: 'turn', what: '', ok: false },
+    { at: at(20), kind: 'started', what: '', ok: null },
+  ]
+}
+
+/** What the window holds of the fixture's working task, screen and all. */
+export function agentHeld(over: Partial<AgentIn> = {}): AgentIn {
+  return {
+    activity: activity(),
+    lane: { kind: 'read', text: screenText(), at: Date.parse('2026-10-08T14:29:58.000Z') },
+    known: [HELD_KEY, 'short'],
+    ...over,
+  }
+}

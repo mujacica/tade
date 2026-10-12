@@ -46,6 +46,13 @@ export const GRANTS = [
   'requests',
   'material',
   'workflows',
+  // **What an agent's own screen shows**, and the one grant that is a fourth
+  // kind of value: not Tade's words, not the owner's and not a stranger's, but
+  // whatever an agent printed — a file it read, a command's answer, an
+  // environment it dumped. So it is off with every other grant off, it is read
+  // only while somebody is looking (`screen.ts` has the bounds and the
+  // scrubbing), and what it says about itself is in `GRANT_MEANS` below.
+  'lanes',
 ] as const
 export type Grant = (typeof GRANTS)[number]
 
@@ -91,6 +98,16 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
   workflows:
     'the stored workflows and the personas they are told from — every step’s own prompt, in ' +
     'the words you wrote them in',
+  // **Two halves and neither is the comfortable one.** What *is* taken out is
+  // enforced and tested (`screen.ts`, `test/screen.test.ts`): machine paths,
+  // every key Tade holds and every variable of its environment named like a
+  // credential, and anything shaped like one. What is *not* is everything else
+  // an agent printed — a customer's address in a fixture, a key in a shape
+  // nobody listed — and a person deciding has to be told that half too.
+  lanes:
+    'the last lines each agent’s own screen shows, read only while you are looking at it — ' +
+    'machine paths, the keys Tade holds and anything shaped like a credential are taken out, ' +
+    'and anything else an agent printed is not',
 }
 
 /**
