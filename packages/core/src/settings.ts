@@ -13,6 +13,7 @@ import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
 import { keepGroup } from './settings-keep.ts'
 import { projectGroups } from './settings-projects.ts'
+import { queueGroup } from './settings-queue.ts'
 import { windowGroup } from './settings-window.ts'
 import { KEEP_AWAKE_MEANS } from './sleep.ts'
 
@@ -407,6 +408,7 @@ export function settingsOf(
         },
       ],
     },
+    queueGroup(config),
     {
       id: 'checks',
       title: 'Checks',

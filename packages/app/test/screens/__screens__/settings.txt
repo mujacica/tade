@@ -9,23 +9,23 @@
     │                            █│ Mode              ◉ Hold to talk     ○ Press to start, press to stop          ▕│    
     │  Orchestrator              █│                                                                               ▕│    
  ▸ S│                            █│ Speech to text   whisper · base.en · on this machine  ▾          ↻ on restart ▕│    
- ▸ S│  Checks                    █│                                                                               ▕│    
+ ▸ S│  Queue                     █│                                                                               ▕│    
  ▸ I│                            █│ Microphone       MacBook Pro Microphone                          ↻ on restart ▕│    
- ▾ C│▌ Voice                     █│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
-  M │▌                           █│                                                                               ▕│    
-  A │  Window                    █│ Muted           ████──── off                                                  ▕│    
+ ▾ C│  Checks                    █│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
   M │                            █│                                                                               ▕│    
-    │  Away view                 █│ Spoken replies  ────████ on                                                   ▕│    
+  A │▌ Voice                     █│ Muted           ████──── off                                                  ▕│    
+  M │▌                           █│                                                                               ▕│    
+    │  Window                    █│ Spoken replies  ────████ on                                                   ▕│    
  ▾ F│                            █│                                                                               ▕│    
-   ▾│  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+   ▾│  Away view                 █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
-    │  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+    │  Intake                    █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
    ▸│                            █│                                                                               ▕│    
-━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│                                                                               ▕│    
-    │  Telemetry                 █│                                                                               ▕│   ▕
+━   │  Projects              ● 1 █│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │  Journal                   ▕│                                                                               ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
-    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

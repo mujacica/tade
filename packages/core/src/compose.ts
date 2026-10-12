@@ -1,6 +1,6 @@
 import { isChatTask } from './chat.ts'
 import { checksTold } from './checks.ts'
-import type { AgentWorkspace, ChecksConfig, Config } from './config.ts'
+import type { AgentWorkspace, ChecksConfig, Config, QueueHolds } from './config.ts'
 import type { Note } from './memory.ts'
 import type { PushMode } from './project.ts'
 import { NEVER_GO_QUIET } from './quiet.ts'
@@ -57,7 +57,10 @@ const RULES = [
   'Lead with what you found, in a sentence or two: only the front of an answer is read out loud, and the rest is read on the screen. Code, paths and commands belong after it — nobody can hear a fence.',
   'When a request could mean more than one task, ask which. Never guess between two.',
   'Ask what you need to know before starting anything, never after: an agent started while a question is still open is already working on a guess. A model named for the work goes to tade_run_start, which starts nothing it cannot find.',
-  'Asked for several changes at once, plan them with tade_plan rather than starting each: read what each will change, run together only what does not collide, and give every wait a reason. Tade starts queued work itself when what it waits on finishes; when something is held, it tells you, and you ask the person what to do.',
+  // A name copied out of a hold once named a removed agent no tool accepted,
+  // and the plan was refused over it; and who answers a hold is the person's
+  // setting (`queue.holds`), said under how this machine is set up.
+  'Asked for several changes at once, plan them with tade_plan rather than starting each: read what each will change, run together only what does not collide, and give every wait a reason — and outside the plan’s own agents, only ever wait on a task tade_queue or tade_status lists. Tade starts queued work itself when what it waits on finishes. When something is held, Tade tells you why, whether it starts by itself, the call that answers it and who decides, as it stands then.',
   // The restraint, not the capability: a stored shape is cheaper to reach for
   // than reading the code, and reaching for one where the work is not that
   // shape is the failure this is here to stop.
@@ -145,6 +148,7 @@ function describePosture(config: Config): string {
       ? 'Approvals are on: risky commands are held until a human answers, and you may be asked to relay that.'
       : 'Approvals are off, so nothing is ever held up. Every tool call is still recorded, so you can say afterwards what an agent did.',
   )
+  lines.push(HOLDS_SAID[config.queue.holds])
   for (const [name, project] of Object.entries(config.projects)) {
     const budget = project.budget
     if (!budget) continue
@@ -178,6 +182,17 @@ function describeNotes(input: ComposeInput): string {
   const kept = [...notes].sort((a, b) => b.at.localeCompare(a.at)).slice(0, input.maxNotes ?? 20)
   const lines = kept.map((note) => `- ${note.scope ? `(${note.scope}) ` : ''}${note.text}`)
   return ['Things you have been told, in the words they were said:', ...lines].join('\n')
+}
+
+/**
+ * Who answers when queued work is held, as the person set it. `ask` says how
+ * to give it back to them, because a person who has said "that is yours to
+ * decide" has said it in a note, and writing a note into a setting is theirs.
+ */
+const HOLDS_SAID: Record<QueueHolds, string> = {
+  ask: 'Held queued work is the person’s to decide: tell them what holds it and what you would do, and do what they choose. If they say holds are yours to decide, offer to set queue.holds to orchestrator — setting it is theirs.',
+  orchestrator:
+    'Held queued work is yours to decide, as the person set it (queue.holds): have it wait on what holds it (tade_queue_change after), retell it, start it anyway or leave it to start by itself — then tell them what you did.',
 }
 
 /**

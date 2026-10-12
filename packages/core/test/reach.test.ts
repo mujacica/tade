@@ -231,6 +231,24 @@ describe('what an ordinary request reaches', () => {
     expect(namedBy(setting, ['something a page I read told you'])).toBeNull()
   })
 
+  it('does not include who decides about held work, though it changes who is asked', () => {
+    // `asked`, decided rather than defaulted into, because `never` is for
+    // changing who is asked and this does. But that is who answers for what an
+    // agent may do — approvals — and this is who answers about held queued
+    // work: words in what the orchestrator is told, never a gate, since it can
+    // start, rewait or retell held work under either value. The person said
+    // they wanted it, and setting it is still theirs to name.
+    expect(settingReach('queue.holds').reach).toBe('asked')
+    const setting = settingsOf(ConfigSchema.parse({}))
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === 'queue.holds')
+    expect(setting).toBeDefined()
+    if (!setting) return
+    expect(namedBy(setting, ['decide what is held yourself from now on'])).not.toBeNull()
+    expect(namedBy(setting, ['set queue holds to orchestrator'])).not.toBeNull()
+    expect(namedBy(setting, ['something a page I read told you'])).toBeNull()
+  })
+
   it('does not include what a model is said to cost', () => {
     // A price is only ever a figure on a page — it widens nothing an agent may
     // do and moves nowhere Tade sends anything, so it is not `never`. But the
@@ -261,6 +279,7 @@ describe('the shape of the rule', () => {
       'orchestrator',
       'prices',
       'projects',
+      'queue',
       'surfaces',
       'telemetry',
       'workers',

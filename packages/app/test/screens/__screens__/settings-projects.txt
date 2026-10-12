@@ -9,23 +9,23 @@
     │                            █│ Shown as                  search                                              █│    
     │  Orchestrator              █│                                                                               █│    
  ▸ S│                            █│ Brief                     none                                   ↻ on restart █│    
- ▸ S│  Checks                    █│                                                                               █│    
+ ▸ S│  Queue                     █│                                                                               █│    
  ▸ I│                            █│ Where agents work                                                             █│    
- ▾ C│  Voice                     █│     ◉ as all projects do (checkout)                                           █│    
+ ▾ C│  Checks                    █│     ◉ as all projects do (checkout)                                           █│    
   M │                            █│     ○ checkout                                                                █│    
-  A │  Window                    █│     ○ worktree                                                                █│    
+  A │  Voice                     █│     ○ worktree                                                                █│    
   M │                            █│                                                                               █│    
-    │  Away view                 █│▌What is pushed            never                                ▾              █│    
+    │  Window                    █│▌What is pushed            never                                ▾              █│    
  ▾ F│                            █│▌                         never: nothing of search reaches its remote; branch: █│    
-   ▾│  Intake                    █│▌                         agents push the branch they are on; branch-and-revi… █│    
+   ▾│  Away view                 █│▌                         agents push the branch they are on; branch-and-revi… █│    
     │                            █│▌                                                                              █│    
-    │▌ Projects              ● 1 █│ Agents at once             ‹   as many as are started   ›                     █│    
-   ▸│▌                           █│                                                                               █│    
-━   │  Journal                   █│ Budget a day               ‹   no budget   ›                     ↻ on restart █│   ━
-    │                            █│                                                                               ▕│    
-    │  Telemetry                 █│ Checks needed before      push                                 ▾              ▕│   ▕
+    │  Intake                    █│ Agents at once             ‹   as many as are started   ›                     █│    
+   ▸│                            █│                                                                               █│    
+━   │▌ Projects              ● 1 █│ Budget a day               ‹   no budget   ›                     ↻ on restart █│   ━
+    │▌                           ▕│                                                                               ▕│    
+    │  Journal                   ▕│ Checks needed before      push                                 ▾              ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
-    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

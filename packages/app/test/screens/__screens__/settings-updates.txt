@@ -3,11 +3,11 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Updates                                                                        │────
  ▌ !│                             │                                                                                │    
- ▌  │  Orchestrator              ▕│     Check for updates                                                         █│    
+ ▌  │  Queue                     ▕│     Check for updates                                                         █│    
     │                            ▕│   checked Thu 1 Jan 00:00                                                     █│    
    ⠋│  Checks                    ▕│                                                                               █│    
-    │                            █│ Tade                                                                          █│    
-    │  Voice                     █│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                       █│    
+    │                            ▕│ Tade                                                                          █│    
+    │  Voice                     ▕│   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                       █│    
  ▸ S│                            █│   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1                 █│    
  ▸ S│  Window                    █│   git -C ~/src/tade pull --ff-only && pnpm install                            █│    
  ▸ I│                            █│     Update Tade…     Reload Tade…                                             █│    

@@ -310,6 +310,11 @@ export function updateCheckEvery(check: UpdateCheck): number | null {
   return (check === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000
 }
 
+/** Who answers when queued work is held: the person, asked by the orchestrator, or the orchestrator. */
+export const QUEUE_HOLDS = ['ask', 'orchestrator'] as const
+
+export type QueueHolds = (typeof QUEUE_HOLDS)[number]
+
 export const ConfigSchema = z
   .strictObject({
     workspace: z
@@ -684,6 +689,16 @@ export const ConfigSchema = z
     documents: z
       .strictObject({
         keep_days: z.int().positive().default(30),
+      })
+      .prefault({}),
+    /**
+     * Who decides about held queued work. Words in what the orchestrator is
+     * told — its prompt and each hold (`heldMessage`) — and never a gate: what
+     * it may do to the queue is the same either way.
+     */
+    queue: z
+      .strictObject({
+        holds: z.enum(QUEUE_HOLDS).default('ask'),
       })
       .prefault({}),
     /** When a project's own checks run, and what a red one does. */

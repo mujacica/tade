@@ -3,9 +3,9 @@
  ▾ A╭─ Settings ─────────────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮×   
     │  search settings            │ Accounts                                                                       │────
  ▌ !│                             │                                                                                │    
- ▌  │  Models                    ▕│ pi                                                                            ▕│    
+ ▌  │  Orchestrator              ▕│ pi                                                                            ▕│    
     │                            ▕│ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                     ▕│    
-   ⠋│  Orchestrator              █│     Sign in again…                                                            ▕│    
+   ⠋│  Queue                     ▕│     Sign in again…                                                            ▕│    
     │                            █│   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and ▕│    
     │  Checks                    █│   you sign in to them inside pi.                                              ▕│    
  ▸ S│                            █│                                                                               ▕│    
@@ -25,7 +25,7 @@
     │                            █│                                                                               ▕│    
     │  Shortcuts                 █│                                                                               ▕│   ▕
     │                            █│                                                                               ▕│   ▕
-    │▌ Accounts              ● 3 █│ ● Saved as you change it.                                                      │   ▕
+    │▌ Accounts              ● 3 ▕│ ● Saved as you change it.                                                      │   ▕
     │▌                           ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

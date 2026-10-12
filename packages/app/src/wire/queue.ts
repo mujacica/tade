@@ -204,7 +204,12 @@ export class Queue implements Subject {
       await this.wire.opts.client.holdQueued(item.task, state.because, how).catch(() => {})
       this.said(`${item.task} is held: ${state.because}`)
       if (this.answering.has(item.task)) continue
-      void this.deps.tell(heldMessage(item.task, state.because, state.changed)).catch(() => {})
+      // Who answers is read now, not at start: Settings replaces the config.
+      const told = {
+        holds: this.wire.opts.config.queue.holds,
+        working: facts.reality?.get(item.project)?.working ?? [],
+      }
+      void this.deps.tell(heldMessage(item.task, state, told)).catch(() => {})
     }
     // Room only where a project says how many may run: the queue waits for a
     // slot rather than failing the start the way a limit used to.
@@ -235,7 +240,8 @@ export class Queue implements Subject {
         if (!holdSaid(task, { because: hold }, facts.events)) {
           await this.wire.opts.client.holdQueued(task, hold, { start: 'failed' }).catch(() => {})
           this.said(`${task} is held: ${hold}`)
-          void this.deps.tell(heldMessage(task, hold)).catch(() => {})
+          const told = { holds: this.wire.opts.config.queue.holds }
+          void this.deps.tell(heldMessage(task, { because: hold }, told)).catch(() => {})
         }
         continue
       }
@@ -256,7 +262,9 @@ export class Queue implements Subject {
         this.starting.delete(task)
         await this.wire.opts.client.holdQueued(task, why(err), { start: 'failed' }).catch(() => {})
         this.said(`${task} could not start: ${why(err)}`)
-        void this.deps.tell(heldMessage(task, `it could not start: ${why(err)}`)).catch(() => {})
+        const held = { because: `it could not start: ${why(err)}` }
+        const told = { holds: this.wire.opts.config.queue.holds }
+        void this.deps.tell(heldMessage(task, held, told)).catch(() => {})
       }
     }
     if (started.length > 0) await live.refresh()

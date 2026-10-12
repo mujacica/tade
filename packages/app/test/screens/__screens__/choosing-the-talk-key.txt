@@ -9,23 +9,23 @@
     │                        │                                                            │press to stop          ▕│    
     │  Orchestrator          │                        ctrl   +   r                        │                       ▕│    
  ▸ S│                        │                                                            │          ↻ on restart ▕│    
- ▸ S│  Checks                │ ▲ Pi and most shells search history with ctrl+r.           │                       ▕│    
+ ▸ S│  Queue                 │ ▲ Pi and most shells search history with ctrl+r.           │                       ▕│    
  ▸ I│                        │   While Tade holds it, your agents never see it.           │          ↻ on restart ▕│    
- ▾ C│▌ Voice                 │                                                            │                       ▕│    
-  M │▌                       │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                       ▕│    
-  A │  Window                │ Not a key that types a character.                          │                       ▕│    
-  M │                        │                                                            │                       ▕│    
-    │  Away view             │                        Try another     Use ctrl+r anyway   │                       ▕│    
+ ▾ C│  Checks                │                                                            │                       ▕│    
+  M │                        │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                       ▕│    
+  A │▌ Voice                 │ Not a key that types a character.                          │                       ▕│    
+  M │▌                       │                                                            │                       ▕│    
+    │  Window                │                        Try another     Use ctrl+r anyway   │                       ▕│    
  ▾ F│                        ╰────────────────────────────────────────────────────────────╯                       ▕│    
-   ▾│  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+   ▾│  Away view                 █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
-    │  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+    │  Intake                    █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
    ▸│                            █│                                                                               ▕│    
-━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│                                                                               ▕│    
-    │  Telemetry                 █│                                                                               ▕│   ▕
+━   │  Projects              ● 1 █│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │  Journal                   ▕│                                                                               ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
-    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

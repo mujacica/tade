@@ -51,6 +51,15 @@ import type { Setting } from './settings.ts'
 // agent read ever gets into that. So: `asked`, both ways, like every other
 // ordinary setting — not `open`, because a machine that will not sleep is not
 // a cosmetic annoyance somebody is looking at.
+//
+// **`queue.holds` changes who is asked, and is still not `never`.** The "who
+// is asked" that `never` is for is who answers for what an *agent* may do —
+// approvals. This one is who answers about held queued work, and it is words
+// in what the orchestrator is told, never a gate: it can start, rewait or
+// retell held work under either value, because nothing it does is gated. The
+// worst wording of it is the orchestrator deciding what it could already have
+// done, and saying so afterwards rather than asking first — the person's
+// call, so `asked`, both ways.
 
 /** How far the orchestrator may go with one setting. */
 export type Reach = 'open' | 'asked' | 'never'

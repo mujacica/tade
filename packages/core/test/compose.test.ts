@@ -132,6 +132,24 @@ describe('what it is told about this machine', () => {
     expect(off).toContain('nothing is ever held up')
   })
 
+  it('says who decides about held work, as the person set it, and never both', () => {
+    const ask = composePrompt({ config: ConfigSchema.parse({}) })
+    expect(ask).toContain('Held queued work is the person’s to decide')
+    // Their note says it is the orchestrator's; writing that into a setting is theirs.
+    expect(ask).toContain('offer to set queue.holds to orchestrator')
+    expect(ask).not.toContain('you ask the person what to do')
+    const mine = composePrompt({ config: ConfigSchema.parse({ queue: { holds: 'orchestrator' } }) })
+    expect(mine).toContain('Held queued work is yours to decide')
+    expect(mine).toContain('tell them what you did')
+    expect(mine).not.toContain('the person’s to decide')
+  })
+
+  it('waits only on what the tools list, because a name out of a message may be gone', () => {
+    expect(composePrompt({ config: ConfigSchema.parse({}) })).toContain(
+      'only ever wait on a task tade_queue or tade_status lists',
+    )
+  })
+
   it('says what a project may spend, where there is a limit', () => {
     const prompt = composePrompt({
       config: ConfigSchema.parse({

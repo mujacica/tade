@@ -50,10 +50,84 @@ describe('what the queue says', () => {
     )
   })
 
-  it('asks the orchestrator to tell the person, not to decide', () => {
-    expect(heldMessage('shop/add-refunds', 'shop/fix-charge failed')).toContain(
-      'Tell the person, and ask what they want',
+  it('asks the orchestrator to tell the person, unless the person said it decides', () => {
+    const held = { because: 'shop/fix-charge failed', on: 'shop/fix-charge' }
+    const ask = heldMessage('shop/add-refunds', held, { holds: 'ask' })
+    expect(ask).toContain('The person decides')
+    expect(ask).toContain('and do what they choose')
+    // Every choice is a call there is: "change the plan" had no tool behind it.
+    expect(ask).toContain(
+      'change what it waits on (after, with replace: true to drop shop/fix-charge)',
     )
+    expect(ask).toContain('task: shop/add-refunds')
+    expect(ask).not.toContain('change the plan')
+    const mine = heldMessage('shop/add-refunds', held, { holds: 'orchestrator' })
+    expect(mine).toContain('Deciding is yours, as the person set it (queue.holds)')
+    expect(mine).toContain('Then tell them what you did and why')
+    expect(mine).not.toContain('The person decides')
+  })
+
+  it('says a hold the tree caused heals, and how to make it a wait instead', () => {
+    // 2026-10-11: told "will not start by itself", the orchestrator decided
+    // waiting would not help and removed eleven tasks to plan them again.
+    const said = heldMessage(
+      'tade/lane-echo',
+      {
+        because:
+          'packages/app/src/app.ts, which this was planned to change, is changed and not committed, while tade/open-paints-first works in the same checkout',
+        on: null,
+        changed: ['packages/app/src/app.ts'],
+        by: [],
+      },
+      { holds: 'ask', working: ['tade/open-paints-first', 'tade/lane-echo'] },
+    )
+    expect(said).toContain('It starts by itself once that file is committed')
+    expect(said).not.toContain('will not start by itself')
+    // The one agent there, by the id the tools take, in the call that waits on it.
+    expect(said).toContain('At work in that checkout: tade/open-paints-first.')
+    expect(said).toContain(
+      'tade_queue_change with change: after, task: tade/lane-echo, after: [{task: tade/open-paints-first, why: <why it has to wait>}]',
+    )
+    expect(said).toContain('Git cannot say whose an uncommitted change is')
+    // Nothing offered that no tool does.
+    expect(said).not.toContain('put something else first')
+    expect(said).not.toContain('until the other work has landed')
+    expect(said).toContain('The person decides')
+    expect(
+      heldMessage('tade/lane-echo', { because: 'x', changed: ['a.ts'] }, { holds: 'orchestrator' }),
+    ).toContain('Deciding is yours')
+  })
+
+  it('names every agent in the checkout where git cannot say whose, and only the committer where it can', () => {
+    const loose = heldMessage(
+      'app/write-up',
+      { because: 'README.md is changed and not committed', changed: ['README.md', 'test/a.ts'] },
+      { holds: 'ask', working: ['app/a', 'app/b'] },
+    )
+    expect(loose).toContain('once those files are committed')
+    expect(loose).toContain('At work in that checkout: app/a and app/b.')
+    expect(loose).toContain('after: [{task: <app/a or app/b>, why:')
+    const committed = heldMessage(
+      'app/write-up',
+      {
+        because: 'app/fix-charge, which is working, has already changed charge.ts',
+        changed: ['charge.ts'],
+        by: ['app/fix-charge'],
+      },
+      { holds: 'ask', working: ['app/fix-charge', 'app/other'] },
+    )
+    expect(committed).toContain(
+      'It starts by itself once app/fix-charge has finished and nothing it was planned to change is left uncommitted',
+    )
+    expect(committed).toContain('after: [{task: app/fix-charge, why:')
+    expect(committed).not.toContain('Git cannot say')
+    // With nobody to name — no look at the tree this time — it still says how.
+    const nobody = heldMessage(
+      'app/write-up',
+      { because: 'x', changed: ['a.ts'] },
+      { holds: 'ask' },
+    )
+    expect(nobody).toContain('naming a task tade_queue or tade_status lists')
   })
 
   it('answers a plan with what started, what waits, and what to watch', () => {

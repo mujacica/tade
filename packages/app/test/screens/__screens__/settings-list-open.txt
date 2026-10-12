@@ -9,23 +9,23 @@
     │                            █│ Mode              ◉ Hold to talk     ○ Press to start, press to stop          ▕│    
     │  Orchestrator              █│                                                                               ▕│    
  ▸ S│                            █│▌Speech to text   whisper · base.en · on this machine  ▾          ↻ on restart ▕│    
- ▸ S│  Checks                    █│▌                ╭─  ───────────────────────────────────── ▴ ─╮                ▕│    
+ ▸ S│  Queue                     █│▌                ╭─  ───────────────────────────────────── ▴ ─╮                ▕│    
  ▸ I│                            █│ Microphone      │  ▏                                         │   ↻ on restart ▕│    
- ▾ C│▌ Voice                     █│                 │ ON THIS MACHINE            private, no key │                ▕│    
-  M │▌                           █│                 │▌ whisper · base.en · on this machine     ✓ │                ▕│    
-  A │  Window                    █│ Muted           │ IN THE CLOUD                   needs a key │                ▕│    
-  M │                            █│                 │  OpenAI · whisper-1                        │                ▕│    
-    │  Away view                 █│ Spoken replies  │  Groq · whisper-large-v3                   │                ▕│    
+ ▾ C│  Checks                    █│                 │ ON THIS MACHINE            private, no key │                ▕│    
+  M │                            █│                 │▌ whisper · base.en · on this machine     ✓ │                ▕│    
+  A │▌ Voice                     █│ Muted           │ IN THE CLOUD                   needs a key │                ▕│    
+  M │▌                           █│                 │  OpenAI · whisper-1                        │                ▕│    
+    │  Window                    █│ Spoken replies  │  Groq · whisper-large-v3                   │                ▕│    
  ▾ F│                            █│                 ╰────────────────────────────────────────────╯                ▕│    
-   ▾│  Intake                    █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
+   ▾│  Away view                 █│ Interruptions     ‹   6   ›                                      ↻ on restart ▕│    
     │                            █│                                                                               ▕│    
-    │  Projects              ● 1 █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
+    │  Intake                    █│ Quiet hours      22:00    to  07:00                              ↻ on restart ▕│    
    ▸│                            █│                                                                               ▕│    
-━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│                                                                               ▕│    
-    │  Telemetry                 █│                                                                               ▕│   ▕
+━   │  Projects              ● 1 █│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
+    │  Journal                   ▕│                                                                               ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
-    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -320,9 +320,15 @@ describe('the window, and the work waiting in it', () => {
     await until('the orchestrator told', () =>
       told.some((text) => text.includes('app/write-up is held')),
     )
-    expect(told.find((text) => text.includes('app/write-up is held'))).toContain(
-      'It was planned against code that has moved since',
+    const heldSaid = told.find((text) => text.includes('app/write-up is held')) ?? ''
+    expect(heldSaid).toContain('It was planned against code that has moved since')
+    // It heals, and says so, with the one call that makes it a wait instead —
+    // on the agent whose commit it ran into, by the id the tools take.
+    expect(heldSaid).toContain('It starts by itself once app/fix-charge has finished')
+    expect(heldSaid).toContain(
+      'tade_queue_change with change: after, task: app/write-up, after: [{task: app/fix-charge, why:',
     )
+    expect(heldSaid).toContain('The person decides')
 
     // Said once: the hold is not repeated at every look while it waits.
     await new Promise((resolve) => setTimeout(resolve, 2_500))

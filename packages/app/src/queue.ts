@@ -7,6 +7,7 @@ import {
   type PlanBusy,
   type Queued,
   type QueueFacts,
+  type QueueHolds,
   type QueueState,
   queueStateOf,
   runsOf,
@@ -272,34 +273,86 @@ export function whyStarting(item: Queued, facts: QueueFacts): string {
   return 'there was room for it'
 }
 
+/** A hold, as much of it as the orchestrator is told: `QueueState`'s, or a start that failed. */
+export interface HoldTold {
+  because: string
+  /** What it waits on went wrong, where that is what holds it. */
+  on?: string | null
+  /** The files the tree moved under it, where that is what holds it. */
+  changed?: readonly string[]
+  /** Whose commits those were, where git says whose. */
+  by?: readonly string[]
+}
+
+/** Each way of answering a hold that went wrong, as the call that does it. */
+const ANSWERS = {
+  trouble: (on: string) =>
+    `start it anyway (start), change what it waits on (after, with replace: true to drop ${on}), or remove it (remove)`,
+  failed: 'try it again (wait), start it anyway (start), or remove it (remove)',
+  tree: 'leave it to start by itself, have it wait on one of them (after), change what its agent is told or will touch (retell), or start it anyway (start)',
+}
+
 /**
- * What the orchestrator is told when queued work is held. It does not choose:
- * it tells the person, and does what they say.
- *
- * A hold on what the tree says gets a sentence of its own, because the answer
- * is a different one: the work can still be started, but the code it was
- * planned against is not the code it would start on. The reason is Tade's own
- * words either way — a judge may be asked for a second reading of the plan or
- * of what should go first, and what it says is material for the orchestrator,
- * never the reason a person is given.
+ * Who answers, as the person set it: `ask` and the orchestrator puts it to
+ * them; `orchestrator` and it decides, then says what it did. Said in every
+ * hold rather than only in its prompt, which is as old as its session.
  */
-export function heldMessage(task: string, because: string, changed?: readonly string[]): string {
-  if (changed && changed.length > 0) {
+function whoDecides(holds: QueueHolds, choices: string): string {
+  return holds === 'orchestrator'
+    ? `Deciding is yours, as the person set it (queue.holds): ${choices}. Then tell them what you did and why, in a sentence.`
+    : `The person decides: tell them what holds it and what you would do — ${choices} — and do what they choose.`
+}
+
+/**
+ * What the orchestrator is told when queued work is held: why, whether it
+ * heals, the call that answers it, and whose answer it is (`queue.holds`).
+ *
+ * A hold on what the tree says gets a message of its own, because it is the
+ * one that heals: the look that finds the files settled starts it (`collides`)
+ * with nobody doing anything. Told it "will not start by itself", the
+ * orchestrator concluded waiting would not help and removed eleven tasks to
+ * plan them again. So it is told the truth, the agents at work in that
+ * checkout by the ids the tools take (`working`, from `atWorkFrom`), and the
+ * one call that turns the hold into a wait on one of them — never a choice
+ * with no tool behind it. The reason is Tade's own words either way — a judge
+ * may be asked for a second reading, and what it says is material for the
+ * orchestrator, never the reason a person is given.
+ */
+export function heldMessage(
+  task: string,
+  held: HoldTold,
+  told: { holds: QueueHolds; working?: readonly string[] },
+): string {
+  const changed = held.changed ?? []
+  if (changed.length > 0) {
+    const by = held.by ?? []
+    const heals =
+      by.length > 0
+        ? `once ${joined(by)} ${by.length === 1 ? 'has' : 'have'} finished and nothing it was planned to change is left uncommitted`
+        : `once ${changed.length === 1 ? 'that file is' : 'those files are'} committed`
+    const working = (told.working ?? []).filter((one) => one !== task)
+    const candidates = by.length > 0 ? by : working
+    const pick = candidates.length === 1 ? candidates[0] : `<${candidates.join(' or ')}>`
+    const wait = `tade_queue_change with change: after, task: ${task}, after: [{task: ${pick}, why: <why it has to wait>}]`
     return [
-      `${task} is held, and will not start by itself: ${because}.`,
-      'It was planned against code that has moved since, so what its agent was told may no longer fit.',
-      'Tell the person what changed and ask what they want: start it anyway, change what it is told, put something else first, or leave it until the other work has landed.',
-      'tade_queue_change does each of those (start, order, pause), and tade_plan writes a new plan.',
-      'jev_plan_check and jev_queue_order will read the plan and the queue again beside what has changed, if you want a second reading before you ask — say what you think in your own words, not theirs.',
+      `${task} is held: ${held.because}.`,
+      `It starts by itself ${heals}: the first look that finds that starts it, with nobody doing anything.`,
+      candidates.length > 0
+        ? `At work in that checkout: ${joined(working.length > 0 ? working : by)}. To have it start after one of them instead, which is a wait and not a hold: ${wait}.${by.length > 0 ? '' : ' Git cannot say whose an uncommitted change is, so which is a judgement: tade_status says what each is doing.'}`
+        : `To have it start after other work instead: tade_queue_change with change: after, task: ${task}, after: [{task, why}], naming a task tade_queue or tade_status lists.`,
+      'It was planned against code that has moved since: if what its agent was told no longer fits, retell changes its prompt or touches.',
+      whoDecides(told.holds, ANSWERS.tree),
+      'jev_plan_check and jev_queue_order will read the plan and the queue again beside what has changed, if you want a second reading — say what you think in your own words, not theirs.',
     ].join(' ')
   }
   // The call is spelled out with its arguments rather than named: told only
   // "tade_queue_change does each of those", a model sent `{"change":"wait"}`
   // twelve times running, sure each time that it had written the task.
+  const on = held.on ?? null
   return [
-    `${task} is held, and will not start by itself: ${because}.`,
-    'Tell the person, and ask what they want: wait for a retry, start it anyway, change the plan, or remove it.',
-    `tade_queue_change does each of those, with task: ${task} and change: wait, start or remove.`,
+    `${task} is held, and will not start by itself: ${held.because}.`,
+    whoDecides(told.holds, on !== null ? ANSWERS.trouble(on) : ANSWERS.failed),
+    `Each is tade_queue_change with task: ${task} and the change named.`,
   ].join(' ')
 }
 

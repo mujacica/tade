@@ -9,23 +9,23 @@
     │                            █│▌Accept requests                ────████ on                                    ▕│    
     │  Orchestrator              █│▌                               on: requests github hands over may become work ▕│    
  ▸ S│                            █│▌                               in the projects below; off: they are read and… ▕│    
- ▸ S│  Checks                    █│▌                                                                              ▕│    
+ ▸ S│  Queue                     █│▌                                                                              ▕│    
  ▸ I│                            █│ Projects it may make work in    checkout                                      ▕│    
- ▾ C│  Voice                     █│                                                                               ▕│    
+ ▾ C│  Checks                    █│                                                                               ▕│    
   M │                            █│ Whose requests count            kim                                           ▕│    
-  A │  Window                    █│                                                                               ▕│    
+  A │  Voice                     █│                                                                               ▕│    
   M │                            █│ What an accepted request does    ◉ propose     ○ queue                        ▕│    
-    │  Away view                 █│                                                                               ▕│    
+    │  Window                    █│                                                                               ▕│    
  ▾ F│                            █│ Template                        github-bug                                    ▕│    
-   ▾│▌ Intake                    █│                                                                               ▕│    
-    │▌                           █│ Which document it fills         the obvious one                               ▕│    
-    │  Projects              ● 1 █│                                                                               ▕│    
-   ▸│                            █│ Say a status back              ████──── off                                   ▕│    
-━   │  Journal                   █│                                                                               ▕│   ━
-    │                            █│ Let a status name the work     ████──── off                                   ▕│    
-    │  Telemetry                 █│                                                                               ▕│   ▕
+   ▾│  Away view                 █│                                                                               ▕│    
+    │                            █│ Which document it fills         the obvious one                               ▕│    
+    │▌ Intake                    █│                                                                               ▕│    
+   ▸│▌                           █│ Say a status back              ████──── off                                   ▕│    
+━   │  Projects              ● 1 █│                                                                               ▕│   ━
+    │                            ▕│ Let a status name the work     ████──── off                                   ▕│    
+    │  Journal                   ▕│                                                                               ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
-    │  Shortcuts                 ▕│ ● Saved as you change it.                                                      │   ▕
+    │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
