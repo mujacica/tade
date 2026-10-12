@@ -10,13 +10,13 @@ import {
 } from '@tade/core'
 import { blocksFor, codeFor, surfaceOf } from '@tade/web'
 import { describe, expect, it } from 'vitest'
-import type { Target } from '../src/hits.ts'
+import { sameTarget, type Target } from '../src/hits.ts'
 import { AWAY_CONTROLS, awayClick, awayKey, awayPanel } from '../src/panels/away/state.ts'
 import type { AwayView } from '../src/panels/away/view.ts'
 import type { PanelContext } from '../src/panels/context.ts'
 import { drawPanel } from '../src/panels/context.ts'
 import { settingsClick, settingsPanel } from '../src/panels/settings/state.ts'
-import { skinFor } from '../src/skin.ts'
+import { COLOUR, type Skin, skinFor } from '../src/skin.ts'
 import { awayView, codeShownOn, grantsHelp } from '../src/wire/web-panel.ts'
 
 // The away panel's rules that no golden can be trusted to notice: that the
@@ -76,13 +76,15 @@ interface Size {
   date?: (at: number) => string
   /** What the pointer is on. */
   hover?: Target
+  /** Painted, for a test about an escape the plain skin never writes. */
+  skin?: Skin
 }
 
 function drawn(over: Partial<AwayView> = {}, size: Size = {}) {
   const ctx = {
     width: size.width ?? 120,
     height: size.height ?? 34,
-    skin: skinFor({}, false),
+    skin: size.skin ?? skinFor({}, false),
     pointer: { hover: size.hover ?? null, pressed: null },
     // A whole ISO string by default, so a golden is a golden — and twenty-odd
     // columns the real window spends on `11 Sep`. A test about **what fits on
@@ -265,6 +267,81 @@ describe('the code', () => {
     expect(actions).toContain('away-settings')
     for (const gone of ['nothing to pair with', 'open Tade again', 'Turn it on']) {
       expect(text).not.toContain(gone)
+    }
+  })
+})
+
+describe('the link the code carries', () => {
+  const OPEN: Target = { kind: 'control', id: AWAY_CONTROLS.open }
+  const COPY: Target = { kind: 'control', id: AWAY_CONTROLS.copy }
+  const on = (target: Target, over: Partial<AwayView> = {}, size?: Size) =>
+    drawn(over, size).hits.filter((hit) => sameTarget(hit.target, target))
+
+  it('is the Open control on every row it is drawn on, with Open and Copy beside it', () => {
+    for (const width of [120, 60, 44, 40]) {
+      const size = { width, height: 60 }
+      const text = drawn({}, size).rows.map((row) => stripTerminalSequences(row))
+      const opens = on(OPEN, {}, size)
+      // Every row the address is on is pressable along the whole of it: a
+      // link you have to find the one clickable cell of is not one.
+      const rows = text.flatMap((row, at) => (/studio\.local|Lz8/.test(row) ? [at] : []))
+      expect(rows.length, String(width)).toBeGreaterThan(0)
+      for (const at of rows) {
+        expect(
+          opens.some((hit) => hit.row === at),
+          `${width}: row ${at}`,
+        ).toBe(true)
+      }
+      // Both buttons drawn at every width — never the half `Row` drops.
+      const drawnAs = (hit: { row: number; from: number; to: number }) =>
+        text[hit.row]?.slice(hit.from, hit.to + 1)
+      expect(opens.map(drawnAs), String(width)).toContain('[Open]')
+      expect(on(COPY, {}, size).map(drawnAs), String(width)).toEqual(['[Copy]'])
+    }
+  })
+
+  it('puts the buttons on the line the address ends on, where they fit there', () => {
+    const lines = said({}, { height: 60 }).split('\n')
+    const at = lines.findIndex((line) => line.includes(URL))
+    expect(lines[at]).toMatch(/Lz8\s+\[Open\] \[Copy\]/)
+  })
+
+  it('is a link in the terminal’s own sense when painted, to the whole address', () => {
+    const open = `\x1b]8;;${URL}\x07`
+    const close = '\x1b]8;;\x07'
+    const rows = drawn({}, { width: 60, height: 60, skin: COLOUR }).rows
+    const linked = rows.filter((row) => row.includes(open))
+    // Over two rows here, and each of them opens the whole address and closes
+    // it again on that row, so nothing after it is part of the link.
+    expect(linked).toHaveLength(2)
+    for (const row of linked) {
+      expect(row.split(close).length).toBe(row.split(open).length)
+      expect(row.lastIndexOf(close)).toBeGreaterThan(row.lastIndexOf(open))
+    }
+    // A pipe gets the words and no escape it would print.
+    expect(drawn({}, { width: 60, height: 60 }).rows.join('')).not.toContain('\x1b]8')
+  })
+
+  it('is no link at all where the address would end the sequence early', () => {
+    expect(COLOUR.hyperlink('http://x/\x07y', 'x')).toBe('x')
+    expect(COLOUR.hyperlink(URL, 'x')).toBe(`\x1b]8;;${URL}\x07x\x1b]8;;\x07`)
+  })
+
+  it('is not drawn where there is no code, and neither is what it would do', () => {
+    for (const over of [
+      { ticket: null, code: [] },
+      { listening: false, ticket: null },
+    ]) {
+      expect(on(OPEN, over).length + on(COPY, over).length).toBe(0)
+    }
+  })
+
+  it('hands both controls to the subject that holds the ticket, and stays open', () => {
+    for (const control of [AWAY_CONTROLS.open, AWAY_CONTROLS.copy]) {
+      const panel = awayPanel()
+      expect(awayClick(panel, control)).toEqual({ panel, submit: true, choice: control })
+      const page = settingsPanel('away')
+      expect(settingsClick(page, control, {})).toMatchObject({ submit: true, choice: control })
     }
   })
 })

@@ -282,6 +282,7 @@ export class App {
       settings: this.settings,
       // Stopping and closing from away, through the keyboard's own two doors.
       lifecycle: { agents: () => this.agents, projects: () => this.projects },
+      copy: (text) => copyText(text, (data) => this.terminal.write(data)),
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),

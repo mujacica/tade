@@ -47,6 +47,14 @@ export function awayPanel(): AwayPanel {
 export const AWAY_CONTROLS = {
   /** Mint a fresh ticket and redraw the code. */
   code: 'away-code',
+  /**
+   * The link the code carries, opened in the browser — its `Open`, and a press
+   * on the link itself. Named, never carrying the link: it holds a ticket, and
+   * the subject reads the one outstanding at the press (`web-link.ts`).
+   */
+  open: 'away-open',
+  /** The same link, put on the clipboard. */
+  copy: 'away-copy',
   /** Let the device that is asking in. */
   allow: 'away-allow',
   /** Refuse it. */

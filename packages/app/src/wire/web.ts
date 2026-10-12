@@ -38,7 +38,6 @@ import type { Frame } from '../frame.ts'
 import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
-
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
 import type { Settings } from './settings.ts'
 import { armingFor, seenFrom, type Talking } from './web-asking.ts'
@@ -58,6 +57,7 @@ import { widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownKeys, Lanes } from './web-lanes.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
+import { carryLink, isLink } from './web-link.ts'
 import { awayView, codeShownOn, keepCode, mintPairing } from './web-panel.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
@@ -143,6 +143,8 @@ export interface AwayDeps {
   settings: Pick<Settings, 'rows' | 'write' | 'writeKey'>
   /** The agents and projects subjects, for stopping and closing from away (`web-lifecycle.ts`). */
   lifecycle: Lifecycle
+  /** The window's clipboard, for the pairing link's `Copy` (`web-link.ts`). */
+  copy(text: string): Promise<boolean>
 }
 
 export class Away implements Subject {
@@ -276,12 +278,7 @@ export class Away implements Subject {
     const bound = await server.listen()
     await this.log({
       type: 'web_enabled',
-      detail: {
-        enabled: true,
-        bind: surface.bind,
-        port: surface.port,
-        bound: bound.join(' '),
-      },
+      detail: { enabled: true, bind: surface.bind, port: surface.port, bound: bound.join(' ') },
     })
     if (bound.length === 0) {
       // Every address refused the bind. Named, never a quiet success: a URL in
@@ -522,6 +519,7 @@ export class Away implements Subject {
       else if (control === AWAY_CONTROLS.allow) await this.decide(true)
       else if (control === AWAY_CONTROLS.deny) await this.decide(false)
       else if (control === AWAY_CONTROLS.all) await revokeEvery(this.sessions(), this.tickets)
+      else if (isLink(control)) await carryLink(this.wire, control, this.tickets, this.deps)
       else if (control.startsWith(AWAY_CONTROLS.revoke)) {
         await revokeOne(this.sessions(), control.slice(AWAY_CONTROLS.revoke.length))
       } else await widen(this.widening(), control)

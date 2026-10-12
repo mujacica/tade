@@ -31,7 +31,7 @@
    f│                            ▕│                                                                               █│    
    w│  Accounts              ● 3 ▕│                                                                               █│    
    p│                            ▕│                                                                               █│    
-    │  Updates                   ▕│ http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8                          █│    
+    │  Updates                   ▕│ http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8             Open   Copy  █│    
     │                            ▕│ Open the link on this machine — 1:24 left                           New code  █│    
     │                            ▕│                                                                               █│    
     │                            ▕│ DEVICES 1 open                                                                █│    

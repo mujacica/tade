@@ -84,6 +84,12 @@ export interface Skin {
   /** A link under the pointer. */
   link(text: string): string
   /**
+   * Text that is a link to `url` in the terminal's own sense too (OSC 8), so a
+   * terminal that knows them offers its own open and copy on it; the text and
+   * nothing else where there is no colour. No columns either way.
+   */
+  hyperlink(url: string, text: string): string
+  /**
    * The block where what you type lands: one cell, the character under it kept
    * so the cursor never hides what it sits on. Exactly one cell wide either
    * way — a cursor that changes a row's width tears the screen it is on.
@@ -549,6 +555,8 @@ export const PLAIN: Skin = {
   hint: identity,
   faded: identity,
   link: identity,
+  // A pipe or a log gets the words, never an escape code it would print.
+  hyperlink: (_url, text) => text,
   // Without colour nothing can be laid under a letter, so only an empty cell
   // can show the cursor — which is where it is nine times in ten.
   cursor: (text) => (text.trim() === '' ? '█' : text),
@@ -613,6 +621,13 @@ export const COLOUR: Skin = {
   hint: paint(fg(GREY.quiet)),
   faded: paint(fg(GREY.faded)),
   link: paint(`${fg(TONE.amber)}${ESC}4m`),
+  // Opened and closed on the one row, so nothing after it is part of the link;
+  // pi-tui closes one at every line's end as well. A URL with a control
+  // character in it would end the sequence early, so it is no link at all.
+  hyperlink: (url, text) =>
+    [...url].some((ch) => ch < ' ' || ch === '\x7f')
+      ? text
+      : `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`,
   cursor: paint(`${bg(GREY.bright)}${fg(inkOn(GREY.bright))}`),
   found: (text, on) =>
     paint(

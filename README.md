@@ -459,8 +459,8 @@ last view, what it last knew — never an empty control room.
 On a laptop it takes the window's shape — a sidebar in categories with every project as a tree
 that opens onto its work, the work in the middle, the agents running and Tade docked beside it —
 and an agent's page says what it has been doing. Pairing is four steps the page leads you through:
-open Tade, scan its code — or, on a computer, open the link under it — name the device, approve it
-at the machine. What its
+open Tade, scan its code — or, on a computer, click the link under it or its Open or Copy — name
+the device, approve it at the machine. What its
 screen shows is a grant of its own, per device and off for every one: the last rows, read only
 while that page is open, with machine paths and every key Tade knows of taken out. Nothing on the
 page types into an agent; what you say goes through Tade.

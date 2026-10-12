@@ -335,13 +335,7 @@ function pairingOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
   } else {
     for (const line of view.code) lines.push(row().space(2).text(line, skin.you).build())
   }
-  lines.push(blank(inner))
-  // Over as many lines as it takes. An address is the one thing on this panel
-  // somebody may have to read out or type, so a cut one is no address at all —
-  // and unlike a sentence it cannot be broken on a space.
-  for (const part of chunks(view.ticket.url, inner - 2)) {
-    lines.push(row().space().text(part, skin.you).build())
-  }
+  lines.push(blank(inner), ...linkLines(view.ticket.url, ctx, inner))
   // How to use it, in what is true of this address: a phone can only follow a
   // code to a name it can reach, and `localhost` on a phone is the phone — what
   // to name instead is the Trusted hostnames row's to say.
@@ -357,6 +351,34 @@ function pairingOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
     ),
   )
   return lines
+}
+
+/**
+ * The address the code carries, with `Open` and `Copy` at the right of the
+ * line it ends on, or on a line of their own under it where they do not fit.
+ *
+ * Over as many lines as it takes. An address is the one thing on this panel
+ * somebody may have to read out or type, so a cut one is no address at all —
+ * and unlike a sentence it cannot be broken on a space.
+ *
+ * **The address is `Open` too**: a press on it is that control, carried out
+ * by the subject holding the ticket, so the address itself is never in a hit.
+ * It is a link in the terminal's own sense as well (`hyperlink`), for a
+ * terminal that offers its own open and copy on one.
+ */
+function linkLines(url: string, ctx: PanelContext, inner: number): Line[] {
+  const { skin } = ctx
+  const open: Target = { kind: 'control', id: AWAY_CONTROLS.open }
+  const copy: Target = { kind: 'control', id: AWAY_CONTROLS.copy }
+  const buttons = (r: Row) => r.chip('Open', open).space().chip('Copy', copy).space()
+  const look = (part: string) => skin.hyperlink(url, skin.link(part))
+  const line = (part: string) => new Row(inner, skin, ctx.pointer).space().text(part, look, open)
+  const parts = chunks(url, inner - 2)
+  const last = parts.pop() ?? ''
+  const lines = parts.map((part) => line(part).build())
+  const beside = line(last).right(buttons).build()
+  if (beside.hits.some((hit) => sameTarget(hit.target, copy))) return [...lines, beside]
+  return [...lines, line(last).build(), new Row(inner, skin, ctx.pointer).right(buttons).build()]
 }
 
 /**

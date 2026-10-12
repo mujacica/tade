@@ -119,9 +119,15 @@ async function wiring(
   const news: string[] = []
   const decided: boolean[] = []
   const logged: { type: string; detail: Record<string, unknown> }[] = []
+  // What the link's two buttons reached: never the machine's browser or clipboard.
+  const opened: { command: string; args: string[] }[] = []
+  const copied: string[] = []
   const wire = {
     opts: {
       home,
+      open: async (opener: { command: string; args: string[] }) => {
+        opened.push(opener)
+      },
       config: ConfigSchema.parse({
         surfaces: { web: { port: await freePort(), ...(over.web ?? {}) } },
       }),
@@ -192,6 +198,10 @@ async function wiring(
         throw new Error('this harness has no projects subject')
       },
     },
+    copy: async (text) => {
+      copied.push(text)
+      return true
+    },
   })
   open.push(away)
   /** The config changed under it, as Settings hands one over (`Settings.use`), and followed. */
@@ -199,7 +209,18 @@ async function wiring(
     ;(wire.opts as { config: unknown }).config = ConfigSchema.parse({ surfaces: { web } })
     away.follow()
   }
-  return { away, home, news, decided, logged, use, at: () => state, drawn: () => draws }
+  return {
+    away,
+    home,
+    news,
+    decided,
+    logged,
+    use,
+    opened,
+    copied,
+    at: () => state,
+    drawn: () => draws,
+  }
 }
 
 describe('its lifetime', () => {
@@ -630,6 +651,55 @@ describe('what the panel is told', () => {
     expect(view.devices[1]?.reads).toEqual([])
   })
 })
+
+describe('the link the code carries', () => {
+  it('opens the link drawn now in the browser, and says so without the ticket', async () => {
+    const machine = await wiring({ web: { enabled: true } })
+    await machine.away.open()
+    const url = (await viewOf(machine.away)).ticket?.url ?? ''
+    await carry(machine.away, 'away-open')
+    // Handed to the desktop the way every link is, and nowhere else.
+    expect(machine.opened).toHaveLength(1)
+    expect(machine.opened[0]?.args).toContain(url)
+    expect(machine.at().flash?.text).toBe('opened the pairing link')
+    expect(machine.copied).toEqual([])
+    ticketNowhere(machine)
+  })
+
+  it('copies it, and says so without the ticket', async () => {
+    const machine = await wiring({ web: { enabled: true } })
+    await machine.away.open()
+    const url = (await viewOf(machine.away)).ticket?.url ?? ''
+    await carry(machine.away, 'away-copy')
+    expect(machine.copied).toEqual([url])
+    expect(machine.at().flash?.text).toBe('copied the pairing link')
+    expect(machine.opened).toEqual([])
+    ticketNowhere(machine)
+  })
+
+  it('says the code ran out rather than opening or copying nothing', async () => {
+    let at = 1_000
+    const machine = await wiring({ web: { enabled: true }, clock: () => at })
+    await machine.away.open()
+    await viewOf(machine.away)
+    for (const control of ['away-open', 'away-copy']) {
+      // Run out between the frame that drew it and the press — a frame mints
+      // the next one, so this is the one moment a press can find none.
+      at += 91_000
+      await carry(machine.away, control)
+      expect(machine.away.panel()?.away?.problem, control).toContain('run out')
+    }
+    expect(machine.opened).toEqual([])
+    expect(machine.copied).toEqual([])
+  })
+})
+
+/** A ticket is a credential: nothing of one in the journal, the strip or a flash. */
+function ticketNowhere(machine: Awaited<ReturnType<typeof wiring>>): void {
+  for (const said of [machine.logged, machine.news, machine.at().flash, machine.at().notice]) {
+    expect(JSON.stringify(said ?? null)).not.toContain('#t=')
+  }
+}
 
 /**
  * A port nothing is on, found by letting the machine pick one and giving it

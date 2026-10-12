@@ -336,7 +336,8 @@ export const SETTINGS_SCREENS: Scenario[] = [
     name: 'settings-away-on',
     about:
       'The away view turned on from its own switch, and what it is for drawn under it: the ' +
-      'code, the link to open on this machine, and every device with a chip per grant — then ' +
+      'code, the link to open on this machine with Open and Copy beside it, and every device ' +
+      'with a chip per grant — then ' +
       'who may reach it, the port and what a paired device may do, as names under one heading, ' +
       'each on, each still nothing until a device is granted it, and none waiting for Tade to ' +
       'start again.',

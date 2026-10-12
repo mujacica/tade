@@ -21,7 +21,7 @@ describe('the away view, turned on from Settings', () => {
   let client: Workbench
   let repo: Repo
   let home: string
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, opened } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -30,25 +30,28 @@ describe('the away view, turned on from Settings', () => {
 
   /** The window, over a home whose away view would listen on `port`, opened on the Away page. */
   async function onTheAwayPage(port: number): Promise<void> {
-    const config = `projects:\n  app:\n    root: ${repo.root}\nsurfaces:\n  web:\n    port: ${port}\n`
-    writeFileSync(join(home, 'config.yaml'), config)
-    // Tall and wide enough for the code beside the page's own categories: a
-    // code that does not fit is not drawn at all, and says so.
-    terminal.columns = 160
-    terminal.rows = 90
-    await start({
-      config: ConfigSchema.parse({
-        projects: { app: { root: repo.root } },
-        surfaces: { web: { port } },
-      }),
-    })
-    await until('the first frame', () => terminal.written.includes('Settings'))
+    await windowOver({ port })
     const button = find('Settings ')
     click(button.col + 1, button.row)
     await until('the settings', () => terminal.written.includes('Away view'))
     const category = find('Away view')
     click(category.col + 1, category.row)
     await until('the away page', () => terminal.written.includes('Serve the away view'))
+  }
+
+  /** The window, over a home whose away view is set as `web` says. */
+  async function windowOver(web: { port: number; enabled?: boolean }): Promise<void> {
+    const on = web.enabled === true ? '    enabled: true\n' : ''
+    const config = `projects:\n  app:\n    root: ${repo.root}\nsurfaces:\n  web:\n${on}    port: ${web.port}\n`
+    writeFileSync(join(home, 'config.yaml'), config)
+    // Tall and wide enough for the code beside the page's own categories: a
+    // code that does not fit is not drawn at all, and says so.
+    terminal.columns = 160
+    terminal.rows = 90
+    await start({
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } }, surfaces: { web } }),
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
   }
 
   /** Whether something answers on this machine at `port`. */
@@ -152,6 +155,51 @@ describe('the away view, turned on from Settings', () => {
       const now = linkOn(screenOf(terminal.written))
       return now !== null && now !== first
     })
+  })
+
+  it('opens the link in the browser from the link itself and from Open beside it', async () => {
+    const port = await freePort()
+    await onTheAwayPage(port)
+    const row = find('Serve the away view')
+    click(row.col + 1, row.row)
+    terminal.press(' ')
+    await until('the link', () => terminal.written.includes(`http://localhost:${port}/pair#`))
+    const link = linkOn(screenOf(terminal.written))
+    // A press on the address, then on the button: the same act both times,
+    // handed to the desktop the way every link is.
+    const places = { 'the link': find(`localhost:${port}/pair#`), Open: find('[Open] [Copy]') }
+    for (const [label, at] of Object.entries(places)) {
+      terminal.written = ''
+      click(at.col + 1, at.row)
+      await until(`opened from ${label}`, () => opened.length > 0)
+      expect(opened.at(-1)?.args).toContain(link)
+      opened.length = 0
+      // Said in the strip as the act, never as the address: it carries a ticket.
+      await until('the flash', () => terminal.written.includes('opened the pairing link'))
+    }
+  })
+
+  it('opens it from the AWAY VIEW panel the same way', async () => {
+    const port = await freePort()
+    await windowOver({ port, enabled: true })
+    const line = find('Ask Tade anything')
+    click(line.col, line.row)
+    await until('the line open', () =>
+      screenOf(terminal.written).some((row) => row.includes('enter sends')),
+    )
+    for (const char of '/away') terminal.press(char)
+    await until('what was typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('/away')),
+    )
+    terminal.written = ''
+    terminal.press('\r')
+    await until('the panel', () => terminal.written.includes('AWAY VIEW'))
+    await until('its link', () => linkOn(screenOf(terminal.written)) !== null)
+    const link = linkOn(screenOf(terminal.written))
+    const at = find(`localhost:${port}/pair#`)
+    click(at.col + 1, at.row)
+    await until('opened', () => opened.length > 0)
+    expect(opened.at(-1)?.args).toContain(link)
   })
 })
 

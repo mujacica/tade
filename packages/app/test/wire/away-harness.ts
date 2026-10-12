@@ -406,6 +406,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
         held = next
       },
     }),
+    copy: () => Promise.resolve(true),
   })
   open.push(away)
   const made: Machine = {

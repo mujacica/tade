@@ -330,7 +330,8 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       'The away view in Settings, turned on from its own switch: under it at once the code to ' +
-      'scan, the link to open on this machine, and every device with a chip per grant and ' +
+      'scan, the link to open on this machine with Open and Copy beside it, and every device ' +
+      'with a chip per grant and ' +
       'Disconnect everything — then who may reach it, the port, and what a paired device may ' +
       'do as short names under one heading, each on by default, each applied as it is changed, ' +
       'and each still nothing until a device is granted it at this machine.',
