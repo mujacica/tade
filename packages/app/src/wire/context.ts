@@ -387,8 +387,17 @@ export interface Subject {
  * Anything else is the whole name, and is handed the empty string. The longest
  * matching prefix wins, so `queue-start:` and `queue-filter:` can both be in
  * the table without either shadowing the other.
+ *
+ * `from` is the control that was pressed, where a click pressed one: what a
+ * dropdown opens at. Typed, said or searched for, there is none.
  */
-export type Actions = Record<string, (rest: string) => Promise<void> | void>
+export type Actions = Record<string, (rest: string, from?: Pressed) => Promise<void> | void>
+
+/** Where a control was pressed: its row, and the column it starts at. */
+export interface Pressed {
+  row: number
+  col: number
+}
 
 /** A menu's own words, its items, and what choosing one does. */
 export type Menus = {

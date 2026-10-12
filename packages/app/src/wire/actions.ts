@@ -9,6 +9,7 @@ import type { Panel, PanelInputs } from '../panels.ts'
 import {
   type Actions,
   menuOf,
+  type Pressed,
   type Prompts,
   promptFailed,
   type Subject,
@@ -77,12 +78,13 @@ export class Router {
    * longest one that matches wins, so `queue-start:` and `queue-filter:` can
    * both be in the table without either shadowing the other. What nothing
    * answers for is tried as a command, which is how search's `>` results and
-   * the command line reach the same place.
+   * the command line reach the same place. `from` is the control a click
+   * pressed, handed on so a dropdown opens at it.
    */
-  async run(action: string): Promise<void> {
+  async run(action: string, from?: Pressed): Promise<void> {
     const found = this.lookUp(action)
     if (found) {
-      await found.does(found.rest)
+      await found.does(found.rest, from)
       return
     }
     await this.act(action)
@@ -264,9 +266,7 @@ export class Router {
   }
 
   /** The handler for an action, and what is left of the name after its prefix. */
-  private lookUp(
-    action: string,
-  ): { does: (rest: string) => Promise<void> | void; rest: string } | null {
+  private lookUp(action: string): { does: Actions[string]; rest: string } | null {
     const table = this.table()
     const exact = table[action]
     if (exact) return { does: exact, rest: '' }

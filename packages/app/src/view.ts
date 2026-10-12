@@ -3,6 +3,7 @@ import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { resolveLayout } from './layout.ts'
 import { type AppState, conversing } from './model.ts'
 import { drawPanel } from './panels/context.ts'
+import type { MenuPanel } from './panels/menu/state.ts'
 import type { Regions } from './selection.ts'
 import { PLAIN } from './skin.ts'
 import { type Drawn, overlay, type Pointer, shiftRegions } from './ui.ts'
@@ -218,17 +219,26 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     ],
   }
   // Find sits on the bottom panel's top edge, over the terminal it searches.
-  const anchor =
+  const anchor: MenuPanel['anchor'] =
     state.panel.kind === 'menu'
       ? state.panel.anchor
       : state.panel.kind === 'find'
         ? { row: 2 + bodyHeight - panel.rows.length + 1, col: width - panelWidth - 1 }
         : null
   // A menu opens where it was asked for, over a window that stays bright; a
-  // panel that asks something takes the middle and fades the rest.
+  // panel that asks something takes the middle and fades the rest. One opened
+  // from a control hangs off it — below, or above where the window has no room
+  // under it, as at the strip — and starts at its column, so it is the
+  // control's and not the edge's.
+  const tall = panel.rows.length
+  const top = !anchor?.control
+    ? (anchor?.row ?? 0)
+    : anchor.row + 1 + tall <= rows.length
+      ? anchor.row + 1
+      : anchor.row - tall
   const at = anchor
     ? {
-        row: Math.max(0, Math.min(anchor.row, rows.length - panel.rows.length)),
+        row: Math.max(0, Math.min(top, rows.length - tall)),
         col: Math.max(0, Math.min(anchor.col, width - panelWidth)),
       }
     : {

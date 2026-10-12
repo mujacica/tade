@@ -15,6 +15,7 @@ import {
   accountMenuItems,
   agentOffers,
   harnessMenuItems,
+  type MenuPanel,
   menuPanel,
   thinkingMenuItems,
 } from '../panels/menu/state.ts'
@@ -26,6 +27,7 @@ import {
   type Actions,
   configPathOf,
   type Menus,
+  type Pressed,
   type Subject,
   type Submits,
   type Wiring,
@@ -56,6 +58,16 @@ import {
 // to fall back to — a model of another harness is no model at all here — so a
 // harness that cannot say comes back with its own sentence and the picker
 // says that instead.
+
+/**
+ * Where a dropdown opens: at the control that was pressed, which the drawing
+ * hangs it under or over. Asked for with no control — typed rather than
+ * clicked — it takes the middle, as a menu nobody pointed at does, rather than
+ * a corner of the window that belongs to no control at all.
+ */
+function atControl(from: Pressed | undefined): MenuPanel['anchor'] {
+  return from ? { row: from.row, col: from.col, control: true } : null
+}
 
 /** What this subject needs from the rest of the window. */
 export interface RoutesDeps {
@@ -182,14 +194,15 @@ export class Routes implements Subject {
   actions(): Actions {
     return {
       'model:': (target) => this.openModels(target),
-      'thinking:': (task) => this.openThinking(task),
-      'harness:': (task) => {
+      'thinking:': (task, from) => this.openThinking(task, from),
+      'harness:': (task, from) => {
         this.wire.put({
           ...this.wire.state,
-          panel: menuPanel({ kind: 'harness', task, current: this.harnessShown(task) }, 'Harness', {
-            row: 3,
-            col: Math.max(0, this.deps.size().columns - 40),
-          }),
+          panel: menuPanel(
+            { kind: 'harness', task, current: this.harnessShown(task) },
+            'Harness',
+            atControl(from),
+          ),
         })
         this.wire.draw()
       },
@@ -226,7 +239,7 @@ export class Routes implements Subject {
    * orchestrator is not an agent: what it thinks at is its own setting, and
    * its control sits in the strip at the foot of the window.
    */
-  private openThinking(task: string): void {
+  private openThinking(task: string, from?: Pressed): void {
     const project = task.split('/')[0]
     const orchestrator = task === ORCHESTRATOR_TAB
     const current = orchestrator
@@ -234,12 +247,9 @@ export class Routes implements Subject {
       : (this.wire.live?.vitals(task)?.thinking ??
         resolveRoute(this.wire.opts.config, project ? { project } : {}).thinking ??
         null)
-    const menu = menuPanel({ kind: 'thinking', task, current }, 'Thinking', {
-      // Below the control it belongs to: the pane's header, or the strip at
-      // the foot of the window, where it is clamped back into view.
-      row: orchestrator ? Math.max(0, this.deps.size().rows - 2) : 3,
-      col: Math.max(0, this.deps.size().columns - 30),
-    })
+    // At the control it belongs to: under it in the pane's header, over it in
+    // the strip at the foot of the window.
+    const menu = menuPanel({ kind: 'thinking', task, current }, 'Thinking', atControl(from))
     // The keyboard starts on the level it is at, among the levels offered.
     const index = Math.max(0, (this.levelsFor(task) ?? THINKING_LEVELS).indexOf(current ?? ''))
     this.wire.put({ ...this.wire.state, panel: { ...menu, index } })

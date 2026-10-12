@@ -613,6 +613,11 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   file, a changed file, the branch); `*MenuItems` in `panels/menu/state.ts` list what can be done,
   with `off` saying why not; `App.fromMenu` carries each out. A row with a menu shows `≡` under the pointer as a
   `{ kind: 'menu', subject }` hit, and `subjectOf` maps a right-click to the same subject.
+- **A dropdown opens at the control that opened it, never at a corner of the window.** A click
+  hands its action the control's place (`Pressed`, the hit's row and first column), and the menu's
+  anchor says `control`: `view.ts` hangs it under the control, or over it where there is no room
+  under — the strip — clamped to the screen. The strip's thinking level once opened at
+  `columns - 30`, over the conversation and over the strip itself (`test/dropdowns.test.ts`).
 - **An agent's screen is read from the bottom.** pi draws from the top of its terminal and stops at
   its prompt, so `renderMain` drops trailing blank rows of an `agent` lane and pads above. Never do
   that to a shell: full-screen programs count rows.

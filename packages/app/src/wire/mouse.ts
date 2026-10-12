@@ -35,7 +35,7 @@ import type { Reach } from '../scroll.ts'
 import { pointerSequence } from '../skin.ts'
 import { splitRatio } from '../split.ts'
 import { LastFrame } from '../view/last-frame.ts'
-import type { Wiring } from './context.ts'
+import type { Pressed, Wiring } from './context.ts'
 
 // The mouse, which is a shortcut into what you could also have typed.
 //
@@ -113,8 +113,8 @@ export interface MouseDeps {
   applyPanel(outcome: PanelOutcome): void
   /** The menu of whatever was right-clicked. */
   openMenu(subject: MenuSubject, at: { x: number; y: number }): void
-  /** A named action, as a button would run it. */
-  run(action: string): void
+  /** A named action, as a button would run it, and where that button is. */
+  run(action: string, from?: Pressed): void
   /**
    * A lane was scrolled: cut what is held to where it now is. True when the
    * lines held reached that far, which is what says whether the driver has to
@@ -661,7 +661,12 @@ export class Mouse {
         this.deps.openLink(target.url)
         return
       case 'action':
-        this.deps.run(target.name)
+        // Where the control starts, which only a press on one can say: the
+        // hit it landed in began `cell` columns to the left of the pointer.
+        this.deps.run(
+          target.name,
+          at.cell === undefined ? undefined : { row: at.y, col: at.x - at.cell },
+        )
         return
       default:
         break

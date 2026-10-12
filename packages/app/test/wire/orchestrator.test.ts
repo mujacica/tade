@@ -374,6 +374,13 @@ describe('the window, talking to the orchestrator', () => {
       const shown = screenOf(terminal.written).join('\n')
       return shown.includes('Thinking') && shown.includes('xhigh')
     })
+    // Over the control that opened it, from the control's own column — not
+    // pinned to the window's right edge, and not over the strip it is in.
+    const corner = find('╭─ Thinking')
+    expect(corner.col).toBe(button.col)
+    const lines = screenOf(terminal.written)
+    const foot = lines.findIndex((line, row) => row > corner.row && line[corner.col] === '╰')
+    expect(foot).toBe(button.row - 1)
     const medium = find('medium')
     click(medium.col + 2, medium.row)
     // It takes effect where it is: the conversation carries on, at the new level.

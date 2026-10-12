@@ -380,7 +380,7 @@ export class App {
       panelInputs: () => this.router.panelInputs(),
       applyPanel: (outcome) => this.router.applyPanel(outcome),
       openMenu: (subject, at) => this.router.openMenu(subject, at),
-      run: (action) => void this.router.run(action),
+      run: (action, from) => void this.router.run(action, from),
       reslice: (area) => this.lanes.reslice(area),
       soonTick: () => this.soonTick(),
       turnedInLane: (event) => this.lanes.turnedInLane(event),

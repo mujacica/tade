@@ -208,13 +208,12 @@ export const PANEL_SCREENS: Scenario[] = [
       'The thinking button beside the model, opened: every level from off to max, the one the agent is at marked.',
     state: {
       ...base(),
+      // Opened from the `high ▾` in the pane's header, which starts at column
+      // 105 of row 2: it drops below it, pulled back from the right edge.
       panel: menuPanel(
         { kind: 'thinking', task: 'checkout/stripe-v15', current: 'high' },
         'Thinking',
-        {
-          row: 3,
-          col: 84,
-        },
+        { row: 2, col: 105, control: true },
       ),
     },
     frame: frame({ panel: { items: thinkingMenuItems('high') } }),
@@ -226,9 +225,12 @@ export const PANEL_SCREENS: Scenario[] = [
       'agent has, and the one it is at marked. It moves from its next reply.',
     state: {
       ...base(),
+      // Opened from the `high ▾` in the strip, which starts at column 78 of
+      // the last row: there is no room under it, so it rises over it.
       panel: menuPanel({ kind: 'thinking', task: 'orchestrator', current: 'high' }, 'Thinking', {
-        row: 32,
-        col: 88,
+        row: 33,
+        col: 78,
+        control: true,
       }),
     },
     frame: frame({ panel: { items: thinkingMenuItems('high') } }),

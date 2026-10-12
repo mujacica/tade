@@ -60,8 +60,14 @@ export interface MenuPanel {
   scroll: number
   /** Whether it follows the item the keyboard is on, until you scroll it. */
   following: boolean
-  /** The screen cell it was opened from, so it appears there. */
-  anchor: { row: number; col: number } | null
+  /**
+   * The screen cell it was opened from, so it appears there: its top-left
+   * corner where a click landed, or — `control` — the first cell of the
+   * control that opened it, which it drops below where there is room and
+   * rises above where there is not, so a control at the foot of the window
+   * is never covered by its own menu.
+   */
+  anchor: { row: number; col: number; control?: true } | null
   busy: false
 }
 
