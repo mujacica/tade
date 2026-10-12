@@ -456,8 +456,10 @@ typed address reaches the pairing page with nothing to present. The listener die
 a page opened with Tade closed says it cannot reach the machine — and, where the phone kept its
 last view, what it last knew — never an empty control room.
 
-On a laptop it takes the window's shape — the projects along the top, the work in the middle, the
-agents running and Tade docked beside it — and an agent's page says what it has been doing. What its
+On a laptop it takes the window's shape — a sidebar in categories with every project as a tree
+that opens onto its work, the work in the middle, the agents running and Tade docked beside it —
+and an agent's page says what it has been doing. Pairing is four steps the page leads you through:
+open Tade, scan its code, name the device, approve it at the machine. What its
 screen shows is a grant of its own, per device and off for every one: the last rows, read only
 while that page is open, with machine paths and every key Tade knows of taken out. Nothing on the
 page types into an agent; what you say goes through Tade.
