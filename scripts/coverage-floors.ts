@@ -74,7 +74,9 @@ export const FLOOR: Record<string, number> = {
   // file as well as the branches they offer, and it is the second
   // implementation the conformance suite needs to stay honest about either.
   'packages/forges/scripted': 89,
-  'packages/workbench': 86,
+  // 86 -> 89 with changing queued work once it is made (`queue-changes.ts`),
+  // whose every refusal has a test: the slack it read was 4.2 points.
+  'packages/workbench': 89,
   'packages/harnesses/pi': 89,
   // 89 -> 91 when macOS runners read 93.0. Not 92: `askCwds` reads `/proc` on
   // Linux and `lsof` everywhere else, so ubuntu covers three lines fewer.

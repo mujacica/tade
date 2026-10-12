@@ -680,7 +680,7 @@
   },
   {
     "name": "tade_queue_change",
-    "description": "Change queued work or a schedule, as the human asked. For queued work: start it now whatever it waits on, pause or resume it, wait again past what held it, remove it, or put it in an order (change: order, with order: the tasks first to last) — an order is only a preference among work that is already ready, and never jumps a wait, unholds a hold or starts anything. Name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
+    "description": "Change queued work or a schedule, as the human asked or as you decide when it is yours to. For queued work: start it now whatever it waits on; pause or resume it; wait, which looks again from now past what held it and is not \"wait for the files\" — work held on files being changed is held again at once, and starts by itself once they settle; after, which makes it wait on other tasks Tade has, as well as what it waits on or, with replace: true, instead (none, with replace, waits on nothing); retell, which changes what its agent is told (prompt) or what it says it will change (touches) before it starts; remove it; or order (order: the tasks first to last), which is only a preference among work already ready and never jumps a wait, unholds a hold or starts anything. To change when existing queued work starts, write the wait with after: never remove it and plan it again, which uses its name up for good and holds everything waiting on it. Every change answers with where the work stands now. Name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -691,6 +691,8 @@
             "pause",
             "resume",
             "wait",
+            "after",
+            "retell",
             "order",
             "rename",
             "remove"
@@ -699,7 +701,7 @@
         },
         "task": {
           "type": "string",
-          "description": "the queued task, like checkout/add-refunds; start, wait and remove need it"
+          "description": "the queued task, like checkout/add-refunds; start, wait, after, retell and remove need it"
         },
         "schedule": {
           "type": "string",
@@ -716,6 +718,43 @@
         "order": {
           "type": "array",
           "description": "for order: the queued tasks, first to last; what is left out keeps its place behind",
+          "items": {
+            "type": "string"
+          }
+        },
+        "after": {
+          "type": "array",
+          "description": "for after: what it waits on, each a task tade_queue or tade_status lists",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task": {
+                "type": "string",
+                "description": "a bare name in its project, or project/task"
+              },
+              "why": {
+                "type": "string",
+                "description": "why it has to wait, in a few words"
+              }
+            },
+            "required": [
+              "task",
+              "why"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "replace": {
+          "type": "boolean",
+          "description": "for after: instead of what it waits on now"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "for retell: what its agent is told when it starts, instead"
+        },
+        "touches": {
+          "type": "array",
+          "description": "for retell: the files it will change, instead",
           "items": {
             "type": "string"
           }

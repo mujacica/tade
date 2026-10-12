@@ -109,6 +109,35 @@ describe('tade queue', () => {
     ])
   })
 
+  it('writes what queued work waits on and what it is told, checked as the window checks it', async () => {
+    const after = await tade('queue', 'after', 'app/charge-once', 'refund-back', '--why', 'x')
+    // A loop through what already waits on it is refused, and nothing is written.
+    expect(after.code).toBe(1)
+    expect(after.stderr).toBe(
+      'app/charge-once cannot wait on app/refund-back: app/refund-back already waits on app/charge-once, so neither could start',
+    )
+    const replaced = await tade('queue', 'after', 'app/refund-back', '--replace')
+    expect(replaced.stderr).toBe('')
+    expect(replaced.stdout).toBe(
+      'app/refund-back waits on nothing. A window acts on it the next time it looks at the tasks.',
+    )
+    const told = await tade('queue', 'retell', 'app/refund-back', '--prompt', 'only refunds')
+    expect(told.stdout).toBe(
+      'app/refund-back is told something else when it starts. A window acts on it the next time it looks at the tasks.',
+    )
+    expect(await changes()).toEqual([
+      {
+        task: 'app/refund-back',
+        change: 'after',
+        by: 'you',
+        after: [],
+        replace: true,
+        was: ['app/charge-once'],
+      },
+      { task: 'app/refund-back', change: 'retell', by: 'you', retold: ['prompt'] },
+    ])
+  })
+
   it('refuses a name that is not queued work, and writes nothing', async () => {
     const r = await tade('queue', 'wait', 'app/perf-draw-gate-subjects')
     expect(r.code).toBe(1)

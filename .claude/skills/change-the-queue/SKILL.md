@@ -13,13 +13,15 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | Path | What |
 |---|---|
 | `packages/core/src/done.ts` | when a task is finished: `finishedFrom`, `ruleMet`, `workedFrom` |
-| `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `inWrittenOrder`, `startFrom`, `collidesNow`, `checkPlan`, `overlaps`, `QUEUE_CHANGES` |
+| `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `inWrittenOrder`, `startFrom`, `collidesNow`, `checkWaits`, `QUEUE_CHANGES` |
+| `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps` |
 | `packages/core/src/produces.ts` | what a task produces instead of code: `producesProblem`, `producesPath`, `documentsIn`, `documentsToCompact`, `producedClause` |
 | `packages/workbench/src/documents.ts` | triage, `deleteDocument`, `cleanupDocuments`, `settleDocuments` on open, `removedDocument` |
 | `packages/core/src/effort.ts` | one change across repositories: `effortsIn`, `effortSays` |
 | `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, `standingSchedules`, `scheduleIdOf`, the words for each |
 | `packages/core/src/events.ts` | `task_done`, `effort_named`, `queue_*`, `schedule_*`, `watch_*` |
 | `packages/workbench/src/workbench.ts` | writing it down: `markDone`, `planTasks`, `startQueued`, `holdQueued`, `setSchedule`, `fireSchedule`, `watchChecked`, `watchFound` |
+| `packages/workbench/src/queue-changes.ts` | `changeQueued`: a choice about queued work, and `after` and `retell` written into its task file |
 | `packages/workbench/src/schedules.ts` | `schedules.jsonl`: every change a line, with who made it; `readEverMade` |
 | `packages/workbench/src/tasks.ts` | `by`, `done`, `start` and `produces` in a task file; `producedDetail`; `beginFrom` for stacked worktrees |
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal; `lookAtTrees` at the moment of starting |
@@ -30,8 +32,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/schedules-view.ts` | a watch's trouble and when it may stop being drawn: `hush`, `unhush`, `wasHushed` |
 | `packages/app/src/view/queue.ts`, `view/plan.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
 | `packages/app/src/view/schedule.ts` | SCHEDULES: the section, a rule's row, a watch's card |
-| `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_queue`, `tade_queue_change`, `tade_schedule` |
-| `packages/cli/src/commands/queue.ts` | `tade queue` start, wait, pause, resume, order: `changeQueued` as yours, refused while a window holds the home |
+| `packages/orchestrator/src/tools-extension.ts`, `tools-queue.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_schedule`; `tade_queue`, `tade_queue_change` |
+| `packages/cli/src/commands/queue.ts` | `tade queue` start, wait, pause, resume, order, after, retell: `changeQueued` as yours, refused while a window holds the home |
 | `packages/extensions/core/src/port.ts`, `host.ts` | `ExtensionWatch`, and the host that looks with one |
 | `packages/extensions/deps/src/updates.ts` | the worked example of a watch that edits a project |
 
@@ -180,6 +182,25 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   cannot look is said when it starts going wrong, not at every look.
 - **People decide what was held.** The orchestrator is told and asks the person; their choice is a
   `queue_changed`, read back by the rule.
+- **A plan is changed by writing on the work it made, never by removing it and planning it again.**
+  `after` adds to what queued work waits on, or with `replace` swaps it; `retell` changes what its
+  agent is told or what it says it will touch. Both write the task file's `start` — the one place
+  queued work keeps them — under `aloneOn`, then a `queue_changed` line with who and what it was.
+  Waits are checked by `checkPlan`'s rules across every task there is (`checkWaits`): each named
+  task exists, nothing waits on itself, no loop through other queued work — and the check and the
+  write are one act per home, so two waits written at once cannot close a loop between them.
+  Adding a wait answers no trouble (it may only make a start later), and clears a start-anyway.
+  There is **no rename**: a task's id is its folder, its conversation and its trailer, and renaming
+  one is the reuse `guardName` exists to stop. It went in because on 2026-10-11 two holds became
+  nineteen removals, twenty creations, three refused plans and an orphan: with no way to put a wait
+  on work already made, removing it and planning it again was the only way to say "after that one",
+  and every removal held everything downstream of it.
+- **A change answers with where the work stands after the queue has looked again** (`nowSays`),
+  never with what it meant to do: `wait` looks again from now and is not "wait for the files", so
+  on work the tree still holds it is held again in the same second, and an answer of "waits again"
+  is what sent the orchestrator off to re-plan. `remove` names what waited on it. What that look
+  holds is written down as ever but told to the orchestrator in the answer it is reading
+  (`answering`), not again a turn later.
 - **An order is a written fact, and only a preference.** `inWrittenOrder` reads the last `order`
   somebody wrote and the window sorts what it hands `readyToStart` with it — so it changes which of
   the ready ones goes first and nothing else. It can never jump a wait, unhold a hold, resume a

@@ -353,6 +353,37 @@ describe('changing queued work, from the tool to the window', () => {
       await tool?.run({ change: 'wait', task: 'tade/perf-draw-gate-subjects' }, 'c1', { cwd: '/' }),
     ).toBe('done')
     expect(asked).toEqual([{ change: 'wait', task: 'tade/perf-draw-gate-subjects' }])
+
+    // A wait written on queued work, and a retelling, carried whole. A plain
+    // name, or the plan's own `agent` spelling, is the same wait.
+    await tool?.run(
+      {
+        change: 'after',
+        task: 'tade/lane-echo',
+        after: [{ task: 'open-paints-first', why: 'app.ts' }, { agent: 'tade/docs', why: '' }, 'x'],
+        replace: true,
+      },
+      'c2',
+      { cwd: '/' },
+    )
+    await tool?.run(
+      { change: 'retell', task: 'tade/lane-echo', prompt: 'only the echo', touches: ['app.ts'] },
+      'c3',
+      { cwd: '/' },
+    )
+    expect(asked.slice(1)).toEqual([
+      {
+        change: 'after',
+        task: 'tade/lane-echo',
+        after: [
+          { task: 'open-paints-first', why: 'app.ts' },
+          { task: 'tade/docs', why: '' },
+          { task: 'x', why: '' },
+        ],
+        replace: true,
+      },
+      { change: 'retell', task: 'tade/lane-echo', prompt: 'only the echo', touches: ['app.ts'] },
+    ])
   })
 })
 

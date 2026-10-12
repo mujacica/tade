@@ -7,6 +7,7 @@ import { configTools } from './tools-config.ts'
 import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { machineTools } from './tools-machine.ts'
+import { queueTools } from './tools-queue.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -326,35 +327,8 @@ export function orchestratorTools(
     (p) => rpc('queue/plan', p),
   )
 
-  tool(
-    'tade_queue',
-    'What is waiting to start, and why: after what, until when, held by what, or paused. Work held because agents at work have already changed the files it was planned around says so, and says which files and whose. Answer questions about queued work with this, not from memory.',
-    object({}),
-    () => rpc('queue/list', {}),
-  )
-
-  tool(
-    'tade_queue_change',
-    "Change queued work or a schedule, as the human asked. For queued work: start it now whatever it waits on, pause or resume it, wait again past what held it, remove it, or put it in an order (change: order, with order: the tasks first to last) — an order is only a preference among work that is already ready, and never jumps a wait, unholds a hold or starts anything. Name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
-    object(
-      {
-        change: {
-          type: 'string',
-          enum: ['start', 'pause', 'resume', 'wait', 'order', 'rename', 'remove'],
-          description: 'what to do',
-        },
-        task: string('the queued task, like checkout/add-refunds; start, wait and remove need it'),
-        schedule: string('the schedule, by the id tade_queue lists it with'),
-        name: string('the new name, when renaming a schedule'),
-        project: string('the project, when pausing or resuming all of its queue'),
-        order: stringList(
-          'for order: the queued tasks, first to last; what is left out keeps its place behind',
-        ),
-      },
-      ['change'],
-    ),
-    (p) => rpc('queue/change', p),
-  )
+  // Changing work already queued: its own file, `tools-queue.ts`.
+  for (const spec of queueTools(rpc)) tools.push(spec)
 
   tool(
     'tade_schedule',

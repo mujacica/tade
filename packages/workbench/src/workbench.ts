@@ -32,7 +32,6 @@ import {
   producesPath,
   producesProblem,
   pushFor,
-  type QueueChange,
   recordsDir,
   resolveRoute,
   routeIn,
@@ -88,8 +87,9 @@ import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
-import { notStartable, type ParkedBy, park, refuseParked } from './parked.ts'
+import { notStartable, type ParkedBy, park } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
+import { changeQueued, type QueueChangeRequest } from './queue-changes.ts'
 import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import { continueRun as continueAgent } from './sleep.ts'
@@ -1284,42 +1284,9 @@ export class Workbench {
     }
   }
 
-  /**
-   * A person's choice about queued work — pause, resume, start it anyway,
-   * wait past what held it, or put what is ready in an order — or about a
-   * project's whole queue, when no task is named. Written down: what the queue
-   * does next is read from it.
-   */
-  async changeQueued(req: {
-    task?: string
-    project?: string
-    change: QueueChange
-    /** For `order`: the tasks, first to last. What is not named keeps its place behind. */
-    order?: readonly string[]
-    by: Asker
-  }): Promise<void> {
-    if (!req.task && (req.change === 'start' || req.change === 'wait')) {
-      throw new Error(`${req.change} is for one piece of queued work: say which as task`)
-    }
-    if (req.change === 'start' && req.task) await refuseParked(this.home, req.task)
-    const order = (req.order ?? []).map((task) => task.trim()).filter((task) => task !== '')
-    if (req.change === 'order' && order.length === 0) {
-      throw new Error('an order is a list of queued work, first to last: say which comes first')
-    }
-    // `all` marks a choice made about a whole project's queue, which is what
-    // pausing and resuming everything is read from. An order is never that.
-    const whole = !req.task && (req.change === 'pause' || req.change === 'resume')
-    await this.log.append({
-      type: 'queue_changed',
-      task: req.task ?? null,
-      detail: {
-        change: req.change,
-        by: req.by,
-        ...(req.change === 'order' ? { order } : {}),
-        ...(whole ? { all: true } : {}),
-        ...(!req.task && req.project ? { project: req.project } : {}),
-      },
-    })
+  /** A person's choice about queued work, written down for the queue to read: `queue-changes.ts`. */
+  changeQueued(req: QueueChangeRequest): Promise<StartCondition | null> {
+    return changeQueued({ home: this.home, log: this.log }, req)
   }
 
   /** Queued work that could not start, held with why until someone chooses. */

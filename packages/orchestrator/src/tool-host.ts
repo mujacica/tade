@@ -80,6 +80,12 @@ export interface ToolHostOptions {
       name?: string
       /** For `order`: the queued tasks, first to last. */
       order?: readonly string[]
+      /** For `after`: what it waits on, each with why; with `replace`, instead of what it did. */
+      after?: readonly { task: string; why: string }[]
+      replace?: boolean
+      /** For `retell`: what it is told when it starts, and what it says it will change. */
+      prompt?: string
+      touches?: readonly string[]
     }): Promise<string>
     plan(plan: Plan): Promise<string>
     schedule(req: {
@@ -255,6 +261,10 @@ export class ToolHost {
           ...(p.project ? { project: String(p.project) } : {}),
           ...(p.name ? { name: String(p.name) } : {}),
           ...(Array.isArray(p.order) ? { order: p.order.map(String) } : {}),
+          ...(Array.isArray(p.after) ? { after: waitsOf(p.after) } : {}),
+          ...(p.replace === true ? { replace: true } : {}),
+          ...(typeof p.prompt === 'string' ? { prompt: p.prompt } : {}),
+          ...(Array.isArray(p.touches) ? { touches: p.touches.map(String) } : {}),
           change: String(p.change ?? ''),
         }),
       'queue/schedule': async (p) => {
@@ -700,5 +710,22 @@ function linksOf(value: unknown[]): { title: string; url: string }[] {
     return typeof link?.url === 'string' && link.url !== ''
       ? [{ title: typeof link.title === 'string' ? link.title : link.url, url: link.url }]
       : []
+  })
+}
+
+/**
+ * Waits as a model sent them. A plain name, or `agent` where the tool says
+ * `task`, is the plan's spelling of the same thing, so it is read rather than
+ * refused; one naming nothing reaches the rule as nothing, and is refused there.
+ */
+function waitsOf(value: unknown[]): { task: string; why: string }[] {
+  return value.map((one) => {
+    if (typeof one === 'string') return { task: one, why: '' }
+    const dep = (one ?? {}) as { task?: unknown; agent?: unknown; why?: unknown }
+    const task = typeof dep.task === 'string' ? dep.task : dep.agent
+    return {
+      task: typeof task === 'string' ? task : '',
+      why: typeof dep.why === 'string' ? dep.why : '',
+    }
   })
 }

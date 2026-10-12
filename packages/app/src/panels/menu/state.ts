@@ -561,7 +561,10 @@ export function accountMenuItems(
     })
 }
 
-/** Queued work's menu: start it, pause or resume it, wait past what held it, rename or remove it. */
+/**
+ * Queued work's menu: start it, pause or resume it, wait past what held it,
+ * change what it waits on or is told, rename or remove it.
+ */
 export function queueMenuItems(queued: { state: { kind: string; parked?: boolean } }): MenuItem[] {
   const paused = queued.state.kind === 'paused'
   const held = queued.state.kind === 'held'
@@ -582,6 +585,11 @@ export function queueMenuItems(queued: { state: { kind: string; parked?: boolean
       label: 'Wait for a retry',
       ...(held ? {} : { off: 'not held' }),
     },
+    // Each asks for a line that starts from what its task file says: a plan
+    // is changed by writing on the work it made, never by removing and
+    // planning it again, which uses the name up and holds what waited on it.
+    { id: 'queue-after', label: 'Wait on…' },
+    { id: 'queue-retell', label: 'Retell…' },
     { id: 'rename', label: 'Rename…' },
     { id: 'queue-remove', label: 'Remove', danger: true, divider: true },
   ]

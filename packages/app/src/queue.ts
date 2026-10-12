@@ -308,6 +308,55 @@ export function unnamedSays(change: string, queued: readonly string[]): string {
   return `${change} is for one piece of queued work, and this call named none: say which as task${now}`
 }
 
+/**
+ * Where one piece of queued work stands after somebody changed something, in
+ * a sentence that says what happens next and whether anybody is needed for it.
+ *
+ * Read after the queue has looked again, never the change's intention: `wait`
+ * on work the tree still holds is held again in the same second, and an answer
+ * of "waits again" sent the orchestrator off to remove and re-plan eleven
+ * tasks to get what one wait written on one of them would have done.
+ */
+export function nowSays(
+  task: string,
+  state: QueueState | null,
+  clock: (at: number) => string,
+): string {
+  if (!state) return `${task} is not queued any more`
+  switch (state.kind) {
+    case 'waiting':
+      return `${task} waits on ${joined(state.on)}, and starts by itself once ${state.on.length === 1 ? 'that has' : 'they have'} finished`
+    case 'held':
+      // What the tree holds heals: the look that finds the files settled
+      // starts it (`collides`). Nothing else does — trouble with what it waits
+      // on, or its own start failing, waits for an answer.
+      if (state.changed) {
+        return `${task} is held: ${state.because}. That heals by itself — the first look that finds those files settled starts it`
+      }
+      return state.on !== null
+        ? `${task} is held: ${state.because}. It stays held until it is answered: start it anyway, change what it waits on (after, with replace to drop ${state.on}), or remove it`
+        : `${task} is held: ${state.because}. It stays held until it is answered: wait tries it again, or start it anyway`
+    case 'scheduled':
+      return `${task} starts at ${clock(state.at)}`
+    case 'paused':
+      if (state.parked) return `${task} is parked, and starts only once it is picked up again`
+      return state.all ? `${task} is paused with its project's queue` : `${task} is paused`
+    case 'ready':
+      return `${task} is next, and starts as soon as its project has room`
+  }
+}
+
+/**
+ * What a change to queued work came to: what started, then where each piece
+ * it was about stands now. One piece is a sentence; several are lines.
+ */
+export function changedSays(lead: string, started: readonly string[], lines: readonly string[]) {
+  const head = started.length > 0 ? `${lead} Started ${joined(started)}.` : lead
+  if (lines.length === 0) return head
+  if (lines.length === 1 && started.length === 0) return `${head} ${lines[0]}.`
+  return [head, ...lines.map((line) => `- ${line}`)].join('\n')
+}
+
 /** Queued work and where each stands, in lines, oldest first. */
 export function describeQueue(
   items: readonly Queued[],

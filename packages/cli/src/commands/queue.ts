@@ -6,7 +6,8 @@ import { withWorkbench } from '../with-workbench.ts'
 
 // Changing queued work from the command line: the choice the window's SMART
 // QUEUE and the orchestrator's `tade_queue_change` make, written down through
-// the one operation all three call (`changeQueued`), as yours.
+// the one operation all three call (`changeQueued`), as yours — what it waits
+// on and what it is told included.
 //
 // **It writes, so it needs the home**, like every command that writes. With a
 // window open it is refused and says to ask there: the window is what starts
@@ -19,7 +20,7 @@ import { withWorkbench } from '../with-workbench.ts'
 // it, which is `tade task remove`.
 
 /** What `changeQueued` was asked, said back the way the window says it. */
-const DONE: Record<Exclude<QueueChange, 'order'>, string> = {
+const DONE: Record<Exclude<QueueChange, 'order' | 'after' | 'retell'>, string> = {
   start: 'starts as soon as there is room, whatever it waits on',
   wait: 'waits again, past what held it',
   pause: 'is paused',
@@ -97,6 +98,53 @@ export function registerQueue(program: Command, io: Io, setExit: (code: number) 
         for (const task of tasks) await queued(tade, task)
         await tade.changeQueued({ change: 'order', order: tasks, by: 'you' })
         io.out(`${joined(tasks)}, in that order, as each becomes ready. ${LATER}`)
+      }),
+    )
+
+  // A plan is changed by writing on the work it made, never by removing it and
+  // planning it again: a removed task's name is never used twice, and what
+  // waited on it is held. Both are checked by the workbench, so a wait on a
+  // task there is not, or one that closes a loop, is refused here as anywhere.
+  queue
+    .command('after <task> [waits...]')
+    .description(
+      'Make queued work wait on other tasks as well — or, with --replace, instead; a bare name is in its own project',
+    )
+    .option('--why <reason>', 'why it has to wait, kept with each wait', '')
+    .option('--replace', 'instead of what it waits on now; with no tasks, it waits on nothing')
+    .action((task: string, waits: string[], opts: { why: string; replace?: boolean }) =>
+      writing(async (tade) => {
+        const start = await tade.changeQueued({
+          task,
+          change: 'after',
+          after: waits.map((one) => ({ task: one, why: opts.why })),
+          replace: opts.replace === true,
+          by: 'you',
+        })
+        const on = (start?.after ?? []).map((dep) => dep.task)
+        io.out(`${task} ${on.length > 0 ? `waits on ${joined(on)}` : 'waits on nothing'}. ${LATER}`)
+      }),
+    )
+
+  queue
+    .command('retell <task>')
+    .description('Change what queued work is told when it starts, or what it says it will change')
+    .option('--prompt <text>', 'what its agent is told, instead of what it was')
+    .option('--touches <paths...>', 'the files it will change, instead of what it said')
+    .action((task: string, opts: { prompt?: string; touches?: string[] }) =>
+      writing(async (tade) => {
+        const start = await tade.changeQueued({
+          task,
+          change: 'retell',
+          ...(opts.prompt !== undefined ? { prompt: opts.prompt } : {}),
+          ...(opts.touches ? { touches: opts.touches } : {}),
+          by: 'you',
+        })
+        const said = [
+          ...(opts.prompt !== undefined ? ['is told something else when it starts'] : []),
+          ...(opts.touches ? [`says it will change ${joined(start?.touches ?? [])}`] : []),
+        ]
+        io.out(`${task} ${said.join(', and ')}. ${LATER}`)
       }),
     )
 }

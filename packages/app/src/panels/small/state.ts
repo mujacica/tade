@@ -83,6 +83,10 @@ export interface PromptPanel {
     | 'run-command'
     | 'rename-agent'
     | 'rename-schedule'
+    /** What queued work waits on, as names: `target` is the task. Submitting replaces the list. */
+    | 'queue-after'
+    /** What queued work's agent is told when it starts: `target` is the task. */
+    | 'queue-retell'
     /**
      * What a project is called on screen: `target` is its name, which is its
      * id and which this never changes.

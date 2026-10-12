@@ -93,7 +93,11 @@ const BUDGET: Record<string, number> = {
   // — it is the thing asked *before* every one of them, its own and the
   // harness's alike, so it reads as one subject rather than as a fortieth
   // description.
-  'packages/orchestrator/src/tools-extension.ts': 970,
+  //
+  // 970 -> 934 when `tade_queue` and `tade_queue_change` moved out to
+  // `tools-queue.ts`, as `after` and `retell` came in: at its budget again, and
+  // how a plan is changed once it is made reads better as one subject.
+  'packages/orchestrator/src/tools-extension.ts': 934,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade
@@ -101,8 +105,9 @@ const BUDGET: Record<string, number> = {
   // `reconcileSpend`, `lookAtCommits` and `lookAtChecks` with the keyed
   // reconciliation in each (~300 lines), to `workbench/src/reconcile.ts`, where
   // they can be tested as folds over a journal instead of through an open
-  // workbench.
-  'packages/workbench/src/workbench.ts': 2_459,
+  // workbench. 2,459 -> 2,426 when `changeQueued` went to `queue-changes.ts`,
+  // as it learned to write what queued work waits on and is told.
+  'packages/workbench/src/workbench.ts': 2_426,
   'packages/workbench/src/workers.ts': 1_100,
   // Its harness — a fake adapter, a supervisor and a log — is now
   // `workers-harness.ts`, which is the half of the file that was not about any

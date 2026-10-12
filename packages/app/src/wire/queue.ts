@@ -19,11 +19,15 @@ import {
   startFrom,
 } from '@tade/core'
 import { intakeStands } from '@tade/workbench'
+import { acknowledge } from '../flash.ts'
 import { type ScheduleView, showPlan, showQueue, withTranscript } from '../model.ts'
+import { promptPanel } from '../panels/small/state.ts'
 import {
+  changedSays,
   describeQueue,
   describeSchedule,
   heldMessage,
+  nowSays,
   planAnswer,
   unnamedSays,
   whyStarting,
@@ -34,6 +38,7 @@ import {
   type Actions,
   clockOf,
   notify,
+  type Prompts,
   type Subject,
   type Wiring,
   whenShort,
@@ -58,11 +63,12 @@ import type { ScheduleRequest } from './schedules.ts'
  *
  * Not `QUEUE_CHANGES`, which is what the orchestrator's tool takes: `first` and
  * `remove` are the window's words for an order written and a piece dropped.
+ * `after` and `retell` ask for a line first — what it waits on, what it is told.
  */
-const CHANGES = ['start', 'first', 'pause', 'resume', 'wait', 'remove'] as const
+const CHANGES = ['start', 'first', 'pause', 'resume', 'wait', 'after', 'retell', 'remove'] as const
 
 /** What is done to one piece of queued work and never to a whole project's queue. */
-const ONE_PIECE: ReadonlySet<string> = new Set(['start', 'wait', 'remove'])
+const ONE_PIECE: ReadonlySet<string> = new Set(['start', 'wait', 'after', 'retell', 'remove'])
 
 /** What this subject needs from the rest of the window. */
 export interface QueueDeps {
@@ -89,6 +95,14 @@ export interface QueueTools {
     change: string
     name?: string
     order?: readonly string[]
+    /** For `after`: what it waits on, each with why. */
+    after?: readonly { task: string; why: string }[]
+    /** For `after`: the list replaces what it waits on, rather than adding to it. */
+    replace?: boolean
+    /** For `retell`: what its agent is told when it starts. */
+    prompt?: string
+    /** For `retell`: what it says it will change. */
+    touches?: readonly string[]
     by?: 'you' | 'orchestrator'
   }): Promise<string>
   plan(plan: Plan): Promise<string>
@@ -104,6 +118,12 @@ export class Queue implements Subject {
   private readonly starting = new Set<string>()
   /** Tasks whose rule was met and is being written down, so it is written once. */
   private readonly marking = new Set<string>()
+  /**
+   * Queued work the orchestrator is being answered about now: a hold found in
+   * the look after its change is written down as ever, and goes in the answer
+   * it is reading rather than in a second message a turn later.
+   */
+  private readonly answering = new Set<string>()
 
   constructor(wire: Wiring, deps: QueueDeps) {
     this.wire = wire
@@ -173,6 +193,7 @@ export class Queue implements Subject {
       if (holdSaid(item.task, state, facts.events)) continue
       await this.wire.opts.client.holdQueued(item.task, state.because, how).catch(() => {})
       this.said(`${item.task} is held: ${state.because}`)
+      if (this.answering.has(item.task)) continue
       void this.deps.tell(heldMessage(item.task, state.because, state.changed)).catch(() => {})
     }
     // Room only where a project says how many may run: the queue waits for a
@@ -293,6 +314,10 @@ export class Queue implements Subject {
    * two seconds for anything to happen reads as broken.
    */
   async change(task: string, change: string): Promise<void> {
+    if (change === 'after' || change === 'retell') {
+      this.ask(task, change)
+      return
+    }
     try {
       // "Do this one first" is an order written like any other: this task in
       // front of whatever order the queue is already in.
@@ -353,7 +378,7 @@ export class Queue implements Subject {
             ),
           )
         }
-        if (req.change === 'remove') return this.remove(req.task)
+        if (req.change === 'remove') return this.remove(req.task, req.by)
         if (!change) {
           throw new Error(
             `${req.change} is not something to do to queued work: ${[...QUEUE_CHANGES, 'remove'].join(', ')}`,
@@ -376,15 +401,33 @@ export class Queue implements Subject {
           ...(req.task ? { task: req.task } : {}),
           ...(req.project ? { project: req.project } : {}),
           ...(change === 'order' ? { order } : {}),
+          ...(change === 'after' ? { after: req.after ?? [], replace: req.replace === true } : {}),
+          ...(change === 'retell' && req.prompt !== undefined ? { prompt: req.prompt } : {}),
+          ...(change === 'retell' && req.touches ? { touches: req.touches } : {}),
           change,
           by: req.by ?? 'orchestrator',
         })
-        await this.wire.live?.refresh()
-        const started = await this.advance()
-        if (started.length > 0) return `Done. Started ${joined(started)}.`
-        if (change === 'order')
-          return `Done: ${joined(order)}, in that order, as each becomes ready.`
-        return `Done: ${req.task ?? 'the queue'} ${change === 'pause' ? 'is paused' : change === 'resume' ? 'is back on' : change === 'wait' ? 'waits again' : 'starts as soon as there is room'}.`
+        // Answered with where things stand once the queue has looked again,
+        // never with what the change meant to do: the piece it was about, the
+        // pieces of an order, or a whole queue let go again. A whole queue
+        // paused is one sentence and needs no list saying so of each piece.
+        const about = req.task
+          ? [req.task]
+          : change === 'order'
+            ? order
+            : change === 'resume'
+              ? (this.wire.live?.queued ?? [])
+                  .filter((one) => !req.project || one.project === req.project)
+                  .map((one) => one.task)
+              : []
+        const started = await this.settle(about, req.by)
+        const lead =
+          change === 'order'
+            ? `Done: ${joined(order)}, in that order, as each becomes ready.`
+            : req.task
+              ? 'Done.'
+              : `Done: ${req.project ? `${req.project}'s queue` : 'the queue'} is ${change === 'pause' ? 'paused' : 'back on'}.`
+        return changedSays(lead, started, this.nowOf(about.filter((one) => !started.includes(one))))
       },
       plan: async (plan) => {
         // Checked against what the projects are already on, which no plan can
@@ -469,12 +512,19 @@ export class Queue implements Subject {
     )
   }
 
-  /** Take one piece of queued work away, with its worktree and its branch. */
-  private async remove(task: string | undefined): Promise<string> {
+  /**
+   * Take one piece of queued work away, with its worktree and its branch, and
+   * name what waited on it: each is held the moment it has gone, and "anything
+   * waiting on it is held" said whether or not anything did.
+   */
+  private async remove(task: string | undefined, by?: 'you' | 'orchestrator'): Promise<string> {
     if (!task) throw new Error('remove is for one piece of work: say which')
     const facts = this.wire.live?.factsOf(task)
     const worktree = this.wire.live?.worktreeOf(task)
     if (!facts || !worktree) throw new Error(`there is no queued work called ${task}`)
+    const waited = (this.wire.live?.queued ?? [])
+      .filter((one) => one.task !== task && one.start.after.some((dep) => dep.task === task))
+      .map((one) => one.task)
     const root = this.wire.opts.config.projects[facts.project]?.root
     const result = await this.wire.opts.client.removeTask({
       root: root ? expandHome(root) : worktree,
@@ -484,8 +534,105 @@ export class Queue implements Subject {
       force: true,
     })
     if (!result.removed) throw new Error(result.reason)
-    await this.wire.live?.refresh()
-    return `${task} is removed: anything waiting on it is held`
+    const started = await this.settle(waited, by)
+    if (waited.length === 0)
+      return changedSays(`${task} is removed. Nothing waited on it.`, started, [])
+    return changedSays(
+      `${task} is removed. ${joined(waited)} waited on it:`,
+      started,
+      this.nowOf(waited.filter((one) => !started.includes(one))),
+    )
+  }
+
+  /**
+   * Look again after a change, and start what it made ready. A pass already
+   * under way read the world before the change, so it finishes first and a
+   * fresh one reads it after. What that pass holds is told to the
+   * orchestrator in its answer rather than again a turn later (`answering`);
+   * a change made at the keyboard is told as ever.
+   */
+  private async settle(about: readonly string[], by?: 'you' | 'orchestrator'): Promise<string[]> {
+    const quiet = by === 'you' ? [] : about
+    for (const task of quiet) this.answering.add(task)
+    try {
+      // Only waited for: how that pass went is its own caller's to say.
+      await this.advancing?.catch(() => {})
+      await this.wire.live?.refresh()
+      return await this.advance()
+    } finally {
+      for (const task of quiet) this.answering.delete(task)
+    }
+  }
+
+  /** Where each piece of queued work stands now, in a sentence each. */
+  private nowOf(tasks: readonly string[]): string[] {
+    const live = this.wire.live
+    if (!live) return []
+    const facts = live.queueFacts()
+    return tasks.map((task) => {
+      const item = live.queued.find((one) => one.task === task)
+      return nowSays(task, item ? queueStateOf(item, facts) : null, clockOf)
+    })
+  }
+
+  /**
+   * What it waits on, or what it is told, asked for in a line that starts from
+   * what its task file says now — so editing the line is changing it, and
+   * clearing the waits is waiting on nothing. A prompt of several lines is not
+   * put in a one-line field, which would join its lines when it was saved.
+   */
+  private ask(task: string, change: 'after' | 'retell'): void {
+    const item = this.wire.live?.queued.find((one) => one.task === task)
+    if (!item) {
+      notify(this.wire, `there is no queued work called ${task}`)
+      this.wire.draw()
+      return
+    }
+    const name = task.split('/').slice(1).join('/')
+    const own = (dep: string) =>
+      dep.startsWith(`${item.project}/`) ? dep.slice(item.project.length + 1) : dep
+    const panel =
+      change === 'after'
+        ? promptPanel(
+            'queue-after',
+            `What ${name} waits on`,
+            'TASKS',
+            item.start.after.map((dep) => own(dep.task)).join(' '),
+          )
+        : promptPanel(
+            'queue-retell',
+            `What ${name} is told`,
+            'PROMPT',
+            item.start.prompt.includes('\n') ? '' : item.start.prompt,
+          )
+    this.wire.put({ ...this.wire.state, panel: { ...panel, target: task } })
+    this.wire.draw()
+  }
+
+  prompts(): Prompts {
+    const done = (answer: string) =>
+      this.wire.put(acknowledge({ ...this.wire.state, panel: null }, answer, this.wire.now()))
+    return {
+      'queue-after': async (panel, text) => {
+        const task = panel.target ?? ''
+        const item = this.wire.live?.queued.find((one) => one.task === task)
+        // The reasons already written stay with the waits they were written for.
+        const why = new Map((item?.start.after ?? []).map((dep) => [dep.task, dep.why]))
+        const project = task.split('/')[0] ?? ''
+        const after = text
+          .split(/[\s,]+/)
+          .filter((one) => one !== '')
+          .map((one) => ({
+            task: one,
+            why: why.get(one.includes('/') ? one : `${project}/${one}`) ?? '',
+          }))
+        done(await this.tools().change({ task, change: 'after', after, replace: true, by: 'you' }))
+      },
+      'queue-retell': async (panel, text) => {
+        const task = panel.target ?? ''
+        done(await this.tools().change({ task, change: 'retell', prompt: text, by: 'you' }))
+      },
+    }
   }
 
   /** Something the queue did, where you would look for it. */

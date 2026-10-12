@@ -96,8 +96,25 @@ export type QueueState =
   /** It can start, and does as soon as its project has room. */
   | { kind: 'ready' }
 
-/** What a person can do to queued work. */
-export const QUEUE_CHANGES = ['pause', 'resume', 'start', 'wait', 'order'] as const
+/**
+ * What a person can do to queued work.
+ *
+ * `after` and `retell` change the task file rather than only the journal:
+ * what it waits on, and what its agent is told or says it will touch. They are
+ * how a plan is changed once it is made — re-ordering is a wait written on the
+ * work, never the work removed and planned again, which uses its name up for
+ * good and holds everything that waited on it. There is no rename: a task's id
+ * is its folder, its conversation and its trailer.
+ */
+export const QUEUE_CHANGES = [
+  'pause',
+  'resume',
+  'start',
+  'wait',
+  'order',
+  'after',
+  'retell',
+] as const
 export type QueueChange = (typeof QUEUE_CHANGES)[number]
 
 export interface Choices {
@@ -128,6 +145,12 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
       case 'wait':
         choices.anyway = false
         choices.answeredAt = event.seq
+        break
+      // A wait written down is newer than a start-anyway and says the
+      // opposite. It answers no trouble: adding a wait may only ever make a
+      // start later, so a failure it was held on still holds.
+      case 'after':
+        choices.anyway = false
         break
     }
   }
@@ -266,6 +289,9 @@ export function troubleStarting(
  * A hold on what the tree says is matched by being one, not by its words: the
  * files being changed under queued work change from one look to the next, and
  * a sentence that grows a filename is not news worth waking anybody for.
+ *
+ * Every change is an answer — a wait written on it and a retelling included —
+ * so a hold after one is news again: whoever made it is told it did not take.
  */
 export function holdSaid(
   task: string,
@@ -276,10 +302,7 @@ export function holdSaid(
   for (const event of events) {
     if (event.task !== task) continue
     const change = event.detail.change
-    if (
-      event.type === 'queue_changed' &&
-      (change === 'start' || change === 'wait' || change === 'resume')
-    ) {
+    if (event.type === 'queue_changed' && change !== 'pause' && change !== 'order') {
       said = false
     }
     if (event.type !== 'queue_held') continue
@@ -454,6 +477,96 @@ export function readyToStart(
     out.push(item.task)
   }
   return out
+}
+
+/** What queued work will wait on after a change, or every reason it cannot. */
+export type WaitsCheck =
+  | { ok: true; after: { task: string; why: string }[] }
+  | { ok: false; problems: string[] }
+
+/**
+ * A change to what existing queued work waits on, checked by the rules a plan
+ * is checked by (`checkPlan`), and refused whole with every reason at once:
+ * each task named is one Tade has, nothing waits on itself, and no queued work
+ * ends up waiting on itself through others — which would leave all of it
+ * waiting for ever. A bare name is read in the waiting task's own project, and
+ * `project/name` names a task anywhere, as a plan's waits do.
+ */
+export function checkWaits(req: {
+  /** The queued task whose waits change, as its qualified id. */
+  task: string
+  /** What its task file says it waits on now. */
+  current: readonly { task: string; why: string }[]
+  /** What was asked for. */
+  after: readonly { task: string; why: string }[]
+  /** The list replaces what it waits on, rather than being added to it. */
+  replace: boolean
+  /** Every task Tade has, by qualified id. */
+  tasks: ReadonlySet<string>
+  /** What other queued work waits on; work that has started waits on nothing. */
+  waits: (task: string) => readonly string[]
+}): WaitsCheck {
+  const problems: string[] = []
+  const here = req.task.split('/')[0] ?? req.task
+  const added: { task: string; why: string }[] = []
+  for (const dep of req.after) {
+    const said = dep.task.trim()
+    const task = said.includes('/') ? said : `${here}/${said}`
+    if (task === req.task) {
+      problems.push(`${req.task} cannot wait on itself`)
+    } else if (!req.tasks.has(task)) {
+      problems.push(
+        `${req.task} cannot wait on ${said || 'nothing'}, which is not a task Tade has: wait only on one tade_queue or tade_status lists`,
+      )
+    } else if (!added.some((one) => one.task === task)) {
+      added.push({ task, why: dep.why.trim() })
+    }
+  }
+  if (!req.replace && req.after.length === 0) {
+    problems.push(`say what ${req.task} waits on, or replace its waits with none`)
+  }
+  if (problems.length > 0) return { ok: false, problems }
+  const kept = req.replace
+    ? []
+    : req.current.filter((one) => !added.some((dep) => dep.task === one.task))
+  const after = [...kept, ...added]
+  // From each new wait, whether its own waits lead back here. Only what is
+  // added can close a loop: what it already waited on was checked when it was
+  // written, and taking a wait away never makes one.
+  for (const dep of added) {
+    const through = pathTo(dep.task, req.task, req.waits)
+    if (!through) continue
+    const middle = through.slice(1, -1)
+    problems.push(
+      `${req.task} cannot wait on ${dep.task}: ${dep.task} already waits on ${req.task}${
+        middle.length > 0 ? ` through ${joined(middle)}` : ''
+      }, so ${middle.length > 0 ? 'none of them' : 'neither'} could start`,
+    )
+  }
+  return problems.length > 0 ? { ok: false, problems } : { ok: true, after }
+}
+
+/** The waits from one task to another, both ends included; null where there are none. */
+function pathTo(
+  from: string,
+  to: string,
+  waits: (task: string) => readonly string[],
+): string[] | null {
+  const came = new Map<string, string>([[from, '']])
+  const queue = [from]
+  for (let at = queue.shift(); at !== undefined; at = queue.shift()) {
+    if (at === to) {
+      const path = [at]
+      for (let back = came.get(at); back; back = came.get(back)) path.unshift(back)
+      return path
+    }
+    for (const next of waits(at)) {
+      if (came.has(next)) continue
+      came.set(next, at)
+      queue.push(next)
+    }
+  }
+  return null
 }
 
 /** What queued work in a worktree begins from, per task it waited on. */
