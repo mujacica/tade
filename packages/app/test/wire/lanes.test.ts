@@ -1,7 +1,15 @@
+import type { LaneId } from '@tade/core'
 import { ECHO_CHILD } from '@tade/drivers-core/conformance'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
-import { type FakeTerminal, SPAWNING_MS, screenOf, until, windowUnderTest } from './harness.ts'
+import {
+  type FakeTerminal,
+  type Repo,
+  SPAWNING_MS,
+  screenOf,
+  until,
+  windowUnderTest,
+} from './harness.ts'
 
 // A terminal opened in the window, and the wheel over one — which is the
 // window's to answer, or the program's own, and never a guess.
@@ -21,10 +29,12 @@ function newestPrinted(terminal: FakeTerminal): number {
 describe('the window, and the lanes in it', () => {
   let terminal: FakeTerminal
   let client: Workbench
+  let repo: Repo
   let opened: { command: string; args: readonly string[] }[]
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, sidebar, headingRow } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
+    repo = wired.repo
     opened = wired.opened
   })
 
@@ -461,5 +471,64 @@ describe('the window, and the lanes in it', () => {
     terminal.press('\r')
     await until('the terminal', () => client.terminals('app').some((one) => one.name === 'logs'))
     await until('its tab', () => terminal.written.includes('logs'))
+  })
+
+  // A lane's screen is that lane's. Going to another agent drew the one you
+  // had left, under the name of the one you had gone to, until the next look
+  // read the right one — and a look already part-way through reading the old
+  // one put it back when it finished.
+  it("never draws one agent's screen under another's name", async () => {
+    for (const name of ['refunds', 'search']) {
+      const words = `${name.toUpperCase()} OWN WORDS`
+      await client.spawn({
+        id: `app/${name}/agent` as LaneId,
+        task: `app/${name}`,
+        kind: 'agent',
+        cwd: repo.root,
+        command: process.execPath,
+        args: ['-e', `console.log(${JSON.stringify(words)}); setInterval(() => {}, 60_000)`],
+      })
+    }
+    await start()
+    const shown = () => screenOf(terminal.written).join('\n')
+    await until('refunds in front', () => shown().includes('REFUNDS OWN WORDS'), SPAWNING_MS)
+
+    // From here the driver answers nothing until it is let go, so whatever a
+    // switch draws is what the window already had — or nothing at all.
+    let letGo = () => {}
+    const holding = () => new Promise<void>((resolve) => (letGo = resolve))
+    let held: Promise<void> | null = holding()
+    const capture = client.capture.bind(client)
+    client.capture = async (lane, lines, styled) => {
+      if (held) await held
+      return capture(lane, lines, styled)
+    }
+    const agent = (name: string) => {
+      const lines = sidebar().split('\n')
+      const from = headingRow('AGENTS').row
+      const row = lines.findIndex((line, at) => at > from && line.includes(name))
+      click((lines[row] ?? '').indexOf(name) + 1, row)
+    }
+    try {
+      agent('search')
+      await until('search in front', () => shown().includes('│ search '))
+      // Never read, so nothing: not refunds' words under search's name.
+      expect(shown()).not.toContain('REFUNDS OWN WORDS')
+
+      held = null
+      letGo()
+      await until('search, read', () => shown().includes('SEARCH OWN WORDS'), SPAWNING_MS)
+
+      // Back, with the driver answering nothing again: refunds' own last
+      // screen, at once, and none of search's.
+      held = holding()
+      agent('refunds')
+      await until('refunds in front again', () => shown().includes('│ refunds '))
+      await until('its own last screen', () => shown().includes('REFUNDS OWN WORDS'))
+      expect(shown()).not.toContain('SEARCH OWN WORDS')
+    } finally {
+      held = null
+      letGo()
+    }
   })
 })

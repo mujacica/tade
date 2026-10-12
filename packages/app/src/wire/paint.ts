@@ -100,8 +100,13 @@ export class Repaint {
    * differently, a stand-in would be fifteen forwarders of which pi-tui calls
    * seven, and there would then be two objects where the point is that there
    * is one terminal with one piece of state in it.
+   *
+   * `resized` is told when the terminal changes size, after pi-tui has drawn
+   * the window again for it: the lanes in it are then the wrong size and the
+   * wrong height to read, and the look that catches them up is owed at once
+   * rather than at the next beat.
    */
-  watch(terminal: Terminal): void {
+  watch(terminal: Terminal, resized: () => void = () => {}): void {
     const start = terminal.start.bind(terminal)
     terminal.start = (onInput, onResize) => {
       // A TUI taking the terminal has just drawn every row of it, and whatever
@@ -112,6 +117,10 @@ export class Repaint {
       // as long as nobody moves.
       this.focused = true
       this.owed = true
+      const sized = () => {
+        onResize()
+        resized()
+      }
       start((data) => {
         if (data === FOCUS_OUT) this.focused = false
         else if (data === FOCUS_IN && !this.focused) {
@@ -119,7 +128,7 @@ export class Repaint {
           this.owed = true
         }
         onInput(data)
-      }, onResize)
+      }, sized)
     }
   }
 

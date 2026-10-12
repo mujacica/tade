@@ -272,8 +272,8 @@ export class App {
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
     // clickable: events arrive at the component with coordinates local to it.
-    // It is also what asks for focus reporting, which is what `watch` reads.
-    this.repaint.watch(this.terminal)
+    // It asks for focus reports too, which `watch` reads; a resize is a look at once.
+    this.repaint.watch(this.terminal, () => void this.tick())
     this.tui = screenFor(this.terminal)
     freeViewportKeys()
     this.keyboard = new Keyboard(this.wire, {

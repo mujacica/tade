@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { Frame } from '../frame.ts'
 import {
   asRemembered,
+  grownSince,
   type LayoutPrefs,
   type RememberedWindow,
   whereYouWere,
@@ -14,6 +15,7 @@ import {
   FOLDED_AT_START,
   focusTask,
   markOf,
+  ORCHESTRATOR_TAB,
   shownName,
   toggleDone,
   turnedSince,
@@ -58,6 +60,10 @@ export class Window implements Subject {
    * the frame, and a frame is folded exactly once per drawing.
    */
   private drawnAt = Number.NEGATIVE_INFINITY
+  /** When the conversation was last seen going on, while the bottom panel is grown for it (`grownSince`). */
+  private grown: number | null = null
+  /** Whether the frame on screen was drawn with it grown: a hold running out is a frame owed. */
+  private drawnGrown = false
   /**
    * How a moment is said, made again only when the day changes — the one thing
    * about now that `whenShort` reads. A new one every frame was a field no
@@ -82,8 +88,10 @@ export class Window implements Subject {
   facts(): Partial<Frame> {
     const now = this.wire.now()
     this.drawnAt = now
+    const layout = this.layout()
+    this.drawnGrown = layout.grow === true
     return {
-      layout: this.layout(),
+      layout,
       home: tilde(this.wire.opts.home),
       bindings: this.wire.opts.config.surfaces.window.keys,
       now,
@@ -259,8 +267,24 @@ export class Window implements Subject {
       ...(sidebarWidth ? { sidebarWidth } : {}),
       ...(stripHeight ? { stripHeight } : {}),
       bottom: this.wire.state.bottomMode,
-      grow: conversing(this.wire.state),
+      grow: this.growing(),
     }
+  }
+
+  /**
+   * Whether the bottom panel is grown for the conversation: while it goes on,
+   * and held a while after, so the answer does not shrink out from under
+   * somebody reading it. Only ever the drawing's — a lane is never made a
+   * different size for it (`Fitting`).
+   */
+  private growing(): boolean {
+    const state = this.wire.state
+    this.grown = grownSince(this.grown, this.wire.now(), {
+      going: conversing(state),
+      there: state.bottom === ORCHESTRATOR_TAB,
+      open: state.dictation !== null,
+    })
+    return this.grown !== null
   }
 
   /**
@@ -299,16 +323,20 @@ export class Window implements Subject {
     this.deps.setTitle(title)
   }
 
-  /** Where you are, as the title says it: the project and the agent in front. */
   /**
    * Whether a look that read nothing new is still worth a frame: something on
    * screen turns, and has turned since the frame on screen was drawn
-   * (`turnedSince`). Ten frames a second at most, which is what a spinner moves.
+   * (`turnedSince`) — ten frames a second at most, which is what a spinner
+   * moves — or the bottom panel's hold on its room ran out since.
    */
   turned(): boolean {
-    return turnedSince(this.wire.state, this.drawnAt, this.wire.now())
+    return (
+      turnedSince(this.wire.state, this.drawnAt, this.wire.now()) ||
+      this.growing() !== this.drawnGrown
+    )
   }
 
+  /** Where you are, as the title says it: the project and the agent in front. */
   titleHere(): void {
     const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
     this.title(pane ? `${pane.project} › ${shownName(pane)}` : this.wire.state.project)

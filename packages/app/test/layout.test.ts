@@ -3,6 +3,8 @@ import {
   asRemembered,
   CHROME,
   DEFAULTS,
+  GROWN_HOLD_MS,
+  grownSince,
   MINIMUM,
   resolveLayout,
   worthKeeping,
@@ -231,5 +233,34 @@ describe('asRemembered', () => {
 
   it('copes with a file that remembers nothing in particular', () => {
     expect(asRemembered({})).toEqual({ focused: null })
+  })
+})
+
+// The bottom panel grows for a conversation going on, and the answer somebody
+// is reading used to collapse from sixteen rows to nine the instant it ended.
+describe('grownSince', () => {
+  const going = { going: true, there: true, open: false }
+  const over = { going: false, there: true, open: false }
+
+  it('grows the moment a conversation goes on, and keeps the moment it was last seen', () => {
+    expect(grownSince(null, 1_000, going)).toBe(1_000)
+    expect(grownSince(1_000, 1_500, going)).toBe(1_500)
+  })
+
+  it('stays grown a while after the turn, and then gives the room back', () => {
+    expect(grownSince(1_000, 1_000 + GROWN_HOLD_MS - 1, over)).toBe(1_000)
+    expect(grownSince(1_000, 1_000 + GROWN_HOLD_MS, over)).toBeNull()
+  })
+
+  it('stays grown for as long as its line is open, however long that is', () => {
+    expect(grownSince(1_000, 1_000 + GROWN_HOLD_MS * 100, { ...over, open: true })).toBe(1_000)
+  })
+
+  it('gives the room back at once when somebody leaves the tab', () => {
+    expect(grownSince(1_000, 1_001, { ...over, there: false, open: true })).toBeNull()
+  })
+
+  it('never grows for a line opened on its own: that would move everything above it', () => {
+    expect(grownSince(null, 1_000, { ...over, open: true })).toBeNull()
   })
 })

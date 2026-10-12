@@ -1,7 +1,7 @@
 import { chatTaskOf, HARNESS_CHOICES, isChatLane, type LaneId } from '@tade/core'
 import { openChat } from '@tade/workbench'
 import type { Frame, LaneView } from '../frame.ts'
-import { halvesOf, resolveLayout } from '../layout.ts'
+import { halvesOf } from '../layout.ts'
 import {
   type AppState,
   activeTerminal,
@@ -21,7 +21,6 @@ import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
 import { cutFrom, type HeldLines, holding, keeping, settledAbove } from '../scroll.ts'
-import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import {
   splitActed,
@@ -33,7 +32,6 @@ import {
   typingLane,
   unsplitPane,
 } from '../split.ts'
-import { carded, rowsRead } from '../view/lane.ts'
 import {
   type Actions,
   type Menus,
@@ -43,6 +41,8 @@ import {
   why,
 } from './context.ts'
 import { Finding } from './finding.ts'
+import { Fitting, type Size } from './fitting.ts'
+import { Screens } from './shown.ts'
 
 // The two screens in front of you, and the terminals they are.
 //
@@ -110,27 +110,22 @@ export class Lanes implements Subject {
   private readonly wire: Wiring
   private readonly deps: LanesDeps
   /**
-   * What the driver says about the two screens in front — how far back each
-   * goes, and where typing lands in it. Read beside the capture, because a
-   * scrollbar drawn from one frame's text and another frame's depth jumps.
+   * The four screens in front — the pane, the terminal, and each one's second
+   * half — as last read, each with the lane it was read from and what the
+   * driver said beside it: how far back it goes, where typing lands. Read
+   * beside the capture, because a scrollbar drawn from one frame's text and
+   * another frame's depth jumps.
    */
-  private paneView: LaneView | null = null
-  private terminalView: LaneView | null = null
+  private readonly screens = new Screens()
   /**
-   * The lines each of those two screens was last read as, and how deep the read
+   * The lines the pane and the terminal were last read as, and how deep the read
    * went, which the wheel cuts a new screen out of: replaced, never written into.
    */
   private held: ReadonlyMap<'pane' | 'terminal', HeldLines> = new Map()
-  /** The agent's pane and the terminal in front, as last captured. */
-  private screen = ''
-  private terminalScreen = ''
-  /** The second half of a split pane, and of a split bottom panel, as last captured. */
-  private splitScreen = ''
-  private splitTerminalScreen = ''
   /** The lanes in front — the agent's, and the terminal's — watched so they redraw as they print. */
   private readonly watching = new Map<'pane' | 'terminal', { lane: string; stop: () => void }>()
-  /** How each lane was last sized — once per change; its height, what may be rewritten. */
-  private readonly fitted = new Map<string, { cols: number; rows: number }>()
+  /** How each lane was last sized — once per size, and once it holds still; its height, what may be rewritten. */
+  private readonly fitting: Fitting
   /** A terminal's scrollback, read for finding in it. */
   private readonly find = new Finding()
   private router: RouterState = initialRouter()
@@ -140,6 +135,7 @@ export class Lanes implements Subject {
   constructor(wire: Wiring, deps: LanesDeps) {
     this.wire = wire
     this.deps = deps
+    this.fitting = new Fitting(wire, { size: () => deps.size(), told: () => deps.soonTick() })
   }
 
   /** The two screens, as the frame draws them. */
@@ -147,23 +143,53 @@ export class Lanes implements Subject {
     Frame,
     'screen' | 'terminal' | 'paneScreen' | 'splitScreen' | 'splitTerminal' | 'held'
   > {
+    this.owned()
+    const pane = this.screens.of('pane')
+    const terminal = this.screens.of('terminal')
     return {
-      screen: this.screen,
+      screen: pane.screen,
       // The lines behind those two screens: what a selection dragged over one
       // and scrolled reaches into. Which line of the lane the top of the screen
       // is, is the drawing's to work out, from the `cutAt` it was cut with.
       held: this.held,
       terminal: {
-        screen: this.terminalScreen,
+        screen: terminal.screen,
         find: this.findView(),
-        view: this.terminalView,
+        view: terminal.view,
       },
-      paneScreen: this.paneView,
-      splitScreen: this.splitScreen,
+      paneScreen: pane.view,
+      splitScreen: this.screens.of('split').screen,
       splitTerminal: this.wire.state.terminalSplit
-        ? { screen: this.splitTerminalScreen, find: null }
+        ? { screen: this.screens.of('splitTerminal').screen, find: null }
         : undefined,
     }
+  }
+
+  /**
+   * Every screen handed to the frame is the lane's in front of it, or nothing.
+   *
+   * A focus moves between two looks — a click, a tab, an agent raised — and
+   * what the last look read is then somebody else's: drawn anyway, the pane
+   * showed the agent you had left under the name of the one you had gone to,
+   * for up to a beat. So an area whose lane moved shows that lane's own last
+   * screen, or a blank one, and a look is asked for to read it now rather than
+   * at the next beat. Here, where the frame is made, so every way the focus
+   * can move is covered without each of them having to remember to say so.
+   */
+  private owned(): void {
+    const state = this.wire.state
+    const pane = state.panes.find((one) => one.task === state.focused)
+    const moved = {
+      pane: this.screens.front('pane', pane ? laneShown(state, pane) : null),
+      split: this.screens.front('split', pane ? (splitShown(state, pane)?.lane ?? null) : null),
+      terminal: this.screens.front('terminal', activeTerminal(state)?.id ?? null),
+      below: this.screens.front('splitTerminal', terminalSplitShown(state)?.lane ?? null),
+    }
+    // Another lane's lines are not these: a selection anchored in them, or a
+    // notch cut out of them, would be the lane just left.
+    if (moved.pane) this.held = holding(this.held, 'pane', null)
+    if (moved.terminal) this.held = holding(this.held, 'terminal', null)
+    if (moved.pane || moved.split || moved.terminal || moved.below) this.deps.soonTick()
   }
 
   /** What the find box over a terminal has to say: how many lines match, and whose they are. */
@@ -370,7 +396,6 @@ export class Lanes implements Subject {
     this.wire.draw()
   }
 
-  /** Stop watching both lanes: the window is closing. */
   /** The scrollback the find box is looking through, and the line it is on. */
   findView(): NonNullable<Frame['terminal']>['find'] {
     return this.find.view(this.wire.state.panel)
@@ -388,8 +413,10 @@ export class Lanes implements Subject {
     return this.find.matches(this.wire.state.panel)
   }
 
+  /** Stop watching both lanes, and telling any a size: the window is closing. */
   stopWatching(): void {
     for (const watched of this.watching.values()) watched.stop()
+    this.fitting.stop()
   }
 
   /**
@@ -407,21 +434,20 @@ export class Lanes implements Subject {
     // pane shows, which an approval card takes five off — the clamp here and
     // the bar in the drawing have to be counting the same rows, or the look
     // pulls the view back five rows after the wheel has moved it.
-    if (lane) await this.fitLane(lane, size)
+    if (lane) await this.fitting.fit(lane, size, true)
     this.watch(lane)
     if (split) {
-      await this.fitLane(split.lane, halves.second)
+      await this.fitting.fit(split.lane, halves.second, true)
       const second =
         (await this.wire.live?.capture(split.lane, halves.second.rows, this.deps.skin.colour)) ?? ''
-      if (second !== this.splitScreen) {
-        this.splitScreen = second
+      if (this.screens.read('split', { lane: split.lane, screen: second, view: null }, true))
         this.wire.draw()
-      }
     }
+    this.fitting.behind()
     return {
       lane,
       split: split !== null,
-      rows: this.laneRows('pane'),
+      rows: this.fitting.laneRows('pane'),
     }
   }
 
@@ -433,17 +459,17 @@ export class Lanes implements Subject {
    * before it is a screen cut in the wrong place.
    */
   async readPane(at: PaneAt): Promise<boolean> {
+    const was = this.screens.of('pane')
     // Only for the one screen the bar and the cursor are drawn on: a split is
     // two lanes and gets neither.
-    const view = at.split ? null : ((await this.wire.live?.screen(at.lane)) ?? null)
-    if (!same(view, this.paneView)) {
-      this.paneView = view
-      this.wire.draw()
-    }
-    const screen = await this.laneScreen('pane', at.lane, at.rows)
-    const changed = screen !== this.screen
-    this.screen = screen
-    return changed
+    const read = at.split ? null : ((await this.wire.live?.screen(at.lane)) ?? null)
+    const view = was.lane === at.lane && same(read, was.view) ? was.view : read
+    const screen = await this.laneScreen('pane', at.lane, at.rows, view)
+    // Kept as the lane's own only where it was read at its newest line: coming
+    // back to an agent is coming back to its end.
+    const fresh = { lane: at.lane, screen, view }
+    const changed = this.screens.read('pane', fresh, this.wire.state.paneScroll === 0)
+    return changed || view !== was.view
   }
 
   /** Type into the agent you are watching, and hold focus while you do. */
@@ -488,13 +514,13 @@ export class Lanes implements Subject {
     area: 'pane' | 'terminal',
     lane: string | null,
     rows: number,
+    view: LaneView | null,
   ): Promise<string> {
     if (!lane) {
       this.held = holding(this.held, area, null)
       return ''
     }
     const which = SCROLL_OF[area]
-    const view = area === 'pane' ? this.paneView : this.terminalView
     const at = view?.lines ?? 0
     // Never further back than there is to read: the wheel is clamped against
     // what the last frame drew, and this is the same clamp against what the
@@ -537,7 +563,8 @@ export class Lanes implements Subject {
    */
   turnedInLane(event: Extract<PointerEvent, { kind: 'wheel' }>): boolean {
     if (event.area !== 'pane' && event.area !== 'terminal') return false
-    const view = event.area === 'pane' ? this.paneView : this.terminalView
+    this.owned()
+    const view = this.screens.of(event.area).view
     if (!view || view.scrolling === undefined || view.scrolling === 'window') return false
     const lane =
       event.area === 'pane' ? this.paneLane() : (activeTerminal(this.wire.state)?.id ?? null)
@@ -566,61 +593,28 @@ export class Lanes implements Subject {
    * told that nothing had changed.
    */
   reslice(area: 'pane' | 'terminal'): boolean {
+    // Only ever the lane in front's own lines: what a focus left behind is not.
+    this.owned()
     const held = this.held.get(area)
-    if (!held) return false
+    const shown = this.screens.of(area)
+    if (!held || held.lane !== shown.lane) return false
     // A notch onto the live screen is answered by reading it, not from held.
     if (!this.settled(held.lane, this.wire.state[SCROLL_OF[area]])) return false
-    const view = area === 'pane' ? this.paneView : this.terminalView
     const cut = cutFrom(
       held,
-      this.laneRows(area),
+      this.fitting.laneRows(area),
       this.wire.state[SCROLL_OF[area]],
-      view?.lines ?? held.at,
+      shown.view?.lines ?? held.at,
     )
     if (cut === null) return false
-    if (area === 'pane') this.screen = cut
-    else this.terminalScreen = cut
+    this.screens.read(area, { ...shown, screen: cut }, false)
     return true
   }
 
   /** `settledAbove`, against the screen this lane was actually made. */
   private settled(lane: string, back: number): boolean {
-    const live = this.fitted.get(lane)?.rows
+    const live = this.fitting.rows(lane)
     return live === undefined ? false : settledAbove(back, live)
-  }
-
-  /**
-   * How many rows of a lane are on screen: what a capture is cut to. Exactly
-   * the lines the region shows, counted as the drawing counts them — the clamp
-   * here and the bar it draws have to agree about where the end is, or the top
-   * of a scrollback springs back a row under every notch.
-   */
-  private laneRows(area: 'pane' | 'terminal'): number {
-    if (area === 'terminal') return this.terminalHalves().first.rows
-    const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
-    const split = pane ? splitShown(this.wire.state, pane) : null
-    const rows = halvesOf(this.paneSize(split !== null), split).first.rows
-    const lane = pane ? laneShown(this.wire.state, pane) : null
-    return rowsRead(rows, !split && carded(pane, lane), !split && this.wire.state.paneScroll > 0)
-  }
-
-  /**
-   * The bottom panel's two halves, sized as the window draws them: its width
-   * less the scrollbar's column, which the window draws and the lane must not
-   * — a split has none and takes it back — and the strip less its own frame.
-   * One answer, because a screen cut to the wrong number of rows jumps when
-   * the look catches up with the wheel.
-   */
-  private terminalHalves(): ReturnType<typeof halvesOf> {
-    const layout = this.resolved()
-    const split = terminalSplitShown(this.wire.state)
-    return halvesOf(
-      {
-        cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1 - (split ? 0 : BAR)),
-        rows: Math.max(1, layout.stripHeight - 2),
-      },
-      split,
-    )
   }
 
   /**
@@ -632,35 +626,32 @@ export class Lanes implements Subject {
     const terminal = activeTerminal(this.wire.state)
     if (!terminal || this.wire.state.bottomMode === 'min') {
       this.watch(null, 'terminal')
-      this.terminalView = null
+      const shown = this.screens.of('terminal')
+      if (shown.view) this.screens.read('terminal', { ...shown, view: null }, false)
       return false
     }
     const split = terminalSplitShown(this.wire.state)
-    const halves = this.terminalHalves()
+    const halves = this.fitting.terminalHalves()
     const size = halves.first
-    await this.fitLane(terminal.id, size)
+    await this.fitting.fit(terminal.id, size, true)
     this.watch(terminal.id, 'terminal')
     let changed = false
     if (split) {
-      await this.fitLane(split.lane, halves.second)
+      await this.fitting.fit(split.lane, halves.second, true)
       const second =
         (await this.wire.live?.capture(split.lane, halves.second.rows, this.deps.skin.colour)) ?? ''
-      if (second !== this.splitTerminalScreen) {
-        this.splitTerminalScreen = second
-        changed = true
-      }
+      const half = { lane: split.lane, screen: second, view: null }
+      changed = this.screens.read('splitTerminal', half, true)
     }
     // The depth before the text, as an agent's pane reads them: what is held
     // is kept by which lines they are, and that is counted from the depth.
-    const view = split ? null : ((await this.wire.live?.screen(terminal.id)) ?? null)
-    if (!same(view, this.terminalView)) {
-      this.terminalView = view
-      changed = true
-    }
-    const screen = await this.laneScreen('terminal', terminal.id, size.rows)
-    if (screen === this.terminalScreen) return changed
-    this.terminalScreen = screen
-    return true
+    const was = this.screens.of('terminal')
+    const read = split ? null : ((await this.wire.live?.screen(terminal.id)) ?? null)
+    const view = was.lane === terminal.id && same(read, was.view) ? was.view : read
+    const screen = await this.laneScreen('terminal', terminal.id, size.rows, view)
+    const fresh = { lane: terminal.id, screen, view }
+    const moved = this.screens.read('terminal', fresh, this.wire.state.terminalScroll === 0)
+    return moved || changed || view !== was.view
   }
 
   /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
@@ -676,17 +667,9 @@ export class Lanes implements Subject {
     this.wire.draw()
   }
 
-  /**
-   * How big a terminal opened here is made: the whole width under the window,
-   * and the strip's height less its own two rows of frame. One answer, because
-   * a terminal made one size and read at another is a screen that jumps.
-   */
-  terminalSize(): { cols: number; rows: number } {
-    const layout = this.resolved()
-    return {
-      cols: layout.sidebarWidth + layout.mainWidth + 1,
-      rows: Math.max(4, layout.stripHeight - 2),
-    }
+  /** How big a terminal opened here is made (`Fitting.terminalSize`). */
+  terminalSize(): Size {
+    return this.fitting.terminalSize()
   }
 
   /** A pure answer applied: the state, a look sooner than the next beat, and a frame. */
@@ -764,36 +747,8 @@ export class Lanes implements Subject {
       .catch(() => {})
   }
 
-  /** The window as it is laid out now: what every lane in it is sized against. */
-  private resolved(): ReturnType<typeof resolveLayout> {
-    const { columns, rows } = this.deps.size()
-    return resolveLayout(this.wire.layout(), { width: columns, height: Math.max(6, rows) })
-  }
-
-  /** The agent's part of the window: the pane, less its title and rule. */
-  paneSize(split = false): { cols: number; rows: number } {
-    const layout = this.resolved()
-    // The scrollbar's column is the window's, not the lane's: a lane sized to
-    // the whole pane would draw its last column under the bar.
-    return {
-      cols: Math.max(20, layout.mainWidth - (split ? 0 : BAR)),
-      rows: Math.max(4, layout.bodyHeight - 2),
-    }
-  }
-
-  /**
-   * Make the lane the size of the pane it is drawn in.
-   *
-   * An agent draws for the terminal it thinks it has. Drawn into a pane of a
-   * different size, its own layout wraps and clips in all the wrong places —
-   * so the pane decides, once per size, not every frame.
-   */
-  private async fitLane(lane: string, size: { cols: number; rows: number }): Promise<void> {
-    const was = this.fitted.get(lane)
-    if (was?.cols === size.cols && was.rows === size.rows) return
-    this.fitted.set(lane, { cols: size.cols, rows: size.rows })
-    await this.wire.opts.client.resize(lane as LaneId, size.cols, size.rows).catch(() => {
-      // A lane that just ended cannot be resized; the next tick will not ask.
-    })
+  /** The agent's part of the window, as a lane is made (`Fitting.paneSize`). */
+  paneSize(split = false): Size {
+    return this.fitting.paneSize(split)
   }
 }

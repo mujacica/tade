@@ -35,9 +35,18 @@ export class FakeTerminal implements Terminal {
   /** Every title the window has asked the terminal for, in order. */
   titles: string[] = []
   private onInput: ((data: string) => void) | null = null
+  private onResize: (() => void) | null = null
 
-  start(onInput: (data: string) => void, _onResize: () => void): void {
+  start(onInput: (data: string) => void, onResize: () => void): void {
     this.onInput = onInput
+    this.onResize = onResize
+  }
+
+  /** Made another size, as a terminal window dragged by its corner tells the program in it. */
+  resize(columns: number, rows: number): void {
+    this.columns = columns
+    this.rows = rows
+    this.onResize?.()
   }
 
   /** Press a key, exactly as a terminal would deliver it. */

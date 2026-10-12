@@ -41,6 +41,33 @@ export const DEFAULTS = { sidebarWidth: 26, stripHeight: 9 }
 export const CONVERSATION_ROWS = 16
 
 /**
+ * How long the bottom panel stays grown once the conversation stops going on,
+ * with nobody on its line: long enough to start reading the answer.
+ */
+export const GROWN_HOLD_MS = 5_000
+
+/**
+ * When the conversation was last seen going on, while the bottom panel is
+ * still grown for it, or `null` once it is not.
+ *
+ * It grows the moment one goes on and stays grown while the orchestrator's tab
+ * is in front and its line is open, or for `GROWN_HOLD_MS` after: the answer
+ * somebody is reading used to collapse from sixteen rows to nine the instant
+ * it finished. Leaving the tab gives the room back at once. Opening the line
+ * alone never grows it — that would move everything above it — so what is
+ * held is the conversation that was already going on, never a new one.
+ */
+export function grownSince(
+  since: number | null,
+  now: number,
+  at: { going: boolean; there: boolean; open: boolean },
+): number | null {
+  if (at.going) return now
+  if (since === null || !at.there) return null
+  return at.open || now - since < GROWN_HOLD_MS ? since : null
+}
+
+/**
  * Rows the window spends on itself: the project tabs and the rule under them,
  * and the rule and buttons at the foot. Counted here rather than in the
  * drawing, because a frame that does not add up to the terminal's height

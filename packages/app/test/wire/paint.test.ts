@@ -100,6 +100,21 @@ describe('when the whole screen is worth writing again', () => {
     take()
     expect(repaint.dueAt(1_000 + REPAINT_MS)).toBe(true)
   })
+
+  it('tells the window when the terminal changes size, after the TUI has heard', () => {
+    const terminal = new FakeTerminal()
+    const heard: string[] = []
+    new Repaint().watch(terminal, () => heard.push('look'))
+    terminal.start(
+      () => {},
+      () => heard.push('drawn'),
+    )
+    // The window draws itself again for the new size first — pi-tui's own
+    // answer — and the look that catches the lanes up comes straight after,
+    // rather than at the next beat.
+    terminal.resize(100, 30)
+    expect(heard).toEqual(['drawn', 'look'])
+  })
 })
 
 describe('what the window spends on the repaint', () => {

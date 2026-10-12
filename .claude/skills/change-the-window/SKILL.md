@@ -624,6 +624,22 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
 - **Redraw on output, not on a timer.** `App.watch` subscribes to the lane in front of you and asks
   for a look 16 ms after it prints; the quarter-second tick is only the fallback. Polling alone made
   every keystroke wait for the next tick.
+- **A lane's screen is that lane's** (`wire/shown.ts`). Every screen handed to the frame says which
+  lane it was read from, and `Lanes.owned` — run where the frame is made, so no door the focus moves
+  through has to remember — swaps in the lane now in front's own last screen (`KEPT_SCREENS` of
+  them, each as read at its newest line) or a blank one, and asks for a look. Never another lane's:
+  switching agents drew the one you had left under the new one's name for up to a beat, and a look
+  already part-way through reading the old one put it back.
+- **A lane is told a size only about itself, and only once it holds still** (`wire/fitting.ts`),
+  because the program answers every one by drawing its whole screen again. Lanes are sized from the
+  layout with `grow: false`: a conversation with the orchestrator draws the pane in fewer rows — the
+  newest, as an approval card does — and never resizes the agent, which used to be twice a turn. The
+  grow itself is held (`grownSince`, kept by `Window`, read off `frame.layout.grow`) while the line is
+  open or for `GROWN_HOLD_MS` after, so an answer does not shrink under the person reading it. A size
+  that moved is told after `SETTLE_MS` of stillness — a window being dragged was thirty resizes a
+  second — except to a lane in front never sized here; every live lane in the project is fitted, not
+  only the one in front, so going to one is not watching it reflow; and a terminal resize is a look at
+  once (`Repaint.watch`'s `resized`).
 - **The keyboard has three places to go.** A panel, when one is open; the orchestrator's line, when
   `dictation` is not null; otherwise `state.keyboard` — the agent pane or the terminal in front.
   `keyAction` claims almost nothing while a terminal has it: a shell needs tab and ctrl+c. Moving

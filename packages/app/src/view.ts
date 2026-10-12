@@ -51,9 +51,12 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
   const frame = given.now === undefined ? given : { ...given, now: drawnFor(given.now) }
   const skin = frame.skin ?? PLAIN
   const pointer: Pointer = { hover: state.hover, pressed: state.pressed }
-  // The config's sizes, then the ones dragged to, then the bottom folded or filling.
+  // The config's sizes, then the ones dragged to, then the bottom folded or
+  // filling — and grown for the conversation as the window holds it, which
+  // outlasts the turn (`grownSince`); a frame that does not say goes by the turn.
+  const grow = frame.layout?.grow ?? conversing(state)
   const { sidebarWidth, stripHeight, mainWidth, bodyHeight } = resolveLayout(
-    { ...frame.layout, ...state.sizes, bottom: state.bottomMode, grow: conversing(state) },
+    { ...frame.layout, ...state.sizes, bottom: state.bottomMode, grow },
     frame,
   )
   // The clamped width, not the asked-for one: a terminal too narrow to hold a
