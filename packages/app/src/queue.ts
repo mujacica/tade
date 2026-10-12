@@ -293,14 +293,15 @@ const ANSWERS = {
 }
 
 /**
- * Who answers, as the person set it: `ask` and the orchestrator puts it to
- * them; `orchestrator` and it decides, then says what it did. Said in every
- * hold rather than only in its prompt, which is as old as its session.
+ * Who answers (`queue.holds`): `orchestrator`, the default, and it decides,
+ * then says what it did; `ask`, as the person set it, and it puts it to them.
+ * Said in every hold rather than only in its prompt, which is as old as its
+ * session.
  */
 function whoDecides(holds: QueueHolds, choices: string): string {
   return holds === 'orchestrator'
-    ? `Deciding is yours, as the person set it (queue.holds): ${choices}. Then tell them what you did and why, in a sentence.`
-    : `The person decides: tell them what holds it and what you would do — ${choices} — and do what they choose.`
+    ? `Deciding is yours (queue.holds): ${choices}. Then tell them what you did and why, in a sentence.`
+    : `The person decides, as they set it (queue.holds): tell them what holds it and what you would do — ${choices} — and do what they choose.`
 }
 
 /**

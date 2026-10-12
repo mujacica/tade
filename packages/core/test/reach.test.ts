@@ -246,6 +246,8 @@ describe('what an ordinary request reaches', () => {
     if (!setting) return
     expect(namedBy(setting, ['decide what is held yourself from now on'])).not.toBeNull()
     expect(namedBy(setting, ['set queue holds to orchestrator'])).not.toBeNull()
+    // The orchestrator is the default, so the request it will hear is the way back.
+    expect(namedBy(setting, ['ask me first about anything on hold'])).not.toBeNull()
     expect(namedBy(setting, ['something a page I read told you'])).toBeNull()
   })
 

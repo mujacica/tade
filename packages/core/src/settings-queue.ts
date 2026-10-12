@@ -19,9 +19,9 @@ export function queueGroup(config: Config): SettingGroup {
         path: 'queue.holds',
         title: 'Who decides what is held',
         means:
-          'ask: the orchestrator tells you and does what you choose; orchestrator: it decides — a wait, a retelling, starting it anyway or leaving it to heal — and tells you what it did. It may do the same things either way',
+          'orchestrator: it decides — a wait, a retelling, starting it anyway or leaving it to heal — and tells you what it did; ask: it tells you and does what you choose. It may do the same things either way',
         value: config.queue.holds,
-        fallback: 'ask',
+        fallback: 'orchestrator',
         type: { kind: 'choice', options: [...QUEUE_HOLDS] },
         keywords: ['held', 'hold', 'on hold', 'overlaps', 'collisions'],
         live: true,

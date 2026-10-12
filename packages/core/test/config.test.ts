@@ -305,14 +305,14 @@ describe('how long decided documents are kept', () => {
 })
 
 describe('who decides about held queued work', () => {
-  it('asks the person unless they said the orchestrator decides', () => {
+  it('leaves it to the orchestrator unless the person said to ask them', () => {
     const r = parseConfig('')
-    expect(r.ok && r.config.queue).toEqual({ holds: 'ask' })
+    expect(r.ok && r.config.queue).toEqual({ holds: 'orchestrator' })
   })
 
-  it('takes the orchestrator, and refuses anybody else', () => {
-    const r = parseConfig('queue:\n  holds: orchestrator\n')
-    expect(r.ok && r.config.queue.holds).toBe('orchestrator')
+  it('takes asking the person, and refuses anybody else', () => {
+    const r = parseConfig('queue:\n  holds: ask\n')
+    expect(r.ok && r.config.queue.holds).toBe('ask')
     const bad = parseConfig('queue:\n  holds: agents\n')
     expect(bad.ok).toBe(false)
     expect(!bad.ok && bad.issues[0]?.path).toBe('queue.holds')

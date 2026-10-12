@@ -185,14 +185,15 @@ function describeNotes(input: ComposeInput): string {
 }
 
 /**
- * Who answers when queued work is held, as the person set it. `ask` says how
- * to give it back to them, because a person who has said "that is yours to
- * decide" has said it in a note, and writing a note into a setting is theirs.
+ * Who answers when queued work is held: the orchestrator unless the person set
+ * `ask`. Each says how to change it, because a person who says "ask me first"
+ * or "that is yours to decide" has said it in a note, and writing a note into
+ * a setting is theirs.
  */
 const HOLDS_SAID: Record<QueueHolds, string> = {
-  ask: 'Held queued work is the person’s to decide: tell them what holds it and what you would do, and do what they choose. If they say holds are yours to decide, offer to set queue.holds to orchestrator — setting it is theirs.',
+  ask: 'Held queued work is the person’s to decide, as they set it (queue.holds): tell them what holds it and what you would do, and do what they choose. If they say holds are yours to decide, offer to set queue.holds to orchestrator — setting it is theirs.',
   orchestrator:
-    'Held queued work is yours to decide, as the person set it (queue.holds): have it wait on what holds it (tade_queue_change after), retell it, start it anyway or leave it to start by itself — then tell them what you did.',
+    'Held queued work is yours to decide (queue.holds): have it wait on what holds it (tade_queue_change after), retell it, start it anyway or leave it to start by itself — then tell them what you did. If they say they want to be asked, offer to set queue.holds to ask — setting it is theirs.',
 }
 
 /**

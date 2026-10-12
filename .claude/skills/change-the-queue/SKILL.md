@@ -185,14 +185,16 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   and news for the orchestrator (`addNews`), which goes with the next thing said to it; what needs
   it now is `tell()`, delivered after its turn. A hold is said once (`holdSaid`); a watch that
   cannot look is said when it starts going wrong, not at every look.
-- **Who decides what was held is the person's setting, `queue.holds`.** `ask` (the default): the
-  orchestrator is told and asks them; `orchestrator`: it decides and says what it did. Either way the
+- **Who decides what was held is the person's setting, `queue.holds`.** `orchestrator` (the
+  default): it decides and says what it did; `ask`: it is told and asks them. Either way the
   choice is a `queue_changed`, read back by the rule, and it is words in what the orchestrator is
   told — its prompt (`describePosture`) and every hold (`heldMessage`, which reads the config at the
   hold, so it is newer than the prompt) — never a gate: it may do the same things under both, which
   is why it is `asked` and not `never` (`reach.ts`). It went in because the hold said "ask the
-  person" right after the person had said that was the orchestrator's to decide. It is set by the
-  person, never on a reading of their note: `ask` tells the orchestrator to offer it. And **a hold
+  person" right after the person had said that was the orchestrator's to decide, and the default
+  became `orchestrator` because they asked for that on every machine, with `ask` theirs to choose
+  in Settings. It is set by the person, never on a reading of their note: each value tells the
+  orchestrator to offer the other when somebody says they want it. And **a hold
   says what is true and what to call**: the tree's heals by itself, so its message says so, names
   the agents at work in that checkout by the ids the tools take (`Reality.working`), and spells the
   one `after` call that makes it a wait on one of them — never a choice with no tool behind it.

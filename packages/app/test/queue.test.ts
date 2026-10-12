@@ -50,10 +50,10 @@ describe('what the queue says', () => {
     )
   })
 
-  it('asks the orchestrator to tell the person, unless the person said it decides', () => {
+  it('leaves the orchestrator to decide, unless the person said to ask them', () => {
     const held = { because: 'shop/fix-charge failed', on: 'shop/fix-charge' }
     const ask = heldMessage('shop/add-refunds', held, { holds: 'ask' })
-    expect(ask).toContain('The person decides')
+    expect(ask).toContain('The person decides, as they set it (queue.holds)')
     expect(ask).toContain('and do what they choose')
     // Every choice is a call there is: "change the plan" had no tool behind it.
     expect(ask).toContain(
@@ -62,7 +62,7 @@ describe('what the queue says', () => {
     expect(ask).toContain('task: shop/add-refunds')
     expect(ask).not.toContain('change the plan')
     const mine = heldMessage('shop/add-refunds', held, { holds: 'orchestrator' })
-    expect(mine).toContain('Deciding is yours, as the person set it (queue.holds)')
+    expect(mine).toContain('Deciding is yours (queue.holds)')
     expect(mine).toContain('Then tell them what you did and why')
     expect(mine).not.toContain('The person decides')
   })

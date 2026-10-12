@@ -694,11 +694,14 @@ export const ConfigSchema = z
     /**
      * Who decides about held queued work. Words in what the orchestrator is
      * told — its prompt and each hold (`heldMessage`) — and never a gate: what
-     * it may do to the queue is the same either way.
+     * it may do to the queue is the same either way. The orchestrator unless
+     * somebody says otherwise, because the person asked for that on every
+     * machine: a hold put to them was a hold they had already said was not
+     * theirs, and `ask` is there for whoever wants it back.
      */
     queue: z
       .strictObject({
-        holds: z.enum(QUEUE_HOLDS).default('ask'),
+        holds: z.enum(QUEUE_HOLDS).default('orchestrator'),
       })
       .prefault({}),
     /** When a project's own checks run, and what a red one does. */

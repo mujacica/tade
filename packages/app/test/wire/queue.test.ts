@@ -328,7 +328,9 @@ describe('the window, and the work waiting in it', () => {
     expect(heldSaid).toContain(
       'tade_queue_change with change: after, task: app/write-up, after: [{task: app/fix-charge, why:',
     )
-    expect(heldSaid).toContain('The person decides')
+    // Nobody set queue.holds, so it is the orchestrator's to decide.
+    expect(heldSaid).toContain('Deciding is yours (queue.holds)')
+    expect(heldSaid).not.toContain('The person decides')
 
     // Said once: the hold is not repeated at every look while it waits.
     await new Promise((resolve) => setTimeout(resolve, 2_500))
