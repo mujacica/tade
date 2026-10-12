@@ -593,6 +593,18 @@ describe('pricing what a harness will not', () => {
     expect(report.total.tokensUnpriced).toBe(10_000_000)
   })
 
+  it('tells a plan’s turns from money nobody could price', () => {
+    // Both leave their tokens in `tokensUnpriced`, and only one of them is a
+    // bill: what is left past `tokensOnPlan` was spent, and nobody can say how
+    // much — which is what decides whether the strip's day says `—` or nothing.
+    const report = spendFrom([onPlan(), codex({ model: 'some-model-nobody-published' })], {
+      since: 0,
+    })
+    expect(report.total.tokensUnpriced).toBe(11_000_000)
+    expect(report.total.tokensOnPlan).toBe(10_000_000)
+    expect(spendFrom([codex()], { since: 0 }).total.tokensOnPlan).toBe(0)
+  })
+
   it('estimates a subscription’s turns beside the money, from its tokens', () => {
     // Ten million input tokens of claude-opus-5 at $5 per million. Nobody is
     // billed it; it is what `ccusage` would say the morning came to.

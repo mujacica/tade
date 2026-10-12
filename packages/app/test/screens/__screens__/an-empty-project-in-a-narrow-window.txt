@@ -1,4 +1,4 @@
-   T A D E      checkout        +       ctrl   +   space   talk 
+   T A D E      checkout      +         ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS           +    █│                                     
                          █│                                     

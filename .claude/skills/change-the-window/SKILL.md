@@ -471,7 +471,7 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   is not, so it sits grey until it is held and red while it is. Starting an agent and opening a
   project have their `+` where agents and projects are; search's key sits by the talk key. Don't
   colour a button for identity. The strip's chips follow the same rule from the other side: one is
-  drawn only while it has something to say, each in a `SLOT` so a word changing slides nothing, and
+  drawn only while it has something to say, at its own width, and
   its colour is what pressing it does — `updatesChip` says one thing at a time, a run going first,
   then the reload a moved Tade is owed, then how many could move.
 - **A voice says words, and only the front of them.** Everything the window speaks goes through
@@ -894,12 +894,16 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   columns to spare, and a clause one line lower is still read every time — a footnote at the foot of a
   page is what this may never become. The two words are the two the columns under them are headed with,
   so the page says which is which once and in a word.
-- **Anything that changes width while nobody touches it keeps a slot**, or it slides whatever is beside
-  it, and the eye reads a slide as the window being slow. The foot's figures are padded to `SLOT`
-  (`view/foot.ts`) with the gap unpainted, `duration` keeps two units past an hour (`2h 0m`), every
-  project tab keeps one mark's room (`tabLabel`), and an agent's name down the side is cut to its cost
-  slot, never to its cost (`taskRow`, `view/rows.ts`), which is also the room its close and menu take
-  under the pointer. A slot is as wide as the figure gets in an ordinary week, never the widest it could be.
+- **A name is cut to a slot, and a figure is drawn at its own width.** An agent's name down the side
+  is cut to its cost slot, never to its cost (`taskRow`, `view/rows.ts`), which is also the room its
+  close and menu take under the pointer, so `$10.00` arriving does not cut it again; and `duration`
+  keeps two units past an hour (`2h 0m`), so a figure does not change shape on the hour. But **no room
+  is kept for what is not there**: a project tab's marks, the strip's figures, its chips and the day's
+  money are drawn at their own width, and a part with nothing to say is not drawn. Columns held for a
+  mark, a word or a wider figure were blanks against a rule (`│   2h 5m │`), which read as something
+  missing — worse than a figure growing a digit moving what is beside it. The strip's rules are owed by
+  the part before them and drawn only when another part follows (`seams`, `view/foot.ts`), so a part
+  left out leaves no rule hanging and no two side by side.
 
 ## Drawing the queue and a plan
 

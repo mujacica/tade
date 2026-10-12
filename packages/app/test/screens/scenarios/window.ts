@@ -54,10 +54,8 @@ const emptyProjectFrame = frame({
     { path: 'package.json', name: 'package.json', depth: 0, folder: false, open: false },
     { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },
   ],
-  // Nothing counted and nothing run, and Tade has looked: what makes this day
-  // a nought rather than a silence, which the strip says differently
-  // (`costToday`). A frame with no runtime at all is a window that has not read
-  // the journal yet.
+  // Nothing counted and nothing run, and Tade has looked: a day with no bill
+  // and no figure to give, so the strip draws no cost for it (`costToday`).
   spend: { tokens: 0, usd: 0, hasCost: false, byTask: {}, runtime: noRuntime() },
 })
 

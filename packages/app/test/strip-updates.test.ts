@@ -11,8 +11,8 @@ import { draw } from '../src/view.ts'
 //
 // What is held here is that the chip is only there when it wants somebody —
 // something could move, a run is going, or a Tade that moved is owed a reload
-// — that each says what pressing it does, that it never slides what is beside
-// it when it changes word, and that it outlasts the figures for room.
+// — that each says what pressing it does, that it is drawn at its own width
+// with nothing kept after it, and that it outlasts the figures for room.
 
 /** The same row without its colour, so a label can be looked for in it. */
 const plain = (row: string) =>
@@ -95,14 +95,16 @@ describe('updates, in the strip', () => {
     expect(row(drawn(160, GOING, true))).toContain(COLOUR.busy('updating 2/3'))
   })
 
-  it('holds its columns whichever word it says, so the line beside it stays put', () => {
-    const rows = [BEHIND, GOING, OWED, { behind: 12, running: null, reload: false }].map((one) =>
-      foot(drawn(160, one)),
-    )
-    for (const fixed of ['jev 173/315 $0.47', 'claude-opus-5', '│ high']) {
-      const at = rows.map((row) => row.indexOf(fixed))
-      expect(at[0]).toBeGreaterThan(0)
-      expect(new Set(at).size).toBe(1)
+  it('is drawn at its own width, with nothing kept after its word', () => {
+    // Held to the columns a run going takes, `updates 3` had three blanks
+    // before the rule after it, which read as something missing there.
+    const said: Array<[Frame['updates'], string]> = [
+      [BEHIND, 'updates 3'],
+      [GOING, 'updating 2/3'],
+      [OWED, 'reload Tade'],
+    ]
+    for (const [updates, words] of said) {
+      expect(foot(drawn(160, updates))).toContain(`$0.47 │ ${words} │ `)
     }
   })
 

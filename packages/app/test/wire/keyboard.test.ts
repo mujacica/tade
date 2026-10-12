@@ -12,6 +12,13 @@ import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.t
 const theirWords = (message: string | undefined): string =>
   (message ?? '').split('What they said:\n').at(-1) ?? ''
 
+/**
+ * The conversation saying the orchestrator is on a turn. Not the strip's
+ * `thinking ▾`, which names the level it thinks at and is there whether or not
+ * it is thinking now.
+ */
+const THINKING = /thinking(?! ▾)/
+
 // Where a key goes and what it does there: the line you type on, what is
 // selected on it, the two keys that stop things, and what you said before.
 
@@ -193,7 +200,7 @@ describe('the window, taking a keystroke', () => {
     for (const char of 'why is refunds slow') terminal.press(char)
     terminal.press('\r')
     await until('it to be thinking', () =>
-      screenOf(terminal.written).some((row) => row.includes('thinking')),
+      screenOf(terminal.written).some((row) => THINKING.test(row)),
     )
 
     // The next sentence, half written, while it is still working.
@@ -205,7 +212,7 @@ describe('the window, taking a keystroke', () => {
     terminal.press('\x1b')
     await until('the turn to be stopped', () => stops.length === 1)
     await until('it to stop saying it is thinking', () =>
-      screenOf(terminal.written).every((row) => !row.includes('thinking')),
+      screenOf(terminal.written).every((row) => !THINKING.test(row)),
     )
 
     // The whole point: the half-written message is still there, still being
@@ -233,7 +240,7 @@ describe('the window, taking a keystroke', () => {
     for (const char of 'why is refunds slow') terminal.press(char)
     terminal.press('\r')
     await until('it to be thinking', () =>
-      screenOf(terminal.written).some((row) => row.includes('thinking')),
+      screenOf(terminal.written).some((row) => THINKING.test(row)),
     )
     terminal.written = ''
     terminal.press('\x1b')

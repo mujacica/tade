@@ -9,7 +9,7 @@ import { draw } from '../src/view.ts'
 // The away view, in the strip at the foot.
 //
 // What is held here is that the chip says what is *listening* and not what the
-// config wishes, that it never slides what is beside it when it changes word,
+// config wishes, that it is drawn at its own width with nothing kept after it,
 // and that it costs the strip nothing it would rather have kept: `remote off`
 // is the default, so it is the first thing given up, while a device reading
 // this machine outlasts the figures.
@@ -82,14 +82,16 @@ describe('the away view, in the strip', () => {
     expect(row(drawn(160, OFF, true))).toContain(COLOUR.hint('remote off'))
   })
 
-  it('holds its columns whichever word it says, so the jev line beside it stays put', () => {
-    const rows = [OFF, { on: true, devices: 2 }, { on: true, devices: 12 }].map((remote) =>
-      foot(drawn(160, remote)),
-    )
-    for (const fixed of ['jev 173/315 $0.47', 'claude-opus-5', '│ high']) {
-      const at = rows.map((row) => row.indexOf(fixed))
-      expect(at[0]).toBeGreaterThan(0)
-      expect(new Set(at).size).toBe(1)
+  it('is drawn at its own width, with nothing kept after its word', () => {
+    // Held to the columns `remote off` takes, `remote 0` had two blanks before
+    // the rule after it, which read as something missing there.
+    const said: Array<[Frame['remote'], string]> = [
+      [OFF, 'remote off'],
+      [{ on: true, devices: 0 }, 'remote 0'],
+      [{ on: true, devices: 12 }, 'remote 12'],
+    ]
+    for (const [remote, words] of said) {
+      expect(foot(drawn(160, remote))).toContain(`$0.47 │ ${words} │ `)
     }
   })
 

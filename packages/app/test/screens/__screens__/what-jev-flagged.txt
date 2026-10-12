@@ -1,4 +1,4 @@
-   T A D E      checkout !⠋    search ✓    infra        +           ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AG╭─ Jev ──────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮ ×   
      │   Overview    Findings    Questions    Calibration    Looks                                                │─────
@@ -32,4 +32,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake           jev 2/4 $0.03 │ claude-opus-5 ▾ │   2h 5m │  $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake     jev 2/4 $0.03 │ claude-opus-5 ▾ │ high ▾ │ 2h 5m │ $1.40 today ▾ 

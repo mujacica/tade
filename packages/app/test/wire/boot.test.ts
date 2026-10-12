@@ -154,7 +154,14 @@ describe('the window, booted', () => {
 
   it('opens the Spend panel from the status bar', async () => {
     await start()
-    await until('the first frame', () => terminal.written.includes('today'))
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    // A day with nothing spent draws no money in the strip, so it is given some.
+    await client.log.append({
+      type: 'usage',
+      task: 'app/refunds',
+      detail: { model: 'anthropic/claude-sonnet-5', tokens: 1500, usd: 0.351 },
+    })
+    await until('the day in the strip', () => terminal.written.includes('today'))
     const status = find('today')
     terminal.written = ''
     click(status.col + 1, status.row)
@@ -165,7 +172,7 @@ describe('the window, booted', () => {
 
   it('shows agent spend in the status bar', async () => {
     await start()
-    await until('the first frame', () => terminal.written.includes('today'))
+    await until('the first frame', () => terminal.written.includes('Settings'))
     terminal.written = ''
     await client.log.append({
       type: 'usage',

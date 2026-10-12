@@ -110,30 +110,6 @@ const PLAN_CELLS = 6
 const share = (window: PlanWindow) => Math.min(1, Math.max(0, window.used) / 100)
 
 /**
- * The columns each figure along the strip keeps, whatever it says today: as
- * wide as it gets in an ordinary week. The strip sits against the right edge,
- * so a figure growing a digit — `$9.99` to `$10.00`, `9m` to `10m`, `9%` to
- * `10%` — would push everything to the left of it a column further left, the
- * model and the levels with it, every time. Past these it grows like any text:
- * a plan at `100%` is the one share wider than its slot, and by then the strip
- * moving a column is not what anybody is looking at.
- */
-const SLOT = {
-  money: widthOf('$99.99'),
-  share: widthOf('99%'),
-  span: widthOf('23h 59m'),
-  // A plan window comes back within a week, the longest any harness names.
-  reset: widthOf('6d 23h'),
-  tokens: widthOf('999k tok'),
-  // The away view's chip, the wider of its two words: `remote 2` keeps the
-  // columns `remote off` took, so the line beside it holds still either way.
-  remote: widthOf('remote off'),
-  // The updates chip, the widest of its three: `updates 2` and `reload Tade`
-  // keep the columns a run going takes, so nothing beside it moves as it runs.
-  updates: widthOf('updating 9/9'),
-}
-
-/**
  * What the strip's updates chip says, which press it is, and its tone — or
  * null where there is nothing to say. One thing at a time, the most pressing
  * first: a run going, then the reload a Tade that moved is owed, then how many
@@ -493,13 +469,9 @@ export function renderFoot(
   // would read as a button in a strip that has none.
   const lit = (of: Target, tone: (text: string) => string) =>
     sameTarget(state.hover, of) ? skin.link : tone
-  // A figure in its `SLOT`, the room it does not need kept in front of it.
-  // The gap is unpainted, so under the pointer the underline is the figure's
-  // and not a run of blanks, and it is still the overview's to click.
-  const slotted = (r: Row, text: string, slot: number, look: (text: string) => string) =>
-    r
-      .text(' '.repeat(Math.max(0, slot - widthOf(text))), undefined, target)
-      .text(text, look, target)
+  // Every part at its own width. Columns held for a figure wider than today's
+  // were blanks against the rule in front of it, which read as something
+  // missing; a figure growing a digit moving what is beside it is the lesser.
   // Said in full where there is room, and shed from the left where there is
   // not: what it costs is the part worth keeping on a small terminal, and how
   // long it took is the next to last to go.
@@ -560,14 +532,16 @@ export function renderFoot(
   const tries: Array<typeof full> = [full]
   for (const what of shed) tries.push({ ...(tries[tries.length - 1] ?? full), [what]: false })
   const status = (show: (typeof tries)[number]) => (r: Row) => {
+    const { owe, pay, owing } = seams(skin)
     // What extensions keep here — what Tade is using — clicked for their view.
     if (show.model) {
       for (const one of frame.statuses ?? []) {
         const view: Target = { kind: 'action', name: `extension-view:${one.extension}` }
         const tone =
           one.tone === 'bad' ? skin.bad : one.tone === 'warning' ? skin.waiting : skin.hint
+        pay(r)
         r.text(one.text, lit(view, tone), one.viewable ? view : undefined)
-        r.text(' │ ', skin.chrome)
+        owe()
       }
     }
     // What could move forward, the run moving it, or the reload it is owed:
@@ -575,9 +549,9 @@ export function renderFoot(
     const chip = show.updates && frame.updates ? updatesChip(frame.updates) : null
     if (chip) {
       const press: Target = { kind: 'action', name: chip.action }
+      pay(r)
       r.text(chip.said, lit(press, chip.tone === 'busy' ? skin.busy : skin.waiting), press)
-      r.text(' '.repeat(Math.max(0, SLOT.updates - widthOf(chip.said))), undefined, press)
-      r.text(' │ ', skin.chrome)
+      owe()
     }
     // The away view, as the listener has it and not as the config wishes:
     // `remote off` in the grey of a quiet status, or the devices with a page
@@ -587,13 +561,13 @@ export function renderFoot(
     if (show.remote && frame.remote) {
       const { on, devices } = frame.remote
       const away: Target = { kind: 'action', name: on ? '/away' : 'away-settings' }
-      const said = on ? `remote ${devices}` : 'remote off'
-      r.text(said, lit(away, on ? skin.done : skin.hint), away)
-      r.text(' '.repeat(Math.max(0, SLOT.remote - widthOf(said))), undefined, away)
-      r.text(' │ ', skin.chrome)
+      pay(r)
+      r.text(on ? `remote ${devices}` : 'remote off', lit(away, on ? skin.done : skin.hint), away)
+      owe()
     }
     if (show.model && thinker !== undefined) {
       const look = lit(switcher, skin.hint)
+      pay(r)
       r.text(`${thinker ? shortModel(thinker) : 'no model'} ▾`, look, switcher)
       if (show.account && account?.provider) r.text(` · ${account.provider}`, look, switcher)
       // Only what needs somebody. How a provider is paid for used to be said
@@ -603,21 +577,24 @@ export function renderFoot(
       // one somebody has to do something about, so it is never one of the
       // trimmings: it stays for as long as the model it belongs to does.
       if (account?.problem) r.text(` · ${account.problem}`, skin.bad, switcher)
-      r.text(' │ ', skin.chrome)
+      owe()
       // How hard it thinks, changed like an agent's: a dropdown of the same
       // levels, beside the model it applies to.
       if (show.thinking) {
+        pay(r)
         r.text(`${thinking ?? 'thinking'} ▾`, lit(level, skin.hint), level)
-        r.text(' │ ', skin.chrome)
+        owe()
       }
     }
     // What today cost, in one clickable group: the whole of it lights, because
-    // the whole of it opens the same overview.
+    // the whole of it opens the same overview — the rules between its figures
+    // included.
     const money = lit(target, skin.hint)
     // A share of a plan, never added to the money beside it: the two are
     // different currencies and there is no rate between them. It opens the
     // same overview, where the windows are listed account by account.
     if (plan && show.plan) {
+      pay(r)
       // Whose plan, only where more than one account has one to speak of: with
       // a single sign-in the name is noise, and with two the figure is a
       // riddle without it. It is also the control that moves to the next of
@@ -641,14 +618,12 @@ export function renderFoot(
           pressure === 'tight' ? skin.bad : pressure === 'warm' ? skin.waiting : skin.done
         r.text(`${window.label} `, money, target)
         if (show.bars) r.meter(share(window), PLAN_CELLS, lit(target, tone), target).space()
-        slotted(r, `${used}%`, SLOT.share, lit(target, tone))
+        r.text(`${used}%`, lit(target, tone), target)
         // Without a clock there is no "in two hours" to say, only the share.
         const left = frame.now === undefined ? null : resetsIn(window, frame.now)
-        if (left !== null && show.reset) {
-          slotted(r, ` ↻ ${duration(left)}`, widthOf(' ↻ ') + SLOT.reset, money)
-        }
+        if (left !== null && show.reset) r.text(` ↻ ${duration(left)}`, money, target)
       })
-      r.text(' │ ', skin.chrome, target)
+      owe(target)
     }
     // What those turns would have cost at the published rate, beside the plan
     // that paid for them: the figure `ccusage` gives, and not a bill — nobody is
@@ -658,22 +633,32 @@ export function renderFoot(
     // could be: a harness that has not said how full its plan is has still run
     // the turns.
     if (listed && show.listed) {
-      slotted(r, listed.figure, listed.slot, money)
-      r.text(' at list', money, target).text(' │ ', skin.chrome, target)
+      pay(r)
+      r.text(`${listed} at list`, money, target)
+      owe(target)
     }
     if (spent && show.tokens) {
-      slotted(r, tokens(spend.tokens), SLOT.tokens, money)
-      r.text(' │ ', skin.chrome, target)
+      pay(r)
+      r.text(tokens(spend.tokens), money, target)
+      owe(target)
     }
     // An agent still working is time still counting, so it is said in the
     // colour of something happening rather than the colour of a record.
     if (ran && show.runtime) {
-      slotted(r, duration(ran.ms), SLOT.span, lit(target, ran.running ? skin.busy : skin.hint))
-      r.text(' │ ', skin.chrome, target)
+      pay(r)
+      r.text(duration(ran.ms), lit(target, ran.running ? skin.busy : skin.hint), target)
+      owe(target)
     }
     const today = costToday(spend)
-    if (today.figure !== null) slotted(r, today.figure, today.slot, lit(target, skin.you)).space()
-    r.text(today.said, money, target).space()
+    if (today) {
+      pay(r)
+      r.text(today.figure, lit(target, skin.you), target).space()
+      r.text(today.said, money, target)
+      owe(target)
+    }
+    // The rule the last part owed is never drawn: the row ends a column short
+    // of the edge, whichever part it ends on.
+    if (owing()) r.space()
   }
   const fits = tries.find((show) => {
     const probe = new Row(width, skin)
@@ -704,55 +689,60 @@ function ruled(flash: string | null, width: number, skin: Skin): string {
  * Spend page draws it in — `≈` for Tade's own arithmetic, `≥` where some of them
  * ran on a model no rate knows — and null where there is nothing to say.
  */
-function atList(spend: Frame['spend']): { figure: string; slot: number } | null {
+function atList(spend: Frame['spend']): string | null {
   if (!spend || spend.onPlan === undefined || spend.onPlan === 'none') return null
-  const marks = `${spend.onPlan === 'partly' ? '≥' : ''}≈`
-  return { figure: `${marks}${dollars(spend.usdOnPlan ?? 0)}`, slot: widthOf(marks) + SLOT.money }
+  return `${spend.onPlan === 'partly' ? '≥' : ''}≈${dollars(spend.usdOnPlan ?? 0)}`
 }
 
 /**
- * What today cost, as the one slot in the strip that is drawn whatever else is
- * given up: the figure, and the words beside it.
+ * What today cost, as the one part of the strip that is drawn whatever else is
+ * given up: the figure, and the words beside it — or null where the day has no
+ * figure to give.
  *
- * Four answers, and they are four different claims about the same day. A
+ * Three answers, and they are three different claims about the same day. A
  * figure is what somebody was charged. `≈$11.40 at list` is what a day a plan
  * paid for would have cost at the published rate, which is nobody's bill and
- * says so in a word. `—` is effort no dollar here covers — a model nothing has
- * a rate for, a plan whose turns could not be priced either — which is the mark
- * the Spend page puts on that same figure and `tade spend` puts in that same
- * column, because this is that figure drawn smaller and two rules for it would
- * disagree the day one of them moved. And a day where nothing was counted and
- * nothing ran is a nought, which is a figure somebody looked at, said in the
- * words there is room for.
+ * says so in a word. `—` is a bill nobody here can put a figure on — work
+ * billed per token on a model nothing has a rate for — which is the mark the
+ * Spend page puts on that same figure and `tade spend` puts in that same
+ * column, because this is that figure drawn smaller.
  *
- * The two it may never collapse are the last two. Nothing *reported* is not
- * nothing *spent*: a harness whose sign-in is a plan runs up tokens and never a
- * dollar, and a window that has not read the journal yet has not looked at all
- * — so neither may claim the nought. Drawn as `$0.00` either would read as
- * free, and drawn as nothing at all — which is what this did, leaving
- * `1.9M tok │ 2h 5m │ today ▾` with an empty slot in front of the label — it
- * reads as a figure that failed to load rather than one nobody can give.
+ * Everything else is no part at all: a day a plan paid for whose turns could
+ * not be priced either, a day nothing ran, and a window that has not read the
+ * journal yet. None of those is a nought, so none may be drawn as `$0.00`; and
+ * none is a bill, so a `—` held in front of `today` for them was a slot kept
+ * for money that was never coming. The Spend page is still a click on any
+ * figure beside it, and a search, away.
  */
-function costToday(spend: Frame['spend']): {
-  figure: string | null
-  slot: number
-  said: string
-} {
-  if (spend?.hasCost) return { figure: dollars(spend.usd), slot: SLOT.money, said: 'today ▾' }
+function costToday(spend: Frame['spend']): { figure: string; said: string } | null {
+  if (spend?.hasCost) return { figure: dollars(spend.usd), said: 'today ▾' }
   // A day a plan paid for has no bill and is not nothing: what those same turns
-  // would have cost at the published rate is a figure, and this slot is the one
-  // place on the row that is never given up — a subscription's whole day drawn
-  // as `—` while that figure exists is the hole people leave to run `ccusage`.
-  // `at list` is the word that keeps it from reading as money: nobody is billed
-  // a plan per turn, so this is arithmetic and not a bill.
+  // would have cost at the published rate is a figure, and this is the one
+  // part of the row that is never given up — a subscription's whole day said
+  // without it, while that figure exists, is the hole people leave to run
+  // `ccusage`. `at list` is the word that keeps it from reading as money:
+  // nobody is billed a plan per turn, so this is arithmetic and not a bill.
   const onPlan = atList(spend)
-  if (onPlan) return { ...onPlan, said: 'at list today ▾' }
-  const ran = spend?.runtime
-  const nothing =
-    spend !== undefined && spend.tokens === 0 && ran !== undefined && ran.ms === 0 && ran.runs === 0
-  // `—` holds the place the money will be in, the way a dash sits in a column
-  // of figures, so the first priced turn of the day moves nothing beside it.
-  return nothing
-    ? { figure: null, slot: 0, said: 'nothing spent today ▾' }
-    : { figure: '—', slot: SLOT.money, said: 'today ▾' }
+  if (onPlan) return { figure: onPlan, said: 'at list today ▾' }
+  return spend?.unpricedBill ? { figure: '—', said: 'today ▾' } : null
+}
+
+/**
+ * The rules between the parts of the strip, each owed by the part before it
+ * and drawn only when another part comes: whatever is left out leaves no rule
+ * hanging at the end and no two side by side. A rule between two figures of
+ * the day's money is that money's to click, like the figures either side.
+ */
+function seams(skin: Skin) {
+  let owed: { of?: Target } | null = null
+  return {
+    owe: (of?: Target) => {
+      owed = of ? { of } : {}
+    },
+    pay: (r: Row) => {
+      if (owed) r.text(' │ ', skin.chrome, owed.of)
+      owed = null
+    },
+    owing: () => owed !== null,
+  }
 }

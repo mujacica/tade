@@ -58,6 +58,7 @@ export class Spend implements Subject {
               // is its own field and goes nowhere near `usd`.
               usdOnPlan: spent.total.usdOnPlan,
               onPlan: onPlanOf(spent.total),
+              unpricedBill: spent.total.tokensUnpriced > spent.total.tokensOnPlan,
               byTask: spent.byTask,
               ...(ran ? { runtime: ran.total } : {}),
             },

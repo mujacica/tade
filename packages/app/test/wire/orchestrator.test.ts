@@ -369,6 +369,16 @@ describe('the window, talking to the orchestrator', () => {
     await until('the orchestrator model in the strip', () =>
       screenOf(terminal.written).some((row) => row.includes('claude-opus-5 ▾')),
     )
+    // Some money spent, so the day is drawn to the right of the control and
+    // the levels have room to hang from it rather than against the edge.
+    await client.log.append({
+      type: 'usage',
+      task: 'app/refunds',
+      detail: { model: 'anthropic/claude-sonnet-5', tokens: 1500, usd: 0.351 },
+    })
+    await until('the day in the strip', () =>
+      screenOf(terminal.written).some((row) => row.includes('today ▾')),
+    )
     // The control beside it, at the foot of the window: the level it thinks at.
     const button = (() => {
       const lines = screenOf(terminal.written)

@@ -141,7 +141,10 @@ So it is worked out and kept apart, in `usdOnPlan`:
   where the figure is no use: **`≈$779 at list` that somebody has to attribute to an agent by hand is
   a figure they go to `ccusage` for**, which is the whole reason it exists. Beside each sign-in's own
   plan bars as well, and in the strip — where it takes the cost slot when there is no bill at all,
-  and its own shedable slot when there is, so no row ever shows it twice. `tade spend` says the whole
+  and its own shedable slot when there is, so no row ever shows it twice. A day with neither a bill
+  nor this figure draws no cost at all — unless work billed per token ran where no rate covers it
+  (`tokensUnpriced` past `tokensOnPlan`, `Frame.spend.unpricedBill`), which is a bill nobody can
+  say and is drawn `—`. Never `$0.00`, and never a `—` for a plan's day. `tade spend` says the whole
   sentence (`onPlanSays`), because there somebody asked.
 - **`≈` is the mark and the tone is what separates it from money.** `≈` already means "a rate off a
   published page" and it means that here too: `usdListed` and `usdOnPlan` are the same arithmetic off

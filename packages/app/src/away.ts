@@ -777,6 +777,7 @@ function noSpendAt(): Spend {
     usdEstimated: 0,
     usdListed: 0,
     usdOnPlan: 0,
+    tokensOnPlan: 0,
     tokensUnpriced: 0,
     tokensOnPlanUnrated: 0,
     hasCost: false,

@@ -199,10 +199,9 @@ export const SPEND_SCREENS: Scenario[] = [
     name: 'a-day-nobody-priced',
     about:
       'A morning on a subscription: the tokens and the hours are there and the money is not, so the ' +
-      'strip draws \u2014 where the figure goes \u2014 never $0.00, which reads as free, and never the ' +
-      'word beside it on its own, which reads as a figure that failed to load. What is left of the ' +
-      'plan is the figure that means anything here, beside what the morning would have cost at ' +
-      'list price, which is nobody\u2019s bill.',
+      'strip never draws $0.00, which reads as free. What is left of the plan is the figure that ' +
+      'means anything here, beside what the morning would have cost at list price, which is ' +
+      'nobody\u2019s bill; with no rate for its turns either, it draws no cost at all.',
     state: base(),
     frame: frame({ spend: unpriced, plan: planStandings(plans, NOW) }),
   },

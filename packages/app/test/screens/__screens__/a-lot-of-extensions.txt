@@ -1,4 +1,4 @@
-   T A D E      checkout !    search ✓    infra        +                    ctrl   +   space   talk 
+   T A D E      checkout !    search ✓    infra      +                      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────── esc ─╮   
    │  search extensions          │ screenshots  yours                                    ready  │───
@@ -17,4 +17,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                              type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake       claude-opus-5 ▾ │   2h 5m │  $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ 2h 5m │ $1.40 today ▾ 

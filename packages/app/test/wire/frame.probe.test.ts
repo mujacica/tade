@@ -389,7 +389,7 @@ describe('what the frame loop costs', () => {
     const stop = probing(timings)
     try {
       await start({ frameMs: 250 })
-      await until('the first frame', () => terminal.written.includes('today'))
+      await until('the first frame', () => terminal.written.includes('Settings'))
       const from = timings.span('doRender')?.count ?? 0
       const started = performance.now()
       for (let i = 0; i < 300; i++) {

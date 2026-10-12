@@ -6,13 +6,13 @@ import { renderApp } from '../src/view.ts'
 
 // What the strip says today cost.
 //
-// One slot, drawn whatever else the strip gives up, and three different claims
-// about the same day: a figure is what somebody was charged, `—` is effort no
-// dollar here covers, and a nought is a day where nothing ran and nothing was
-// counted. No two of them may collapse into one — a harness that has reported
-// nothing is silence and not a nought, and silence drawn as `$0.00` reads as
-// free — and the slot may never be left empty, which is what `today ▾` with
-// nothing in front of it was: a figure that looks as though it failed to load.
+// One part, drawn whatever else the strip gives up, and three different claims
+// about the same day: a figure is what somebody was charged, `≈… at list` is
+// what a plan's turns would have cost, and `—` is a bill nobody here can put a
+// figure on. A day with none of those — a plan paid for it and nothing could
+// price its turns, nothing ran, or nothing has been read yet — draws no part
+// at all, and never a nought: silence drawn as `$0.00` reads as free, and a
+// `—` held in front of `today` for it was a slot for money that never came.
 
 /** The same row without its colour, so a figure can be looked for in it. */
 const plain = (row: string) =>
@@ -43,36 +43,64 @@ describe('what today cost, in the strip', () => {
     expect(footer).toContain('$0.35 today ▾')
   })
 
-  it('says the money cannot be told where nothing was priced, rather than leaving the slot empty', () => {
+  it('says the money cannot be told where a bill had no rate', () => {
+    // Work billed per token on a model nothing has a rate for: money was
+    // spent, and nobody here can say how much.
     const footer = strip({
       tokens: 1_900_000,
       usd: 0,
       hasCost: false,
+      unpricedBill: true,
       byTask: {},
       runtime: ran,
     })
     expect(footer).toContain('— today ▾')
-    // Never a nought, which reads as free where a plan pays a flat fee.
     expect(footer).not.toContain('$0.00')
-    expect(footer).not.toContain('nothing spent')
+  })
+
+  it('says nothing about money on a day a plan paid for and nothing priced', () => {
+    // Everything ran on a subscription and no rate covered its turns: there is
+    // no bill and no figure, so there is no part for one.
+    const footer = strip(
+      { tokens: 1_900_000, usd: 0, hasCost: false, byTask: {}, runtime: ran },
+      150,
+    )
+    expect(footer).not.toContain('today')
+    expect(footer).not.toContain('—')
+    expect(footer).not.toContain('$0.00')
+    // The figures that are there still are, and the row ends on the last of
+    // them, with no rule left over from the part that is not drawn.
+    expect(footer.trimEnd()).toMatch(/1\.9M tok │ +1h 20m$/)
   })
 
   it('does not call a harness that has reported nothing a day that cost nothing', () => {
     // Agents ran and not one of them said what they cost.
     const footer = strip({ tokens: 0, usd: 0, hasCost: false, byTask: {}, runtime: ran })
-    expect(footer).toContain('— today ▾')
-    expect(footer).not.toContain('nothing spent')
+    expect(footer).not.toContain('today')
+    expect(footer).not.toContain('$0.00')
   })
 
-  it('calls a day nothing ran in and nothing was counted for a nought', () => {
+  it('draws no nought for a day nothing ran in', () => {
     const footer = strip({ tokens: 0, usd: 0, hasCost: false, byTask: {}, runtime: noRuntime() })
-    expect(footer).toContain('nothing spent today ▾')
+    expect(footer).not.toContain('today')
+    expect(footer).not.toContain('$0.00')
   })
 
   it('claims no nought before it has read what ran', () => {
-    const footer = strip({ tokens: 0, usd: 0, hasCost: false, byTask: {} })
-    expect(footer).toContain('— today ▾')
-    expect(footer).not.toContain('nothing spent')
+    for (const footer of [
+      strip({ tokens: 0, usd: 0, hasCost: false, byTask: {} }),
+      strip(undefined),
+    ]) {
+      expect(footer).not.toContain('today')
+      expect(footer).not.toContain('$0.00')
+    }
+  })
+
+  it('keeps no room for the figure in front of its words', () => {
+    // A dollar figure narrower than the widest one is drawn at its own width:
+    // the columns it does not need were blanks against the rule before it.
+    const footer = strip({ tokens: 0, usd: 4.2, hasCost: true, byTask: {}, runtime: ran }, 150)
+    expect(footer).toMatch(/1h 20m │ \$4\.20 today ▾/)
   })
 
   it('draws what a plan’s day would have cost at list price, marked as that', () => {

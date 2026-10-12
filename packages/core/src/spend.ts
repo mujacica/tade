@@ -157,6 +157,13 @@ export interface Spend {
    */
   usdOnPlan: number
   /**
+   * Of `tokens`, those a plan paid for. Every one of them is in
+   * `tokensUnpriced` as well, since a flat fee prices no turn, so what that
+   * holds beyond these is work billed per token that nothing could put a
+   * figure on: money spent, and nobody here can say how much.
+   */
+  tokensOnPlan: number
+  /**
    * Of the tokens a plan paid for, those nothing here could put a price on, so
    * `usdOnPlan` is a floor and is drawn as one (`onPlanOf`).
    *
@@ -198,6 +205,7 @@ export function noSpend(): Spend {
     usdEstimated: 0,
     usdListed: 0,
     usdOnPlan: 0,
+    tokensOnPlan: 0,
     tokensOnPlanUnrated: 0,
     tokensUnpriced: 0,
     hasCost: false,
@@ -533,6 +541,8 @@ interface Charged {
    * tokens broken down by kind to charge at one.
    */
   onPlanUnrated: boolean
+  /** Whether a plan paid for this turn, which then has no price per turn at all. */
+  plan: boolean
 }
 
 /** How many tokens of each kind one turn used, as a `usage` event records them. */
@@ -568,7 +578,7 @@ function chargeOf(
     const value = event.detail[key]
     return typeof value === 'number' && Number.isFinite(value) ? value : 0
   }
-  const nothing = { usd: 0, kind: null, onPlan: 0, onPlanUnrated: false } as const
+  const nothing = { usd: 0, kind: null, onPlan: 0, onPlanUnrated: false, plan: false } as const
   // A subscription pays a flat fee, so its turns are effort and never money —
   // and the money side of this stops here, exactly where it always did. What
   // those same tokens would have cost at a published rate is still a fact worth
@@ -577,7 +587,7 @@ function chargeOf(
   if (!isMoney(facts)) {
     const price = priceFor(model, over)
     const onPlan = price ? estimateUsd(tokensIn(event), price) : 0
-    return { ...nothing, priced: false, onPlan, onPlanUnrated: onPlan <= 0 }
+    return { ...nothing, priced: false, onPlan, onPlanUnrated: onPlan <= 0, plan: true }
   }
   const reported = count('usd')
   // Money nobody vouched for counts as guessed, never as priced — so the split
@@ -637,6 +647,7 @@ function add(spend: Spend, event: TadeEvent, charge: Charged): void {
   // knows, how much of it the figure is missing, so it is drawn as the floor it
   // is rather than as a total.
   spend.usdOnPlan += charge.onPlan
+  if (charge.plan) spend.tokensOnPlan += number('tokens')
   if (charge.onPlanUnrated) spend.tokensOnPlanUnrated += number('tokens')
   spend.usd += charge.usd
   if (charge.usd > 0) spend.hasCost = true

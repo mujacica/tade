@@ -639,6 +639,12 @@ export interface Spend {
    * asking about money. Nothing to say and nothing on a plan draw the same.
    */
   onPlan?: OnPlan
+  /**
+   * Whether work billed per token ran on something nothing here could price:
+   * money spent whose amount nobody can say. Of a day with no figure, the one
+   * the strip still says `—` about; a plan's turns alone are no bill at all.
+   */
+  unpricedBill?: boolean
   byTask: Readonly<Record<string, { tokens: number; usd: number }>>
   /** How long the agents have run today, all of them added together. */
   runtime?: Runtime
