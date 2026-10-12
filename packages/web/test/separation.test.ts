@@ -747,7 +747,8 @@ describe('where a notification goes is a setting and never the environment', () 
     // The behaviour tests beside this one would notice the swap by going red
     // on a request stub nothing called; this notices it in the source, which
     // is where somebody reading the file for the first time looks.
-    const called = [...sender.matchAll(/webpush\.(\w+)/g)].map((found) => found[1])
+    // Through `webpush()`, which loads it at the first use rather than at import.
+    const called = [...sender.matchAll(/webpush\(\)\.(\w+)/g)].map((found) => found[1])
     expect([...new Set(called)].sort()).toEqual(['generateRequestDetails', 'generateVAPIDKeys'])
   })
 

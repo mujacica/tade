@@ -7,10 +7,38 @@ import { createRequire } from 'node:module'
  */
 interface Highlighter {
   getLanguage(name: string): object | undefined
+  registerLanguage(name: string, language: unknown): void
   highlight(code: string, options: { language: string; ignoreIllegals: boolean }): { value: string }
 }
 
-const hljs = createRequire(import.meta.url)('highlight.js') as Highlighter
+const require = createRequire(import.meta.url)
+
+/**
+ * highlight.js's core and the languages a file is ever coloured as, loaded the
+ * first time a file is — never on the way to the window's first frame.
+ *
+ * The whole library registers all 193 languages it ships as it loads: 195
+ * modules of the 1,185 an open read, 70–100 ms before anything was drawn
+ * (load 5–22 on 14 cores), for a viewer that is opened later or not at all.
+ * The core alone is 4 ms, and a language Tade has no name for here was never
+ * coloured anyway, so registering only the named ones colours exactly what
+ * the whole library did. One it does not ship is left plain, as it was.
+ */
+let loaded: Highlighter | null = null
+function hljs(): Highlighter {
+  if (loaded) return loaded
+  const core = require('highlight.js/lib/core') as Highlighter
+  for (const language of new Set([...Object.values(EXTENSIONS), ...Object.values(NAMES)])) {
+    try {
+      const module = require(`highlight.js/lib/languages/${language}`) as { default?: unknown }
+      core.registerLanguage(language, module.default ?? module)
+    } catch {
+      // Not one highlight.js ships: plain, which is what it always was.
+    }
+  }
+  loaded = core
+  return core
+}
 
 // Colouring source code for the file viewer, in the window's 256 colours.
 //
@@ -28,7 +56,7 @@ export function languageOf(path: string): string | null {
   const dot = name.lastIndexOf('.')
   if (dot < 0) return null
   const language = EXTENSIONS[name.slice(dot + 1)]
-  return language && hljs.getLanguage(language) ? language : null
+  return language && hljs().getLanguage(language) ? language : null
 }
 
 const NAMES: Record<string, string> = {
@@ -157,9 +185,9 @@ const RESET = '\x1b[0m'
  */
 export function highlight(code: string, language: string | null, plain = false): string[] {
   const lines = code.replace(/\r\n/g, '\n').split('\n')
-  if (plain || !language || !hljs.getLanguage(language)) return lines
+  if (plain || !language || !hljs().getLanguage(language)) return lines
   try {
-    const html = hljs.highlight(code.replace(/\r\n/g, '\n'), {
+    const html = hljs().highlight(code.replace(/\r\n/g, '\n'), {
       language,
       ignoreIllegals: true,
     }).value

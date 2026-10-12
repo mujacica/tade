@@ -43,7 +43,8 @@ import { HomeBusyError, Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
-import { reporterFor, reportJournal } from '../telemetry.ts'
+import { unsayOpening } from '../opening.ts'
+import { reporterLater, reportJournal } from '../telemetry.ts'
 import { gather } from './setup-facts.ts'
 
 /** Run the wizard attached to this terminal, and report how it went. */
@@ -66,6 +67,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const opened = Date.now()
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
+        unsayOpening()
         io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
@@ -90,11 +92,24 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // A fresh machine gets led through setup rather than shown an empty
       // window. Same command, so there is only one implementation of it.
       if (!isReady(readiness(await gather()))) {
+        unsayOpening()
         if ((await runSetup()) !== 0) {
           setExit(Exit.error)
           return
         }
       }
+
+      // Where everything stands, looked at in a process of the window's own
+      // (`lookInChild`), so the fork storm and the garbage of a look are never
+      // on the thread that draws. One for the window: its beat asks it, and so
+      // does `tade_status`, which the efforts in the briefing are folded out
+      // of. It ends with the window, however the window ends.
+      //
+      // Made here, before the workbench, because making it starts it: Node
+      // takes the better part of a second to boot one, and that happens beside
+      // everything below rather than after it, so it is ready when the first
+      // look asks.
+      const looking = makeCollector('child')
 
       // Speech is wired in only when it can actually work. Recording into an
       // engine that has no model would lose what you said, so push-to-talk
@@ -107,8 +122,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const home = tadeHome()
       const safe = program.opts().safe === true
       // Where Tade's own trouble goes, if anywhere: nothing is sent until a
-      // DSN is set, and what a crash takes down is sent on the way out.
-      const report = await reporterFor(cfg.config)
+      // DSN is set, and what a crash takes down is sent on the way out. Usable
+      // now and opened once the window has drawn (`openReporting`): what is
+      // reported before that is kept, and a crash before it still goes.
+      const { reporter: report, open: openReporting } = reporterLater(cfg.config)
       let restoreTerminal: () => Promise<void> = async () => {}
       const stopWatching = report.on
         ? watchProcess(report, {
@@ -167,6 +184,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           report,
         })
       } catch (err) {
+        unsayOpening()
+        await looking.close()
         io.err(
           err instanceof HomeBusyError
             ? `${err.message}. Only one window at a time.`
@@ -211,12 +230,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // the listener is the window's too.
       let away: ReturnType<App['awayTools']> | null = null
       const opening = () => new Error('Tade is still opening: ask again in a moment')
-      // Where everything stands, looked at in a process of the window's own
-      // (`lookInChild`), so the fork storm and the garbage of a look are never
-      // on the thread that draws. One for the window: its beat asks it, and so
-      // does `tade_status`, which the efforts in the briefing are folded out
-      // of. It ends with the window, however the window ends.
-      const looking = makeCollector('child')
       const status = async () => {
         const answer = await looking.collect({
           config: client.config,
@@ -335,6 +348,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const stopOrchestrator = async () => {
         await orchestrator?.stop().catch(() => {})
       }
+      // The window closing, for a start still under way: it is stopped where it
+      // is (`Orchestrator.start`'s `signal`) rather than waited out and stopped.
+      const quitting = new AbortController()
+      let starting: Promise<void> = Promise.resolve()
       try {
         let shouldReload = false
         const app = await App.start({
@@ -388,6 +405,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             }),
         })
         timingOpen.end()
+        // It has drawn, so the reporter's SDK may load now: never before.
+        void openReporting()
         // Now that there is a window, ask each server that is on what it
         // offers and write it down. Never on the way up: what an agent
         // launching right now gets is the cache, which is what makes the
@@ -454,6 +473,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               // would be a gate the turn already in flight never had — and
               // the setting says *takes effect on restart* for that reason.
               talking: config.surfaces.web.enabled && config.surfaces.web.orchestrator,
+              signal: quitting.signal,
               extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
               onUsage: ({ model, ...usage }) => {
                 void client.log
@@ -503,13 +523,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                   if (model) app.keepThinkerModel(model)
                 }
               })
-              // Said in the conversation, where you would have waited for an answer.
+              // Said in the conversation, where you would have waited for an
+              // answer — unless it was the window closing that stopped it.
               .catch((err: unknown) => {
+                if (quitting.signal.aborted) return
                 app.thinkerFailed(err instanceof Error ? err.message : String(err))
               })
           )
         }
-        let starting = startThinker()
+        starting = startThinker()
         // A new model for the orchestrator: the old one stops, and the new one
         // carries on the same conversation — its session id never changes, so
         // there is nothing to ask for beyond starting it again.
@@ -530,9 +552,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         } finally {
           process.removeListener('SIGINT', stop)
           process.removeListener('SIGTERM', stop)
-          // Closing while it is still starting would leave a model process
-          // behind with nothing to talk to.
-          await starting
+          // The window has given the screen back, so the line said before it
+          // took it is taken back too.
+          unsayOpening()
         }
         if (shouldReload) {
           const child = spawn(process.execPath, process.argv.slice(1), {
@@ -542,20 +564,29 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           child.unref()
         }
       } catch (err) {
+        unsayOpening()
         io.err(err instanceof Error ? err.message : String(err))
         setExit(Exit.error)
       } finally {
-        await stopOrchestrator()
-        // Whoever started a server ends it: a window that closed is a window
-        // with no MCP client in it.
-        await mcp.close().catch(() => {})
-        await tools.close().catch(() => {})
-        await looking.close()
-        stopWatching()
+        // Everything that can close at once does, rather than each waiting on
+        // the one before: the status child and Sentry take up to two seconds
+        // apiece. An orchestrator still starting is stopped under its start,
+        // which then settles at once — closing while it starts would otherwise
+        // leave a model process behind with nothing to talk to, or wait for one.
+        quitting.abort()
         stopReporting()
-        // What is queued has a moment to be sent, and never more than that.
-        await report.close()
-        // Lets go of the lanes; under tmux the agents carry on working.
+        await Promise.all([
+          starting.then(stopOrchestrator),
+          // Whoever started a server ends it: a window that closed is a window
+          // with no MCP client in it.
+          mcp.close().catch(() => {}),
+          tools.close().catch(() => {}),
+          looking.close(),
+          // What is queued has a moment to be sent, and never more than that.
+          report.close(),
+        ])
+        stopWatching()
+        // Last, and alone: lets go of the lanes; under tmux the agents carry on working.
         await client.close().catch(() => {})
       }
     })

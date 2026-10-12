@@ -136,9 +136,14 @@ export function renderSidebar(
               row()
                 .space(3)
                 // Hiding every agent there is leaves an empty list that would
-                // otherwise say nobody has ever started one.
+                // otherwise say nobody has ever started one; and before the
+                // first look there is no telling whether anybody has.
                 .text(
-                  all === 0 ? 'none yet — + starts one' : `${all} finished — H shows them`,
+                  all > 0
+                    ? `${all} finished — H shows them`
+                    : frame.looking
+                      ? 'looking…'
+                      : 'none yet — + starts one',
                   skin.hint,
                 )
                 .build(),

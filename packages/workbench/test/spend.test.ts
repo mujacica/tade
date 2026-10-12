@@ -104,6 +104,34 @@ describe('accounting for a closed window', () => {
     expect(spend.byTask['app/refunds']?.usd).toBeCloseTo(1.0)
   })
 
+  it('measures a session against its own task’s usage, whatever else the journal holds', async () => {
+    // Only this task's lines are read to compare against — never every usage
+    // line there is, which was the whole journal read before a window drew —
+    // so another task's money is no part of what this one is short of.
+    const first = await open()
+    await first.log.append({
+      type: 'usage',
+      task: 'app/other',
+      detail: { input: 50_000, output: 0, tokens: 50_000, usd: 9, priced: 'exact' },
+    })
+    await first.log.append({
+      type: 'usage',
+      task: 'app/refunds',
+      detail: { input: 200, output: 0, tokens: 200, usd: 0.1, priced: 'exact' },
+    })
+    await first.close()
+    session('app/refunds', 0.42, 1_200)
+    tade = await open()
+    const found = (await tade.events({ types: ['usage'], task: 'app/refunds' })).filter(
+      (event) => event.detail.source === 'session',
+    )
+    expect(found).toHaveLength(1)
+    expect(found[0]?.detail.tokens).toBe(1_000)
+    expect(Number(found[0]?.detail.usd)).toBeCloseTo(0.32)
+    const spend = spendFrom(await tade.events({ types: ['usage'] }))
+    expect(spend.byTask['app/other']?.tokens).toBe(50_000)
+  })
+
   it('never invents a refund when the journal knows more than the session', async () => {
     session('app/refunds', 5, 9_000)
     tade = await open()

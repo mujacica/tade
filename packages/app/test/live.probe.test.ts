@@ -112,7 +112,12 @@ async function liveOver(
     now,
   })
   opened.push({ live, client })
-  let seq = events + 1
+  // The journal is read after the window is up, and the first look waits on
+  // it: what was spent is unknown until then, and this is a probe of the fold.
+  await live.refresh()
+  // Numbered after the journal's last line, as the journal numbers them: an
+  // event at or under a line the lists already held is one they counted.
+  let seq = ((await client.events({ limit: 1 })).at(-1)?.seq ?? events) + 1
   return {
     live,
     spend: (event) =>
@@ -153,7 +158,7 @@ describe('what a frame costs to say what was spent', () => {
   it('counts what was spent since the last frame', async () => {
     const now = Date.parse('2026-09-20T12:00:00Z')
     const { live, spend } = await liveOver(100, () => now)
-    const before = live.spendToday().total.tokens
+    const before = live.spendToday()!.total.tokens
     expect(before).toBeGreaterThan(0)
 
     spend({
@@ -162,18 +167,18 @@ describe('what a frame costs to say what was spent', () => {
       detail: { input: 5_000, output: 0, tokens: 5_000, usd: 1, priced: 'exact' },
     })
 
-    expect(live.spendToday().total.tokens).toBe(before + 5_000)
+    expect(live.spendToday()!.total.tokens).toBe(before + 5_000)
   })
 
   it('starts the total again when the day does', async () => {
     let now = Date.parse('2026-09-20T12:00:00Z')
     const { live } = await liveOver(100, () => now)
-    expect(live.spendToday().total.tokens).toBeGreaterThan(0)
+    expect(live.spendToday()!.total.tokens).toBeGreaterThan(0)
 
     // A window left open overnight must not go on showing yesterday's total:
     // what is spent today is a different question the moment today changes.
     now += 86_400_000
-    expect(live.spendToday().total.tokens).toBe(0)
+    expect(live.spendToday()!.total.tokens).toBe(0)
   })
 })
 
@@ -279,7 +284,7 @@ describe('what a frame costs to say how long the agents ran', () => {
     const { live, spend } = await liveOver(1, () => now)
     spend(started('app/one', noon - 600_000))
     spend({ type: 'run_exited', task: 'app/one', lane: 'app/one/agent', run: 'app/one/agent' })
-    const first = live.runtimeToday()
+    const first = live.runtimeToday()!
     expect(first.total.running).toBe(false)
     expect(first.total.ms).toBe(600_000)
     now += 3_600_000
@@ -290,15 +295,15 @@ describe('what a frame costs to say how long the agents ran', () => {
     let now = noon
     const { live, spend } = await liveOver(1, () => now)
     spend(started('app/one', noon - 60_000))
-    const first = live.runtimeToday()
+    const first = live.runtimeToday()!
     expect(first.total).toMatchObject({ running: true, ms: 60_000 })
     // Inside the same second there is nothing new to draw.
     now += 999
     expect(live.runtimeToday()).toBe(first)
     now += 1
-    expect(live.runtimeToday().total.ms).toBe(61_000)
+    expect(live.runtimeToday()!.total.ms).toBe(61_000)
     // A second run counts from the moment it is heard of, not the next second.
     spend(started('app/two', now - 5_000))
-    expect(live.runtimeToday().total.ms).toBe(66_000)
+    expect(live.runtimeToday()!.total.ms).toBe(66_000)
   })
 })

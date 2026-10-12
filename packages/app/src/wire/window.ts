@@ -97,6 +97,7 @@ export class Window implements Subject {
       now,
       clock: this.clockOn(now),
       date: this.date,
+      looking: this.wire.live?.hasLooked !== true,
     }
   }
 
@@ -316,10 +317,15 @@ export class Window implements Subject {
             : 'quiet',
       where,
       now,
+      looking: this.wire.live?.hasLooked !== true,
     })
-    if (title === this.titled && now - this.titledAt < RETITLE_MS) return
+    const due = now - this.titledAt >= RETITLE_MS
+    if (title === this.titled && !due) return
     this.titled = title
-    this.titledAt = now
+    // The beat runs from the first title and not from each change, so it stays
+    // the repaint's: a change at the first look used to move it half a beat
+    // off, and two writes a beat apart is a window that never goes quiet.
+    if (due) this.titledAt = now
     this.deps.setTitle(title)
   }
 

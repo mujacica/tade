@@ -56,7 +56,7 @@ export function renderMain(
   if (!pane && schedule) {
     return renderSchedule(state, frame, schedule, width, height, skin, pointer)
   }
-  if (!pane) return renderEmpty(state, width, height, skin, pointer)
+  if (!pane) return renderEmpty(state, width, height, skin, pointer, frame.looking === true)
   if (pane.queued) {
     return renderQueued(
       state,

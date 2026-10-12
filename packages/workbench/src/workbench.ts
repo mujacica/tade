@@ -501,15 +501,14 @@ export class Workbench {
    * Tade is there to be told — and under a driver whose lanes outlive the
    * window, it often is not. A harness writes every message to its own record
    * regardless, so on opening we compare what that says against what the
-   * journal already knows and record the difference. The harness's record is
-   * the ledger; the journal is a copy of it that can fall behind.
-   *
-   * Best effort by design: a session we cannot read leaves the accounting
-   * short, which is a worse answer than the truth and a far better one than
-   * refusing to open.
+   * journal already knows — that task's usage, off the index, and never every
+   * usage line there is (84k of them, read before the window drew anything) —
+   * and record the difference. The harness's record is the ledger; the journal
+   * is a copy of it that can fall behind. Best effort by design: a session we
+   * cannot read leaves the accounting short, which is a worse answer than the
+   * truth and a far better one than refusing to open.
    */
   private async reconcileSpend(): Promise<void> {
-    const journalled = spendFrom(await this.log.read({ types: ['usage'] }).catch(() => []))
     for (const lane of this.registry.list()) {
       if (lane.kind !== 'agent') continue
       const harness = lane.harness ?? (await this.harnessOf(lane.task, lane.spec.cwd))
@@ -520,7 +519,8 @@ export class Workbench {
         .then(() => adapter?.spent(lane.task as TaskId, lane.spec.cwd) ?? noHarnessSpend())
         .catch(() => noHarnessSpend())
       if (session.messages === 0) continue
-      const known = journalled.byTask[lane.task] ?? noSpend()
+      const told = await this.log.read({ types: ['usage'], task: lane.task }).catch(() => [])
+      const known = spendFrom(told).byTask[lane.task] ?? noSpend()
       // What this harness's dollars are worth, so money it cannot price is
       // never reconciled in: the journal reads a plan's turns as no money, so
       // the difference would be the whole session, written again at every

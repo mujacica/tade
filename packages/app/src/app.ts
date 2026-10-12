@@ -616,7 +616,7 @@ export class App {
     this.live = live
     this.extensions.readLinkers()
     this.extensions.watchExtensions()
-    this.agents.reopenLost()
+    void live.looked.then(() => this.agents.reopenLost())
     // Whatever the config says about sleep, made true of the machine.
     this.awake.apply()
     // Only where a person turned it on: with `surfaces.web.enabled` false this

@@ -207,6 +207,9 @@ export function queueSection(
   open: boolean,
 ): Section {
   const quiet = all === 0
+  // Queued work is read off the task files by the first look, so before it
+  // there is no saying the queue is empty.
+  const empty = frame.looking ? 'looking…' : queueEmptySays(state)
   return {
     id: 'queue',
     label: 'SMART QUEUE',
@@ -225,7 +228,7 @@ export function queueSection(
       : {}),
     // Folded with nothing in it, the heading is the only place left to say
     // why there is nothing, so that is what it says.
-    ...(quiet && !open ? { note: queueEmptySays(state), brief: 'none' } : {}),
+    ...(quiet && !open ? { note: empty, brief: frame.looking ? '…' : 'none' } : {}),
     rows: (row) => {
       const view = queueViewOf(state)
       const entries = queueRows(state)
@@ -236,7 +239,7 @@ export function queueSection(
         // Why there is nothing, in the words of the reason there is nothing:
         // wrapped rather than cut, because the reason is the whole of what
         // this row is for.
-        const none = wrapWords(queueEmptySays(state), Math.max(10, width - 6)).slice(0, 4)
+        const none = wrapWords(empty, Math.max(10, width - 6)).slice(0, 4)
         return [
           ...controls,
           blank(width),

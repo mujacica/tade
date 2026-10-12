@@ -41,21 +41,28 @@ export class Spend implements Subject {
   /** Today's spend and today's runtime, how full each plan's window is, and the page. */
   facts(): Partial<Frame> {
     const live = this.wire.live
-    const spent = live?.spendToday()
+    // Null until the journal has been read, and then there is no figure at
+    // all rather than a nought: what was spent is unknown, not nothing.
+    const spent = live?.spendToday() ?? null
+    const ran = live?.runtimeToday() ?? null
     return {
       spendView: this.page(),
-      spend: {
-        tokens: spent?.total.tokens ?? 0,
-        usd: spent?.total.usd ?? 0,
-        hasCost: spent?.total.hasCost ?? false,
-        // What today's plan turns would have cost at list price, which is the
-        // only dollar figure a subscription's day has — and never money, so it
-        // is its own field and goes nowhere near `usd`.
-        usdOnPlan: spent?.total.usdOnPlan ?? 0,
-        onPlan: spent ? onPlanOf(spent.total) : 'none',
-        byTask: spent?.byTask ?? {},
-        ...(live ? { runtime: live.runtimeToday().total } : {}),
-      },
+      ...(spent
+        ? {
+            spend: {
+              tokens: spent.total.tokens,
+              usd: spent.total.usd,
+              hasCost: spent.total.hasCost,
+              // What today's plan turns would have cost at list price, which is the
+              // only dollar figure a subscription's day has — and never money, so it
+              // is its own field and goes nowhere near `usd`.
+              usdOnPlan: spent.total.usdOnPlan,
+              onPlan: onPlanOf(spent.total),
+              byTask: spent.byTask,
+              ...(ran ? { runtime: ran.total } : {}),
+            },
+          }
+        : {}),
       plan: planStandings(this.wire.opts.client.planUsage(), this.wire.now()),
     }
   }
@@ -71,7 +78,8 @@ export class Spend implements Subject {
   private page(): Frame['spendView'] {
     const panel = this.wire.state.panel
     const live = this.wire.live
-    if (panel?.kind !== 'spend' || !live) return null
+    // Not before the journal is read: a page of nothing would be a page of noughts.
+    if (panel?.kind !== 'spend' || !live || live.spendToday() === null) return null
     const now = this.wire.now()
     const key = `${panel.window}|${panel.by}|${live.spending.length}|${live.runs.length}`
     const folded = this.folded

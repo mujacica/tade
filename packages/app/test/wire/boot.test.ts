@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { ConfigSchema } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
-import { type FakeTerminal, type Repo, until, windowUnderTest } from './harness.ts'
+import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // It starts, draws what it found, stops, and reloads. Nothing here is about
 // one subject: this is `App` itself — the lifecycle, and the bar along the
@@ -13,7 +13,7 @@ describe('the window, booted', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let repo: Repo
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, sidebar } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -49,6 +49,21 @@ describe('the window, booted', () => {
     await until('the tasks to be drawn', () => terminal.written.includes('refunds'))
     expect(terminal.written).toContain('search')
     expect(terminal.written).toContain('app')
+  })
+
+  it('draws before its first look, and says it is looking rather than that there is nothing', async () => {
+    // A status that has not answered: what a first frame is drawn from, since
+    // the window no longer waits on it. Unknown is not none.
+    await start(
+      { status: { id: 'scripted', collect: () => new Promise(() => {}), close: async () => {} } },
+      { looked: false },
+    )
+    await until('the first frame', () => sidebar().includes('AGENTS'))
+    expect(sidebar()).toContain('looking…')
+    expect(sidebar()).not.toContain('none yet')
+    expect(screenOf(terminal.written).join('\n')).not.toContain('said, and done.')
+    expect(terminal.titles.at(-1)).toContain('looking…')
+    expect(terminal.titles.at(-1)).not.toContain('nothing running')
   })
 
   it('always shows the orchestrator', async () => {

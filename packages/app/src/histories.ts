@@ -1,0 +1,106 @@
+import { RUNTIME_EVENTS, type TadeEvent } from '@tade/core'
+import type { Workbench } from '@tade/workbench'
+import { aboutRoot } from './away-lifecycle.ts'
+
+// The whole-history lists the window keeps, read once when it opens — and
+// never on the way to its first frame.
+//
+// They were read before anything was drawn: six queries over the whole
+// journal, every one of them synchronous SQLite and a `JSON.parse` per row.
+// Over a real journal of 136k lines that was 83,957 usage rows (86–208 ms),
+// 33,045 the queue reads (112 ms) and four smaller ones, ~350 ms in all at
+// load 5 on 14 cores — a third of a second of a blank terminal for answers the
+// first frame does not draw: what a task cost, how long it ran, whether queued
+// work has started. So they are read after the window is up, one query per
+// turn of the event loop, so a key or a frame is answered between any two of
+// them, and the first look at status waits on them rather than the first
+// frame (`Live.start`).
+
+/** How much of the journal to keep for working out what recently moved. */
+export const JOURNAL = 500
+
+/** What decides where queued work stands, read from the whole journal rather than its tail. */
+export const QUEUE_READS = [
+  'task_removed',
+  'run_started',
+  'run_exited',
+  'failed',
+  'queue_started',
+  'queue_held',
+  'queue_changed',
+  'schedule_fired',
+  // What a watch has found, which is never forgotten: one finding, one piece of work.
+  'watch_checked',
+  'watch_found',
+] as const
+
+/**
+ * What runtime is derived from: when an agent started and stopped, when its
+ * lane went, and when the window that was watching it did — a run nobody wrote
+ * an exit for ended when Tade closed, not at breakfast the next morning. The
+ * list is `runtimeFrom`'s own, so the panel can never read less than it reads.
+ */
+export const RUNTIME_READS = RUNTIME_EVENTS
+
+/** Finishing, read whole: whether a task is done cannot depend on how busy the journal has been since. */
+export const TOLD_READS = ['task_done', 'run_started', 'turn_done'] as const
+
+/** Every list, as of one moment of the journal (`upTo`). */
+export interface Histories {
+  /** The last `JOURNAL` events. */
+  recent: TadeEvent[]
+  /** Every `usage` event: the Spend page's longest range is the journal itself. */
+  usage: TadeEvent[]
+  told: TadeEvent[]
+  runs: TadeEvent[]
+  queue: TadeEvent[]
+  /** Every line that wrote where a project lives: a project closed last month can still be opened again. */
+  roots: TadeEvent[]
+  /**
+   * The newest event any of these may hold. Read first, with the tail, and
+   * every list after it is cut to it: an event appended while the lists were
+   * being read is one the subscription hears, and is never counted twice.
+   */
+  upTo: number
+}
+
+/** A turn of the event loop, so whatever is waiting is answered before the next query. */
+const aTurn = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+/**
+ * Read every list, a query a turn. A query that fails is an empty list, as it
+ * always was: the window opening is never what a journal that could not be
+ * read stops.
+ */
+export async function readHistories(client: Pick<Workbench, 'events'>): Promise<Histories> {
+  const read = async (filter: Parameters<Workbench['events']>[0]) => {
+    await aTurn()
+    return client.events(filter).catch(() => null)
+  }
+  // The tail first: its last line is the moment everything else is cut to. A
+  // tail that could not be read has no moment to cut to, so nothing is cut and
+  // the newest line read stands in for it — which can count a line appended
+  // while the rest were read twice, and only on a journal already failing.
+  const tail = await read({ limit: JOURNAL })
+  const upTo = tail ? (tail.at(-1)?.seq ?? 0) : Number.POSITIVE_INFINITY
+  const cut = (events: TadeEvent[] | null) => (events ?? []).filter((event) => event.seq <= upTo)
+  const usage = cut(await read({ types: ['usage'] }))
+  const told = cut(await read({ types: [...TOLD_READS] }))
+  const runs = cut(await read({ types: [...RUNTIME_READS] }))
+  const queue = cut(await read({ types: [...QUEUE_READS] }))
+  const roots = cut(await read({ types: ['config_changed'] })).filter(aboutRoot)
+  const recent = tail ?? []
+  const newest = Math.max(
+    0,
+    ...[usage, told, runs, queue, roots].map((one) => one.at(-1)?.seq ?? 0),
+  )
+  return {
+    recent,
+    usage,
+    told,
+    runs,
+    queue,
+    roots,
+    upTo: Number.isFinite(upTo) ? upTo : newest,
+  }
+}

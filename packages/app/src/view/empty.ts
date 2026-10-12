@@ -86,6 +86,8 @@ export function renderEmpty(
   height: number,
   skin: Skin,
   pointer: Pointer,
+  /** No look at status yet: what is in this project is unknown, so the tagline says so. */
+  looking = false,
 ): Drawn {
   const project = state.project
   const fits = LADDER.find((shown) => fitsWidth(shown, width) && rowsFor(shown) <= height) ?? LAST
@@ -108,7 +110,7 @@ export function renderEmpty(
   }
 
   if (fits.tagline) {
-    const row = new Row(width, skin).text('said, and done.', skin.hint)
+    const row = new Row(width, skin).text(looking ? 'looking…' : 'said, and done.', skin.hint)
     rows.push(centred(row.build(), row.used, width))
     rows.push(blank(width))
   }

@@ -96,6 +96,28 @@ describe('Orchestrator', () => {
     return JSON.stringify(model?.requests[request] ?? {})
   }
 
+  it('is stopped where it is when the window closes while it starts, not finished first', async () => {
+    // Everything up to the harness's process is done before `start` hands
+    // back its promise, so aborting straight after is aborting mid-start:
+    // its process is up and the start is waiting on it to answer.
+    model = await startFakeModel({ finalText: 'never asked' })
+    const runDir = tmp('tade-chat-run-')
+    const quitting = new AbortController()
+    const starting = Orchestrator.start({
+      home,
+      socket: tools.path,
+      runDir,
+      cwd: repo.root,
+      model: { provider: 'tade-test', id: 'fake' },
+      args: ['-e', writeProviderExtension(runDir)],
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
+      signal: quitting.signal,
+    })
+    quitting.abort()
+    await expect(starting).rejects.toThrow('the window closed while the orchestrator was starting')
+    expect(model.requests).toEqual([])
+  }, 90_000)
+
   it('answers, and says when it has finished', async () => {
     const said: string[] = []
     let idle = false

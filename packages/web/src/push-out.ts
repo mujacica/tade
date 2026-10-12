@@ -1,7 +1,7 @@
 import { createECDH } from 'node:crypto'
 import { lookup as dnsLookup } from 'node:dns'
 import { request as httpsRequest } from 'node:https'
-import webpush from 'web-push'
+import { createRequire } from 'node:module'
 import { type Resolved, reachable } from './endpoint.ts'
 import type { Notice } from './noticed.ts'
 
@@ -180,9 +180,22 @@ export function signingFrom(privateKey: string): Signing {
 export const PRIVATE_BYTES = 32
 export const PUBLIC_BYTES = 65
 
+/**
+ * web-push and the crypto it brings, loaded at the first key made or push
+ * sent — never because a window opened, which with the away view off (the
+ * default) it does with no use for either.
+ */
+let loaded: typeof import('web-push') | null = null
+function webpush(): typeof import('web-push') {
+  // Named, so the release sees what this file needs (`scripts/release/stage.ts`).
+  const require = createRequire(import.meta.url)
+  if (loaded === null) loaded = require('web-push') as typeof import('web-push')
+  return loaded
+}
+
 /** A new pair, generated here and nowhere else. */
 export function generateVapid(): Signing {
-  const made = webpush.generateVAPIDKeys()
+  const made = webpush().generateVAPIDKeys()
   return { privateKey: made.privateKey, publicKey: made.publicKey }
 }
 
@@ -265,7 +278,7 @@ export function pusher(opts: Sending): Pusher {
           ? { kind: 'later', status: 0, why: reached.why }
           : { kind: 'refused', status: 0, why: `that endpoint ${reached.why}` }
       }
-      const details = webpush.generateRequestDetails(
+      const details = webpush().generateRequestDetails(
         { endpoint: to.endpoint, keys: { p256dh: to.p256dh, auth: to.auth } },
         JSON.stringify(notice),
         {

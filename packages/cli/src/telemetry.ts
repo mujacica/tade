@@ -11,7 +11,7 @@ import {
   type Unsubscribe,
   workedOf,
 } from '@tade/core'
-import { openReporter, type Reporter, saw } from '@tade/telemetry'
+import { type Later, openReporter, openReporterLater, type Reporter, saw } from '@tade/telemetry'
 import type { Workbench } from '@tade/workbench'
 import { version } from './version.ts'
 
@@ -34,22 +34,42 @@ const DSN_ENV = 'TADE_TELEMETRY_DSN'
 /** Where Tade itself is, so a frame in its own code is one you could fix. */
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 
+/** Where to send and what is sent, as `openReporter` takes it: the setting over the variable. */
+function telemetryOf(config: Config): Config['telemetry'] {
+  const dsn = config.telemetry.dsn.trim() || (process.env[DSN_ENV] ?? '').trim()
+  return { ...config.telemetry, dsn }
+}
+
+/** What a reporter needs that the config does not say. */
+function here(opts: { sink?: (envelope: unknown) => void; now?: () => number }) {
+  return {
+    release: `tade@${version()}`,
+    // Paths are scrubbed against the person's own home, so nothing says who they are.
+    home: homedir(),
+    root: ROOT,
+    ...opts,
+  }
+}
+
 /** The reporter for this run: `none` unless somewhere to send was set. */
 export function reporterFor(
   config: Config,
   opts: { sink?: (envelope: unknown) => void; now?: () => number } = {},
 ): Promise<Reporter> {
-  const dsn = config.telemetry.dsn.trim() || (process.env[DSN_ENV] ?? '').trim()
-  return openReporter(
-    { ...config.telemetry, dsn },
-    {
-      release: `tade@${version()}`,
-      // Paths are scrubbed against the person's own home, so nothing says who they are.
-      home: homedir(),
-      root: ROOT,
-      ...opts,
-    },
-  )
+  return openReporter(telemetryOf(config), here(opts))
+}
+
+/**
+ * The same reporter for the window, usable at once and opened once it has
+ * drawn (`open`): loading the SDK was a quarter to half a second before the
+ * first frame, on every open of a Tade with a DSN (`@tade/telemetry`'s
+ * `later.ts`).
+ */
+export function reporterLater(
+  config: Config,
+  opts: { sink?: (envelope: unknown) => void; now?: () => number } = {},
+): Later {
+  return openReporterLater(telemetryOf(config), here(opts))
 }
 
 /**

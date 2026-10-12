@@ -158,7 +158,9 @@ export function beatParts(
    */
   factory: FactoryHeld = nothingHandedOver(),
 ): AwayBeat {
-  const spend = live.spendToday()
+  // Before the journal's lists are read nothing is known about money, which
+  // is every task's `null` — never a figure of nought.
+  const spend = live.spendToday() ?? { byTask: {} }
   const overrides = overridesFrom(live.events)
   const ran = ranOn(live.events)
   // Folds over the journal the window already holds, each pure: whether an
@@ -264,7 +266,7 @@ export interface Held {
   pending: readonly { requestId: string; task: string; tool: string; at: number }[]
   world: Workspace | null
   seenActions(task: string): ActionsView | null
-  spendToday(): { byTask: Record<string, Spend> }
+  spendToday(): { byTask: Record<string, Spend> } | null
   queued: readonly Queued[]
   queueFacts(): QueueFacts
   notes(project: string | null): readonly NoteShown[]
@@ -277,7 +279,7 @@ export interface Beatable {
   rootLines: readonly TadeEvent[]
   pending: readonly { requestId: string; task: string; tool: string; at: number }[]
   seenActions(task: string): ActionsView | null
-  spendToday(): { byTask: Record<string, Spend> }
+  spendToday(): { byTask: Record<string, Spend> } | null
   queued: readonly Queued[]
   queueFacts(): QueueFacts
   notes(project: string | null): readonly NoteShown[]

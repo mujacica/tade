@@ -132,6 +132,12 @@ export interface OrchestratorOptions {
    */
   safe?: boolean
   /**
+   * The window is closing. A start still under way is stopped where it is —
+   * its harness shut down under it — rather than finished and then stopped,
+   * which was a quit that waited seconds for a model nobody would talk to.
+   */
+  signal?: AbortSignal
+  /**
    * What each of its own turns cost. The orchestrator is a model like any
    * agent, and spend that is not recorded is spend the window cannot show.
    */
@@ -445,20 +451,33 @@ export class Orchestrator {
       }
     })
 
-    await adapter.start({
-      run: ORCHESTRATOR_RUN,
-      task: ORCHESTRATOR_TASK,
-      cwd: opts.cwd ?? process.cwd(),
-      prompt: '',
-      ...(model ? { model } : {}),
-      // How hard it thinks, from its first turn: chosen like an agent's, and
-      // the harness's own default when nobody has.
-      ...(route?.thinking ? { thinking: route.thinking } : {}),
-      extras: mine,
-      // What its tools need to find their way back to Tade, whichever harness
-      // they are loaded into.
-      env: toolEnv(opts),
-    })
+    // Shut down under the start if the window closes meanwhile: the harness's
+    // process goes, so the start settles at once rather than finishing first.
+    const stopped = () => new Error('the window closed while the orchestrator was starting')
+    if (opts.signal?.aborted) throw stopped()
+    const stopping = () => void adapter.shutdown().catch(() => {})
+    opts.signal?.addEventListener('abort', stopping, { once: true })
+    await adapter
+      .start({
+        run: ORCHESTRATOR_RUN,
+        task: ORCHESTRATOR_TASK,
+        cwd: opts.cwd ?? process.cwd(),
+        prompt: '',
+        ...(model ? { model } : {}),
+        // How hard it thinks, from its first turn: chosen like an agent's, and
+        // the harness's own default when nobody has.
+        ...(route?.thinking ? { thinking: route.thinking } : {}),
+        extras: mine,
+        // What its tools need to find their way back to Tade, whichever harness
+        // they are loaded into.
+        env: toolEnv(opts),
+      })
+      .finally(() => opts.signal?.removeEventListener('abort', stopping))
+    // Closed just as it came up, before anything could shut it down.
+    if (opts.signal?.aborted) {
+      await adapter.shutdown().catch(() => {})
+      throw stopped()
+    }
     // A harness that refused to start — a model it could not resolve, most
     // often — has already said why, and that is the answer to give.
     if (orchestrator.gone) throw new Error(orchestrator.gone)

@@ -1,4 +1,5 @@
 import type { TadeEvent } from '@tade/core'
+import { type Later, later } from './later.ts'
 import { noReporter } from './none.ts'
 import { REPORTERS, type Reporter, type ReporterOptions } from './port.ts'
 import { sentryReporter } from './sentry.ts'
@@ -63,6 +64,17 @@ export async function openReporter(
     ...(here.now ? { now: here.now } : {}),
   }
   return make(options).catch(() => noReporter())
+}
+
+/**
+ * The same reporter, usable at once and opened only when `open` is called —
+ * which the window does once it has drawn (`later.ts`). Whether it is `on` is
+ * the same question `openReporter` asks, answered now: a DSN, and a reporter
+ * by that name.
+ */
+export function openReporterLater(config: TelemetryConfig, here: TelemetryHere): Later {
+  const on = (config.dsn ?? '').trim() !== '' && REPORTERS[config.driver] !== undefined
+  return later(() => openReporter(config, here), { on, ...(here.now ? { now: here.now } : {}) })
 }
 
 /** A journal event, reported as whatever it is worth: an issue, a line, a number. */

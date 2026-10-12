@@ -29,6 +29,8 @@ export interface TitleFacts {
   where: string | null
   /** The clock, which is what makes the indicator turn. */
   now: number
+  /** No look at status has landed yet, so how many agents there are is unknown. */
+  looking?: boolean
 }
 
 /**
@@ -63,7 +65,11 @@ export function windowTitle(facts: TitleFacts): string {
   if (facts.waiting > 0) said.push(`${facts.waiting} waiting`)
   if (facts.failed > 0) said.push(`${facts.failed} failed`)
   if (facts.orchestrator !== 'quiet') said.push(facts.orchestrator)
-  if (said.length === 0) said.push(facts.agents > 0 ? `${facts.agents} idle` : 'nothing running')
+  if (said.length === 0) {
+    said.push(
+      facts.agents > 0 ? `${facts.agents} idle` : facts.looking ? 'looking…' : 'nothing running',
+    )
+  }
 
   const head = `${titleMark(facts)} tade · ${said.join(' · ')}`
   const where = facts.where?.trim()

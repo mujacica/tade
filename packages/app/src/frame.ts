@@ -402,8 +402,16 @@ export interface Frame {
   base?: string | null
   /** Notes about this project and everything, oldest first: named by when they were said. */
   notes?: readonly NoteShown[]
-  /** Today's spend, in total and by task. */
+  /**
+   * Today's spend, in total and by task. Absent until the journal has been
+   * read, which is unknown and drawn as nothing rather than as a nought.
+   */
   spend?: Spend
+  /**
+   * No look at status has landed yet: which agents there are is unknown, not
+   * none, and what is drawn from them says *looking…* rather than "none yet".
+   */
+  looking?: boolean
   /**
    * How much of every sign-in's plan is used, as its harness last said — and
    * for the ones that cannot say, why not.

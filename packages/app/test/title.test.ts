@@ -20,6 +20,12 @@ describe('the window title', () => {
     expect(windowTitle(quiet)).toBe('· tade · nothing running')
   })
 
+  it('says it is looking before its first look, which is not nothing running', () => {
+    expect(windowTitle({ ...quiet, looking: true })).toBe('· tade · looking…')
+    // What it is doing still wins: the orchestrator can be thinking already.
+    expect(windowTitle({ ...quiet, looking: true, orchestrator: 'thinking' })).toContain('thinking')
+  })
+
   it('counts the agents in the sidebar’s own words', () => {
     const title = windowTitle({ ...quiet, working: 2, waiting: 1, failed: 1, agents: 4 })
     expect(title).toContain('2 working')

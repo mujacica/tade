@@ -211,10 +211,13 @@ export interface Wired {
    */
   readonly opened: { command: string; args: readonly string[] }[]
   /**
-   * Start the window over that world. The last one started is stopped after the
+   * Start the window over that world, and wait for its first look at status:
+   * the window draws before it has looked (*looking…*), and the tests here are
+   * about what it does once it knows what there is. `looked: false` hands it
+   * over at its first frame instead. The last one started is stopped after the
    * test; a test that opens a second window stops the first one itself.
    */
-  start(over?: Partial<AppOptions>): Promise<App>
+  start(over?: Partial<AppOptions>, opts?: { looked?: boolean }): Promise<App>
   /**
    * A terminal with nothing on it, for a second window over the same home.
    * What the first window drew belongs to the window that has stopped, and a
@@ -276,13 +279,16 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     },
     awake: { took, dropped: () => dropped },
 
-    async start(over: Partial<AppOptions> = {}): Promise<App> {
+    async start(over: Partial<AppOptions> = {}, opts: { looked?: boolean } = {}): Promise<App> {
       const speaker = await Speaker.create({
         soundDir: tmp('tade-app-sound-'),
         platform: 'darwin',
         // Never actually make a noise in a test run.
         run: async () => {},
       })
+      // Read off the title, as a person would: it says *looking…* until the
+      // first look lands, and something else from the next look on.
+      const from = terminal.titles.length
       app = await App.start({
         client,
         config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
@@ -315,6 +321,11 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         },
         ...over,
       })
+      if (opts.looked !== false) {
+        await until('the window to have looked once', () =>
+          terminal.titles.slice(from).some((title) => !title.includes('looking…')),
+        )
+      }
       return app
     },
 

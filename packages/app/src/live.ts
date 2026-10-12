@@ -15,7 +15,6 @@ import {
   queueStanding,
   queueStateOf,
   type Reality,
-  RUNTIME_EVENTS,
   type RuntimeReport,
   ruleMet,
   runtimeFrom,
@@ -42,6 +41,7 @@ import type { PendingApproval } from '@tade/workbench/workers'
 import { aboutRoot } from './away-lifecycle.ts'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { ActionsView, Change, NoteShown } from './frame.ts'
+import { type Histories, JOURNAL, QUEUE_READS, RUNTIME_READS, readHistories } from './histories.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
 import { CHANGED_FORMAT, changedFrom, changesFrom, snapshotsFrom } from './reality.ts'
@@ -58,9 +58,6 @@ export { knownTasks, snapshotsFrom } from './reality.ts'
 // world, and the journal it accumulates is what lets the resolver answer
 // "which one did you mean".
 
-/** How much journal to keep for working out what recently moved. */
-const JOURNAL = 500
-
 /**
  * How often commits and check runs that have landed since are written down.
  *
@@ -70,29 +67,6 @@ const JOURNAL = 500
  * invocations a minute to notice one commit is the opposite of light.
  */
 const LANDED_MS = 60_000
-
-/** What decides where queued work stands, read from the whole journal rather than its tail. */
-const QUEUE_READS = [
-  'task_removed',
-  'run_started',
-  'run_exited',
-  'failed',
-  'queue_started',
-  'queue_held',
-  'queue_changed',
-  'schedule_fired',
-  // What a watch has found, which is never forgotten: one finding, one piece of work.
-  'watch_checked',
-  'watch_found',
-] as const
-
-/**
- * What runtime is derived from: when an agent started and stopped, when its
- * lane went, and when the window that was watching it did — a run nobody wrote
- * an exit for ended when Tade closed, not at breakfast the next morning. The
- * list is `runtimeFrom`'s own, so the panel can never read less than it reads.
- */
-const RUNTIME_READS = RUNTIME_EVENTS
 
 /** A schedule's runs as the journal has them, newest last. */
 export interface ScheduleRun {
@@ -259,49 +233,79 @@ export class Live {
   private realities = new Map<string, Reality>()
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
+  /** The whole-history lists being read (`histories.ts`), which the first look waits on. */
+  private reading: Promise<void> = Promise.resolve()
+  /** Whether they have been: before it, a figure folded out of them is unknown, not nought. */
+  private read = false
+  /** Events heard while they were being read, counted once they have been. */
+  private heard: TadeEvent[] | null = []
+  /** The newest event the lists held: one at or under it was already counted by them. */
+  private upTo = 0
+  /** The first look that could (`hasLooked`), for whoever needs the tasks before going on. */
+  readonly looked: Promise<void>
+  private landed: () => void = () => {}
   /** Where status is looked at, and the gate that lets a quiet worktree cost a `stat` (`collector.ts`). */
   private readonly looker: StatusCollector
 
   private constructor(opts: LiveOptions) {
     this.opts = opts
     this.looker = opts.status ?? makeCollector('here')
+    this.looked = new Promise((resolve) => {
+      this.landed = resolve
+    })
   }
 
+  /**
+   * Open on what there is and fill in as it arrives: neither the journal's
+   * whole-history lists nor the first look at status are waited for here, so
+   * the window draws its first frame — *looking…* — before either. The first
+   * look waits for the lists instead (`doRefresh`), and `looked` is when it
+   * has landed.
+   */
   static async start(opts: LiveOptions): Promise<Live> {
     const live = new Live(opts)
-    // Recent history first, so "park it" works the moment the window opens.
-    const past = await opts.client.events({ limit: JOURNAL }).catch(() => [])
-    live.journal.push(...past)
-    // Spend is read on its own: the journal above is the last 500 events, and
-    // a busy morning is more than that. All of it, because the Spend page's
-    // longest range is the journal itself — the fold that reads it is kept
-    // rather than re-done per frame (`wire/spend.ts`), which is what makes
-    // that affordable.
-    live.usage = await opts.client.events({ types: ['usage'] }).catch(() => [])
-    // Finishing is read the same way: whether a task is done cannot depend on
-    // how busy the journal has been since.
-    const told = await opts.client
-      .events({ types: ['task_done', 'run_started', 'turn_done'] })
-      .catch(() => [])
-    live.finished = finishedFrom(told)
-    live.worked = workedFrom(told)
-    live.runEvents = await opts.client.events({ types: [...RUNTIME_READS] }).catch(() => [])
-    live.queueEvents = await opts.client.events({ types: [...QUEUE_READS] }).catch(() => [])
-    for (const event of live.queueEvents) {
-      if (event.type === 'run_started' && event.task) live.started.add(event.task)
-    }
-    // Whole, like the two above: a project closed last month is still one a
-    // device can open again, and the last 500 events would have forgotten it.
-    const changed = await opts.client.events({ types: ['config_changed'] }).catch(() => [])
-    live.roots = changed.filter(aboutRoot)
-    await opts.client.subscribe((event) => live.record(event))
+    // Heard from before the lists are read, so nothing appended meanwhile is
+    // missed, and held until they have been, so nothing is counted twice.
+    opts.client.subscribe((event) => live.hear(event))
+    live.reading = readHistories(opts.client).then((read) => live.use(read))
     // Opening the workbench has just looked at what landed while Tade was
     // shut, so the window's own beat starts a minute from here.
     live.lookedAtLanded = live.now()
-    await live.refresh()
+    void live.refresh()
     live.timer = setInterval(() => void live.refresh(), opts.pollMs ?? 2_000)
     live.timer.unref?.()
     return live
+  }
+
+  /** An event, as the journal says it: held while the lists are read, then counted once. */
+  private hear(event: TadeEvent): void {
+    if (this.heard) this.heard.push(event)
+    else if (event.seq > this.upTo) this.record(event)
+  }
+
+  /** The whole-history lists, read: kept, and what was heard meanwhile counted after them. */
+  private use(read: Histories): void {
+    this.journal.push(...read.recent)
+    this.usage = read.usage
+    this.finished = finishedFrom(read.told)
+    this.worked = workedFrom(read.told)
+    this.runEvents = read.runs
+    this.queueEvents = read.queue
+    for (const event of read.queue) {
+      if (event.type === 'run_started' && event.task) this.started.add(event.task)
+    }
+    this.roots = read.roots
+    this.upTo = read.upTo
+    this.read = true
+    this.revisions++
+    const heard = this.heard ?? []
+    this.heard = null
+    for (const event of heard) this.hear(event)
+  }
+
+  /** Whether the first look at status has landed: before it, what is running is unknown. */
+  get hasLooked(): boolean {
+    return this.seen !== null
   }
 
   /** Read the config again: a project opened from the window is status's to see at once. */
@@ -889,9 +893,11 @@ export class Live {
    * them was 3% of a core spent re-deriving a number that only moves when an
    * agent spends something, and on an idle window nothing ever does. The list
    * is the whole journal now, which makes the kept fold worth more rather than
-   * less: it is the Spend page's longest range that put it there.
+   * less: it is the Spend page's longest range that put it there. Null until
+   * the lists are read: what was spent is unknown then, never nothing.
    */
-  spendToday(): SpendReport {
+  spendToday(): SpendReport | null {
+    if (!this.read) return null
     const since = startOfToday(this.now())
     const spent = this.spent
     if (spent && spent.since === since && spent.of === this.usage.length) return spent.report
@@ -909,9 +915,11 @@ export class Live {
    * Kept as `spendToday` is, over every run event there has ever been: the
    * same events over the same day are the same answer — except that a run
    * still going counts up with the clock. It is drawn to the second, so while
-   * one runs it is folded again each second, and never while none does.
+   * one runs it is folded again each second, and never while none does. Null
+   * until the lists are read, as `spendToday` is.
    */
-  runtimeToday(): RuntimeReport {
+  runtimeToday(): RuntimeReport | null {
+    if (!this.read) return null
     const now = this.now()
     const since = startOfToday(now)
     const ran = this.ran
@@ -954,6 +962,9 @@ export class Live {
   async refresh(): Promise<void> {
     this.refreshing ??= this.doRefresh().finally(() => {
       this.refreshing = null
+      // After the refresh is let go of, so whoever waited on `looked` and asks
+      // again is asking for a new look rather than handed this one.
+      if (this.seen) this.landed()
     })
     return this.refreshing
   }
@@ -981,6 +992,9 @@ export class Live {
         ),
         this.opts.client.pendingApprovals(),
         this.opts.client.lanes(),
+        // Beside the look rather than before it: whether a task is done and
+        // whether queued work has started are folded out of the lists.
+        this.reading,
       ])
       // Unknown is said, and the last look that could stands in, with this window's own
       // approvals and lanes: never an empty world. Before any look, `unknown` stays.

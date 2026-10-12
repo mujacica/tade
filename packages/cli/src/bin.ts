@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { nodeTooOld } from './node.ts'
+import { opensWindow, sayOpening, unsayOpening } from './opening.ts'
 import { needsNode } from './version.ts'
 
-// Nothing below this line is imported at the top, and the two above it are
+// Nothing below this line is imported at the top, and the three above it are
 // each a file with no dependency of its own. A static import is evaluated
 // before any statement in this file, so anything imported here is code that
 // runs before the check that says whether this Node can run it — which on Node
@@ -13,20 +14,26 @@ if (tooOld !== null) {
   process.exit(1)
 }
 
+// Before the most of a second it takes to load the rest: a terminal left blank
+// that long reads as a command that did nothing (`opening.ts`).
+if (opensWindow(process.argv.slice(2))) sayOpening()
+
 // Loaded rather than imported, so that a dependency which did not install is a
 // sentence instead of a stack trace out of Node's module loader. Everything
-// Tade needs is reached through `program.ts`, so one catch here is every such
-// failure there is.
-async function load(): Promise<(argv: string[]) => Promise<number>> {
+// Tade needs is reached through `program.ts` — the command typed is loaded by
+// `run` before it parses anything, and a failure inside a command is answered
+// there — so one catch here is every such failure there is.
+async function main(argv: string[]): Promise<number> {
   try {
-    return (await import('./program.ts')).run
+    return await (await import('./program.ts')).run(argv)
   } catch (error) {
     const { nativeTrouble } = await import('./native.ts')
     const trouble = nativeTrouble(error)
+    unsayOpening()
     if (trouble === null) throw error
     process.stderr.write(trouble)
     return process.exit(1)
   }
 }
 
-process.exitCode = await (await load())(process.argv)
+process.exitCode = await main(process.argv)

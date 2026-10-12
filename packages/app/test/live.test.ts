@@ -459,6 +459,7 @@ describe('the last look at a task, read without starting one', () => {
       onWarning: (warning) => warnings.push(warning),
     })
     opened.push({ live, client })
+    await live.looked
     expect(live.world).toBe(seen)
     await live.refresh()
     expect(warnings).toContain("status's process exited 1")
@@ -488,6 +489,9 @@ describe('the last look at a task, read without starting one', () => {
       onWarning: (warning) => warnings.push(warning),
     })
     opened.push({ live, client })
+    // The first look, which `start` does not wait for: the window draws first.
+    await live.refresh()
+    expect(live.hasLooked).toBe(false)
     expect(live.world).toBeNull()
     expect(live.tasks).toEqual([])
     expect(warnings).toEqual(['busy'])
@@ -511,6 +515,7 @@ describe('the last look at a task, read without starting one', () => {
     })
     opened.push({ live, client })
     try {
+      await live.looked
       expect(live.world?.projects[0]?.tasks.map((one) => one.id)).toEqual(['app/refunds'])
       expect(gitLoad().started - before).toBe(0)
       // Stopping the window's look is not closing a child it was handed:
@@ -528,5 +533,92 @@ describe('the last look at a task, read without starting one', () => {
     } finally {
       await status.close()
     }
+  }, 30_000)
+})
+
+describe('opening before looking', () => {
+  const opened: { live: Live; client: Workbench }[] = []
+  afterEach(async () => {
+    for (const one of opened.splice(0)) {
+      await one.live.stop().catch(() => {})
+      await one.client.close().catch(() => {})
+    }
+  })
+
+  /** A turn of the event loop, which is what the journal's lists are read a query at a time on. */
+  const aTurn = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+  it('starts before its first look and before the journal is read, and says neither is known', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-live-first-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    await client.log.append({
+      type: 'usage',
+      task: 'checkout/refunds',
+      detail: { input: 10, output: 0, tokens: 10, usd: 1, priced: 'exact' },
+    })
+    let answer: (answer: StatusAnswer) => void = () => {}
+    const seen = workspace([task('checkout/refunds', 'working')])
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+      status: {
+        id: 'scripted',
+        collect: () => new Promise((resolve) => (answer = resolve)),
+        close: async () => {},
+      },
+    })
+    opened.push({ live, client })
+    // What the first frame is drawn from: nothing looked at, nothing read.
+    expect(live.hasLooked).toBe(false)
+    expect(live.tasks).toEqual([])
+    expect(live.spendToday()).toBeNull()
+    expect(live.runtimeToday()).toBeNull()
+    // The journal is read a query a turn, whether or not status has answered.
+    for (let turn = 0; turn < 50 && live.spendToday() === null; turn++) await aTurn()
+    expect(live.spendToday()?.total.usd).toBe(1)
+    expect(live.hasLooked).toBe(false)
+    answer({ known: true, workspace: seen, spent: { spawns: 0, rss: 0, pid: 0 } })
+    await live.looked
+    expect(live.hasLooked).toBe(true)
+    expect(live.tasks.map((one) => one.task)).toEqual(['checkout/refunds'])
+  }, 30_000)
+
+  it('counts an event appended while the journal is being read exactly once', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-live-once-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    const live = await Live.start({
+      client,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      home,
+      tadeHome: repo.home,
+      pollMs: 600_000,
+    })
+    opened.push({ live, client })
+    // One before each query and a few after the last, so whichever side of the
+    // tail's moment each lands on, it is the lists or the subscription that
+    // counts it, and never both.
+    const appended: number[] = []
+    for (let turn = 0; turn < 10; turn++) {
+      const event = await client.log.append({
+        type: 'usage',
+        task: 'app/refunds',
+        detail: { input: 1, output: 0, tokens: 1, usd: 0, priced: 'exact' },
+      })
+      appended.push(event.seq)
+      await aTurn()
+    }
+    await live.refresh()
+    for (const seq of appended) {
+      expect(live.spending.filter((event) => event.seq === seq)).toHaveLength(1)
+      expect(live.events.filter((event) => event.seq === seq)).toHaveLength(1)
+    }
+    expect(live.spendToday()?.total.tokens).toBe(appended.length)
   }, 30_000)
 })
