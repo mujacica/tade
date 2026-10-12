@@ -111,6 +111,8 @@ async function wiring(
     now?: number
     clock?: () => number
     log?: string
+    /** Why the desktop would not open a link, as `launch` says it: not installed, say. */
+    unopened?: string
   } = {},
 ) {
   const home = await mkdtemp(join(tmpdir(), 'tade-away-'))
@@ -120,13 +122,13 @@ async function wiring(
   const decided: boolean[] = []
   const logged: { type: string; detail: Record<string, unknown> }[] = []
   // What the link's two buttons reached: never the machine's browser or clipboard.
-  const opened: { command: string; args: string[] }[] = []
-  const copied: string[] = []
+  const desk = { opened: [] as { command: string; args: string[] }[], copied: [] as string[] }
   const wire = {
     opts: {
       home,
       open: async (opener: { command: string; args: string[] }) => {
-        opened.push(opener)
+        if (over.unopened !== undefined) throw new Error(over.unopened)
+        desk.opened.push(opener)
       },
       config: ConfigSchema.parse({
         surfaces: { web: { port: await freePort(), ...(over.web ?? {}) } },
@@ -199,7 +201,7 @@ async function wiring(
       },
     },
     copy: async (text) => {
-      copied.push(text)
+      desk.copied.push(text)
       return true
     },
   })
@@ -209,18 +211,7 @@ async function wiring(
     ;(wire.opts as { config: unknown }).config = ConfigSchema.parse({ surfaces: { web } })
     away.follow()
   }
-  return {
-    away,
-    home,
-    news,
-    decided,
-    logged,
-    use,
-    opened,
-    copied,
-    at: () => state,
-    drawn: () => draws,
-  }
+  return { away, home, news, decided, logged, use, desk, at: () => state, drawn: () => draws }
 }
 
 describe('its lifetime', () => {
@@ -659,10 +650,10 @@ describe('the link the code carries', () => {
     const url = (await viewOf(machine.away)).ticket?.url ?? ''
     await carry(machine.away, 'away-open')
     // Handed to the desktop the way every link is, and nowhere else.
-    expect(machine.opened).toHaveLength(1)
-    expect(machine.opened[0]?.args).toContain(url)
+    expect(machine.desk.opened).toHaveLength(1)
+    expect(machine.desk.opened[0]?.args).toContain(url)
     expect(machine.at().flash?.text).toBe('opened the pairing link')
-    expect(machine.copied).toEqual([])
+    expect(machine.desk.copied).toEqual([])
     ticketNowhere(machine)
   })
 
@@ -671,9 +662,20 @@ describe('the link the code carries', () => {
     await machine.away.open()
     const url = (await viewOf(machine.away)).ticket?.url ?? ''
     await carry(machine.away, 'away-copy')
-    expect(machine.copied).toEqual([url])
+    expect(machine.desk.copied).toEqual([url])
     expect(machine.at().flash?.text).toBe('copied the pairing link')
-    expect(machine.opened).toEqual([])
+    expect(machine.desk.opened).toEqual([])
+    ticketNowhere(machine)
+  })
+
+  it('says why the desktop would not open it, and not that it did', async () => {
+    const why = 'xdg-open is not installed, or not on PATH'
+    const machine = await wiring({ web: { enabled: true }, unopened: why })
+    await machine.away.open()
+    await viewOf(machine.away)
+    await carry(machine.away, 'away-open')
+    expect(machine.away.panel()?.away?.problem).toBe(why)
+    expect(machine.at().flash).toBeNull()
     ticketNowhere(machine)
   })
 
@@ -689,8 +691,8 @@ describe('the link the code carries', () => {
       await carry(machine.away, control)
       expect(machine.away.panel()?.away?.problem, control).toContain('run out')
     }
-    expect(machine.opened).toEqual([])
-    expect(machine.copied).toEqual([])
+    expect(machine.desk.opened).toEqual([])
+    expect(machine.desk.copied).toEqual([])
   })
 })
 
