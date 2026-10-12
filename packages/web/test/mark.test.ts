@@ -128,9 +128,8 @@ describe('the words are tade-web’s wordmark', () => {
   }
 })
 
-describe('the boxes are two colours, each with the ink its ground takes', () => {
+describe('the box is TADE, black on amber, and nothing beside it', () => {
   const tade = ruleOf(FRAME, '.word-tade')
-  const away = ruleOf(FRAME, '.word-away')
 
   it('puts TADE black on amber, as tade-web does', () => {
     expect(tade).toContain('fill: var(--amber)')
@@ -138,20 +137,19 @@ describe('the boxes are two colours, each with the ink its ground takes', () => 
     expect(contrast(hex('--ink'), hex('--amber'))).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('puts AWAY on a ground of another colour, with the light ink a mid ground takes', () => {
-    // `--amber-dark` is the palette's one colour that is only ever a ground,
-    // so it is the box; a ground that dark takes `--ink-light`, never amber.
-    expect(away).toContain('fill: var(--amber-dark)')
-    expect(away).toContain('color: var(--ink-light)')
-    expect(hex('--amber-dark')).not.toBe(hex('--amber'))
-    expect(contrast(hex('--ink-light'), hex('--amber-dark'))).toBeGreaterThanOrEqual(4.5)
+  it('is the one word: the page is Tade, as the window is', () => {
+    // The second box, `AWAY` on `--amber-dark`, read as a muddy second
+    // amber with white on it; what the page is for is said by what is on it.
+    expect(WORDS).toEqual(['tade'])
+    expect(HTML).not.toContain('id="w-away"')
+    expect(FRAME).not.toContain('.word-away')
   })
 
-  it('lets AWAY go at a phone’s width, and never TADE', () => {
+  it('keeps TADE at a phone’s width, only shorter', () => {
     const phone = FRAME.slice(FRAME.indexOf('@media (max-width: 479px)'))
     const block = phone.slice(0, phone.indexOf('\n}\n'))
-    expect(block).toMatch(/\.brand \.word-away \{\s*display: none;/)
-    expect(block).not.toContain('.word-tade')
+    expect(block).toMatch(/\.brand \.wordmark \{\s*--word: 1\.25rem;/)
+    expect(block).not.toContain('display: none')
   })
 
   it('is one image with one name, inside a link that keeps its own', () => {
@@ -159,7 +157,7 @@ describe('the boxes are two colours, each with the ink its ground takes', () => 
     // and the header's link says where it goes.
     const icons = read('icons.js')
     expect(icons).toContain("node.setAttribute('role', 'img')")
-    expect(icons).toContain("node.setAttribute('aria-label', 'Tade away')")
+    expect(icons).toContain("node.setAttribute('aria-label', 'Tade')")
     expect(read('shell.js')).toContain("'aria-label': 'Tade, overview'")
   })
 })

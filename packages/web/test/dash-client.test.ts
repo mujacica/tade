@@ -15,7 +15,7 @@ import {
 import { ICONS } from '../src/assets/icons.js'
 import { partsOf } from '../src/assets/live.js'
 import { glanceOf, projectShape } from '../src/assets/overview.js'
-import { deviceWord, STEPS, stepOf } from '../src/assets/pair.js'
+import { deviceWord, FLOWS, formOf, STEP_COUNT, stepOf } from '../src/assets/pair.js'
 import { actsOn, jumpsOf } from '../src/assets/palette.js'
 import { quickWord } from '../src/assets/quick.js'
 import { barsFor, ENDING_WARNS_MS, endingBar } from '../src/assets/shell.js'
@@ -361,9 +361,30 @@ describe('pairing, as four steps', () => {
     expect(stepOf(false, 'idle')).toBe(0)
     expect(stepOf(true, 'idle')).toBe(2)
     expect(stepOf(true, 'asking')).toBe(3)
-    expect(stepOf(true, 'done')).toBe(STEPS.length)
+    expect(stepOf(true, 'done')).toBe(STEP_COUNT)
     // A refusal burned the code: the way on is a new one, from scanning.
     expect(stepOf(true, 'refused')).toBe(1)
+  })
+
+  it('leads a phone to scan the code and a computer to open its link', () => {
+    for (const flow of Object.values(FLOWS)) expect(flow).toHaveLength(STEP_COUNT)
+    expect(FLOWS.handheld.map((step) => step.key)).toEqual(['open', 'scan', 'name', 'approve'])
+    expect(FLOWS.computer.map((step) => step.key)).toEqual(['open', 'link', 'name', 'approve'])
+    // A computer has no camera step to tell it about.
+    expect(FLOWS.computer.some((step) => /scan|camera/i.test(`${step.title} ${step.sub}`))).toBe(
+      false,
+    )
+  })
+
+  it('tells a phone from a computer by the browser and the finger', () => {
+    expect(formOf('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile', false)).toBe(
+      'handheld',
+    )
+    expect(formOf('Mozilla/5.0 (Linux; Android 15; Pixel 9) Mobile', false)).toBe('handheld')
+    expect(formOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', false)).toBe('computer')
+    // An iPad asking for the desktop site says Mac; its pointer is a finger.
+    expect(formOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', true)).toBe('handheld')
+    expect(formOf(undefined, undefined)).toBe('computer')
   })
 
   it('offers what the device is as its name, and nothing more particular', () => {

@@ -504,8 +504,11 @@ declare module '*/assets/toasts.js' {
 }
 
 declare module '*/assets/pair.js' {
-  export const STEPS: readonly { key: string; title: string; sub: string; icon: string }[]
+  type Step = { key: string; title: string; sub: string; icon: string }
+  export const FLOWS: { handheld: readonly Step[]; computer: readonly Step[] }
+  export const STEP_COUNT: number
   export const IN_AFTER_MS: number
+  export function formOf(agent: string | undefined, coarse: boolean | undefined): string
   export function stepOf(ticket: boolean, phase: string): number
   export function deviceWord(agent: string | undefined): string
 }

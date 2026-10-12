@@ -8,13 +8,23 @@
 
 /*
   The card in the middle of the screen, the steps down it like a checklist:
-  the done ones ticked in green, the one you are on lit with its line, the
-  rest quiet. The controls for the step you are on sit under the list.
+  the done ones ticked, the line between them filled as far as you have come,
+  the one you are on lit, the rest quiet. The controls for the step you are on
+  sit under the list.
+
+  **In the middle of the screen, not of a column.** Outside, the frame is one
+  column (`insideIn` marks it), so there is no empty rail for the card to be
+  centred beside; and the height is the screen's less the header's, so it sits
+  where the eye does rather than under a band of nothing.
 */
+.frame.is-outside {
+  display: block;
+}
+
 .pair {
   display: grid;
   place-items: center;
-  min-height: 78vh;
+  min-height: calc(100dvh - var(--tap) - var(--s7) - var(--s6));
   padding-block: var(--s5);
 }
 
@@ -28,7 +38,7 @@
   overflow: visible;
 }
 
-/* The whole wordmark, `AWAY` too: the card has the room the header does not. */
+/* The mark, larger: the card is the page, and has the room. */
 .pair-mark .wordmark {
   --word: 1.75rem;
 }
@@ -62,22 +72,42 @@
   padding-block: var(--s2);
 }
 
-/* The line from one step's dot down to the next, done in green. */
-.step + .step::before {
+/*
+  The line from one step's dot down to the next: **edge to edge, never over
+  a dot** — it starts where the circle above ends and stops where the next
+  begins, and the dots sit above it besides — so a lit circle is never cut
+  by a grey line. The track is quiet; the amber over it fills downwards when
+  the step above is done, which is the progress, and the only motion on it.
+*/
+.step + .step::before,
+.step + .step::after {
   content: "";
   position: absolute;
   inset-inline-start: calc(1.125rem - 1px);
-  inset-block-start: calc(-1 * var(--s2) - 2px);
-  height: calc(var(--s2) * 2 + 4px);
+  inset-block-start: calc(-1 * var(--s2));
+  height: calc(var(--s2) * 2);
   width: 2px;
+  border-radius: 1px;
+}
+
+.step + .step::before {
   background: var(--raised);
 }
 
-.step[data-state="done"] + .step::before {
-  background: color-mix(in srgb, var(--green) 55%, transparent);
+.step + .step::after {
+  background: var(--amber);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform var(--ease-sheet) cubic-bezier(0.2, 0, 0, 1);
+}
+
+.step[data-state="done"] + .step::after {
+  transform: none;
 }
 
 .step-dot {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   width: 2.25rem;
@@ -86,8 +116,9 @@
   background: var(--raised);
   color: var(--tab);
   transition:
-    background var(--ease),
-    color var(--ease);
+    background var(--ease-sheet),
+    color var(--ease-sheet),
+    box-shadow var(--ease-sheet);
 }
 
 .step-dot .ic {
@@ -95,14 +126,18 @@
   height: 1.125rem;
 }
 
+/* Done: amber's tint and a tick in amber — the same tone as the line to it. */
 .step[data-state="done"] .step-dot {
-  background: color-mix(in srgb, var(--green) 16%, transparent);
-  color: var(--green);
+  background: color-mix(in srgb, var(--amber) 16%, var(--panel));
+  color: var(--amber);
 }
 
+/* Where you are: solid, with a ring of its own tint so it reads as the one. */
 .step[data-state="now"] .step-dot {
   background: var(--amber);
   color: var(--ink);
+  /* Opaque, mixed into the card's own ground, so the track never shows through it. */
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 18%, var(--panel));
 }
 
 .step-words {
@@ -113,6 +148,7 @@
 .step-title {
   color: var(--heading);
   font-weight: 600;
+  transition: color var(--ease-sheet);
 }
 
 .step[data-state="now"] .step-title,
@@ -175,10 +211,9 @@
   color: var(--ink);
 }
 
-.pair-away {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
+/* On the other kind of device: a quiet press under everything, centred. */
+.press.pair-other {
+  justify-self: center;
   color: var(--heading);
   font-size: var(--step--1);
 }

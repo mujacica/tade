@@ -139,6 +139,7 @@ export function shell(desk = null) {
     inside: [rail, tabs, again, ask, desk?.projects, dock, desk?.side, desk?.strip].filter(
       (one) => one !== null && one !== undefined,
     ),
+    frame,
     main,
     bars,
     dot,
@@ -331,6 +332,8 @@ function entry(parent, one, where) {
  */
 export function insideIn(shown, inside) {
   for (const part of shown.inside) part.hidden = !inside
+  // Outside, the frame is one column: no rail beside the screen to centre against.
+  shown.frame?.classList.toggle('is-outside', !inside)
 }
 
 /**

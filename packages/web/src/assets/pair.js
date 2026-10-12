@@ -2,8 +2,8 @@
 // the middle of a page.
 //
 // **Four steps, and the page always says which one you are on**: open Tade at
-// the machine, scan the code it draws, name this device, approve it at the
-// machine. The page can tell the first two from the third by whether a ticket
+// the machine, scan the code it draws — or, on a computer, open the link under
+// it — name this device, approve it at the machine. The page can tell the first two from the third by whether a ticket
 // arrived in the address (the code is a link with one in its fragment), and
 // the fourth is the wait while the machine asks the person at it — so each
 // step lights as it is reached, the done ones tick, and what to do next is
@@ -16,6 +16,11 @@
 // read is said **at the moment of deciding**, beside the press — the one
 // sentence on this screen that may not be folded away.
 //
+// **A phone scans and a computer opens a link** (`formOf`): the page guesses
+// which it is on from the browser and the pointer, and says the step that fits
+// — with one press to say otherwise, because a guess about a device is wrong
+// for somebody.
+//
 // **Unreachable is not unpaired.** A page that could not reach the machine at
 // all says so first, because *scan the code* is the wrong advice for a laptop
 // that is asleep.
@@ -24,13 +29,59 @@ import { el, into, textIn } from './dom.js'
 import { icon, iconIn, wordmark } from './icons.js'
 import { callout } from './ui.js'
 
-/** The four steps, in order: what each is called and what it is drawn as. */
-export const STEPS = [
-  { key: 'open', title: 'Open Tade on the machine', sub: 'Settings › Away', icon: 'laptop' },
-  { key: 'scan', title: 'Scan its code', sub: "with this device's camera", icon: 'scan' },
-  { key: 'name', title: 'Name this device', sub: 'so you can revoke it', icon: 'notes' },
-  { key: 'approve', title: 'Approve it there', sub: "a key in Tade's window", icon: 'check' },
-]
+const OPEN = {
+  key: 'open',
+  title: 'Open Tade on the machine',
+  sub: 'Settings › Away view',
+  icon: 'laptop',
+}
+const NAME = { key: 'name', title: 'Name this device', sub: 'so you can revoke it', icon: 'notes' }
+const APPROVE = {
+  key: 'approve',
+  title: 'Approve it there',
+  sub: "a key in Tade's window",
+  icon: 'check',
+}
+
+/**
+ * The four steps, in order, for each kind of device: what each is called and
+ * what it is drawn as. Only the second differs — how the code gets here.
+ */
+export const FLOWS = {
+  handheld: [
+    OPEN,
+    { key: 'scan', title: 'Scan its code', sub: 'with the camera', icon: 'scan' },
+    NAME,
+    APPROVE,
+  ],
+  computer: [
+    OPEN,
+    { key: 'link', title: 'Open its link here', sub: 'the address under the code', icon: 'arrow' },
+    NAME,
+    APPROVE,
+  ],
+}
+
+/** How many steps a flow has: the same for both, so where you are is one number. */
+export const STEP_COUNT = 4
+
+/** What switching says, on each: the other kind of device, and its drawing. */
+const OTHER = {
+  handheld: { form: 'computer', word: 'On a computer?', icon: 'laptop' },
+  computer: { form: 'handheld', word: 'On a phone?', icon: 'devices' },
+}
+
+/**
+ * Whether this is a device you hold up to a screen or a computer you click
+ * on, out of the browser's own description of itself and whether its pointer
+ * is a finger. A tablet scans as a phone does.
+ */
+export function formOf(agent, coarse) {
+  const said = String(agent ?? '')
+  if (/iPhone|iPod|iPad|Android|Mobile/.test(said)) return 'handheld'
+  // An iPad asking for the desktop site says it is a Mac; its finger does not.
+  return coarse === true ? 'handheld' : 'computer'
+}
 
 /**
  * Where the flow stands, as a pure function of what the page knows.
@@ -41,7 +92,7 @@ export const STEPS = [
  * `refused`. The step a person is on is the first one not done.
  */
 export function stepOf(ticket, phase) {
-  if (phase === 'done') return STEPS.length
+  if (phase === 'done') return STEP_COUNT
   if (phase === 'asking') return 3
   // Refused, a code was in hand, so Tade is open: the way on is a new one.
   if (phase === 'refused') return 1
@@ -89,25 +140,27 @@ export function pairScreen(ctx) {
   )
   gone.hidden = ctx.outside?.() !== 'unreachable'
 
+  let form = formOf(
+    globalThis.navigator?.userAgent,
+    globalThis.matchMedia?.('(pointer: coarse)').matches,
+  )
   const steps = el('ol', { class: 'steps' })
-  const drawn = STEPS.map((step, at) => {
+  const drawn = FLOWS[form].map((_, at) => {
     const item = el('li', { class: 'step' })
     const dot = el('span', { class: 'step-dot', attrs: { 'aria-hidden': 'true' } })
-    into(dot, icon(step.icon))
+    into(dot, icon(FLOWS[form][at].icon))
+    const title = el('span', { class: 'step-title' })
+    const sub = el('span', { class: 'step-sub' })
     const words = el('span', { class: 'step-words' })
-    into(
-      words,
-      el('span', { class: 'step-title', text: step.title }),
-      el('span', { class: 'step-sub', text: step.sub }),
-    )
+    into(words, title, sub)
     const state = el('span', { class: 'sr-only' })
     into(item, dot, words, state)
     steps.append(item)
-    return { item, dot, state, at }
+    return { item, dot, title, sub, state, at }
   })
 
   // The controls for the step a person is on.
-  const form = el('div', { class: 'pair-form' })
+  const controls = el('div', { class: 'pair-form' })
   const label = el('label', { text: 'This device', attrs: { for: 'label' } })
   const field = el('input', {
     attrs: {
@@ -126,7 +179,7 @@ export function pairScreen(ctx) {
   const why = callout(
     'Tade will ask at the machine before this device is let in. It will be able to read every project, task, note, check and figure — including what you have typed into Tade, as you typed it — and to change nothing.',
   )
-  into(form, label, field, press, why)
+  into(controls, label, field, press, why)
 
   const waiting = el('div', { class: 'pair-waiting' })
   into(
@@ -140,9 +193,16 @@ export function pairScreen(ctx) {
   into(paired, tick, el('span', { text: 'Paired' }))
 
   const said = el('p', { attrs: { role: 'status' } })
-  const away = el('p', { class: 'pair-away' })
-  into(away, icon('devices'), el('span', { text: 'On the go: Settings › Away, on the machine' }))
-  into(card, mark, title, gone, steps, form, waiting, paired, said, away)
+  // A guess about a device is wrong for somebody: one press says otherwise.
+  const other = el('button', { class: 'press ghost pair-other', attrs: { type: 'button' } })
+  const otherIcon = icon('laptop')
+  const otherWord = el('span')
+  into(other, otherIcon, otherWord)
+  other.addEventListener('click', () => {
+    form = OTHER[form].form
+    draw()
+  })
+  into(card, mark, title, gone, steps, controls, waiting, paired, said, other)
   into(node, card)
 
   const ticket = ctx.ticket()
@@ -150,18 +210,25 @@ export function pairScreen(ctx) {
 
   const draw = () => {
     const now = stepOf(ticket !== null, phase)
+    const flow = FLOWS[form]
     for (const one of drawn) {
+      const step = flow[one.at]
       const state = one.at < now ? 'done' : one.at === now ? 'now' : 'next'
       one.item.setAttribute('data-state', state)
       if (one.at === now) one.item.setAttribute('aria-current', 'step')
       else one.item.removeAttribute('aria-current')
-      iconIn(one.dot.firstChild, state === 'done' ? 'check' : STEPS[one.at].icon)
+      iconIn(one.dot.firstChild, state === 'done' ? 'check' : step.icon)
+      textIn(one.title, step.title)
+      textIn(one.sub, step.sub)
       textIn(one.state, state === 'done' ? ', done' : state === 'now' ? ', this step' : '')
     }
-    form.hidden = ticket === null || phase !== 'idle'
+    controls.hidden = ticket === null || phase !== 'idle'
     waiting.hidden = phase !== 'asking'
     paired.hidden = phase !== 'done'
-    away.hidden = ticket !== null
+    // Once a code is here, how it came is past: nothing left to switch.
+    other.hidden = ticket !== null
+    iconIn(otherIcon, OTHER[form].icon)
+    textIn(otherWord, OTHER[form].word)
   }
 
   if (ticket !== null) {

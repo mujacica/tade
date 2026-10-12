@@ -63,9 +63,9 @@ export function icon(name, extra = '') {
 }
 
 /**
- * The wordmark's words, each a box of its own in the sprite (`#w-tade`,
- * `#w-away`): tade-web's `T A D E` in Tade Mono Bold, black on amber, and
- * `A W A Y` beside it in the same letters, white on `--amber-dark`.
+ * The wordmark's word, a box of its own in the sprite (`#w-tade`): tade-web's
+ * `T A D E` in Tade Mono Bold, black on amber. The page is Tade, as the window
+ * is — what it is for is said by what is on it, not by a second word.
  *
  * **Drawn, not typed**, because the page loads no webfont and the system face
  * is not that one. The letters are the outlines of Iosevka Term Bold 34.8.1
@@ -75,7 +75,7 @@ export function icon(name, extra = '') {
  * with the cap height centred in the line. `test/mark.test.ts` holds every
  * point to its letter's column.
  */
-export const WORDS = ['tade', 'away']
+export const WORDS = ['tade']
 
 /** A word's box in the sprite's units: 5.5em by 1.5em, of a 1000-unit em. */
 const WORD_BOX = '0 0 5500 1500'
@@ -83,14 +83,14 @@ const WORD_BOX = '0 0 5500 1500'
 /**
  * Tade's mark: the favicon's two squares, then the words.
  *
- * One image with one name, so a screen reader says *Tade away* once rather
- * than three drawings; inside a link that names itself, the link's word wins.
+ * One image with one name, so a screen reader says *Tade* once rather than
+ * two drawings; inside a link that names itself, the link's word wins.
  */
 export function wordmark() {
   const node = document.createElement('span')
   node.className = 'wordmark'
   node.setAttribute('role', 'img')
-  node.setAttribute('aria-label', 'Tade away')
+  node.setAttribute('aria-label', 'Tade')
   node.append(
     icon('mark', 'mark'),
     ...WORDS.map((word) => drawn(`w-${word}`, `word word-${word}`, WORD_BOX)),

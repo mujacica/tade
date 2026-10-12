@@ -166,6 +166,26 @@ main a.proj,
   animation: pulse 3s cubic-bezier(0.2, 0, 0, 1) infinite;
 }
 
+/*
+  Pairing, quietly: the card rises once; the controls for a step rise as the
+  step is reached; a step's tick and the paired tick settle into place. No
+  glow and no loop but the wait, which is a process — as an agent's is.
+*/
+.pair-card {
+  animation: rise 320ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.pair-form,
+.pair-waiting,
+.pair-done {
+  animation: rise 240ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.step[data-state="done"] .step-dot .ic,
+.pair-tick .ic {
+  animation: bump 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+
 /* The wait at the machine while a device is paired: the same breath. */
 .pair-pulse::after {
   content: "";
