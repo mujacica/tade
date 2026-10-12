@@ -153,8 +153,36 @@ export function rowHit(row: number, width: number, target: Target): Hit {
   return { row, from: 0, to: Math.max(0, width - 1), target }
 }
 
+/**
+ * Where the targets compared while something draws are written down: null
+ * whenever nobody is asking, which is all the time but while a region is
+ * drawn for keeping (`view/last-frame.ts`).
+ */
+let asked: Set<Target> | null = null
+
+/**
+ * `draw`, with every target `sameTarget` and `pointingIn` were asked about
+ * while it ran added to `into`. Which is what a drawing looked for under the
+ * pointer — a row's close and menu included, which it draws only once the
+ * pointer is on the row and which another region may draw too — recorded as
+ * it draws rather than listed, as the fields it reads are.
+ */
+export function noting<T>(into: Set<Target>, draw: () => T): T {
+  const was = asked
+  asked = into
+  try {
+    return draw()
+  } finally {
+    asked = was
+  }
+}
+
 /** The same thing on screen: compared by what it is, not by which object. */
 export function sameTarget(a: Target | null, b: Target | null): boolean {
+  if (asked !== null) {
+    if (a !== null) asked.add(a)
+    if (b !== null) asked.add(b)
+  }
   if (a === null || b === null) return a === b
   // Two kinds are never one thing, and saying so serialises nothing: a notch
   // of the wheel asks this of every hit on the screen, twice (`extentOf`), and
@@ -173,6 +201,9 @@ export function sameTarget(a: Target | null, b: Target | null): boolean {
  * child is not leaving the parent, and this is the one place that says so.
  */
 export function pointingIn(hover: Target | null, group: readonly Target[]): boolean {
+  // All of the group, where somebody is noting: past the one the pointer is
+  // on, the rest are what the pointer moving there would light just the same.
+  if (asked !== null) for (const one of group) asked.add(one)
   return group.some((one) => sameTarget(hover, one))
 }
 

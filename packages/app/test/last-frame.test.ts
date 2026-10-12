@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Frame } from '../src/frame.ts'
+import { sameTarget, type Target } from '../src/hits.ts'
 import { type AppState, SPIN_MS, spinner } from '../src/model.ts'
 import type { Drawn } from '../src/ui.ts'
 import { DEPTH, drawnFor, LastFrame, REGIONS, same } from '../src/view/last-frame.ts'
@@ -19,6 +20,33 @@ import { SCENARIOS, type Scenario } from './screens/scenarios.ts'
 /** What a drawing is, all of it: a kept region that differs in any of these is wrong. */
 function whole(drawn: Drawn): unknown {
   return { rows: drawn.rows, hits: drawn.hits, regions: drawn.regions ?? {} }
+}
+
+/** Every different thing a drawing put somewhere the pointer can land. */
+function targetsOf(drawn: Drawn): Target[] {
+  const seen = new Map<string, Target>()
+  for (const { target } of drawn.hits) seen.set(JSON.stringify(target), target)
+  return [...seen.values()]
+}
+
+/**
+ * A few of every sort of target: one agent's close is drawn and looked for
+ * as every agent's is, and pointing at all forty of them asks the same
+ * question forty times.
+ */
+function sorts(targets: readonly Target[], each = 3): Target[] {
+  const counted = new Map<string, number>()
+  return targets.filter((target) => {
+    const sort =
+      target.kind === 'action'
+        ? `action:${target.name.split(':')[0]}`
+        : target.kind === 'menu'
+          ? `menu:${target.subject.kind}`
+          : target.kind
+    const n = (counted.get(sort) ?? 0) + 1
+    counted.set(sort, n)
+    return n <= each
+  })
 }
 
 /** A pane that has printed one more line. */
@@ -60,6 +88,93 @@ describe('a region kept from the last frame', () => {
         )
       }
     }
+  })
+
+  it('is exactly the region drawing it again gives, wherever on the screen the pointer goes', () => {
+    // Where the pointer is, is compared by where each region looked for it
+    // rather than as data — the claim that a region shows the pointer only on
+    // what it compared it with. So the pointer goes from one thing on the
+    // screen to the next, every sort of thing on every screen, pointing,
+    // pressing and holding one busy in turn, checked: a kept region that
+    // differs throws inside `draw`.
+    let kept = 0
+    for (const scenario of SCENARIOS) {
+      const { state, frame } = scenario
+      const last = new LastFrame({ checked: true })
+      for (const [i, target] of sorts(targetsOf(draw(state, frame))).entries()) {
+        const pointer =
+          i % 3 === 0
+            ? { hover: target }
+            : i % 3 === 1
+              ? { hover: target, pressed: target }
+              : { hover: null, busy: target }
+        draw({ ...state, ...pointer }, frame, last)
+      }
+      expect(whole(draw(state, frame, last)), scenario.name).toEqual(whole(draw(state, frame)))
+      for (const tally of Object.values(last.counts())) kept += tally.kept
+    }
+    // The floor under the loop: the pointer moving is what most of it kept.
+    expect(kept).toBeGreaterThan(1000)
+  })
+
+  it('is kept where the pointer moved between things another region drew', () => {
+    // From one agent down the side to the next, and off: the side lights one
+    // and puts out the other, and nothing along the top or the bottom has
+    // either of them. The pane has them too where it is drawing the queue or
+    // a plan, which is the pane drawn again because it should be.
+    let checked = 0
+    let paneKept = 0
+    for (const scenario of SCENARIOS) {
+      if (scenario.state.panel) continue
+      const tasks = targetsOf(draw(scenario.state, scenario.frame)).filter(
+        (target) => target.kind === 'task',
+      )
+      const [one, other] = tasks
+      if (!one || !other) continue
+      const last = new LastFrame({ checked: true })
+      draw({ ...scenario.state, hover: one }, scenario.frame, last)
+      draw({ ...scenario.state, hover: other }, scenario.frame, last)
+      draw({ ...scenario.state, hover: null }, scenario.frame, last)
+      const counts = last.counts()
+      expect(counts.sidebar, `${scenario.name}: sidebar`).toEqual({ drawn: 3, kept: 0 })
+      for (const region of ['top', 'strip', 'foot'] as const)
+        expect(counts[region], `${scenario.name}: ${region}`).toEqual({ drawn: 1, kept: 2 })
+      if (counts.main?.kept === 2) paneKept++
+      checked++
+    }
+    // The floor under the loop, and the pane kept on every screen showing a lane.
+    expect(checked).toBeGreaterThan(30)
+    expect(paneKept).toBeGreaterThan(checked - 15)
+  })
+
+  it('puts out a bar the pointer left after it grew', () => {
+    // The pointer on a bar carries the sums of the drawing it was on, and a
+    // pane that printed since draws its bar with new ones: the bar is still
+    // the one under the pointer, and leaving it still puts it out.
+    let checked = 0
+    for (const scenario of SCENARIOS) {
+      const lane = scenario.frame.paneScreen
+      if (scenario.state.panel || !lane) continue
+      const bar = targetsOf(draw(scenario.state, scenario.frame)).find(
+        (target) => target.kind === 'scrollbar' && target.area === 'pane',
+      )
+      if (!bar) continue
+      const grown: Frame = {
+        ...printed(scenario.frame, 1),
+        paneScreen: { ...lane, lines: lane.lines + 1 },
+      }
+      // The bar drawn now is not the one the pointer is on, to the letter.
+      expect(targetsOf(draw(scenario.state, grown)).filter((t) => sameTarget(t, bar))).toEqual([])
+      const last = new LastFrame({ checked: true })
+      const pointed: AppState = { ...scenario.state, hover: bar }
+      draw(pointed, scenario.frame, last)
+      draw(pointed, grown, last)
+      expect(whole(draw(scenario.state, grown, last)), scenario.name).toEqual(
+        whole(draw(scenario.state, grown)),
+      )
+      checked++
+    }
+    expect(checked).toBeGreaterThan(0)
   })
 
   it('is kept wherever the only thing that moved is the pane', () => {

@@ -1,5 +1,5 @@
 import type { Frame } from '../frame.ts'
-import { type Hit, shift } from '../hits.ts'
+import { type Hit, noting, sameTarget, shift, type Target } from '../hits.ts'
 import { type AppState, SPIN_MS } from '../model.ts'
 import type { Regions } from '../selection.ts'
 import { type Drawn, fit, shiftRegions } from '../ui.ts'
@@ -37,6 +37,17 @@ import { type Drawn, fit, shiftRegions } from '../ui.ts'
 // that is written into rather than replaced is the same object with other
 // contents, and a region kept over it is a region showing the past.
 // `checked` exists to catch exactly that.
+//
+// **Where the pointer is, is compared by where the region looked for it.**
+// Every region reads the pointer — any of its controls might be the one under
+// it — so compared as data, moving the mouse from one row of the side to the
+// next drew all five again. A region shows the pointer only on what it
+// compared it with, so the targets it compared it with are recorded while it
+// draws (`noting`), as its fields are; one where neither the thing the pointer
+// was on nor the thing it is on now is among them, or among its hits, would
+// draw the same again, and is kept (`pointedAlike`). Not its hits alone: a
+// row's close and menu are drawn only once the pointer is in the row, and the
+// pane draws the same close — so the pointer on the pane's lights the row.
 //
 // **`checked`** draws every kept region again anyway and throws where the two
 // differ. The wire tests run the whole window under it, against real
@@ -88,6 +99,53 @@ export function drawnFor(now: number): number {
  */
 export const DEPTH = 4
 
+/**
+ * The fields of the state that say where the pointer is, which a region is
+ * kept against by `pointedAlike` rather than as data.
+ */
+const POINTER = ['hover', 'pressed', 'busy'] as const
+
+/** Where the pointer was when a region was drawn, and where the drawing looked for it. */
+interface Pointed {
+  at: Pick<AppState, (typeof POINTER)[number]>
+  /** What the drawing compared the pointer with, the pointer's own targets left out (`noting`). */
+  lookedFor: readonly Target[]
+}
+
+/**
+ * Whether the pointer is where it was, as far as a drawing could show: on the
+ * same thing, or neither where it was nor where it is now on anything the
+ * drawing looked for it on or drew.
+ */
+function pointedAlike(was: Pointed, now: AppState, hits: readonly Hit[]): boolean {
+  for (const key of POINTER) {
+    const before = was.at[key] ?? null
+    const after = now[key] ?? null
+    if (before === after || sameTarget(before, after)) continue
+    if (shows(was.lookedFor, hits, before) || shows(was.lookedFor, hits, after)) return false
+  }
+  return true
+}
+
+/**
+ * Whether a drawing could show the pointer on `target`: something it compared
+ * the pointer with, or one of its hits. A bar is the same bar whatever its
+ * sums — it is lit by its area (`isScrolling`), reading the pointer without
+ * comparing it, and the pointer left on one carries the sums of the drawing
+ * before it grew.
+ */
+function shows(lookedFor: readonly Target[], hits: readonly Hit[], target: Target | null): boolean {
+  if (target === null) return false
+  for (const one of lookedFor) if (one.kind === target.kind && sameTarget(one, target)) return true
+  for (const { target: at } of hits) {
+    if (at.kind !== target.kind) continue
+    if (at.kind === 'scrollbar' && target.kind === 'scrollbar') {
+      if (at.area === target.area) return true
+    } else if (sameTarget(at, target)) return true
+  }
+  return false
+}
+
 /** Whether something is a bag of fields, rather than a thing with behaviour. */
 function plain(value: object): boolean {
   const proto = Object.getPrototypeOf(value)
@@ -132,7 +190,8 @@ class Reading<T extends object> {
   /** The object as the region is handed it. */
   readonly seen: T
 
-  constructor(of: T) {
+  /** `apart` are fields compared some other way, whose reads are not written down. */
+  constructor(of: T, apart: readonly PropertyKey[] = []) {
     this.of = of
     // First read wins: the value a field had when the region drew from it.
     // Nothing changes the object while it draws, so a second read would find
@@ -140,7 +199,7 @@ class Reading<T extends object> {
     this.seen = new Proxy(of, {
       get: (target, key, receiver) => {
         const value = Reflect.get(target, key, receiver)
-        if (!this.fields.has(key)) this.fields.set(key, value)
+        if (!this.fields.has(key) && !apart.includes(key)) this.fields.set(key, value)
         return value
       },
       has: (target, key) => {
@@ -183,6 +242,7 @@ class Reading<T extends object> {
 /** One region as the last frame drew it. */
 interface Last {
   args: readonly unknown[]
+  pointer: Pointed
   state: Reading<AppState>
   frame: Reading<Frame>
   drawn: Drawn
@@ -234,8 +294,9 @@ export class LastFrame {
    * back as the last frame drew it, where nothing it read has moved and it is
    * drawn with the same `args`.
    *
-   * `args` are what `paint` was given besides the two: its size, the skin,
-   * where the pointer is. They are compared the way the fields are.
+   * `args` are what `paint` was given besides the two: its size, the skin.
+   * They are compared the way the fields are. Where the pointer is, is the
+   * state's to say and `pointedAlike`'s to compare, however `paint` reads it.
    */
   region(
     name: RegionName,
@@ -247,15 +308,24 @@ export class LastFrame {
     const tally = this.tallies.get(name) ?? { drawn: 0, kept: 0 }
     this.tallies.set(name, tally)
     const last = this.last.get(name)
-    if (last && same(last.args, args) && last.state.still(state) && last.frame.still(frame)) {
+    if (
+      last &&
+      same(last.args, args) &&
+      last.state.still(state) &&
+      last.frame.still(frame) &&
+      pointedAlike(last.pointer, state, last.drawn.hits)
+    ) {
       tally.kept++
       if (this.checked) differs(name, last.drawn, paint(state, frame))
       return last.drawn
     }
     if (last && this.checked) this.noteWhy(name, last, args, state, frame)
-    const read = { state: new Reading(state), frame: new Reading(frame) }
-    const drawn = paint(read.state.seen, read.frame.seen)
-    this.last.set(name, { args, ...read, drawn })
+    const read = { state: new Reading(state, POINTER), frame: new Reading(frame) }
+    const looked = new Set<Target>()
+    const drawn = noting(looked, () => paint(read.state.seen, read.frame.seen))
+    const at = { hover: state.hover, pressed: state.pressed, busy: state.busy }
+    for (const own of [at.hover, at.pressed, at.busy]) if (own) looked.delete(own)
+    this.last.set(name, { args, pointer: { at, lookedFor: [...looked] }, ...read, drawn })
     tally.drawn++
     return drawn
   }
@@ -312,6 +382,7 @@ export class LastFrame {
   ): void {
     const fields = [
       ...(same(last.args, args) ? [] : ['args']),
+      ...(pointedAlike(last.pointer, state, last.drawn.hits) ? [] : ['pointer']),
       ...last.state.changed(state).map((key) => `state.${key}`),
       ...last.frame.changed(frame).map((key) => `frame.${key}`),
     ]

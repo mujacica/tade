@@ -64,20 +64,13 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
   const width = sidebarWidth + mainWidth + 1
   // Each region with what it is drawn with besides the state and the frame,
   // which is what it is kept against as well as what it reads of those two.
+  // Not the pointer: that is the state's, and kept against by where the region
+  // looked for it, so moving the mouse over one region leaves the other four alone.
   const region = (
     name: RegionName,
     args: readonly unknown[],
     paint: (state: AppState, frame: Frame) => Drawn,
-  ): Drawn =>
-    last
-      ? last.region(
-          name,
-          [...args, skin, pointer.hover, pointer.pressed, pointer.busy],
-          state,
-          frame,
-          paint,
-        )
-      : paint(state, frame)
+  ): Drawn => (last ? last.region(name, [...args, skin], state, frame, paint) : paint(state, frame))
 
   const rows: string[] = []
   const hits: Hit[] = []

@@ -36,6 +36,7 @@ import { pointerSequence } from '../skin.ts'
 import { splitRatio } from '../split.ts'
 import { LastFrame } from '../view/last-frame.ts'
 import type { Pressed, Wiring } from './context.ts'
+import { EdgeHold } from './edge.ts'
 
 // The mouse, which is a shortcut into what you could also have typed.
 //
@@ -48,13 +49,6 @@ import type { Pressed, Wiring } from './context.ts'
 // Where an event came from is `pointer.ts`: the component that painted the
 // frame is what knows where everything landed, and this subject never works
 // that out a second time.
-
-/**
- * How often a drag held off the end of a file scrolls it. A hand held still
- * reports nothing, so this is the only clock in a selection — fast enough to
- * read as scrolling, slow enough that a whole file does not go past under it.
- */
-const EDGE_MS = 80
 
 /** Whose menu a right-click on this would open, if it has one. */
 function subjectOf(target: Target): MenuSubject | null {
@@ -147,9 +141,15 @@ export class Mouse {
   private readonly wire: Wiring
   private readonly deps: MouseDeps
   /** A drag held off the top or bottom of the file: it goes on scrolling until it is let go. */
-  private draggingFile: NodeJS.Timeout | null = null
+  private readonly draggingFile = new EdgeHold<{ rows: number; cell: number }>(
+    (held) => this.dragFile(held.rows, held.cell),
+    (was, now) => Math.sign(was.rows) === Math.sign(now.rows),
+  )
   /** The same for a region — the conversation, a screen — with a selection being dragged in it. */
-  private draggingRegion: NodeJS.Timeout | null = null
+  private readonly draggingRegion = new EdgeHold<{ area: ScrollArea; rows: number; reach: Reach }>(
+    (held) => this.dragRegion(held.area, held.rows, held.reach),
+    (was, now) => was.area === now.area && Math.sign(was.rows) === Math.sign(now.rows),
+  )
   /** Notches turned this turn and not answered yet, added up (`turn`). */
   private turning: Wheeled | null = null
 
@@ -352,8 +352,8 @@ export class Mouse {
         this.wire.put(dragAgent(this.wire.state, event.task, event.to))
         return true
       case 'release':
-        this.stopDraggingFile()
-        this.stopDraggingRegion()
+        this.draggingFile.letGo()
+        this.draggingRegion.letGo()
         if (this.wire.state.scrolling) {
           this.wire.put({ ...this.wire.state, scrolling: null, pressed: null })
           return true
@@ -391,7 +391,7 @@ export class Mouse {
         return false
       }
       case 'select-file':
-        this.stopDraggingFile()
+        this.draggingFile.letGo()
         this.selectInFile(event.line, event.cell, event.how)
         return true
       case 'drag-file':
@@ -401,7 +401,7 @@ export class Mouse {
         this.dragRegionOn(event.area, event.rows, event.reach)
         return true
       case 'selected-file': {
-        this.stopDraggingFile()
+        this.draggingFile.letGo()
         const text = this.fileSelectionText()
         if (text !== null && text.trim() !== '') this.deps.copySelection(text)
         return false
@@ -428,17 +428,7 @@ export class Mouse {
    * selection that stopped there could never reach past one screen.
    */
   private dragFileOn(rows: number, cell: number): void {
-    this.stopDraggingFile()
-    this.draggingFile = setInterval(() => this.dragFile(rows, cell), EDGE_MS)
-    this.draggingFile.unref?.()
-    // After the timer, so the first step can stop it where there is nothing
-    // left to scroll.
-    this.dragFile(rows, cell)
-  }
-
-  private stopDraggingFile(): void {
-    if (this.draggingFile) clearInterval(this.draggingFile)
-    this.draggingFile = null
+    this.draggingFile.hold({ rows, cell })
   }
 
   /**
@@ -449,23 +439,14 @@ export class Mouse {
    * never reach past one screen.
    */
   private dragRegionOn(area: ScrollArea, rows: number, reach: Reach): void {
-    this.stopDraggingRegion()
-    if (rows === 0) return
-    this.draggingRegion = setInterval(() => this.dragRegion(area, rows, reach), EDGE_MS)
-    this.draggingRegion.unref?.()
-    // After the timer, so the first step can stop it where there is nowhere to go.
-    this.dragRegion(area, rows, reach)
-  }
-
-  private stopDraggingRegion(): void {
-    if (this.draggingRegion) clearInterval(this.draggingRegion)
-    this.draggingRegion = null
+    if (rows === 0) this.draggingRegion.letGo()
+    else this.draggingRegion.hold({ area, rows, reach })
   }
 
   /** The window is closing: every drag let go of, and notches nobody will see answered dropped. */
   letGo(): void {
-    this.stopDraggingFile()
-    this.stopDraggingRegion()
+    this.draggingFile.letGo()
+    this.draggingRegion.letGo()
     this.turning = null
   }
 
@@ -477,7 +458,7 @@ export class Mouse {
     if (moved === this.wire.state) {
       // Nowhere left to go: a timer redrawing the same screen twelve times a
       // second for the rest of the drag is a spinner nobody asked for.
-      this.stopDraggingRegion()
+      this.draggingRegion.letGo()
       return
     }
     this.wire.put(moved)
@@ -493,7 +474,7 @@ export class Mouse {
   private dragFile(rows: number, cell: number): void {
     const panel = this.wire.state.panel
     if (this.deps.stopped() || panel?.kind !== 'file' || !panel.edit) {
-      this.stopDraggingFile()
+      this.draggingFile.letGo()
       return
     }
     const scrolled = scrollFile(panel, rows, this.deps.fileLines())
@@ -506,7 +487,7 @@ export class Mouse {
     // The end of the file: the selection has reached as far as it goes, and a
     // timer that redraws the same screen twelve times a second for the rest
     // of the drag is a window working for nothing.
-    if (scrolled.scroll === panel.scroll) this.stopDraggingFile()
+    if (scrolled.scroll === panel.scroll) this.draggingFile.letGo()
   }
 
   /** What is selected in the file, as its text, or nothing when nothing is. */
