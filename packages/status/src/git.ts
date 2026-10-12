@@ -1,4 +1,4 @@
-import type { GitSnapshot } from '@tade/core'
+import { type GitSnapshot, located } from '@tade/core'
 import { ForgeError, repoOf } from '@tade/forges-core'
 import { execa } from 'execa'
 import { type ForgeChoice, forgeExec, forgeFor } from './forges.ts'
@@ -55,13 +55,15 @@ export async function git(dir: string, args: string[], timeoutMs = 5_000): Promi
 }
 
 async function run(dir: string, args: string[], timeoutMs: number): Promise<CmdResult> {
-  const r = await execa('git', ['-C', dir, ...args], {
+  // In its own process group, so the terminal Tade runs in never takes git
+  // for the program in front of it: Terminal.app retitles the window after
+  // whatever is, and the window runs git every couple of seconds. From its
+  // absolute path, or the child sits in Tade's group while PATH is searched
+  // (`located`, in core's `run.ts`).
+  const r = await execa(located('git'), ['-C', dir, ...args], {
     reject: false,
     env: GIT_ENV,
     timeout: timeoutMs,
-    // In its own process group, so the terminal Tade runs in never takes git
-    // for the program in front of it: Terminal.app retitles the window after
-    // whatever is, and status runs git every couple of seconds.
     detached: true,
     stripFinalNewline: false,
   })

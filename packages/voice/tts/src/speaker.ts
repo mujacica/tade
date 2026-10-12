@@ -1,7 +1,7 @@
-import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { runProgram } from '@tade/core'
 
 // Making Tade audible.
 //
@@ -222,19 +222,7 @@ function defaultSilence(platform: NodeJS.Platform): (() => Command) | null {
   return null
 }
 
-const execRunner: Runner = ({ command, args, timeout }, signal) =>
-  new Promise((resolve, reject) => {
-    execFile(command, args, detachedFor(timeout ?? 20_000, signal), (err) =>
-      err ? reject(err) : resolve(),
-    )
-  })
-
-/**
- * Options for a short-lived helper in its own process group, so the terminal
- * Tade runs in never names its window after it. `execFile` passes `detached`
- * on to the spawn beneath it; its types just do not say so.
- */
-function detachedFor(timeout: number, signal?: AbortSignal): { timeout: number } {
-  const options = { timeout, detached: true, ...(signal ? { signal } : {}) }
-  return options
+const execRunner: Runner = async ({ command, args, timeout }, signal) => {
+  const ran = await runProgram(command, args, { timeoutMs: timeout ?? 20_000, signal })
+  if (ran.code !== 0) throw new Error(ran.stderr.trim() || `${command} exited ${ran.code}`)
 }

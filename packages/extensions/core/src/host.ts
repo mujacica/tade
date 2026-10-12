@@ -1,8 +1,7 @@
-import { execFile } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { extensionEnabled, findSecret, secretPath } from '@tade/core'
+import { extensionEnabled, findSecret, runProgram, secretPath } from '@tade/core'
 import type {
   Audience,
   BriefItem,
@@ -1406,33 +1405,16 @@ function withLinks(text: string, links: readonly Link[]): string {
   return `${text.trimEnd()}\n\n${missing.map((link) => `- ${link.title}: ${link.url}`).join('\n')}`
 }
 
-function run(
+async function run(
   command: string,
   args: readonly string[],
   options: { cwd?: string; timeoutMs?: number } = {},
 ): Promise<ExecResult> {
-  // Its own process group, so the terminal Tade runs in is never retitled
-  // after it. `execFile` hands `detached` to the spawn beneath; its types omit it.
-  const spawnOptions = {
+  const ran = await runProgram(command, args, {
     cwd: options.cwd,
-    timeout: options.timeoutMs ?? 120_000,
-    maxBuffer: 64 * 1024 * 1024,
-    detached: true,
-  }
-  return new Promise((done) => {
-    execFile(command, [...args], spawnOptions, (err, stdout, stderr) => {
-      const code = err
-        ? typeof (err as { code?: unknown }).code === 'number'
-          ? Number((err as { code?: unknown }).code)
-          : 1
-        : 0
-      done({
-        code,
-        stdout: String(stdout ?? ''),
-        stderr: String(stderr ?? (err ? err.message : '')),
-      })
-    })
+    timeoutMs: options.timeoutMs ?? 120_000,
   })
+  return { code: ran.code, stdout: ran.stdout, stderr: ran.stderr }
 }
 
 function safely<T>(make: () => T, otherwise?: T): T {

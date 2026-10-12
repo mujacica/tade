@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
@@ -911,27 +911,26 @@ async function worktreeOf(task: string): Promise<string | null> {
 
 /** The CLI, with exactly the arguments given: for a command `status`'s flags are not its own. */
 function runTade(args: string[]): Promise<string> {
+  // `spawn`, in a group of its own like all Tade starts: `execFile` drops `detached`.
+  const child = spawn(CLI, [...CLI_ARGS, ...args], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const out: Buffer[] = []
+  const err: Buffer[] = []
+  child.stdout.on('data', (chunk: Buffer) => out.push(chunk))
+  child.stderr.on('data', (chunk: Buffer) => err.push(chunk))
   return new Promise((resolve, reject) => {
-    execFile(
-      CLI,
-      [...CLI_ARGS, ...args],
-      { maxBuffer: 16 * 1024 * 1024 },
-      (err, stdout, stderr) => {
-        if (err) reject(new Error(stderr.trim() || err.message))
-        else resolve(stdout)
-      },
-    )
+    child.on('error', reject)
+    child.on('close', (code) => {
+      if (code === 0) return resolve(Buffer.concat(out).toString('utf8'))
+      reject(new Error(Buffer.concat(err).toString('utf8').trim() || `${CLI} exited ${code}`))
+    })
   })
 }
 
 function runCli(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const argv = [...CLI_ARGS, ...args, '--no-pr']
-    execFile(CLI, argv, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr.trim() || err.message))
-      else resolve(stdout)
-    })
-  })
+  return runTade([...args, '--no-pr'])
 }
 
 /** Minimal JSON-RPC 2.0 client: one connection per call, Content-Length framed. */

@@ -1,12 +1,11 @@
-import { execFile } from 'node:child_process'
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'node:fs'
 import { constants, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import {
   type LaneId,
   type RequiredProgram,
   resolveCommand,
+  runProgram,
   stringEnv,
   type Unsubscribe,
 } from '@tade/core'
@@ -30,10 +29,9 @@ import {
 } from '@tade/drivers-core'
 import { drawn, PANE_FORMAT, type Pane, pointingOf, readPane, scrollingOf } from './pane.ts'
 
-// execFile, never exec: tmux is invoked with an argument array and no shell.
-// The one place a shell is involved is inside tmux, which runs a lane's
-// command and the pipe-pane redirect through sh — both are shell-quoted below.
-const run = promisify(execFile)
+// tmux is invoked with an argument array and no shell. The one place a shell
+// is involved is inside tmux, which runs a lane's command and the pipe-pane
+// redirect through sh — both are shell-quoted below.
 
 // Lanes that live in tmux rather than inside Tade.
 //
@@ -97,6 +95,9 @@ const DEFAULTS = {
  * reaps takes this long; the answer normally arrives within a poll or two.
  */
 const STATUS_GRACE_MS = 2_000
+
+/** A tmux command answers in milliseconds; one that has not in this long is a server that is stuck. */
+const TMUX_MS = 10_000
 
 /** Where the lane id is kept, on the window itself. */
 const LANE_OPTION = '@tade-lane'
@@ -725,13 +726,19 @@ export class TmuxDriver implements WorkspaceDriver {
     }
   }
 
+  /**
+   * A tmux command, run as every program Tade waits for is (`runProgram`): in
+   * its own process group, since lanes are read by polling this and every look
+   * would otherwise retitle the terminal `tmux`. Throws what tmux said.
+   */
   private async tmux(args: string[]): Promise<string> {
-    const { stdout } = await run(
-      'tmux',
-      ['-L', this.opts.socket, ...args],
-      clientOptions(stringEnv(this.opts.env)),
-    )
-    return stdout
+    const ran = await runProgram('tmux', ['-L', this.opts.socket, ...args], {
+      env: stringEnv(this.opts.env),
+      maxBuffer: 32 * 1024 * 1024,
+      timeoutMs: TMUX_MS,
+    })
+    if (ran.code !== 0) throw new Error(ran.stderr.trim() || `tmux exited ${ran.code}`)
+    return ran.stdout
   }
 
   private live(id: LaneId): Lane {
@@ -740,18 +747,6 @@ export class TmuxDriver implements WorkspaceDriver {
     if (lane.closed) throw new LaneClosedError(id)
     return lane
   }
-}
-
-/**
- * How a tmux command is run: in its own process group, so the terminal Tade
- * runs in never names its window after one. Lanes are read by polling this,
- * so without it every look retitled the window `tmux`. `execFile` hands
- * `detached` to the spawn beneath it; its types just do not say so, which is
- * why the shape here is the inferred one — an annotation that left `detached`
- * out needed a local to dodge the excess-property check it caused.
- */
-function clientOptions(env: Record<string, string>) {
-  return { env, maxBuffer: 32 * 1024 * 1024, detached: true }
 }
 
 /** tmux window names cannot hold everything a lane id can. */

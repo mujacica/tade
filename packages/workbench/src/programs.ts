@@ -1,8 +1,6 @@
-import { execFile } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { promisify } from 'node:util'
 import {
   type Config,
   type Declared,
@@ -13,6 +11,7 @@ import {
   type ProgramNeed,
   parseVersion,
   resolveCommand,
+  runProgram,
   stringEnv,
   TADE_PROGRAMS,
   type UpdateCommand,
@@ -419,19 +418,10 @@ function versionAt(root: string): string {
   }
 }
 
-const run = promisify(execFile)
-
 /** git, in Tade's own checkout. Empty when it would not answer. */
 async function inRepo(root: string, args: readonly string[]): Promise<string> {
-  try {
-    const { stdout } = await run('git', ['-C', root, ...args], {
-      timeout: 15_000,
-      windowsHide: true,
-    })
-    return stdout.trim()
-  } catch {
-    return ''
-  }
+  const ran = await runProgram('git', ['-C', root, ...args], { timeoutMs: 15_000 })
+  return ran.code === 0 ? ran.stdout.trim() : ''
 }
 
 /**
@@ -510,14 +500,8 @@ export async function lookAtTade(options: AskOptions & { ask?: boolean } = {}): 
   if (theirs === mine) return { ...base, cannotTell: null, newer: null }
   const known = await inRepo(root, ['cat-file', '-t', theirs])
   if (known === 'commit') {
-    const contains = await run('git', ['-C', root, 'merge-base', '--is-ancestor', theirs, 'HEAD'], {
-      timeout: 15_000,
-      windowsHide: true,
-    }).then(
-      () => true,
-      () => false,
-    )
-    if (contains) {
+    const ancestor = ['-C', root, 'merge-base', '--is-ancestor', theirs, 'HEAD']
+    if ((await runProgram('git', ancestor, { timeoutMs: 15_000 })).code === 0) {
       return {
         ...base,
         cannotTell: null,

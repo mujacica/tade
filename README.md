@@ -519,6 +519,11 @@ prebuilt on macOS and are compiled on Linux, which needs python3 and a C++ toolc
 whisper.cpp and ffmpeg (speech), `gh` (pull request state); setup offers to install each where you
 want it.
 
+macOS Terminal puts its own parts around the title Tade sets — the folder, the program and its
+arguments (`node …/pnpm.cjs run tade` under `pnpm tade`), the size — and for a title that is only
+Tade's, `⠏ tade · 2 working`, untick *Working directory or document*, *Active process name*,
+*Arguments* and *Dimensions* under Settings → Profiles → Window → Title.
+
 ## Contributing
 
 From a checkout, which is how you change Tade:

@@ -1,8 +1,5 @@
-import { execFile } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
-import { promisify } from 'node:util'
-
-const run = promisify(execFile)
+import { runProgram } from '@tade/core'
 
 // The history of what Tade wrote for itself.
 //
@@ -28,16 +25,6 @@ export interface AuthoredHistory {
 }
 
 /**
- * Where git runs, and in its own process group: like every other process Tade
- * starts, so the terminal it runs in never names its window `git`. `execFile`
- * hands `detached` to the spawn beneath it; its types just do not say so.
- */
-function gitOptions(cwd: string): { cwd: string } {
-  const options = { cwd, detached: true }
-  return options
-}
-
-/**
  * Record the current state of a directory Tade writes to.
  *
  * Called after anything changes it — a tool Tade wrote for itself arriving, a
@@ -47,7 +34,11 @@ function gitOptions(cwd: string): { cwd: string } {
 export async function recordAuthored(root: string, message: string): Promise<AuthoredHistory> {
   try {
     await mkdir(root, { recursive: true })
-    const git = (args: string[]) => run('git', args, gitOptions(root))
+    // Rejects when git does not exit 0, which is what the two questions below read.
+    const git = async (args: string[]) => {
+      const ran = await runProgram('git', args, { cwd: root, timeoutMs: 30_000 })
+      if (ran.code !== 0) throw new Error(ran.stderr.trim() || `git ${args[0]} exited ${ran.code}`)
+    }
     // `rev-parse --git-dir` rather than testing for `.git`: a directory that
     // is already inside a repository must not get a second one nested in it.
     const inside = await git(['rev-parse', '--git-dir']).then(

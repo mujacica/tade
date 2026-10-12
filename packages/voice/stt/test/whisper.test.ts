@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { silentClip } from '@tade/voice-core/conformance'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { defaultModelPath, WhisperCppTranscriber } from '../src/whisper.ts'
 
 // The default engine, which is a model on your own machine — and so the one
@@ -214,6 +216,52 @@ describe('what it makes of what the model wrote', () => {
       const before = readFileSync(clip.path)
       await transcriber.transcribe(clip)
       expect(readFileSync(clip.path)).toEqual(before)
+    })
+  })
+})
+
+describe('the program it runs', () => {
+  // A stand-in for whisper-cli, so the real runner runs without a model: a
+  // script `test/no-gui.ts` has no reason to refuse, doing what it is told.
+  const made: string[] = []
+  afterEach(() => {
+    for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+  const standIn = (body: string): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'tade-whisper-'))
+    made.push(dir)
+    const bin = join(dir, 'stand-in')
+    writeFileSync(bin, `#!/bin/sh\n${body}\n`)
+    chmodSync(bin, 0o755)
+    return bin
+  }
+  const engine = (binary: string) =>
+    new WhisperCppTranscriber({ binary, model: process.execPath, env: process.env })
+
+  it('reads back what the program wrote', async () => {
+    const bin = standIn(
+      'while [ $# -gt 0 ]; do [ "$1" = --output-file ] && out="$2"; shift; done\n' +
+        'printf "park the review" > "$out.txt"',
+    )
+    await withClip(async (clip) => {
+      expect((await engine(bin).transcribe(clip)).text).toBe('park the review')
+    })
+  })
+
+  it('fails with what the program said when it fails', async () => {
+    const bin = standIn('echo "failed to load model" >&2; exit 3')
+    await withClip(async (clip) => {
+      await expect(engine(bin).transcribe(clip)).rejects.toThrow('failed to load model')
+    })
+  })
+
+  it('stops the program when the caller gives up on it', async () => {
+    const bin = standIn('sleep 30')
+    const cut = new AbortController()
+    await withClip(async (clip) => {
+      const heard = engine(bin).transcribe(clip, { signal: cut.signal })
+      setImmediate(() => cut.abort())
+      await expect(heard).rejects.toThrow(/abort/i)
     })
   })
 })

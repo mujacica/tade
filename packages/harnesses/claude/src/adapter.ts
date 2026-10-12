@@ -1,12 +1,17 @@
-import { type ChildProcess, execFile, spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { copyFile, cp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { promisify } from 'node:util'
-import type { RequiredProgram, ThinkingLevel, ToolEffect, Unsubscribe } from '@tade/core'
+import {
+  type RequiredProgram,
+  runProgram,
+  type ThinkingLevel,
+  type ToolEffect,
+  type Unsubscribe,
+} from '@tade/core'
 import {
   type AccountStatus,
   type HarnessAccount,
@@ -344,41 +349,38 @@ export class ClaudeAdapter implements WorkerAdapter {
   }
 
   async probe(): Promise<HarnessProbe> {
-    const run = promisify(execFile)
     const env = this.accountEnv()
-    try {
-      const { stdout } = await run(this.opts.bin, ['--version'], { timeout: 10_000, env })
-      const version = /\d+\.\d+\.\d+/.exec(stdout)?.[0] ?? null
-      const problems: string[] = []
-      const status = await run(this.opts.bin, ['auth', 'status', '--json'], {
-        timeout: 10_000,
-        env,
-      }).catch(() => null)
-      if (status) {
-        try {
-          const said = JSON.parse(status.stdout) as { loggedIn?: unknown }
-          if (said.loggedIn !== true) {
-            problems.push(
-              'Claude Code is not signed in: sign in to it from Settings, or run claude auth login',
-            )
-          }
-        } catch {
-          // An answer we cannot read is not a reason to refuse to run.
-        }
-      }
-      return { ok: problems.length === 0, version, problems }
-    } catch (err) {
-      const missing = (err as NodeJS.ErrnoException).code === 'ENOENT'
+    const said = await runProgram(this.opts.bin, ['--version'], { timeoutMs: 10_000, env })
+    if (said.code !== 0) {
       return {
         ok: false,
         version: null,
         problems: [
-          missing
+          said.missing
             ? `Claude Code is not installed (no ${this.opts.bin} on the PATH): brew install --cask claude-code`
-            : `Claude Code would not say its version: ${(err as Error).message}`,
+            : `Claude Code would not say its version: ${said.stderr.trim() || `it exited ${said.code}`}`,
         ],
       }
     }
+    const version = /\d+\.\d+\.\d+/.exec(said.stdout)?.[0] ?? null
+    const problems: string[] = []
+    const status = await runProgram(this.opts.bin, ['auth', 'status', '--json'], {
+      timeoutMs: 10_000,
+      env,
+    })
+    if (status.code === 0) {
+      try {
+        const signedIn = JSON.parse(status.stdout) as { loggedIn?: unknown }
+        if (signedIn.loggedIn !== true) {
+          problems.push(
+            'Claude Code is not signed in: sign in to it from Settings, or run claude auth login',
+          )
+        }
+      } catch {
+        // An answer we cannot read is not a reason to refuse to run.
+      }
+    }
+    return { ok: problems.length === 0, version, problems }
   }
 
   /** Claude Code's tools by what they do. Anything unknown is judged as unknown. */
@@ -467,19 +469,17 @@ export class ClaudeAdapter implements WorkerAdapter {
         problem: this.opts.account.key ? null : 'this account has no API key yet',
       }
     }
+    // Signed out, it says so and exits 1: the answer is on standard output either way.
+    const ran = await runProgram(this.opts.bin, ['auth', 'status', '--json'], {
+      timeoutMs: 10_000,
+      env: this.accountEnv(),
+    })
+    if (ran.missing) {
+      return { ...none, problem: 'Claude Code is not installed: brew install --cask claude-code' }
+    }
     try {
-      // Signed out, it says so and exits 1: the answer is on standard output either way.
-      const stdout = await promisify(execFile)(this.opts.bin, ['auth', 'status', '--json'], {
-        timeout: 10_000,
-        env: this.accountEnv(),
-      }).then(
-        (done) => done.stdout,
-        (err: NodeJS.ErrnoException & { stdout?: string }) => {
-          if (err.code === 'ENOENT' || !err.stdout?.trim()) throw err
-          return err.stdout
-        },
-      )
-      const said = JSON.parse(stdout) as Record<string, unknown>
+      if (!ran.stdout.trim()) throw new Error(ran.stderr.trim() || `it exited ${ran.code}`)
+      const said = JSON.parse(ran.stdout) as Record<string, unknown>
       const text = (key: string) => (typeof said[key] === 'string' ? (said[key] as string) : null)
       const signedIn = said.loggedIn === true
       return {
@@ -490,12 +490,9 @@ export class ClaudeAdapter implements WorkerAdapter {
         problem: signedIn ? null : 'not signed in yet',
       }
     } catch (err) {
-      const missing = (err as NodeJS.ErrnoException).code === 'ENOENT'
       return {
         ...none,
-        problem: missing
-          ? 'Claude Code is not installed: brew install --cask claude-code'
-          : `Claude Code would not say who it is signed in as: ${(err as Error).message}`,
+        problem: `Claude Code would not say who it is signed in as: ${(err as Error).message}`,
       }
     }
   }
@@ -518,10 +515,12 @@ export class ClaudeAdapter implements WorkerAdapter {
   }
 
   async signOut(): Promise<void> {
-    await promisify(execFile)(this.opts.bin, ['auth', 'logout'], {
-      timeout: 30_000,
+    const ran = await runProgram(this.opts.bin, ['auth', 'logout'], {
+      timeoutMs: 30_000,
       env: this.accountEnv(),
     })
+    if (ran.code !== 0)
+      throw new Error(ran.stderr.trim() || `claude auth logout exited ${ran.code}`)
   }
 
   /**

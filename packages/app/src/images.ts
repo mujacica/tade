@@ -1,9 +1,9 @@
-import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
+import { runProgram } from '@tade/core'
 
 // Pictures: screenshots dropped on the window or pasted into it.
 //
@@ -160,12 +160,10 @@ export async function handOffFiles(
 
 type Run = (command: string, args: string[]) => Promise<{ ok: boolean; stdout: string }>
 
-const run: Run = (command, args) =>
-  new Promise((done) => {
-    execFile(command, args, detachedFor(5_000), (err, stdout) =>
-      done({ ok: !err, stdout: String(stdout ?? '') }),
-    )
-  })
+const run: Run = async (command, args) => {
+  const ran = await runProgram(command, args, { timeoutMs: 5_000 })
+  return { ok: ran.code === 0, stdout: ran.stdout }
+}
 
 /**
  * Whether the clipboard holds a picture, and which copy it is: a number that
@@ -256,14 +254,4 @@ export async function clipboardImage(
   }
   rmSync(path, { force: true })
   return null
-}
-
-/**
- * Options for a short-lived helper in its own process group, so the terminal
- * Tade runs in never names its window after it. `execFile` passes `detached`
- * on to the spawn beneath it; its types just do not say so.
- */
-function detachedFor(timeout: number): { timeout: number } {
-  const options = { timeout, detached: true }
-  return options
 }

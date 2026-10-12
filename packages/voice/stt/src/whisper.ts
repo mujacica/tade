@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
-import { resolveCommand, stringEnv } from '@tade/core'
+import { resolveCommand, runProgram, stringEnv } from '@tade/core'
 import {
   type AudioClip,
   type Availability,
@@ -19,7 +17,18 @@ import {
 // that: what you say to your own computer about your own code should not have
 // to leave it.
 
-const execRun = promisify(execFile)
+/** Rejects as a failed run of the model should: with what whisper said, or the reason it was stopped. */
+const execRun: WhisperRun = async (binary, args, opts) => {
+  const ran = await runProgram(binary, args, {
+    env: opts.env,
+    signal: opts.signal,
+    maxBuffer: opts.maxBuffer,
+    // A clip is seconds of speech on a local model: five minutes is stuck, not slow.
+    timeoutMs: 300_000,
+  })
+  opts.signal?.throwIfAborted()
+  if (ran.code !== 0) throw new Error(ran.stderr.trim() || `${binary} exited ${ran.code}`)
+}
 
 /**
  * How the model is actually run. Injected so a test can hold this engine to

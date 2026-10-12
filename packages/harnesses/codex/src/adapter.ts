@@ -1,12 +1,17 @@
-import { type ChildProcess, execFile, spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { copyFile, mkdir, readFile, symlink } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { promisify } from 'node:util'
-import type { RequiredProgram, ThinkingLevel, ToolEffect, Unsubscribe } from '@tade/core'
+import {
+  type RequiredProgram,
+  runProgram,
+  type ThinkingLevel,
+  type ToolEffect,
+  type Unsubscribe,
+} from '@tade/core'
 import {
   type AccountStatus,
   type HarnessAccount,
@@ -286,35 +291,32 @@ export class CodexAdapter implements WorkerAdapter {
   }
 
   async probe(): Promise<HarnessProbe> {
-    const run = promisify(execFile)
-    try {
-      const { stdout } = await run(this.opts.bin, ['--version'], {
-        timeout: 10_000,
-        env: this.accountEnv(),
-      })
-      const version = /\d+\.\d+\.\d+/.exec(stdout)?.[0] ?? null
-      const who = await this.account()
-      return {
-        ok: who.signedIn,
-        version,
-        problems: who.signedIn
-          ? []
-          : [
-              who.problem ??
-                'Codex is not signed in: sign in to it from Settings, or run codex login',
-            ],
-      }
-    } catch (err) {
-      const missing = (err as NodeJS.ErrnoException).code === 'ENOENT'
+    const said = await runProgram(this.opts.bin, ['--version'], {
+      timeoutMs: 10_000,
+      env: this.accountEnv(),
+    })
+    if (said.code !== 0) {
       return {
         ok: false,
         version: null,
         problems: [
-          missing
+          said.missing
             ? `Codex is not installed (no ${this.opts.bin} on the PATH): brew install --cask codex`
-            : `Codex would not say its version: ${(err as Error).message}`,
+            : `Codex would not say its version: ${said.stderr.trim() || `it exited ${said.code}`}`,
         ],
       }
+    }
+    const version = /\d+\.\d+\.\d+/.exec(said.stdout)?.[0] ?? null
+    const who = await this.account()
+    return {
+      ok: who.signedIn,
+      version,
+      problems: who.signedIn
+        ? []
+        : [
+            who.problem ??
+              'Codex is not signed in: sign in to it from Settings, or run codex login',
+          ],
     }
   }
 
@@ -373,15 +375,12 @@ export class CodexAdapter implements WorkerAdapter {
    * be out of date the first time one came out.
    */
   async models(): Promise<HarnessModel[]> {
-    const said = await promisify(execFile)(this.opts.bin, ['debug', 'models'], {
-      timeout: 20_000,
+    const said = await runProgram(this.opts.bin, ['debug', 'models'], {
+      timeoutMs: 20_000,
       maxBuffer: 32 * 1024 * 1024,
       env: this.accountEnv(),
-    }).then(
-      (done) => done.stdout,
-      () => '',
-    )
-    return catalogIn(said)
+    })
+    return catalogIn(said.code === 0 ? said.stdout : '')
   }
 
   /**
@@ -438,30 +437,24 @@ export class CodexAdapter implements WorkerAdapter {
         problem: this.opts.account.key ? null : 'this account has no API key yet',
       }
     }
+    // Signed out, it says so and exits non-zero: the answer is on standard
+    // output either way.
+    const ran = await runProgram(this.opts.bin, ['login', 'status'], {
+      timeoutMs: 10_000,
+      env: this.accountEnv(),
+    })
+    if (ran.missing)
+      return { ...none, problem: 'Codex is not installed: brew install --cask codex' }
     try {
-      // Signed out, it says so and exits non-zero: the answer is on standard
-      // output either way.
-      const stdout = await promisify(execFile)(this.opts.bin, ['login', 'status'], {
-        timeout: 10_000,
-        env: this.accountEnv(),
-      }).then(
-        (done) => done.stdout,
-        (err: NodeJS.ErrnoException & { stdout?: string }) => {
-          if (err.code === 'ENOENT' || !err.stdout?.trim()) throw err
-          return err.stdout
-        },
-      )
-      const method = methodIn(stdout)
+      if (!ran.stdout.trim()) throw new Error(ran.stderr.trim() || `it exited ${ran.code}`)
+      const method = methodIn(ran.stdout)
       if (!method) return { ...none, problem: 'not signed in yet' }
       const { who, plan } = await whoIn(this.opts.codexHome)
       return { signedIn: true, who, plan, method, problem: null }
     } catch (err) {
-      const missing = (err as NodeJS.ErrnoException).code === 'ENOENT'
       return {
         ...none,
-        problem: missing
-          ? 'Codex is not installed: brew install --cask codex'
-          : `Codex would not say who it is signed in as: ${(err as Error).message}`,
+        problem: `Codex would not say who it is signed in as: ${(err as Error).message}`,
       }
     }
   }
@@ -484,10 +477,11 @@ export class CodexAdapter implements WorkerAdapter {
   }
 
   async signOut(): Promise<void> {
-    await promisify(execFile)(this.opts.bin, ['logout'], {
-      timeout: 30_000,
+    const ran = await runProgram(this.opts.bin, ['logout'], {
+      timeoutMs: 30_000,
       env: this.accountEnv(),
     })
+    if (ran.code !== 0) throw new Error(ran.stderr.trim() || `codex logout exited ${ran.code}`)
   }
 
   /**

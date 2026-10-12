@@ -1,3 +1,4 @@
+import { located } from '@tade/core'
 import { makeGithubForge } from '@tade/forge-github'
 import { makeScriptedForge } from '@tade/forge-scripted'
 import type { ExecResult, Forge, ForgeOptions } from '@tade/forges-core'
@@ -78,15 +79,16 @@ function asItsAccount(
 }
 
 /**
- * Running a program the way the rest of status does: detached, so the
- * terminal Tade runs in is never retitled after `gh`, and never throwing.
+ * Running a program the way the rest of status does: detached and from its
+ * absolute path, so the terminal Tade runs in is never retitled after `gh`,
+ * and never throwing.
  */
 export async function forgeExec(
   command: string,
   args: readonly string[],
   options: { cwd?: string; timeoutMs?: number } = {},
 ): Promise<ExecResult> {
-  const r = await execa(command, [...args], {
+  const r = await execa(located(command), [...args], {
     reject: false,
     detached: true,
     timeout: options.timeoutMs ?? 10_000,

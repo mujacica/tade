@@ -1,4 +1,5 @@
 import { readlink } from 'node:fs/promises'
+import { located } from '@tade/core'
 import { execa } from 'execa'
 
 // Which agent CLIs are running right now, and in which directory.
@@ -84,9 +85,10 @@ export type Run = (command: string, args: readonly string[]) => Promise<Ran>
 /**
  * Detached, like every probe: a child in the terminal's foreground group is
  * what Terminal.app names the window after, so polling retitled it to `ps`.
+ * From its absolute path, so it is never in that group even while starting.
  */
 const spawn: Run = async (command, args) => {
-  const ran = await execa(command, [...args], {
+  const ran = await execa(located(command), [...args], {
     reject: false,
     timeout: PROBE_MS,
     detached: true,
