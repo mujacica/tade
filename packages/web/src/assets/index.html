@@ -30,7 +30,15 @@
   and a screen reader that has to guess reads it in whatever voice it was last
   set to.
 
-  `<body>` is empty on purpose. `boot.js` decides which of two pages this is —
+  **The icons are a sprite here, in the shell**, and every icon on the page is a
+  `<use>` of one of its symbols (`icons.js`). Here because the HTML parser puts
+  an `<svg>` in the SVG namespace on its own — so no module has to spell that
+  namespace's URL, and nothing on the page reaches anything off this machine,
+  not even by name. Drawing, not data: a sprite says nothing about anybody's
+  work, so it is as safe to hand an unauthenticated request as the rest of this.
+  `boot.js` keeps it when it builds the frame.
+
+  `<body>` is otherwise empty on purpose. `boot.js` decides which of two pages this is —
   pair this device, or the control room — and building the frame in script keeps
   one description of it instead of one here and one there that drift. What a
   person sees before the script runs is the one line below, which is replaced
@@ -40,13 +48,52 @@
   <title>Tade</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="dark" />
-<meta name="theme-color" content="#121212" />
+<meta name="theme-color" content="#080808" />
 <link rel="manifest" href="/assets/tade.webmanifest" />
 <link rel="icon" href="/assets/icon-192.png" />
 <link rel="apple-touch-icon" href="/assets/icon-180.png" />
 <link rel="stylesheet" href="/assets/tokens.css" />
 <link rel="stylesheet" href="/assets/frame.css" />
 <link rel="stylesheet" href="/assets/away.css" />
+<link rel="stylesheet" href="/assets/dash.css" />
+<link rel="stylesheet" href="/assets/palette.css" />
+<link rel="stylesheet" href="/assets/dock.css" />
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.75"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13l2.4-7.2A2 2 0 0 1 7.3 4.4h9.4a2 2 0 0 1 1.9 1.4L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13h5l1.5 2.5h5L16 13h5"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24"><path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z"/><path d="M3.5 12.5l8.5 4.5 8.5-4.5"/><path d="M3.5 16.5l8.5 4.5 8.5-4.5"/></symbol>
+  <symbol id="i-runs" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.25"/><circle cx="6" cy="18" r="2.25"/><circle cx="18" cy="8" r="2.25"/><path d="M6 8.25v7.5"/><path d="M18 10.25c0 4.5-5 4.5-9.75 6.6"/></symbol>
+  <symbol id="i-agents" viewBox="0 0 24 24"><rect x="4.5" y="7.5" width="15" height="12" rx="3.5"/><path d="M12 3.5v4"/><circle cx="12" cy="3.5" r=".5"/><path d="M9.5 13v1.5M14.5 13v1.5"/><path d="M2.5 12.5v3M21.5 12.5v3"/></symbol>
+  <symbol id="i-talk" viewBox="0 0 24 24"><path d="M5 4.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7.5L7 21v-3.5H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/></symbol>
+  <symbol id="i-spend" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M14.75 9.5c-.45-.95-1.45-1.5-2.75-1.5-1.6 0-2.75.8-2.75 2s1.15 1.6 2.75 1.95 2.75.85 2.75 2.05-1.15 2-2.75 2c-1.3 0-2.3-.55-2.75-1.5"/><path d="M12 6.5v1.5M12 16v1.5"/></symbol>
+  <symbol id="i-checks" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M8.25 12.25l2.5 2.5 5-5.25"/></symbol>
+  <symbol id="i-workflows" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="6" rx="1.5"/><rect x="13.5" y="14.5" width="7" height="6" rx="1.5"/><path d="M7 9.5v4a4 4 0 0 0 4 4h2.5"/></symbol>
+  <symbol id="i-reviews" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.25"/><circle cx="6" cy="18" r="2.25"/><circle cx="18" cy="18" r="2.25"/><path d="M6 8.25v7.5"/><path d="M18 15.75V9.5a2.5 2.5 0 0 0-2.5-2.5H12"/><path d="M14 5l-2 2 2 2"/></symbol>
+  <symbol id="i-findings" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.4-3.1 8.1-7.5 9.5-4.4-1.4-7.5-5.1-7.5-9.5V6z"/><path d="M12 8.5v4"/><path d="M12 15.75v.01"/></symbol>
+  <symbol id="i-notes" viewBox="0 0 24 24"><path d="M4 20h4L19.2 8.8a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/></symbol>
+  <symbol id="i-devices" viewBox="0 0 24 24"><rect x="6.5" y="2.75" width="11" height="18.5" rx="2.5"/><path d="M10.75 17.75h2.5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.25"/><circle cx="9" cy="17" r="2.25"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.25"/><circle cx="12" cy="12" r="1.25"/><circle cx="18.5" cy="12" r="1.25"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.35-5.65"/><path d="M20 4.5v5h-5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.35c-.6.25-1 .8-1 1.45v.55"/><path d="M12 16.75v.01"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.25-4.25"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z"/><path d="M18.5 15.5l.75 2 2 .75-2 .75-.75 2-.75-2-2-.75 2-.75z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4.5 11.5l15-7-5.5 15-2.5-6z"/><path d="M11.5 13.5l8-9"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5.5 13H11l-1 8 7.5-10H12z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5l10.5 6.5L8 18.5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l8.66 15H3.34z"/><path d="M12 10v4"/><path d="M12 16.75v.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4.5"/><path d="M5.5 4.5h11l-2.5 4 2.5 4h-11"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M9 7h8v8"/></symbol>
+  <symbol id="i-mark" viewBox="0 0 24 24"><rect x="12" y="2" width="10" height="10" rx="1.5"/><rect x="2" y="12" width="10" height="10" rx="1.5"/></symbol>
+</svg>
 <main id="main">
   <p class="empty">Loading Tade…</p>
 </main>

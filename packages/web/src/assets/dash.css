@@ -1,0 +1,550 @@
+/*
+  The overview's own drawing: the six tiles, the two charts, a card of work
+  that wants somebody with its presses, a project's card, the places that are a
+  count and a link, and the screen a cold open draws from what it kept.
+
+  The same construction as everything in `away.css` — a surface one step up
+  from what it sits on and a hairline round it, a state as a tint of its own
+  tone — kept in its own file because the landing screen is a page of its own.
+*/
+
+/* ── tiles: the overview's six figures ─────────────────────────────────────── */
+
+.tiles {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/*
+  A tile: the icon in a tinted square, its word, the figure set large and tight,
+  a line under it, and — for three of them — a chart in the corner. The whole
+  tile is the link to where the rest of it is.
+*/
+.tile {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--s1);
+  min-height: 7.5rem;
+  padding: var(--s3) var(--s4) var(--s4);
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: var(--border);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  transition:
+    border-color var(--ease),
+    background var(--ease);
+}
+
+main a.tile {
+  display: grid;
+}
+
+.tile:hover {
+  border-color: var(--control);
+  background: color-mix(in srgb, var(--surface) 70%, var(--raised));
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.tile-ic {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r1);
+  background: var(--raised);
+  color: var(--tab);
+}
+
+.tile-ic .ic {
+  width: 1rem;
+  height: 1rem;
+}
+
+.tile-figure {
+  margin-block-start: var(--s2);
+  font-size: var(--step-3);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tight);
+  line-height: 1;
+  color: var(--bright);
+}
+
+.tile-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A tile whose figure is somebody's to act on wears its tone. */
+.tile-wants.is-hot .tile-ic {
+  background: color-mix(in srgb, var(--violet) 18%, transparent);
+  color: var(--violet);
+}
+
+.tile-wants.is-hot {
+  border-color: color-mix(in srgb, var(--violet) 40%, transparent);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--violet) 10%, var(--surface)),
+    var(--surface) 60%
+  );
+}
+
+.tile-wants.is-hot .tile-figure {
+  color: var(--violet);
+}
+
+.tile-working.is-hot .tile-ic {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: var(--amber);
+}
+
+.tile.is-bad .tile-figure {
+  color: var(--red);
+}
+
+/* The chart sits in the tile's corner and never under its figure. */
+.tile .ring {
+  position: absolute;
+  inset-block-start: var(--s3);
+  inset-inline-end: var(--s3);
+}
+
+.tile .seg {
+  margin-block-start: var(--s2);
+}
+
+/* ── charts: a ring and a segmented bar (`charts.js`) ──────────────────────── */
+
+/*
+  A ring is a conic gradient over the parts' stops, with the middle cut out by
+  a mask. Its parts' tones are the kind's own; the track is the raised grey,
+  and a ring with nothing to say is the track alone.
+*/
+.ring {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--r3);
+  background: var(--raised);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4.5px));
+}
+
+.ring-checks {
+  background: conic-gradient(
+    var(--green) 0 var(--p1),
+    var(--red) 0 var(--p2),
+    var(--chrome) 0 var(--p3),
+    var(--raised) 0
+  );
+}
+
+.ring-plan.is-fine {
+  background: conic-gradient(var(--amber) 0 var(--p1), var(--raised) 0);
+}
+
+.ring-plan.is-warm {
+  background: conic-gradient(var(--amber-light) 0 var(--p1), var(--raised) 0);
+}
+
+.ring-plan.is-tight {
+  background: conic-gradient(var(--red) 0 var(--p1), var(--raised) 0);
+}
+
+.ring.is-unknown {
+  background: var(--raised);
+}
+
+/*
+  A bar of parts, each its tone, with a hair of the page between them. Empty is
+  the track: nothing drawn is never one full segment of the wrong thing.
+*/
+.seg {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  border-radius: var(--r3);
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.seg > span {
+  flex: 0 1 0;
+  min-width: 4px;
+}
+
+.seg-wants {
+  background: var(--violet);
+}
+
+.seg-failed {
+  background: var(--red);
+}
+
+.seg-done {
+  background: var(--green);
+}
+
+.seg-working {
+  background: var(--amber);
+}
+
+.seg-queued {
+  background: var(--tab);
+}
+
+.seg-rest {
+  background: var(--control);
+}
+
+/* ── the overview's own pieces ─────────────────────────────────────────────── */
+
+.wants-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+}
+
+.all-clear {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s4);
+  border-radius: var(--r2);
+  background: color-mix(in srgb, var(--green) 7%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--green) 25%, transparent);
+  color: var(--green);
+  font-weight: 600;
+}
+
+.projects-grid {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+}
+
+/*
+  A project: its name, the shape of its work as one bar, three counts, and its
+  checks and money at the foot. The whole card goes to the project.
+*/
+main a.proj {
+  display: grid;
+  align-items: stretch;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: var(--border);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color var(--ease),
+    background var(--ease);
+}
+
+main a.proj:hover {
+  border-color: var(--control);
+}
+
+.proj-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--tab);
+}
+
+.proj-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj-go {
+  color: var(--chrome);
+}
+
+main a.proj:hover .proj-go {
+  color: var(--bright);
+}
+
+.proj-stats {
+  display: flex;
+  gap: var(--s4);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step-0);
+}
+
+.stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s1);
+}
+
+.stat.is-zero {
+  color: var(--chrome);
+}
+
+.proj-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+  font-size: var(--step--1);
+  color: var(--heading);
+}
+
+.proj-foot .ring {
+  width: 1.125rem;
+  height: 1.125rem;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+}
+
+.proj-checks {
+  flex: 1 1 auto;
+}
+
+.proj-paid {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--body);
+}
+
+/* The places that are a count and a link: a list, each with its icon. */
+.signals,
+.places {
+  display: grid;
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
+  overflow: hidden;
+}
+
+.signals > li + li,
+.places > li + li {
+  border-block-start: var(--border);
+}
+
+.signals a,
+.places a {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
+  gap: var(--s3);
+  align-items: center;
+  min-height: 3.25rem;
+  padding-inline: var(--s4) var(--s3);
+  color: var(--bright);
+  text-decoration: none;
+}
+
+main .signals a,
+main .places a {
+  display: grid;
+}
+
+.signals a:hover,
+.places a:hover {
+  background: var(--surface);
+}
+
+.signals .ic,
+.places .ic {
+  color: var(--tab);
+}
+
+.signals .count,
+.places .count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--bright);
+}
+
+.signals .go {
+  color: var(--chrome);
+}
+
+.places a {
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+}
+
+/* A wrap of chips: closed projects, the inbox's count beside a heading. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* ── cards: what wants you ─────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--s2);
+  padding: var(--s4);
+  border-radius: var(--r2);
+  background: var(--surface);
+  border: var(--border);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--ease);
+}
+
+.card:hover {
+  border-color: var(--control);
+}
+
+/* The state's tone down the card's edge, and as a wash at its top. */
+.card.is-wants {
+  border-color: color-mix(in srgb, var(--violet) 35%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--violet) 9%, var(--surface)),
+    var(--surface) 5rem
+  );
+}
+
+.card.is-failed {
+  border-color: color-mix(in srgb, var(--red) 35%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--red) 8%, var(--surface)),
+    var(--surface) 5rem
+  );
+}
+
+.card-top {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  gap: var(--s2);
+  align-items: center;
+}
+
+/*
+  The card's name is its link, stretched over the whole card, so a tap anywhere
+  that is not a press goes to the task — and the presses sit above it.
+*/
+main a.card-link {
+  display: grid;
+  min-width: 0;
+  color: var(--bright);
+  text-decoration: none;
+  line-height: var(--lead-tight);
+}
+
+.card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r2);
+}
+
+.card-project {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.card-name {
+  font-size: var(--step-1);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card .why {
+  color: var(--body);
+  font-size: var(--step-0);
+}
+
+/*
+  The approval's tool name, in mono. One line here, the whole of it on the task
+  page — a command cut mid-flag reads as a different command.
+*/
+.card .asked {
+  justify-self: start;
+  padding: 2px var(--s2);
+  border-radius: var(--r1);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* The presses on a card, above its stretched link. */
+.quick {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-start: var(--s1);
+}
+
+.quick-said {
+  flex: 1 0 100%;
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+/* The screen a cold open with nothing answering draws, from what was kept. */
+.last-seen {
+  display: grid;
+  gap: var(--s4);
+  max-width: 48rem;
+}
+
+.last-seen .tile {
+  min-height: 0;
+}
+
+/*
+  The tiles go to three across and then six by the room **the work** has, not
+  the window: at a desk the dock takes a third of the width, and six tiles in
+  what is left would be six slivers. So it is a container query on `main`
+  rather than a breakpoint.
+*/
+main {
+  container-type: inline-size;
+}
+
+@container (min-width: 32rem) {
+  .tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 60rem) {
+  .tiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .tile-figure {
+    font-size: var(--step-4);
+  }
+}

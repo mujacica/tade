@@ -41,7 +41,10 @@ a device still has none of the scopes that change anything until somebody at thi
 | when the window reads an agent's screen, and which keys it knows | `packages/app/src/wire/web-lanes.ts` (`Lanes`, `knownKeys`) |
 | what a task has been doing, out of the journal | `packages/app/src/away-activity.ts` — pure, an allow-list over types and fields |
 | the controls that widen one device (act, talk, lanes) | `packages/app/src/wire/web-grants.ts`, and `grantDevice` in `src/devices.ts` for a reading grant |
-| the desk: projects along the top, agents down the side, Tade at the foot | `src/assets/desk.js`, placed by `shell.js`, laid out in `frame.css` (1280px) |
+| the desk: projects along the top, the agents and Tade docked beside the work | `src/assets/desk.js`, placed by `shell.js`, laid out in `dock.css` (1280px) |
+| the overview: six figures, what wants you with its presses, every project as a card | `src/assets/overview.js` (`glanceOf`, `projectShape` are pure), `quick.js` (a card's presses — `controlsFor`/`bodyFor`, never a second door), `dash.css` |
+| the command bar: Tade and every screen one press away (`⌘K`, the tab bar's middle) | `src/assets/palette.js`, `commands.js` (pure: what is offered for what was typed), `palette.css` |
+| an icon, a chart | `src/assets/icons.js` (a `<use>` of the sprite in `index.html` — the parser puts it in the SVG namespace, so no module spells a URL), `charts.js` (CSS rings and bars fed through the CSSOM; `--p1`…`--p3` are tokens) |
 | the agents list and the pane on a task's page | `src/assets/agents.js` |
 | what the window hands the projection each beat | `packages/app/src/wire/web-beat.ts` |
 | adding to a task's context | `packages/workbench/src/context.ts` |
@@ -66,10 +69,10 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a device may keep on its own disk | `src/assets/offline.js` (the allow-list, the store, the screen) |
 | the icons and the manifest | `scripts/icons.ts` — **generated**; `test/icons.test.ts` decodes the committed PNGs |
 | the palette, the type scale, the primitives | `src/assets/tokens.css` — every colour is a window tone, checked by arithmetic |
-| the frame: header, bars, nav, the four region states | `src/assets/frame.css`, `src/assets/shell.js` |
+| the frame: header, bars, nav, the four region states | `src/assets/frame.css`, `src/assets/shell.js` — a sentence somebody may need is behind a `?` (`hintOf` in `dom.js`), not a paragraph |
 | what a screen looks like | `src/assets/away.css`, `src/assets/rows.js` |
 | which controls a screen offers, and what each sends | `src/assets/acts.js` — pure; `screens.js` builds the nodes |
-| a screen | `src/assets/screens.js` (work), `pages.js` (lists), `factory.js` (what was handed over), `runs.js` (a run's graph) or `designer.js` (the workflows), plus a route in `src/routes.ts` **and** a view in `src/assets/routes.js` |
+| a screen | `src/assets/overview.js` (the landing), `screens.js` (a project, a task), `pages.js` (lists), `factory.js` (what was handed over), `runs.js` (a run's graph) or `designer.js` (the workflows), plus a route in `src/routes.ts` **and** a view in `src/assets/routes.js` |
 | what a figure says | `src/assets/figures.js` — money, tokens, ages, plan bars |
 | what a state looks like | `src/assets/glyphs.js` — glyph, word and tone, never colour alone |
 | the delta merge and the selectors | `src/assets/store.js` |

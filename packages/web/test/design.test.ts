@@ -22,17 +22,19 @@ import { contrast, hexOf } from './colour.ts'
 const DIR = assetsDir()
 const read = (name: string) => readFileSync(join(DIR, name), 'utf8')
 const TOKENS = read('tokens.css')
-// The frame and the screens, which are two files for length and one stylesheet
-// for every rule here: a selector is in whichever of them it belongs to, and
-// nothing in this file cares which.
-const AWAY = `${read('frame.css')}\n${read('away.css')}`
+// The frame, the screens, the overview, the command bar and the dock, which are
+// five files for length and one stylesheet for every rule here: a selector is
+// in whichever of them it belongs to, and nothing in this file cares which —
+// except the breakpoints, which are in order within each file.
+const SHEETS = ['frame.css', 'away.css', 'dash.css', 'palette.css', 'dock.css']
+const AWAY = SHEETS.map(read).join('\n')
 const CSS = `${TOKENS}\n${AWAY}`
 const HTML = read('index.html')
 const SCRIPTS = ['boot.js', 'shell.js', 'screens.js', 'pages.js', 'rows.js', 'dom.js'].map(read)
 const EVERY = [CSS, HTML, ...SCRIPTS].join('\n')
 
 /** The ground every ratio in `tokens.css` is quoted against. */
-const GROUND = '#121212'
+const GROUND = '#080808'
 
 /**
  * The two rules that may set `--quiet` without declaring a size.
@@ -197,13 +199,24 @@ describe('the layout', () => {
     expect(TOKENS).toContain('repeat(auto-fit, minmax(')
   })
 
-  it('has the three breakpoints, content-driven and in order', () => {
-    const widths = [...AWAY.matchAll(/@media \(min-width:\s*(\d+)px\)/g)].map((one) =>
-      Number(one[1]),
-    )
-    expect(widths).toEqual([...widths].sort((a, b) => a - b))
-    expect(widths).toContain(768)
-    expect(widths).toContain(1100)
+  it('has the breakpoints, content-driven and in order', () => {
+    // In order **within each file**, because each file's later rules are
+    // meant to win over its earlier ones; across files the link order in
+    // `index.html` is the cascade, and each file is about one part.
+    const all: number[] = []
+    for (const name of SHEETS) {
+      const widths = [...read(name).matchAll(/@media \(min-width:\s*(\d+)px\)/g)].map((one) =>
+        Number(one[1]),
+      )
+      expect(widths, name).toEqual([...widths].sort((a, b) => a - b))
+      all.push(...widths)
+    }
+    expect(all).toContain(768)
+    expect(all).toContain(1100)
+    expect(all).toContain(1280)
+    // And they are linked in that order, so a desk's rules come after a tablet's.
+    const linked = [...HTML.matchAll(/href="\/assets\/([\w-]+\.css)"/g)].map((one) => one[1])
+    expect(linked).toEqual(['tokens.css', ...SHEETS])
   })
 
   it('lets only the tables and the tab strip be wider than the page', () => {

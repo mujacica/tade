@@ -35,7 +35,7 @@ export interface Width {
  * 360 is the floor the brief names and the one a phone in a case actually has;
  * 834 is a tablet in portrait, where the glyph rail and the projects along the
  * top have to work; 1440 is a laptop, where the page is the window's own shape
- * — agents down the side and Tade at the foot (`desk.js`).
+ * — the work, with the running agents and Tade docked beside it (`desk.js`).
  */
 export const WIDTHS: readonly Width[] = [
   { name: 'phone', width: 360, height: 780, narrow: true },
@@ -117,6 +117,7 @@ export const CHECKS = [
   // from a device not granted it, drawn scrubbed for one that is, and no
   // longer asked for once its page is left.
   'desk',
+  'palette',
   'lanes',
   // The three a control owns, and none of them is answerable offline. A tap is
   // a real pointer on a real target; a keyboard is a real Tab order and a real

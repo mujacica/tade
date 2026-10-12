@@ -22,7 +22,7 @@ import {
   worstOf,
 } from '../test/browser-plan.ts'
 import { agentHeld, input, NOW } from '../test/fixtures.ts'
-import { deskAt, lanesSeen, unpairedAt } from './browser-desk.ts'
+import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
 import { asPwa } from './browser-pwa.ts'
 import {
   AXE,
@@ -262,7 +262,7 @@ interface Page {
   screenshot: (opts: object) => Promise<unknown>
   /** One element, by what it is and what it says. The acting pass taps these. */
   locator: (selector: string, opts?: { hasText?: string }) => Thing
-  keyboard: { press: (key: string) => Promise<void> }
+  keyboard: { press: (key: string) => Promise<void>; type: (text: string) => Promise<void> }
   waitForTimeout: (ms: number) => Promise<void>
 }
 
@@ -320,6 +320,7 @@ async function run() {
         }
       }
       await deskAt(page, origin, width, found)
+      await paletteAt(page, origin, width, found)
       await deltaUnder(page, origin, server, held, width.name)
       await context.close()
     }
@@ -742,7 +743,10 @@ async function deltaUnder(
 ) {
   const where = `a delta @ ${at}`
   try {
-    await page.goto(`${origin}/`, { waitUntil: READY })
+    // The agents' list, whose rows carry the reason the delta changes: the
+    // overview at a desk hands its own list to the dock and draws cards, so a
+    // list of rows to hold is on this screen at every width.
+    await page.goto(`${origin}/agents`, { waitUntil: READY })
     await page.waitForSelector('main .rows li a', { timeout: 10_000 })
     // Focus the second row and select inside it, which is what a person
     // reading a list on a phone has actually done.

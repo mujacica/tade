@@ -130,7 +130,7 @@ export function taskPath(id) {
  * place the view's name has to be a sentence rather than a tab label.
  */
 export const TITLES = {
-  now: 'Now',
+  now: 'Overview',
   project: 'Project',
   task: 'Task',
   agents: 'Agents',
@@ -146,7 +146,7 @@ export const TITLES = {
   spend: 'Spend',
   findings: 'Findings',
   notes: 'Notes',
-  talk: 'With Tade',
+  talk: 'Tade',
   devices: 'Devices',
   settings: 'Settings',
   more: 'More',
@@ -164,45 +164,47 @@ export const TITLES = {
 /**
  * The navigation, and it is five things because a thumb has room for five.
  *
- * Four plus More, which is iOS's own convention and the only shape that fits
- * 360px with 44px targets. Reviews, findings, notes and devices are read weekly
- * rather than hourly, so they live under More — and `More` is a screen of its
- * own rather than a menu, because a menu at the bottom of a phone opens under
- * the thumb that pressed it.
+ * Three places, Tade in the middle and More — iOS's own convention with the
+ * primary action at the centre, which is the only shape that fits 360px with
+ * 44px targets. **Ask is not in this table**: it is not a place but the command
+ * bar (`palette.js`), so `shell.js` puts a button between the second and third
+ * entries rather than a link.
+ *
+ * What is in the thumb row is what is read *because something is happening*:
+ * the overview (what wants you, across every project), the agents at work, and
+ * the queue that starts them. Everything read on a round lives under More,
+ * with its count — the inbox first, whose count is somebody else blocked on
+ * this machine and is also what the More tab itself carries.
+ *
+ * `icon` is the drawing (`icons.js`), `mark` the glyph the window uses for the
+ * same place, kept for the one place a glyph is drawn in text — the key sheet.
  */
 export const NAV = [
-  { view: 'now', mark: '▣', label: 'Now', counts: 'wantsYou' },
-  // **Second, and it displaced Spend**, which is the one judgement in this
-  // table. What is in the thumb row is what is read *because something
-  // happened*: a request waiting for a yes is somebody else blocked on this
-  // machine, and money is a figure that is true whenever you look. Spend and
-  // Checks are one tap away under More and keep their counts there.
-  { view: 'inbox', mark: '✉', label: 'Inbox', counts: 'intake' },
-  { view: 'queue', mark: '⌸', label: 'Queue', counts: 'queue' },
-  { view: 'runs', mark: '⑁', label: 'Runs', counts: 'runs' },
+  { view: 'now', icon: 'overview', mark: '▣', label: 'Overview', counts: 'wantsYou' },
+  { view: 'agents', icon: 'agents', mark: '◉', label: 'Agents', counts: 'agents' },
+  { view: 'queue', icon: 'queue', mark: '⌸', label: 'Queue', counts: 'queue' },
 ]
+
+/** The tab that opens everything else, carrying the one count worth a thumb from there. */
+export const MORE_TAB = { view: 'more', icon: 'more', mark: '⋯', label: 'More', counts: 'intake' }
 
 /** The weekly reads, listed on every screen's rail and under More on a phone. */
 export const MORE = [
-  // **Every agent running**, first under More because it is the window's own
-  // side list: what is at work right now, across every project, with what
-  // each runs on. On a desk it is a column of its own beside the screen
-  // (`desk.js`) and this entry is the same list a tap away everywhere else.
-  { view: 'agents', mark: '◉', label: 'Agents', counts: 'agents' },
-  // First among the weekly reads, because it is the one that is read *because
-  // something happened* rather than on a round: a reply arrived, or Tade is
-  // answering somebody. The others are lists that are true whenever you look.
-  { view: 'talk', mark: '❯', label: 'With Tade', counts: null },
-  { view: 'spend', mark: '$', label: 'Spend', counts: null },
-  { view: 'checks', mark: '✓', label: 'Checks', counts: null },
-  { view: 'workflows', mark: '⌗', label: 'Workflows', counts: 'workflows' },
-  { view: 'reviews', mark: '◴', label: 'Reviews', counts: 'reviews' },
-  { view: 'findings', mark: '◈', label: 'Findings', counts: 'findings' },
-  { view: 'notes', mark: '✎', label: 'Notes', counts: 'notes' },
-  { view: 'devices', mark: '⌸', label: 'Devices', counts: null },
+  // **First under More, and its count is on the More tab itself**: a request
+  // waiting for a yes is somebody else blocked on this machine.
+  { view: 'inbox', icon: 'inbox', mark: '✉', label: 'Inbox', counts: 'intake' },
+  { view: 'talk', icon: 'talk', mark: '❯', label: 'Tade', counts: null },
+  { view: 'runs', icon: 'runs', mark: '⑁', label: 'Runs', counts: 'runs' },
+  { view: 'spend', icon: 'spend', mark: '$', label: 'Spend', counts: null },
+  { view: 'checks', icon: 'checks', mark: '✓', label: 'Checks', counts: null },
+  { view: 'reviews', icon: 'reviews', mark: '◴', label: 'Reviews', counts: 'reviews' },
+  { view: 'findings', icon: 'findings', mark: '◈', label: 'Findings', counts: 'findings' },
+  { view: 'workflows', icon: 'workflows', mark: '⌗', label: 'Workflows', counts: 'workflows' },
+  { view: 'notes', icon: 'notes', mark: '✎', label: 'Notes', counts: 'notes' },
+  { view: 'devices', icon: 'devices', mark: '⌸', label: 'Devices', counts: null },
   // What Tade is set up with, behind a grant of its own — and the few settings
   // a device granted it may change. Last, because it is read least.
-  { view: 'settings', mark: '⚙', label: 'Settings', counts: null },
+  { view: 'settings', icon: 'settings', mark: '⚙', label: 'Settings', counts: null },
 ]
 
 /** Which of the navigation's entries a screen lights up. */

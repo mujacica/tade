@@ -19,11 +19,12 @@
 //   and **an update never moves it**: the tab you are on changes when you
 //   navigate and at no other time.
 
-import { classOn, el, into, textIn, toneOn } from './dom.js'
-import { clockOf, count, duration, shortClockOf } from './figures.js'
+import { classOn, el, hintOf, into, textIn, toneOn } from './dom.js'
+import { clockOf, duration, shortClockOf } from './figures.js'
 import { freshMark } from './glyphs.js'
+import { icon } from './icons.js'
 import { backoffAt, partsOf } from './live.js'
-import { MORE, NAV, navFor, pathOf, TITLES } from './routes.js'
+import { MORE, MORE_TAB, NAV, navFor, pathOf, TITLES } from './routes.js'
 
 /**
  * The whole frame, built once for the life of the page.
@@ -32,9 +33,13 @@ import { MORE, NAV, navFor, pathOf, TITLES } from './routes.js'
  * is swapped inside `main`, and everything else is patched.
  *
  * `desk` is the three parts a desk adds (`desk.js`) — projects along the top,
- * agents down the side, Tade at the foot — placed here so the reading order is
- * the window's: what is open, what is running, the work, and then the
- * conversation. Each is hidden by the stylesheet below its width.
+ * and a dock beside the work with the running agents and Tade — placed here so
+ * the reading order is the window's: what is open, the work, what is running,
+ * and then the conversation. Each is hidden by the stylesheet below its width.
+ *
+ * **Tade is one press from anywhere**: the command bar in the header at every
+ * width, `⌘K` at a keyboard, and the middle of the tab bar under a thumb. All
+ * three open the same bar (`palette.js`), which `boot.js` hands in as `ask`.
  */
 export function shell(desk = null) {
   const skip = el('a', {
@@ -44,39 +49,59 @@ export function shell(desk = null) {
   })
 
   const top = el('header', { class: 'top' })
-  const brand = el('a', { class: 'brand', attrs: { href: '/' } })
+  const brand = el('a', { class: 'brand', attrs: { href: '/', 'aria-label': 'Tade, overview' } })
+  into(brand, icon('mark', 'mark'), el('span', { class: 'brand-word', text: 'Tade' }))
+  const ask = el('button', {
+    class: 'cmd',
+    attrs: { type: 'button', 'aria-label': 'Ask Tade, or go anywhere', 'aria-haspopup': 'dialog' },
+  })
   into(
-    brand,
-    el('span', { class: 'mark', text: '▞', attrs: { 'aria-hidden': 'true' } }),
-    el('span', { text: 'TADE' }),
-    el('span', { class: 'what', text: 'away' }),
+    ask,
+    icon('spark'),
+    el('span', { class: 'cmd-said', text: 'Ask Tade', attrs: { 'aria-hidden': 'true' } }),
+    el('kbd', { text: '⌘K', attrs: { 'aria-hidden': 'true' } }),
   )
   const fresh = el('p', { class: 'fresh', attrs: { role: 'status' } })
   const dot = el('span', { class: 'dot', attrs: { 'aria-hidden': 'true' } })
-  const freshSaid = el('span')
-  into(fresh, dot, el('span', { text: ' ' }), freshSaid)
+  const freshSaid = el('span', { class: 'fresh-said' })
+  into(fresh, dot, freshSaid)
   const tools = el('div', { class: 'tools' })
   const again = el('button', {
     class: 'tap icon',
     attrs: { type: 'button', 'aria-label': 'Ask the machine again' },
   })
-  into(again, el('span', { text: '⟳', attrs: { 'aria-hidden': 'true' } }))
+  into(again, icon('refresh'))
   const keys = el('button', {
     class: 'tap icon',
     attrs: { type: 'button', 'aria-label': 'Keyboard keys' },
   })
-  into(keys, el('span', { text: '?', attrs: { 'aria-hidden': 'true' } }))
+  into(keys, icon('help'))
   into(tools, again, keys)
-  into(top, brand, fresh, tools)
+  into(top, brand, ask, fresh, tools)
 
   const bars = el('div', { class: 'bars' })
 
   const frame = el('div', { class: 'frame' })
   const rail = el('nav', { class: 'rail', attrs: { 'aria-label': 'Sections' } })
   const main = el('main', { attrs: { id: 'main' } })
-  into(frame, rail, desk?.side, main, desk?.strip)
+  // The dock: what is running and the conversation, beside the work at a desk.
+  const dock =
+    desk === null
+      ? null
+      : el('aside', { class: 'dock', attrs: { 'aria-label': 'Running agents and Tade' } })
+  if (dock !== null) into(dock, desk.side, desk.strip)
+  // The projects head the work's own column, so the rail and the dock start
+  // level with them and the dock's foot — Tade's box — is on the screen.
+  into(frame, rail, desk?.projects, main, dock)
 
   const tabs = el('nav', { class: 'tabs', attrs: { 'aria-label': 'Sections' } })
+  const talk = el('button', {
+    class: 'tab tab-ask',
+    attrs: { type: 'button', 'aria-label': 'Ask Tade, or go anywhere', 'aria-haspopup': 'dialog' },
+  })
+  const disc = el('span', { class: 'ask-disc' })
+  into(disc, icon('spark'))
+  into(talk, disc, el('span', { class: 'label', text: 'Ask' }))
 
   const sheet = el('div', {
     class: 'sheet',
@@ -90,14 +115,14 @@ export function shell(desk = null) {
     attrs: { 'aria-live': 'polite', 'aria-atomic': 'false' },
   })
 
-  const links = navLinks(rail, tabs)
+  const links = navLinks(rail, tabs, talk)
 
   return {
-    parts: [skip, top, bars, desk?.projects, frame, tabs, sheet, announce].filter(
+    parts: [skip, top, bars, frame, tabs, sheet, announce].filter(
       (one) => one !== null && one !== undefined,
     ),
     // What only a device with a session is drawn (`insideIn`).
-    inside: [rail, tabs, again, desk?.projects, desk?.side, desk?.strip].filter(
+    inside: [rail, tabs, again, ask, desk?.projects, dock, desk?.side, desk?.strip].filter(
       (one) => one !== null && one !== undefined,
     ),
     main,
@@ -109,6 +134,8 @@ export function shell(desk = null) {
     again,
     keys,
     links,
+    // The two presses that open the command bar; `boot.js` wires both.
+    asks: [ask, talk],
   }
 }
 
@@ -117,19 +144,20 @@ export function shell(desk = null) {
  * phone.
  *
  * Twice rather than one list moved by CSS, because the two are different
- * shapes — the rail carries names and counts at a desk and the bar carries four
- * plus More, which is the only arrangement that fits 360px with 44px targets.
- * Both are in the DOM, one is displayed, and each is a `<nav>` a screen reader
- * can jump to.
+ * shapes — the rail carries every place with its count at a desk and the bar
+ * carries three plus Ask plus More, which is the only arrangement that fits
+ * 360px with 44px targets. Both are in the DOM, one is displayed, and each is
+ * a `<nav>` a screen reader can jump to.
  */
-function navLinks(rail, tabs) {
+function navLinks(rail, tabs, talk) {
   const made = []
-  for (const one of [...NAV, { view: 'more', mark: '⋯', label: 'More', counts: null }]) {
-    made.push(entry(tabs, one, 'tab'))
-  }
-  for (const one of [...NAV, ...MORE]) {
-    made.push(entry(rail, one, 'rail'))
-  }
+  const [first, second, ...rest] = NAV
+  for (const one of [first, second]) made.push(entry(tabs, one, 'tab'))
+  tabs.append(talk)
+  for (const one of [...rest, MORE_TAB]) made.push(entry(tabs, one, 'tab'))
+  for (const one of NAV) made.push(entry(rail, one, 'rail'))
+  rail.append(el('span', { class: 'rail-rule', attrs: { 'aria-hidden': 'true' } }))
+  for (const one of MORE) made.push(entry(rail, one, 'rail'))
   return made
 }
 
@@ -138,12 +166,14 @@ function entry(parent, one, where) {
   // the class is what the bar needs and the rail does not.
   const link = el('a', {
     class: where === 'tab' ? 'tab' : '',
-    attrs: { href: pathOf({ view: one.view }) },
+    attrs: { href: pathOf({ view: one.view }), 'data-label': one.label },
   })
-  const mark = el('span', { class: 'mark', text: one.mark, attrs: { 'aria-hidden': 'true' } })
-  const label = el('span', { text: one.label })
-  const figure = el('span', { class: 'count' })
-  into(link, mark, label, figure)
+  const label = el('span', { class: 'label', text: one.label })
+  // Violet means *waiting on you* and nothing else, so only the two counts of
+  // that wear it; every other count is a neutral figure.
+  const wants = one.counts === 'wantsYou' || one.counts === 'intake'
+  const figure = el('span', { class: wants ? 'count is-wants' : 'count' })
+  into(link, icon(one.icon), label, figure)
   parent.append(link)
   return { link, figure, view: one.view, counts: one.counts, where }
 }
@@ -197,7 +227,8 @@ export function navCounts(links, counts) {
   for (const one of links) {
     if (one.counts === null) continue
     const n = counts[one.counts] ?? 0
-    textIn(one.figure, count(n))
+    // Nothing at nought: a badge of `0` on an icon is a badge nobody reads.
+    textIn(one.figure, n === 0 ? '' : String(n))
     one.figure.setAttribute('aria-label', `${n} ${NOUNS[one.counts] ?? one.counts}`)
   }
 }
@@ -228,6 +259,11 @@ export function freshIn(shown, standing, connection, store, now) {
  * The bars: one per thing the page has to say about itself, and never more than
  * one of a kind.
  *
+ * **One line each**: a glyph, the lead in a few words, and — where there is
+ * more to say — a `?` that opens the rest under it. The sentence is still
+ * there for whoever asks; it is no longer a paragraph across the top of every
+ * screen for whoever did not.
+ *
  * Rebuilt only when the set of them changes, because a bar that was replaced on
  * every beat would take the retry button out from under a thumb.
  */
@@ -238,7 +274,10 @@ export function barsIn(shown, said) {
     // beat would take the retry button out from under a thumb mid-press.
     for (let at = 0; at < said.length; at += 1) {
       const node = shown.bars.children[at]
-      if (node !== undefined) textIn(node.children[2], said[at].under ?? '')
+      const under = node?.querySelector('.under')
+      if (under !== null && under !== undefined) textIn(under, said[at].under ?? '')
+      const lead = node?.querySelector('.lead')
+      if (lead !== null && lead !== undefined) textIn(lead, said[at].lead)
     }
     return
   }
@@ -246,21 +285,24 @@ export function barsIn(shown, said) {
   shown.bars.textContent = ''
   for (const one of said) {
     const node = el('div', { class: `bar ${one.tone ?? ''}`, attrs: { 'data-bar': one.key } })
+    const line = el('div', { class: 'bar-line' })
     into(
-      node,
+      line,
       el('span', { class: 'glyph', text: one.glyph, attrs: { 'aria-hidden': 'true' } }),
       el('span', { class: 'lead', text: one.lead }),
-      el('span', { class: 'under', text: one.under ?? '' }),
     )
+    const hint = (one.under ?? '') === '' ? null : hintOf(one.under, 'under')
+    if (hint !== null) into(line, hint.press)
     if (one.press !== undefined) {
       const press = el('button', {
-        class: 'press quietly',
+        class: 'press quietly small',
         text: one.press.said,
         attrs: { type: 'button' },
       })
       press.addEventListener('click', one.press.does)
-      into(node, press)
+      into(line, press)
     }
+    into(node, line, hint?.body)
     shown.bars.append(node)
   }
 }
@@ -313,7 +355,8 @@ export function barsFor(standing, connection, store, now, tries, extra = []) {
 function keySheet() {
   const list = el('dl')
   for (const [key, what] of [
-    ['g n', 'Now'],
+    ['⌘ K', 'ask Tade, or go anywhere'],
+    ['g n', 'Overview'],
     ['g a', 'Agents'],
     ['g q', 'Queue'],
     ['g s', 'Spend'],

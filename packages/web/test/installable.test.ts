@@ -229,6 +229,11 @@ describe('the real folder', () => {
     // The whole away view, every module, every icon. A megabyte here would be
     // a first visit somebody notices on a train, and would mean the folder had
     // grown something that does not belong in it.
-    expect(bytes).toBeLessThan(400 * 1024)
+    //
+    // 512KB, up from 400 when the overview, the command bar, the dock and the
+    // icon sprite arrived (~60KB of them, most of it the comments every module
+    // here carries). Still half the megabyte that would be noticed, and still
+    // fetched once per version, not per visit.
+    expect(bytes).toBeLessThan(512 * 1024)
   })
 })

@@ -18,7 +18,7 @@ import { until } from './browser-until.ts'
 //
 // - `desk` — that the frame is the window's shape where there is room for it
 //   and a phone's where there is not: projects along the top from a tablet up,
-//   the running agents down the side and Tade at the foot from a desk up, and
+//   the running agents and Tade in a dock beside the work from a desk up, and
 //   none of the three on a phone. The stylesheet decides all of it, so only a
 //   laid-out page can say it.
 // - `lanes` — that a device not granted agents' screens is told so and is sent
@@ -38,6 +38,7 @@ interface Page {
   evaluate: (body: string) => Promise<unknown>
   screenshot: (opts: object) => Promise<unknown>
   waitForTimeout: (ms: number) => Promise<void>
+  keyboard?: { press: (key: string) => Promise<void>; type: (text: string) => Promise<void> }
 }
 
 /** The one task in the fixtures with an agent's screen behind it. */
@@ -226,7 +227,10 @@ export async function unpairedAt(
   const where = `no session @ ${width.name}`
   try {
     await page.goto(`${origin}/agents`, { waitUntil: READY })
-    await page.waitForSelector('#label', { timeout: 10_000 })
+    // Attached, not visible: with no ticket in the address the form has
+    // nothing to pair with, so the page draws the one line that says to scan
+    // the code and keeps the field out of sight.
+    await page.waitForSelector('#label', { timeout: 10_000, state: 'attached' })
     const shape = (await page.evaluate(OUTSIDE)) as { drawn: string[]; words: string; path: string }
     const claims = ['reconnecting', 'no agent is running', 'not turned on'].filter((one) =>
       shape.words.toLowerCase().includes(one),
@@ -243,5 +247,67 @@ export async function unpairedAt(
     // Away from `/pair`, or the pairing that follows is a fragment changing
     // under a page that has already read it — no load, and no ticket taken.
     await page.goto('about:blank')
+  }
+}
+
+/** Where the command bar stands: open or not, what has focus, the rows it offers. */
+const BAR = `(() => {
+  const bar = document.querySelector('.palette')
+  const open = bar !== null && !bar.hidden && getComputedStyle(bar).display !== 'none'
+  return {
+    open,
+    focused: document.activeElement?.getAttribute('role') ?? '',
+    rows: [...document.querySelectorAll('.pal-list [role="option"]')].map((one) =>
+      (one.querySelector('.pal-label')?.textContent || '').trim()),
+    path: location.pathname,
+  }
+})()`
+
+/**
+ * The command bar, in a real browser: `⌘K` opens it with the field focused,
+ * what is typed filters where to go, Enter goes there and closes it, and
+ * Escape closes it without going back a page. For the device granted nothing,
+ * which may go anywhere it can read and may say nothing to Tade — so the bar
+ * must offer no message row at all.
+ */
+export async function paletteAt(
+  page: Page,
+  origin: string,
+  width: { name: string; width: number },
+  found: Found,
+): Promise<void> {
+  const where = `the command bar @ ${width.name}`
+  const keys = page.keyboard
+  if (keys === undefined) {
+    found('palette', where, 'unrun', 'this page has no keyboard to press')
+    return
+  }
+  try {
+    await page.goto(`${origin}/`, { waitUntil: READY })
+    await page.waitForSelector('main .section', { timeout: 10_000 })
+    await keys.press('ControlOrMeta+k')
+    await until(page, `document.querySelector('.palette')?.hidden === false`)
+    const opened = (await page.evaluate(BAR)) as { open: boolean; focused: string }
+    if (opened.focused !== 'combobox') throw new Error(`focus is on ${opened.focused || 'nothing'}`)
+    await keys.type('queue')
+    const typed = (await page.evaluate(BAR)) as { rows: string[] }
+    // The first row is a message to Tade where this device may send one, so
+    // the place is lit by the arrow keys, as a person would light it.
+    const at = typed.rows.indexOf('Queue')
+    if (at < 0 || at > 1) throw new Error(`typing queue offered ${typed.rows.join(', ')}`)
+    for (let step = 0; step < at; step += 1) await keys.press('ArrowDown')
+    await keys.press('Enter')
+    await until(page, `location.pathname === '/queue'`)
+    const went = (await page.evaluate(BAR)) as { open: boolean }
+    if (went.open) throw new Error('it stayed open after going')
+    await keys.press('ControlOrMeta+k')
+    await until(page, `document.querySelector('.palette')?.hidden === false`)
+    await keys.press('Escape')
+    await until(page, `document.querySelector('.palette')?.hidden === true`)
+    const shut = (await page.evaluate(BAR)) as { path: string }
+    if (shut.path !== '/queue') throw new Error(`Escape went back to ${shut.path}`)
+    found('palette', where, 'pass', 'opened by the keys, filtered, went, and closed in place')
+  } catch (problem) {
+    found('palette', where, 'fail', said(problem))
   }
 }

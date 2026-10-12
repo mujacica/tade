@@ -1,20 +1,20 @@
-// The control room at a desk: the window's own shape, in type.
+// The control room at a desk: the window's own parts, in type.
 //
 // The window has projects along its top, its agents down the side, the work in
 // the middle and the orchestrator in a strip at the foot. A phone has room for
-// one of those at a time, which is why the page is a column with a tab bar;
-// a laptop has room for all four, and a page that drew a phone's column in the
-// middle of 1440 pixels would be asking somebody to navigate for what the
-// window shows at a glance. So at a desk (`frame.css`, 1280px and up) the
+// one of those at a time, which is why the page is a column with a tab bar and
+// Tade one press away in the command bar; a laptop has room for all of them,
+// and a page that drew a phone's column in the middle of 1440 pixels would be
+// asking somebody to navigate for what the window shows at a glance. So the
 // frame gains three parts, and **nothing in them is new information**:
 //
-// - **Projects**, along the top: the projection's own counts per project —
-//   what wants you, what is working, what is queued — each a link to the
-//   project. Also on a tablet, where it wraps.
-// - **Agents**, down the side: every task with an agent on it (`agentsOf`,
-//   the Agents screen's own list), by project, with what it runs on. Each a
-//   link to the agent's own page.
-// - **Tade**, in a strip at the foot: the last few lines of the conversation
+// - **Projects**, along the top from a tablet up: the projection's own counts
+//   per project — what wants you, what is working, what is queued — each a
+//   link to the project.
+// - **Agents**, in the dock beside the work at a desk: every task with an agent
+//   on it (`agentsOf`, the Agents screen's own list), by project, with what it
+//   runs on. Each a link to the agent's own page.
+// - **Tade**, under them in the same dock: the last lines of the conversation
 //   and the same box the conversation screen has (`composerOf`). The one way
 //   anything here says something to the work is through Tade, which is
 //   narrowed to what this device was granted at the machine.
@@ -22,17 +22,18 @@
 // **Built once and patched**, like every screen: a part is filled on every
 // paint and rebuilt never, so focus and a half-typed message survive a delta.
 // Hidden below its width by the stylesheet alone, so a tablet turned on its
-// side gains the side list without anything here knowing.
+// side gains the dock without anything here knowing.
 
 import { classOn, el, empty, glyphOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
 import { count } from './figures.js'
 import { CHAT_KINDS, taskMark } from './glyphs.js'
+import { icon } from './icons.js'
 import { navFor, pathOf, taskPath } from './routes.js'
 import { agentsOf, chatOf, mayRead, projectsOf, talkOf } from './store.js'
 import { composerOf, saidOn, whoSaid } from './talk.js'
 
-/** How many lines of the conversation the strip shows: the exchange that just happened. */
-const STRIP_LINES = 3
+/** How many lines of the conversation the dock shows: the exchange that just happened. */
+const STRIP_LINES = 6
 
 /** The three parts, built once, empty until the first paint fills them. */
 export function deskParts(ctx) {
@@ -50,18 +51,22 @@ export function deskParts(ctx) {
   const strip = el('section', { class: 'strip', attrs: { 'aria-labelledby': 'strip-head' } })
   const stripHead = el('div', { class: 'section-head' })
   const stripTitle = el('h2', {
-    text: 'WITH TADE',
-    attrs: { id: 'strip-head', 'aria-label': 'With Tade' },
+    text: 'TADE',
+    attrs: { id: 'strip-head', 'aria-label': 'Tade' },
   })
-  const whole = el('a', { text: 'The whole conversation ›', attrs: { href: '/talk' } })
+  const whole = el('a', {
+    class: 'tap icon',
+    attrs: { href: '/talk', 'aria-label': 'The whole conversation' },
+  })
+  into(whole, icon('arrow'))
   into(stripHead, stripTitle, whole)
   const lines = el('ul', { class: 'lines' })
   const quiet = el('p', { class: 'empty' })
   const typing = composerOf(ctx, {
     label: 'what to ask Tade',
-    placeholder: 'ask Tade something',
+    placeholder: 'Ask Tade…',
     send: 'Ask',
-    rows: '1',
+    rows: '2',
   })
   const composer = el('div', { class: 'composer' })
   into(composer, ...typing.nodes)
@@ -227,9 +232,9 @@ function stripIn(made, view) {
     (talk ?? null) === null
       ? ''
       : !may
-        ? 'The conversation is not granted to this device.'
+        ? 'Not granted'
         : shown.length === 0
-          ? 'Nothing said yet.'
+          ? 'Nothing said yet'
           : ''
   textIn(made.quiet, said)
   made.quiet.hidden = said === ''

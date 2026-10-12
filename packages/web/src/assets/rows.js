@@ -14,7 +14,7 @@
 // every count came off the wire already derived; what is here is the drawing.
 
 import { classOn, el, glyphOf, into, markIn, proseOf, textIn } from './dom.js'
-import { ageSaid, money, shortClockOf } from './figures.js'
+import { ageSaid, shortClockOf } from './figures.js'
 import {
   checkMark,
   findingMark,
@@ -93,75 +93,7 @@ export function fillTaskRow(node, task, view) {
   classOn(link, 'stalled', task.stalled)
 }
 
-/* ── a task, as a card: the `WANTS YOU` drawing ────────────────────────────── */
-
-export function createTaskCard() {
-  const node = el('a', { class: 'card', attrs: { href: '/' } })
-  const top = el('div', { class: 'card-top' })
-  const glyph = glyphOf(taskMark('blocked'))
-  const who = el('span', { class: 'who' })
-  into(top, glyph, who)
-  const why = el('p', { class: 'why' })
-  const asked = el('p', { class: 'asked' })
-  const foot = el('div', { class: 'card-foot' })
-  into(node, top, why, asked, foot)
-  return node
-}
-
-/**
- * One card. Four lines: who, what state and why, what it is waiting on, and
- * the footer of facts.
- *
- * The third line is **the tool's name and never its arguments**. The projection
- * carries only the name for the same reason this does not ask for more: a
- * command's arguments are the one field that reliably holds a path and a
- * credential, and the place to read the whole of one is the window, at the
- * machine, where the person deciding is.
- */
-export function fillTaskCard(node, task, view) {
-  const [top, why, asked, foot] = node.children
-  const [glyph, who] = top.children
-  const mark = taskMark(task.state)
-  node.setAttribute('href', taskPath(task.id))
-  classOn(node, 'wants', task.state === 'blocked')
-  classOn(node, 'broke', task.state === 'failed')
-  markIn(glyph, mark)
-  textIn(who, `${task.project} / ${task.name}`)
-  textIn(why, `${mark.word} — ${task.reason}`)
-  const approval = task.approval
-  textIn(asked, approval === null ? '' : `waiting on ${approval.tool}`)
-  factsIn(foot, task, view)
-}
-
-/**
- * The footer of a card: age, harness, model, cost.
- *
- * Every one of the four may be missing and none of them is drawn as a nought.
- * `plan` is a harness on a subscription and is not a figure; `—` is nobody
- * wrote it down.
- */
-function factsIn(foot, task, view) {
-  const age = ageSaid(task.movedAt, view.asOf, view.frozen)
-  const paid = money(task.spend, view.may.spend)
-  const parts = [
-    task.project,
-    age === null ? null : age,
-    task.harness,
-    task.model,
-    paid.said === '—' ? `— ${paid.why}` : paid.said,
-  ].filter((one) => one !== null && one !== undefined && one !== '')
-  keepText(foot, parts)
-}
-
-/**
- * A row of short facts, kept as one text node per fact so a change writes one
- * of them rather than rebuilding the row.
- */
-function keepText(parent, parts) {
-  while (parent.children.length > parts.length) parent.lastElementChild?.remove()
-  while (parent.children.length < parts.length) parent.append(el('span'))
-  for (let at = 0; at < parts.length; at += 1) textIn(parent.children[at], parts[at])
-}
+/* A task as a card is the overview's own drawing now (`overview.js`), with its presses. */
 
 /* ── queued work ───────────────────────────────────────────────────────────── */
 

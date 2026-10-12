@@ -100,8 +100,10 @@ declare module '*/assets/glyphs.js' {
 
 declare module '*/assets/routes.js' {
   export const TITLES: Readonly<Record<string, string>>
-  export const NAV: readonly { view: string; mark: string; label: string; counts: string | null }[]
-  export const MORE: readonly { view: string; mark: string; label: string; counts: string | null }[]
+  type Place = { view: string; icon: string; mark: string; label: string; counts: string | null }
+  export const NAV: readonly Place[]
+  export const MORE: readonly Place[]
+  export const MORE_TAB: Place
   export function viewOf(path: string): {
     view: string
     project?: string
@@ -223,6 +225,67 @@ declare module '*/assets/talk.js' {
   export function whoSaid(line: unknown): string
   export function saidOn(line: unknown): string
   export function draftStore(): { get(): string; set(said: unknown): void }
+  export function reasonWord(talk: unknown): string
+}
+
+declare module '*/assets/icons.js' {
+  export const ICONS: readonly string[]
+}
+
+declare module '*/assets/charts.js' {
+  export function stopsOf(parts: readonly number[]): number[]
+}
+
+declare module '*/assets/commands.js' {
+  export const GROUP_MOST: number
+  export function scoreOf(label: string, query: string): number | null
+  export function commandsFor(
+    query: string,
+    from: {
+      talk?: { mine?: boolean; busy?: boolean } | null
+      tasks?: readonly { id: string; path: string; icon?: string; tone?: string }[]
+      projects?: readonly string[]
+      screens?: readonly { label: string; icon: string; path: string }[]
+    },
+  ): {
+    kind: 'ask' | 'go'
+    group: string
+    label: string
+    icon: string
+    path?: string
+    key: string
+  }[]
+  export function movedTo(at: number, rows: number, by: number): number
+}
+
+declare module '*/assets/overview.js' {
+  export function glanceOf(store: unknown): {
+    wants: { n: number; blocked: number; failed: number; review: number }
+    working: { n: number; stalled: number }
+    queue: { n: number; ready: number }
+    checks: { pass: number; fail: number; unknown: number }
+    spend: { usd: number; partial: boolean; hasCost: boolean }
+    plan: { used: number; label: string; harness: string } | null
+  }
+  export function projectShape(counts: {
+    tasks?: number
+    wantsYou?: number
+    working?: number
+    queued?: number
+  }): number[]
+}
+
+declare module '*/assets/palette.js' {
+  export function jumpsOf(store: unknown): {
+    tasks: { id: string; path: string; icon: string; tone: string }[]
+    projects: string[]
+    screens: { label: string; icon: string; path: string }[]
+  }
+}
+
+declare module '*/assets/quick.js' {
+  export const QUICK: readonly string[]
+  export function quickWord(verb: string, row: unknown, asked?: boolean): string
 }
 
 declare module '*/assets/acts.js' {

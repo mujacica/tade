@@ -162,7 +162,7 @@ export async function forgetView() {
  * be done.
  */
 export function lastSeenScreen(view, now) {
-  const node = el('div', { class: 'column' })
+  const node = el('div', { class: 'last-seen' })
   // `typeof`, not a null check: a record this could not read answers null, and
   // a caller with nothing at all hands an empty object. Both draw the heading
   // without an age rather than `NaN ago`, which is the shape a subtraction
@@ -173,30 +173,37 @@ export function lastSeenScreen(view, now) {
   // single timestamp would have forced: the phone is somewhere else, and
   // *2pm* there is not *2pm* here.
   const told = typeof view.at === 'number' ? clockOf(view.at) : null
-  into(
-    node,
-    el('h1', { text: since === null ? 'Last seen' : `Last seen ${duration(since)} ago` }),
-    el('p', {
-      class: 'caveat',
-      text: `This device cannot reach the machine.${told === null ? '' : ` Nothing here is newer than ${told}.`} What is below is what this page was told when it last could — not what is happening now, and nothing here can be acted on.`,
-    }),
-  )
-  const list = el('ul', { class: 'rows' })
+  // **What a person on a train needs first**: that the machine is not
+  // answering, and the likeliest two reasons — a laptop asleep, a window
+  // closed — rather than a proxy's error page (the on-the-go design's own
+  // note). Then the counts it last knew, as tiles, and when.
+  const head = el('div', { class: 'page-head' })
+  into(head, el('h1', { text: 'Tade isn’t answering' }))
+  const when = el('p', {
+    class: 'caveat',
+    text: `${since === null ? 'Last seen: unknown' : `Last seen ${duration(since)} ago`}${told === null ? '' : ` · as of ${told}`}. This device cannot reach the machine: the laptop may be asleep, or Tade closed there. Below is what this device was last told — not what is happening now, and nothing here can be acted on.`,
+  })
+  into(node, head, when)
+  const tiles = el('div', { class: 'tiles' })
   for (const [said, n] of [
-    ['working', view.working],
-    ['wants you', view.wantsYou],
-    ['queued', view.queue],
-    ['waiting in the inbox', view.inbox],
-    ['runs', view.runs],
-    ['projects', view.projects],
+    ['Wants you', view.wantsYou],
+    ['Working', view.working],
+    ['Queued', view.queue],
+    ['Inbox', view.inbox],
+    ['Runs', view.runs],
+    ['Projects', view.projects],
   ]) {
-    const row = el('li')
-    into(row, el('span', { class: 'figure', text: count(n ?? 0) }), el('span', { text: said }))
-    into(list, row)
+    const tile = el('div', { class: 'tile' })
+    into(
+      tile,
+      el('span', { class: 'tile-head', text: said }),
+      el('span', { class: 'tile-figure', text: count(n ?? 0) }),
+    )
+    into(tiles, tile)
   }
   into(
     node,
-    list,
+    tiles,
     el('p', {
       class: 'caveat',
       // **What to do, rather than a promise this screen cannot keep.** It has

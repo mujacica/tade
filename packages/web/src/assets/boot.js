@@ -33,6 +33,7 @@ import { inboxScreen, requestScreen } from './factory.js'
 import { forget, NOT_SECURE, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
+import { nowScreen } from './overview.js'
 import {
   checksScreen,
   devicesScreen,
@@ -45,9 +46,10 @@ import {
   reviewsScreen,
   spendScreen,
 } from './pages.js'
+import { palette } from './palette.js'
 import { viewOf } from './routes.js'
 import { runScreen, runsScreen } from './runs.js'
-import { nowScreen, projectScreen, taskScreen } from './screens.js'
+import { projectScreen, taskScreen } from './screens.js'
 import { settingsScreen } from './settings.js'
 import {
   barsFor,
@@ -187,6 +189,8 @@ const ctx = {
 // they send through, and patched on every paint like a screen.
 const desk = deskParts(ctx)
 const shown = shell(desk)
+// The command bar: Tade, and everywhere else, one press away (`palette.js`).
+const bar = palette(ctx)
 
 let screen = null
 let where = { view: 'now' }
@@ -219,7 +223,7 @@ let keptAt = 0
 /* ── the router ────────────────────────────────────────────────────────────── */
 
 const SCREENS = {
-  now: () => nowScreen(),
+  now: () => nowScreen(ctx),
   project: (at) => projectScreen(at, ctx),
   task: (at) => taskScreen(at, ctx),
   agents: () => agentsScreen(),
@@ -319,23 +323,26 @@ function paint() {
   // A kept view is a record and says so itself; only rows a stream drew dim.
   heldOn(document.body, outside === null ? standing : 'live')
   insideIn(shown, outside === null)
-  if (held.store.had) {
-    navCounts(shown.links, {
-      wantsYou: rowsOf(held.store, 'tasks').filter((task) => task.wantsYou).length,
-      agents: agentsOf(held.store).length,
-      queue: held.store.rows.queue.size + omitted(held.store, 'queue'),
-      // **What is waiting on somebody**, not how many requests there are: a
-      // badge counting forty answered tickets is a badge nobody looks at
-      // twice. `intakeWaiting` is the domain's own list of states, copied into
-      // `store.js` and held equal to it.
-      intake: intakeWaiting(held.store).length,
-      runs: held.store.rows.runs.size + omitted(held.store, 'runs'),
-      workflows: held.store.rows.workflows.size + omitted(held.store, 'workflows'),
-      reviews: rowsOf(held.store, 'tasks').filter((task) => task.review !== null).length,
-      findings: held.store.rows.findings.size,
-      notes: held.store.rows.notes.size + omitted(held.store, 'notes'),
-    })
-  }
+  // The counts beside the navigation, once a paint: the rail, the tab bar
+  // and the More screen all draw these and nothing else.
+  const counts = held.store.had
+    ? {
+        wantsYou: rowsOf(held.store, 'tasks').filter((task) => task.wantsYou).length,
+        agents: agentsOf(held.store).length,
+        queue: held.store.rows.queue.size + omitted(held.store, 'queue'),
+        // **What is waiting on somebody**, not how many requests there are: a
+        // badge counting forty answered tickets is a badge nobody looks at
+        // twice. `intakeWaiting` is the domain's own list of states, copied
+        // into `store.js` and held equal to it.
+        intake: intakeWaiting(held.store).length,
+        runs: held.store.rows.runs.size + omitted(held.store, 'runs'),
+        workflows: held.store.rows.workflows.size + omitted(held.store, 'workflows'),
+        reviews: rowsOf(held.store, 'tasks').filter((task) => task.review !== null).length,
+        findings: held.store.rows.findings.size,
+        notes: held.store.rows.notes.size + omitted(held.store, 'notes'),
+      }
+    : null
+  if (counts !== null) navCounts(shown.links, counts)
   keep(now)
   const view = {
     store: held.store,
@@ -344,6 +351,7 @@ function paint() {
     frozen: clock.frozen,
     now,
     where,
+    counts,
     // What this device was granted, read once a paint rather than per row.
     may: {
       ...Object.fromEntries(GRANTS.map((grant) => [grant, mayRead(held.store, grant)])),
@@ -361,7 +369,10 @@ function paint() {
     },
   }
   screen?.update(view)
-  if (outside === null) desk.update(view)
+  if (outside === null) {
+    desk.update(view)
+    bar.update(view)
+  }
 }
 
 /**
@@ -611,6 +622,17 @@ const GOES = {
 function wireKeys() {
   let going = false
   let on = -1
+  // **⌘K, or Ctrl+K**, from anywhere — a field included, because the bar is
+  // where somebody goes *from* whatever they were typing in. Only with a
+  // session: the bar's every row is a screen a paired device reads.
+  document.addEventListener('keydown', (event) => {
+    if (event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey)) return
+    if (outside !== null) return
+    event.preventDefault()
+    if (bar.isOpen()) bar.shut()
+    else bar.open()
+  })
+  for (const press of shown.asks) press.addEventListener('click', () => bar.open(press))
   document.addEventListener('keydown', (event) => {
     const where_ = event.target
     if (where_?.tagName === 'INPUT' || where_?.tagName === 'TEXTAREA') return
@@ -685,7 +707,10 @@ async function signedOut() {
 
 async function start() {
   held.ticket = ticketIn()
-  document.body.replaceChildren(...shown.parts)
+  // The sprite the icons are drawn from stays: it is in the shell so that no
+  // module has to spell the SVG namespace (`icons.js`).
+  const sprite = document.querySelector('svg.sprite')
+  document.body.replaceChildren(...[sprite, ...shown.parts, bar.node].filter((one) => one !== null))
   wireLinks()
   wireKeys()
   const mine = await ask('GET', '/api/devices')

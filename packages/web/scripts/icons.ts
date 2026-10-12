@@ -38,7 +38,7 @@ import { MANIFEST_FILE } from '../src/installable.ts'
 // gradient or a border would be a second brand.
 
 /** `--ground`: the page, and the icon's ground. */
-const GROUND = [0x12, 0x12, 0x12] as const
+const GROUND = [0x08, 0x08, 0x08] as const
 
 /** `--amber`: Tade itself. The mark, and nothing else on the icon. */
 const AMBER = [0xff, 0xaf, 0x00] as const
@@ -210,8 +210,8 @@ export function manifestOf(): Record<string, unknown> {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#121212',
-    theme_color: '#121212',
+    background_color: '#080808',
+    theme_color: '#080808',
     icons: ICONS.map((icon) => ({
       src: `/assets/${icon.name}`,
       sizes: `${icon.size}x${icon.size}`,

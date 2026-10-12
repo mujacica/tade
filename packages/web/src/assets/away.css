@@ -1,43 +1,66 @@
 /*
-  The screens: rows, cards, the queue's connectors, the tables, the figures,
-  somebody's own words, and the two controls this phase has.
+  The screens: tiles and charts, rows, cards, the queue's connectors, the
+  tables, the figures, somebody's own words, and the controls.
 
   Three rules, and the drawing is downstream of all three.
 
   1. **Answer the question on the first screen, without scrolling.** The
-     question is *is anything stopped*, so `WANTS YOU` is the top of every
-     viewport and nothing is above it but the wordmark and the freshness clock.
-  2. **Minimal chrome.** A heading, then rows and figures. No section explains
-     itself; a caveat true under every row is a mark or a word (`~`, `—`, `≥`),
-     never a sentence.
+     question is *is anything stopped*, so the overview's figures are the top of
+     every viewport and nothing is above them but the header.
+  2. **Options and values, not sentences.** A heading, then figures and rows. No
+     section explains itself; a caveat true under every row is a mark or a word
+     (`~`, `—`, `≥`), and a sentence somebody may need is behind a `?`
+     (`hintOf`).
   3. **Nothing cuts its own rows to fit.** No `+3 more` in place of scrolling,
      and a row too narrow for something says it one tap away rather than
      truncating it into a lie.
 
+  The construction is one rule applied everywhere: **a surface one step up from
+  what it sits on, and a hairline round it** — a list is a panel, a card is a
+  surface, a field is raised — and a state is a tint of its own tone with the
+  tone as its text.
+
   `frame.css` is what this is drawn inside.
 */
+
 /* ── rows ──────────────────────────────────────────────────────────────────── */
 
-.rows {
+/* A list is a panel with a hairline between its rows. */
+.rows,
+.queue {
   display: grid;
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
+  overflow: hidden;
+}
+
+.rows:empty,
+.queue:empty {
+  display: none;
+}
+
+.rows > li + li > a,
+.rows > li + li > div {
+  border-block-start: var(--border);
 }
 
 .rows > li > a,
 .rows > li > div {
   display: grid;
   grid-template-columns: 1.5rem 1fr auto;
-  gap: var(--s3);
+  gap: 2px var(--s3);
   align-items: baseline;
   /* 44px even though the text is one line: a row is a tap target. */
-  min-height: var(--tap);
-  padding-block: var(--s2);
-  border-block-end: 1px solid var(--surface);
+  min-height: calc(var(--tap) + var(--s2));
+  padding: var(--s3) var(--s4);
   color: inherit;
   text-decoration: none;
+  transition: background var(--ease);
 }
 
 .rows > li > a:hover {
-  background: var(--chosen);
+  background: var(--surface);
 }
 
 /* The row the keyboard is on, and the one `j`/`k` moves. */
@@ -47,7 +70,7 @@
 }
 
 .glyph {
-  font-size: var(--step-1);
+  font-size: var(--step-0);
   line-height: var(--lead);
   text-align: center;
 }
@@ -55,6 +78,7 @@
 .name {
   min-width: 0;
   color: var(--bright);
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -77,34 +101,38 @@
   font-size: var(--step--1);
 }
 
+/* A row whose agent has gone quiet: the word is in the row; this is its edge. */
+.stalled {
+  box-shadow: inset 3px 0 0 var(--amber-dark);
+}
+
 /* ── the state words, each beside its glyph ────────────────────────────────── */
 
 .t-wants {
   color: var(--violet);
 }
+
 .t-failed {
   color: var(--red);
 }
+
 .t-working {
   color: var(--amber);
 }
+
 .t-done {
   color: var(--green);
 }
+
 .t-here {
   color: var(--cyan);
 }
+
 .t-quiet {
   color: var(--quiet);
 }
 
-.word {
-  font-size: var(--step--1);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
+/* A pill: the tone's own tint as its ground, the tone as its text. */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -116,72 +144,29 @@
   white-space: nowrap;
 }
 
-/* ── cards: WANTS YOU ──────────────────────────────────────────────────────── */
+.chip .ic {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
 
-.card {
-  display: grid;
-  gap: var(--s2);
-  padding: var(--s4);
-  border-radius: var(--r2);
-  background: var(--surface);
-  border: 1px solid var(--chrome);
-  box-shadow: var(--lift);
-  color: inherit;
+main a.chip-link {
+  min-height: 2.75rem;
+  padding-inline: var(--s3);
+  border: var(--border);
+  background: var(--panel);
+  color: var(--body);
   text-decoration: none;
 }
 
-.card:hover {
-  border-color: var(--edge);
-}
-
-.card.wants {
-  border-inline-start: 3px solid var(--violet);
-}
-
-.card.broke {
-  border-inline-start: 3px solid var(--red);
-}
-
-.card-top {
-  display: grid;
-  grid-template-columns: 1.5rem 1fr;
-  gap: var(--s3);
-  align-items: baseline;
-}
-
-.card .who {
+main a.chip-link:hover {
+  background: var(--surface);
   color: var(--bright);
-  font-size: var(--step-1);
-  overflow-wrap: anywhere;
 }
 
-.card .why {
-  color: var(--heading);
-  font-size: var(--step-0);
-}
-
-/*
-  The approval's tool name, in mono. One line here, the whole of it on the task
-  page — a command cut mid-flag reads as a different command.
-*/
-.card .asked {
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  color: var(--amber);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s3);
-  padding-block-start: var(--s2);
-  border-block-start: 1px solid var(--raised);
-  font-family: var(--font-mono);
-  font-size: var(--step--1);
-  color: var(--heading);
+main a.chip-link.t-wants {
+  border-color: color-mix(in srgb, var(--violet) 40%, transparent);
+  background: color-mix(in srgb, var(--violet) 10%, var(--panel));
+  color: var(--violet);
 }
 
 /* ── the project sub-navigation: scrollable, never collapsed into `+3 more` ── */
@@ -193,7 +178,7 @@
   padding-block-end: var(--s2);
   overflow-x: auto;
   scroll-snap-type: x proximity;
-  border-block-end: 1px solid var(--raised);
+  border-block-end: var(--border);
 }
 
 .tabstrip a {
@@ -227,8 +212,12 @@
   grid-template-columns: 1.75rem 1.5rem 1fr auto;
   gap: var(--s2);
   align-items: center;
-  padding-block: var(--s2);
+  padding: var(--s2) var(--s4);
   min-height: var(--tap);
+}
+
+.queue > li + li {
+  border-block-start: var(--border);
 }
 
 .queue .order {
@@ -263,6 +252,9 @@
 
 .scrolls {
   overflow-x: auto;
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
 }
 
 table {
@@ -275,21 +267,31 @@ caption {
   text-align: start;
   color: var(--heading);
   font-size: var(--step--1);
-  padding-block-end: var(--s2);
+  padding: var(--s3) var(--s4) var(--s2);
 }
 
 th,
 td {
   text-align: start;
-  padding: var(--s2) var(--s3) var(--s2) 0;
-  border-block-end: 1px solid var(--surface);
+  padding: var(--s3) var(--s4) var(--s3) 0;
+  border-block-end: var(--border);
   white-space: nowrap;
+}
+
+th:first-child,
+td:first-child {
+  padding-inline-start: var(--s4);
+}
+
+tr:last-child td {
+  border-block-end: 0;
 }
 
 th {
   color: var(--heading);
   font-size: var(--step--1);
   font-weight: 600;
+  background: var(--surface);
 }
 
 td.figure,
@@ -302,9 +304,10 @@ th.figure {
 /* ── figures ───────────────────────────────────────────────────────────────── */
 
 .big {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: var(--step-3);
+  font-size: var(--step-4);
+  font-weight: 600;
+  letter-spacing: var(--tight);
   color: var(--bright);
   line-height: var(--lead-tight);
 }
@@ -330,12 +333,27 @@ th.figure {
   letter-spacing: 0.1em;
 }
 
+/* A plan's windows, one to a line under its name. */
+.under.meter {
+  white-space: pre-line;
+  line-height: 1.8;
+}
+
+.rows .ring {
+  width: 1.25rem;
+  height: 1.25rem;
+  align-self: center;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+}
+
 .meter.is-fine {
   color: var(--amber);
 }
+
 .meter.is-warm {
   color: var(--amber-light);
 }
+
 .meter.is-tight {
   color: var(--red);
 }
@@ -389,6 +407,10 @@ th.figure {
   grid-template-columns: auto 1fr;
   gap: var(--s2) var(--s4);
   margin: 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
 }
 
 .dl dt {
@@ -403,20 +425,24 @@ th.figure {
   overflow-wrap: anywhere;
 }
 
-/* ── controls: the pairing screen, and signing this device out ─────────────── */
+/* ── controls ──────────────────────────────────────────────────────────────── */
 
 .press {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--s2);
   min-height: var(--tap);
   min-width: var(--tap);
-  padding-inline: var(--s5);
+  padding-inline: var(--s4);
   border-radius: var(--r1);
   background: var(--amber);
   color: var(--ink); /* a coloured ground takes the dark ink: `inkOn`'s rule */
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background var(--ease),
+    color var(--ease);
 }
 
 .press:hover:not(:disabled) {
@@ -437,14 +463,24 @@ th.figure {
   cursor: default;
 }
 
+/* A press on a card or a bar: the same 44px target, a little less to look at. */
+.press.small {
+  padding-inline: var(--s3);
+  font-size: var(--step--1);
+}
+
+.press .ic {
+  width: 1rem;
+  height: 1rem;
+}
+
 /*
  * A control that has been asked once and wants a second tap.
  *
- * The two verbs asking again does not undo — marking work finished, and
- * approving a stranger's request — change their own word rather than opening
- * anything, so the second tap lands exactly where the first one did and there
- * is nothing to reach past. `--amber` is the same ground the primary control
- * has, which is the one thing on this page that means *this one counts*.
+ * The verbs asking again does not undo change their own word rather than
+ * opening anything, so the second tap lands exactly where the first one did.
+ * `--amber` is the same ground the primary control has, which is the one thing
+ * on this page that means *this one counts*.
  */
 .press.asked {
   background: var(--amber);
@@ -464,27 +500,30 @@ th.figure {
 }
 
 /*
- * What somebody types on a phone.
- *
- * `font-size: var(--step-0)` rather than inheriting, because iOS Safari zooms
- * the whole page when a focused field is under 16px and then leaves it zoomed
- * — which is what makes a page feel broken rather than small. `--tap` floors
- * the height for the same reason every control has one.
+ * What somebody types on a phone, at 17px: iOS Safari zooms the whole page
+ * when a focused field is under 16px and then leaves it zoomed — which is what
+ * makes a page feel broken rather than small.
  */
 textarea {
   display: block;
   width: 100%;
   min-height: var(--tap);
   margin-block-end: var(--s2);
-  padding: var(--s2);
-  border: 1px solid var(--border);
+  padding: var(--s3);
+  border: 1px solid var(--chrome);
   border-radius: var(--r1);
-  background: var(--ground);
+  background: var(--panel);
   color: var(--bright);
-  font-family: var(--font-mono);
-  font-size: var(--step-0);
-  line-height: 1.5;
+  font-family: var(--font-ui);
+  font-size: var(--step-1);
+  line-height: 1.45;
   resize: vertical;
+  transition: border-color var(--ease);
+}
+
+textarea:hover,
+input:hover {
+  border-color: var(--hovered);
 }
 
 label {
@@ -499,9 +538,9 @@ input {
   max-width: 22rem;
   min-height: var(--tap);
   padding: var(--s2) var(--s3);
-  border: var(--border);
+  border: 1px solid var(--chrome);
   border-radius: var(--r1);
-  background: var(--raised);
+  background: var(--panel);
   color: var(--bright);
   font-family: var(--font-ui);
   /* 17px, so iOS does not zoom the page when this takes focus. */
@@ -514,9 +553,9 @@ select {
   max-width: 22rem;
   min-height: var(--tap);
   padding: var(--s2) var(--s3);
-  border: var(--border);
+  border: 1px solid var(--chrome);
   border-radius: var(--r1);
-  background: var(--raised);
+  background: var(--panel);
   color: var(--bright);
   font-family: var(--font-ui);
   font-size: var(--step-1);
@@ -534,28 +573,69 @@ select {
   padding: var(--s3);
   border-radius: var(--r1);
   border-inline-start: 3px solid var(--amber-dark);
-  background: var(--surface);
+  background: var(--panel);
   color: var(--heading);
   font-size: var(--step--1);
   line-height: var(--lead);
+}
+
+/* An absence in a word, with its sentence one `?` away. */
+.why-short {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s2);
+}
+
+.why-short .hint-body {
+  flex: 1 0 100%;
+  color: var(--heading);
+  font-size: var(--step--1);
+  padding-block-end: var(--s2);
 }
 
 [role="status"]:empty {
   display: none;
 }
 
+/*
+  A control's block that can only say why not: its heading and its reason on one
+  line, quiet, under the blocks that can be pressed.
+*/
+.section.is-off {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s3);
+  margin-block-end: var(--s3);
+}
+
+.section.is-off .section-head {
+  margin: 0;
+  min-height: 0;
+}
+
+.section.is-off .section-head h2 {
+  flex: 0 0 auto;
+}
+
+.section.is-off .empty {
+  padding: 0;
+  font-size: var(--step--1);
+}
+
 /* ── the key sheet, shown by `?` ───────────────────────────────────────────── */
 
 .sheet {
   position: fixed;
-  inset: auto var(--s4) calc(var(--s7) + var(--s4) + env(safe-area-inset-bottom)) var(--s4);
-  z-index: 6;
+  inset: auto var(--s4) calc(var(--s7) + var(--s6) + env(safe-area-inset-bottom)) var(--s4);
+  z-index: 7;
   max-width: 24rem;
   margin-inline: auto;
   padding: var(--s4);
-  border-radius: var(--r2);
-  background: var(--surface);
-  border: 1px solid var(--edge);
+  border-radius: var(--r4);
+  background: var(--panel);
+  border: 1px solid var(--raised);
   box-shadow: var(--lift);
 }
 
@@ -587,15 +667,53 @@ select {
   opacity: 0.6;
 }
 
+/* ── pairing ───────────────────────────────────────────────────────────────── */
+
+.pair {
+  display: grid;
+  place-items: center;
+  min-height: 70vh;
+}
+
+.pair-card {
+  display: grid;
+  gap: var(--s3);
+  width: min(100%, 26rem);
+  padding: var(--s5);
+  border-radius: var(--r4);
+  background: var(--panel);
+  border: var(--border);
+}
+
+.pair-mark .ic {
+  width: 2.5rem;
+  height: 2.5rem;
+  fill: var(--amber);
+  stroke: none;
+}
+
+.pair-card h1 {
+  font-size: var(--step-2);
+  letter-spacing: var(--tight);
+}
+
+.pair-card input {
+  max-width: none;
+}
+
+.pair-away {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
 /* ── the factory floor ─────────────────────────────────────────────────────── */
 
 /*
- * A row nothing links to.
- *
- * `.rows > li > div` already lays one out; this is only the hover it does not
- * get, said as an absence so a door's row does not look tappable. A row that
- * lit under a thumb and then did nothing is the affordance this page spends
- * its whole design avoiding.
+ * A row nothing links to: the hover it does not get, said as an absence so a
+ * door's row does not look tappable.
  */
 .row-static {
   cursor: default;
@@ -603,11 +721,8 @@ select {
 
 /*
  * The sentence under a region's heading: why a request is where it is, what a
- * door's last look came to.
- *
- * `--heading` at 7.88:1 rather than `--quiet`, because it is often the only
- * statement of the fact on the screen — the glyph beside it says the state and
- * this says what to do about it.
+ * door's last look came to. `--heading`, because it is often the only
+ * statement of the fact on the screen.
  */
 .why {
   color: var(--heading);
@@ -616,13 +731,9 @@ select {
 }
 
 /*
- * A run's graph: one block per layer, in order.
- *
- * **Stacked and never side by side**, at every width. A layered graph drawn as
- * columns needs the columns to be readable, and three steps' names at 360px in
- * three columns is three truncations; stacked, each layer is a heading and its
- * steps are ordinary rows, which is the shape the rest of the page already is.
- * The window draws boxes and lines because it has eighty columns.
+ * A run's graph: one block per layer, in order — **stacked and never side by
+ * side**, at every width. The window draws boxes and lines because it has
+ * eighty columns.
  */
 .layers {
   display: grid;
@@ -630,16 +741,12 @@ select {
 }
 
 .layer > h3 {
-  margin-block-end: var(--s1);
+  margin-block-end: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
 }
 
-/*
- * What a step waits on, indented under it.
- *
- * Indented with a border rather than a glyph, because the connector art the
- * window draws (`plan-graph.ts`) needs a monospace grid and this does not have
- * one. The border is line art and the words beside it carry the fact.
- */
+/* What a step waits on, indented under it, with a border for line art. */
 .waits {
   display: grid;
   margin-inline-start: var(--s5);
@@ -654,14 +761,7 @@ select {
   color: var(--heading);
 }
 
-/*
- * The acts that stay at this machine, and what a dry run grants or is bounded
- * by: a list of a name and a clause.
- *
- * One list for all three, because they are one shape — a short label and the
- * sentence under it — and three lists of it would be three places for the
- * sentence to stop being drawn.
- */
+/* The acts that stay at this machine, and what a dry run grants: a name and a clause. */
 .locally {
   display: grid;
   gap: var(--s2);
@@ -678,7 +778,6 @@ select {
 .locally .name {
   color: var(--heading);
   font-size: var(--step--1);
-  text-transform: none;
 }
 
 /* ── the designer's form ───────────────────────────────────────────────────── */
@@ -689,19 +788,15 @@ select {
 }
 
 /*
- * One field: what it is called, what it holds, what it means, and the box.
- *
- * The value is drawn **above** the box and not inside it, which is the one
- * decision here. A box pre-filled with what is stored looks like an edit
- * somebody has already made, and on a page that repaints twice a second it is
- * also the box a delta would overwrite under their thumb. So what is stored is
- * text and the box is empty: typing into it is unambiguously a new value.
+ * One field: what it is called, what it holds, what it means, and the box. The
+ * value is drawn **above** the box and not inside it: a box pre-filled with
+ * what is stored looks like an edit somebody has already made.
  */
 .field {
   display: grid;
   gap: var(--s2);
   padding-block-end: var(--s3);
-  border-block-end: 1px solid var(--surface);
+  border-block-end: var(--border);
 }
 
 .field > label {
@@ -711,17 +806,14 @@ select {
 }
 
 /*
- * A request's own words, and the heading that travels with them.
- *
- * The heading is not styled as a heading: it is a warning about whose words
- * follow, so it takes the border and the ground a caveat takes everywhere else
- * on this page. `--amber-dark` is a ground and a border and never text, which
- * is `inkOn`'s rule.
+ * A request's own words, and the heading that travels with them: a warning
+ * about whose words follow, so it takes the border and the ground a caveat
+ * takes. `--amber-dark` is a ground and a border and never text.
  */
 .material-label {
   border-inline-start: 3px solid var(--amber-dark);
   padding: var(--s2) var(--s3);
-  background: var(--surface);
+  background: var(--panel);
   color: var(--bright);
   font-size: var(--step--1);
 }
@@ -730,16 +822,11 @@ select {
   margin-block-start: var(--s2);
 }
 
-/*
- * A control that goes somewhere rather than doing something.
- *
- * Quiet, because every other `.press` on this page is an act and the one thing
- * that must never happen is a link reading as a press that changes work.
- */
+/* A control that goes somewhere rather than doing something: never read as an act. */
 .press.ghost {
   background: var(--raised);
   color: var(--bright);
-  font-weight: 400;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -760,10 +847,9 @@ select {
 }
 
 /*
-  What its screen shows: an agent's bytes as text, in the window's own mono,
-  on the card ground. Wider than the page is allowed here and only here — it
-  is a `.scrolls` — because a terminal row cut to a phone's width is a row
-  that says something else; taller than the pane is its own scroll.
+  What its screen shows: an agent's bytes as text, in the window's own mono, on
+  the page's deepest ground, like the terminal it came from. Taller than the
+  pane is its own scroll.
 */
 .screen {
   max-height: 34rem;
@@ -771,7 +857,7 @@ select {
   padding: var(--s3);
   border: var(--border);
   border-radius: var(--r2);
-  background: var(--surface);
+  background: var(--ground);
 }
 
 .screen pre {
@@ -789,13 +875,34 @@ select {
 }
 
 /*
-  A line of the conversation is a heading and somebody's words, not a row of
-  three columns: its words are a block under the line that says who, at the
-  width of the screen. Without this the row grid put a reply in the glyph's
-  column, one word to a line.
+  The conversation: who, small, and their words in a bubble under it — a list
+  of things said rather than a table of rows, with no hairline between them.
 */
-.rows.chat > li > div {
+.rows.chat {
+  gap: var(--s3);
+  background: none;
+  border: 0;
+  overflow: visible;
+}
+
+.rows.chat > li {
+  display: grid;
+  gap: var(--s1);
+}
+
+.rows.chat > li > div,
+.rows.chat > li + li > div {
   display: block;
   min-height: 0;
-  padding-block: 0 var(--s2);
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-radius: var(--r2);
+  background: var(--surface);
+  color: var(--body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rows.chat > li > div:empty {
+  display: none;
 }

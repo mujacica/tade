@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { ICONS } from '../src/assets/icons.js'
 import {
   MORE,
+  MORE_TAB,
   NAV,
   navFor,
   pathOf,
@@ -162,25 +164,34 @@ describe('reading a path', () => {
 })
 
 describe('the navigation', () => {
-  it('is four entries plus More, which is what fits 360px with 44px targets', () => {
-    expect(NAV).toHaveLength(4)
+  it('is three places, Tade in the middle and More: what fits 360px with 44px targets', () => {
+    // Five slots under a thumb. Ask is not a place but the command bar, so it
+    // is not in this table: `shell.js` puts a button between the second and
+    // third entries.
+    expect(NAV).toHaveLength(3)
+    expect(MORE_TAB.view).toBe('more')
   })
 
-  it('puts in the thumb row what is read because something happened', () => {
-    // **The one judgement in that table.** What a thumb reaches is what is
-    // read *because something happened* — a request waiting for a yes is
-    // somebody else blocked on this machine — and money is a figure that is
-    // true whenever you look. Spend and Checks keep their place one tap away
-    // under More, with their counts.
-    expect(NAV.map((one) => one.view)).toEqual(['now', 'inbox', 'queue', 'runs'])
+  it('puts in the thumb row what is read because something is happening', () => {
+    // **The one judgement in that table.** The overview answers *is anything
+    // stopped* across every project, the agents are what is spending money
+    // right now, and the queue is what starts them. Spend, Checks and the
+    // inbox keep their place one tap away under More, with their counts.
+    expect(NAV.map((one) => one.view)).toEqual(['now', 'agents', 'queue'])
     expect(MORE.map((one) => one.view)).toContain('spend')
     expect(MORE.map((one) => one.view)).toContain('checks')
+    expect(MORE[0]?.view).toBe('inbox')
   })
 
   it('counts what is waiting on somebody rather than what has arrived', () => {
     // A badge counting forty answered requests is a badge nobody looks at
-    // twice.
-    expect(NAV.find((one) => one.view === 'inbox')?.counts).toBe('intake')
+    // twice — and the More tab carries it, so it is a thumb's reach away.
+    expect(MORE.find((one) => one.view === 'inbox')?.counts).toBe('intake')
+    expect(MORE_TAB.counts).toBe('intake')
+  })
+
+  it('draws every place with an icon the sprite has', () => {
+    for (const one of [...NAV, ...MORE, MORE_TAB]) expect(ICONS, one.view).toContain(one.icon)
   })
 
   it('names each view once across both lists', () => {

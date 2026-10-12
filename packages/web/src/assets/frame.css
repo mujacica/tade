@@ -1,7 +1,9 @@
 /*
-  The frame every screen is drawn inside: the wordmark and the freshness clock,
-  the bars that say how the page stands to the machine, the navigation, the
-  shape of a section, and the four drawings every region has.
+  The frame every screen is drawn inside: the header with the wordmark, the
+  command bar's door and the freshness clock; the bars that say how the page
+  stands to the machine; the navigation; the shape of a section; and the four
+  drawings every region has. The command bar itself is `palette.css`, and the
+  desk's dock is `dock.css`.
 
   **The freshness line and the bars are the most important thing here**, and
   §5.10 is why: when the stream drops, every row keeps its last state and the
@@ -11,25 +13,25 @@
   somebody's morning.
 
   **The four drawings every region has** (`dom.js` builds each): a skeleton
-  while it is coming, a sentence when it is empty, `—` plus a word when it is
+  while it is coming, a word when it is empty, `—` plus a word when it is
   unknown, and — when a read failed — its last good content at 60% with one line
   saying so. The default for all four is a blank area that reads as broken,
   which is why none of them is left to chance.
 
   Four breakpoints, content-driven and not device-driven: one column with a
-  bottom tab bar, then a glyph rail with the projects along the top, then a
-  named rail, then the desk — the window's own shape, with the running agents
-  down the side and the conversation in a strip at the foot (`desk.js`).
-  `away.css` has the screens that are drawn inside this, and the card grid
-  there reflows on its own with no breakpoint at all.
+  floating tab bar and Tade in its middle, then an icon rail with the projects
+  along the top, then a rail with names, then the desk — the work in the middle
+  and a dock beside it with the running agents and Tade (`dock.css`). `away.css`
+  has the screens drawn inside this, and `dash.css` the overview.
 */
+
 /* ── the frame ─────────────────────────────────────────────────────────────── */
 
 .skip {
   position: absolute;
   left: var(--s4);
   top: calc(-1 * var(--s7));
-  z-index: 5;
+  z-index: 9;
   display: inline-flex;
   align-items: center;
   min-height: var(--tap);
@@ -48,10 +50,9 @@
 /*
   **Every link is a thumb-sized target.** Set once here rather than remembered
   per screen, because the ones that get missed are always the standalone links
-  — a `more ›`, a `Go to Now` — which are exactly the ones somebody reaches for
-  on a phone. The rules below that name a class win on specificity and keep
-  their own shape: a card is already bigger, a tab and a rail entry are already
-  sized.
+  — a `more ›`, a `Go to the overview` — which are exactly the ones somebody
+  reaches for on a phone. The rules below that name a class win on specificity
+  and keep their own shape.
 */
 main a {
   min-height: var(--tap);
@@ -69,8 +70,7 @@ a.name {
   min-height: var(--tap);
   line-height: var(--tap);
   /* A **name**, not a hyperlink in a document: the underline and the brand's
-     amber belong to the one outbound link in the design, and down a list of
-     twenty they are noise. */
+     amber belong to the one outbound link in the design. */
   color: var(--bright);
   text-decoration: none;
 }
@@ -79,15 +79,22 @@ a.name:hover {
   color: var(--amber-light);
 }
 
+/*
+  The header: the mark, the command bar, the clock, two tools. The panel's
+  ground under a hairline, and held at the top with the phone's own inset above
+  it, so the clock is never under the notch of an installed app.
+*/
 .top {
   position: sticky;
   top: 0;
-  z-index: 4;
+  z-index: 6;
   display: flex;
   align-items: center;
-  gap: var(--s3);
-  min-height: var(--tap);
-  padding-block: var(--s2);
+  gap: var(--s2);
+  min-height: calc(var(--tap) + var(--s3));
+  margin-inline: calc(-1 * var(--s4));
+  padding-inline: var(--s4);
+  padding-block: calc(var(--s1) + env(safe-area-inset-top)) var(--s1);
   /* The page's own ground, so rows scrolling under it do not show through. */
   background: var(--ground);
   border-block-end: var(--border);
@@ -96,55 +103,113 @@ a.name:hover {
 .brand {
   display: flex;
   align-items: center;
-  /* The header is 44px and so is the wordmark inside it: a link whose box is
-     the height of its text is one a thumb misses on the way to the tab bar. */
+  /* A link whose box is the height of its text is one a thumb misses. */
   min-height: var(--tap);
   gap: var(--s2);
   color: var(--bright);
   text-decoration: none;
   font-size: var(--step-1);
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  letter-spacing: var(--tight);
+}
+
+/* The mark: two squares of amber, the only branding on the page. */
+.brand .mark {
+  width: 1.375rem;
+  height: 1.375rem;
+  fill: var(--amber);
+  stroke: none;
 }
 
 /*
-  At 360px the freshness clock matters more than the second half of a wordmark
-  somebody is already looking at. The mark and the name stay; `away` goes.
+  The command bar's door: a field-shaped press. At a phone's width it is the
+  icon alone and the tab bar's middle does the rest; from a tablet up it is a
+  field that says what it is for and which keys open it.
 */
-@media (max-width: 479px) {
-  .brand .what {
+.cmd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding-inline: var(--s3);
+  border-radius: var(--r1);
+  color: var(--heading);
+  cursor: pointer;
+  transition:
+    background var(--ease),
+    border-color var(--ease);
+}
+
+.cmd .ic {
+  color: var(--amber);
+}
+
+/* On a phone the bar's door is the middle of the tab bar, under the thumb. */
+@media (max-width: 767px) {
+  .cmd {
     display: none;
   }
 }
 
-/* 24px of amber, and never an image: the only branding on the page. */
-.brand .mark {
-  color: var(--amber);
-  font-size: 1.5rem;
-  line-height: 1;
+.cmd-said,
+.cmd kbd {
+  display: none;
 }
 
-.brand .what {
-  color: var(--heading);
-  font-size: var(--step-0);
-  font-weight: 400;
+.cmd:hover {
+  background: var(--raised);
+  color: var(--bright);
 }
 
+kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s1);
+  min-width: 1.5rem;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid var(--chrome);
+  background: var(--raised);
+  color: var(--pressed);
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
+  line-height: 1.5;
+}
+
+/*
+  The clock, as a pill: a dot and the words. Pushed to the end of the header,
+  cut with an ellipsis at a phone's width, and whole a tap away in the bar under
+  it when there is something to say.
+*/
 .fresh {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s2);
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--step--1);
   color: var(--heading);
-  text-align: end;
+  white-space: nowrap;
+}
+
+.fresh-said {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /*
   The dot's colour, and it is never the only thing that says this: the glyph
   itself differs per state (● ◴ ○ ⏸ ▣) and the words follow it.
 */
+.fresh .dot {
+  flex: 0 0 auto;
+}
+
 .fresh .dot.is-live {
   color: var(--green);
 }
@@ -161,7 +226,7 @@ a.name:hover {
 
 .tools {
   display: flex;
-  gap: var(--s2);
+  gap: var(--s1);
   flex: 0 0 auto;
 }
 
@@ -169,10 +234,13 @@ a.name:hover {
   display: grid;
   place-items: center;
   border-radius: var(--r1);
-  color: var(--heading);
+  color: var(--tab);
   text-decoration: none;
   font-size: var(--step-1);
   cursor: pointer;
+  transition:
+    background var(--ease),
+    color var(--ease);
 }
 
 .icon:hover {
@@ -185,36 +253,93 @@ a.name:hover {
 .bars {
   display: grid;
   gap: var(--s2);
-  padding-block: var(--s2);
+  padding-block: var(--s2) 0;
 }
 
+.bars:empty {
+  display: none;
+}
+
+/*
+  One line each: the glyph, the lead, a `?` for the rest, and a press where
+  there is one. A tinted wash of its tone and a hairline of the same — the
+  status pill's construction at the width of the page.
+*/
 .bar {
   display: grid;
-  grid-template-columns: 1.25rem 1fr auto;
-  gap: var(--s3);
-  align-items: start;
-  padding: var(--s3);
   border-radius: var(--r2);
-  background: var(--surface);
+  background: var(--panel);
   border: var(--border);
   font-size: var(--step-0);
 }
 
+.bar-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s3) var(--s1);
+}
+
+.bar .glyph {
+  flex: 0 0 auto;
+  width: 1.25rem;
+}
+
 .bar.is-gone {
-  border-color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 8%, var(--panel));
+}
+
+.bar.is-gone .glyph {
+  color: var(--red);
 }
 
 .bar.is-stale {
   border-color: var(--amber-dark);
+  background: color-mix(in srgb, var(--amber) 6%, var(--panel));
+}
+
+.bar.is-stale .glyph {
+  color: var(--amber);
 }
 
 .bar .lead {
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bar .under {
+  padding: 0 var(--s3) var(--s3) calc(var(--s3) + 1.25rem + var(--s2));
   color: var(--heading);
   font-size: var(--step--1);
+}
+
+/*
+  The `?` behind which a sentence waits: a 44px target with a small disc drawn
+  in it, so it is a thumb's reach without being a thumb's size on the page.
+*/
+.hint {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 2rem;
+  min-height: var(--tap);
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: 600;
+  background: radial-gradient(circle, var(--raised) 0 0.6875rem, transparent 0.7rem);
+  cursor: pointer;
+}
+
+.hint:hover,
+.hint[aria-expanded="true"] {
+  color: var(--bright);
+  background: radial-gradient(circle, var(--control) 0 0.6875rem, transparent 0.7rem);
 }
 
 /* ── navigation ────────────────────────────────────────────────────────────── */
@@ -222,11 +347,12 @@ a.name:hover {
 .frame {
   display: grid;
   gap: var(--s4);
+  padding-block-start: var(--s3);
   /*
-    Room for the tab bar, plus the phone's own safe area. On a tablet and up
-    there is no tab bar and this goes back to an ordinary margin.
+    Room for the floating tab bar, plus the phone's own safe area. On a tablet
+    and up there is no tab bar and this goes back to an ordinary margin.
   */
-  padding-block-end: calc(var(--s7) + var(--s4) + env(safe-area-inset-bottom));
+  padding-block-end: calc(var(--s7) + var(--s6) + env(safe-area-inset-bottom));
 }
 
 .rail {
@@ -234,44 +360,61 @@ a.name:hover {
 }
 
 /*
-  The desk's three parts, off until there is room for them. Each is in the
-  document at every width — so the reading order is the same everywhere — and
-  each is turned on by its breakpoint below and by nothing else.
+  The desk's parts, off until there is room for them. Each is in the document at
+  every width — so the reading order is the same everywhere — and each is
+  turned on by its breakpoint below and by nothing else.
 */
 .projects,
+.dock,
 .side,
 .strip {
   display: none;
 }
 
+/*
+  The tab bar: floating over the page on the panel's ground, a pill with the
+  phone's inset under it. Five places: three, Tade in the middle, and More.
+*/
 .tabs {
   position: fixed;
-  inset-inline: 0;
-  bottom: 0;
-  z-index: 4;
+  inset-inline: var(--s3);
+  bottom: calc(var(--s2) + env(safe-area-inset-bottom));
+  z-index: 6;
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  background: var(--ground);
-  border-block-start: var(--border);
-  padding-block-end: env(safe-area-inset-bottom);
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  padding: var(--s1);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--raised);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: var(--lift);
 }
 
 .tab {
+  position: relative;
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: 2px;
-  padding-block: var(--s2);
   min-height: var(--tap);
+  padding-block: var(--s1);
+  border-radius: 18px;
   color: var(--tab);
   text-decoration: none;
   font-size: var(--step--1);
   cursor: pointer;
+  transition: color var(--ease);
 }
 
-.tab .mark {
-  font-size: var(--step-1);
-  line-height: 1;
+.tab .ic {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.tab .label {
+  line-height: 1.1;
 }
 
 /* Where you are, in cyan, and said to a screen reader as well. */
@@ -279,9 +422,51 @@ a.name:hover {
   color: var(--cyan);
 }
 
+/* A count is a badge on the icon's shoulder, and nothing at nought. */
 .tab .count {
+  position: absolute;
+  top: 2px;
+  left: calc(50% + 4px);
+  min-width: 1.125rem;
+  padding-inline: 4px;
+  border-radius: var(--r3);
+  background: var(--control);
+  color: var(--bright);
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--step--1);
+  font-weight: 700;
+  line-height: 1.125rem;
+  text-align: center;
+}
+
+.tab .count:empty {
+  display: none;
+}
+
+.tab .count.is-wants {
+  background: var(--violet);
+  color: var(--ink);
+}
+
+/* Tade, in the middle: an amber disc, the one primary press on the bar. */
+.tab-ask .ask-disc {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-block-start: -2px;
+  border-radius: var(--r3);
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.tab-ask {
+  color: var(--amber);
+}
+
+.tab-ask .label {
+  display: none;
 }
 
 /* ── sections ──────────────────────────────────────────────────────────────── */
@@ -305,8 +490,7 @@ main[tabindex="-1"]:focus {
   outline: none;
 }
 
-/* A heading that is also a link is a heading first: the underline and the
-   brand's amber on an uppercase section label read as a warning. */
+/* A heading that is also a link is a heading first. */
 .section-head a {
   color: var(--heading);
   text-decoration: none;
@@ -322,16 +506,16 @@ main[tabindex="-1"]:focus {
 
 .section-head {
   display: flex;
-  align-items: baseline;
-  gap: var(--s3);
+  align-items: center;
+  gap: var(--s2);
+  min-height: 2rem;
   margin-block-end: var(--s3);
-  padding-block-end: var(--s2);
-  border-block-end: 1px solid var(--raised);
 }
 
 /*
-  The one uppercase on the page, and it carries an `aria-label` in sentence case
-  so a screen reader reads a heading rather than spelling it.
+  The one uppercase on the page: a section's label, small and tracked, the way
+  a dashboard labels a group. It carries an `aria-label` in sentence case so a
+  screen reader reads a heading rather than spelling it.
 */
 .section-head h2,
 .section-head h1 {
@@ -344,6 +528,23 @@ main[tabindex="-1"]:focus {
   color: var(--heading);
 }
 
+/*
+  A screen's own name is its title, not a group's label: the same words, set
+  large and in sentence case — lowered, and its first letter raised again, so
+  `WANTS YOU` in the source reads as *Wants you* on the page exactly as its
+  `aria-label` already says it.
+*/
+.section-head h1 {
+  text-transform: lowercase;
+  letter-spacing: var(--tight);
+  font-size: var(--step-2);
+  color: var(--bright);
+}
+
+.section-head h1::first-letter {
+  text-transform: uppercase;
+}
+
 .section-head .figure {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -353,23 +554,24 @@ main[tabindex="-1"]:focus {
 
 .page-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--s3);
-  margin-block: var(--s4) var(--s4);
+  margin-block: var(--s2) var(--s5);
 }
 
 .page-head h1 {
   flex: 1 1 auto;
   min-width: 0;
   font-size: var(--step-2);
-  text-transform: none;
-  letter-spacing: 0;
+  letter-spacing: var(--tight);
   color: var(--bright);
+  overflow-wrap: anywhere;
 }
 
 .back {
   display: inline-flex;
   align-items: center;
+  gap: var(--s1);
   min-height: var(--tap);
   color: var(--heading);
   text-decoration: none;
@@ -382,7 +584,7 @@ main[tabindex="-1"]:focus {
 
 /* ── empty, unknown, error, loading ────────────────────────────────────────── */
 
-/* Never a blank box, and never an illustration. */
+/* Never a blank box, and never an illustration: a word, quiet. */
 .empty {
   color: var(--heading);
   padding-block: var(--s3);
@@ -394,7 +596,7 @@ main[tabindex="-1"]:focus {
 */
 .unknown {
   color: var(--quiet);
-  font-size: var(--s4); /* --quiet is 4.74:1, which is AA at 16px and no smaller */
+  font-size: var(--s4); /* --quiet is AA on a card at 16px; nothing smaller */
 }
 
 .unknown .dash {
@@ -434,33 +636,117 @@ main[tabindex="-1"]:focus {
   background: var(--surface);
 }
 
-/* ── tablet: a glyph rail, and no tab bar ──────────────────────────────────── */
+/* ── tablet: an icon rail, the projects along the top, and no tab bar ──────── */
 
 @media (min-width: 768px) {
+  body {
+    padding-inline: var(--s5);
+  }
+
+  .top {
+    margin-inline: calc(-1 * var(--s5));
+    padding-inline: var(--s5);
+  }
+
+  .cmd {
+    flex: 0 1 22rem;
+    justify-content: flex-start;
+    margin-inline: var(--s4) auto;
+    border: 1px solid var(--raised);
+    background: var(--panel);
+  }
+
+  .cmd:hover {
+    border-color: var(--chrome);
+  }
+
+  .cmd-said {
+    display: inline;
+    flex: 1 1 auto;
+    text-align: start;
+  }
+
+  .cmd kbd {
+    display: inline-flex;
+  }
+
+  .fresh {
+    flex: 0 1 auto;
+  }
+
   .frame {
-    grid-template-columns: 3.5rem 1fr;
-    gap: var(--s5);
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    gap: var(--s4) var(--s5);
     padding-block-end: var(--s6);
   }
 
   .rail {
     display: grid;
     align-content: start;
-    gap: var(--s1);
+    gap: 2px;
     position: sticky;
-    top: calc(var(--tap) + var(--s4));
+    top: calc(var(--tap) + var(--s5));
   }
 
+  /* An icon, centred, with its word a label beside it under the pointer. */
   .rail a {
+    position: relative;
     display: grid;
-    justify-items: center;
-    gap: 2px;
+    place-items: center;
     min-height: var(--tap);
-    padding-block: var(--s2);
     border-radius: var(--r1);
     color: var(--tab);
     text-decoration: none;
+    font-size: var(--step-0);
+    transition:
+      background var(--ease),
+      color var(--ease);
+  }
+
+  .rail .label {
+    position: absolute;
+    inset-inline-start: calc(100% + var(--s2));
+    z-index: 7;
+    padding: var(--s1) var(--s2);
+    border-radius: var(--r1);
+    background: var(--raised);
+    border: 1px solid var(--control);
+    color: var(--bright);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition:
+      opacity var(--ease),
+      transform var(--ease);
+  }
+
+  .rail a:hover .label,
+  .rail a:focus-visible .label {
+    opacity: 1;
+    transform: none;
+  }
+
+  .rail .count {
+    position: absolute;
+    top: 3px;
+    inset-inline-end: 4px;
+    min-width: 1rem;
+    padding-inline: 3px;
+    border-radius: var(--r3);
+    background: var(--chosen);
+    color: var(--bright);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: var(--step--1);
+    line-height: 1rem;
+    text-align: center;
+  }
+
+  .rail .count:empty {
+    display: none;
   }
 
   .rail a:hover {
@@ -469,26 +755,25 @@ main[tabindex="-1"]:focus {
   }
 
   .rail a[aria-current="page"] {
+    background: var(--surface);
     color: var(--cyan);
   }
 
-  /* `▌` — the window's own marker for where you are, 3px of the dark amber. */
+  /* `▌` — the window's own marker for where you are, 3px of cyan. */
   .rail a[aria-current="page"]::before {
     content: "";
     position: absolute;
-    inset-inline-start: 0;
+    inset-inline-start: calc(-1 * var(--s2));
+    inset-block: 10px;
     width: 3px;
-    height: var(--tap);
+    border-radius: var(--r3);
     background: var(--cyan);
   }
 
-  .rail a {
-    position: relative;
-  }
-
-  .rail .mark {
-    font-size: var(--step-1);
-    line-height: 1;
+  .rail-rule {
+    height: 1px;
+    margin: var(--s2) var(--s2);
+    background: var(--raised);
   }
 
   .tabs {
@@ -506,33 +791,47 @@ main[tabindex="-1"]:focus {
     the screen.
   */
   .projects {
+    grid-column: 2;
     display: flex;
     flex-wrap: wrap;
     gap: var(--s2);
-    padding-block-end: var(--s3);
+  }
+
+  .rail {
+    grid-row: 1 / span 2;
+  }
+
+  main {
+    grid-column: 2;
   }
 
   .projects a {
     display: inline-flex;
     align-items: center;
     gap: var(--s2);
-    min-height: var(--tap);
+    min-height: 2.75rem;
     padding-inline: var(--s3);
-    border-radius: var(--r1);
-    background: var(--surface);
-    color: var(--bright);
+    border-radius: var(--r3);
+    background: var(--panel);
+    border: var(--border);
+    color: var(--body);
     text-decoration: none;
     font-size: var(--step-0);
+    transition:
+      background var(--ease),
+      border-color var(--ease);
   }
 
   .projects a:hover {
-    background: var(--raised);
+    background: var(--surface);
+    border-color: var(--control);
   }
 
   /* Where you are, in cyan, as the rail says it — and said to a screen reader. */
   .projects a[aria-current="page"] {
     color: var(--cyan);
-    box-shadow: inset 0 -3px 0 var(--cyan);
+    border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
+    background: color-mix(in srgb, var(--cyan) 8%, var(--panel));
   }
 
   .projects .count {
@@ -542,176 +841,37 @@ main[tabindex="-1"]:focus {
   }
 }
 
-/* ── desk: the rail gains its names ────────────────────────────────────────── */
+/* ── a wider desk: the rail gains its words ────────────────────────────────── */
 
 @media (min-width: 1100px) {
   .frame {
-    grid-template-columns: 12.5rem 1fr;
+    grid-template-columns: 13rem minmax(0, 1fr);
   }
 
   .rail a {
-    grid-template-columns: 1.5rem 1fr auto;
+    grid-template-columns: 1.25rem 1fr auto;
     justify-items: start;
-    align-items: center;
     gap: var(--s3);
     padding-inline: var(--s3);
-    font-size: var(--step-0);
+  }
+
+  .rail .label {
+    position: static;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    opacity: 1;
+    transform: none;
   }
 
   .rail .count {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    color: var(--heading);
-  }
-}
-
-/* ── desk: the window's own shape — agents down the side, Tade at the foot ── */
-
-@media (min-width: 1280px) {
-  .frame {
-    grid-template-columns: 11rem 16rem minmax(0, 1fr);
-    grid-template-rows: 1fr auto;
-  }
-
-  .rail,
-  .side {
-    grid-row: 1 / span 2;
-  }
-
-  main,
-  .strip {
-    grid-column: 3;
-  }
-
-  /*
-    Every agent running, down the side, held in view while the work scrolls:
-    the side list the window keeps. Its own scroll where there are more agents
-    than the screen is tall, and every row a link to that agent's own page.
-  */
-  .side {
-    display: block;
-    position: sticky;
-    top: calc(var(--tap) + var(--s4));
-    align-self: start;
-    max-height: calc(100vh - var(--tap) - var(--s6));
-    overflow-y: auto;
-  }
-
-  .side h3 {
-    margin-block: var(--s3) var(--s1);
-    font-size: var(--step--1);
-    font-weight: 600;
+    position: static;
+    background: none;
     color: var(--heading);
   }
 
-  .side a {
-    display: grid;
-    grid-template-columns: 1.5rem minmax(0, 1fr);
-    column-gap: var(--s2);
-    align-items: center;
-    min-height: var(--tap);
-    padding-inline: var(--s2);
-    border-radius: var(--r1);
+  .rail a[aria-current="page"] .count {
     color: var(--bright);
-    text-decoration: none;
-  }
-
-  .side a .glyph {
-    grid-row: 1 / span 2;
-  }
-
-  .side a .runs {
-    grid-column: 2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-mono);
-    font-size: var(--step--1);
-    color: var(--heading);
-  }
-
-  .side a:hover {
-    background: var(--raised);
-  }
-
-  .side a[aria-current="page"] {
-    background: var(--chosen);
-    color: var(--cyan);
-  }
-
-  /*
-    The orchestrator's strip, at the foot of the work and held there: the
-    exchange that just happened and the box, as the window has its own. Its
-    lines are held to two rows each, because a strip that grew with a reply
-    would push the work it sits under off the screen.
-  */
-  .strip {
-    display: block;
-    position: sticky;
-    bottom: 0;
-    z-index: 3;
-    padding-block: var(--s3);
-    background: var(--ground);
-    border-block-start: var(--border);
-  }
-
-  /* Outside `main`, so the floor every link in it gets is set here again. */
-  .strip .section-head a {
-    display: inline-flex;
-    align-items: center;
-    min-height: var(--tap);
-  }
-
-  .strip .lines {
-    display: grid;
-    gap: var(--s1);
-    margin-block-end: var(--s2);
-  }
-
-  .strip .lines li {
-    display: flex;
-    gap: var(--s3);
-    align-items: baseline;
-    min-width: 0;
-    white-space: nowrap;
-  }
-
-  .strip .who {
-    flex: 0 0 auto;
-    font-family: var(--font-mono);
-    font-size: var(--step--1);
-  }
-
-  .strip .words {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--bright);
-  }
-
-  .strip .composer {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--s2);
-    align-items: start;
-  }
-
-  .strip .composer > p {
-    grid-column: 1 / -1;
-  }
-
-  /* The state and the agent's own screen where the eye lands, the facts beside. */
-  .task-grid {
-    grid-template-columns: minmax(0, 1fr) 18rem;
-    gap: var(--s5);
-    align-items: start;
-  }
-}
-
-/* ── wide: the main column caps and centres ────────────────────────────────── */
-
-@media (min-width: 1600px) {
-  main {
-    max-width: 70rem;
   }
 }

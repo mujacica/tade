@@ -230,3 +230,36 @@ export function proseOf(said, folded = false) {
   }
   return node
 }
+
+let hints = 0
+
+/**
+ * An explanation behind a press: a small `?` that opens the sentence under it.
+ *
+ * **The surface is options and values; the explanation lives where somebody
+ * asks.** A sentence that is true and worth having — why a bar is up, why a
+ * box is not drawn — is kept, whole and verbatim, one tap away, rather than
+ * set as a paragraph across a screen that is otherwise figures. A button and
+ * not a hover, because a phone has no pointer to hover with, and
+ * `aria-expanded` so a screen reader hears that there is more and whether it
+ * is open.
+ *
+ * Returns the two nodes so a caller can put the press in its line and the
+ * body under it; `said` is the sentence and is never reworded here.
+ */
+export function hintOf(said, klass = 'hint-body') {
+  hints += 1
+  const id = `hint${hints}`
+  const press = el('button', {
+    class: 'hint',
+    text: '?',
+    attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': id, 'aria-label': 'Why' },
+  })
+  const body = el('p', { class: klass, text: said, attrs: { id } })
+  body.hidden = true
+  press.addEventListener('click', () => {
+    body.hidden = !body.hidden
+    press.setAttribute('aria-expanded', body.hidden ? 'false' : 'true')
+  })
+  return { press, body }
+}

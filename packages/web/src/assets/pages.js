@@ -21,6 +21,7 @@
 // viewport, each in its own `overflow-x` container, and each is a real `<table>`
 // with a `<caption>` and `<th scope>`.
 
+import { ringOf, shareIn } from './charts.js'
 import { classOn, el, empty, into, keyed, textIn } from './dom.js'
 import {
   ageSaid,
@@ -33,6 +34,7 @@ import {
   untilSaid,
 } from './figures.js'
 import { checkMark } from './glyphs.js'
+import { icon } from './icons.js'
 import { NOT_OFFERED, OFF, ON, PUSH_SAID, pushState, subscribe, unsubscribe } from './push.js'
 import { MORE } from './routes.js'
 import {
@@ -436,7 +438,7 @@ function createPlanRow() {
   const name = el('span', { class: 'name' })
   const meter = el('span', { class: 'meter' })
   const under = el('span', { class: 'under' })
-  into(body, el('span', { class: 'glyph', text: '' }), name, meter, under)
+  into(body, ringOf('plan'), name, meter, under)
   return into(node, body)
 }
 
@@ -450,7 +452,10 @@ function createPlanRow() {
  */
 function fillPlanRow(node, plan, view) {
   const [body] = node.children
-  const [, name, meter, under] = body.children
+  const [ring, name, meter, under] = body.children
+  // The fullest window as the ring beside the name: the one that runs out first.
+  const most = Math.max(...(plan.windows ?? []).map((one) => one.used), -1)
+  shareIn(ring, most < 0 ? null : most, most < 0 ? '' : planBar(most).pressure)
   textIn(name, `${plan.harness}${plan.account === null ? '' : ` · ${plan.account.words}`}`)
   if (plan.cannotTell !== null && plan.cannotTell !== undefined) {
     textIn(meter, '—')
@@ -781,26 +786,47 @@ function fillDeviceRow(node, device, view) {
  * what they typed as they typed it.
  */
 export function pairScreen(ctx) {
-  const node = el('div', { class: 'column' })
-  const title = el('h1', { text: 'Pair this device' })
+  const node = el('div', { class: 'pair' })
+  const card = el('section', { class: 'pair-card', attrs: { 'aria-labelledby': 'pair-head' } })
+  const mark = el('span', { class: 'pair-mark' })
+  into(mark, icon('mark'))
+  const title = el('h1', { text: 'Pair this device', attrs: { id: 'pair-head' } })
+  // **Said where somebody is deciding**, and so kept on the page rather than
+  // behind a `?`: what letting this device in will let it read is the one
+  // sentence this screen exists to put in front of somebody.
   const why = el('p', {
     class: 'caveat',
     text: 'Tade will ask at the machine before this device is let in. It will be able to read every project, task, note, check and figure — including what you have typed into Tade, as you typed it — and to change nothing.',
   })
   const label = el('label', { text: 'Name it, so you can revoke it', attrs: { for: 'label' } })
   const field = el('input', {
-    attrs: { id: 'label', type: 'text', maxlength: '40', autocomplete: 'off' },
+    attrs: {
+      id: 'label',
+      type: 'text',
+      maxlength: '40',
+      autocomplete: 'off',
+      placeholder: 'My phone',
+    },
   })
   const press = el('button', { class: 'press', text: 'Pair', attrs: { type: 'button' } })
   const said = el('p', { attrs: { role: 'status' } })
-  into(node, title, why, label, field, press, said)
+  // Off this wifi, the link lives at the machine: one line, where somebody who
+  // typed an address and has no code is standing.
+  const away = el('p', { class: 'pair-away' })
+  into(away, icon('devices'), el('span', { text: 'On the go: Settings › Away, on the machine' }))
+  into(card, mark, title, label, field, press, said, why, away)
+  into(node, card)
 
   const ticket = ctx.ticket()
   if (ticket === null) {
     press.disabled = true
     field.disabled = true
-    textIn(said, 'Open the pairing panel in Tade and scan the code there.')
+    textIn(said, 'Scan the code in Tade’s window.')
+    label.hidden = true
+    field.hidden = true
+    press.hidden = true
   } else {
+    away.hidden = true
     press.addEventListener('click', async () => {
       press.disabled = true
       textIn(said, 'Asking at the machine. Press the key in the window to let this device in.')
@@ -820,25 +846,34 @@ export function pairScreen(ctx) {
 
 /* ── More, and nowhere ─────────────────────────────────────────────────────── */
 
-/** The weekly reads, as a screen rather than a menu under the thumb. */
+/**
+ * The weekly reads, as a screen rather than a menu under the thumb: a grid of
+ * places, each an icon and its word, with the count the rail carries.
+ */
 export function moreScreen() {
   const node = el('div')
   const made = section('MORE', { top: true })
-  const list = el('ul', { class: 'rows' })
+  const list = el('ul', { class: 'places' })
   into(made.body, list)
+  const figures = []
   for (const one of MORE) {
     const row = el('li')
     const link = el('a', { attrs: { href: `/${one.view}` } })
-    into(
-      link,
-      el('span', { class: 'glyph', text: one.mark, attrs: { 'aria-hidden': 'true' } }),
-      el('span', { class: 'name', text: one.label }),
-      el('span', { class: 'aside', text: '›' }),
-    )
+    const figure = el('span', { class: 'count' })
+    into(link, icon(one.icon), el('span', { class: 'label', text: one.label }), figure)
     into(list, into(row, link))
+    figures.push({ figure, counts: one.counts })
   }
   into(node, made.node)
-  return { node, update() {} }
+  return {
+    node,
+    update(view) {
+      for (const one of figures) {
+        const n = one.counts === null ? 0 : (view.counts?.[one.counts] ?? 0)
+        textIn(one.figure, n === 0 ? '' : String(n))
+      }
+    },
+  }
 }
 
 /**
@@ -856,7 +891,7 @@ export function nowhereScreen() {
       class: 'empty',
       text: 'This address is not one of Tade’s screens. It may belong to a newer version than this page.',
     }),
-    el('a', { text: 'Go to Now', attrs: { href: '/' } }),
+    el('a', { text: 'Go to the overview', attrs: { href: '/' } }),
   )
   return { node, update() {} }
 }

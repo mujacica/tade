@@ -1,5 +1,5 @@
 import { afterAnswer, askBody, stopBody } from './acts.js'
-import { el, empty, into, keyed, proseOf, textIn, toneOn } from './dom.js'
+import { el, empty, hintOf, into, keyed, proseOf, textIn, toneOn } from './dom.js'
 import { ageSaid } from './figures.js'
 import { CHAT_KINDS } from './glyphs.js'
 import { nothingSaid } from './pages.js'
@@ -73,7 +73,7 @@ const draft = draftStore()
 
 export function talkScreen(ctx) {
   const node = el('div')
-  const made = section('WITH TADE', { top: true })
+  const made = section('TADE', { top: true })
   const list = el('ul', { class: 'rows chat' })
   const none = empty('nothing said yet')
   into(made.body, list, none)
@@ -125,7 +125,13 @@ export function talkScreen(ctx) {
  * its id.
  */
 export function composerOf(ctx, words) {
-  const why = el('p', { class: 'empty' })
+  // **The absence in a word, and its sentence one tap away** (`hintOf`): what
+  // to do about a box that is not here is a sentence somebody may need once,
+  // and a paragraph under every screen's strip for everybody else.
+  const why = el('div', { class: 'why-short' })
+  const whyWord = el('p', { class: 'empty' })
+  const whyMore = hintOf('')
+  into(why, whyWord, whyMore.press, whyMore.body)
   const box = el('textarea', {
     attrs: {
       rows: words.rows,
@@ -137,7 +143,7 @@ export function composerOf(ctx, words) {
   box.value = draft.get()
   box.addEventListener('input', () => draft.set(box.value))
   const press = el('button', { class: 'press quietly', text: words.send })
-  const stop = el('button', { class: 'press quietly', text: 'Stop it' })
+  const stop = el('button', { class: 'press quietly', text: 'Stop' })
   const presses = el('div', { class: 'presses' })
   const said = el('p', { attrs: { role: 'status' } })
   into(presses, press, stop)
@@ -178,8 +184,10 @@ export function composerOf(ctx, words) {
     box.hidden = !mine || busy
     press.disabled = going
     stop.disabled = going
-    textIn(why, reasonFor(told))
-    why.hidden = reasonFor(told) === ''
+    const reason = reasonFor(told)
+    textIn(whyWord, reasonWord(told))
+    textIn(whyMore.body, reason)
+    why.hidden = reason === ''
   }
 
   press.addEventListener('click', () => {
@@ -203,6 +211,15 @@ export function composerOf(ctx, words) {
       settle()
     },
   }
+}
+
+/** The same three absences in a word or two, for where the sentence is behind a `?`. */
+export function reasonWord(talk) {
+  if (talk === undefined) return ''
+  if (talk === null) return 'Talking is off'
+  if (talk.mine !== true) return 'Not granted'
+  if (talk.busy === true) return 'Answering'
+  return ''
 }
 
 /**

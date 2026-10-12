@@ -1,0 +1,190 @@
+/*
+  The desk: the work in the middle, and a dock beside it with the running agents
+  and Tade (`desk.js`). Off until 1280px, where a laptop has room for the
+  window's own side list and strip without taking it from the work.
+*/
+
+/* ── the desk: the work in the middle, the agents and Tade docked beside it ── */
+
+@media (min-width: 1280px) {
+  .frame {
+    grid-template-columns: 13rem minmax(0, 1fr) 21rem;
+    grid-template-rows: auto 1fr;
+  }
+
+  /*
+    The dock: held in view while the work scrolls, the height of the screen
+    under the header, with the agents on top and the conversation filling the
+    rest — the window's side list and its strip, beside the work rather than
+    under it, because a laptop is wider than it is tall.
+  */
+  .dock {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    position: sticky;
+    top: calc(var(--tap) + var(--s5));
+    align-self: start;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--s3);
+    height: calc(100vh - var(--tap) - var(--s7));
+  }
+
+  .side {
+    display: block;
+    min-height: 0;
+    max-height: 45vh;
+    overflow-y: auto;
+    padding: var(--s3);
+    border-radius: var(--r2);
+    background: var(--panel);
+    border: var(--border);
+  }
+
+  .side .section-head {
+    margin-block-end: var(--s1);
+  }
+
+  .side h3 {
+    margin-block: var(--s2) var(--s1);
+    padding-inline: var(--s2);
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .side a {
+    display: grid;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    column-gap: var(--s2);
+    align-items: center;
+    min-height: var(--tap);
+    padding-inline: var(--s2);
+    border-radius: var(--r1);
+    color: var(--bright);
+    text-decoration: none;
+  }
+
+  .side a .glyph {
+    grid-row: 1 / span 2;
+    font-size: var(--step-0);
+  }
+
+  .side a .runs {
+    grid-column: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--heading);
+  }
+
+  .side a .name {
+    font-size: var(--step-0);
+  }
+
+  .side a:hover {
+    background: var(--raised);
+  }
+
+  .side a[aria-current="page"] {
+    background: var(--chosen);
+    color: var(--cyan);
+  }
+
+  /*
+    The conversation: the exchange that just happened, then the box at the foot
+    of the dock. Its own scroll, so a long reply never pushes the box away.
+  */
+  .strip {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    min-height: 0;
+    padding: var(--s3);
+    border-radius: var(--r2);
+    background: var(--panel);
+    border: var(--border);
+  }
+
+  .strip .section-head {
+    margin-block-end: var(--s1);
+  }
+
+  .strip .lines {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: var(--s2);
+    min-height: 0;
+    overflow-y: auto;
+    padding-block: var(--s2);
+  }
+
+  .strip .lines li {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .strip .who {
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+
+  .strip .words {
+    min-width: 0;
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r2);
+    background: var(--surface);
+    color: var(--body);
+    font-size: var(--step-0);
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+  }
+
+  .strip .words:empty {
+    display: none;
+  }
+
+  .strip .composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s2);
+    align-items: end;
+    padding-block-start: var(--s2);
+  }
+
+  .strip .composer textarea {
+    margin: 0;
+    resize: none;
+  }
+
+  .strip .composer > p,
+  .strip .composer > .why-short {
+    grid-column: 1 / -1;
+  }
+
+  /* The agents' list is in the dock now; the overview's own copy steps aside. */
+  .ov-agents {
+    display: none;
+  }
+
+  /* The state and the agent's own screen where the eye lands, the facts beside. */
+  .task-grid {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    gap: var(--s5);
+    align-items: start;
+  }
+}
+
+/* ── wide: the dock widens ────────────────────────────────────────────── */
+
+@media (min-width: 1600px) {
+  .frame {
+    grid-template-columns: 14rem minmax(0, 1fr) 24rem;
+  }
+}

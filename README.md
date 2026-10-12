@@ -445,14 +445,19 @@ instruction**: an agent reads it as evidence about the work, under a heading tha
 
 ## A remote control, while the window is open
 
-The same floor on a phone you paired by scanning a code in the window: what is working, what wants
-you, what arrived from outside, the queue, the checks, the reviews, what it cost, your notes.
-Letting a device in is a keypress here, so a typed address reaches the pairing page with nothing to
-present. The listener dies with the window: a bookmark tapped with Tade closed is a connection
-error, not an empty control room.
+The same floor on a phone you paired by scanning a code in the window. It opens on an overview of
+every project at once — what wants you, what is working, what is queued, the checks, what it cost
+and how full each plan is, as six figures with a chart each — then the work that wants somebody,
+with the presses that device was granted right on the card (allow, deny, done, set aside), then
+every project as a card with the shape of its work. Tade is one press away from anywhere: the
+middle of the tab bar on a phone, `⌘K` at a keyboard — one bar that sends what you type to Tade, or
+jumps to any screen, project or piece of work by name. Letting a device in is a keypress here, so a
+typed address reaches the pairing page with nothing to present. The listener dies with the window:
+a page opened with Tade closed says it cannot reach the machine — and, where the phone kept its
+last view, what it last knew — never an empty control room.
 
-On a laptop it takes the window's shape — projects along the top, the agents running down the
-side, Tade in a strip at the foot — and an agent's page says what it has been doing. What its
+On a laptop it takes the window's shape — the projects along the top, the work in the middle, the
+agents running and Tade docked beside it — and an agent's page says what it has been doing. What its
 screen shows is a grant of its own, per device and off for every one: the last rows, read only
 while that page is open, with machine paths and every key Tade knows of taken out. Nothing on the
 page types into an agent; what you say goes through Tade.

@@ -1,15 +1,11 @@
-// The three screens about work: the overview, a project, and a task.
+// The two screens about one piece of work: a project, and a task. The third,
+// the overview across every project, is `overview.js`.
 //
 // Each returns its node and an `update`, because **a screen is built once and
 // then patched** — nothing re-creates a region because a figure moved, so the
 // keyboard keeps its row, a half-made selection survives, and the scroll
 // position stays the browser's own business.
 //
-// The overview's one rule: **`WANTS YOU` is the top of every viewport and the
-// question it answers is *is anything stopped*.** Nothing is above it but the
-// wordmark and the freshness clock, and when it is empty it says so in words —
-// an empty heading reads as broken.
-
 import {
   afterAnswer,
   asksFor,
@@ -42,163 +38,18 @@ import { checkMark, taskMark } from './glyphs.js'
 import { pathOf } from './routes.js'
 import {
   createQueueRow,
-  createTaskCard,
   createTaskRow,
   dl,
   dlIn,
   fillQueueRow,
-  fillTaskCard,
   fillTaskRow,
   originOf,
   sayIn,
   section,
 } from './rows.js'
-import {
-  closedOf,
-  omitted,
-  projectAt,
-  projectsOf,
-  queueIn,
-  spendFold,
-  spendSince,
-  taskAt,
-  tasksIn,
-  wantsYou,
-} from './store.js'
+import { omitted, projectAt, queueIn, spendFold, spendSince, taskAt, tasksIn } from './store.js'
 
-/* ── the overview ──────────────────────────────────────────────────────────── */
-
-export function nowScreen() {
-  const node = el('div')
-  const wants = section('WANTS YOU', { top: true })
-  const cards = el('div', { class: 'cards' })
-  const none = empty('nothing is stopped')
-  into(wants.body, cards, none)
-  const projects = el('div')
-  const left = el('p', { class: 'unknown' })
-  // **Closed, and nothing in them deleted**: each a link to its own page,
-  // where it can be opened again. Absent where nothing is closed, because an
-  // empty heading reads as broken.
-  const closed = section('CLOSED')
-  const closedList = el('ul', { class: 'rows' })
-  into(closed.body, closedList)
-  into(node, wants.node, projects, left, closed.node)
-
-  return {
-    node,
-    update(view) {
-      const rows = wantsYou(view.store)
-      textIn(wants.figure, count(rows.length))
-      wants.figure.setAttribute('aria-label', `${rows.length} wanting you`)
-      classOn(none, 'hidden', rows.length > 0)
-      none.hidden = rows.length > 0
-      keyed(
-        cards,
-        rows,
-        (task) => task.id,
-        createTaskCard,
-        (one, task) => fillTaskCard(one, task, view),
-      )
-      keyed(
-        projects,
-        projectsHere(view),
-        (row) => row.name,
-        createProjectBlock,
-        (one, row) => fillProjectBlock(one, row, view),
-      )
-      textIn(left, leftOut(view.store))
-      left.hidden = leftOut(view.store) === ''
-      const shut = closedOf(view.store)
-      closed.node.hidden = shut.length === 0
-      textIn(closed.figure, count(shut.length))
-      keyed(
-        closedList,
-        shut,
-        (row) => row.name,
-        closedRow,
-        (one, row) => {
-          const link = one.firstChild
-          link.setAttribute('href', pathOf({ view: 'project', project: row.name }))
-          textIn(link, row.name)
-        },
-      )
-    },
-  }
-}
-
-/** One closed project's row: a link to its page, where it can be opened again. */
-function closedRow() {
-  const row = el('li')
-  into(row, el('a', { attrs: { href: '/' } }))
-  return row
-}
-
-/**
- * The projects, and the busy ones first.
- *
- * Ordered by what wants you, then by what is working: the overview's job is to
- * put what is stopped at the top of a phone, and a list sorted by name buries
- * the one repository that needs somebody under three that do not.
- */
-function projectsHere(view) {
-  return projectsOf(view.store).sort(
-    (a, b) =>
-      b.counts.wantsYou - a.counts.wantsYou ||
-      b.counts.working - a.counts.working ||
-      (a.name < b.name ? -1 : 1),
-  )
-}
-
-/**
- * What the projection left out, said out loud.
- *
- * A flat cap that said nothing would lose four repositories without a word;
- * every page carries its own count of what it omitted, and a page that holds
- * the first twenty of ninety tasks answers "is anything waiting for me" wrongly
- * and looks complete doing it.
- */
-function leftOut(store) {
-  const parts = []
-  for (const name of ['projects', 'tasks']) {
-    const n = omitted(store, name)
-    if (n > 0) parts.push(`${n} ${name}`)
-  }
-  return parts.length === 0 ? '' : `${parts.join(' and ')} are not on this page`
-}
-
-function createProjectBlock() {
-  const made = section('project')
-  const list = el('ul', { class: 'rows' })
-  const none = empty('nothing running here')
-  into(made.body, list, none)
-  made.node.setAttribute('data-block', 'project')
-  return made.node
-}
-
-function fillProjectBlock(node, project, view) {
-  const [head, body] = node.children
-  const [heading, figure] = head.children
-  const [list, none] = body.children
-  const link = heading.querySelector('a') ?? el('a', { attrs: { href: '/' } })
-  if (link.parentElement === null) {
-    heading.textContent = ''
-    into(heading, link)
-  }
-  link.setAttribute('href', pathOf({ view: 'project', project: project.name }))
-  textIn(link, project.name)
-  heading.setAttribute('aria-label', `Project ${project.name}`)
-  const paid = money(spendFold(tasksIn(view.store, project.name)), view.may.spend)
-  textIn(figure, paid.said === '—' ? `— ${paid.why}` : paid.said)
-  const rows = tasksIn(view.store, project.name).filter((task) => task.state !== 'merged')
-  keyed(
-    list,
-    rows,
-    (task) => task.id,
-    createTaskRow,
-    (one, task) => fillTaskRow(one, task, view),
-  )
-  none.hidden = rows.length > 0
-}
+/* The overview is `overview.js`: the landing screen has grown its own file. */
 
 /* ── one project ───────────────────────────────────────────────────────────── */
 
@@ -622,6 +473,10 @@ function blockFor(verb, ctx) {
       // something that failed to load.
       why.hidden = shown || standing.why === ''
       textIn(why, shown ? '' : standing.why)
+      // A block that can only say why not is one line, not a section: its
+      // heading and its reason side by side, quiet, so the presses that can be
+      // pressed are what the eye lands on.
+      classOn(part.node, 'is-off', !shown)
       row.hidden = !shown
       asks.hidden = !shown
       said.hidden = !shown

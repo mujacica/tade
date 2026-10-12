@@ -2,13 +2,20 @@
   The palette, the type scale and the primitives — the decisions an implementer
   should not re-derive, and the ones a test can check arithmetic against.
 
-  **Every colour here is one of the window's own xterm-256 tones, converted with
-  the repo's own cube table.** The away view is the same control room rendered in
-  type rather than in cells, so a hex that drifts from `skin.ts` is two products.
-  `test/design.test.ts` recomputes each one from the tone it names and fails on a
-  difference, and it recomputes every contrast ratio in the comments below — so
-  a colour pair that stopped being readable is a failure rather than a note
-  somebody wrote once.
+  **Every solid colour here is one of the window's own xterm-256 tones,
+  converted with the repo's own cube table.** The away view is the same control
+  room rendered in type rather than in cells, so a hex that drifts from
+  `skin.ts` is two products. `test/design.test.ts` recomputes each one from the
+  tone it names and fails on a difference, and it recomputes every contrast
+  ratio in the comments below — so a colour pair that stopped being readable is
+  a failure rather than a note somebody wrote once. A *tint* — a status pill's
+  wash, a ring's track — is `color-mix` of one of these and transparent, never a
+  hex of its own.
+
+  **Depth is a ladder of lighter surfaces and a hairline, never a shadow**
+  (Linear's rule, and Supabase's): the page is the darkest step, panels one up,
+  cards one more, and anything raised above a card one more again. Each step is
+  one xterm grey, so the whole ladder is seven tones and nothing in between.
 
   **One accent, one meaning** (`skin.ts`'s rule, in type): amber is Tade and work
   in progress, violet is *waiting on you*, green is finished, cyan is where you
@@ -32,63 +39,65 @@
   color-scheme: dark;
 
   /* Tones — meaning. The ratio is against `--ground`. */
-  --amber: #ffaf00; /* 214 · 10.16 · Tade itself; work in progress; links */
-  --amber-light: #ffd787; /* 222 · 13.67 · amber lit: under the pointer */
-  /*
-    The palette's lit and muted variants are a control's hover and held states,
-    and this phase has one control — `.press` — so `--amber-light` is the only
-    one with a reader. `--green-lit`, `--green-muted` and `--red-light` are in
-    `skin.ts` for the window's Approve and Deny, which this page does not have:
-    a token with no reader is a wish list, and `test/design.test.ts` fails on
-    one. They arrive with the buttons.
-  */
-  --amber-dark: #875f00; /* 94 · 3.27 · A GROUND AND A BORDER, never text */
-  --violet: #d787d7; /* 176 · 7.44 · waiting on you. The one colour that means act */
-  --green: #87d787; /* 114 · 10.79 · finished; checks green */
-  --cyan: #5fd7d7; /* 80 · 10.87 · where you are; the current selection */
-  --red: #ff5f5f; /* 203 · 6.29 · gone wrong, or about to */
-  --ink: #121212; /* 233 · ink on any light ground */
-  --ink-light: #ffffff; /* 231 · 18.73 · ink on a mid ground */
+  --amber: #ffaf00; /* 214 · 10.86 · Tade itself; work in progress; the one primary act */
+  --amber-light: #ffd787; /* 222 · 14.61 · amber lit: under the pointer */
+  --amber-dark: #875f00; /* 94 · 3.50 · A GROUND AND A BORDER, never text */
+  --violet: #d787d7; /* 176 · 7.95 · waiting on you. The one colour that means act */
+  --green: #87d787; /* 114 · 11.54 · finished; checks green */
+  --cyan: #5fd7d7; /* 80 · 11.62 · where you are; the current selection */
+  --red: #ff5f5f; /* 203 · 6.73 · gone wrong, or about to */
+  --ink: #080808; /* 232 · ink on any light ground */
+  --ink-light: #ffffff; /* 231 · 20.03 · ink on a mid ground */
 
-  /* Greys — structure. */
-  --ground: #121212; /* 233 · the page */
-  --surface: #262626; /* 235 · a card */
-  --raised: #303030; /* 236 · a field, a control at rest */
-  --chosen: #3a3a3a; /* 237 · the row you are on */
-  --control: #444444; /* 238 · a button at rest */
-  --chrome: #585858; /* 240 · rules and borders */
-  --hovered: #626262; /* 241 · a control under the pointer */
   /*
-    4.74:1 — AA for normal text and **not** AAA. So it is used at 16px and
-    above, only for figures and hints, and **never** as the only statement of a
-    fact: anything that is takes `--heading` (7.88:1). `test/design.test.ts`
-    holds it to that by requiring every rule that sets it to set a size in the
-    same block.
+    The ladder — structure. Each step one xterm grey up from the last, which is
+    the whole of elevation on this page.
   */
-  --quiet: #808080; /* 244 · 4.74 */
-  --edge: #8a8a8a; /* 245 · a card's edge */
-  --tab: #949494; /* 246 · a tab you are not on */
-  --heading: #a8a8a8; /* 248 · 7.88 · section headings, secondary text */
-  --pressed: #bcbcbc; /* 250 · a control held; key caps */
-  --bright: #eeeeee; /* 255 · 16.15 · body text and the names that matter */
+  --ground: #080808; /* 232 · the page */
+  --panel: #121212; /* 233 · the rail, the bars, the tab bar */
+  --surface: #1c1c1c; /* 234 · a card, a tile */
+  --raised: #262626; /* 235 · a field; anything above a card */
+  --line: #262626; /* 235 · the hairline round a card */
+  --chosen: #303030; /* 236 · the row you are on */
+  --control: #3a3a3a; /* 237 · a button at rest */
+  --hovered: #444444; /* 238 · a control under the pointer */
+  --chrome: #4e4e4e; /* 239 · a field's edge; a rule that has to be seen */
+
+  /*
+    5.80:1 on the page and 4.94:1 on a card — AA for normal text on both, and
+    **not** AAA. So it is used for figures and hints only, and **never** as the
+    only statement of a fact: anything that is takes `--heading`.
+    `test/design.test.ts` holds it to that by requiring every rule that sets it
+    to set a size in the same block.
+  */
+  --quiet: #8a8a8a; /* 245 · 5.80 · figures and hints */
+  --tab: #949494; /* 246 · 6.60 · a tab or an icon you are not on */
+  --heading: #a8a8a8; /* 248 · 8.42 · labels, secondary text */
+  --pressed: #bcbcbc; /* 250 · 10.55 · a control held; key caps */
+  --body: #c6c6c6; /* 251 · 11.72 · a card's second line */
+  --bright: #eeeeee; /* 255 · 17.26 · body text and the names that matter */
 
   /*
     Type. The system face, because it is loaded already; mono for anything that
-    is also text in the window — a branch, a sha, a path, a figure.
+    is also text in the window — a branch, a sha, a path, a model.
   */
-  --font-ui: ui-sans-serif, -apple-system, "Segoe UI Variable", system-ui, sans-serif;
+  --font-ui:
+    ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI Variable", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 
   /* No text is below 13px anywhere on this page. */
-  --step--1: 0.8125rem; /* 13px · marks, units, timestamps */
+  --step--1: 0.8125rem; /* 13px · labels, units, timestamps */
   --step-0: 0.9375rem; /* 15px · body, rows */
   --step-1: 1.0625rem; /* 17px · a row's primary line, and every input: iOS's own
                           body size, so focusing a field does not zoom the page */
-  --step-2: 1.375rem; /* 22px · card titles, figures */
-  --step-3: 1.75rem; /* 28px · the one big number on a page */
-  --lead-tight: 1.25;
-  --lead: 1.55;
+  --step-2: 1.375rem; /* 22px · page titles */
+  --step-3: 1.75rem; /* 28px · a tile's figure */
+  --step-4: 2.5rem; /* 40px · the one big number on a page */
+  --lead-tight: 1.2;
+  --lead: 1.5;
+  --tight: -0.02em; /* big numerals, set close as Railway and Linear set theirs */
 
+  /* A 4px grid. */
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
@@ -97,20 +106,31 @@
   --s6: 32px;
   --s7: 48px;
 
-  --r1: 6px; /* chips, fields */
-  --r2: 10px; /* cards */
-  --r3: 999px; /* badges */
+  --r1: 8px; /* chips, fields, buttons */
+  --r2: 12px; /* cards, tiles */
+  --r3: 999px; /* pills and dots */
+  --r4: 16px; /* sheets, the command bar */
 
   /* The floor for every interactive target, both axes. */
   --tap: 44px;
-  --border: 1px solid var(--chrome);
-  --lift: 0 1px 0 #0000004d, 0 2px 8px #00000040; /* the only shadow in the design */
-  --ease: 140ms cubic-bezier(0.2, 0.6, 0.3, 1);
+  --border: 1px solid var(--line);
+  /* The only shadow in the design: what floats over the page — the command bar, a sheet. */
+  --lift: 0 16px 48px #000000b3, 0 0 0 1px #00000080;
+  /*
+    A chart's stops: where each part of a ring ends, set per element by
+    `charts.js` through the CSSOM and nought until it does.
+  */
+  --p1: 0%;
+  --p2: 0%;
+  --p3: 0%;
+  --ease: 140ms cubic-bezier(0.2, 0, 0, 1);
+  --ease-sheet: 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --ease: 1ms;
+    --ease-sheet: 1ms;
   }
 }
 
@@ -124,6 +144,7 @@ html {
   /* Sizing in rem against the browser's own size, so 200% zoom works. */
   font-size: 100%;
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -133,6 +154,7 @@ body {
   font-family: var(--font-ui);
   font-size: var(--step-0);
   line-height: var(--lead);
+  -webkit-font-smoothing: antialiased;
   /*
     **The gutter, set once.** `padding-inline` and never a `padding` shorthand
     that zeroes the sides: a shorthand added later for vertical room is how a
@@ -141,8 +163,6 @@ body {
   padding-inline: var(--s4);
   padding-block: 0;
 }
-
-/* Everything the page draws lives inside the frame, which owns its own room. */
 
 h1,
 h2,
@@ -224,6 +244,30 @@ button {
 .tap {
   min-width: var(--tap);
   min-height: var(--tap);
+}
+
+/*
+  An icon: one `<use>` of the sprite in the shell, drawn in whatever colour its
+  text would be. Never the only statement of anything — every icon sits beside
+  a word, or carries the word as its button's `aria-label`.
+*/
+.ic {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The sprite the icons are drawn from: in the document, and never drawn itself. */
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 /*
