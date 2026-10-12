@@ -184,13 +184,13 @@ describe('EventLog', () => {
 
       const reopened = await EventLog.open(p)
       // An index that was thrown away and never filled answers that nothing
-      // ever happened; with none, the file is read, which is slower and right.
+      // ever happened; with none, the file is read, which is slower and right
+      // — and said, because a journal that got slow for no reason anybody
+      // was told is trouble nobody can act on.
       expect(reopened.index).toBeNull()
-      expect((await reopened.read({})).map((e) => e.type)).toEqual([
-        'lane_opened',
-        'turn_done',
-        'said',
-      ])
+      const read = await reopened.read({})
+      expect(read.map((e) => e.type)).toEqual(['lane_opened', 'turn_done', 'said', 'warning'])
+      expect(String(read.at(-1)?.detail.message)).toContain('could not build the index')
       await reopened.close()
     })
 

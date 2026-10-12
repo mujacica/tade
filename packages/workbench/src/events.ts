@@ -123,6 +123,7 @@ export class EventLog {
     const from = Math.max(lastSeq, compacted?.seqHigh ?? 0)
 
     let index = indexPath === null ? null : EventIndex.open(indexPath)
+    let unindexed: string | null = null
     if (index && indexPath) {
       try {
         if (!agrees(index, compacted, tail)) index.rebuild(await readAll(opts.path))
@@ -137,9 +138,10 @@ export class EventLog {
         index = EventIndex.open(indexPath)
         try {
           index?.rebuild(await readAll(opts.path))
-        } catch {
+        } catch (cause) {
           index?.close()
           index = null
+          unindexed = `could not build the index of ${opts.path}, so every read scans the file: ${String(cause)}`
         }
       }
     }
@@ -151,6 +153,7 @@ export class EventLog {
       })
     }
     if (trouble) await log.append({ type: 'warning', detail: { message: trouble } })
+    if (unindexed) await log.append({ type: 'warning', detail: { message: unindexed } })
     if (compacted) await log.recordCompaction(compacted)
     return log
   }
