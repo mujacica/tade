@@ -39,3 +39,14 @@ export class Kept<T> {
     return value
   }
 }
+
+/**
+ * `was`, where `now` says exactly the same.
+ *
+ * An answer asked for again on a beat is a new object every time, and identity
+ * is all a kept answer is kept on: handed the new one, everything kept over the
+ * old was made again for nothing, and a region drawn from it was drawn again.
+ */
+export function unlessSame<T>(was: T, now: T): T {
+  return JSON.stringify(now) === JSON.stringify(was) ? was : now
+}

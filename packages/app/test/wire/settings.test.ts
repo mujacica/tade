@@ -494,6 +494,11 @@ describe('the window, and its settings', () => {
     click(offered.col + 1, offered.row)
     await until('the model saved', () => client.config.orchestrator.model === 'gpt-5.5-codex')
     expect(client.config.orchestrator.provider).toBe('openai')
+    // And drawn, before the next click: a click lands on what is on screen,
+    // and until the frame after the save that is the list it was chosen from.
+    await until('the model on screen', () =>
+      shown().some((row) => row.includes('openai/gpt-5.5-codex')),
+    )
 
     // `minimal` is a level codex has and Claude Code does not.
     click(thinking.col + 1, thinking.row)

@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { NEWS_MS, RENDER_FLOOR_MS, WRITE_SHARE } from '../../src/pace.ts'
@@ -74,7 +74,7 @@ describe('what the frame loop costs', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let root: string
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, sidebar } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     root = wired.repo.root
@@ -282,6 +282,47 @@ describe('what the frame loop costs', () => {
         Math.ceil(took / NEWS_MS) + 4,
       )
       await until('the whole storm on screen', () => terminal.written.includes('$3.00'))
+    } finally {
+      stop()
+    }
+  })
+
+  // A window nobody is touching: nothing printing, nothing turning. It drew a
+  // frame on every status beat whatever status said — with the extensions'
+  // own beat, about 0.7 a second — and every one made every answer kept on
+  // `Live.revision` again. A beat is news only where it found something new.
+  //
+  // So a ceiling counted against the beats themselves, at the place the window
+  // asks status for one, never against a sleep: a starved runner takes fewer
+  // beats and draws fewer frames, which passes. And a floor that a window
+  // which stopped looking along with drawing would fail: a file saved in the
+  // checkout in front of you, with nothing else happening, reaches CHANGES.
+  it('draws nothing on a beat that found what the last did, and still sees a file saved', async () => {
+    let beats = 0
+    const asked = client.pendingApprovals.bind(client)
+    client.pendingApprovals = (() => {
+      beats++
+      return asked()
+    }) as typeof client.pendingApprovals
+    const timings = new Timings(true)
+    const stop = probing(timings)
+    try {
+      terminal.resize(160, 60)
+      await start({ frameMs: 250 })
+      await until('the first frame', () => terminal.written.includes('refunds'))
+      // The first looks at everything land and are drawn, and then it is quiet:
+      // a frame a beat is what it drew before, so two beats tell the two apart.
+      const settling = beats + 1
+      await until('the window to settle', () => beats >= settling)
+      const from = timings.span('doRender')?.count ?? 0
+      const quiet = beats + 2
+      await until('two quiet beats', () => beats >= quiet)
+      const frames = (timings.span('doRender')?.count ?? 0) - from
+      expect(frames, `${frames} frames over two beats that found nothing`).toBeLessThanOrEqual(1)
+
+      // The agent in front of you is the first one, in its own worktree.
+      writeFileSync(join(dirname(root), 'worktrees', 'app-refunds', 'teapot.yaml'), 'stout\n')
+      await until('the saved file in CHANGES', () => sidebar().includes('teapot.yaml'))
     } finally {
       stop()
     }

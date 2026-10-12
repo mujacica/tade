@@ -120,6 +120,11 @@ async function world(root: string, home: string, focused: string | null) {
 
   return {
     live,
+    files,
+    /** Change what the window shows, as a click would. */
+    put: (next: (was: AppState) => AppState) => {
+      state = next(state)
+    },
     /**
      * What the section would draw now, and then the window's next look. A
      * read answers from the last look and only says one is due — a frame
@@ -184,5 +189,33 @@ describe('what the CHANGES section is about', () => {
     // checkout, and it is that there is nothing in it — which is what lets the
     // section say "nothing changed" instead of "open an agent to see".
     expect(changed()).toEqual([])
+  })
+})
+
+describe('what the side asks about the checkout', () => {
+  it('asks nothing about the tree while FILES is folded, and the beat asks what is open', async () => {
+    const repo = sharedCheckout()
+    const { live, files, put } = await world(repo.root, repo.home, null)
+    // Who the tree and its marks were asked about, as `Live` was asked.
+    const asked: (string | null)[] = []
+    const marksAt = live.marksAt.bind(live)
+    live.marksAt = (root) => {
+      asked.push(root)
+      return marksAt(root)
+    }
+
+    // Folded, nothing reads the tree or its marks, so nothing looks at them.
+    put((was) => ({ ...was, folded: ['files'] }))
+    expect(files.facts().files).toEqual([])
+    expect(asked).toEqual([null])
+
+    // Open, and asked again on the beat with no frame drawn at all: an idle
+    // window draws nothing, and the tree it is showing must not go stale
+    // behind it for that.
+    put((was) => ({ ...was, folded: [] }))
+    files.facts()
+    asked.length = 0
+    await live.refresh(false)
+    expect(asked).toEqual([repo.root])
   })
 })

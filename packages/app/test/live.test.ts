@@ -383,15 +383,16 @@ describe('the last look at a task, read without starting one', () => {
 
     // The look starts all of it, and the listing is there at once.
     const revision = live.revision
-    live.lookAgain()
-    expect(gitLoad().started - before).toBeGreaterThan(0)
+    const looking = live.lookAgain()
     expect(live.files(repo.root, []).length).toBeGreaterThan(0)
+    await looking
+    expect(gitLoad().started - before).toBeGreaterThan(0)
     expect(live.revision, 'what changed was not counted').toBeGreaterThan(revision)
     // And nothing more is due until something goes stale: reading again
     // straight after a look starts nothing on the look after it.
     const looked = gitLoad().started
     read()
-    live.lookAgain()
+    await live.lookAgain()
     expect(gitLoad().started).toBe(looked)
   }, 30_000)
 

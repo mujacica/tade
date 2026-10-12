@@ -3,7 +3,7 @@ import { checksFor } from '@tade/core'
 import type { ListSection } from '@tade/extensions-core'
 import type { ActionsView, Frame } from '../frame.ts'
 import type { Live } from '../live.ts'
-import { notice, ORCHESTRATOR_TAB } from '../model.ts'
+import { notice, ORCHESTRATOR_TAB, showingActions } from '../model.ts'
 import type { Actions, Subject, Wiring } from './context.ts'
 
 // A check that nobody ran is not a check that passed, and this is the window's
@@ -59,11 +59,18 @@ export class Checks implements Subject {
     this.deps = deps
   }
 
-  /** What the agent in front of you has done, for the ACTIONS tab beside its screen. */
+  /**
+   * What the agent in front of you has done, for the ACTIONS tab beside its
+   * screen: looked at only while that tab is in front — it was three or four
+   * `git`s every ten seconds behind every agent's screen — and asked again on
+   * every beat while it is (`keepAsking`), frame or none.
+   */
   facts(): Partial<Frame> {
     const live = this.wire.live
     const task = this.wire.state.focused
-    return { actions: live && task ? this.actionsFor(live, task) : null }
+    live?.keepAsking('actions', () => this.facts())
+    const shown = showingActions(this.wire.state, task) ? task : null
+    return { actions: live && shown ? this.actionsFor(live, shown) : null }
   }
 
   actions(): Actions {

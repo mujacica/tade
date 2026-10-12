@@ -1,9 +1,18 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema, type TadeEvent } from '@tade/core'
+import { ConfigSchema, type TadeEvent, type Workspace } from '@tade/core'
+import {
+  gitLoad,
+  makeCollector,
+  REUSE_MS,
+  type StatusAnswer,
+  type StatusCollector,
+} from '@tade/status'
 import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { STANDS_MS } from '../src/checkout-look.ts'
 import { Live } from '../src/live.ts'
 import { spendPanel } from '../src/panels/spend/state.ts'
 import type { Wiring } from '../src/wire/context.ts'
@@ -67,12 +76,13 @@ function usage(home: string, events: number, at: number): void {
   writeFileSync(join(home, 'events.jsonl'), `${lines.join('\n')}\n`)
 }
 
-const opened: { live: Live; client: Workbench }[] = []
+const opened: { live: Live; client: Workbench; status?: StatusCollector }[] = []
 
 afterEach(async () => {
   for (const one of opened.splice(0)) {
     await one.live.stop().catch(() => {})
     await one.client.close().catch(() => {})
+    await one.status?.close().catch(() => {})
   }
 })
 
@@ -305,5 +315,199 @@ describe('what a frame costs to say how long the agents ran', () => {
     // A second run counts from the moment it is heard of, not the next second.
     spend(started('app/two', now - 5_000))
     expect(live.runtimeToday()!.total.ms).toBe(66_000)
+  })
+})
+
+/**
+ * Status as a window's child answers it, with the look itself held still: the
+ * first answer is the real collector's over the real repository, and every one
+ * after it says the same thing — a new object with a new stamp, as a real look
+ * is — until the test changes what it says (`say`). A look is git, and the
+ * probes below count git: one that looked for real on every beat would be
+ * counting status rather than the window.
+ */
+function heldStatus(): StatusCollector & { say(change: (world: Workspace) => void): void } {
+  const real = makeCollector('here')
+  let first: Extract<StatusAnswer, { known: true }> | null = null
+  return {
+    id: 'held',
+    async collect(ask) {
+      if (!first) {
+        const answer = await real.collect(ask)
+        if (!answer.known) return answer
+        first = answer
+      }
+      const world = structuredClone(first.workspace)
+      return { ...first, workspace: { ...world, generatedAt: new Date().toISOString() } }
+    },
+    close: () => real.close(),
+    say(change) {
+      if (first) change(first.workspace)
+    },
+  }
+}
+
+/**
+ * A `Live` over a repository with one agent in a worktree of its own, on a
+ * clock the test moves, and status held still. `beat` is what an idle window
+ * does every two seconds: the side read as a frame reads it — the marks, the
+ * changes and the branch of one checkout — and the looks that found due.
+ */
+async function checkoutOver(
+  over: { onTasks?: (moved: boolean) => void; onTerminals?: () => void } = {},
+) {
+  const repo = mkrepo()
+  repo.commit('first', { 'ledger.ts': 'one\n' })
+  repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge on retries' })
+  const home = tmp('tade-checkout-probe-')
+  writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+  const client = await Workbench.open({ home })
+  const status = heldStatus()
+  let now = Date.parse('2026-09-20T12:00:00Z')
+  const live = await Live.start({
+    client,
+    config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+    home,
+    tadeHome: repo.home,
+    pollMs: 600_000,
+    now: () => now,
+    status,
+    ...(over.onTasks ? { onTasks: (_: unknown, moved: boolean) => over.onTasks?.(moved) } : {}),
+    ...(over.onTerminals ? { onTerminals: over.onTerminals } : {}),
+  })
+  opened.push({ live, client, status })
+  await live.refresh()
+  const beat = async (root: string, base: string | null) => {
+    now += 2_000
+    live.marksAt(root)
+    live.changesAt(root, base)
+    live.branchAt(root)
+    await live.lookAgain()
+  }
+  /** How many `git`s one beat started. */
+  const asked = async (root: string, base: string | null) => {
+    const was = gitLoad().started
+    await beat(root, base)
+    return gitLoad().started - was
+  }
+  return { repo, live, status, beat, asked, base: live.baseOf('app/refunds') }
+}
+
+describe('what an idle window costs to keep a checkout looked at', () => {
+  // The FILES tree's marks, CHANGES and the branch were asked of git every two
+  // seconds whatever had happened: four or five `git`s a beat, about two a
+  // second, on a window nobody was touching. Now a beat reads a signature
+  // first (`checkout-look.ts`) and asks git only where it moved.
+  //
+  // Counted in beats on a clock the test moves, never over a sleep: what is
+  // asserted is how many `git`s a beat starts, which a slow machine does not
+  // change.
+
+  it('asks git nothing on a beat whose checkout has not moved, until its ceiling', async () => {
+    const { live, beat, asked, base } = await checkoutOver()
+    const root = live.worktreeOf('app/refunds') as string
+    // The first look at each is git, and an answer.
+    expect(await asked(root, base)).toBeGreaterThan(0)
+    const before = gitLoad().started
+    // Every beat for most of a minute, with nobody touching anything.
+    for (let beats = 1; beats < STANDS_MS / 2_000; beats++) await beat(root, base)
+    expect(gitLoad().started - before, 'git asked about a checkout nobody touched').toBe(0)
+    // And asked again at the ceiling: a signature is not a promise.
+    expect(await asked(root, base)).toBeGreaterThan(0)
+  })
+
+  it('looks again on the beat after the checkout moves, however it moved', async () => {
+    const { repo, live, status, beat, asked, base } = await checkoutOver()
+    const root = live.worktreeOf('app/refunds') as string
+    const changed = () => live.changesAt(root, base).map((one) => `${one.path} +${one.added}`)
+    await asked(root, base)
+    expect(changed()).toEqual([])
+
+    // A file nobody had changed, changed in place: nothing a stat of `.git`
+    // or of the folder sees. It is what status says next that tells.
+    writeFileSync(join(root, 'ledger.ts'), 'one\ntwo\n')
+    expect(await asked(root, base), 'the blind spot status covers').toBe(0)
+    status.say((world) => {
+      const task = world.projects[0]?.tasks.find((one) => one.id === 'app/refunds')
+      if (task?.git) task.git.dirty = ['ledger.ts']
+    })
+    await live.refresh(false)
+    expect(await asked(root, base)).toBeGreaterThan(0)
+    expect(changed()).toEqual(['ledger.ts +1'])
+
+    // Changed again: a file already changed, whose counts move and nothing else.
+    writeFileSync(join(root, 'ledger.ts'), 'one\ntwo\nthree\n')
+    expect(await asked(root, base)).toBeGreaterThan(0)
+    expect(changed()).toEqual(['ledger.ts +2'])
+
+    // A new file, which the folder's own stat sees.
+    writeFileSync(join(root, 'teapot.yaml'), 'short\n')
+    expect(await asked(root, base)).toBeGreaterThan(0)
+    expect(changed()).toContain('teapot.yaml +null')
+
+    // Committed: the index and HEAD.
+    repo.git('-C', root, 'add', '-A')
+    repo.git('-C', root, 'commit', '-q', '-m', 'the teapot')
+    expect(await asked(root, base)).toBeGreaterThan(0)
+    // And quiet again once each reader has looked at what the commit left: the
+    // branch on its own ten seconds, and the one look more that an answer
+    // naming other paths than the last costs, since its signature is new.
+    for (let beats = 0; beats < 5; beats++) await beat(root, base)
+    expect(await asked(root, base)).toBe(0)
+  })
+
+  it('stands no longer than status’s own gate on a checkout no agent works in', async () => {
+    // The project's own checkout, where its one agent does not work: status
+    // says nothing of it, so the only thing that can see an edit in place is a
+    // look, and the answer stands only as long as status would let its own.
+    const { repo, beat, asked } = await checkoutOver()
+    expect(await asked(repo.root, null)).toBeGreaterThan(0)
+    const before = gitLoad().started
+    for (let beats = 1; beats < REUSE_MS / 2_000; beats++) await beat(repo.root, null)
+    expect(gitLoad().started - before).toBe(0)
+    expect(await asked(repo.root, null)).toBeGreaterThan(0)
+  })
+})
+
+describe('what an idle window draws on the status beat', () => {
+  // Every beat redrew the window and moved `revision`, whatever status said —
+  // which made every answer kept on `revision` (`wire/kept.ts`) one made again
+  // every two seconds, and was most of the ~0.7 frames a second an idle window
+  // drew. A beat is news only where it found something the last did not.
+
+  it('is not news, and moves nothing kept, when it found what the last one did', async () => {
+    const moved: boolean[] = []
+    let tabs = 0
+    const { live, status } = await checkoutOver({
+      onTasks: (one) => moved.push(one),
+      onTerminals: () => {
+        tabs++
+      },
+    })
+    expect(moved.at(-1), 'the first look is news').toBe(true)
+    const revision = live.revision
+    const tasks = live.tasks
+    const said = moved.length
+    for (let beats = 0; beats < 5; beats++) await live.refresh(false)
+    // The beat still runs — the queue, the schedules — and says it found nothing.
+    expect(moved.slice(said)).toEqual([false, false, false, false, false])
+    expect(live.revision, 'a beat that found nothing moved revision').toBe(revision)
+    expect(live.tasks, 'a beat that found nothing made the tasks again').toBe(tasks)
+    expect(tabs, 'the lower pane’s tabs were said again').toBe(1)
+
+    // What status says differently is news on the beat that hears it.
+    status.say((world) => {
+      const task = world.projects[0]?.tasks.find((one) => one.id === 'app/refunds')
+      if (task) task.reason = 'something new'
+    })
+    await live.refresh(false)
+    expect(moved.at(-1)).toBe(true)
+    expect(live.revision).toBeGreaterThan(revision)
+    expect(live.tasks).not.toBe(tasks)
+
+    // And a look somebody asked for is drawn whatever it found: whoever asked
+    // has just changed something and is waiting to see it.
+    await live.refresh()
+    expect(moved.at(-1)).toBe(true)
   })
 })

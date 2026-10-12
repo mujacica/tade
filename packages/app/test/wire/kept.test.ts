@@ -187,4 +187,46 @@ describe('the lists extensions keep down the side', () => {
       '#419 a second review',
     ])
   })
+
+  it('are not drawn again, nor made again, when the extensions answer what they did', async () => {
+    // Every five seconds the extensions are asked again, and every answer
+    // used to be a frame and a new list: on a window nobody touched, a beat of
+    // its own. Paced by the asking, never by a sleep.
+    let now = 0
+    let asks = 0
+    let drawn = 0
+    const host = {
+      statuses: async () => [{ extension: 'review', item: { text: '2 open' }, viewable: false }],
+      lists: async () => {
+        asks++
+        // A new answer every time, as the host's is: only what it says is the same.
+        return [section(['#418 fix the double charge'])]
+      },
+      list: () => [],
+    }
+    const wire = {
+      opts: { extensions: host, extensionWorkbench: {} },
+      state: initialState(),
+      now: () => now,
+      draw: () => {
+        drawn++
+      },
+    }
+    const subject = new Extensions(wire as never, {} as never)
+    const answered = async () => {
+      const was = asks
+      subject.askExtensions()
+      while (asks === was) await new Promise((resolve) => setTimeout(resolve, 1))
+      await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+    await answered()
+    expect(drawn).toBe(1)
+    const first = subject.facts().lists
+    for (let beat = 0; beat < 5; beat++) {
+      now += 5_000
+      await answered()
+    }
+    expect(drawn, 'an answer the same as the last was drawn').toBe(1)
+    expect(subject.facts().lists, 'the side’s rows were made again for the same answer').toBe(first)
+  })
 })

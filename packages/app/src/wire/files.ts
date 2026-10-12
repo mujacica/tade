@@ -11,7 +11,7 @@ import {
   openerForReveal,
 } from '../editor.ts'
 import type { Frame } from '../frame.ts'
-import { focusTask, notice, shownName, toggleFolder, viewLane } from '../model.ts'
+import { focusTask, notice, sectionOpen, shownName, toggleFolder, viewLane } from '../model.ts'
 import { type FilePanel, filePanel, savedFile, showsDiff } from '../panels/file/state.ts'
 import { fileBodySize } from '../panels/file/view.ts'
 import { branchMenuItems, changeMenuItems, fileMenuItems } from '../panels/menu/state.ts'
@@ -111,9 +111,12 @@ export class Files implements Subject {
     // What the changes are measured from: where the agent branched when one is
     // in front of you, and nowhere — so, `git status` — when none is.
     const base = live?.baseOf(state.focused) ?? null
+    // Asked again on every beat, frame or none (`keepAsking`); the tree only while FILES is open.
+    live?.keepAsking('files', () => this.facts())
+    const tree = sectionOpen(state, 'files', false) ? (worktree ?? repo) : null
     return {
-      files: live?.files(worktree ?? repo, state.expanded) ?? [],
-      fileMarks: live?.marksAt(worktree ?? repo) ?? {},
+      files: live?.files(tree, state.expanded) ?? [],
+      fileMarks: live?.marksAt(tree) ?? {},
       where: repo
         ? {
             repo: tilde(repo),

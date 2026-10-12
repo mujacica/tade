@@ -142,6 +142,7 @@ export class Queue implements Subject {
   private async doAdvance(): Promise<string[]> {
     const live = this.wire.live
     if (!live) return []
+    const transcript = this.wire.state.transcript
     const items = live.queued.filter((item) => !this.starting.has(item.task))
     // What the tree says now, for whatever is about to start in it: `touches`
     // was one person's reading of the code when the work was planned, and
@@ -220,7 +221,9 @@ export class Queue implements Subject {
       }
     }
     if (started.length > 0) await live.refresh()
-    this.wire.draw()
+    // Drawn where it did something: what it says goes in the conversation
+    // (`said`), and a beat with nothing ready — nearly every beat — says nothing.
+    if (started.length > 0 || this.wire.state.transcript !== transcript) this.wire.draw()
     return started
   }
 

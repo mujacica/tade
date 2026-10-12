@@ -197,7 +197,10 @@ regions in a cycle now.
   on the window's look, starts it (`onDue` asks for that look soon). They used to start it
   themselves, from the Files subject's facts, so one frame every two seconds forked three or four
   `git`s on the drawing thread — 9ms at the fold's 95th percentile, 25 at its worst, idle. A reader
-  you add follows the same shape: `lookSoon` from the reader, `told` when the answer changed.
+  you add follows the same shape: `lookSoon` from the reader, `told` only when the answer changed.
+  What a subject has on screen it hands to `Live.keepAsking`, which reads it again on every beat:
+  an idle window draws no frames, and a reader read only in one goes stale behind it. A look at a
+  checkout asks `CheckoutGate` first (`checkout-look.ts`) — git only where a stat signature moved.
 - **A region whose inputs did not move is not drawn again** (`view/last-frame.ts`). `Painted` holds a
   `LastFrame`; each region is drawn through a proxy that records every field of `state` and `frame` it
   read, and next frame exactly those are compared — plain data member by member, anything else by
@@ -226,6 +229,11 @@ regions in a cycle now.
 - **An event is news, not necessarily a new picture** (`requestNews`, `NEWS_MS`): drawn with the next
   frame anything asks for, and on its own no oftener than the spinner turns. Only `blocking` news —
   somebody waiting — is asked for like a frame. A storm of four hundred was 115 frames; it is twenty.
+- **A status beat is news only where it found something new** (`onTasks(tasks, moved)`): one that
+  found what the last did keeps `revision` and draws nothing, and only a refresh somebody *asked*
+  for (`refresh()`, not the timer's `refresh(false)`) is drawn whatever it found. Anything else on
+  the beat draws only where it did something — the queue's advance drew every beat to show what it
+  might have said — and `frame.probe.test.ts` holds an idle window to one frame in two beats.
 
 ## Scrolling, and what a notch is worth
 

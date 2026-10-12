@@ -8,6 +8,8 @@ import {
   THINKING_LEVELS,
 } from '@tade/core'
 import type { HarnessModels } from '@tade/harnesses-core'
+import { taskFilePath } from '@tade/workbench'
+import { markOf } from '../checkout-look.ts'
 import type { Frame } from '../frame.ts'
 import { notice, ORCHESTRATOR_TAB, shownName, type TaskSnapshot } from '../model.ts'
 import {
@@ -96,6 +98,8 @@ export class Routes implements Subject {
    * which offers everything, as the window always did.
    */
   private readonly offersByTask = new Map<string, AgentOffers>()
+  /** What each task's offers were learned from: see `learnHarness`. */
+  private readonly learnedFrom = new Map<string, { from: string; config: Config }>()
   /**
    * What each harness offers to run, by harness id, as it last answered.
    * Asked of the harness itself and kept apart harness by harness: there is
@@ -417,11 +421,24 @@ export class Routes implements Subject {
     if (changed) this.wire.draw()
   }
 
+  /**
+   * A task's harness is its task file's word, else its project's route in the
+   * config, so it is asked again only when one of those has moved: the file's
+   * marks, or a config that is not the one it was learned under — every config
+   * written is a new one. It was two YAML files read and parsed for every task
+   * on every two-second beat, to learn what was already known. The marks are
+   * read before the ask, so an edit that lands during it is asked about again.
+   */
   private async learnHarness(task: string): Promise<boolean> {
     const worktree = this.wire.live?.worktreeOf(task)
     if (!worktree) return false
+    const config = this.wire.opts.config
+    const from = `${worktree}\0${await markOf(taskFilePath(this.wire.opts.home, task))}`
+    const learned = this.learnedFrom.get(task)
+    if (learned?.from === from && learned.config === config) return false
     const known = await this.wire.opts.client.agentHarness(task, worktree).catch(() => null)
     if (!known) return false
+    this.learnedFrom.set(task, { from, config })
     const was = this.offersByTask.get(task)
     const now = agentOffers(known.harness, known.capabilities)
     if (was && JSON.stringify(was) === JSON.stringify(now)) return false

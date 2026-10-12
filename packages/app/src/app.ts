@@ -578,7 +578,7 @@ export class App {
       ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
       ...(this.opts.now ? { now: this.opts.now } : {}),
       status: this.opts.status,
-      onTasks: (tasks) => {
+      onTasks: (tasks, moved) => {
         this.state = withTasks(this.state, tasks)
         // Focus can only be restored once there are panes to restore it to,
         // and only the first time: after that it is wherever you moved to.
@@ -589,7 +589,7 @@ export class App {
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.orchestrator.reflect(tasks)
         this.away.beat()
-        this.draw()
+        if (moved) this.draw() // a beat that found what the last did is not news
       },
       onEvent: (event) => {
         this.state = onEvent(this.state, event, this.now())

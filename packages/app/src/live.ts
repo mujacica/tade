@@ -34,17 +34,27 @@ import {
   workspaceFor,
 } from '@tade/core'
 import type { LaneScreen } from '@tade/drivers-core'
-import { git, makeCollector, type StatusCollector } from '@tade/status'
+import { makeCollector, type StatusCollector } from '@tade/status'
 import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { aboutRoot } from './away-lifecycle.ts'
-import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
+import {
+  branchesIn,
+  CheckoutGate,
+  changesIn,
+  diffIn,
+  marksIn,
+  STILL,
+  toldOf,
+  treeIn,
+} from './checkout-look.ts'
+import { type FileEntry, type Listed, treeOf } from './files.ts'
 import type { ActionsView, Change, NoteShown } from './frame.ts'
 import { type Histories, JOURNAL, QUEUE_READS, RUNTIME_READS, readHistories } from './histories.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
-import { CHANGED_FORMAT, changedFrom, changesFrom, snapshotsFrom } from './reality.ts'
+import { snapshotsFrom } from './reality.ts'
 import { lookAtWork } from './work-look.ts'
 
 // Reached for alongside `Live` by everyone who reaches for either, so it is
@@ -79,9 +89,6 @@ export interface ScheduleRun {
 /** How long a folder listing is good for. */
 const LISTING_MS = 2_000
 
-/** How many commits one look at a project's tree reads, at the most. */
-const COMMITS_READ = 200
-
 /** How long the branch a project's own checkout is on is good for. */
 const BRANCH_MS = 10_000
 
@@ -109,7 +116,11 @@ export interface LiveOptions {
   /** Where status is looked at: a window's own child, closed by whoever made it; else here. */
   status?: StatusCollector
   now?: () => number
-  onTasks?: (tasks: TaskSnapshot[]) => void
+  /**
+   * Every look's tasks, with whether anything in the look is not what the last
+   * said (`moved`): only that is news to draw. The rest of a beat still runs.
+   */
+  onTasks?: (tasks: TaskSnapshot[], moved: boolean) => void
   onEvent?: (event: TadeEvent) => void
   onWarning?: (message: string) => void
   /** Something drawn from a background look has changed. */
@@ -171,9 +182,16 @@ export class Live {
    * them (`lookAgain`). Keyed by what is looked at, so a reader asked thirty
    * times between two looks queues one.
    */
-  private readonly due = new Map<string, () => void>()
+  private readonly due = new Map<string, () => Promise<void>>()
+  /** What a subject has on screen, asked again on every beat (`keepAsking`). */
+  private readonly asking = new Map<string, () => void>()
+  /** What lets a checkout nobody has touched cost a few stats, not git (`checkout-look.ts`). */
+  private readonly gate = new CheckoutGate((root) => toldOf(this.seen, root))
   /** How many times anything this answers has changed: see `revision`. */
   private revisions = 0
+  /** The last look's answer and tabs, as said: one the same is not news (`doRefresh`). */
+  private answered: string | null = null
+  private tabs: string | null = null
   /** The branch each task was started from, as status last saw it. */
   private readonly bases = new Map<string, string>()
   /** The last look at each task's commits and checks, for the ACTIONS tab. */
@@ -272,7 +290,7 @@ export class Live {
     // shut, so the window's own beat starts a minute from here.
     live.lookedAtLanded = live.now()
     void live.refresh()
-    live.timer = setInterval(() => void live.refresh(), opts.pollMs ?? 2_000)
+    live.timer = setInterval(() => void live.refresh(false), opts.pollMs ?? 2_000)
     live.timer.unref?.()
     return live
   }
@@ -400,33 +418,7 @@ export class Live {
     if (workspace !== 'checkout') return bare
     const root = this.opts.config.projects[project]?.root
     if (!root || working.length === 0) return bare
-    const since = [...at.values()].sort((one, other) => one - other)[0]
-    const [status, log] = await Promise.all([
-      git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all']),
-      git(root, [
-        'log',
-        '-n',
-        String(COMMITS_READ),
-        ...(since === undefined ? [] : [`--since=${new Date(since).toISOString()}`]),
-        `--format=${CHANGED_FORMAT}`,
-        '--name-only',
-      ]),
-    ])
-    const committed = new Map<string, Set<string>>()
-    for (const commit of log.ok ? changedFrom(log.stdout) : []) {
-      // Whose a commit is, is read back out of the trailer that says so —
-      // never a table Tade keeps. One without it belongs to nobody.
-      if (!at.has(commit.task)) continue
-      const paths = committed.get(commit.task) ?? new Set<string>()
-      for (const path of commit.paths) paths.add(path)
-      committed.set(commit.task, paths)
-    }
-    return {
-      workspace,
-      working,
-      dirty: status.ok ? Object.keys(marksFrom(status.stdout)).sort() : [],
-      committed: [...committed].map(([task, paths]) => ({ task, paths: [...paths].sort() })),
-    }
+    return { workspace, working, ...(await treeIn(root, at)) }
   }
 
   /**
@@ -528,22 +520,38 @@ export class Live {
    * draws — 9ms at the 95th percentile of the fold, 25 at the worst, on an idle
    * window. Now a frame only ever answers, and what it found due is started a
    * look later: the same looks, as often, and none of them inside a frame.
+   *
+   * Settles when every look it started has, which only a test waits for.
    */
-  lookAgain(): void {
-    if (this.due.size === 0) return
+  lookAgain(): Promise<void> {
+    if (this.due.size === 0) return Promise.resolve()
     const due = [...this.due.values()]
     this.due.clear()
-    for (const look of due) look()
+    return Promise.all(due.map((look) => look())).then(() => {})
   }
 
   /**
    * Queue a look for the next `lookAgain`, once however often it is asked,
    * and ask for that look soon when nothing else was waiting.
    */
-  private lookSoon(key: string, look: () => void): void {
+  private lookSoon(key: string, look: () => Promise<void>): void {
     if (this.due.has(key)) return
     this.due.set(key, look)
     if (this.due.size === 1) this.opts.onDue?.()
+  }
+
+  /**
+   * Ask `ask` — a subject's reading of what it has on screen — again on every
+   * beat, whether or not a frame has read it since.
+   *
+   * A reader only says a look is due when it is read, and it is read in a
+   * frame; and a window nobody is touching draws no frames, because a beat
+   * that found what the last one did is not news (`onTasks`). So what is on
+   * screen would go stale behind a still window — CHANGES missing the file you
+   * just saved — without a door that asks for it on the beat instead.
+   */
+  keepAsking(name: string, ask: () => void): void {
+    this.asking.set(name, ask)
   }
 
   /** Something this answers is not what it was: counted (`revision`), and said, so it is drawn. */
@@ -567,7 +575,7 @@ export class Live {
   private listing(dir: string): Listed[] {
     const seen = this.listings.get(dir)
     if (!seen || this.now() - seen.at >= LISTING_MS) {
-      this.lookSoon(`listing\0${dir}`, () => this.list(dir))
+      this.lookSoon(`listing\0${dir}`, async () => this.list(dir))
     }
     return seen?.entries ?? []
   }
@@ -595,7 +603,8 @@ export class Live {
   /**
    * What git says about each file under a folder — changed, new, conflicted —
    * for marking them in the tree. From the last look; looks again in the
-   * background, like everything else drawn four times a second.
+   * background, like everything else drawn four times a second, and asks git
+   * only where the checkout has moved (`CheckoutGate`).
    */
   marksAt(root: string | null): Readonly<Record<string, string>> {
     if (!root) return {}
@@ -606,37 +615,21 @@ export class Live {
     return seen?.marks ?? {}
   }
 
-  private lookAtMarks(root: string): void {
+  private async lookAtMarks(root: string): Promise<void> {
     const seen = this.marks.get(root)
     this.marks.set(root, { at: this.now(), marks: seen?.marks ?? {} })
-    void git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all'])
-      .then((out) => {
-        if (!out.ok) return
-        const marks = marksFrom(out.stdout)
-        const was = JSON.stringify(seen?.marks ?? {})
-        this.marks.set(root, { at: this.now(), marks })
-        if (JSON.stringify(marks) !== was) this.told()
-      })
-      .catch(() => {})
+    const named = Object.keys(seen?.marks ?? {})
+    const marks = await this.gate
+      .ask(`marks\0${root}`, root, named, this.now(), () => marksIn(root))
+      .catch(() => null)
+    if (marks === null || marks === STILL) return
+    this.marks.set(root, { at: this.now(), marks })
+    if (JSON.stringify(marks) !== JSON.stringify(seen?.marks ?? {})) this.told()
   }
 
   /** The project checkout's branches, newest first, and the one it is on. */
-  async branchesOf(root: string): Promise<{ name: string; current: boolean; when: string }[]> {
-    const out = await git(root, [
-      'for-each-ref',
-      '--sort=-committerdate',
-      '--format=%(HEAD)%00%(refname:short)%00%(committerdate:relative)',
-      'refs/heads',
-    ])
-    if (!out.ok) return []
-    return out.stdout
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => {
-        const [head, name, when] = line.split('\0')
-        return { name: name ?? '', current: head === '*', when: when ?? '' }
-      })
-      .filter((row) => row.name !== '')
+  branchesOf(root: string): Promise<{ name: string; current: boolean; when: string }[]> {
+    return branchesIn(root)
   }
 
   /**
@@ -651,15 +644,16 @@ export class Live {
     return seen?.branch ?? null
   }
 
-  private lookAtBranch(root: string): void {
+  private async lookAtBranch(root: string): Promise<void> {
     const seen = this.branches.get(root)
     this.branches.set(root, { at: this.now(), branch: seen?.branch ?? null })
-    void branchOf(root)
-      .then((branch) => {
-        this.branches.set(root, { at: this.now(), branch })
-        if (branch !== seen?.branch) this.told()
-      })
-      .catch(() => {})
+    // Wrapped, because no branch at all — a detached HEAD — is an answer.
+    const asked = await this.gate
+      .ask(`branch\0${root}`, root, [], this.now(), async () => ({ branch: await branchOf(root) }))
+      .catch(() => null)
+    if (asked === null || asked === STILL) return
+    this.branches.set(root, { at: this.now(), branch: asked.branch })
+    if (asked.branch !== seen?.branch) this.told()
   }
 
   /**
@@ -681,10 +675,10 @@ export class Live {
     const expecting = (this.hurry.get(task) ?? 0) > this.now()
     const every = seen?.work.running || expecting ? WORK_RUNNING_MS : WORK_MS
     if ((!seen || this.now() - seen.at >= every) && !this.workLooking.has(task)) {
-      this.lookSoon(`actions\0${task}`, () => {
+      this.lookSoon(`actions\0${task}`, async () => {
         if (this.workLooking.has(task)) return
         this.workLooking.add(task)
-        void lookAtWork({
+        await lookAtWork({
           task,
           root,
           base: this.bases.get(task) ?? null,
@@ -694,9 +688,10 @@ export class Live {
           now: this.now(),
         })
           .then((work) => {
-            if (!work) return
+            const was = this.works.get(task)?.work
             this.works.set(task, { at: this.now(), work })
-            this.told()
+            // Said only where it moved: a look every ten seconds is not news.
+            if (JSON.stringify(work) !== JSON.stringify(was)) this.told()
           })
           .catch(() => {})
           .finally(() => this.workLooking.delete(task))
@@ -764,24 +759,27 @@ export class Live {
    * git to do it. A look that comes back the same as the last one redraws
    * nothing, like `marksAt` and `branchAt` — this is read every frame now,
    * agent or not, so a beat that always redraws would be a beat that never rests.
+   * And a look asks git only where the checkout has moved (`CheckoutGate`).
    */
   changesAt(root: string | null, base: string | null): readonly Change[] {
     if (!root) return []
     const key = JSON.stringify([root, base])
     const seen = this.changed.get(key)
     if ((!seen || this.now() - seen.at >= LISTING_MS) && !this.looking.has(key)) {
-      this.lookSoon(`changes\0${key}`, () => {
+      this.lookSoon(`changes\0${key}`, async () => {
         if (this.looking.has(key)) return
         this.looking.add(key)
-        void this.lookAtChanges(root, base)
-          .then((changes) => {
-            if (!changes) return
-            const was = JSON.stringify(this.changed.get(key)?.changes ?? [])
-            this.changed.set(key, { at: this.now(), changes })
-            if (JSON.stringify(changes) !== was) this.told()
-          })
-          .catch(() => {})
+        const named = (this.changed.get(key)?.changes ?? []).map((change) => change.path)
+        const changes = await this.gate
+          .ask(`changes\0${key}`, root, named, this.now(), () => changesIn(root, base))
+          .catch(() => null)
           .finally(() => this.looking.delete(key))
+        const was = this.changed.get(key)
+        // Still standing is a look that was had: not again until it is stale.
+        if (changes === STILL && was) this.changed.set(key, { ...was, at: this.now() })
+        if (changes === null || changes === STILL) return
+        this.changed.set(key, { at: this.now(), changes })
+        if (JSON.stringify(changes) !== JSON.stringify(was?.changes ?? [])) this.told()
       })
     }
     return seen?.changes ?? []
@@ -800,49 +798,14 @@ export class Live {
     return this.facts.get(task) ?? null
   }
 
-  /**
-   * One file's diff, from a root and a base like `changesAt` and `marksAt`: a
-   * change in a shared checkout is nobody's, so a task only names where to look.
-   * `null` is a look that could not happen, and never an empty one.
-   */
-  async diffAt(root: string, base: string | null, path: string): Promise<string | null> {
-    const since = base ? await git(root, ['merge-base', 'HEAD', base]) : null
-    const from = since?.ok ? since.stdout.trim() : 'HEAD'
-    const tracked = await git(root, ['diff', '--no-color', '-U3', from, '--', path])
-    if (tracked.ok && tracked.stdout.trim() !== '') return tracked.stdout
-    // Nothing from `git diff` is two opposite answers: a file git tracks that
-    // nobody changed, and one it never heard of, which is all new — an unchanged
-    // file used to come back as the whole of it in green. `--no-index` exits 1
-    // whenever it finds anything, so its output is all that says it looked.
-    const known = await git(root, ['ls-files', '--error-unmatch', '--', path])
-    if (known.ok) return tracked.ok ? tracked.stdout : null
-    const added = await git(root, ['diff', '--no-color', '-U3', '--no-index', '/dev/null', path])
-    return added.stdout.trim() === '' ? null : added.stdout
+  /** One file's diff, from a root and a base like `changesAt` and `marksAt` (`diffIn`). */
+  diffAt(root: string, base: string | null, path: string): Promise<string | null> {
+    return diffIn(root, base, path)
   }
 
   /** The branch a task's changes are counted against: `main`, usually. */
   baseOf(task: string | null): string | null {
     return task ? (this.bases.get(task) ?? null) : null
-  }
-
-  /**
-   * Everything since the task branched, measured from where it branched — the
-   * merge base, so work that landed on main since is not counted as the task's.
-   */
-  private async lookAtChanges(root: string, base: string | null): Promise<Change[] | null> {
-    const since = base ? await git(root, ['merge-base', 'HEAD', base]) : null
-    const from = since?.ok ? since.stdout.trim() : 'HEAD'
-    const [names, numstat, status] = await Promise.all([
-      git(root, ['diff', '--name-status', '-z', from]),
-      git(root, ['diff', '--numstat', '-z', from]),
-      git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all']),
-    ])
-    if (!names.ok) return null
-    return changesFrom(
-      names.stdout,
-      numstat.ok ? numstat.stdout : '',
-      status.ok ? status.stdout : '',
-    )
   }
 
   /** What you have told Tade that applies to a project, newest first. */
@@ -959,8 +922,25 @@ export class Live {
     }
   }
 
-  /** Ask everything again. Never throws: the window must keep drawing. */
-  async refresh(): Promise<void> {
+  /**
+   * Ask everything again. Never throws: the window must keep drawing.
+   *
+   * A look somebody asked for is news whatever it finds, as every look was:
+   * whoever asks has usually just changed something on screen and is waiting
+   * on it. Only the beat's own (`asked: false`) is held to having found
+   * something the last look did not.
+   */
+  async refresh(asked = true): Promise<void> {
+    if (asked) this.answered = null
+    // What is on screen, asked about again (`keepAsking`) — every beat, even
+    // one a slow look is still answering — and a reading that threw is said.
+    for (const ask of this.asking.values()) {
+      try {
+        ask()
+      } catch (err) {
+        this.opts.onWarning?.(err instanceof Error ? err.message : String(err))
+      }
+    }
     this.refreshing ??= this.doRefresh().finally(() => {
       this.refreshing = null
       // After the refresh is let go of, so whoever waited on `looked` and asks
@@ -1002,11 +982,9 @@ export class Live {
       if (!answer.known) this.opts.onWarning?.(answer.why)
       const workspace = answer.known ? answer.workspace : this.seen
       if (!workspace) return
-      this.revisions++
       this.servers = workspace.toolServers
       this.seen = workspace
       this.approvals = pending
-      for (const warning of workspace.warnings) this.opts.onWarning?.(warning)
       for (const project of workspace.projects) {
         for (const task of project.tasks) {
           this.worktrees.set(task.id, task.worktree)
@@ -1032,14 +1010,17 @@ export class Live {
       }
       // Chats first, then this project's terminals: the two conversations in
       // the lower pane — the orchestrator's tab and the chats — sit together,
-      // and the terminals stay next to the `+` that makes another.
-      this.opts.onTerminals?.(
-        [...chatsFrom(lanes), ...terminalsFrom(lanes)].map(({ id, project, name }) => ({
-          id,
-          project,
-          name,
-        })),
-      )
+      // and the terminals stay next to the `+` that makes another. Said only
+      // where they moved, like the tasks below.
+      const tabs = [...chatsFrom(lanes), ...terminalsFrom(lanes)].map(({ id, project, name }) => ({
+        id,
+        project,
+        name,
+      }))
+      if (JSON.stringify(tabs) !== this.tabs) {
+        this.tabs = JSON.stringify(tabs)
+        this.opts.onTerminals?.(tabs)
+      }
       this.met = []
       this.queue = []
       this.states = new Map()
@@ -1087,8 +1068,20 @@ export class Live {
           at: Number.isFinite(at) ? at : null,
         })
       }
-      this.snapshots = snapshotsFrom(workspace, pending, lanes, this.finished, queued)
-      this.opts.onTasks?.(this.snapshots)
+      // News is a look that says something the last did not. One that found
+      // what the last found keeps `revision`, so every answer kept on it stays
+      // kept, and is drawn by nobody: it was ~0.7 frames a second on a window
+      // nobody touched. `generatedAt` is the one part of a look that always moves.
+      const snapshots = snapshotsFrom(workspace, pending, lanes, this.finished, queued)
+      const said = JSON.stringify([{ ...workspace, generatedAt: '' }, pending, snapshots])
+      const moved = said !== this.answered
+      if (moved) {
+        this.answered = said
+        this.revisions++
+        this.snapshots = snapshots
+        for (const warning of workspace.warnings) this.opts.onWarning?.(warning)
+      }
+      this.opts.onTasks?.(this.snapshots, moved)
     } catch (err) {
       this.opts.onWarning?.(err instanceof Error ? err.message : String(err))
     }

@@ -245,7 +245,13 @@ describe('the window, remembering itself', () => {
     const first = await start()
     // There with nothing queued, folded by itself, and saying why rather than
     // saying only its own name.
-    await until('the queue heading', () => sidebar().includes('SMART QUEUE'))
+    // Past *looking…*, which the heading says until the first look is drawn:
+    // the title can say so a frame before the side does.
+    await until(
+      'the queue heading, looked',
+      () =>
+        sidebar().includes('SMART QUEUE') && !headingRow('SMART QUEUE').text.includes('looking…'),
+    )
     expect(headingRow('SMART QUEUE').text).toContain('▸ SMART QUEUE')
     expect(headingRow('SMART QUEUE').text).toContain('nothing is queued')
     const { row, text } = headingRow('SMART QUEUE')

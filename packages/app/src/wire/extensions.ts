@@ -43,7 +43,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
-import { Kept } from './kept.ts'
+import { Kept, unlessSame } from './kept.ts'
 import { listsShown, Rows } from './rows.ts'
 
 // Extensions, the servers brokered as extensions, and the page that says what
@@ -559,9 +559,9 @@ export class Extensions implements Subject {
   }
 
   /**
-   * What extensions keep in the status bar, asked every few seconds and never
-   * waited on: the tick goes on drawing while they answer, and an open view is
-   * asked again with them so it stays current.
+   * What extensions keep in the status bar and the side, asked every few seconds and never
+   * waited on — the tick goes on drawing while they answer — and drawn only where the answer
+   * moved. An open view is asked again with them so it stays current.
    */
   askExtensions(): void {
     const host = this.wire.opts.extensions
@@ -573,6 +573,7 @@ export class Extensions implements Subject {
     void host
       .statuses(tade)
       .then(async (found) => {
+        const was = JSON.stringify([this.statuses, this.sections])
         this.statuses = found.map((one) => ({
           extension: one.extension,
           text: one.item.text,
@@ -581,11 +582,10 @@ export class Extensions implements Subject {
         }))
         if (panel?.kind === 'extension-view')
           await this.refreshExtensionView(panel.extension, panel)
-        // The sections extensions keep in the sidebar, on the same beat: the
-        // host answers each from its own cache and asks nobody oftener than
-        // that section says, so this costs a function call most times.
-        this.sections = await host.lists(tade).catch(() => this.sections)
-        this.wire.draw()
+        // The side's sections, on the same beat: the host answers each from its own cache and asks
+        // nobody oftener than that section says, so this costs a function call most times.
+        this.sections = unlessSame(this.sections, await host.lists(tade).catch(() => this.sections))
+        if (JSON.stringify([this.statuses, this.sections]) !== was) this.wire.draw()
       })
       .catch(() => {})
       .finally(() => {

@@ -150,6 +150,36 @@ describe('what a task has done, while a run this window started is going', () =>
   })
 })
 
+describe('when the ACTIONS tab is looked at', () => {
+  it('only while it is in front, and on every beat while it is, frame or none', () => {
+    // It was looked at every ten seconds behind every agent's screen — three
+    // or four `git`s for a page nobody had open.
+    const asked: string[] = []
+    const beat: { ask?: () => void } = {}
+    const world = wiring({
+      live: {
+        actions: (task: string) => {
+          asked.push(task)
+          return seen()
+        },
+        keepAsking: (_: string, ask: () => void) => {
+          beat.ask = ask
+        },
+      } as never,
+    })
+    const checks = new Checks(world.wire, deps())
+    world.wire.put({ ...world.at(), focused: 'shop/refunds' })
+    expect(checks.facts().actions).toBeNull()
+    expect(asked).toEqual([])
+
+    world.wire.put({ ...world.at(), paneTab: { 'shop/refunds': 'actions' } })
+    expect(checks.facts().actions?.task).toBe('shop/refunds')
+    expect(asked).toEqual(['shop/refunds'])
+    beat.ask?.()
+    expect(asked).toEqual(['shop/refunds', 'shop/refunds'])
+  })
+})
+
 describe('the review the branch is out for', () => {
   const row = {
     id: 'github.com/acme/api#412',
