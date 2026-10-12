@@ -1,4 +1,4 @@
-   T A D E      checkout !    search ●    infra !    docs ✓    payments    billing    identity    mobile   ⋯4 !     +                   ctrl   +   space   talk 
+   T A D E      checkout !    search ●    infra !    docs ✓    payments      billing      identity      mobile     ⋯4 !     +           ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╭─ 4 more projects ───────────╮━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2                  +    █│ checkout › refunds    agent    actions     │▌ analytics                 ▕│aude-opus-5 ▾     high ▾   ctx ██░░░░ 41%   ×   
                                    █│────────────────────────────────────────────│  platform                  ▕│────────────────────────────────────────────────
@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                                                          type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake                                     claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake                                  claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │   2h 5m │  $1.40 today ▾ 

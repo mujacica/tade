@@ -19,7 +19,7 @@ import { blank, type Drawn, NO_POINTER, type Pointer, Row, stack } from '../ui.t
 import { widthOf } from '../width.ts'
 import { intakeSection } from './intake.ts'
 import { listItem, rowsHere } from './list.ts'
-import { type QueueTree, queueSection, queueSpread, queueStems, taskRow } from './queue.ts'
+import { type QueueTree, queueSection, queueSpread, queueStems } from './queue.ts'
 import {
   barBeside,
   isScrolling,
@@ -32,6 +32,7 @@ import {
   TAB_ICONS,
   tabbed,
   tabList,
+  taskRow,
 } from './rows.ts'
 import { schedulesSection } from './schedule.ts'
 import { cutAtWord, inProject, saidShort, shortened, shortPath, tailOf, wrapPath } from './text.ts'

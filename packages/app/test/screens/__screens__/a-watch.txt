@@ -8,7 +8,7 @@
    ⠋ bump-mailer             █│  NEXT       Mon 14 Sep 10:00 · Mon 14 Sep 11:00 · Mon 14 Sep 12:00                      
      working                 █│  IF MISSED  runs once when Tade opens                                                   
                              █│  AT MOST    2 agents a look                                                             
-   ⠋ fix-checkout-3e         █│  FROM       sentry · turned on by you                                                   
+   ⠋ fix-checkout-…          █│  FROM       sentry · turned on by you                                                   
      working                 █│                                                                                         
                              █│  FOUND                                                                                  
  ▾ SMART QUEUE  5      plan  █│  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
@@ -41,4 +41,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake       claude-opus-5 ▾ │ high ▾ │ 1.9M tok │   2h 5m │  $1.40 today ▾ 

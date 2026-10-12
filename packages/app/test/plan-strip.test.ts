@@ -89,8 +89,38 @@ describe('what a subscription has left, in the strip', () => {
 
   it('says when each comes back, where there is room for it', () => {
     const text = plain(foot(strip({ width: 180 })))
-    expect(text).toContain('78% ↻ 2h')
+    // `2h 0m` and never `2h`, with the room a week's `6d 23h` takes kept in
+    // front of it: it counts down every minute, and nothing beside it may move.
+    expect(text).toContain('78%  ↻ 2h 0m')
     expect(text).toContain('21% ↻ 1d 16h')
+  })
+
+  it('keeps every figure in columns of its own, so one growing a digit moves nothing', () => {
+    // The row sits against the right edge, so a figure one column wider used to
+    // push the model, the levels and every figure left of it a column along.
+    const at = (used: number, resets: number, usd: number, tokens: number, ms: number) =>
+      plain(
+        foot(
+          strip(
+            {
+              width: 180,
+              spend: { ...spending, usd, tokens, runtime: { ...spending.runtime, ms } },
+              plan: [standing({ windows: [{ label: '5h', used, resetsAt: NOW + resets }] })],
+            },
+            { hover: null },
+          ),
+        ),
+      )
+    const before = at(9, 59 * 60_000, 9.99, 999_000, 59 * 60_000)
+    const after = at(10, HOUR, 10, 1_000_000, HOUR)
+    expect(after).toContain('$10.00')
+    expect(after).toContain('1h 0m')
+    const columns = (row: string) =>
+      ['claude-opus-5', 'high ▾', '5h', '│', 'today'].map((word) => row.indexOf(word))
+    expect(columns(after)).toEqual(columns(before))
+    expect([...after].map((c, i) => (c === '│' ? i : -1)).filter((i) => i >= 0)).toEqual(
+      [...before].map((c, i) => (c === '│' ? i : -1)).filter((i) => i >= 0),
+    )
   })
 
   it('says the session first and the longer window after it', () => {

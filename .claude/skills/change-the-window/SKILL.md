@@ -844,6 +844,12 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   columns to spare, and a clause one line lower is still read every time — a footnote at the foot of a
   page is what this may never become. The two words are the two the columns under them are headed with,
   so the page says which is which once and in a word.
+- **Anything that changes width while nobody touches it keeps a slot**, or it slides whatever is beside
+  it, and the eye reads a slide as the window being slow. The foot's figures are padded to `SLOT`
+  (`view/foot.ts`) with the gap unpainted, `duration` keeps two units past an hour (`2h 0m`), every
+  project tab keeps one mark's room (`tabLabel`), and an agent's name down the side is cut to its cost
+  slot, never to its cost (`taskRow`, `view/rows.ts`), which is also the room its close and menu take
+  under the pointer. A slot is as wide as the figure gets in an ordinary week, never the widest it could be.
 
 ## Drawing the queue and a plan
 

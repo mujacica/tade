@@ -49,7 +49,9 @@ describe('the window, and a machine that went to sleep under it', () => {
     const { told, said, waker } = bed([working()])
     await beats(waker, 1_000, 1_250, 1_250 + 3 * HOUR)
     expect(told).toEqual([{ task: 'app/refunds', slept: 3 * HOUR }])
-    expect(said).toEqual(['back after 3h asleep — app/refunds told to carry on where it stopped'])
+    expect(said).toEqual([
+      'back after 3h 0m asleep — app/refunds told to carry on where it stopped',
+    ])
   })
 
   it('leaves an agent that was idle at its prompt entirely alone', async () => {
@@ -108,7 +110,7 @@ describe('the window, and a machine that went to sleep under it', () => {
     const woke = 1_000 + 3 * HOUR
     await beats(waker, 1_000, woke, woke + 250, woke + 500, woke + 750, woke + 1_000)
     expect(told.map((one) => one.task)).toEqual(['app/refunds', 'app/tests'])
-    expect(said).toEqual(['back after 3h asleep — 2 agents told to carry on where they stopped'])
+    expect(said).toEqual(['back after 3h 0m asleep — 2 agents told to carry on where they stopped'])
   })
 
   it('tells them again after the next sleep, which is a new thing that happened', async () => {

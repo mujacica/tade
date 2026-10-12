@@ -136,6 +136,26 @@ describe('the project tabs', () => {
     expect(text).toMatch(/infra\s+×\s+≡\s+\+/)
   })
 
+  it('keeps the room for one mark on every tab, so a mark arriving moves no tab after it', () => {
+    // Before the first look nothing has a mark, then everything gets one at
+    // once; a project's first agent starts, works, finishes. A tab that grew a
+    // mark slid every tab after it out from under the pointer, each time.
+    const columns = (tasks: TaskSnapshot[]) => {
+      const text = strip(world(tasks))
+      return [text.indexOf('search'), text.indexOf('infra'), text.indexOf('+')]
+    }
+    const before = columns([])
+    const searching: TaskSnapshot = {
+      task: 'search/pagination',
+      state: 'working',
+      lane: 'search/pagination/agent',
+    }
+    expect(columns([working])).toEqual(before)
+    expect(columns([working, searching])).toEqual(before)
+    expect(columns([working, finished])).toEqual(before)
+    expect(columns([wantsYou, finished])).toEqual(before)
+  })
+
   it('counts where a count is a number you could not have guessed', () => {
     const more: TaskSnapshot[] = [
       working,

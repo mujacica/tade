@@ -485,10 +485,16 @@ describe('duration', () => {
     expect(duration(4_500)).toBe('4s')
     expect(duration(90_000)).toBe('1m')
     expect(duration(59 * MINUTE)).toBe('59m')
-    expect(duration(60 * MINUTE)).toBe('1h')
     expect(duration(80 * MINUTE)).toBe('1h 20m')
-    expect(duration(48 * 60 * MINUTE)).toBe('2d')
     expect(duration(51 * 60 * MINUTE)).toBe('2d 3h')
+  })
+
+  // A figure counting up on screen keeps its shape across the hour, or it
+  // loses three columns and slides whatever is beside it.
+  it('keeps both units on the hour and on the day', () => {
+    expect(duration(60 * MINUTE)).toBe('1h 0m')
+    expect(duration(120 * MINUTE)).toBe('2h 0m')
+    expect(duration(48 * 60 * MINUTE)).toBe('2d 0h')
   })
 
   it('never says a negative span', () => {

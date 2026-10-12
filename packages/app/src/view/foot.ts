@@ -24,6 +24,7 @@ import type { Regions } from '../selection.ts'
 import type { Look, Skin } from '../skin.ts'
 import { onATurn } from '../transcript.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { blockAt, laneRegion, pointedIn, screenRows, scrolledBar, typingIn } from './lane.ts'
 import { gutterBeside } from './rows.ts'
 import { dollars, shortModel, tokens } from './text.ts'
@@ -107,6 +108,24 @@ const PLAN_CELLS = 6
 
 /** How full a window is, 0 to 1. A service reporting past its own 100 draws full, never over. */
 const share = (window: PlanWindow) => Math.min(1, Math.max(0, window.used) / 100)
+
+/**
+ * The columns each figure along the strip keeps, whatever it says today: as
+ * wide as it gets in an ordinary week. The strip sits against the right edge,
+ * so a figure growing a digit — `$9.99` to `$10.00`, `9m` to `10m`, `9%` to
+ * `10%` — would push everything to the left of it a column further left, the
+ * model and the levels with it, every time. Past these it grows like any text:
+ * a plan at `100%` is the one share wider than its slot, and by then the strip
+ * moving a column is not what anybody is looking at.
+ */
+const SLOT = {
+  money: widthOf('$99.99'),
+  share: widthOf('99%'),
+  span: widthOf('23h 59m'),
+  // A plan window comes back within a week, the longest any harness names.
+  reset: widthOf('6d 23h'),
+  tokens: widthOf('999k tok'),
+}
 
 /**
  * The bottom panel's row of tabs, drawn on its top edge: the orchestrator,
@@ -436,6 +455,13 @@ export function renderFoot(
   // would read as a button in a strip that has none.
   const lit = (of: Target, tone: (text: string) => string) =>
     sameTarget(state.hover, of) ? skin.link : tone
+  // A figure in its `SLOT`, the room it does not need kept in front of it.
+  // The gap is unpainted, so under the pointer the underline is the figure's
+  // and not a run of blanks, and it is still the overview's to click.
+  const slotted = (r: Row, text: string, slot: number, look: (text: string) => string) =>
+    r
+      .text(' '.repeat(Math.max(0, slot - widthOf(text))), undefined, target)
+      .text(text, look, target)
   // Said in full where there is room, and shed from the left where there is
   // not: what it costs is the part worth keeping on a small terminal, and how
   // long it took is the next to last to go.
@@ -542,10 +568,12 @@ export function renderFoot(
           pressure === 'tight' ? skin.bad : pressure === 'warm' ? skin.waiting : skin.done
         r.text(`${window.label} `, money, target)
         if (show.bars) r.meter(share(window), PLAN_CELLS, lit(target, tone), target).space()
-        r.text(`${used}%`, lit(target, tone), target)
+        slotted(r, `${used}%`, SLOT.share, lit(target, tone))
         // Without a clock there is no "in two hours" to say, only the share.
         const left = frame.now === undefined ? null : resetsIn(window, frame.now)
-        if (left !== null && show.reset) r.text(` ↻ ${duration(left)}`, money, target)
+        if (left !== null && show.reset) {
+          slotted(r, ` ↻ ${duration(left)}`, widthOf(' ↻ ') + SLOT.reset, money)
+        }
       })
       r.text(' │ ', skin.chrome, target)
     }
@@ -557,22 +585,21 @@ export function renderFoot(
     // could be: a harness that has not said how full its plan is has still run
     // the turns.
     if (listed && show.listed) {
-      r.text(`${listed} at list`, money, target).text(' │ ', skin.chrome, target)
+      slotted(r, listed.figure, listed.slot, money)
+      r.text(' at list', money, target).text(' │ ', skin.chrome, target)
     }
     if (spent && show.tokens) {
-      r.text(tokens(spend.tokens), money, target).text(' │ ', skin.chrome, target)
+      slotted(r, tokens(spend.tokens), SLOT.tokens, money)
+      r.text(' │ ', skin.chrome, target)
     }
     // An agent still working is time still counting, so it is said in the
     // colour of something happening rather than the colour of a record.
     if (ran && show.runtime) {
-      r.text(duration(ran.ms), lit(target, ran.running ? skin.busy : skin.hint), target).text(
-        ' │ ',
-        skin.chrome,
-        target,
-      )
+      slotted(r, duration(ran.ms), SLOT.span, lit(target, ran.running ? skin.busy : skin.hint))
+      r.text(' │ ', skin.chrome, target)
     }
     const today = costToday(spend)
-    if (today.figure !== null) r.text(today.figure, lit(target, skin.you), target).space()
+    if (today.figure !== null) slotted(r, today.figure, today.slot, lit(target, skin.you)).space()
     r.text(today.said, money, target).space()
   }
   const fits = tries.find((show) => {
@@ -589,9 +616,10 @@ export function renderFoot(
  * Spend page draws it in — `≈` for Tade's own arithmetic, `≥` where some of them
  * ran on a model no rate knows — and null where there is nothing to say.
  */
-function atList(spend: Frame['spend']): string | null {
+function atList(spend: Frame['spend']): { figure: string; slot: number } | null {
   if (!spend || spend.onPlan === undefined || spend.onPlan === 'none') return null
-  return `${spend.onPlan === 'partly' ? '≥' : ''}≈${dollars(spend.usdOnPlan ?? 0)}`
+  const marks = `${spend.onPlan === 'partly' ? '≥' : ''}≈`
+  return { figure: `${marks}${dollars(spend.usdOnPlan ?? 0)}`, slot: widthOf(marks) + SLOT.money }
 }
 
 /**
@@ -617,8 +645,12 @@ function atList(spend: Frame['spend']): string | null {
  * `1.9M tok │ 2h 5m │ today ▾` with an empty slot in front of the label — it
  * reads as a figure that failed to load rather than one nobody can give.
  */
-function costToday(spend: Frame['spend']): { figure: string | null; said: string } {
-  if (spend?.hasCost) return { figure: dollars(spend.usd), said: 'today ▾' }
+function costToday(spend: Frame['spend']): {
+  figure: string | null
+  slot: number
+  said: string
+} {
+  if (spend?.hasCost) return { figure: dollars(spend.usd), slot: SLOT.money, said: 'today ▾' }
   // A day a plan paid for has no bill and is not nothing: what those same turns
   // would have cost at the published rate is a figure, and this slot is the one
   // place on the row that is never given up — a subscription's whole day drawn
@@ -626,11 +658,13 @@ function costToday(spend: Frame['spend']): { figure: string | null; said: string
   // `at list` is the word that keeps it from reading as money: nobody is billed
   // a plan per turn, so this is arithmetic and not a bill.
   const onPlan = atList(spend)
-  if (onPlan) return { figure: onPlan, said: 'at list today ▾' }
+  if (onPlan) return { ...onPlan, said: 'at list today ▾' }
   const ran = spend?.runtime
   const nothing =
     spend !== undefined && spend.tokens === 0 && ran !== undefined && ran.ms === 0 && ran.runs === 0
+  // `—` holds the place the money will be in, the way a dash sits in a column
+  // of figures, so the first priced turn of the day moves nothing beside it.
   return nothing
-    ? { figure: null, said: 'nothing spent today ▾' }
-    : { figure: '—', said: 'today ▾' }
+    ? { figure: null, slot: 0, said: 'nothing spent today ▾' }
+    : { figure: '—', slot: SLOT.money, said: 'today ▾' }
 }

@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  1        +    █│ checkou…  ◌ waiting   Start now     ‖ Pause     ×   
                          █│─────────────────────────────────────────────────────
-   ⠋ ledger-schema       █│                                                     
+   ⠋ ledger-sc…          █│                                                     
      working             █│  ◌ Waits on refund-flow.                            
                          █│                                                     
  ▾ SMART QUEUE  5        █│  THE CHAIN IT IS IN                                 
@@ -23,4 +23,4 @@
 ────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                          type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake        2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake       2h 5m │  $1.40 today ▾ 

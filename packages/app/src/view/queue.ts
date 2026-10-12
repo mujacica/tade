@@ -29,23 +29,12 @@ import {
   type ListItem,
   QUEUE_ICONS,
   type Section,
-  secondRow,
   TAB_EDGES,
-  TAB_ICONS,
   tabbed,
   tabList,
   toneOf,
 } from './rows.ts'
-import {
-  askedBy,
-  askedMark,
-  clockOf,
-  dollars,
-  inProject,
-  shortened,
-  tokens,
-  wrapWords,
-} from './text.ts'
+import { askedBy, askedMark, clockOf, dollars, inProject, shortened, wrapWords } from './text.ts'
 
 // The SMART QUEUE: work that has been made and has not started.
 //
@@ -55,55 +44,9 @@ import {
 // chain it is in drawn as boxes, every wait's reason, what its agent will be
 // told, and how it will count as finished. Looking at it is never starting it.
 //
-// The agents that are working are tabs here too, since the side is one list:
-// the work going on, and the work behind it.
-
-/**
- * An agent down the side, as a tab: what it is doing, its name — cut short
- * with `…` rather than pushing anything off the edge — and what it has cost.
- * Under the pointer, a close and a menu take the cost's place, each lit in
- * turn: close in red, since it is a close.
- */
-export function taskRow(
-  width: number,
-  skin: Skin,
-  pointer: Pointer,
-  task: AgentPane & { focused: boolean; dragging?: boolean },
-  spent: { tokens: number; usd: number } | undefined,
-  now: number,
-): ListItem {
-  const target: Target = { kind: 'task', task: task.task }
-  const close: Target = { kind: 'action', name: `close-task:${task.task}` }
-  const menu: Target = { kind: 'task-menu', task: task.task }
-  const pointed = pointingIn(pointer.hover, [target, close, menu])
-  // Only where they are drawn: an invisible button is a trap. Not on the one in your hand.
-  const buttons = pointed && !task.dragging
-  const cost =
-    !buttons && spent && (spent.usd > 0 || spent.tokens > 0)
-      ? spent.usd > 0
-        ? dollars(spent.usd)
-        : tokens(spent.tokens)
-      : ''
-  // The one being dragged is lit wherever it would land.
-  const band: Band | null = task.focused || task.dragging ? 'selected' : pointed ? 'hovered' : null
-  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
-  inner.text(glyph(task, now), toneOf(task, skin), target).space()
-  const right = (cost ? widthOf(cost) + 1 : 0) + (buttons ? TAB_ICONS : 0)
-  const room = Math.max(1, inner.width - inner.used - right - 1)
-  inner.text(shortened(shownName(task), room), task.focused ? skin.you : (t) => t, target)
-  inner.right((r) => {
-    if (cost) r.text(cost, skin.hint, target).space()
-    if (buttons) r.icon('×', close, 'danger').icon('≡', menu).space()
-  })
-  return {
-    rows: [
-      tabbed(width, skin, band, inner.build(), target),
-      // What it is doing, in words, under its name.
-      secondRow(width, skin, pointer, band, doing(task), target, 3),
-    ],
-    band,
-  }
-}
+// The agents that are working are tabs on the same side (`taskRow`, with the
+// other rows), since the side is one list: the work going on, and the work
+// behind it.
 
 /**
  * How queued work is marked: its shape, its colour, and what the right of its

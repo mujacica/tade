@@ -445,12 +445,14 @@ describe('the window, and its extensions', () => {
     })
     // Two rows: the number and the title, and under them what its checks came
     // to with how long it has been open — worked out as it is drawn, not at the
-    // poll, which is why the row can say `3h open` at all.
+    // poll, which is why the row can say `3h 0m open` at all.
     await until('the first row', () =>
       screenOf(terminal.written).some((row) => row.includes('#412') && row.includes('retry')),
     )
     await until('the second row', () =>
-      screenOf(terminal.written).some((row) => row.includes('✗ checks') && row.includes('3h open')),
+      screenOf(terminal.written).some(
+        (row) => row.includes('✗ checks') && row.includes('3h 0m open'),
+      ),
     )
     const row = find('retry')
     click(row.col + 1, row.row)

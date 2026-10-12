@@ -1,4 +1,4 @@
-   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra        +           ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AG╭─ Jev ──────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮ ×   
      │   Overview    Findings    Questions    Calibration    Looks                                                │─────
@@ -14,7 +14,7 @@
  ▾ CH│   ◐ its agent         1                                                                                   █│     
   M p│   ● judged            2                                                                                   █│     
   A …│                                                                                                           █│     
-  M s│ 2 findings with no verdict. The oldest has waited 6h.                                                     █│     
+  M s│ 2 findings with no verdict. The oldest has waited 6h 0m.                                                  █│     
      │                                                                                                           █│     
  ▾ FI│ Worth running                                                                                             █│     
    ▾ │                                                                                                           █│     
@@ -32,4 +32,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake         2 read · 4 flagged │ claude-opus-5 ▾ │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake      2 read · 4 flagged │ claude-opus-5 ▾ │   2h 5m │  $1.40 today ▾ 

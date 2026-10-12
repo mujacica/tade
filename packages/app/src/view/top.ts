@@ -185,7 +185,7 @@ type TabDetail = 'counts' | 'marks' | 'busiest' | 'none'
 
 /**
  * A tab's label: the project, then what is not finished in it, `✓` where
- * nothing is left, and the name alone where nothing has been asked of it yet.
+ * nothing is left, and an empty slot where nothing has been asked of it yet.
  *
  * The marks go inside the tab rather than beside it, which costs them their
  * colour — a tab is a painted block. That is the trade worth making: whose a
@@ -193,6 +193,13 @@ type TabDetail = 'counts' | 'marks' | 'busiest' | 'none'
  * block that belongs to the tab on its left as much as the one on its right
  * would be the spinner problem again, one tab along. Shape carries the meaning
  * anyway, which is why every mark has a shape of its own.
+ *
+ * Every tab keeps the room for one mark, said or not, because the tabs sit in
+ * a row and one that grows a mark slides every tab after it — out from under
+ * the pointer, whenever a project's first agent starts, and all of them at
+ * once when the first look lands. One and no more: a project whose only agent
+ * goes from working to waiting to done then never moves, and a column held
+ * for a second mark that may never come is room taken from every tab all day.
  */
 function tabLabel(
   shown: string,
@@ -200,9 +207,9 @@ function tabLabel(
   detail: TabDetail,
   now: number,
 ): string {
-  if (standing === undefined || detail === 'none') return shown
-  const says = tabSays(standing, detail, now)
-  return says === '' ? shown : `${shown} ${says}`
+  if (detail === 'none') return shown
+  const says = standing === undefined ? '' : tabSays(standing, detail, now)
+  return `${shown} ${says === '' ? ' ' : says}`
 }
 
 /**

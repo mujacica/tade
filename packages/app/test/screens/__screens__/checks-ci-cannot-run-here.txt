@@ -1,4 +1,4 @@
-   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra        +           ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
@@ -7,7 +7,7 @@
                              █│                                                                                        █
    ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ────────────────────────────────────────────────────  3 +203 −75 █
      working                 █│  ● a1b2c3d move to the stripe v15 payment intents API        6 files +148 −62  12m ago █
-                             █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
+                             █│  ● 9f0e1d2 keep the old webhook shape working for a release  2 files +24 −4  1h 0m ago █
  ▸ SMART QUEUE          none █│  ● 3ab77c1 name the webhook ids the way the docs do             3 files +31 −9  3m ago █
  ▸ SCHEDULES            none █│  ◌ Nothing uncommitted.                                                                █
  ▸ INTAKE                off █│                                                                                        █
@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake       claude-opus-5 ▾ │ high ▾ │ 1.9M tok │   2h 5m │  $1.40 today ▾ 

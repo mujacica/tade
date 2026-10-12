@@ -1,11 +1,12 @@
 import type { LaneScrolling } from '@tade/drivers-core'
 import type { Hit, ScrollArea, Target } from '../hits.ts'
-import { rowHit, shift } from '../hits.ts'
-import { type AgentPane, type AppState, MARK_TONES, markOf } from '../model.ts'
+import { pointingIn, rowHit, shift } from '../hits.ts'
+import { type AgentPane, type AppState, glyph, MARK_TONES, markOf, shownName } from '../model.ts'
 import { barRows, gutterRows, type Scrolled } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, fit, type Pointer, Row } from '../ui.ts'
-import { shortened } from './text.ts'
+import { widthOf } from '../width.ts'
+import { dollars, shortened, tokens } from './text.ts'
 
 // The shapes every region of the window is built out of: a tab, the quiet row
 // under it, a list of them, and a scrollbar against the right edge.
@@ -251,4 +252,68 @@ export function isScrolling(state: AppState, area: ScrollArea, across = false): 
     state.hover.area === area &&
     (state.hover.across === true) === across
   )
+}
+
+/**
+ * The columns an agent's tab keeps at its right end for what it has cost, and
+ * the one after it: `$99.99`, which is also the room its close and menu take
+ * under the pointer. So nothing that happens there cuts the name again — the
+ * first cost arriving, `$9.99` becoming `$10.00`, the pointer crossing the row.
+ * A figure in tokens is wider, and an agent a plan pays for says nothing else
+ * all its life, so that one keeps a token figure's room instead.
+ */
+const COST_SLOT = widthOf('$99.99') + 1
+const TOKENS_SLOT = widthOf('999k tok') + 1
+
+/**
+ * An agent down the side, as a tab: what it is doing, its name — cut short
+ * with `…` rather than pushing anything off the edge — and what it has cost,
+ * in a slot of its own (`COST_SLOT`). Under the pointer, a close and a menu
+ * take the cost's place, each lit in turn: close in red, since it is a close.
+ */
+export function taskRow(
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+  task: AgentPane & { focused: boolean; dragging?: boolean },
+  spent: { tokens: number; usd: number } | undefined,
+  now: number,
+): ListItem {
+  const target: Target = { kind: 'task', task: task.task }
+  const close: Target = { kind: 'action', name: `close-task:${task.task}` }
+  const menu: Target = { kind: 'task-menu', task: task.task }
+  const pointed = pointingIn(pointer.hover, [target, close, menu])
+  // Only where they are drawn: an invisible button is a trap. Not on the one in your hand.
+  const buttons = pointed && !task.dragging
+  const inTokens = spent !== undefined && spent.usd <= 0 && spent.tokens > 0
+  const cost =
+    !buttons && spent && (spent.usd > 0 || spent.tokens > 0)
+      ? spent.usd > 0
+        ? dollars(spent.usd)
+        : tokens(spent.tokens)
+      : ''
+  // The one being dragged is lit wherever it would land.
+  const band: Band | null = task.focused || task.dragging ? 'selected' : pointed ? 'hovered' : null
+  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  inner.text(glyph(task, now), toneOf(task, skin), target).space()
+  // The name is cut to what is left of the cost's slot, never of the cost.
+  const right = Math.max(
+    inTokens ? TOKENS_SLOT : COST_SLOT,
+    cost ? widthOf(cost) + 1 : 0,
+    buttons ? TAB_ICONS : 0,
+  )
+  const room = Math.max(1, inner.width - inner.used - right - 1)
+  inner.text(shortened(shownName(task), room), task.focused ? skin.you : (t) => t, target)
+  inner.right((r) => {
+    if (cost) r.text(cost, skin.hint, target).space()
+    if (buttons) r.icon('×', close, 'danger').icon('≡', menu).space()
+  })
+  return {
+    rows: [
+      tabbed(width, skin, band, inner.build(), target),
+      // What it is doing, in words, under its name.
+      secondRow(width, skin, pointer, band, doing(task), target, 3),
+    ],
+    band,
+  }
 }

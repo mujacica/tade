@@ -2,10 +2,10 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  7   H  X     +    █│ checkout › stripe-v15    agent    actions     +      gpt-5.3-codex ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
-   ⠋ Agent spend in… $5.73   █│                                                                                         
+   ⠋ Agent spend i…  $5.73   █│                                                                                         
      working                 █│› upgrade stripe to v15                                                                  
                              █│                                                                                         
-   ● Update notes panel t…   █│• Thought for 4s                                                                         
+   ● Update notes …          █│• Thought for 4s                                                                         
      idle · waiting for y…   █│  └ The webhook signature API changed in v15: constructEvent                             
                              █│    takes the raw body and a header, not the parsed event.                               
  ▌ ! stripe-v15      ×  ≡    █│                                                                                         
@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake     claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │ $1.90 today ▾ 
+   Extensions     Settings     Mute     Keep awake    claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │  $1.90 today ▾ 

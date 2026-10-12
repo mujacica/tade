@@ -137,7 +137,7 @@ describe('what is said', () => {
 
   it('names who was put back to work, and how long the machine was gone', () => {
     expect(wokeSaid(3 * HOUR, ['app/refunds'])).toBe(
-      'back after 3h asleep — app/refunds told to carry on where it stopped',
+      'back after 3h 0m asleep — app/refunds told to carry on where it stopped',
     )
     expect(wokeSaid(90 * 60_000, ['app/refunds', 'app/tests'])).toBe(
       'back after 1h 30m asleep — 2 agents told to carry on where they stopped',

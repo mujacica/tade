@@ -476,6 +476,10 @@ export function workedSays(runtime: Runtime): string {
 /**
  * A span of time the way people say it: `4s`, `12m`, `1h 20m`, `2d 3h`. Two
  * units at most, because the third is never what you were asking.
+ *
+ * Past an hour it is always both, `2h 0m` and never `2h`: a figure that counts
+ * up on screen would otherwise lose three columns on the hour and get them back
+ * a minute later, sliding everything beside it out and back again.
  */
 export function duration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000))
@@ -483,7 +487,6 @@ export function duration(ms: number): string {
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return minutes % 60 === 0 ? `${hours}h` : `${hours}h ${minutes % 60}m`
-  const days = Math.floor(hours / 24)
-  return hours % 24 === 0 ? `${days}d` : `${days}d ${hours % 24}h`
+  if (hours < 24) return `${hours}h ${minutes % 60}m`
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`
 }

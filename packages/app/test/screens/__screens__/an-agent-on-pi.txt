@@ -5,7 +5,7 @@
  ▌ ⠋ Agent spend i…  ×  ≡    █│                                                                                         
  ▌   working                 █│                                                                                         
                              █│                                                                                         
-   ● Update notes panel t…   █│  ● The spend manager filters usage by project, so an agent                              
+   ● Update notes …          █│  ● The spend manager filters usage by project, so an agent                              
      idle · waiting for y…   █│    started outside one is counted and never shown.                                      
                              █│                                                                                         
    ! stripe-v15      $1.26   █│  ▸ Read src/spend.ts                                                                    
@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake     claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │ $1.90 today ▾ 
+   Extensions     Settings     Mute     Keep awake    claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │  $1.90 today ▾ 

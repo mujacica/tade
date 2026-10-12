@@ -1,4 +1,4 @@
-   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra        +           ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  4   H  X     +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
@@ -8,10 +8,10 @@
    ⠋ refunds         $0.62   █│                                                                                         
      working               ╭─ Close 2 finished agents? ─────────────────────────────── esc ─╮                           
                            │                                                                │                           
-   ✓ Send an email when a… │   ✓ refund-emails                                              │                           
+   ✓ Send an email…        │   ✓ refund-emails                                              │                           
      finished              │   ✓ webhook-retries                                            │                           
                            │                                                                │,                          
-   ✓ webhook-retries       │ Each stops, with its worktree and branch; conversations stay.  │                           
+   ✓ webhook-retri…        │ Each stops, with its worktree and branch; conversations stay.  │                           
      finished · Retries a… │                                                                │                           
                            │                                        Keep them     Close 2   │                           
  ▸ SMART QUEUE          non╰────────────────────────────────────────────────────────────────╯                           
@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake          claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake       claude-opus-5 ▾ │ high ▾ │ 1.9M tok │   2h 5m │  $1.40 today ▾ 

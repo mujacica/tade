@@ -2,10 +2,10 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  7   H  X     +    █│ Update notes panel to…    agent    actions     +     claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
-   ⠋ Agent spend in… $5.73   █│                                                                                         
+   ⠋ Agent spend i…  $5.73   █│                                                                                         
      working                 █│                                                                                         
                              █│                                                                                         
- ▌ ● Update notes panel t…   █│                                                                                         
+ ▌ ● Update notes …          █│                                                                                         
  ▌   idle · waiting for y…   █│                                                                                         
                              █│                                                                                         
    ! stripe-v15      ×  ≡    █│                                                                                         
@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake     claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │ $1.90 today ▾ 
+   Extensions     Settings     Mute     Keep awake    claude-opus-5 ▾ · openrouter │ high ▾ │ 900k tok │  $1.90 today ▾ 
