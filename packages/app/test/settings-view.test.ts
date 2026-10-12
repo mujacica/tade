@@ -588,6 +588,69 @@ describe('what the pointer says in settings', () => {
   })
 })
 
+describe('the list a setting drops', () => {
+  // Each harness's thinking levels, as the adapters declare them.
+  const CODEX = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+  const CLAUDE = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+  const groups = settingsOf(
+    ConfigSchema.parse({
+      orchestrator: { harness: 'codex' },
+      workers: { routes: { default: { harness: 'claude-code' } } },
+    }),
+    [],
+    { codex: CODEX, 'claude-code': CLAUDE },
+  )
+  const models = [
+    { value: 'openai/gpt-5.5-codex', label: 'gpt-5.5-codex', group: 'openai', harness: 'codex' },
+    {
+      value: 'anthropic/claude-opus-5',
+      label: 'claude-opus-5',
+      group: 'anthropic',
+      harness: 'claude-code',
+    },
+  ]
+  /** What a list opened on `path` offers, with the keyboard on another row of the page. */
+  const offered = (category: string, path: string, row: number): string[] => {
+    const { popups } = drawPanel(
+      panelFor(category, { row, dropdown: { path, query: '', index: 0 } }),
+      context({ settings: groups, choices: models }),
+    )
+    expect(popups, path).toHaveLength(1)
+    return (popups[0]?.drawn.hits ?? []).flatMap(({ target }) =>
+      target.kind === 'control' && target.id.startsWith('choose:')
+        ? [target.id.slice('choose:'.length)]
+        : [],
+    )
+  }
+
+  it("offers the orchestrator's harness's models and levels, never the harnesses", () => {
+    // The keyboard is on Harness, which is where clicking one of its radios
+    // leaves it, and the field clicked next is under it. The list was the
+    // keyboard's row's — pi, claude-code, codex — and choosing from it wrote a
+    // harness's name into the model.
+    const rows = visibleSettings(panelFor('orchestrator'), groups).map((one) => one.path)
+    expect(rows[0]).toBe('orchestrator.harness')
+    expect(offered('orchestrator', 'orchestrator.model', 0)).toEqual(['openai/gpt-5.5-codex'])
+    expect(offered('orchestrator', 'orchestrator.thinking', 0)).toEqual([...CODEX])
+  })
+
+  it('offers the agents’ harness’s models and levels, whichever row the keyboard is on', () => {
+    // Agent model, Agent thinking, Agent harness: the same three questions for
+    // new agents, and the same bug — thinking dropped the models, and the model
+    // field dropped the harnesses once the keyboard had walked down to them.
+    const rows = visibleSettings(panelFor('models'), groups).map((one) => one.path)
+    expect(rows).toEqual([
+      'workers.routes.default.model',
+      'workers.routes.default.thinking',
+      'workers.routes.default.harness',
+    ])
+    expect(offered('models', 'workers.routes.default.thinking', 0)).toEqual([...CLAUDE])
+    expect(offered('models', 'workers.routes.default.model', 2)).toEqual([
+      'anthropic/claude-opus-5',
+    ])
+  })
+})
+
 describe('the Updates page', () => {
   /**
    * The right-hand side, as one flowing string: a sentence that wrapped over

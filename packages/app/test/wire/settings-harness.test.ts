@@ -71,9 +71,9 @@ describe('changing which harness the orchestrator talks through', () => {
     // deciding, which is where the setting sits before anybody chooses.
     expect(written).not.toContain('kimi-k2.6')
     // And the new harness has never been asked what it runs, which is the next
-    // thing somebody opens: unasked, its model picker opened empty under a row
-    // still offering the three harness names, which is what "the model
-    // dropdown offers pi, claude, codex" was.
+    // thing somebody opens: unasked, its model picker opens empty. (The list
+    // that offered "pi, claude, codex" under it was the keyboard's row drawn
+    // in the field's place — `settings.test.ts` holds that one.)
     expect(it_.asked).toEqual(['refreshModels'])
   })
 

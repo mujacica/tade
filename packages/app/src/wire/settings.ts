@@ -502,8 +502,10 @@ export class Settings implements Subject {
       // A harness that just changed hands has never been asked what it runs,
       // and its model setting is the next thing somebody opens. `clearable` is
       // already the answer to "is this a harness path": what choosing one
-      // clears is nothing for anything else.
-      if (clearable.length > 0) void this.deps.refreshModels()
+      // clears is nothing for anything else. Drawn when it answers, because a
+      // list opened before then says the harness has none, and an idle window
+      // draws nothing new until something moves.
+      if (clearable.length > 0) void this.deps.refreshModels().then(() => this.wire.draw())
       // An extension's own setting means nothing until the extension has it:
       // Settings can change one (which Sentry the Sentry extension reads), so
       // the host is handed the config here as it is from the Extensions panel.

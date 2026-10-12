@@ -244,8 +244,13 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   /** Where the focused setting's lines begin and end, so it is kept in view. */
   let focusFrom = 0
   let focusTo = 0
-  /** Where a dropdown would open: the line under its control, and its column. */
-  let anchor: { line: number; col: number } | null = null
+  /**
+   * Where a dropdown would open — the line under its control, and its column —
+   * and the setting it is the list of. One answer, from the pass that drew the
+   * row: the list was drawn for the row the *keyboard* was on, so clicking a
+   * Harness radio and then the Model field under it dropped the harnesses.
+   */
+  let anchor: { line: number; col: number; setting: Setting } | null = null
 
   if (panel.category === ACCOUNTS && !panel.search) {
     const actions = accountActions(ctx.accounts)
@@ -456,7 +461,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       lines.push(meter.build())
     }
     const listOpen = panel.dropdown?.path === setting.path
-    if (listOpen) anchor = { line: body.length + lines.length - 1, col: controlCol }
+    if (listOpen) anchor = { line: body.length + lines.length - 1, col: controlCol, setting }
     // The sentence under a setting, for the one you are on, and what the
     // terminal allows for the talk key, which is not something to guess.
     const talkKey = setting.path === 'surfaces.voice.talk.key'
@@ -560,12 +565,12 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
 
   const popups: PanelDrawing['popups'] = []
   if (anchor !== null) {
-    const { line, col } = anchor as { line: number; col: number }
+    const { line, col, setting } = anchor as { line: number; col: number; setting: Setting }
     const room = Math.max(1, tall - formHead.length - 2)
     const at = line - right.offset
     if (at >= 0 && at < room) {
       const listWidth = Math.min(46, Math.max(24, inner - 2))
-      const list = settingsDropdown(panel, rows[panel.row] as Setting, ctx, listWidth)
+      const list = settingsDropdown(panel, setting, ctx, listWidth)
       const under = 1 + formHead.length + at + 1
       popups.push({
         drawn: list,

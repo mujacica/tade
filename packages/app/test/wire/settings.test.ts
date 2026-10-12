@@ -444,4 +444,63 @@ describe('the window, and its settings', () => {
     expect(client.config.agents.instructions).toBe(rules)
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('Never force-push.')
   })
+
+  it('drops the models and levels of the harness just chosen, under it', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    // What each harness says it runs, as the workbench would ask it.
+    const runs: Record<string, string> = {
+      pi: 'openrouter/moonshotai/kimi-k2.6',
+      codex: 'openai/gpt-5.5-codex',
+    }
+    await start({
+      models: async (harness) => {
+        const id = runs[harness]
+        return id
+          ? { harness, models: [{ id, provider: id.split('/')[0] ?? '', name: id }], why: null }
+          : { harness, models: [], why: 'was not asked here' }
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents work'))
+    const page = find('Orchestrator')
+    click(page.col + 1, page.row)
+    // The whole screen replayed rather than what changed since, because the
+    // fields are found by where they are drawn.
+    const shown = () => screenOf(terminal.written)
+    const field = (title: string) => {
+      const rows = shown()
+      const row = rows.findIndex(
+        (line) => line.includes(` ${title} `) && line.includes('the harness decides'),
+      )
+      return { row, col: rows[row]?.indexOf('the harness decides') ?? -1 }
+    }
+    await until('the orchestrator page', () => field('Thinking').row >= 0)
+    const model = field('Model')
+    const thinking = field('Thinking')
+
+    // Clicking a radio leaves the keyboard on the Harness row, where the
+    // category put it: the list each field below dropped was that row's.
+    const codex = find('codex')
+    click(codex.col + 1, codex.row)
+    await until('saved', () => shown().some((row) => row.includes('applies when Tade next starts')))
+    expect(client.config.orchestrator.harness).toBe('codex')
+
+    click(model.col + 1, model.row)
+    await until('codex’s models', () => shown().some((row) => row.includes('gpt-5.5-codex')))
+    const offered = find('gpt-5.5-codex')
+    click(offered.col + 1, offered.row)
+    await until('the model saved', () => client.config.orchestrator.model === 'gpt-5.5-codex')
+    expect(client.config.orchestrator.provider).toBe('openai')
+
+    // `minimal` is a level codex has and Claude Code does not.
+    click(thinking.col + 1, thinking.row)
+    await until('codex’s levels', () => shown().some((row) => row.includes('minimal')))
+    const level = find('minimal')
+    click(level.col + 1, level.row)
+    await until('the level saved', () => client.config.orchestrator.thinking === 'minimal')
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toMatch(/model: (pi|codex)\b/)
+  })
 })
