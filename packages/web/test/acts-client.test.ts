@@ -5,18 +5,27 @@ import {
   actsOf,
   afterAnswer,
   bodyFor,
+  CHANGE_PATH,
+  changeBody,
   confirms,
   controlsFor,
   headingFor,
   howSaid,
   NEEDS,
+  PROJECT_SHOWN,
   QUEUE_ASKS,
+  SETTINGS_PATH,
   SHOWN,
+  settingStanding,
+  settingsSaid,
+  shownOf,
   standingOf,
   wordsFor,
 } from '../src/assets/acts.js'
 import { draftStore, reasonFor, saidOn, whoSaid } from '../src/assets/talk.js'
+import { readSettingChange } from '../src/configured.ts'
 import { ERRORS } from '../src/errors.ts'
+import { ROUTES, SETTINGS } from '../src/routes.ts'
 import { VERBS, verbFor } from '../src/verbs.ts'
 import { task } from './fixtures.ts'
 
@@ -64,7 +73,18 @@ describe('the scope each verb needs, written twice', () => {
   })
 
   it('draws a control for every verb there is, and for nothing else', () => {
-    expect([...SHOWN].sort()).toEqual(VERBS.map((verb) => verb.name).sort())
+    // A task's page draws the task verbs and a project's page the project
+    // ones: together they are the table, and neither draws the other's.
+    expect([...SHOWN].sort()).toEqual(
+      VERBS.filter((verb) => verb.on === 'task')
+        .map((verb) => verb.name)
+        .sort(),
+    )
+    expect([...PROJECT_SHOWN].sort()).toEqual(
+      VERBS.filter((verb) => verb.on === 'project')
+        .map((verb) => verb.name)
+        .sort(),
+    )
   })
 
   it('offers the queue the queue’s own words, and never an order', () => {
@@ -97,17 +117,26 @@ describe('what this device may draw', () => {
       steer: true,
       ask: false,
       draft: false,
+      agents: false,
+      projects: false,
+      configure: false,
     })
     expect(actsOf({ scopes: ['read', 'answer'] })).toEqual({
       answer: true,
       steer: false,
       ask: false,
       draft: false,
+      agents: false,
+      projects: false,
+      configure: false,
     })
     expect(actsOf({ scopes: ['read', 'answer', 'steer'] })).toEqual({
       ...BOTH,
       ask: false,
       draft: false,
+      agents: false,
+      projects: false,
+      configure: false,
     })
     // **A third scope, and neither tier implies it.** A device granted both
     // acting tiers has been granted eight bounded verbs; talking to a model
@@ -117,6 +146,9 @@ describe('what this device may draw', () => {
       steer: false,
       ask: true,
       draft: false,
+      agents: false,
+      projects: false,
+      configure: false,
     })
     // **And a fourth, implied by nothing and implying nothing.** Saving a
     // field of a draft workflow writes a file every future run would be
@@ -128,6 +160,25 @@ describe('what this device may draw', () => {
       steer: false,
       ask: false,
       draft: true,
+      agents: false,
+      projects: false,
+      configure: false,
+    })
+    // **And the eighth, implied by nothing and implying nothing**: changing a
+    // setting. A device granted every other scope has been granted nothing
+    // about the config, and one granted this has been granted nothing else.
+    expect(
+      actsOf({ scopes: ['read', 'answer', 'steer', 'ask', 'draft', 'agents', 'projects'] })
+        .configure,
+    ).toBe(false)
+    expect(actsOf({ scopes: ['read', 'configure'] })).toEqual({
+      answer: false,
+      steer: false,
+      ask: false,
+      draft: false,
+      agents: false,
+      projects: false,
+      configure: true,
     })
   })
 
@@ -141,6 +192,9 @@ describe('what this device may draw', () => {
         steer: false,
         ask: false,
         draft: false,
+        agents: false,
+        projects: false,
+        configure: false,
       })
     }
   })
@@ -329,11 +383,121 @@ describe('what happens to what somebody typed', () => {
 })
 
 describe('which presses ask again first', () => {
-  it('is the two that asking again does not undo, and no others', () => {
+  it('is the two that asking again does not undo, the two that are destructive-adjacent, and no others', () => {
     // Marking work finished starts whatever waits on it; approving a
     // stranger's request puts an agent on this machine to work on it. Neither
     // is undone by pressing the same thing twice, so each takes a second tap.
-    expect(SHOWN.filter((verb) => confirms(verb))).toEqual(['done', 'intake'])
+    // Stopping an agent cuts off the turn it was in and closing a project takes
+    // its own settings with it: undone by the other half of the pair, but not
+    // all of the way, so they take a second tap too.
+    expect(SHOWN.filter((verb) => confirms(verb))).toEqual(['done', 'intake', 'stop'])
+    expect(PROJECT_SHOWN.filter((verb) => confirms(verb))).toEqual(['close'])
+  })
+})
+
+describe('the lifecycle, on a phone', () => {
+  const LIFE = { answer: false, steer: false, agents: true, projects: true }
+
+  it('draws nothing for a device not granted the scope, whatever the row says', () => {
+    // Both acting tiers and nothing else: neither implies `agents` or
+    // `projects`, so the controls are absent and so are their reasons.
+    for (const one of controlsFor(task(), BOTH).filter((each) =>
+      ['stop', 'reopen'].includes(each.verb),
+    )) {
+      expect(one.kind, one.verb).toBe('off')
+    }
+    const project = {
+      name: 'tade',
+      rev: 'o1.c0',
+      open: true,
+      can: [{ verb: 'close', how: 'now' }],
+      cannot: [{ verb: 'open', why: 'it is open' }],
+    }
+    for (const one of controlsFor(project, BOTH, PROJECT_SHOWN))
+      expect(one.kind, one.verb).toBe('off')
+  })
+
+  it('draws one block per pair: the half that can be asked, or the first where neither can', () => {
+    const running = controlsFor(task(), LIFE)
+    expect(running.find((one) => one.verb === 'stop')?.kind).toBe('yes')
+    // Its reason is the stop control beside it, so it is not said twice.
+    expect(running.find((one) => one.verb === 'reopen')?.kind).toBe('off')
+
+    const stopped = controlsFor(
+      task({
+        lane: 'stopped',
+        can: [{ verb: 'reopen', how: 'now' }],
+        cannot: [{ verb: 'stop', why: 'its agent is already stopped' }],
+      }),
+      LIFE,
+    )
+    expect(stopped.find((one) => one.verb === 'stop')?.kind).toBe('off')
+    expect(stopped.find((one) => one.verb === 'reopen')?.kind).toBe('yes')
+
+    const never = 'no agent has run on it, and starting one is done at the machine'
+    const none = controlsFor(
+      task({
+        lane: 'none',
+        can: [],
+        cannot: [
+          { verb: 'stop', why: never },
+          { verb: 'reopen', why: never },
+        ],
+      }),
+      LIFE,
+    )
+    // Neither can: the first one's reason stands for both, once.
+    expect(none.find((one) => one.verb === 'stop')).toMatchObject({ kind: 'no', why: never })
+    expect(none.find((one) => one.verb === 'reopen')?.kind).toBe('off')
+  })
+
+  it('sends what each of the four declares, the literal included, and the row\u2019s own revision', () => {
+    // A row as the wire carries one, with its revision on it.
+    const row = { ...task(), rev: 'p0.a0.q0.g1.f0.knone.lrunning.r1' }
+    expect(bodyFor('stop', row, 'k'.repeat(16), 7, {})).toEqual({
+      task: row.id,
+      was: row.rev,
+      key: 'k'.repeat(16),
+      rev: 7,
+      confirm: true,
+    })
+    expect(bodyFor('reopen', row, 'k'.repeat(16), 7, {})).toEqual({
+      task: row.id,
+      was: row.rev,
+      key: 'k'.repeat(16),
+      rev: 7,
+    })
+    const project = { name: 'tade', rev: 'o1.c3' }
+    expect(bodyFor('close', project, 'k'.repeat(16), 7, {})).toEqual({
+      project: 'tade',
+      was: 'o1.c3',
+      key: 'k'.repeat(16),
+      rev: 7,
+      confirm: true,
+    })
+    expect(bodyFor('open', project, 'k'.repeat(16), 7, {})).toEqual({
+      project: 'tade',
+      was: 'o1.c3',
+      key: 'k'.repeat(16),
+      rev: 7,
+    })
+    // And the server reads each of them, so the page sends nothing it refuses.
+    for (const [verb, made] of [
+      ['stop', bodyFor('stop', row, 'k'.repeat(16), 7, {})],
+      ['reopen', bodyFor('reopen', row, 'k'.repeat(16), 7, {})],
+      ['close', bodyFor('close', project, 'k'.repeat(16), 7, {})],
+      ['open', bodyFor('open', project, 'k'.repeat(16), 7, {})],
+    ] as const) {
+      expect(verbFor(verb)?.read(made).ok, verb).toBe(true)
+    }
+  })
+
+  it('says each press in Tade\u2019s words, under one heading per pair', () => {
+    for (const verb of ['stop', 'reopen', 'close', 'open']) {
+      expect(wordsFor(verb, task()).length, verb).toBeGreaterThan(5)
+    }
+    expect(headingFor('stop')).toBe(headingFor('reopen'))
+    expect(headingFor('close')).toBe(headingFor('open'))
   })
 })
 
@@ -415,5 +579,92 @@ describe('the conversation screen', () => {
     // `undefined` where a string is read.
     draft.set(undefined)
     expect(draft.get()).toBe('')
+  })
+})
+
+describe('the settings, as the page draws them', () => {
+  const OPEN = {
+    path: 'surfaces.window.editor',
+    title: 'Editor',
+    scope: null,
+    means: 'what a file opens in',
+    shown: 'code',
+    fallback: 'your $EDITOR',
+    held: null,
+    kind: 'choice',
+    options: ['code', 'zed', 'vim'],
+    live: true,
+    may: 'change',
+    why: '',
+    was: 'code',
+  }
+  const KEYED = {
+    ...OPEN,
+    path: 'extensions.jev.key',
+    title: 'Jev API key',
+    shown: '',
+    held: 'set',
+    may: 'machine',
+    why: 'a key is changed at this machine, and is never shown here',
+    was: null,
+  }
+
+  it('asks the paths the machine serves', () => {
+    expect(ROUTES.some((route) => route.method === 'GET' && route.path === SETTINGS_PATH)).toBe(
+      true,
+    )
+    expect(SETTINGS.map((route) => route.path)).toEqual([CHANGE_PATH])
+  })
+
+  it('draws no control and no reason for a device not granted configure', () => {
+    expect(settingStanding(OPEN, { configure: false })).toEqual({ kind: 'off', why: '' })
+    expect(settingStanding(OPEN, null)).toEqual({ kind: 'off', why: '' })
+    expect(settingStanding(KEYED, {})).toEqual({ kind: 'off', why: '' })
+  })
+
+  it('draws the row’s own reason where it is changed at the machine', () => {
+    expect(settingStanding(KEYED, { configure: true })).toEqual({ kind: 'no', why: KEYED.why })
+    // A row that says it may be changed but echoes nothing is not one the page
+    // can send: absent, which is the safe direction.
+    expect(settingStanding({ ...OPEN, was: null }, { configure: true }).kind).toBe('no')
+    expect(settingStanding(OPEN, { configure: true })).toEqual({ kind: 'yes', why: '' })
+  })
+
+  it('sends a body the machine reads as one change, with the value it was shown', () => {
+    const body = changeBody(OPEN, 'zed', 'abcdefgh12345678', 7)
+    expect(body).toEqual({
+      path: 'surfaces.window.editor',
+      was: 'code',
+      value: 'zed',
+      confirm: true,
+      key: 'abcdefgh12345678',
+      rev: 7,
+    })
+    // **The page's copy and the machine's reader agree**, which is the only
+    // way a two-file rule stays one rule.
+    expect(readSettingChange(body).ok).toBe(true)
+  })
+
+  it('sends nothing but a clear for a row that holds a key, whatever was typed', () => {
+    expect(changeBody(KEYED, 'sk-pasted-over-the-top', 'abcdefgh12345678', 1).value).toBe('')
+  })
+
+  it('says a key as whether it is held, and nothing set with what that means', () => {
+    expect(shownOf(KEYED)).toBe('set')
+    expect(shownOf(OPEN)).toBe('code')
+    expect(shownOf({ ...OPEN, shown: '' })).toBe('nothing set — your $EDITOR')
+    expect(shownOf({ ...OPEN, shown: '', fallback: '' })).toBe('nothing set')
+  })
+
+  it('says not granted and nothing here as two different things', () => {
+    expect(settingsSaid({ granted: false, groups: [], withheld: 0 })).toBe(
+      'not granted to this device',
+    )
+    expect(settingsSaid({ granted: true, groups: [], withheld: 3 })).toBe(
+      'nothing here this device may read',
+    )
+    expect(settingsSaid({ granted: true, groups: [{ id: 'a', title: 'A', settings: [] }] })).toBe(
+      '',
+    )
   })
 })

@@ -11,7 +11,7 @@ import { admit, type Standing } from './acts.ts'
 import { type Refusal, refuse } from './errors.ts'
 import type { Claimed, Receipts } from './receipts.ts'
 import type { Route } from './routes.ts'
-import { type Asked, boundTo, verbFor } from './verbs.ts'
+import { type Asked, boundTo, targetOf, verbFor } from './verbs.ts'
 
 // One act, from a parsed body to what the device is told and what the journal
 // is told — and **no sockets at all**.
@@ -66,6 +66,14 @@ export interface Did {
   tool: string
   /** The task. Goes on the event, never in its detail. */
   task: string
+  /**
+   * The project, for a verb about a whole one — and only then.
+   *
+   * In the detail and never on the event's `task`: a project is not a task,
+   * and a `web_did` carrying one as its task would make every fold keyed by
+   * task read a task by that name. `project` is in telemetry's `KEPT` list.
+   */
+  project?: string
   /** Tade's own word for what was asked, or `refused`. */
   state: string
   /** What came of it, in one word. */
@@ -123,7 +131,9 @@ export async function carryOut(route: Route, body: unknown, ctx: Acted): Promise
       bound,
       device: ctx.device,
       verb: asked.verb,
-      task: asked.task,
+      // The target, which is the project for a verb about a whole one: the
+      // receipts file is audit, and an empty target there says nothing.
+      task: targetOf(asked),
       now: ctx.now,
     })
   } catch (error) {
@@ -195,9 +205,21 @@ function did(ctx: Acted, asked: Asked, outcome: Outcome, why: string): Answered 
   return {
     body: { did: outcome.did, rev: outcome.rev, said: outcome.said },
     refusal: null,
-    did: { device: ctx.device, tool: asked.verb, task: asked.task, state: asked.said, why },
+    did: {
+      device: ctx.device,
+      tool: asked.verb,
+      task: asked.task,
+      ...projectOf(asked),
+      state: asked.said,
+      why,
+    },
     warning: null,
   }
+}
+
+/** The project, on the line of a verb about a whole one, and nothing otherwise. */
+function projectOf(asked: Asked): { project?: string } {
+  return asked.task === '' ? { project: asked.project } : {}
 }
 
 /**
@@ -218,6 +240,7 @@ function no(ctx: Acted, asked: Asked, refusal: Refusal): Answered {
       device: ctx.device,
       tool: asked.verb,
       task: asked.task,
+      ...projectOf(asked),
       state: 'refused',
       why: refusal.error,
     },

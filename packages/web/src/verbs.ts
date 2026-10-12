@@ -27,7 +27,8 @@ import type { Scope } from './surface.ts'
 // restart, after the receipts file was deleted — is that the act names what it
 // assumed and the window re-checks it at the moment of the act. A verb that
 // cannot be expressed that way does not ship, and `test/verbs.test.ts` asserts
-// every entry's body schema carries `task` and `was`.
+// every entry's body schema carries its target — `task`, or `project` for the
+// two that are about a whole project — and `was`.
 //
 // **Parsing ends in a closure.** `read` turns a body into an `Asked` that
 // already knows how to do itself, so nothing downstream of this file ever
@@ -118,6 +119,32 @@ const ContextBody = z.strictObject({ ...Every, add: authored(BOUNDS.add) })
 
 const IntakeBody = z.strictObject({ ...Every, confirm: z.literal(true) })
 
+const StopBody = z.strictObject({ ...Every, confirm: z.literal(true) })
+
+const ReopenBody = z.strictObject({ ...Every })
+
+/**
+ * What a verb about a whole project carries: the project instead of a task.
+ *
+ * The name is the config's own rule for one (`projects.<name>`), so a body
+ * cannot name a path, a task or a key path into the config — and it is the
+ * per-project scope boundary itself, asked of the device's reading reach at
+ * the gate exactly as a task's project half is.
+ */
+const OnProject = {
+  project: z
+    .string()
+    .max(200)
+    .regex(/^[a-z0-9][a-z0-9-]*$/),
+  was: Was,
+  key: z.string().regex(KEY),
+  rev: z.int().nonnegative(),
+}
+
+const CloseBody = z.strictObject({ ...OnProject, confirm: z.literal(true) })
+
+const OpenBody = z.strictObject({ ...OnProject })
+
 /**
  * One asked-for act, parsed, bound and ready.
  *
@@ -127,6 +154,7 @@ const IntakeBody = z.strictObject({ ...Every, confirm: z.literal(true) })
  */
 export interface Asked {
   verb: string
+  /** The task, or the empty string for a verb about a whole project. */
   task: string
   project: string
   was: string
@@ -163,6 +191,15 @@ export interface Verb {
   needs: Scope
   /** What it is, in a sentence, for anything that lists the verbs. */
   about: string
+  /**
+   * What it is about: one task, or one whole project.
+   *
+   * Declared rather than read off a body, so a row can say what may be asked
+   * of it over exactly the verbs that are about it — a task's `can` and
+   * `cannot` cover every `task` verb and a project's every `project` one, and
+   * neither carries the other's.
+   */
+  on: 'task' | 'project'
   read(body: unknown): Reading
 }
 
@@ -173,6 +210,7 @@ export const PARK: Verb = {
   // answering a question that is already waiting does not.
   needs: 'steer',
   about: 'set a task aside, or pick it back up',
+  on: 'task',
   read(body) {
     const got = ParkBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -211,6 +249,7 @@ export const ANSWER: Verb = {
   name: 'answer',
   needs: 'answer',
   about: 'allow or deny what an agent is waiting on',
+  on: 'task',
   read(body) {
     const got = AnswerBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -251,6 +290,7 @@ export const STEER: Verb = {
   name: 'steer',
   needs: 'steer',
   about: 'say something to an agent that is running',
+  on: 'task',
   read(body) {
     const got = SteerBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -311,6 +351,7 @@ export const QUEUE: Verb = {
   name: 'queue',
   needs: 'steer',
   about: 'pause, resume, reorder or let queued work start',
+  on: 'task',
   read(body) {
     const got = QueueBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -349,6 +390,7 @@ export const DONE: Verb = {
   name: 'done',
   needs: 'steer',
   about: 'mark a task finished, which starts whatever waits on it',
+  on: 'task',
   read(body) {
     const got = DoneBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -390,6 +432,7 @@ export const NOTE: Verb = {
   name: 'note',
   needs: 'steer',
   about: 'write something down about a task, as you wrote it',
+  on: 'task',
   read(body) {
     const got = NoteBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -424,6 +467,7 @@ export const CONTEXT: Verb = {
   name: 'context',
   needs: 'steer',
   about: 'add to what a task’s agent is told',
+  on: 'task',
   read(body) {
     const got = ContextBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -465,6 +509,7 @@ export const INTAKE: Verb = {
   name: 'intake',
   needs: 'answer',
   about: 'approve a request that came from outside this machine',
+  on: 'task',
   read(body) {
     const got = IntakeBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -488,35 +533,195 @@ export const INTAKE: Verb = {
 }
 
 /**
+ * Stop a task's agent. Its lane ends; the lane's spec, its conversation, its
+ * branch and its worktree all stay, and `reopen` puts it back.
+ *
+ * `agents`, a scope of its own and implied by neither acting tier: a device
+ * that may tell an agent something has been granted a say in what it does, and
+ * stopping one is a say in whether it does anything at all.
+ *
+ * **Two presses and a literal**, like `done`: what a turn was in the middle of
+ * is not undone by opening the agent again.
+ */
+export const STOP: Verb = {
+  name: 'stop',
+  needs: 'agents',
+  about: 'stop a task’s agent, keeping its lane’s spec so it can be opened again',
+  on: 'task',
+  read(body) {
+    const got = StopBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return {
+      ok: true,
+      asked: {
+        verb: 'stop',
+        task: call.task,
+        project: projectOf(call.task),
+        was: call.was,
+        key: call.key,
+        rev: call.rev,
+        payload: 'stop',
+        said: 'stopped its agent',
+        run: (acting, from) => acting.stop({ task: call.task, was: call.was, confirm: true }, from),
+      },
+    }
+  },
+}
+
+/**
+ * Open a task's stopped agent again where it left off, saying nothing to it.
+ *
+ * `agents`, the same decision as `stop` from the other side. **Never a new
+ * agent**: the window refuses it where none has ever run, so what this can
+ * bring up is a conversation that already existed and nothing else.
+ */
+export const REOPEN: Verb = {
+  name: 'reopen',
+  needs: 'agents',
+  about: 'open a stopped agent again where it left off, saying nothing to it',
+  on: 'task',
+  read(body) {
+    const got = ReopenBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return {
+      ok: true,
+      asked: {
+        verb: 'reopen',
+        task: call.task,
+        project: projectOf(call.task),
+        was: call.was,
+        key: call.key,
+        rev: call.rev,
+        payload: 'reopen',
+        said: 'opened its agent again',
+        run: (acting, from) => acting.reopen({ task: call.task, was: call.was }, from),
+      },
+    }
+  },
+}
+
+/**
+ * Take a project off Tade's list: the window's own close, which deletes
+ * nothing and stops nothing.
+ *
+ * `projects`, implied by nothing: it changes what every surface here draws,
+ * and the project's own settings go with its line. **Two presses and a
+ * literal**, for that last reason.
+ *
+ * The first verb whose target is not a task, so `task` is empty and the
+ * project is the target — the gate's per-project boundary asks the name
+ * itself, and the journal line carries it in its detail rather than on the
+ * event, where every fold keyed by task would read it as one.
+ */
+export const CLOSE: Verb = {
+  name: 'close',
+  needs: 'projects',
+  about: 'close a project, which deletes nothing and stops none of its agents',
+  on: 'project',
+  read(body) {
+    const got = CloseBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return {
+      ok: true,
+      asked: {
+        verb: 'close',
+        task: '',
+        project: call.project,
+        was: call.was,
+        key: call.key,
+        rev: call.rev,
+        payload: 'close',
+        said: 'closed the project',
+        run: (acting, from) =>
+          acting.close({ project: call.project, was: call.was, confirm: true }, from),
+      },
+    }
+  },
+}
+
+/**
+ * Put a closed project back where the journal says it was.
+ *
+ * `projects`, the same decision as `close`. There is no path in the body, so
+ * what a device can open is a project Tade has had and nothing else.
+ */
+export const OPEN: Verb = {
+  name: 'open',
+  needs: 'projects',
+  about: 'open a closed project again, where it was when it closed',
+  on: 'project',
+  read(body) {
+    const got = OpenBody.safeParse(body)
+    if (!got.success) return { ok: false }
+    const call = got.data
+    return {
+      ok: true,
+      asked: {
+        verb: 'open',
+        task: '',
+        project: call.project,
+        was: call.was,
+        key: call.key,
+        rev: call.rev,
+        payload: 'open',
+        said: 'opened the project again',
+        run: (acting, from) => acting.open({ project: call.project, was: call.was }, from),
+      },
+    }
+  },
+}
+
+/**
  * The verbs there are, and the whole of what a paired device may ever do.
  *
- * Eight, and the order is the order they arrived in rather than a ranking:
- * park went first because it was the smallest act that proved the path, and
- * the rest are §9.1's matrix filled in. What they have in common is the shape
- * the first one established — a target, the state it expects, and a method on
- * `WebActing` — and what they have in common is also the limit: **none of them
- * takes a path, a command, a credential, a setting or a prompt**, and the
- * three §9.1 calls `never remote` are absent rather than refused. There is no
- * push, no merge, no check override, no account change, no grant and no new
- * agent, because there is no method here one could be called through.
+ * Twelve, and the order is the order they arrived in rather than a ranking:
+ * park went first because it was the smallest act that proved the path, the
+ * next seven are §9.1's matrix filled in, and the last four are the lifecycle
+ * — an agent stopped and opened again, a project closed and opened again. What
+ * they have in common is the shape the first one established — a target, the
+ * state it expects, and a method on `WebActing` — and what they have in common
+ * is also the limit: **none of them takes a path, a command, a credential, a
+ * setting or a prompt**, and the three §9.1 calls `never remote` are absent
+ * rather than refused. There is no push, no merge, no check override, no
+ * account change, no grant and no new agent, because there is no method here
+ * one could be called through.
  *
- * Three in the matrix are deliberately not here, each for a reason that is not
+ * Two in the matrix are deliberately not here, each for a reason that is not
  * "nobody got to it":
  *
  * - **a whole project's queue, paused or resumed.** It names no task, so it
  *   has no entity revision to echo and no replay could be told from a fresh
- *   ask.
+ *   ask — `projectRev` is about whether a project is open, not its queue.
  * - **a diff, a review's text, a lane's output.** Each ships source or an
  *   agent's bytes to a phone and to a browser cache; that is a *reading*
  *   grant with its own threat model (`fields.ts`'s `NEVER_A_FIELD`), not a
  *   verb. The third is now that grant (`lanes`, `screen.ts`) and is still
  *   no verb: nothing types into a lane from away, and what a person says to
  *   an agent goes through `steer` or through Tade.
- * - **stopping an agent.** It is not a hold and not undoable by the same
- *   verb, and what a person wants after one is usually the lane in front of
- *   them.
+ *
+ * **Stopping an agent used to be the third**, because it was not a hold and
+ * not undoable by the same verb. It is here now as half of a pair: `reopen`
+ * undoes it, the act names *which* run it stops (`TaskFacts.starts`) so a
+ * replay cannot stop the agent somebody opened since, it takes two presses,
+ * and it is a scope of its own that nothing implies.
  */
-export const VERBS: readonly Verb[] = [PARK, ANSWER, STEER, QUEUE, DONE, NOTE, CONTEXT, INTAKE]
+export const VERBS: readonly Verb[] = [
+  PARK,
+  ANSWER,
+  STEER,
+  QUEUE,
+  DONE,
+  NOTE,
+  CONTEXT,
+  INTAKE,
+  STOP,
+  REOPEN,
+  CLOSE,
+  OPEN,
+]
 
 /** The verb of that name, or null. The one lookup, and it is closed. */
 export function verbFor(name: string): Verb | null {
@@ -533,7 +738,16 @@ export function verbFor(name: string): Verb | null {
  * are joined by a separator none of them can contain: a device id is 16 hex
  * characters, a verb is a name out of the table above, a task id is `TaskId`'s
  * own regex, and a payload is built field by field above.
+ *
+ * The target is the project for a verb about a whole project, which cannot be
+ * mistaken for a task: a project's name has no `/` in it and a task's id
+ * always has one.
  */
 export function boundTo(device: string, asked: Asked): string {
-  return [device, asked.verb, asked.task, asked.payload].join('\n')
+  return [device, asked.verb, targetOf(asked), asked.payload].join('\n')
+}
+
+/** What an act is about: its task, or its project where it is about a whole one. */
+export function targetOf(asked: Pick<Asked, 'task' | 'project'>): string {
+  return asked.task === '' ? asked.project : asked.task
 }

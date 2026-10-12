@@ -1,4 +1,5 @@
 import { SAYINGS } from './asked.ts'
+import { CHANGES } from './configured.ts'
 import { SAVINGS } from './drafted.ts'
 import { PUSHINGS } from './pushed.ts'
 import type { Scope, Surface } from './surface.ts'
@@ -29,10 +30,12 @@ import { VERBS } from './verbs.ts'
 // was never "this program cannot act", it was "nothing here can", and absence
 // is still how it is enforced.
 //
-// What is **not** here, in either table, matters as much as what is: no route
-// reads a setting, no route writes one, no route grants anything, no route
-// publishes anything, no route starts an agent, no route takes a path or a
-// command, and no route reaches the `ToolHost`. By §10.8 a path that is not in
+// What is **not** here, in any table, matters as much as what is: no route
+// grants anything, no route publishes anything, no route starts an agent, no
+// route takes a path or a command, and no route reaches the `ToolHost`. One
+// route reads the settings, behind a grant, and the one that writes one is
+// `SETTINGS`, built only where `surfaces.web.settings` says so and reaching
+// `settingReach`'s `open` tier and nothing else (`configuring.ts`). By §10.8 a path that is not in
 // the table is a `404` and not a `403` — an off capability is not a thing to
 // probe — so the absences cost nothing to keep.
 
@@ -82,6 +85,14 @@ export interface Route {
    * and `test/routes.test.ts` says so.
    */
   notifies?: string
+  /**
+   * What this route does to a setting, where it is one of `SETTINGS`.
+   *
+   * Carried rather than read back out of the path, for the reason `verb`,
+   * `saves`, `notifies` and `says` are. A route has exactly one of the five and
+   * never two, and `test/routes.test.ts` says so.
+   */
+  configures?: string
   /**
    * The thing this route says to the conversation, where it is one of `ASKS`.
    *
@@ -167,6 +178,7 @@ export const ROUTES: readonly Route[] = [
   shellAt('/notes', 'notes page'),
   shellAt('/talk', 'talk page'),
   shellAt('/devices', 'devices page'),
+  shellAt('/settings', 'settings page'),
   shellAt('/more', 'more page'),
   // The service worker, at the root because that is what decides its scope: a
   // worker is only allowed to control paths under the folder it was served
@@ -236,6 +248,13 @@ export const ROUTES: readonly Route[] = [
     mutates: false,
   },
   { method: 'GET', path: '/api/devices', name: 'devices', needs: 'read', mutates: false },
+  // **What Tade is set up with, read while somebody has the page open.** A
+  // `GET` like every other read, and the same for every device: what it may
+  // see is the device's own `settings` grant, checked in the answer
+  // (`settingsFor`) as `lanes` is in an agent's, and a key is never in it
+  // under any grant. It changes nothing — the one route that does is in
+  // `SETTINGS`, a table of its own behind a setting of its own.
+  { method: 'GET', path: '/api/settings', name: 'settings', needs: 'read', mutates: false },
 
   // Signing out. A mutation, because it destroys a credential — and **its own
   // only**: revoking another device is the window's, which is the rule that
@@ -353,13 +372,41 @@ export const DRAFTS: readonly Route[] = Object.keys(SAVINGS).map((name) => ({
 }))
 
 /**
+ * The changing route: **one path per thing a device may do to a setting**, and
+ * the table is `CHANGES` — which has one entry.
+ *
+ * A fifth table rather than a thirteenth verb, for the reason `configuring.ts`
+ * gives: the target is a dotted path into the config rather than a task, and
+ * the write is the one door every setting goes through. One route and not one
+ * per setting, because which settings a device reaches is `settingReach`'s
+ * `open` tier — a function, with a project's name in some of its paths — and
+ * a table built from it would be a second answer to the question it answers.
+ * What keeps a `never` path off this route is the parse
+ * (`readSettingChange`): it is not a change at all, so it is the `404` a path
+ * nobody built is.
+ *
+ * `/api/settings/change` and not `/api/config`, which would read as the file.
+ */
+export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
+  method: 'POST' as const,
+  path: `/api/settings/${name}`,
+  name: `${name} a setting`,
+  // `configure`, and implied by nothing: a device granted every acting tier
+  // has been granted things about work, not the config.
+  needs: 'configure' as Scope,
+  mutates: true,
+  configures: name,
+}))
+
+/**
  * The table this listener answers from, which is a fact about the config.
  *
- * Built once, when the server is made, which is why turning any of the three
+ * Built once, when the server is made, which is why turning any of the
  * capabilities **on** waits for a restart and turning one **off** does not:
  * the table is the strongest half of each gate and the live re-read
- * (`WebActing.unlocked`, `WebAsking.unlocked`, `WebDrafting.unlocked`) is the
- * half that can only ever take authority away. Asymmetric in the safe
+ * (`WebActing.unlocked`, `WebAsking.unlocked`, `WebDrafting.unlocked`,
+ * `WebConfiguring.unlocked`) is the half that can only ever take authority
+ * away. Asymmetric in the safe
  * direction, and each setting's own words say so.
  */
 export function routesFor(surface: Surface): readonly Route[] {
@@ -369,6 +416,7 @@ export function routesFor(surface: Surface): readonly Route[] {
     ...(surface.talking ? ASKS : []),
     ...(surface.drafting ? DRAFTS : []),
     ...(surface.pushing ? PUSHES : []),
+    ...(surface.configuring ? SETTINGS : []),
   ]
 }
 

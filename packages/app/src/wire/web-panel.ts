@@ -86,6 +86,7 @@ export function awayView(facts: PanelFacts): AwayView {
     streams: facts.streams,
     acting: facts.surface.acting,
     talking: facts.surface.talking,
+    configuring: facts.surface.configuring,
     acts: ACTING_IS_NOT_YOU,
     talks: TALKING_IS_NOT_YOU,
     lan: LAN_IS_PLAINTEXT,
@@ -102,11 +103,11 @@ function left(until: number, now: number): number {
 /**
  * The devices, as the list draws them.
  *
- * **Two capabilities and two words**, each folded from the scopes rather than
- * read off a flag: the row has width for a word and not a list, and what
- * somebody scanning it is asking is *can any of these change my work* and *can
- * any of these ask Tade for anything*. Those are different questions with
- * different answers, which is why they are two.
+ * **A word per capability**, each folded from the scopes rather than read off
+ * a flag: the row has width for a word and not a list, and what somebody
+ * scanning it is asking is *can any of these change my work*, *stop an agent*,
+ * *close a project*, and *ask Tade for anything*. Those are different
+ * questions with different answers, which is why they are separate.
  */
 function deviceViews(facts: PanelFacts): AwayDevice[] {
   return facts.devices
@@ -119,6 +120,10 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       mayAct: one.scopes.some((scope) => scope === 'answer' || scope === 'steer'),
       mayTalk: one.scopes.includes('ask'),
       maySee: one.granted.includes('lanes'),
+      mayStop: one.scopes.includes('agents'),
+      mayClose: one.scopes.includes('projects'),
+      mayReadSettings: one.granted.includes('settings'),
+      mayConfigure: one.scopes.includes('configure'),
       live: facts.live.has(one.id),
     }))
 }

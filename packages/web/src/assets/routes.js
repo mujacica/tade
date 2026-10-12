@@ -91,6 +91,7 @@ const PLAIN = [
   'findings',
   'notes',
   'devices',
+  'settings',
   'more',
   'pair',
 ]
@@ -147,6 +148,7 @@ export const TITLES = {
   notes: 'Notes',
   talk: 'With Tade',
   devices: 'Devices',
+  settings: 'Settings',
   more: 'More',
   pair: 'Pair this device',
   nowhere: 'Nothing here',
@@ -198,6 +200,9 @@ export const MORE = [
   { view: 'findings', mark: '◈', label: 'Findings', counts: 'findings' },
   { view: 'notes', mark: '✎', label: 'Notes', counts: 'notes' },
   { view: 'devices', mark: '⌸', label: 'Devices', counts: null },
+  // What Tade is set up with, behind a grant of its own — and the few settings
+  // a device granted it may change. Last, because it is read least.
+  { view: 'settings', mark: '⚙', label: 'Settings', counts: null },
 ]
 
 /** Which of the navigation's entries a screen lights up. */

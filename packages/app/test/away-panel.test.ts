@@ -35,6 +35,7 @@ function view(over: Partial<AwayView> = {}): AwayView {
     code: code === null ? [] : blocksFor(code),
     asking: null,
     talking: false,
+    configuring: false,
     talks: TALKING_IS_NOT_YOU,
     devices: [
       {
@@ -45,6 +46,10 @@ function view(over: Partial<AwayView> = {}): AwayView {
         mayAct: false,
         mayTalk: false,
         maySee: false,
+        mayStop: false,
+        mayClose: false,
+        mayReadSettings: false,
+        mayConfigure: false,
         live: true,
       },
     ],
@@ -227,6 +232,10 @@ describe('what the panel never carries', () => {
             mayAct: false,
             mayTalk: false,
             maySee: false,
+            mayStop: false,
+            mayClose: false,
+            mayReadSettings: false,
+            mayConfigure: false,
             live: false,
           },
         ],
@@ -234,7 +243,7 @@ describe('what the panel never carries', () => {
       // Tall enough that the whole region is drawn: the code comes first,
       // because it is what somebody opened this for, so on an ordinary
       // terminal the device list is a scroll away and is correct to be.
-      { height: 56 },
+      { height: 64 },
     )
     // Not its address and not its digest: what another device is, from here,
     // is a name and a date.
@@ -250,17 +259,25 @@ describe('letting one device act', () => {
     // route a grant could reach, so a button here would be one that cannot do
     // what it says — and the row is byte-identical to what it was before any
     // of this existed.
-    const text = said({}, { height: 56 })
+    const text = said({}, { height: 64 })
     expect(text).not.toContain('[act]')
     expect(text).not.toContain('may act')
+    // Nor the lifecycle's two: they are acting routes, and with acting off
+    // there is no route a grant of either could reach.
+    expect(text).not.toContain('[agents]')
+    expect(text).not.toContain('[projects]')
   })
 
   it('offers it per device once a person has turned acting on', () => {
     // Tall enough that the whole scrolling region is drawn: the code comes
     // first, so on an ordinary terminal the device list is a scroll away and
     // is correct to be.
-    const text = said({ acting: true }, { height: 56 })
+    const text = said({ acting: true }, { height: 64 })
     expect(text).toContain('[act]')
+    // A chip each for the lifecycle, beside it and implied by it in neither
+    // direction.
+    expect(text).toContain('[agents]')
+    expect(text).toContain('[projects]')
   })
 
   it('says which devices may, and offers to take it back from those', () => {
@@ -276,11 +293,15 @@ describe('letting one device act', () => {
             mayAct: true,
             mayTalk: false,
             maySee: false,
+            mayStop: false,
+            mayClose: false,
+            mayReadSettings: false,
+            mayConfigure: false,
             live: true,
           },
         ],
       },
-      { height: 56 },
+      { height: 64 },
     )
     // **On the row, in words.** The list is what somebody reads to answer
     // *can any of these change my work*, and a capability visible only as the
@@ -295,7 +316,7 @@ describe('letting one device act', () => {
     // The same placement and the same argument as the LAN warning above the
     // code: the moment to read what a device will be able to do is before
     // granting it.
-    const text = said({ acting: true }, { height: 56 })
+    const text = said({ acting: true }, { height: 64 })
     for (const word of ACTING_IS_NOT_YOU.split(/\s+/)) expect(text, word).toContain(word)
   })
 
@@ -315,11 +336,15 @@ describe('letting one device act', () => {
             mayAct: true,
             mayTalk: false,
             maySee: false,
+            mayStop: false,
+            mayClose: false,
+            mayReadSettings: false,
+            mayConfigure: false,
             live: false,
           },
         ],
       },
-      { height: 56 },
+      { height: 64 },
     )
     expect(text).not.toContain('may act')
     for (const word of ['never your own words', 'overrule']) expect(text).not.toContain(word)
@@ -356,6 +381,10 @@ describe('letting one device talk to Tade', () => {
             mayAct: true,
             mayTalk: true,
             maySee: false,
+            mayStop: false,
+            mayClose: false,
+            mayReadSettings: false,
+            mayConfigure: false,
             live: true,
           },
         ],
@@ -397,6 +426,10 @@ describe('letting one device talk to Tade', () => {
             mayAct: false,
             mayTalk: true,
             maySee: false,
+            mayStop: false,
+            mayClose: false,
+            mayReadSettings: false,
+            mayConfigure: false,
             live: false,
           },
         ],

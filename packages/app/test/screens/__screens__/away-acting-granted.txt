@@ -12,22 +12,30 @@
  ▸ SCHEDULES           │ already set up it can answer what an agent is waiting on, tell one     │                       
  ▸ INTAKE              │ something, hold or release queued work, add a note or a line to what   │                       
  ▾ CHANGES  3        vs│ a task is told, mark work finished, and approve a request a grant      │                       
-  M package.json       │ here already allowed. It can never change a setting, read a            │                       
-  A …/webhooks.test.ts │ credential, run a command, start an agent, push, merge or overrule a   │                       
-  M src/webhooks.ts   +│ check. Acting needs this machine itself or an https origin you named   │                       
-                       │ in Trusted hostnames, so a credential that crossed a network in the    │                       
- ▾ FILES               │ clear never buys one — and every act is in the journal under the       │                       
-   ▾ src/              │ device that took it.                                                   │                       
-       webhooks.test.ts│ › iPhone ● now Fri 11 Sep 09:12 · titles, intent · may act             │                       
-       webhooks.ts     │                                                       act   lanes   ×  │                       
-   ▸ test/             │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows                │                       
-━   orchestrator     + │                                                       act   lanes   ×  │━━━━━━━━━   ⤢     ▾   ━
-                       │   kitchen screen ○ Thu 10 Sep 18:02 · names and counts                 │                       
-                       │                                                                        │                      ▕
-                       │ An agent on this machine could pair itself, which is why this list     │                      ▕
+  M package.json       │ here already allowed. Where you granted that device each of them, it   │                       
+  A …/webhooks.test.ts │ can also stop an agent or open a stopped one again where it left off,  │                       
+  M src/webhooks.ts   +│ and close a project or open a closed one again: closing deletes        │                       
+                       │ nothing and stops nothing, but the project’s own settings go with it   │                       
+ ▾ FILES               │ and opening it puts back only where it lives. Beyond that one line,    │                       
+   ▾ src/              │ acting can never change a setting — that is a switch of its own —      │                       
+       webhooks.test.ts│ read a credential, run a command, start an agent that has never run,   │                       
+       webhooks.ts     │ push, merge or overrule a check. Acting needs this machine itself or   │                       
+   ▸ test/             │ an https origin you named in Trusted hostnames, so a credential that   │                       
+     package.json      │ crossed a network in the clear never buys one — and every act is in    │                       
+     README.md         │ the journal under the device that took it.                             │                       
+                       │ › iPhone ● now Fri 11 Sep 09:12 · titles · may act · may stop agents   │                       
+ ▸ NOTES  4            │                        act   agents   projects   lanes   settings   ×  │                       
+ ▾ GIT                 │   iPad ○ Fri 11 Sep 09:40 · titles, requests, workflows                │                       
+   repo     ~/src/check│                        act   agents   projects   lanes   settings   ×  │                       
+   branch   …de/stripe-│   kitchen screen ○ Thu 10 Sep 18:02 · names and counts                 │                       
+   from     main       │                        act   agents   projects   lanes   settings   ×  │                       
+━   orchestrator     + │                                                                        │━━━━━━━━━   ⤢     ▾   ━
+                       │ An agent on this machine could pair itself, which is why this list     │                       
                        │ shows every device there is.                                           │                      ▕
                        │                                                Disconnect everything   │                      ▕
- ❯ what you say   ◆ the╰────────────────────────────────────────────────────────────────────────╯                      ▕
+                       ╰────────────────────────────────────────────────────────────────────────╯                      ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

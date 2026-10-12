@@ -125,7 +125,12 @@ describe('the away server is not the ToolHost', () => {
     }
   })
 
-  it('writes no config: there is no setting any route can move', () => {
+  it('writes no config itself: a change from away is the window’s, through one method', () => {
+    // **Nothing in this package moves a setting.** A change from away reaches
+    // the window through `WebConfiguring.change` and the window writes it
+    // through the one door every setting goes through (`Settings.write`), so
+    // what the page could reach is a method on an interface and never a
+    // function that writes the file.
     const problems: string[] = []
     for (const file of FILES) {
       const text = readFileSync(file, 'utf8')
@@ -327,6 +332,7 @@ describe('what the surface is turned on as', () => {
       push: false,
       push_details: false,
       drafts: false,
+      settings: false,
       install: false,
       offline: false,
     })
@@ -355,6 +361,7 @@ describe('what the surface is turned on as', () => {
       push: false,
       push_details: false,
       drafts: false,
+      settings: false,
       install: true,
       offline: true,
     }
@@ -389,6 +396,7 @@ describe('what the surface is turned on as', () => {
           push: false,
           push_details: false,
           drafts: false,
+          settings: false,
           install: false,
           offline: false,
         }),
@@ -406,6 +414,7 @@ describe('what the surface is turned on as', () => {
           push: false,
           push_details: false,
           drafts: false,
+          settings: false,
           install: false,
           offline: false,
         }),
@@ -452,6 +461,7 @@ describe('what a session minted on an origin may ever do', () => {
     push: false,
     push_details: false,
     drafts: false,
+    settings: false,
     install: false,
     offline: false,
   })
@@ -619,6 +629,10 @@ describe('the sentences', () => {
       note: 'a note',
       context: 'what a task is told',
       intake: 'approve a request',
+      stop: 'stop an agent',
+      reopen: 'open a stopped one again',
+      close: 'close a project',
+      open: 'open a closed one again',
     }
     expect(Object.keys(names).sort()).toEqual(VERBS.map((verb) => verb.name).sort())
     for (const [verb, clause] of Object.entries(names)) {

@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type { From, Outcome, ParkCall, WebActing } from '../src/acting.ts'
-import { BOUNDS, taskRev } from '../src/acting.ts'
+import { BOUNDS, projectRev, taskRev } from '../src/acting.ts'
 import { ACTS, ROUTES, routeFor, routesFor } from '../src/routes.ts'
 import {
   ANSWER,
   boundTo,
+  CLOSE,
   CONTEXT,
   DONE,
   INTAKE,
   KEY,
   NOTE,
+  OPEN,
   PARK,
   QUEUE,
+  REOPEN,
   STEER,
+  STOP,
+  targetOf,
   VERBS,
   type Verb,
   verbFor,
@@ -32,6 +37,14 @@ import { actingStub, BASE, facts } from './harness.ts'
 const EVERY = {
   task: 'tade/away-action-gate',
   was: 'p0',
+  key: 'abcdefgh12345678',
+  rev: 4,
+}
+
+/** What a verb about a whole project carries instead: the project, not a task. */
+const PROJECT = {
+  project: 'tade',
+  was: 'o1.c0',
   key: 'abcdefgh12345678',
   rev: 4,
 }
@@ -56,6 +69,10 @@ const BODIES: Readonly<Record<string, Record<string, unknown>>> = {
   note: { ...EVERY, text: 'the fix is in the adapter' },
   context: { ...EVERY, add: 'the ticket says the column is nullable' },
   intake: { ...EVERY, confirm: true },
+  stop: { ...EVERY, confirm: true },
+  reopen: { ...EVERY },
+  close: { ...PROJECT, confirm: true },
+  open: { ...PROJECT },
 }
 
 /** That verb's own valid body, with whatever a test wants changed. */
@@ -97,7 +114,8 @@ describe('the verb table', () => {
     // honest rather than the comment above it.
     for (const verb of VERBS) {
       expect(verb.read(bodyFor(verb)).ok, `${verb.name} body`).toBe(true)
-      for (const name of ['was', 'task', 'key', 'rev']) {
+      // The target is a task, or the project for a verb about a whole one.
+      for (const name of ['was', verb.on === 'task' ? 'task' : 'project', 'key', 'rev']) {
         const body = bodyFor(verb, { [name]: undefined })
         expect(verb.read(body).ok, `${verb.name} with no ${name}`).toBe(false)
       }
@@ -122,10 +140,19 @@ describe('the verb table', () => {
         ['note', 'steer'],
         ['context', 'steer'],
         ['intake', 'answer'],
+        // The lifecycle, each pair at a scope of its own that neither acting
+        // tier implies: stopping an agent is a say in whether it does anything
+        // at all, and closing a project changes what every surface draws.
+        ['stop', 'agents'],
+        ['reopen', 'agents'],
+        ['close', 'projects'],
+        ['open', 'projects'],
       ]),
     )
     // And none of them needs `read`, which would be every paired device.
-    for (const verb of VERBS) expect(['answer', 'steer', 'ask']).toContain(verb.needs)
+    for (const verb of VERBS) {
+      expect(['answer', 'steer', 'agents', 'projects']).toContain(verb.needs)
+    }
   })
 
   it('has a name and a sentence each, and no two share a name', () => {
@@ -315,6 +342,100 @@ describe('what each verb will and will not read', () => {
   })
 })
 
+describe('the lifecycle verbs', () => {
+  it('has no shape of a stop or a close body that means *do not*', () => {
+    // Two presses on the page and a literal here, for the two that cut off a
+    // turn or take a project's own settings with it.
+    for (const [verb, base] of [
+      [STOP, EVERY],
+      [CLOSE, PROJECT],
+    ] as const) {
+      expect(verb.read({ ...base, confirm: true }).ok, verb.name).toBe(true)
+      for (const confirm of [false, 0, 1, 'true', null, undefined]) {
+        expect(verb.read({ ...base, confirm }).ok, `${verb.name} ${String(confirm)}`).toBe(false)
+      }
+    }
+    // Opening again is restorative and takes one press, so it takes no literal.
+    expect(REOPEN.read({ ...EVERY, confirm: true }).ok).toBe(false)
+    expect(OPEN.read({ ...PROJECT, confirm: true }).ok).toBe(false)
+  })
+
+  it('names a project by the config\u2019s own rule for one, and never a path or a task', () => {
+    for (const project of ['tade', 'my-app', 'a1']) {
+      expect(OPEN.read({ ...PROJECT, project }).ok, project).toBe(true)
+    }
+    // A path, a task id, a key path into the config and a name the config
+    // would refuse: none of them is a project a device may name.
+    for (const project of [
+      '',
+      '../tade',
+      '/Users/someone/src/app',
+      '~/src/app',
+      'tade/away',
+      'projects.tade.root',
+      'Tade',
+      '-tade',
+      'tade app',
+      'a'.repeat(201),
+    ]) {
+      expect(OPEN.read({ ...PROJECT, project }).ok, project).toBe(false)
+      expect(CLOSE.read({ ...PROJECT, project, confirm: true }).ok, project).toBe(false)
+    }
+    // And a project verb takes no task, so a body cannot carry both.
+    expect(CLOSE.read({ ...PROJECT, confirm: true, task: 'tade/x' }).ok).toBe(false)
+  })
+
+  it('is about a task or a whole project, and says which', () => {
+    expect(VERBS.filter((verb) => verb.on === 'project').map((verb) => verb.name)).toEqual([
+      'close',
+      'open',
+    ])
+    const got = CLOSE.read({ ...PROJECT, confirm: true })
+    if (!got.ok) throw new Error('that body did not parse')
+    // The target is the project, and the task is empty: a project is not a
+    // task, and nothing downstream may read one as if it were.
+    expect(got.asked.task).toBe('')
+    expect(got.asked.project).toBe('tade')
+    expect(targetOf(got.asked)).toBe('tade')
+    expect(boundTo('00112233445566aa', got.asked)).toBe('00112233445566aa\nclose\ntade\nclose')
+  })
+
+  it('binds a key to the target, so one project\u2019s close is not another\u2019s', () => {
+    const one = OPEN.read({ ...PROJECT, project: 'tade' })
+    const two = OPEN.read({ ...PROJECT, project: 'shop' })
+    if (!one.ok || !two.ok) throw new Error('those bodies did not parse')
+    expect(boundTo('00112233445566aa', one.asked)).not.toBe(boundTo('00112233445566aa', two.asked))
+  })
+
+  it('reaches the verb\u2019s own method, with the provenance carried in', async () => {
+    const calls: { verb: string; call: unknown; from: From }[] = []
+    const record =
+      (verb: string) =>
+      (call: unknown, from: From): Promise<Outcome> => {
+        calls.push({ verb, call, from })
+        return Promise.resolve({ did: true, rev: 'x', said: verb })
+      }
+    const acting = actingStub({
+      stop: record('stop'),
+      reopen: record('reopen'),
+      close: record('close'),
+      open: record('open'),
+    })
+    const from: From = { how: 'remote', device: '00112233445566aa' }
+    for (const verb of [STOP, REOPEN, CLOSE, OPEN]) {
+      const got = verb.read(bodyFor(verb))
+      if (!got.ok) throw new Error(`${verb.name} did not parse`)
+      await got.asked.run(acting, from)
+    }
+    expect(calls).toEqual([
+      { verb: 'stop', call: { task: EVERY.task, was: 'p0', confirm: true }, from },
+      { verb: 'reopen', call: { task: EVERY.task, was: 'p0' }, from },
+      { verb: 'close', call: { project: 'tade', was: 'o1.c0', confirm: true }, from },
+      { verb: 'open', call: { project: 'tade', was: 'o1.c0' }, from },
+    ])
+  })
+})
+
 describe('what a key is bound to', () => {
   it('is the device, the verb, the target and the payload, and nothing else', () => {
     const bound = boundTo('00112233445566aa', asked())
@@ -377,6 +498,10 @@ describe('the route table', () => {
       '/api/act/note',
       '/api/act/context',
       '/api/act/intake',
+      '/api/act/stop',
+      '/api/act/reopen',
+      '/api/act/close',
+      '/api/act/open',
     ])
     for (const route of ACTS) {
       expect(route.method).toBe('POST')
@@ -434,9 +559,22 @@ describe('a task’s own revision', () => {
       { agents: 1 },
       { finished: true },
       { queue: 'ready' },
+      { lane: 'running' },
+      { lane: 'stopped' },
+      { starts: 1 },
     ] as const) {
       expect(taskRev(facts(moved)), JSON.stringify(moved)).not.toBe(base)
     }
+  })
+
+  it('tells one run of a task\u2019s agent from the next, which is what refuses a stale stop', () => {
+    // Stop, open again, and the lane is running exactly as it was: only the
+    // count of starts says this is a different agent from the one the screen
+    // was of — so a captured stop replayed after its receipt is gone meets a
+    // revision that moved, rather than stopping the agent somebody opened.
+    const before = taskRev(facts({ lane: 'running', starts: 1 }))
+    const after = taskRev(facts({ lane: 'running', starts: 2 }))
+    expect(after).not.toBe(before)
   })
 
   it('reads nine agents and ten as the same answer', () => {
@@ -450,7 +588,22 @@ describe('a task’s own revision', () => {
   it('fits what a caller may echo back', () => {
     // `Was` is 64 characters. A revision over the bound would be one no device
     // could ever send back, which reads as every act being refused.
-    const longest = taskRev(facts({ agents: 9, queue: 'scheduled', parked: true }))
+    const longest = taskRev(
+      facts({ agents: 9, queue: 'scheduled', parked: true, lane: 'stopped', starts: 1e9 }),
+    )
     expect(longest.length).toBeLessThanOrEqual(64)
+    expect(projectRev({ open: true, changes: 1e9 }).length).toBeLessThanOrEqual(64)
+  })
+})
+
+describe('a project\u2019s own revision', () => {
+  it('moves when it opens or closes, and with every line about where it lives', () => {
+    // Close it, open it again, and it is open exactly as it was: only the
+    // count of lines says it is not the project the screen was of, so a
+    // captured close replayed later is refused rather than closing it again.
+    const open = projectRev({ open: true, changes: 0 })
+    expect(projectRev({ open: false, changes: 0 })).not.toBe(open)
+    expect(projectRev({ open: true, changes: 2 })).not.toBe(open)
+    expect(projectRev({ open: true, changes: 0 })).toBe(open)
   })
 })

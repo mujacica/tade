@@ -53,6 +53,15 @@ export const GRANTS = [
   // only while somebody is looking (`screen.ts` has the bounds and the
   // scrubbing), and what it says about itself is in `GRANT_MEANS` below.
   'lanes',
+  // **What Tade is set up with**, as the Settings page lists it. Off with
+  // every other grant off: a config is the owner's own decisions about their
+  // machine, and *what my phone may see* is not *what my settings are*. A key
+  // is never in it under any grant — said as set or not set, by the same
+  // rule `tade_settings` follows (`configuring.ts`, `settingsFor`) — and it
+  // is also what changing one from away needs: a device may not change what
+  // it was not allowed to see, or the value it echoes would be a guess and a
+  // `409` an oracle for it.
+  'settings',
 ] as const
 export type Grant = (typeof GRANTS)[number]
 
@@ -108,6 +117,10 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
     'the last lines each agent’s own screen shows, read only while you are looking at it — ' +
     'machine paths, the keys Tade holds and anything shaped like a credential are taken out, ' +
     'and anything else an agent printed is not',
+  settings:
+    'what Tade is set up with, as the Settings page lists it, for the projects this device ' +
+    'reads — a key or a token is said as set or not set and never shown, and machine paths ' +
+    'are taken out',
 }
 
 /**

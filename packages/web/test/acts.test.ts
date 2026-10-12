@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { admit, REVISIONS_BEHIND, type Standing } from '../src/acts.ts'
 import { namesOnly, type Reach } from '../src/reach.ts'
 import type { Scope, Surface } from '../src/surface.ts'
-import { type Asked, PARK } from '../src/verbs.ts'
+import { type Asked, CLOSE, OPEN, PARK, REOPEN, STOP, type Verb } from '../src/verbs.ts'
 
 // What has to be true of an *act*, asked as the cross-product.
 //
@@ -20,6 +20,7 @@ const ON: Surface = {
   acting: true,
   talking: false,
   drafting: false,
+  configuring: false,
   installing: false,
   keepsView: false,
   pushing: false,
@@ -180,5 +181,66 @@ describe('how old the screen was', () => {
     const no = admit(park({ rev: 0 }), 'steer', standing({ scopes: ['read'] }))
     expect(no.ok).toBe(false)
     if (!no.ok) expect(no.refusal.error).toBe('out_of_scope')
+  })
+})
+
+describe('the lifecycle verbs, at the gate', () => {
+  function lifecycle(verb: Verb, body: Record<string, unknown>): Asked {
+    const got = verb.read({ key: 'abcdefgh12345678', rev: 100, ...body })
+    if (!got.ok) throw new Error(`that ${verb.name} body did not parse`)
+    return got.asked
+  }
+  const stop = lifecycle(STOP, { task: 'tade/away-action-gate', was: 'p0', confirm: true })
+  const reopen = lifecycle(REOPEN, { task: 'tade/away-action-gate', was: 'p0' })
+  const close = lifecycle(CLOSE, { project: 'tade', was: 'o1.c0', confirm: true })
+  const open = lifecycle(OPEN, { project: 'tade', was: 'o0.c1' })
+
+  it('needs a scope neither acting tier implies, and each pair its own', () => {
+    // A device granted both tiers has been granted a say in what an agent
+    // does; whether it runs at all, and whether a project is on the list, are
+    // two more decisions, each made at the machine about one device.
+    const both = standing({ scopes: ['read', 'answer', 'steer'] })
+    for (const [asked, needs] of [
+      [stop, 'agents'],
+      [reopen, 'agents'],
+      [close, 'projects'],
+      [open, 'projects'],
+    ] as const) {
+      const no = admit(asked, needs, both)
+      expect(no.ok, asked.verb).toBe(false)
+      if (no.ok) continue
+      expect(no.refusal.error).toBe('out_of_scope')
+    }
+    // And one pair's scope is not the other's.
+    expect(admit(close, 'projects', standing({ scopes: ['read', 'agents'] })).ok).toBe(false)
+    expect(admit(stop, 'agents', standing({ scopes: ['read', 'projects'] })).ok).toBe(false)
+    expect(admit(stop, 'agents', standing({ scopes: ['read', 'agents'] }))).toEqual({ ok: true })
+    expect(admit(close, 'projects', standing({ scopes: ['read', 'projects'] }))).toEqual({
+      ok: true,
+    })
+  })
+
+  it('holds a project verb to the read scope, by the project it names', () => {
+    // **The per-project boundary is the target itself** for a verb about a
+    // whole project: a device that reads one of two projects may close that
+    // one and is refused the other, exactly as a task's project half is.
+    const may = standing({
+      scopes: ['read', 'projects'],
+      reach: reaching({ kind: 'listed', names: ['shop'] }),
+    })
+    const no = admit(close, 'projects', may)
+    expect(no.ok).toBe(false)
+    if (!no.ok) expect(no.refusal.error).toBe('out_of_scope')
+    const shop = lifecycle(CLOSE, { project: 'shop', was: 'o1.c0', confirm: true })
+    expect(admit(shop, 'projects', may)).toEqual({ ok: true })
+  })
+
+  it('is read-only over a network in the clear, whatever was granted', () => {
+    const wifi = standing({ scopes: ['read', 'agents', 'projects'], origin: WIFI })
+    for (const asked of [stop, close]) {
+      const no = admit(asked, asked === stop ? 'agents' : 'projects', wifi)
+      expect(no.ok, asked.verb).toBe(false)
+      if (!no.ok) expect(no.refusal.error).toBe('locked')
+    }
   })
 })

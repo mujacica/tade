@@ -13,6 +13,7 @@ import {
   talkIn,
 } from '../away.ts'
 import { type RunTask, runsIn } from '../away-factory.ts'
+import { projectLines } from '../away-lifecycle.ts'
 import type { ActionsView, NoteShown } from '../frame.ts'
 import type { Transcript } from '../transcript.ts'
 
@@ -178,6 +179,13 @@ export function beatParts(
   const finished = new Set(
     live.events.flatMap((one) => (one.type === 'task_done' && one.task ? [one.task] : [])),
   )
+  // How many agents each task has had: what tells one run of a task's agent
+  // from the next, so a stop replayed after a reopen is refused rather than
+  // stopping the agent somebody opened since. Out of the queue's own events,
+  // which are the **whole** journal's — the window's recent five hundred would
+  // count differently from the door that re-reads it at the act.
+  const queueFacts = live.queueFacts()
+  const starts = startsOf(queueFacts.events)
   const extras = new Map<string, TaskExtra>()
   const pending = new Map<string, number>()
   for (const approval of live.pending) {
@@ -207,6 +215,7 @@ export function beatParts(
         // — the same rule the window's own controls and the orchestrator's
         // tools ask, so no surface offers what another hides.
         steering: steering(task.id),
+        starts: starts.get(task.id) ?? 0,
       })
     }
   }
@@ -228,12 +237,16 @@ export function beatParts(
       factory.runFrom,
     ),
     queued: live.queued,
-    queueFacts: live.queueFacts(),
+    queueFacts,
     order: writtenOrder(live.events),
     notes: live.notes(null),
     plans: live.plans,
     machineUpSince: live.machineUpSince,
     spendSince: live.spendSince,
+    // Where each project lives, as the journal's own lines say: a closed one is
+    // a row a device can open again, and its generation is in every project's
+    // revision. The roots stay in here and never reach a row.
+    projectLines: projectLines(live.rootLines),
   }
 }
 
@@ -246,6 +259,8 @@ export function beatParts(
  */
 export interface Held {
   events: readonly TadeEvent[]
+  /** Every line that wrote where a project lives, from the whole journal. */
+  rootLines: readonly TadeEvent[]
   pending: readonly { requestId: string; task: string; tool: string; at: number }[]
   world: Workspace | null
   seenActions(task: string): ActionsView | null
@@ -259,6 +274,7 @@ export interface Held {
 /** What `beatParts` needs, so it can be tested without a window. */
 export interface Beatable {
   events: readonly TadeEvent[]
+  rootLines: readonly TadeEvent[]
   pending: readonly { requestId: string; task: string; tool: string; at: number }[]
   seenActions(task: string): ActionsView | null
   spendToday(): { byTask: Record<string, Spend> }

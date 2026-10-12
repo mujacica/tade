@@ -1,5 +1,5 @@
 import type { DoneRule, PlanStanding, ReviewState, Spend, TaskState } from '@tade/core'
-import type { Can, Cannot, TaskFacts } from './acting.ts'
+import type { AgentLane, Can, Cannot, ProjectFacts, TaskFacts } from './acting.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from './factory.ts'
 import type { Reach } from './reach.ts'
 
@@ -239,6 +239,18 @@ export interface TaskIn {
    */
   queue: string
   /**
+   * Where its own agent's lane stands: running, stopped with its spec kept, or
+   * never opened. Metadata, and a word rather than the lane itself — no lane
+   * id, no pid, no attach line.
+   */
+  lane: AgentLane
+  /**
+   * How many times an agent has been started on it, as the journal remembers.
+   * Not drawn: it is what tells one run from the next in `taskRev`, so a stop
+   * replayed after a reopen meets a count that has moved.
+   */
+  starts: number
+  /**
    * What may be asked of this task right now, and what may not with why.
    *
    * **Two lists rather than one, and the second is the point.** A control the
@@ -268,7 +280,7 @@ export interface TaskIn {
  *
  * **One rule, and this is where the two sides meet it.** `snapshot.ts` calls
  * it to put `rev` on the row, and the window calls it at the act to build the
- * revision `was` is compared against. Two spellings of the same six fields
+ * revision `was` is compared against. Two spellings of the same eight fields
  * would be a comparison that is always true or always false, and neither
  * failure would look like one.
  */
@@ -280,6 +292,8 @@ export function factsOf(task: TaskIn): TaskFacts {
     agents: task.agents,
     finished: task.finished,
     queue: task.queue,
+    lane: task.lane,
+    starts: task.starts,
   }
 }
 
@@ -289,6 +303,25 @@ export interface ProjectIn {
   name: string
   /** AUTHORED: what the person calls it, when that is not its name. */
   title: string
+  /**
+   * Whether it is on Tade's list now. Metadata.
+   *
+   * A closed project is still a row — for a device that may read it — because
+   * opening it again from away needs something to tap and a revision to echo.
+   * Its name is the whole of it: where it lived stays at the machine, and its
+   * tasks are not in the collections until it is open again.
+   */
+  open: boolean
+  /** How many times where it lives was written, out of the journal. `projectRev`. */
+  changes: number
+  /** What may be asked of the whole project, and what may not with why: `TaskIn.can`'s rule. */
+  can: readonly Can[]
+  cannot: readonly Cannot[]
+}
+
+/** The facts a project's revision is built from, out of its projected row: `factsOf`'s rule. */
+export function projectFactsOf(project: ProjectIn): ProjectFacts {
+  return { open: project.open, changes: project.changes }
 }
 
 /**

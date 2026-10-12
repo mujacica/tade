@@ -1,13 +1,15 @@
 import type { Config, InboxRow, Queued, TadeEvent } from '@tade/core'
-import type { Device, ServerOptions, Surface, TaskFacts, WebPushing } from '@tade/web'
+import type { Device, ProjectIn, ServerOptions, Surface, TaskFacts, WebPushing } from '@tade/web'
 import { surfaceOf } from '@tade/web'
 import type { Workbench } from '@tade/workbench'
-import { webActing } from './web-acting.ts'
+import { type ActingDeps, webActing } from './web-acting.ts'
 import { type Talking, webAsking } from './web-asking.ts'
 import { steeringFor } from './web-beat.ts'
 import { webDrafting } from './web-drafting.ts'
+import { type Lifecycle, lifecycleActing, projectSeen } from './web-lifecycle.ts'
+import { type ConfiguringDeps, webConfiguring } from './web-settings.ts'
 
-// The four halves of the away view the window hands over, and the one rule
+// The five halves of the away view the window hands over, and the one rule
 // they share.
 //
 // **Each is handed over only where its own setting says so, and absence is the
@@ -32,6 +34,10 @@ export interface Halving {
   config: () => Config
   /** The facts a task's row carried, out of the row itself (`factsOf`). */
   seen: (task: string) => TaskFacts | null
+  /** The project rows the projection was built from: what a project verb's `was` is checked against. */
+  projects: () => readonly ProjectIn[]
+  /** The agents and projects subjects, for the four lifecycle verbs. */
+  lifecycle: Lifecycle
   /** Why work that came from outside may not go ahead now, or null. */
   stands: (row: InboxRow) => Promise<string | null>
   queue: () => { items: readonly Queued[]; events: readonly TadeEvent[] }
@@ -52,6 +58,8 @@ export interface Halving {
    * `WebPush` in `web-push.ts` is it; what is here is which halves exist.
    */
   notifications: () => { half: WebPushing; key: () => string }
+  /** The settings and the one door they are written by, for a change from away. */
+  settings: Pick<ConfiguringDeps, 'rows' | 'known' | 'write'>
   now: () => number
 }
 
@@ -63,31 +71,7 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
     // same `404` as a path nobody built. `unlocked()` is read again at every
     // act, which is what makes turning the setting off take effect now
     // rather than at the next restart.
-    ...(surface.acting
-      ? {
-          acting: webActing({
-            tade: deps.tade,
-            acting: () => surfaceOf(deps.config().surfaces.web).acting,
-            // **The facts the row carried, out of the row itself.** What a
-            // verb's `was` is compared against is built by `factsOf` from
-            // the same projected task the device tapped, so a mismatch is
-            // the world having moved and never two spellings of a
-            // revision.
-            seen: (task) => deps.seen(task),
-            steering: (task) => steeringFor(deps.tade, task),
-            // The queue's own rule asked of work that came from outside,
-            // which needs the extension host: only a window can ask a
-            // watch whether a request still stands.
-            stands: (row) => deps.stands(row),
-            queue: deps.queue,
-            // The window's own config, read at the act: a grant somebody
-            // turned off a second ago has to mean something before the next
-            // restart.
-            config: () => deps.config(),
-            now: () => deps.now(),
-          }),
-        }
-      : {}),
+    ...(surface.acting ? { acting: actingFor(deps) } : {}),
     // **Handed over only where the setting says so**, like acting and for
     // the same reason: with talking off there is no `WebAsking` and no
     // asking route, so a crafted call is the `404` of a path nobody built.
@@ -134,6 +118,19 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
     // `vapid` goes with it and never without it: a page told a public key by a
     // listener with no notifying half would draw a control with no route
     // behind it.
+    // **Handed over only where the setting says so**, like the other four: with
+    // changing off there is no `WebConfiguring` and no changing route, so a
+    // crafted call is the `404` of a path nobody built. `unlocked()` is read
+    // again at every change, and the device record again at the write.
+    ...(surface.configuring
+      ? {
+          configuring: webConfiguring({
+            ...deps.settings,
+            configuring: () => surfaceOf(deps.config().surfaces.web).configuring,
+            devices: () => deps.devices(),
+          }),
+        }
+      : {}),
     ...(surface.pushing
       ? (() => {
           const notifications = deps.notifications()
@@ -141,4 +138,45 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
         })()
       : {}),
   }
+}
+
+/**
+ * The acting half: the eight verbs about a task's work and the four about its
+ * lifecycle, as one `WebActing` over the same doors.
+ *
+ * Two functions rather than one because the lifecycle's re-checks lean on the
+ * first check every verb makes (`onTask`), and putting both in one file would
+ * make it the size of a conversation. What the server is handed is one object
+ * with a method per verb, which is the guarantee: nothing else is on it.
+ */
+function actingFor(deps: Halving): ServerOptions['acting'] {
+  const doors: ActingDeps = {
+    tade: deps.tade,
+    acting: () => surfaceOf(deps.config().surfaces.web).acting,
+    // **The facts the row carried, out of the row itself.** What a
+    // verb's `was` is compared against is built by `factsOf` from
+    // the same projected task the device tapped, so a mismatch is
+    // the world having moved and never two spellings of a
+    // revision.
+    seen: (task) => deps.seen(task),
+    steering: (task) => steeringFor(deps.tade, task),
+    // The queue's own rule asked of work that came from outside,
+    // which needs the extension host: only a window can ask a
+    // watch whether a request still stands.
+    stands: (row) => deps.stands(row),
+    queue: deps.queue,
+    // The window's own config, read at the act: a grant somebody
+    // turned off a second ago has to mean something before the next
+    // restart.
+    config: () => deps.config(),
+    now: () => deps.now(),
+    // **The same rows the device tapped**, so a project verb's `was` is
+    // compared against the value its row carried and never a fresh reading.
+    lifecycle: {
+      agents: () => deps.lifecycle.agents(),
+      projects: () => deps.lifecycle.projects(),
+      seenProject: (name) => projectSeen(deps.projects(), name),
+    },
+  }
+  return { ...webActing(doors), ...lifecycleActing(doors) }
 }

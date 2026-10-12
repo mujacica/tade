@@ -47,6 +47,25 @@ import {
 // door.
 
 /**
+ * What a remote turn's "where are we" is answered with: that device's own
+ * projection, which `Arming.seen` has the argument for.
+ *
+ * A device that has gone **throws** rather than answering an empty tree:
+ * *that device is no longer paired* is a true sentence a model can act on, and
+ * nought projects would read as a machine with no work on it.
+ */
+export function seenFrom(
+  arm: Arm,
+  paired: (device: string) => Device | undefined,
+  snapshot: (device: Device) => unknown,
+): Promise<unknown> {
+  if (arm.how !== 'remote') throw new Error('only a turn from away is answered this way')
+  const device = paired(arm.device)
+  if (device === undefined) throw new Error('that device is no longer paired')
+  return Promise.resolve(snapshot(device))
+}
+
+/**
  * What the `ToolHost` is handed so a call can be judged, built out of the
  * window's own three answers.
  *

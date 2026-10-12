@@ -119,22 +119,26 @@ export function task(over: Partial<TaskIn> = {}): TaskIn {
     approval: null,
     finished: false,
     queue: '',
-    // **Every verb named**, in one list or the other, because that is what the
-    // page is held to and a fixture mentioning four would be a page tested
-    // with half its controls missing. The shape is a working task nobody
-    // queued: its agent is running, nothing waits on an answer, and it did not
-    // come from outside.
+    lane: 'running',
+    starts: 1,
+    // **Every task verb named**, in one list or the other, because that is
+    // what the page is held to and a fixture mentioning four would be a page
+    // tested with half its controls missing. The shape is a working task
+    // nobody queued: its agent is running, nothing waits on an answer, and it
+    // did not come from outside.
     can: [
       { verb: 'park', how: 'now' },
       { verb: 'steer', how: 'next-turn' },
       { verb: 'done', how: 'now' },
       { verb: 'note', how: 'now' },
       { verb: 'context', how: 'now' },
+      { verb: 'stop', how: 'now' },
     ],
     cannot: [
       { verb: 'answer', why: 'nothing is waiting on an answer' },
       { verb: 'queue', why: 'it is not queued work' },
       { verb: 'intake', why: 'it did not come from outside this machine' },
+      { verb: 'reopen', why: 'its agent is running' },
     ],
     spend: spend(),
     checks: { state: 'unknown', failed: [], missing: ['tests'], overridden: false },
@@ -168,7 +172,15 @@ export function blocked(): TaskIn {
 }
 
 export function project(over: Partial<ProjectIn> = {}): ProjectIn {
-  return { name: 'sentry', title: 'Sentry', ...over }
+  return {
+    name: 'sentry',
+    title: 'Sentry',
+    open: true,
+    changes: 1,
+    can: [{ verb: 'close', how: 'now' }],
+    cannot: [{ verb: 'open', why: 'it is open' }],
+    ...over,
+  }
 }
 
 export function queued(over: Partial<QueueIn> = {}): QueueIn {

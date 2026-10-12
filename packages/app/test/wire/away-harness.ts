@@ -35,7 +35,10 @@ import { emptyTranscript, type Transcript } from '../../src/transcript.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Away } from '../../src/wire/web.ts'
 import { type FactoryHeld, nothingHandedOver } from '../../src/wire/web-beat.ts'
+import { capabilities } from './away-capabilities.ts'
 import { homeConfig, INTAKE } from './away-intake.ts'
+import { type AgentLanes, laneDoor, lifecycleFor } from './away-lifecycle.ts'
+import { settingsDoor, settingsOn } from './away-settings.ts'
 
 // A window with a real workbench behind it, a real listener on loopback, and a
 // phone making real requests.
@@ -102,6 +105,11 @@ export interface Machine {
   watch(task: string): void
   /** An agent is running on this task, as the world and the harness say. */
   running(task: string, harness?: string): void
+  /**
+   * The registry's own agent lane for this task: set it alive or kept with its
+   * spec, or leave `alive` out to read it. Undefined for a task with none.
+   */
+  lane(task: string, alive?: boolean): boolean | undefined
   /**
    * This task is queued work, with nothing in front of it.
    *
@@ -188,12 +196,16 @@ export interface MachineOptions {
    * kinder than reality.
    */
   writeKey?: (key: string, value: string, was: string) => Promise<void>
+  /** Changing a setting from away on, in both configs (`settingsOn`). */
+  settings?: boolean
 }
 
 export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const repo = mkrepo()
   const home = tmp('tade-away-act-')
   writeFileSync(join(home, 'config.yaml'), homeConfig(repo.root, over.intake === true))
+  const port = await freePort()
+  if (over.settings === true) settingsOn(home, port, over.acting ?? true)
   const client = await Workbench.open({ home })
   shut.push(client)
   const first = await client.createTask({
@@ -204,7 +216,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
 
   let state: AppState = initialState()
   const news: string[] = []
-  const port = await freePort()
   const config =
     over.config?.({ root: repo.root, port }) ??
     ConfigSchema.parse({
@@ -215,12 +226,14 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
           port,
           acting: over.acting ?? true,
           orchestrator: over.talking === true,
+          settings: over.settings === true,
         },
         ...(over.intake === true ? { intake: INTAKE } : {}),
       },
     })
   const watched: string[] = [first.id]
   const agents = new Map<string, string>()
+  const lanes: AgentLanes = new Map()
   const pending: { run: string; task: string; requestId: string; tool: string; at: number }[] = []
   const queued: Queued[] = []
   const looked = new Map<string, ActionsView>()
@@ -240,11 +253,16 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     get events() {
       return events
     },
+    get rootLines() {
+      return events
+    },
     get pending() {
       return pending
     },
     get world(): Workspace {
-      return worldOf(home, repo.root, watched, agents, reviews)
+      // A project the window's config no longer has is not in the world.
+      const world = worldOf(home, repo.root, watched, agents, reviews, lanes)
+      return Object.hasOwn(held.projects, 'app') ? world : { ...world, projects: [] }
     },
     seenActions: (task: string) => looked.get(task) ?? null,
     spendToday: () => ({ byTask: {} }),
@@ -265,6 +283,10 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     spendSince: null,
     talk: null,
     worktreeOf: () => repo.root,
+    useConfig: () => {},
+    refresh: async () => {
+      events = await client.events({})
+    },
   }
 
   let held = config
@@ -274,6 +296,10 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
       get config() {
         return held
       },
+      // What `Settings.use` hands everything that holds a config, after a write.
+      set config(next: Config) {
+        held = next
+      },
       client: new Proxy(client, {
         get(target, name) {
           // The three doors a verb reaches that a real harness would answer,
@@ -281,6 +307,8 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
           // happens when something is said to an agent. Everything else —
           // the task files, the journal, the notes, the queue — is the real
           // workbench's.
+          const door = laneDoor(name, lanes, agents, client)
+          if (door !== undefined) return door
           if (name === 'runs') {
             return () => [...agents].map(([task, harness]) => ({ task, harness, run: task }))
           }
@@ -354,12 +382,20 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     // through the one writer a setting goes through — and deliberately does
     // **not** hand it to the window, which is the direction that makes a test
     // depending on it fail rather than pass.
-    writeKey:
+    settings: settingsDoor(
+      wire,
       over.writeKey ??
-      ((key, value) => {
-        writeSetting(join(home, 'config.yaml'), key, value)
-        return Promise.resolve()
-      }),
+        ((key, value) => {
+          writeSetting(join(home, 'config.yaml'), key, value)
+          return Promise.resolve()
+        }),
+    ),
+    lifecycle: lifecycleFor(wire, {
+      get: () => held,
+      set: (next) => {
+        held = next
+      },
+    }),
   })
   open.push(away)
   const made: Machine = {
@@ -375,6 +411,10 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     told,
     watch: (task) => void watched.push(task),
     running: (task, harness = 'pi') => void agents.set(task, harness),
+    lane: (task, alive) => {
+      if (alive !== undefined) lanes.set(task, alive)
+      return lanes.get(task)
+    },
     checked: (task, rollup) =>
       void looked.set(task, {
         task,
@@ -453,43 +493,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   return made
 }
 
-/** Intake on, accepting `cli` requests from `kim` into `app`. */
-/**
- * A capabilities answer that can take a message live. The one `offer()` reads.
- *
- * Only `why` and `steer` matter here; the rest is filled in so the shape is a
- * real `WorkerCapabilities` rather than a cast.
- */
-function capabilities(steer: 'live' | 'idle' | 'none' = 'live') {
-  return {
-    permissionGate: true,
-    steer,
-    queue: 'live' as const,
-    abort: 'live' as const,
-    model: 'live' as const,
-    thinking: 'live' as const,
-    thinkingLevels: [],
-    rename: 'live' as const,
-    images: 'inline' as const,
-    visibleUi: false,
-    resume: true,
-    resumeKeeps: true,
-    continues: true,
-    done: true,
-    nativeExtensions: false,
-    skills: false,
-    tools: true,
-    mcp: true,
-    headless: true,
-    spend: { usd: 'exact' as const, tokens: true, limits: 'none' as const },
-    accounts: false,
-    why: steer === 'none' ? { steer: 'pi has no way to take a message mid-turn' } : {},
-  }
-}
-
-/** The capabilities of a harness that cannot be told anything. */
-export const CANNOT_STEER = capabilities('none')
-
 /**
  * The world, with each task's **real** park read back off its **real** file.
  *
@@ -503,6 +506,7 @@ function worldOf(
   tasks: readonly string[],
   agents: ReadonlyMap<string, string>,
   git: ReadonlyMap<string, GitSnapshot> = new Map(),
+  lanes: ReadonlyMap<string, boolean> = new Map(),
 ): Workspace {
   return {
     generatedAt: new Date().toISOString(),
@@ -512,7 +516,9 @@ function worldOf(
         root,
         brief: null,
         untracked: [],
-        tasks: tasks.map((id) => taskOf(home, root, id, agents.has(id), git.get(id) ?? null)),
+        tasks: tasks.map((id) =>
+          taskOf(home, root, id, agents.has(id), git.get(id) ?? null, lanes.get(id)),
+        ),
       },
     ],
     elsewhere: [],
@@ -527,6 +533,7 @@ function taskOf(
   id: string,
   running: boolean,
   git: GitSnapshot | null = null,
+  lane: boolean | undefined = undefined,
 ): Task {
   // **Read out of the real task file, including the two the runs fold needs.**
   // `effort` and `start` are what group tasks into a run and what the graph's
@@ -563,7 +570,7 @@ function taskOf(
           },
         ]
       : [],
-    lanes: [],
+    lanes: lane === undefined ? [] : [{ id: `${id}/agent`, kind: 'agent', alive: lane, pid: null }],
     ...(file.parked === undefined ? {} : { parked: file.parked }),
     ...(file.by === undefined ? {} : { by: file.by }),
     ...(file.done === undefined ? {} : { done: file.done }),
@@ -744,6 +751,14 @@ export async function paired(
     },
   ])
   if (scopes.length > 0) await allowDevice(home, DEVICE, scopes, new Date())
+}
+
+/** One change to a setting, as a browser would send it. */
+export function change(
+  port: number,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, '/api/settings/change', body)
 }
 
 /** One save of a draft field, as a browser would send it. */

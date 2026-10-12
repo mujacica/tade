@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { carryOut } from './acted.ts'
-import type { Standing } from './acts.ts'
+import { carryOut, type Did } from './acted.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
+import { carryChange } from './configured.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
@@ -206,7 +206,11 @@ export function webServer(opts: ServerOptions): WebServer {
       // A **verb or a message**, and each under its own type: an act and a
       // paragraph to a model are different things to read back, and the
       // question somebody has about a phone is which of the two it asked for.
-      const asked = found.route.verb ?? found.route.says ?? found.route.saves
+      const asked =
+        found.route.verb ??
+        found.route.says ??
+        found.route.saves ??
+        (found.route.configures === undefined ? undefined : 'setting')
       if (asked !== undefined) {
         tell({
           type: found.route.says === undefined ? 'web_did' : 'web_asked',
@@ -286,6 +290,7 @@ export function webServer(opts: ServerOptions): WebServer {
       streams.renewed(device.id, until)
     }
 
+    const at: At = { req, origin: verdict.origin, request }
     switch (found.route.name) {
       case 'snapshot':
         return json(res, opts.readingFor(reachOf(device)).snapshot())
@@ -299,6 +304,8 @@ export function webServer(opts: ServerOptions): WebServer {
         const task = `${found.params.project ?? ''}/${found.params.task ?? ''}`
         return json(res, opts.readingFor(reachOf(device)).agent(task))
       }
+      case 'settings':
+        return json(res, opts.readingFor(reachOf(device)).settings())
       case 'devices':
         return json(
           res,
@@ -316,17 +323,14 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
       default:
-        if (found.route.verb !== undefined) {
-          return act(req, res, found.route, device, verdict.origin, request)
-        }
-        if (found.route.says !== undefined) {
-          return say(req, res, found.route.says, device, verdict.origin, request)
-        }
-        if (found.route.saves !== undefined) {
-          return save(req, res, found.route.saves, device, verdict.origin, request)
-        }
+        if (found.route.verb !== undefined) return act(res, found.route, device, at)
+        if (found.route.says !== undefined) return say(res, found.route.says, device, at)
+        if (found.route.saves !== undefined) return save(res, found.route.saves, device, at)
         if (found.route.notifies !== undefined) {
-          return notify(req, res, found.route.notifies, device, verdict.origin, request)
+          return notify(res, found.route.notifies, device, at)
+        }
+        if (found.route.configures !== undefined) {
+          return configure(res, found.route.configures, device, at)
         }
         return answer(res, refuse('no_such'))
     }
@@ -403,204 +407,160 @@ export function webServer(opts: ServerOptions): WebServer {
   }
 
   /**
-   * One act: the body, then `carryOut`, then the bytes.
+   * One act: `carryOut`, through `door`.
    *
    * Every decision is in `acted.ts` and every re-check is in `acts.ts`, so
    * what is here is the two things only a listener can do — read a bounded
-   * body, and write an answer. The audit line goes out **whatever** came of
-   * it, which is the half somebody will want to leave out: a device asking
-   * for something it may not have is exactly what a person reading back needs
-   * to see.
+   * body, and write an answer. No `WebActing` at all is a window that was not
+   * given the acting half, which is "this listener does not do that": a `404`,
+   * like every other capability that is not here — and the same holds for each
+   * door below and its own half.
    */
-  async function act(
-    req: IncomingMessage,
-    res: ServerResponse,
-    route: Route,
-    device: Device,
-    origin: { scheme: string; host: string },
-    request: string,
-  ): Promise<void> {
+  async function act(res: Res, route: Route, device: Device, at: At): Promise<void> {
     const acting = opts.acting
-    // No `WebActing` at all is a window that was not given the acting half,
-    // which is "this listener does not do that": a `404`, like every other
-    // capability that is not here.
     if (acting === undefined) return answer(res, refuse('no_such'))
-    const got = await readBody(req)
-    if (!got.read) return answer(res, got.refusal)
     await readReceipts()
-
-    const answered = await carryOut(route, got.body, {
-      acting,
-      receipts,
-      surface: opts.surface,
-      unlocked: asked(() => acting.unlocked(), false),
-      rev: opts.readingFor(reachOf(device)).rev,
-      reach: reachOf(device),
-      scopes: device.scopes as Standing['scopes'],
-      origin,
-      device: device.id,
-      now: now(),
-      request,
-    })
-    if (answered.warning !== null) {
-      tell({ type: 'warning', detail: { warning: answered.warning, request } })
-    }
-    const { task, ...detail } = answered.did
-    tell({ type: 'web_did', ...(task === '' ? {} : { task }), detail })
-    if (answered.refusal !== null) return answer(res, answered.refusal)
-    return json(res, answered.body ?? {})
+    return door(
+      res,
+      at,
+      (body) => carryOut(route, body, { acting, ...standing(device, at, () => acting.unlocked()) }),
+      ({ task, ...detail }) => ({ type: 'web_did', ...(task === '' ? {} : { task }), detail }),
+    )
   }
 
   /**
-   * One message to Tade: the body, then `carryAsk`, then the bytes.
-   *
-   * The sibling of `act`, and deliberately the same five lines: read a bounded
-   * body, decide nothing here, write the answer, and write the audit line
-   * **whatever** came of it. The line is a `web_asked` rather than a `web_did`
-   * — a bounded verb and a paragraph to a model are different things to read
-   * back, and the question somebody has about a phone is *what did it ask*.
+   * One message to Tade: `carryAsk`, through `door`. The line is a
+   * `web_asked` rather than a `web_did` — a bounded verb and a paragraph to a
+   * model are different things to read back, and the question somebody has
+   * about a phone is *what did it ask*.
    */
-  async function say(
-    req: IncomingMessage,
-    res: ServerResponse,
-    says: string,
-    device: Device,
-    origin: { scheme: string; host: string },
-    request: string,
-  ): Promise<void> {
+  async function say(res: Res, says: string, device: Device, at: At): Promise<void> {
     const asking = opts.asking
-    // No `WebAsking` at all is a window that was not given the asking half,
-    // which is "this listener does not do that": a `404`, like every other
-    // capability that is not here.
     if (asking === undefined) return answer(res, refuse('no_such'))
-    const got = await readBody(req)
-    if (!got.read) return answer(res, got.refusal)
     await readReceipts()
-
-    const answered = await carryAsk(says, got.body, {
-      asking,
-      receipts,
-      surface: opts.surface,
-      unlocked: asked(() => asking.unlocked(), false),
-      rev: opts.readingFor(reachOf(device)).rev,
-      reach: reachOf(device),
-      scopes: device.scopes as Scope[],
-      origin,
-      device: device.id,
-      now: now(),
-      request,
-    })
-    if (answered.warning !== null) {
-      tell({ type: 'warning', detail: { warning: answered.warning, request } })
-    }
-    const { task: _task, ...detail } = answered.did
-    tell({ type: 'web_asked', detail })
-    if (answered.refusal !== null) return answer(res, answered.refusal)
-    return json(res, answered.body ?? {})
+    return door(
+      res,
+      at,
+      (body) => carryAsk(says, body, { asking, ...standing(device, at, () => asking.unlocked()) }),
+      ({ task: _task, ...detail }) => ({ type: 'web_asked', detail }),
+    )
   }
 
   /**
-   * One field of one draft, saved.
+   * One field of one draft, saved: `carrySave`, through `door`.
    *
-   * The same shape `say` has, and the same five things owed: the body read
-   * once, the receipts read once, the gate, the audit line whatever happened,
-   * and the answer as a value so the caller writes the headers it always
-   * writes. A `web_did` and not a `web_asked`: a save is an act with a target,
-   * not a paragraph to a model.
+   * **The draft's name goes in the detail and never on `event.task`.** A
+   * workflow is not a task, and a `web_did` carrying one as its task would
+   * make the journal claim a task exists by that name — which every fold keyed
+   * by task would then read as one.
    */
-  async function save(
-    req: IncomingMessage,
-    res: ServerResponse,
-    saves: string,
-    device: Device,
-    origin: { scheme: string; host: string },
-    request: string,
-  ): Promise<void> {
+  async function save(res: Res, saves: string, device: Device, at: At): Promise<void> {
     const drafting = opts.drafting
-    // No `WebDrafting` at all is a window that was not given the saving half,
-    // which is "this listener does not do that": a `404`, like every other
-    // capability that is not here.
     if (drafting === undefined) return answer(res, refuse('no_such'))
-    const got = await readBody(req)
-    if (!got.read) return answer(res, got.refusal)
     await readReceipts()
-
-    const answered = await carrySave(saves, got.body, {
-      drafting,
-      receipts,
-      surface: opts.surface,
-      unlocked: asked(() => drafting.unlocked(), false),
-      rev: opts.readingFor(reachOf(device)).rev,
-      reach: reachOf(device),
-      scopes: device.scopes as Scope[],
-      origin,
-      device: device.id,
-      now: now(),
-      request,
-    })
-    if (answered.warning !== null) {
-      tell({ type: 'warning', detail: { warning: answered.warning, request } })
-    }
-    // **The draft's name goes in the detail and never on `event.task`.** A
-    // workflow is not a task, and a `web_did` carrying one as its task would
-    // make the journal claim a task exists by that name — which every fold
-    // keyed by task would then read as one.
-    const { task: template, ...rest } = answered.did
-    tell({ type: 'web_did', detail: { ...rest, ...(template === '' ? {} : { template }) } })
-    if (answered.refusal !== null) return answer(res, answered.refusal)
-    return json(res, answered.body ?? {})
+    return door(
+      res,
+      at,
+      (body) =>
+        carrySave(saves, body, { drafting, ...standing(device, at, () => drafting.unlocked()) }),
+      ({ task: template, ...rest }) => ({
+        type: 'web_did',
+        detail: { ...rest, ...(template === '' ? {} : { template }) },
+      }),
+    )
   }
 
   /**
-   * Subscribing or forgetting: the body, then `carryPush`, then the bytes.
-   *
-   * The fourth sibling of `act`, `say` and `save`, and the same five lines:
-   * read a bounded body, decide nothing here, write the answer, and write the
-   * audit line **whatever** came of it. The line is a `web_subscribed` rather
-   * than a `web_did` — what changed is not work, it is that this machine will
-   * now reach out to a push service about that phone, and that is the question
-   * somebody reading back has.
+   * Subscribing or forgetting: `carryPush`, through `door`. The line is a
+   * `web_subscribed` rather than a `web_did` — what changed is not work, it is
+   * that this machine will now reach out to a push service about that phone —
+   * and it has no task, ever.
    *
    * There is no `readReceipts()` here, and `pushed.ts` has the argument: a
    * repeat of this meets its own row, so there is nothing a key would buy.
    */
-  async function notify(
-    req: IncomingMessage,
-    res: ServerResponse,
-    notifies: string,
-    device: Device,
-    origin: { scheme: string; host: string },
-    request: string,
-  ): Promise<void> {
+  async function notify(res: Res, notifies: string, device: Device, at: At): Promise<void> {
     const pushing = opts.pushing
-    // No `WebPushing` at all is a window that was not given the notifying
-    // half, which is "this listener does not do that": a `404`, like every
-    // other capability that is not here.
     if (pushing === undefined) return answer(res, refuse('no_such'))
-    const got = await readBody(req)
-    if (!got.read) return answer(res, got.refusal)
+    return door(
+      res,
+      at,
+      (body) =>
+        carryPush(notifies, body, { pushing, ...standing(device, at, () => pushing.unlocked()) }),
+      ({ task: _none, ...detail }) => ({ type: 'web_subscribed', detail }),
+    )
+  }
 
-    const answered = await carryPush(notifies, got.body, {
-      pushing,
+  /**
+   * One setting changed: `carryChange`, through `door`.
+   *
+   * The path goes in the detail as `setting` and never on `event.task`, for
+   * the reason a draft's name does not: a setting is not a task. The window's
+   * own `config_changed` line is the other half of the record, with what it
+   * was, what it is and `by: device <id>`.
+   */
+  async function configure(res: Res, name: string, device: Device, at: At): Promise<void> {
+    const configuring = opts.configuring
+    if (configuring === undefined) return answer(res, refuse('no_such'))
+    await readReceipts()
+    return door(
+      res,
+      at,
+      (body) =>
+        carryChange(name, body, {
+          configuring,
+          ...standing(device, at, () => configuring.unlocked()),
+        }),
+      ({ task: setting, ...rest }) => ({
+        type: 'web_did',
+        detail: { ...rest, ...(setting === '' ? {} : { setting }) },
+      }),
+    )
+  }
+
+  /**
+   * One door: a bounded body read once, the carrying, the audit line
+   * **whatever** came of it, and the answer as a value — the five lines every
+   * door owes, written once so five doors cannot each forget a different one.
+   * The audit line is the half somebody will want to leave out: a device
+   * asking for something it may not have is exactly what a person reading back
+   * needs to see.
+   */
+  async function door(
+    res: Res,
+    at: At,
+    carry: (body: unknown) => Promise<Carried>,
+    line: (did: Did) => Told,
+  ): Promise<void> {
+    const got = await readBody(at.req)
+    if (!got.read) return answer(res, got.refusal)
+    const answered = await carry(got.body)
+    if (answered.warning !== null) {
+      tell({ type: 'warning', detail: { warning: answered.warning, request: at.request } })
+    }
+    tell(line(answered.did))
+    if (answered.refusal !== null) return answer(res, answered.refusal)
+    return json(res, answered.body ?? {})
+  }
+
+  /**
+   * What every door's gate is decided against, read **at this request**: the
+   * device record was read a moment ago, and a grant narrowed a second ago
+   * counts. One function, so five doors cannot disagree about it.
+   */
+  function standing(device: Device, at: At, unlocked: () => boolean) {
+    return {
+      receipts,
       surface: opts.surface,
-      unlocked: asked(() => pushing.unlocked(), false),
+      unlocked: asked(unlocked, false),
       rev: opts.readingFor(reachOf(device)).rev,
       reach: reachOf(device),
       scopes: device.scopes as Scope[],
-      origin,
+      origin: at.origin,
       device: device.id,
       now: now(),
-      request,
-    })
-    if (answered.warning !== null) {
-      tell({ type: 'warning', detail: { warning: answered.warning, request } })
+      request: at.request,
     }
-    // No task, ever: a subscription is about a device and about no work at all,
-    // so there is no `event.task` to put one on.
-    const { task: _none, ...detail } = answered.did
-    tell({ type: 'web_subscribed', detail })
-    if (answered.refusal !== null) return answer(res, answered.refusal)
-    return json(res, answered.body ?? {})
   }
 
   /**
@@ -787,6 +747,23 @@ export function webServer(opts: ServerOptions): WebServer {
       boundHosts.length = 0
     },
   }
+}
+
+/** Where one door's request came from: the request itself, its origin, and its id. */
+interface At {
+  req: IncomingMessage
+  origin: { scheme: string; host: string }
+  request: string
+}
+
+type Res = ServerResponse
+
+/** What every door's carrying comes to: what the device is told, and what is written down. */
+interface Carried {
+  body: Record<string, unknown> | null
+  refusal: Refusal | null
+  did: Did
+  warning: string | null
 }
 
 /** No device list at all, for a route that needs none. */

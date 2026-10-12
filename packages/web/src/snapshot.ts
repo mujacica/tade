@@ -1,5 +1,5 @@
 import type { PlanStanding, Spend } from '@tade/core'
-import { taskRev } from './acting.ts'
+import { projectRev, taskRev } from './acting.ts'
 import {
   type IntakeIn,
   intakeRow,
@@ -16,6 +16,7 @@ import {
   type FindingIn,
   factsOf,
   type NoteIn,
+  projectFactsOf,
   type QueueIn,
   type QueueStateIn,
   type ReasonIn,
@@ -160,6 +161,7 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     // question about a harness and a lane, which only the window can answer.
     can: task.can.map((one) => ({ verb: one.verb, how: one.how })),
     cannot: task.cannot.map((one) => ({ verb: one.verb, why: one.why })),
+    lane: task.lane,
     createdAt: ISO(task.createdAt),
     movedAt: ISO_OR(task.movedAt),
     title: said(task.title, has(reach, 'titles')),
@@ -575,6 +577,11 @@ function projectRow(
   return {
     name: project.name,
     title: has(reach, 'titles') ? textOf(project.title, budget.text) : null,
+    open: project.open,
+    // The same rule the window builds it by at the act, out of the same row.
+    rev: projectRev(projectFactsOf(project)),
+    can: project.can.map((one) => ({ verb: one.verb, how: one.how })),
+    cannot: project.cannot.map((one) => ({ verb: one.verb, why: one.why })),
     counts: {
       tasks: mine.length,
       shown,

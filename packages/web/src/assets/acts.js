@@ -24,8 +24,37 @@
 //   the project and the state at the act. A page that lied here would get a
 //   `403`, which is the right way round.
 
-/** The verbs this page draws a control for, in the order they are drawn. */
-export const SHOWN = ['answer', 'steer', 'queue', 'done', 'note', 'context', 'intake', 'park']
+/** The verbs a task's page draws a control for, in the order they are drawn. */
+export const SHOWN = [
+  'answer',
+  'steer',
+  'queue',
+  'done',
+  'note',
+  'context',
+  'intake',
+  'park',
+  'stop',
+  'reopen',
+]
+
+/**
+ * The verbs a project's page draws a control for: the two about the whole of
+ * it. A project row carries `can` and `cannot` over exactly these, as a task
+ * row does over `SHOWN`.
+ */
+export const PROJECT_SHOWN = ['close', 'open']
+
+/**
+ * The second of each pair, by the first: one block is drawn per pair.
+ *
+ * A stop and a reopen are one question from two sides — is its agent running
+ * — and so are a close and an open. The row puts both in its lists, each with
+ * its reason, and the page draws the half that can be asked: the other's
+ * reason is the control beside it. Where neither can be, the first one's
+ * reason stands for both rather than being said twice.
+ */
+export const PAIRS = { reopen: 'stop', open: 'close' }
 
 /**
  * The scope each verb needs, as the page's copy of `VERBS`.
@@ -45,6 +74,11 @@ export const NEEDS = {
   note: 'steer',
   context: 'steer',
   intake: 'answer',
+  // The lifecycle: two scopes of their own, implied by neither tier above.
+  stop: 'agents',
+  reopen: 'agents',
+  close: 'projects',
+  open: 'projects',
 }
 
 /**
@@ -87,6 +121,12 @@ export function actsOf(session) {
     steer: has('steer'),
     ask: has('ask'),
     draft: has('draft'),
+    // Stopping an agent and closing a project are granted one device at a
+    // time at the machine, and neither tier implies either.
+    agents: has('agents'),
+    projects: has('projects'),
+    // Changing a setting: its own chip at the machine, implied by nothing.
+    configure: has('configure'),
   }
 }
 
@@ -194,10 +234,21 @@ export function standingOf(verb, row, acts) {
  * Every verb's standing on one row, in the order the page draws them.
  *
  * One pass, so a screen cannot ask about one verb and forget another: the page
- * walks this and the list is `SHOWN`.
+ * walks this, and the list is `SHOWN` for a task and `PROJECT_SHOWN` for a
+ * project. **One block per pair** (`PAIRS`): the half that can be asked is
+ * drawn, and the other is `off` — its reason is the control beside it.
  */
-export function controlsFor(row, acts) {
-  return SHOWN.map((verb) => ({ verb, ...standingOf(verb, row, acts) }))
+export function controlsFor(row, acts, verbs = SHOWN) {
+  const made = verbs.map((verb) => ({ verb, ...standingOf(verb, row, acts) }))
+  return made.map((one) => {
+    const first = PAIRS[one.verb] ?? one.verb
+    const second = Object.keys(PAIRS).find((verb) => PAIRS[verb] === first) ?? one.verb
+    const pair = made.filter((each) => each.verb === first || each.verb === second)
+    if (pair.length < 2 || one.kind === 'off') return one
+    // The half that can be asked, or the first where neither can: one block.
+    const drawn = pair.find((each) => each.kind === 'yes') ?? pair[0]
+    return drawn.verb === one.verb ? one : { ...one, kind: 'off', why: '' }
+  })
 }
 
 /**
@@ -209,6 +260,9 @@ export function controlsFor(row, acts) {
  * caller's, minted once per press and kept across a retry.
  */
 export function bodyFor(verb, row, key, rev, typed) {
+  // A project verb's target is the project, and its revision the project's own.
+  if (verb === 'close') return { project: row.name, was: row.rev, key, rev, confirm: true }
+  if (verb === 'open') return { project: row.name, was: row.rev, key, rev }
   const every = { task: row.id, was: row.rev, key, rev }
   switch (verb) {
     case 'park':
@@ -226,6 +280,8 @@ export function bodyFor(verb, row, key, rev, typed) {
     case 'context':
       return { ...every, add: typed.add ?? '' }
     case 'intake':
+      return { ...every, confirm: true }
+    case 'stop':
       return { ...every, confirm: true }
     default:
       return every
@@ -260,13 +316,15 @@ export function afterAnswer(answer, sentence) {
  *
  * Two of the verbs are not undoable by asking again — marking work finished
  * starts whatever waits on it, and approving a stranger's request puts an
- * agent on this machine to work on it — so each takes a second tap. The
- * schema's own `confirm` literal is the other half and neither stands in for
- * the other: this is what stops a mis-tap, and the literal is what stops a
- * body that means *do not*.
+ * agent on this machine to work on it — and two more are destructive-adjacent:
+ * stopping an agent cuts off whatever turn it was in, and closing a project
+ * takes its own settings with it. So each takes a second tap. The schema's own
+ * `confirm` literal is the other half and neither stands in for the other:
+ * this is what stops a mis-tap, and the literal is what stops a body that
+ * means *do not*.
  */
 export function confirms(verb) {
-  return verb === 'done' || verb === 'intake'
+  return verb === 'done' || verb === 'intake' || verb === 'stop' || verb === 'close'
 }
 
 /**
@@ -293,6 +351,14 @@ export function wordsFor(verb, row) {
       return 'Add to its context'
     case 'intake':
       return 'Approve this request'
+    case 'stop':
+      return 'Stop its agent'
+    case 'reopen':
+      return 'Open its agent again'
+    case 'close':
+      return 'Close this project'
+    case 'open':
+      return 'Open it again'
     default:
       return ''
   }
@@ -315,6 +381,12 @@ export function headingFor(verb) {
       return 'WHAT IT IS TOLD'
     case 'intake':
       return 'FROM OUTSIDE'
+    case 'stop':
+    case 'reopen':
+      return 'ITS AGENT'
+    case 'close':
+    case 'open':
+      return 'THIS PROJECT'
     default:
       return 'SET ASIDE'
   }
@@ -330,5 +402,64 @@ export function headingFor(verb) {
 export function howSaid(how) {
   if (how === 'next-turn') return 'when its turn ends'
   if (how === 'restart') return 'by starting it again, keeping the conversation'
+  return ''
+}
+
+/* ── the settings (`settings.js` draws them) ───────────────────────────────── */
+
+/** Where the settings are read, and where one is changed. */
+export const SETTINGS_PATH = '/api/settings'
+export const CHANGE_PATH = '/api/settings/change'
+
+/**
+ * One row's standing for this device: whether to draw a control, and what to
+ * say where not.
+ *
+ * - `off` — this device was not granted `configure`. No control and no
+ *   reason: the value is still drawn, because reading it is what was granted.
+ * - `no` — granted, and this setting is changed at the machine; the row's own
+ *   `why` is drawn.
+ * - `yes` — a control.
+ */
+export function settingStanding(row, acts) {
+  if (acts?.configure !== true) return { kind: 'off', why: '' }
+  if (row?.may !== 'change' || row?.was === null || row?.was === undefined) {
+    return { kind: 'no', why: row?.why ?? '' }
+  }
+  return { kind: 'yes', why: '' }
+}
+
+/**
+ * What one change sends: the path, the value the screen was drawn with, the
+ * new value, and the two fields every act carries.
+ *
+ * **A row that holds a key sends nothing but a clear**, whatever was typed:
+ * the page was never shown the key, so it can never have meant to set one, and
+ * the machine refuses anything else for it too.
+ */
+export function changeBody(row, value, key, rev) {
+  return {
+    path: row?.path ?? '',
+    was: row?.was ?? '',
+    value: row?.held === null || row?.held === undefined ? value : '',
+    confirm: true,
+    key,
+    rev,
+  }
+}
+
+/** What a row's value is, in words: the value, whether a key is held, or the fallback. */
+export function shownOf(row) {
+  if (row === null || row === undefined) return '—'
+  if (row.held !== null && row.held !== undefined) return row.held
+  if (row.shown !== '') return row.shown
+  return row.fallback === '' ? 'nothing set' : `nothing set — ${row.fallback}`
+}
+
+/** What a page that was not granted the settings, or could not ask, says instead. */
+export function settingsSaid(answer) {
+  if (answer === null) return 'asking…'
+  if (answer.granted !== true) return 'not granted to this device'
+  if (answer.groups.length === 0) return 'nothing here this device may read'
   return ''
 }

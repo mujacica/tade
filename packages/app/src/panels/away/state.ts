@@ -90,6 +90,40 @@ export const AWAY_CONTROLS = {
    * needs no setting, because nothing it grants can change anything.
    */
   see: 'away-see:',
+  /**
+   * Let one device stop an agent and open it again, or take it back:
+   * `away-agents:<id>`.
+   *
+   * **A chip of its own and not a wider `act`**, for the reason `talk` is one:
+   * a device that may say something to an agent has not been granted a say in
+   * whether it runs at all. Drawn only where acting is on, because these verbs
+   * are acting routes and there is no route to reach with it off.
+   */
+  agents: 'away-agents:',
+  /**
+   * Let one device close a project and open it again, or take it back:
+   * `away-projects:<id>`. Its own chip again: closing changes what every
+   * surface draws and takes the project's own settings with it.
+   */
+  projects: 'away-projects:',
+  /**
+   * Let one device read the settings, or take it back: `away-settings:<id>`.
+   *
+   * **A reading grant like `lanes`, and drawn always for the same reason**:
+   * nothing it grants can change anything, and a key is never in what it lets
+   * through under any grant (`settingsFor`). It is also what changing one
+   * needs — a device may not change what it was not allowed to see.
+   */
+  settings: 'away-settings:',
+  /**
+   * Let one device change a setting, or take it back: `away-configure:<id>`.
+   *
+   * **Its own chip, and drawn only where `surfaces.web.settings` is on**, for
+   * the reason `act` is drawn only where acting is: with it off there is no
+   * route a grant could reach. What it reaches is `settingReach`'s `open` tier
+   * and nothing else (`SETTINGS_FROM_AWAY`).
+   */
+  configure: 'away-configure:',
 } as const
 
 /**

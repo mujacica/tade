@@ -95,6 +95,11 @@ function taskIn(project: string, folder: string, file: TaskFile): TaskIn {
     // drawn for something nobody could carry out.
     finished: false,
     queue: '',
+    // Nothing here asks the registry, so the lane is honestly unknown — and
+    // `none` is the word that offers nothing, which is the direction that
+    // has to be right for a measurement.
+    lane: 'none',
+    starts: 0,
     can: [],
     cannot: [],
     spend: noSpend(),
@@ -137,7 +142,9 @@ export function inputFrom(home: string, reach: Reach, now: number): SnapshotInpu
   const projects: ProjectIn[] = []
   const tasks: TaskIn[] = []
   for (const name of folders(join(home, PROJECTS_DIR))) {
-    projects.push({ name, title: '' })
+    // Every folder here is a project the measurement treats as open, and what
+    // may be asked of it is nothing, for `can: []`'s reason above.
+    projects.push({ name, title: '', open: true, changes: 0, can: [], cannot: [] })
     const dir = join(home, PROJECTS_DIR, name, 'tasks')
     for (const folder of folders(dir)) {
       const file = taskFileAt(join(dir, folder, 'task.yaml'))

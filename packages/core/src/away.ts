@@ -101,15 +101,26 @@ export const AWAY_IS_WHILE_OPEN =
  * conversation as the things they said at the keyboard, and the only thing
  * keeping last week's *turn the checks off* from authorising it is that the
  * refusal is in code rather than in a prompt.
+ *
+ * **The lifecycle half says what closing costs**, because it is the one act
+ * here that writes the config: a project's line leaves it, its own settings
+ * with it, and opening it again puts back the root the journal kept — never a
+ * path a device named. "Can never change a setting" with that left out would
+ * be the comfortable version of this sentence.
  */
 export const ACTING_IS_NOT_YOU =
   'A request from a paired device is never your own words. On work you already set up it can ' +
   'answer what an agent is waiting on, tell one something, hold or release queued work, add a ' +
   'note or a line to what a task is told, mark work finished, and approve a request a grant ' +
-  'here already allowed. It can never change a setting, read a credential, run a command, ' +
-  'start an agent, push, merge or overrule a check. Acting needs this machine itself or an https ' +
-  'origin you named in Trusted hostnames, so a credential that crossed a network in the clear ' +
-  'never buys one — and every act is in the journal under the device that took it.'
+  'here already allowed. Where you granted that device each of them, it can also stop an agent ' +
+  'or open a stopped one again where it left off, and close a project or open a closed one ' +
+  'again: closing deletes nothing and stops nothing, but the project’s own settings go with it ' +
+  'and opening it puts back only where it lives. Beyond that one line, acting can never change a ' +
+  'setting — that is a switch of its own — read a credential, run a command, start an agent ' +
+  'that has never run, push, merge or overrule a check. Acting needs this machine itself or an ' +
+  'https origin you named in ' +
+  'Trusted hostnames, so a credential that crossed a network in the clear never buys one — and ' +
+  'every act is in the journal under the device that took it.'
 
 /** The short clause, for the one line a control gets. */
 export const ACTING_IS_NOT_YOU_SHORT = 'a device acts as a request, never as your own words'
@@ -158,6 +169,38 @@ export const DRAFTS_ARE_NOT_PUBLISHED =
 
 /** The short clause, for the one line a control gets. */
 export const DRAFTS_ARE_NOT_PUBLISHED_SHORT = 'a draft is a file no run reads until it is published'
+
+/**
+ * What changing a setting from a device is, said where that is turned on.
+ *
+ * The same shape as the sentences above: what it reaches, then what stands
+ * against the rest, in one breath — and the list is the load-bearing half,
+ * because *only harmless settings* is the word a comfortable version would
+ * keep while dropping which ones.
+ *
+ * **Why the `asked` tier is not in it, said here because somebody will want it
+ * to be.** `settingReach`'s `asked` tier is passed by the person's own words
+ * naming the setting (`namedBy`, over the journal's `said` lines), and there is
+ * no provenance a device can bring that is those words: a request from a
+ * phone is a request (`ACTING_IS_NOT_YOU`), an agent on this machine can pair
+ * itself (`DEVICES_AND_AGENTS`), and reading the person's *old* lines would let
+ * a phone ride on a sentence they said last week about something else — the
+ * same hole Phase 3 found in remote turns. So it is refused in code, and the
+ * sentence says where those settings are changed instead.
+ */
+export const SETTINGS_FROM_AWAY =
+  'A device you granted it can change only the settings an ordinary request is enough for — the ' +
+  'width of the sidebar and the height of the strip, the editor a file opens in, and what a ' +
+  'project it can read pushes — each with two presses, against the value it was shown, and ' +
+  'written in the journal under that device. A setting that needs your own words is changed ' +
+  'at this machine, because a request from a device is never your own words and an agent here ' +
+  'could pair itself; one that widens what an agent may do, hands out a key or changes who can ' +
+  'reach Tade has no route at all. A key or a token is shown as set or not set and is never ' +
+  'read back.'
+
+/** The short clause, for the one line a control gets. */
+export const SETTINGS_FROM_AWAY_SHORT =
+  'a device changes only what a request is enough for, never a key'
 
 /**
  * What installing this needs of the origin, said where somebody turns it on.
@@ -362,7 +405,7 @@ export const PUSH_KEY_IS_GENERATED =
  * decisions, never one, because conflating the first two is how a laptop in a
  * cafe serves its control room to the cafe, conflating the third with either
  * is how reading from the sofa turns into acting from anywhere, and the fourth
- * is a different kind of thing again — eight bounded verbs against free text.
+ * is a different kind of thing again — bounded verbs against free text.
  * All of them are `never` in `reach.ts` by subtree: each changes who can reach
  * Tade, or what they can do.
  */
@@ -462,6 +505,28 @@ export const WebSurface = z
      * away is immediate.
      */
     drafts: z.boolean().default(false),
+    /**
+     * Whether a paired device may change a setting.
+     *
+     * **A tenth decision, and the narrowest of the ones that write.** It
+     * reaches exactly the settings `settingReach` puts in its `open` tier —
+     * the ones an ordinary request is enough for — and nothing in `asked`,
+     * because that tier is passed by the person's own words and a device has
+     * none to bring (`SETTINGS_FROM_AWAY` has the argument). Nothing in a
+     * `never` subtree has a route at all: `surfaces.web`, `approvals`,
+     * `accounts`, `extensions`, `mcp` and every key are out of reach however
+     * this is set.
+     *
+     * Still not enough on its own: a device needs the `configure` scope a
+     * person grants it in the away panel, the `settings` reading grant (a
+     * device may not change what it was not allowed to see), a trusted
+     * origin, and each change names the value it was shown.
+     *
+     * Turning it **on** takes effect the next time Tade starts, for the reason
+     * `acting` does: the route table is built with the listener. Turning it
+     * **off** is read at every change.
+     */
+    settings: z.boolean().default(false),
     /**
      * Whether a device may install the shell and open it with nothing
      * to ask.

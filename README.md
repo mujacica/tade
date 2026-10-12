@@ -464,9 +464,10 @@ Every step beyond reading is a switch of its own, and all of them are off:
 |---|---|
 | **Serve it** | a listener while this window is open, and nothing else |
 | **On the network** | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
-| **Act** | eight bounded things on work you already set up, and only from this machine or an `https` name you trusted |
+| **Act** | eight bounded things on work you already set up — plus stopping or reopening an agent and closing or reopening a project, each only on a device you granted it — and only from this machine or an `https` name you trusted |
 | **Talk to Tade** | free text into the same conversation, answered with its tools narrowed to that device's own view |
 | **Save a draft workflow** | one field at a time, into a file no run reads until you publish it here |
+| **Change a setting** | only what an ordinary request is enough for — the sidebar's width, the strip's height, the editor, what a project pushes — two presses each, under the device's id. Anything that needs your own words is changed here, and a key is said as set or not set, never shown |
 | **Install · keep · be told** | the page and two icons; counts and a moment; a notification that is a count and no text |
 
 ![The away view in Settings: a switch per decision and every one of them off, with the restart mark on the ones read when the listener is built](https://raw.githubusercontent.com/mujacica/tade/main/images/away-settings.svg)

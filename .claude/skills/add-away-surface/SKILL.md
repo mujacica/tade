@@ -14,6 +14,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
 | a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
+| what a device may **read of the config, or change in it** | `src/configuring.ts` (the interface, `awayReach`, `settingsFor` and `settingOut` — what a device is shown and so may echo), `src/configured.ts` (the strict body, the gate and the sequence), `SETTINGS` and `GET /api/settings` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-settings.ts`, the chips in `wire/web-grants.ts` (`letOneRead`, `letOneConfigure`), and the screen in `src/assets/settings.js` |
 | what a device may **save** | `src/drafting.ts` (the interface and the draft's revision), `src/drafted.ts` (the closed table, the gate and the sequence), `DRAFTS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-drafting.ts`, and the form in `src/assets/designer.js` |
 | what a device may ask about **being told** | `src/pushing.ts` (the interface and what the page is told), `src/pushed.ts` (the closed table, the gate and the sequence), `PUSHES` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-push.ts`, and the control in `src/assets/push.js` |
 | what is worth a notification, and what it may say | `src/noticed.ts` — pure: the five transitions, the payload, the budget, the quiet hours, the presence rule and the dedupe |
@@ -32,6 +33,7 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
 | what kind of trouble a look ran into | `watch-looks.ts` in `@tade/core`, `troubleOf` in `@tade/extensions-core`, written down by `wire/schedules.ts` |
 | a request's own words, as a device reads them | `IntakeIn.material` in `src/factory.ts`, `Bodies` in `wire/web-factory.ts`, `MATERIAL_LABEL` in `@tade/core` |
 | what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
+| stopping or reopening an agent, closing or reopening a project | `STOP`/`REOPEN`/`CLOSE`/`OPEN` in `src/verbs.ts`, the window's door in `packages/app/src/wire/web-lifecycle.ts`, the pure reading (`agentLaneOf`, `projectLines`, `projectAble`) in `packages/app/src/away-lifecycle.ts`, the chips in `wire/web-grants.ts` (`letOneRun`) |
 | one agent looked into: the answer, its activity's words | `src/agent.ts` (`agentOf`, `activitySaid`), `AgentOutSchema` in `src/protocol.ts`, `GET /api/agent/:project/:task` in `src/routes.ts` |
 | what of an agent's screen may leave the machine | `src/screen.ts` — pure: the bounds, the wrap, the keys, the shapes, the paths |
 | when the window reads an agent's screen, and which keys it knows | `packages/app/src/wire/web-lanes.ts` (`Lanes`, `knownKeys`) |
@@ -82,13 +84,14 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   lifecycle — this browser's own credential, created and destroyed — and `test/routes.test.ts`
   asserts that set is exactly those two **by name**. A third fails the test until somebody puts it
   in `LIFECYCLE` deliberately, which is the conversation the rule is for.
-- **There are four second tables, each with its own setting, and absence is
-  the enforcement for all four.** `ACTS` is `surfaces.web.acting`, `ASKS` is
+- **There are five second tables, each with its own setting, and absence is
+  the enforcement for all five.** `ACTS` is `surfaces.web.acting`, `ASKS` is
   `surfaces.web.orchestrator`, `DRAFTS` is `surfaces.web.drafts`, `PUSHES` is
-  `surfaces.web.push`. `halvesFor` hands over the matching interface and
-  nothing else, so with a setting off a crafted call is the `404` of a path
-  nobody built. Each one's `unlocked()` is re-read at every act, turn, save and
-  subscribe: on waits for a restart, off is now.
+  `surfaces.web.push`, `SETTINGS` is `surfaces.web.settings`. `halvesFor` hands
+  over the matching interface and nothing else, so with a setting off a crafted
+  call is the `404` of a path nobody built. Each one's `unlocked()` is re-read
+  at every act, turn, save, subscribe and change: on waits for a restart, off
+  is now.
 - **`PUSHES` is the one second table whose subject is not the work**, which is
   why it has no receipt and no entity revision: a subscription is *this browser
   saying where to reach it*, so a repeat meets its own row (one per device, last
@@ -326,8 +329,9 @@ is a person's act with its own setting in `reach.ts`'s `never` subtree.
   is a drawing hint read off its own session.
 - **Only a `200` clears a box.** A `409` is the world having moved, and throwing away a paragraph
   somebody typed on a phone because of it is the one failure they cannot undo (`afterAnswer`).
-- **Two presses for the two acts asking again does not undo** — `done` and `intake` — and the body's
-  own `confirm: true` literal is the other half. Neither stands in for the other: the tap stops a
+- **Two presses for the two acts asking again does not undo** — `done` and `intake` — **and the two
+  that are destructive-adjacent** — `stop` and `close` — and the body's own `confirm: true` literal
+  is the other half. Neither stands in for the other: the tap stops a
   mis-tap, and the literal means there is no shape of the body that says *do not*.
 - **The shell's version is a hash of its own bytes, and there is no stamp anywhere.**
   `shellOf` hashes every file's path and etag; `/sw.js` answers with that as a line of JSON in
@@ -431,8 +435,9 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
 `reach.ts`: each either widens who can reach the control room (`enabled`, `bind`), decides what the
 pairing code says (`port`), lets a device change something (`acting`), lets one talk to the model
 that holds the tools (`orchestrator`), lets one save a draft every future run of a workflow would
-be stamped from (`drafts`), puts Tade's own page on somebody's phone (`install`) or lets that phone
-keep a few counts (`offline`, narrowed under `install`). A tier is a property of the path, so
+be stamped from (`drafts`), lets one change a setting a request is enough for (`settings`), puts
+Tade's own page on somebody's phone (`install`) or lets that phone keep a few counts (`offline`,
+narrowed under `install`). A tier is a property of the path, so
 `packages/core/test/reach.test.ts` asserts it by subtree rather than through what Settings happens
 to list.
 
@@ -445,13 +450,46 @@ doing nothing and saying nothing is the setting Tade accepts and ignores.
 (`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is
 correct (it scrolls) and moved every settings golden.
 
+## Changing a setting from away is a fifth table, and it reaches one tier
+
+`SETTINGS` is one route, `POST /api/settings/change`, behind `surfaces.web.settings`, the `configure`
+scope (a chip, implied by nothing) **and** the `settings` reading grant (a chip, drawn always): a
+device may not change what it was not allowed to see, or its echoed value is a guess and every `409`
+an oracle for it.
+
+- **It reaches `settingReach`'s `open` tier and nothing else, and the tier is part of the parse.**
+  `readSettingChange` refuses any other path before a key is claimed, as the `404` of a path nobody
+  built — that is what *no route exists* means for a table with one route per kind of thing. The
+  window asks `settingReach` again at the write. `test/configured.test.ts` runs every path Settings
+  draws through the door.
+- **The `asked` tier is refused, and that is a decision with its argument in `configuring.ts`.** It
+  is passed by the person's own words (`namedBy`, over `said` lines), and a device has none: its
+  request as the words makes `asked` into `open` for something an agent here can pair; the person's
+  old lines let a phone ride on last week's sentence (Phase 3's hole); words typed on a phone written
+  as `said` is the one record no device may write. `SETTINGS_FROM_AWAY` says the gap where somebody
+  turns this on. Do not "fix" it without a provenance model none of those three is.
+- **The write accepts exactly what the read offered.** `settingOut` decides a row's `may` and `was`
+  for `GET /api/settings`, and `web-settings.ts` asks the same function at the write — so a value not
+  shown whole (a key pasted into it) is not changeable, and the echo is compared against the row the
+  window lists now. A choice is one of its options exactly and a flag is `true`/`false`:
+  `parseSetting` is a keyboard's reading and too lenient for a device's exact value.
+- **A key is never readable, and only ever cleared.** `set`/`not set`, no value, no revision of one,
+  every shown value cleaned of every key Tade holds (`keysOf`). No key is in the `open` tier today,
+  so from away nothing clears one; `clearOnly` is the rule for the day one is.
+- **Provenance is `byOf`'s**: `config_changed` says `by: device <id>`, and the `web_did` carries the
+  path as `setting` in its detail, never as the event's `task`.
+
 ## What is not built, and must not arrive because a route was convenient
 
-No setting is writable, nothing grants anything, **nothing publishes a workflow or a persona,
+No setting outside `settingReach`'s `open` tier is writable (a project's own line leaving and coming
+back with `close` and `open` is the other config write, a verb at its own scope), nothing grants
+anything, **nothing publishes a workflow or a persona,
 nothing makes, renames or deletes a draft, and nothing touches a published version** — which never
 changes once it is out, so a run that points at `name@3` goes on pointing at it. Nothing turns a
 source on, nothing starts an agent (`steer` is a message into a conversation that is **already**
-running, refused where no agent is), nothing runs a command, nothing pushes, merges, answers a
+running, refused where no agent is; `reopen` reattaches a lane the registry kept, saying nothing, and
+is refused where no agent ever ran; `open` puts back the root the journal kept and never a path a
+device named), nothing runs a command, nothing pushes, merges, answers a
 review or overrules a check, nothing reaches a credential and nothing reaches the `ToolHost` — which is a Unix
 socket in `@tade/orchestrator` for the window's own children, and is **not this**
 (`test/separation.test.ts`). Each of those is a `never remote` line with an argument behind it; if a
@@ -516,17 +554,38 @@ own table (`ASKS`), its own interface (`WebAsking`), its own event type
   `transcript`, `args`, `payload` and `output` are all still names that fail
   `NEVER_A_FIELD`.
 
-**There are eight verbs and they are the whole of what a device may ever do**: `park`, `answer`,
-`steer`, `queue`, `done`, `note`, `context` and `intake`. Park went first because it is the smallest
-act that proves the whole path; the rest are §9.1's matrix filled in, each a line in `VERBS`, a
-method on `WebActing`, and a control in `acts.js`.
+**There are twelve verbs and they are the whole of what a device may ever do**: `park`, `answer`,
+`steer`, `queue`, `done`, `note`, `context` and `intake` — and the lifecycle, `stop`, `reopen`,
+`close` and `open`. Park went first because it is the smallest act that proves the whole path; the
+next seven are §9.1's matrix filled in, each a line in `VERBS`, a method on `WebActing`, and a
+control in `acts.js`.
 
-**Three in the matrix are deliberately not verbs**, and `verbs.ts` carries the argument beside the
-table: a whole project's queue (it names no task, so it has no entity revision to echo and no replay
-could be told from a fresh ask), a diff, a review's text or a lane's output (each ships source or an
-agent's bytes to a phone and a browser cache — a *reading* grant with its own threat model, and a
-name `NEVER_A_FIELD` already refuses; the third is now that grant, `lanes`, and still no verb), and
-stopping an agent (not a hold, not undone by the same verb).
+**The lifecycle is two pairs at two scopes nothing implies** — `agents` and `projects`, a chip each
+in the panel, off for every device, refused while acting is off. What each pair adds to the shape:
+
+- **A verb's target may be a whole project** (`Verb.on`). Its `task` is empty, the project is the
+  target `boundTo` binds a key to, the gate's per-project boundary asks the name itself, and the
+  journal line carries `project` in its detail — never on the event, where every fold keyed by task
+  would read a task by that name. A row's `can`/`cannot` cover exactly its own kind's verbs.
+- **A toggle names its generation**, or a replay after the round trip is not refused: `taskRev`
+  carries the agent's own lane (`lane`, never the `agents` count, which counts a stopped lane as a
+  signal) and how many times one was started (`starts`, from `run_started`); `projectRev` carries
+  whether the project is open and how many lines wrote where it lives (`changes`). Both folds come
+  from the **whole** journal on both sides — `Live`'s 500-event window would count differently from
+  the door that re-reads it at the act.
+- **The door is the keyboard's**: `Agents.stopExactly` (marked stopped on purpose, so the window
+  never reopens it behind anyone's back) and `reopenExactly`; `Projects.closeProject` and `openAt`
+  with the root out of the journal's close line. Lane truth is asked of the registry at the act, and
+  one act per target runs at a time (`busy`), because the keyboard's doors await between check and
+  write. The answers say what happens to the lane's spec and to the project's own settings, with no
+  path in them.
+
+**Two in the matrix are deliberately not verbs**, and `verbs.ts` carries the argument beside the
+table: a whole project's queue (it names no task and `projectRev` says nothing about a queue, so no
+replay could be told from a fresh ask), and a diff, a review's text or a lane's output (each ships
+source or an agent's bytes to a phone and a browser cache — a *reading* grant with its own threat
+model, and a name `NEVER_A_FIELD` already refuses; the third is now that grant, `lanes`, and still
+no verb). Stopping an agent used to be a third and is now half of a pair, for the reasons above.
 
 **Every verb makes two checks and they answer different questions.** `onTask` compares the revision
 the device echoed (`was`) against the one the projection would put on that row now — that one is
@@ -555,6 +614,9 @@ implied away.
 would mean a phone that can allow a command and cannot set the work aside. A control per tier is the
 thing to build if somebody wants the narrower grant; until then `ACTING_IS_NOT_YOU` is held to naming
 all of it (`test/separation.test.ts`).
+
+**The lifecycle chips are two more beside it** (`agents`, `projects`), drawn only where acting is
+on, and composed the same way.
 
 **Talking is a second control beside it**, and the two **compose**: `allowDevice` writes the whole
 scope list, so every control over it builds from what the device already has (`kept`). Two controls

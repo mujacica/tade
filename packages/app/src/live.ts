@@ -39,6 +39,7 @@ import { git, makeCollector, type StatusCollector } from '@tade/status'
 import { chatsFrom, terminalsFrom, type Workbench } from '@tade/workbench'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
+import { aboutRoot } from './away-lifecycle.ts'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { ActionsView, Change, NoteShown } from './frame.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
@@ -248,6 +249,8 @@ export class Live {
   private started = new Set<string>()
   /** What the queue reads: removals, runs, failures, and every choice made about queued work. */
   private queueEvents: TadeEvent[] = []
+  /** Every line that wrote where a project lives, from the whole journal: what reopening reads. */
+  private roots: TadeEvent[] = []
   /** Queued work, and what it waits on, as the last refresh saw. */
   private queue: Queued[] = []
   private states = new Map<string, { state: TaskState; reason: string }>()
@@ -287,6 +290,10 @@ export class Live {
     for (const event of live.queueEvents) {
       if (event.type === 'run_started' && event.task) live.started.add(event.task)
     }
+    // Whole, like the two above: a project closed last month is still one a
+    // device can open again, and the last 500 events would have forgotten it.
+    const changed = await opts.client.events({ types: ['config_changed'] }).catch(() => [])
+    live.roots = changed.filter(aboutRoot)
     await opts.client.subscribe((event) => live.record(event))
     // Opening the workbench has just looked at what landed while Tade was
     // shut, so the window's own beat starts a minute from here.
@@ -474,6 +481,11 @@ export class Live {
   /** What has happened recently, for anything that has to read it directly. */
   get events(): readonly TadeEvent[] {
     return this.journal
+  }
+
+  /** Every `config_changed` about where a project lives, from the whole journal. */
+  get rootLines(): readonly TadeEvent[] {
+    return this.roots
   }
 
   /** Where a task lives on disk, once status has seen it. */
@@ -1110,6 +1122,7 @@ export class Live {
     }
     if (event.task && event.type === 'turn_done') this.worked.add(event.task)
     if ((QUEUE_READS as readonly string[]).includes(event.type)) this.queueEvents.push(event)
+    if (aboutRoot(event)) this.roots.push(event)
     if (this.journal.length > JOURNAL) this.journal.splice(0, this.journal.length - JOURNAL)
     this.opts.onEvent?.(event)
   }

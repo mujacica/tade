@@ -12,6 +12,7 @@ import {
   input,
   NOW,
   PRIVATE,
+  project,
   reach,
   screenText,
   task,
@@ -105,7 +106,7 @@ describe('Tade’s own words carry nothing of the machine', () => {
     const bare = input({
       reach: reach(EVERY),
       tasks: [task({ branch: '', model: '', effort: '', account: '', title: '', intent: '' })],
-      projects: [{ name: 'sentry', title: '' }],
+      projects: [project({ title: '' })],
     })
     const snapshot = snapshotOf(bare, NOW)
     const empty = stringsIn(snapshot).filter((found) => found.words === '')
