@@ -19,7 +19,7 @@ declare module '*/assets/pages/workflows-shape.js' {
   export const GROUPS: readonly { key: string; heading: string }[]
   export const RUN_MARKS: Record<string, Mark>
   export const MOST_VERSIONS: number
-  export const MAP: { dx: number; dy: number; r: number; pad: number }
+  export const TRACK: { row: number; dot: number; foot: number }
   export function standingOf(row: any): string
   export function standingMark(key: string): Mark
   export function partsOf(rows: readonly any[]): Part[]
@@ -43,14 +43,15 @@ declare module '*/assets/pages/workflows-shape.js' {
     earlier: number
   }
   export function versionsSaid(row: any, runs?: readonly any[]): string
-  export function shapeOf(places: readonly any[]): {
-    dots: { name: string; x: number; y: number }[]
+  export function trackOf(places: readonly any[]): {
+    cols: number
+    steps: { name: string; col: number; left: number; top: number; edge: string }[]
     lines: { from: string; to: string; d: string }[]
     width: number
     height: number
-    stages: number
     circular: string[]
   }
+  export function trackSaid(row: any): string
   export function shapeSaid(places: readonly any[]): string
   export function stagesOf(row: any): {
     key: string

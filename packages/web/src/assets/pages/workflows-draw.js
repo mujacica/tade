@@ -1,6 +1,6 @@
 // The workflows page's own drawings, each a **create and a fill** like a chart
-// (`charts.js`): a workflow's shape as a small map, the line of its versions,
-// and the runs stamped from it as marks and counts.
+// (`charts.js`): a workflow's shape as a track of named dots, the line of its
+// versions, and the runs stamped from it as marks and counts.
 //
 // All three are this page's for now and listed under *Shared components
 // wanted*: a graph small enough to sit on a card is the runs page's map too,
@@ -11,7 +11,7 @@
 
 import { classOn, el, into, keyed, textIn, toneOn } from '../dom.js'
 import { svgOf } from '../icons.js'
-import { MAP, shapeOf, shapeSaid, stagesOf, versionsOf, versionsSaid } from './workflows-shape.js'
+import { shapeSaid, trackOf, trackSaid, versionsOf, versionsSaid } from './workflows-shape.js'
 
 /** An attribute, written only when it changed, so a repaint touches nothing that stayed. */
 function attrIn(node, name, value) {
@@ -36,74 +36,113 @@ export function figureSaid(node, said, n, noun) {
   else attrIn(node, 'aria-label', `${n} ${noun}`)
 }
 
-/* ── the shape: a map, and the stages beside it ────────────────────────────── */
+/* ── the shape: a track of named dots ──────────────────────────────────────── */
+
+/** A CSS variable on one element, through the CSSOM — the policy refuses a `style` attribute. */
+function varIn(node, name, value) {
+  if (node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value)
+}
 
 /**
- * A workflow's shape as a card has room for it: the map — a column per stage,
- * a dot per step, a curve from each to what waits on it — and beside it the
- * stages in words, a number and the steps in it. The map is decoration over
- * the words (`aria-hidden`), and the words are real text a person can read
- * and select.
+ * A workflow's shape as a card has room for it: **a track** — a column per
+ * stage spread evenly across the card, each step a dot with its name over it,
+ * and a line from each dot to the dot of what waits on it — with the count in
+ * words under it.
+ *
+ * `role="img"` with `trackSaid`'s sentence, which has every name whole. A name
+ * longer than its column has room for wraps to two lines and is then cut;
+ * hovering it or tapping it shows it whole (`.is-cut`, measured after the
+ * page lays it out), and a tap anywhere else on the card still opens the
+ * workflow, where every step is named in full.
  */
 export function shape(extra = '') {
   const node = el('div', { class: extra === '' ? 'wf-shape' : `wf-shape ${extra}` })
-  const svg = svgOf('svg', { class: 'wf-map', focusable: 'false', 'aria-hidden': 'true' })
-  if (svg !== null) {
-    svg.append(svgOf('g', { class: 'wf-map-lines' }), svgOf('g', { class: 'wf-map-dots' }))
-    node.append(svg)
-  }
-  const stages = el('ol', { class: 'wf-shape-stages' })
+  const track = el('div', { class: 'wf-track', attrs: { role: 'img', 'aria-label': 'steps' } })
+  const svg = svgOf('svg', {
+    class: 'wf-track-lines',
+    focusable: 'false',
+    'aria-hidden': 'true',
+    preserveAspectRatio: 'none',
+  })
+  if (svg !== null) track.append(svg)
+  track.append(el('ol', { class: 'wf-track-steps' }))
+  // Wired once: a tap on a name that was cut shows it whole, and a second tap
+  // puts it back. Only a cut name takes the pointer (`.is-cut`), so a tap on
+  // anything else falls through to the card's own link.
+  track.addEventListener('click', (event) => {
+    const hit = event.target instanceof Element ? event.target.closest('.wf-track-name') : null
+    if (hit === null || !hit.classList.contains('is-cut')) return
+    const open = !hit.classList.contains('is-open')
+    for (const one of track.querySelectorAll('.wf-track-name.is-open'))
+      classOn(one, 'is-open', false)
+    classOn(hit, 'is-open', open)
+  })
   const said = el('p', { class: 'wf-shape-said' })
-  return into(node, stages, said)
+  return into(node, track, said)
 }
 
 export function shapeIn(node, row) {
-  const drawn = shapeOf(row.places)
-  const svg = node.querySelector('svg')
+  const drawn = trackOf(row.places)
+  const [track, said] = node.children
+  track.hidden = drawn.steps.length === 0
+  attrIn(track, 'aria-label', trackSaid(row))
+  varIn(track, '--fh', `${drawn.height}px`)
+  const svg = track.querySelector('svg')
   if (svg !== null) {
-    svg.hidden = drawn.dots.length === 0
     attrIn(svg, 'viewBox', `0 0 ${Math.max(1, drawn.width)} ${Math.max(1, drawn.height)}`)
-    attrIn(svg, 'width', drawn.width)
-    attrIn(svg, 'height', drawn.height)
-    const [lines, dots] = svg.children
-    sized(lines, drawn.lines.length, () => svgOf('path', { class: 'wf-map-line' }))
+    sized(svg, drawn.lines.length, () =>
+      svgOf('path', { class: 'wf-track-line', 'vector-effect': 'non-scaling-stroke' }),
+    )
     drawn.lines.forEach((one, at) => {
-      attrIn(lines.children[at], 'd', one.d)
-    })
-    sized(dots, drawn.dots.length, () => svgOf('circle', { class: 'wf-map-dot' }))
-    drawn.dots.forEach((one, at) => {
-      const dot = dots.children[at]
-      attrIn(dot, 'cx', one.x)
-      attrIn(dot, 'cy', one.y)
-      attrIn(dot, 'r', MAP.r)
+      attrIn(svg.children[at], 'd', one.d)
     })
   }
-  const stages = node.querySelector('.wf-shape-stages')
+  const steps = track.querySelector('.wf-track-steps')
   keyed(
-    stages,
-    stagesOf(row),
-    (stage) => stage.key,
-    createStageLine,
-    (item, stage) => {
-      const [n, heard, names] = item.children
-      textIn(n, stage.n === null ? '↻' : String(stage.n))
-      textIn(heard, stage.heard)
-      classOn(item, 'is-cycle', stage.n === null)
-      textIn(names, stage.steps.map((one) => one.name).join(' · '))
+    steps,
+    drawn.steps,
+    (one) => one.name,
+    createTrackStep,
+    (item, one) => {
+      varIn(item, '--x', `${one.left}%`)
+      varIn(item, '--y', `${one.top}px`)
+      varIn(item, '--w', `${100 / drawn.cols}%`)
+      for (const edge of ['start', 'middle', 'end']) classOn(item, `is-${edge}`, one.edge === edge)
+      textIn(item.firstChild, one.name)
     },
   )
-  textIn(node.querySelector('.wf-shape-said'), shapeSaid(row.places))
+  textIn(said, shapeSaid(row.places))
+  cutLater(track)
 }
 
-function createStageLine() {
-  const item = el('li')
-  // The number is drawn; what a screen reader hears is the stage and what it waits on.
-  return into(
-    item,
-    el('span', { class: 'wf-shape-n', attrs: { 'aria-hidden': 'true' } }),
-    el('span', { class: 'sr-only' }),
-    el('span', { class: 'wf-shape-names' }),
-  )
+function createTrackStep() {
+  const item = el('li', { class: 'wf-track-step' })
+  return into(item, el('span', { class: 'wf-track-name' }), el('span', { class: 'wf-track-dot' }))
+}
+
+/** Tracks waiting for the page to lay them out before their names are measured. */
+const MEASURING = new WeakSet()
+
+/**
+ * Which names are cut, read once the page has laid them out — a name is cut
+ * where its two lines hold less than it says. **Read after the frame and not
+ * in the fill**, because a card being filled for the first time is not on the
+ * page yet and measures nothing.
+ */
+function cutLater(track) {
+  if (MEASURING.has(track) || typeof requestAnimationFrame !== 'function') return
+  MEASURING.add(track)
+  requestAnimationFrame(() => {
+    MEASURING.delete(track)
+    for (const name of track.querySelectorAll('.wf-track-name')) {
+      if (name.classList.contains('is-open')) continue
+      classOn(
+        name,
+        'is-cut',
+        name.scrollHeight > name.clientHeight + 1 || name.scrollWidth > name.clientWidth + 1,
+      )
+    }
+  })
 }
 
 /* ── the line of its versions ──────────────────────────────────────────────── */

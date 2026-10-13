@@ -310,42 +310,64 @@ export function versionsSaid(row, runs = []) {
 
 /* ── the shape its steps make ──────────────────────────────────────────────── */
 
-/** The map's spacing in its own units: a column per stage, a row per step in it. */
-export const MAP = { dx: 36, dy: 20, r: 5, pad: 8 }
+/**
+ * The track's measures, in CSS pixels: a step's cell (its name over its dot),
+ * the dot, and the room under the dot. A column is a share of the width, so
+ * across is in hundredths of a column and down is in pixels.
+ */
+export const TRACK = { row: 56, dot: 10, foot: 2 }
 
 const round = (n) => Math.round(n * 100) / 100
 
 /**
- * The shape as a small map: a column per stage, a dot per step, and a curve
- * from each step to what waits on it — the picture a card has room for, with
- * the names written beside it.
+ * The shape as a track: **a column per stage, spread evenly across the width,
+ * and each step a dot with its name over it** — the dot is what the name hangs
+ * from, so the name is never off to one side of the step it names. Steps side
+ * by side in one stage stack in their column, and a shorter column is centred
+ * against the tallest; a line runs from each step's dot to the dot of what
+ * waits on it.
+ *
+ * Pure: `left` is where a cell's centre is, in percent of the width; `top` is
+ * where its cell starts, in pixels; and a line is a path in a box `cols * 100`
+ * across and `height` down, which the drawing stretches to the width.
  *
  * **A step in a cycle is named, never drawn**: a cycle has no column,
  * `templateProblems` is what refuses it, and a dot drawn at some column would
  * read as an order the workflow does not have.
  */
-export function shapeOf(places) {
+export function trackOf(places) {
   const drawn = places.filter((place) => !place.circular)
   const depths = [...new Set(drawn.map((place) => place.depth))].sort((a, b) => a - b)
   const columns = depths.map((depth) =>
     drawn.filter((place) => place.depth === depth).sort((a, b) => a.at - b.at),
   )
+  const cols = columns.length
   const tallest = Math.max(1, ...columns.map((column) => column.length))
-  const where = new Map()
-  columns.forEach((column, x) => {
-    column.forEach((place, y) => {
-      where.set(place.name, {
-        x: round(MAP.pad + x * MAP.dx),
-        y: round(MAP.pad + ((tallest - column.length) / 2 + y) * MAP.dy),
+  const steps = []
+  const centre = new Map()
+  columns.forEach((column, col) => {
+    column.forEach((place, at) => {
+      const top = round(((tallest - column.length) / 2 + at) * TRACK.row)
+      steps.push({
+        name: place.name,
+        col,
+        left: round(((col + 0.5) / cols) * 100),
+        top,
+        // Which way a name may grow when it is shown whole: the first column's
+        // into the card, the last column's back into it, the rest both ways.
+        edge: cols > 1 && col === 0 ? 'start' : cols > 1 && col === cols - 1 ? 'end' : 'middle',
+      })
+      centre.set(place.name, {
+        x: col * 100 + 50,
+        y: round(top + TRACK.row - TRACK.foot - TRACK.dot / 2),
       })
     })
   })
-  const dots = drawn.map((place) => ({ name: place.name, ...where.get(place.name) }))
   const lines = []
   for (const place of drawn) {
-    const to = where.get(place.name)
+    const to = centre.get(place.name)
     for (const wait of place.why) {
-      const from = where.get(wait.on)
+      const from = centre.get(wait.on)
       if (from === undefined || to === undefined) continue
       const mid = round((from.x + to.x) / 2)
       lines.push({
@@ -355,41 +377,53 @@ export function shapeOf(places) {
       })
     }
   }
-  const empty = depths.length === 0
   return {
-    dots,
+    cols,
+    steps,
     lines,
-    width: empty ? 0 : round(MAP.pad * 2 + (depths.length - 1) * MAP.dx),
-    height: empty ? 0 : round(MAP.pad * 2 + (tallest - 1) * MAP.dy),
-    stages: depths.length,
+    width: cols * 100,
+    height: cols === 0 ? 0 : tallest * TRACK.row,
     circular: places.filter((place) => place.circular).map((place) => place.name),
   }
 }
 
 /** The shape in words: how many steps, in how many stages, and any in a cycle. */
 export function shapeSaid(places) {
-  const shape = shapeOf(places)
-  const steps = shape.dots.length
+  const track = trackOf(places)
+  const steps = track.steps.length
   const bits = []
-  if (steps === 0 && shape.circular.length === 0) return 'no steps yet'
+  if (steps === 0 && track.circular.length === 0) return 'no steps yet'
   if (steps > 0) {
     const noun = `${steps} ${steps === 1 ? 'step' : 'steps'}`
     bits.push(
-      shape.stages <= 1 && steps > 1
+      track.cols <= 1 && steps > 1
         ? `${noun}, side by side`
         : steps === 1
           ? noun
-          : `${noun} in ${shape.stages} stages`,
+          : `${noun} in ${track.cols} stages`,
     )
   }
-  if (shape.circular.length > 0) bits.push(`${shape.circular.length} in a cycle`)
+  if (track.circular.length > 0) bits.push(`${track.circular.length} in a cycle`)
   return bits.join(' · ')
 }
 
 /**
+ * The track as a sentence, which is what a screen reader hears for the
+ * drawing: how many, then every step by name in the order they go —
+ * `4 steps in 3 stages: plan, then api and web, then ship`. The names are
+ * whole here whatever the drawing had room for.
+ */
+export function trackSaid(row) {
+  const stages = stagesOf(row).filter((stage) => stage.n !== null)
+  const order = stages.map((stage) => joined(stage.steps.map((one) => one.name))).join(', then ')
+  const counted = shapeSaid(row.places)
+  return order === '' ? counted : `${counted}: ${order}`
+}
+
+/**
  * The steps, stage by stage: what goes first, and what each later stage waits
- * on — the shape the rail on one workflow's screen draws, and the lines a
- * card writes beside its map.
+ * on — the shape the rail on one workflow's screen draws, and the order a
+ * card's track is read out in.
  *
  * `steps` carries each step's own row where this device was sent it (the
  * content rides on the `workflows` grant; the places do not), so a stage can

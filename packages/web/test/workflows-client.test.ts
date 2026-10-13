@@ -20,13 +20,15 @@ import {
   runsFrom,
   runsLineOf,
   runsSaid,
-  shapeOf,
   shapeSaid,
   stagesOf,
   standingOf,
   stepFactsOf,
+  TRACK,
   toggledValue,
   toggleSaid,
+  trackOf,
+  trackSaid,
   versionsOf,
   versionsSaid,
 } from '../src/assets/pages/workflows-shape.js'
@@ -205,22 +207,49 @@ describe('the line of its versions', () => {
 })
 
 describe('the shape its steps make', () => {
-  it('puts each stage in a column and a curve on each wait', () => {
-    const shape = shapeOf(row().places)
-    expect(shape.stages).toBe(2)
-    expect(shape.dots.map((one) => one.name)).toEqual(['reproduce', 'fix'])
-    const [first, second] = shape.dots
-    expect(second?.x).toBeGreaterThan(first?.x ?? 0)
-    expect(second?.y).toBe(first?.y)
-    expect(shape.lines.map((one) => [one.from, one.to])).toEqual([['reproduce', 'fix']])
+  it('spreads the stages evenly across the width, a step’s name over its dot', () => {
+    const track = trackOf(row().places)
+    expect(track.cols).toBe(2)
+    // Two stages: their centres at a quarter and three quarters of the width.
+    expect(track.steps.map((one) => [one.name, one.col, one.left])).toEqual([
+      ['reproduce', 0, 25],
+      ['fix', 1, 75],
+    ])
+    // One line, so every cell starts at the top and the track is one cell tall.
+    expect(track.steps.map((one) => one.top)).toEqual([0, 0])
+    expect(track.height).toBe(TRACK.row)
+    // The line runs between the two dots, which sit under the names at the
+    // foot of each cell: column centres across, the dot's centre down.
+    const dot = TRACK.row - TRACK.foot - TRACK.dot / 2
+    expect(track.width).toBe(200)
+    expect(track.lines).toEqual([
+      { from: 'reproduce', to: 'fix', d: `M50 ${dot}C100 ${dot} 100 ${dot} 150 ${dot}` },
+    ])
   })
 
-  it('centres a short stage against a tall one', () => {
-    const shape = shapeOf(DIAMOND)
-    const at = new Map(shape.dots.map((one) => [one.name, one]))
-    expect(at.get('plan')?.y).toBe(((at.get('api')?.y ?? 0) + (at.get('web')?.y ?? 0)) / 2)
-    expect(at.get('ship')?.y).toBe(at.get('plan')?.y)
-    expect(shape.lines).toHaveLength(4)
+  it('stacks a stage’s steps in its column, centred against the tallest', () => {
+    const track = trackOf(DIAMOND)
+    const at = new Map(track.steps.map((one) => [one.name, one]))
+    expect(track.cols).toBe(3)
+    expect(track.height).toBe(2 * TRACK.row)
+    expect(at.get('api')?.top).toBe(0)
+    expect(at.get('web')?.top).toBe(TRACK.row)
+    // A stage of one sits half a cell down, level with the middle of two.
+    expect(at.get('plan')?.top).toBe(TRACK.row / 2)
+    expect(at.get('ship')?.top).toBe(TRACK.row / 2)
+    expect(at.get('api')?.left).toBe(at.get('web')?.left)
+    expect(track.lines).toHaveLength(4)
+  })
+
+  it('says which way a name may grow when it is shown whole', () => {
+    expect(trackOf(DIAMOND).steps.map((one) => [one.name, one.edge])).toEqual([
+      ['plan', 'start'],
+      ['api', 'middle'],
+      ['web', 'middle'],
+      ['ship', 'end'],
+    ])
+    // One stage is centred on the card, so it grows both ways.
+    expect(trackOf(DIAMOND.slice(0, 1)).steps[0]?.edge).toBe('middle')
   })
 
   it('names a step in a cycle and never draws it at some column', () => {
@@ -228,10 +257,22 @@ describe('the shape its steps make', () => {
       ...row().places,
       { at: 2, name: 'loop', depth: 0, parent: null, why: [], circular: true },
     ]
-    const shape = shapeOf(places)
-    expect(shape.dots.map((one) => one.name)).not.toContain('loop')
-    expect(shape.circular).toEqual(['loop'])
+    const track = trackOf(places)
+    expect(track.steps.map((one) => one.name)).not.toContain('loop')
+    expect(track.circular).toEqual(['loop'])
     expect(shapeSaid(places)).toBe('2 steps in 2 stages · 1 in a cycle')
+  })
+
+  it('draws nothing for no steps, rather than an empty track', () => {
+    expect(trackOf([])).toMatchObject({ cols: 0, steps: [], lines: [], height: 0 })
+  })
+
+  it('reads the track out with every name whole, in the order they go', () => {
+    expect(trackSaid(row())).toBe('2 steps in 2 stages: reproduce, then fix')
+    expect(trackSaid({ ...row(), places: DIAMOND })).toBe(
+      '4 steps in 3 stages: plan, then api and web, then ship',
+    )
+    expect(trackSaid({ ...row(), places: [] })).toBe('no steps yet')
   })
 
   it('says the shape in words', () => {
