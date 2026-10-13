@@ -26,6 +26,23 @@ function newestPrinted(terminal: FakeTerminal): number {
   return seen.length === 0 ? 0 : Math.max(...seen)
 }
 
+/**
+ * The shell's last line is in front, and the window knows there are lines
+ * above it: the terminal's bar, down the right edge below its tab, has a
+ * thumb. A notch is clamped to what the last frame's bar said (`reachOf`),
+ * and a look reads how deep the lane is before it reads the text — so the
+ * first frame showing line 400 can carry a bar from before the shell printed,
+ * and a notch turned at that frame goes nowhere. A flick on a loaded runner
+ * did exactly that, and the test waited twenty seconds for it to come back up.
+ */
+function inFront(terminal: FakeTerminal, tab: number): boolean {
+  const rows = screenOf(terminal.written)
+  return (
+    rows.some((row) => row.includes('printed line 400')) &&
+    rows.slice(tab + 1).some((row) => row.endsWith('█'))
+  )
+}
+
 describe('the window, and the lanes in it', () => {
   let terminal: FakeTerminal
   let client: Workbench
@@ -51,11 +68,7 @@ describe('the window, and the lanes in it', () => {
     click(tab.col + 1, tab.row)
     // A real shell, starting and printing four hundred lines: on a machine
     // running the rest of this suite beside it that is not always quick.
-    await until(
-      'the terminal in front',
-      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
-      20_000,
-    )
+    await until('the terminal in front', () => inFront(terminal, tab.row), 20_000)
     const rows = screenOf(terminal.written)
     const shell = rows.findIndex((row) => row.includes('printed line 400'))
     expect(shell).toBeGreaterThan(0)
@@ -249,11 +262,7 @@ describe('the window, and the lanes in it', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     const tab = find('terminal 1')
     click(tab.col + 1, tab.row)
-    await until(
-      'the terminal in front',
-      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
-      20_000,
-    )
+    await until('the terminal in front', () => inFront(terminal, tab.row), 20_000)
     const shell = screenOf(terminal.written).findIndex((row) => row.includes('printed line 400'))
     const up = `\x1b[<64;10;${shell + 1}M`
     const down = `\x1b[<65;10;${shell + 1}M`
@@ -350,11 +359,7 @@ describe('the window, and the lanes in it', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     const tab = find('terminal 1')
     click(tab.col + 1, tab.row)
-    await until(
-      'the terminal in front',
-      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
-      20_000,
-    )
+    await until('the terminal in front', () => inFront(terminal, tab.row), 20_000)
     const shell = screenOf(terminal.written).findIndex((row) => row.includes('printed line 400'))
 
     // The two the window asks the driver for, counted apart. `screen` is how
@@ -420,11 +425,7 @@ describe('the window, and the lanes in it', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     const tab = find('terminal 1')
     click(tab.col + 1, tab.row)
-    await until(
-      'the terminal in front',
-      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
-      20_000,
-    )
+    await until('the terminal in front', () => inFront(terminal, tab.row), 20_000)
     const rows = screenOf(terminal.written)
     const shell = rows.findIndex((row) => row.includes('printed line 400'))
     // The lane's rows on screen: its live rows are at least that many.
@@ -488,9 +489,16 @@ describe('the window, and the lanes in it', () => {
       return capture(lane, lines, styled)
     }
     const screen = client.screen.bind(client)
-    client.screen = (lane) => {
-      looks++
-      return screen(lane)
+    // A look is counted when it is answered, which is when it reads the lines
+    // held and the driver may be told once more (`Held.read`) — not when it
+    // asks. Counted at the ask, a look asked before the count began and
+    // answered inside it let one run of notches tell the driver twice with no
+    // look counted for the second: 11 against 10 on a loaded runner. And only
+    // this terminal's looks, which are the only ones that tell it anything.
+    client.screen = async (lane) => {
+      const answer = await screen(lane)
+      if (lane === opened.id) looks++
+      return answer
     }
     /** A notch, and the look that answers it. */
     const notch = async (bytes: string) => {
