@@ -134,10 +134,14 @@ export interface Pushes {
   /** Write one setting, through the one door that writes one. */
   writeKey: (key: string, value: string, was: string) => Promise<void>
   /** One line for the journal. Never throws, never blocks a beat. */
-  tell: (told: {
-    type: 'web_subscribed' | 'web_pushed' | 'warning'
-    detail: Record<string, string | number | boolean>
-  }) => void
+  tell: (
+    told:
+      | { type: 'web_subscribed' | 'web_pushed'; detail: Record<string, string | number | boolean> }
+      | {
+          type: 'warning'
+          detail: { message: string } & Record<string, string | number | boolean>
+        },
+  ) => void
   now: () => number
   /** The local hour, so the same inputs give the same answer. */
   localHour?: () => number
@@ -194,7 +198,7 @@ export class WebPush {
       this.deps.tell({
         type: 'warning',
         detail: {
-          warning: `${read.skipped} line(s) of the notification list could not be read`,
+          message: `${read.skipped} line(s) of the notification list could not be read`,
         },
       })
     }
@@ -336,7 +340,7 @@ export class WebPush {
       this.deps.tell({
         type: 'warning',
         detail: {
-          warning: `a notification could not be sent: ${String(error).slice(0, 160)}`,
+          message: `a notification could not be sent: ${String(error).slice(0, 160)}`,
           device: push.device,
         },
       })
@@ -373,13 +377,17 @@ export class WebPush {
       return
     }
     standing.failures++
-    this.deps.tell({
-      type: answer.kind === 'refused' ? 'warning' : 'web_pushed',
-      detail:
-        answer.kind === 'refused'
-          ? { warning: `a notification was refused: ${answer.why}`, device: push.device }
-          : { device: push.device, status: answer.status, why: answer.why },
-    })
+    this.deps.tell(
+      answer.kind === 'refused'
+        ? {
+            type: 'warning',
+            detail: { message: `a notification was refused: ${answer.why}`, device: push.device },
+          }
+        : {
+            type: 'web_pushed',
+            detail: { device: push.device, status: answer.status, why: answer.why },
+          },
+    )
   }
 
   /** What this device may be told now: a row written under its own id. */
@@ -500,7 +508,7 @@ export class WebPush {
         this.deps.tell({
           type: 'warning',
           detail: {
-            warning: `the notification signing key in ${found.from} is not a usable key — clear surfaces.web.push_key and a new one will be generated`,
+            message: `the notification signing key in ${found.from} is not a usable key — clear surfaces.web.push_key and a new one will be generated`,
           },
         })
       }
@@ -541,14 +549,14 @@ export class WebPush {
         this.deps.tell({
           type: 'warning',
           detail: {
-            warning: `a notification signing key was generated and written to ${IN_CONFIG}; clearing it mints a new one and every device has to allow notifications again`,
+            message: `a notification signing key was generated and written to ${IN_CONFIG}; clearing it mints a new one and every device has to allow notifications again`,
           },
         })
       } catch (error) {
         this.deps.tell({
           type: 'warning',
           detail: {
-            warning: `a notification signing key could not be written: ${String(error).slice(0, 160)}`,
+            message: `a notification signing key could not be written: ${String(error).slice(0, 160)}`,
           },
         })
       } finally {

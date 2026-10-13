@@ -108,7 +108,7 @@ export async function carryPairing(
     tell({
       type: 'warning',
       detail: {
-        warning: `the away view could not ask about a pairing: ${String(error).slice(0, 200)}`,
+        message: `the away view could not ask about a pairing: ${String(error).slice(0, 200)}`,
         request,
       },
     })

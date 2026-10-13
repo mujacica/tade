@@ -152,10 +152,7 @@ export class Away implements Subject {
   private readonly wire: Wiring
   private readonly deps: AwayDeps
   private server: WebServer | null = null
-  private readonly streams = new Streams({
-    tell: (said) =>
-      void this.log({ type: 'warning', detail: { warning: said.why, device: said.device } }),
-  })
+  private readonly streams = new Streams({ tell: (told) => void this.log(told) })
   private readonly tickets = new Tickets()
   private readonly push: WebPush
   /** One projector per device, made on demand and dropped when it is revoked. */

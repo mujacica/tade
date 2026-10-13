@@ -154,7 +154,7 @@ describe('pairing', () => {
     expect(String(body.request)).toMatch(/^[0-9a-f-]{36}$/)
     expect(JSON.stringify(body)).not.toContain('fell over')
     const warning = one.told.find((told) => told.type === 'warning')
-    expect(String(warning?.detail.warning)).toContain('fell over')
+    expect(String(warning?.detail.message)).toContain('fell over')
     expect(warning?.detail.request).toBe(body.request)
   })
 

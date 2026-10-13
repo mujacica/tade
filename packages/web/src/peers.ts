@@ -1,4 +1,5 @@
 import type { Delta, Snapshot } from './protocol.ts'
+import type { Told } from './serving.ts'
 import {
   type Cursor,
   deltaFrame,
@@ -106,8 +107,12 @@ export interface StreamOptions {
   total?: number
   /** How many deltas each device's ring keeps. */
   ring?: number
-  /** Where a line about a stream goes. Never throws, never blocks. */
-  tell?: (said: { why: string; device: string }) => void
+  /**
+   * Where a line about a stream goes: a journal line, as the server's are, so
+   * there is one shape from this subsystem to the journal and the type holds
+   * it. Never throws, never blocks.
+   */
+  tell?: (told: Told) => void
 }
 
 /**
@@ -124,7 +129,7 @@ export class Streams {
   private readonly perDevice: number
   private readonly most: number
   private readonly ringSize: number
-  private readonly tell: (said: { why: string; device: string }) => void
+  private readonly tell: (told: Told) => void
   /** The epoch every frame is stamped with. Set once, by the window. */
   private epoch = ''
   private stopping = false
@@ -134,9 +139,9 @@ export class Streams {
     this.most = Math.max(1, opts.total ?? TOTAL)
     this.ringSize = opts.ring ?? 0
     const tell = opts.tell
-    this.tell = (said) => {
+    this.tell = (told) => {
       try {
-        tell?.(said)
+        tell?.(told)
       } catch {
         // A reporter that throws is not a reason a stream dies. The same rule
         // the server already holds for `tell`.
@@ -189,7 +194,7 @@ export class Streams {
         }),
       )
       req.sink.end()
-      this.tell({ why: `a fifth stream for one device was refused`, device: req.device })
+      this.warn('a fifth stream for one device was refused', req.device)
       return { kind: 'too_many' }
     }
 
@@ -217,7 +222,7 @@ export class Streams {
         }),
         req.now,
       )
-      this.tell({ why: `a stream resynced: ${resume.why}`, device: req.device })
+      this.warn(`a stream resynced: ${resume.why}`, req.device)
     }
     held.send(sseFrame(snapshotFrame(req.snapshot())), req.now)
     return { kind: 'open', peer: held }
@@ -256,7 +261,7 @@ export class Streams {
         // No frame: a client that has not read for thirty seconds is not going
         // to read the sentence explaining why it was closed. The browser
         // reconnects and resyncs, which is the recovery.
-        this.tell({ why: 'a stream that stopped reading was closed', device: peer.device })
+        this.warn('a stream that stopped reading was closed', peer.device)
         this.end(peer, null)
         continue
       }
@@ -350,6 +355,10 @@ export class Streams {
     const made = new Ring(this.ringSize <= 0 ? undefined : this.ringSize)
     this.rings.set(device, made)
     return made
+  }
+
+  private warn(message: string, device: string): void {
+    this.tell({ type: 'warning', detail: { message, device } })
   }
 }
 

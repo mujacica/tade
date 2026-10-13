@@ -73,8 +73,8 @@ describe('nothing listens unless it is turned on', () => {
     // worse than a surface that said it could not come up.
     expect(bound.some((at) => at.startsWith(`127.0.0.1:${port}`))).toBe(false)
     const warning = told.find((line) => line.type === 'warning')
-    expect(String(warning?.detail.warning)).toContain('could not listen')
-    expect(String(warning?.detail.warning)).toContain('EADDRINUSE')
+    expect(String(warning?.detail.message)).toContain('could not listen')
+    expect(String(warning?.detail.message)).toContain('EADDRINUSE')
     await second.close()
   })
 })

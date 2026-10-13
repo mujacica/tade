@@ -582,15 +582,25 @@ export const TadeEvent = z.object({
 })
 export type TadeEvent = z.infer<typeof TadeEvent>
 
-/** What callers pass to `append`: the log fills in seq, ts and the default urgency. */
-export interface EventInput {
-  type: EventType
+interface EventBase {
   urgency?: Urgency
   task?: string | null
   lane?: string | null
   run?: string | null
-  detail?: Record<string, unknown>
 }
+
+/**
+ * What callers pass to `append`: the log fills in seq, ts and the default urgency.
+ *
+ * **A warning's words are its `message`**, and the type holds every writer to
+ * it, because nothing else would: telemetry sends `message` as the issue's
+ * title and `attention` reads it, and the away view once wrote its warnings
+ * under `warning`, which both read past — every one reached Sentry as
+ * `tade: something`, one issue for all of them, saying none of them.
+ */
+export type EventInput =
+  | (EventBase & { type: 'warning'; detail: { message: string } & Record<string, unknown> })
+  | (EventBase & { type: Exclude<EventType, 'warning'>; detail?: Record<string, unknown> })
 
 export interface EventFilter {
   /** Only events with `seq` greater than this. */

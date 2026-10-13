@@ -111,7 +111,7 @@ export function webServer(opts: ServerOptions): WebServer {
   const receipts = new Receipts({
     home: opts.home,
     epoch,
-    tell: (said) => tell({ type: 'warning', detail: { warning: said } }),
+    tell: (said) => tell({ type: 'warning', detail: { message: said } }),
   })
   // Read once, and **before the first act rather than on the first act**: a
   // repeat that arrived while the file was still being read would find an
@@ -149,7 +149,7 @@ export function webServer(opts: ServerOptions): WebServer {
       tell({
         type: 'warning',
         detail: {
-          warning: `the away view could not answer a request: ${String(error).slice(0, 200)}`,
+          message: `the away view could not answer a request: ${String(error).slice(0, 200)}`,
           request,
         },
       })
@@ -545,7 +545,7 @@ export function webServer(opts: ServerOptions): WebServer {
     if (!got.read) return answer(res, got.refusal)
     const answered = await carry(got.body)
     if (answered.warning !== null) {
-      tell({ type: 'warning', detail: { warning: answered.warning, request: at.request } })
+      tell({ type: 'warning', detail: { message: answered.warning, request: at.request } })
     }
     tell(line(answered.did))
     if (answered.refusal !== null) return answer(res, answered.refusal)
@@ -632,7 +632,7 @@ export function webServer(opts: ServerOptions): WebServer {
     tell({
       type: 'warning',
       detail: {
-        warning: `${skipped} line(s) of the paired-device list could not be read and were skipped`,
+        message: `${skipped} line(s) of the paired-device list could not be read and were skipped`,
         found: skipped,
       },
     })
@@ -684,7 +684,7 @@ export function webServer(opts: ServerOptions): WebServer {
         tell({
           type: 'warning',
           detail: {
-            warning: `the away view found none of its own files, so every page will be a 404 — ${assetsDir()}`,
+            message: `the away view found none of its own files, so every page will be a 404 — ${assetsDir()}`,
             where: assetsDir(),
           },
         })
@@ -711,7 +711,7 @@ export function webServer(opts: ServerOptions): WebServer {
           tell({
             type: 'warning',
             detail: {
-              warning: `the away view could not listen on ${host}:${opts.surface.port} — ${codeOf(error)}`,
+              message: `the away view could not listen on ${host}:${opts.surface.port} — ${codeOf(error)}`,
               where: host,
             },
           })

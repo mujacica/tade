@@ -3,6 +3,7 @@ import type { Sink } from '../src/peers.ts'
 import { Streams } from '../src/peers.ts'
 import type { Delta, Snapshot } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
+import type { Told } from '../src/serving.ts'
 import {
   HEARTBEAT_MS,
   idFor,
@@ -320,7 +321,8 @@ describe('a client that stops reading', () => {
   })
 
   it('is closed when it has not read for thirty seconds, with no frame', () => {
-    const live = streams()
+    const told: Told[] = []
+    const live = streams({ tell: (one) => told.push(one) })
     const { sink } = open(live, { cursor: { epoch: EPOCH, rev: 0 }, rev: 0 })
     sink.keeping = false
     live.push('aaaa0000bbbb1111', delta(1), NOW)
@@ -332,6 +334,15 @@ describe('a client that stops reading', () => {
     // seconds is not going to read the one explaining why it was closed, so
     // the last thing it was sent is the delta it never read.
     expect(events(sink)).toEqual(['delta'])
+    // The journal is told, in `message`: the key telemetry sends as the
+    // issue's title. Under any other this line reached Sentry as
+    // `tade: something` (TADE-3).
+    expect(told).toEqual([
+      {
+        type: 'warning',
+        detail: { message: 'a stream that stopped reading was closed', device: 'aaaa0000bbbb1111' },
+      },
+    ])
   })
 
   it('leaves every other client correct', () => {

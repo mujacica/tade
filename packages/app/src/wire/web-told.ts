@@ -15,11 +15,7 @@ import type { Wiring } from './context.ts'
 export function toldTo(wire: Wiring, news: (said: string) => void): (told: Told) => Promise<void> {
   return async (told) => {
     try {
-      await wire.opts.client.log.append({
-        type: told.type,
-        ...(told.task === undefined ? {} : { task: told.task }),
-        detail: told.detail,
-      })
+      await wire.opts.client.log.append(told)
     } catch (err) {
       news(
         `the away view could not write ${told.type} down: ${err instanceof Error ? err.message : String(err)}`,

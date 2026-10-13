@@ -438,8 +438,8 @@ describe('what a push service says back', () => {
     it_.sees([task({ waiting: true })])
     await it_.beat(() => it_.told.some((one) => one.type === 'warning'))
     const warning = it_.told.find((one) => one.type === 'warning')
-    expect(String(warning?.detail.warning)).toContain('refused')
-    expect(String(warning?.detail.warning)).toContain('signing key')
+    expect(String(warning?.detail.message)).toContain('refused')
+    expect(String(warning?.detail.message)).toContain('signing key')
   })
 
   it('survives a sender that threw, and says so', async () => {
@@ -448,7 +448,7 @@ describe('what a push service says back', () => {
     it_.sees([task({ waiting: true })])
     await it_.beat(() => it_.told.some((one) => one.type === 'warning'))
     const warning = it_.told.find((one) => one.type === 'warning')
-    expect(String(warning?.detail.warning)).toContain('the socket exploded')
+    expect(String(warning?.detail.message)).toContain('the socket exploded')
     // And a beat after it still works.
     it_.sees([task({ waiting: true, state: 'failed' })])
     await it_.beat(() => it_.pusher.sent.length === 1)
@@ -495,9 +495,9 @@ describe('the signing key', () => {
     await it_.beat(() => it_.told.length > 0)
     await it_.beat()
     expect(it_.written).toEqual([])
-    const said = it_.told.filter((one) => String(one.detail.warning ?? '').includes('not a usable'))
+    const said = it_.told.filter((one) => String(one.detail.message ?? '').includes('not a usable'))
     expect(said).toHaveLength(1)
-    expect(String(said[0]?.detail.warning)).toContain('surfaces.web.push_key')
+    expect(String(said[0]?.detail.message)).toContain('surfaces.web.push_key')
     expect(it_.push.key()).toBe('')
   })
 
@@ -616,6 +616,6 @@ describe('a device asking to be told', () => {
       now: () => 1_000,
     })
     await second.open()
-    expect(String(it_.told[0]?.detail.warning)).toContain('2 line(s)')
+    expect(String(it_.told[0]?.detail.message)).toContain('2 line(s)')
   })
 })

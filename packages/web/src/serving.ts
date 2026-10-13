@@ -60,19 +60,26 @@ export type Confirmed =
  * the window does, when the listener comes up and when it goes, and it goes
  * through the same `tell` so there is one path from this subsystem to the
  * journal rather than two.
+ *
+ * A `warning` says what went wrong in `message`, as every warning in the
+ * journal does (`EventInput`).
  */
-export interface Told {
-  type:
-    | 'web_enabled'
-    | 'web_paired'
-    | 'web_denied'
-    | 'web_revoked'
-    | 'web_refused'
-    | 'web_did'
-    | 'web_asked'
-    | 'web_subscribed'
-    | 'web_pushed'
-    | 'warning'
+export type Told = (
+  | {
+      type:
+        | 'web_enabled'
+        | 'web_paired'
+        | 'web_denied'
+        | 'web_revoked'
+        | 'web_refused'
+        | 'web_did'
+        | 'web_asked'
+        | 'web_subscribed'
+        | 'web_pushed'
+      detail: Record<string, string | number | boolean>
+    }
+  | { type: 'warning'; detail: { message: string } & Record<string, string | number | boolean> }
+) & {
   /**
    * The task the line is about, where it is about one.
    *
@@ -82,7 +89,6 @@ export interface Told {
    * under its id" is true of a search nobody would run.
    */
   task?: string
-  detail: Record<string, string | number | boolean>
 }
 
 export interface ServerOptions {
