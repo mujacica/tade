@@ -64,6 +64,16 @@ declare module '*/assets/pages/inbox-shape.js' {
   export function fromSaid(row: unknown, withId?: boolean): string
   export function startsSaid(would: unknown): string | null
   export function actionOf(row: unknown, known: (id: string) => boolean): Action
+  export function heldTaskOf(row: unknown, known: (id: string) => boolean): string | null
+  export function chipsOf(
+    row: unknown,
+    mayWho: boolean,
+  ): { key: string; said: string; mono: boolean }[]
+  export function approveWhy(
+    row: unknown,
+    here: boolean,
+    standing: { kind: string; why?: string },
+  ): string
   export function requestOf(row: unknown, asOf: number, known?: (id: string) => boolean): Request
   export function groupsOf(cards: readonly Request[]): Group[]
   export function doorOf(row: unknown, asOf: number, now: number): Door

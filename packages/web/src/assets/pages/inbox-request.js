@@ -42,7 +42,10 @@ import { intakeAt } from '../store.js'
 import { TROUBLES } from '../trouble.js'
 import { answerIn, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
+  approveWhy,
+  chipsOf,
   factsSplit,
+  heldTaskOf,
   knownIn,
   provenanceOf,
   runHref,
@@ -193,8 +196,7 @@ function requestLeadOf(ctx) {
       chipsIn(chips, row, view)
       control.update(row, view)
       // A held request's work is a task with its own controls: one press to it.
-      const held = row.state === 'held' ? row.work.find((one) => one.held !== null) : undefined
-      const to = held !== undefined && known(held.task) ? held.task : null
+      const to = heldTaskOf(row, known)
       open.hidden = to === null
       if (to !== null) {
         open.setAttribute('href', taskPath(to))
@@ -206,32 +208,16 @@ function requestLeadOf(ctx) {
   }
 }
 
-/** Where it came from, as a line of chips: the source and its id, who asked, the project, the workflow. */
+/** Where it came from, as a line of chips (`chipsOf`). */
 function chipsIn(list, row, view) {
-  const who =
-    row.who === null
-      ? mayFor(view.store, 'intake.who')
-        ? null
-        : 'asked by: not granted'
-      : `@${row.who.words}`
-  const cells = [
-    { key: 'source', said: `${row.source} ${row.externalId}`, mono: true },
-    { key: 'who', said: who },
-    { key: 'project', said: row.project },
-    {
-      key: 'workflow',
-      said: row.stamp === null ? 'one task' : `${row.stamp.name}@${row.stamp.version}`,
-      mono: row.stamp !== null,
-    },
-  ].filter((one) => one.said !== null && one.said !== '')
   keyed(
     list,
-    cells,
+    chipsOf(row, mayFor(view.store, 'intake.who')),
     (one) => one.key,
     () => el('li', { class: 'ui-pill' }),
     (chip, one) => {
       textIn(chip, one.said)
-      classOn(chip, 'is-mono', one.mono === true)
+      classOn(chip, 'is-mono', one.mono)
     },
   )
 }
@@ -301,18 +287,7 @@ function approveIn(parent, ctx) {
       if (!asked) textIn(press, wordsFor('intake', task ?? {}))
       press.disabled = false
       sayIn(starts, startsSaid(row.would))
-      // Only a request that waits on a yes says why it cannot be given one
-      // here; the rest say where they stand in the line above, and a second
-      // sentence under it would be the same fact twice.
-      const reason =
-        row.state !== 'proposed'
-          ? ''
-          : task === null
-            ? 'the parked task this would approve is not on this device'
-            : standing.kind === 'no'
-              ? standing.why
-              : ''
-      sayIn(why, standing.kind === 'off' ? '' : reason)
+      sayIn(why, approveWhy(row, task !== null, standing))
       if (standing.kind !== 'yes') {
         asked = false
         press.classList.remove('asked')

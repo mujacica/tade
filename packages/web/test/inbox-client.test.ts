@@ -7,8 +7,10 @@ import {
 } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
+  approveWhy,
   byDoor,
   calmSaid,
+  chipsOf,
   DOOR_ORDER,
   doorsOf,
   emptySays,
@@ -16,6 +18,7 @@ import {
   figureSaid,
   fromSaid,
   groupSaid,
+  heldTaskOf,
   heroSaid,
   inboxPage,
   KINDS,
@@ -499,5 +502,47 @@ describe('one request', () => {
     expect(unsentSaid({ saying: 'finished', attempts: 2, problem: '403' }).said).toBe(
       'Could not say “finished”, 2 times',
     )
+  })
+
+  it('says where it came from in chips, telling a handle nobody said from one not granted', () => {
+    const said = (one: ReturnType<typeof row>, may: boolean) =>
+      chipsOf(one, may).map((chip) => chip.said)
+    expect(said(row(), true)).toEqual([
+      'github 1402',
+      '@octocat-Vb2',
+      'sentry',
+      'reproduce-and-fix@3',
+    ])
+    expect(said(row({}, []), false)).toContain('asked by: not granted')
+    expect(said(row({ who: '' }), true)).toEqual(['github 1402', 'sentry', 'reproduce-and-fix@3'])
+    expect(said(row({ stamp: null }), true).at(-1)).toBe('one task')
+    expect(chipsOf(row({ stamp: null }), true).at(-1)?.mono).toBe(false)
+  })
+
+  it('opens the task a held request is held on, only while that task is here', () => {
+    const held = row({
+      state: 'held',
+      work: [work('sentry/github-1402', { started: true, held: 'it asked', state: 'blocked' })],
+    })
+    expect(heldTaskOf(held, () => true)).toBe('sentry/github-1402')
+    expect(heldTaskOf(held, () => false)).toBeNull()
+    // Held by failed deliveries rather than by a task: nothing to open.
+    expect(heldTaskOf(row({ state: 'held', attempts: 2 }), () => true)).toBeNull()
+    expect(heldTaskOf(row(), () => true)).toBeNull()
+  })
+
+  it('says why approving is not offered only where a yes is waited on, and never for a press not granted', () => {
+    const proposed = row()
+    expect(approveWhy(proposed, true, { kind: 'yes' })).toBe('')
+    expect(approveWhy(proposed, false, { kind: 'no', why: '' })).toBe(
+      'the parked task this would approve is not on this device',
+    )
+    expect(approveWhy(proposed, true, { kind: 'no', why: 'it is already picked up' })).toBe(
+      'it is already picked up',
+    )
+    // A device without the act sees no control and no sentence about one.
+    expect(approveWhy(proposed, false, { kind: 'off', why: '' })).toBe('')
+    // The rest say where they stand in the line above; not a second time here.
+    expect(approveWhy(row({ state: 'accepted' }), false, { kind: 'no', why: '' })).toBe('')
   })
 })

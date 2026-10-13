@@ -158,15 +158,24 @@ export function actionOf(row, known) {
   if (row.state === 'proposed') {
     return { word: 'Review and approve', name: null, href: requestPath(row.item) }
   }
-  const held = row.work.find((one) => one.held !== null)
-  if (row.state === 'held' && held !== undefined && known(held.task)) {
-    return { word: 'Open', name: taskName(held.task), href: taskPath(held.task) }
-  }
+  const held = heldTaskOf(row, known)
+  if (held !== null) return { word: 'Open', name: taskName(held), href: taskPath(held) }
   return {
     word: row.state === 'failure' ? 'See why it stopped' : 'See what is holding it',
     name: null,
     href: requestPath(row.item),
   }
+}
+
+/**
+ * The task a held request is held on, where it is on this device — a place
+ * with its own controls — or null: a request that is not held, one held by
+ * failed deliveries rather than a task, and one whose task has gone.
+ */
+export function heldTaskOf(row, known) {
+  if (row.state !== 'held') return null
+  const held = row.work.find((one) => one.held !== null)
+  return held !== undefined && known(held.task) ? held.task : null
 }
 
 /**
@@ -440,6 +449,40 @@ export function standingOfRequest(row, asOf) {
       ? `It has been edited since the work was made: the work is for ${row.taken} and it is at ${row.revision} now.`
       : null,
   }
+}
+
+/**
+ * Where a request came from, as the chips under its state: the source and its
+ * id, who asked, the project, and the workflow it was stamped from. Who asked
+ * is left out where nobody said and *not granted* where this device may not
+ * read the handle (`mayWho`) — two nothings, never one.
+ */
+export function chipsOf(row, mayWho) {
+  const who = row.who === null ? (mayWho ? null : 'asked by: not granted') : `@${row.who.words}`
+  return [
+    { key: 'source', said: `${row.source} ${row.externalId}`, mono: true },
+    { key: 'who', said: who, mono: false },
+    { key: 'project', said: row.project, mono: false },
+    {
+      key: 'workflow',
+      said: row.stamp === null ? 'one task' : `${row.stamp.name}@${row.stamp.version}`,
+      mono: row.stamp !== null,
+    },
+  ].filter((one) => one.said !== null && one.said !== '')
+}
+
+/**
+ * Why approving is not offered here, or `''` where it is or where there is
+ * nothing to say: only a request waiting on a yes says why it cannot be given
+ * one, because the rest already say where they stand in the line above, and
+ * a second sentence under it would be the same fact twice. `standing` is the
+ * verb's (`standingOf`), and `off` — a device not granted the act — is said
+ * by the control being absent, not by a sentence.
+ */
+export function approveWhy(row, here, standing) {
+  if (standing.kind === 'off' || row.state !== 'proposed') return ''
+  if (!here) return 'the parked task this would approve is not on this device'
+  return standing.kind === 'no' ? standing.why : ''
 }
 
 /**
