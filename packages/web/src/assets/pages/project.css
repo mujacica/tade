@@ -761,6 +761,11 @@ right, every branch to one scale — and the figures in words.
   justify-self: end;
 }
 
+/* A branch with nothing to say about review gives its name the whole line. */
+.page-project .pj-branch:has(> .pj-branch-review[hidden]) > .pj-branch-name {
+  grid-column: 1 / -1;
+}
+
 .page-project .pj-branch-bar {
   grid-area: bar;
   display: grid;

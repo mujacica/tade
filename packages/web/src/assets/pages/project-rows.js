@@ -10,11 +10,11 @@
 
 import { classOn, el, glyphOf, into, markIn, textIn, toneOn } from '../dom.js'
 import { ageSaid, shortClockOf } from '../figures.js'
-import { checkMark, joined, queueMark, reviewMark, rowMark, taskMark } from '../glyphs.js'
+import { checkMark, queueMark, reviewMark, rowMark, taskMark } from '../glyphs.js'
 import { quickActs } from '../quick.js'
 import { taskPath } from '../routes.js'
 import { queueAt, queueLine } from '../tree.js'
-import { armOf } from './project-shape.js'
+import { armOf, branchSaid, checkSaid } from './project-shape.js'
 
 /* ── what wants somebody ───────────────────────────────────────────────────── */
 
@@ -121,10 +121,7 @@ export function fillCheck(node, task) {
   markIn(glyph, checkMark(checks.state))
   link.setAttribute('href', taskPath(task.id))
   textIn(name, task.name)
-  const named = checks.state === 'fail' ? checks.failed : checks.missing
-  const word = checks.state === 'fail' ? 'red' : 'not run here'
-  const over = checks.overridden ? ' · overruled' : ''
-  textIn(which, named.length === 0 ? `${word}${over}` : `${word}: ${joined(named)}${over}`)
+  textIn(which, checkSaid(checks))
 }
 
 /* ── a branch ──────────────────────────────────────────────────────────────── */
@@ -164,15 +161,7 @@ export function fillBranch(node, one, most) {
   behind.style.setProperty('--w', share(one.behind))
   ahead.style.setProperty('--w', share(one.ahead))
   classOn(bar, 'is-unknown', one.ahead === null && one.behind === null)
-  // Noughts are left out, so the line stays one line on a phone; a branch
-  // neither ahead nor behind says so in a word.
-  const parts = [
-    one.ahead === null ? 'ahead: cannot tell' : one.ahead > 0 ? `${one.ahead} ahead` : null,
-    (one.behind ?? 0) > 0 ? `${one.behind} behind` : null,
-    (one.dirty ?? 0) > 0 ? `${one.dirty} changed` : null,
-  ]
-  if (parts.every((part) => part === null)) parts.push('level with where it started')
-  textIn(said, parts.filter(Boolean).join(' · '))
+  textIn(said, branchSaid(one))
 }
 
 /* ── a finding ─────────────────────────────────────────────────────────────── */
@@ -213,22 +202,10 @@ const short = (id, project) => (id.startsWith(`${project}/`) ? id.slice(project.
 /* ── the queue, as an outline ──────────────────────────────────────────────── */
 
 /**
- * The queue's tree flattened in reading order — a piece, then what waits on
- * it, indented — for a phone, where the graph's boxes would scroll sideways.
- * `queueTree`'s shape; the words are `describeQueueState`'s.
+ * A piece of queued work as a line of the queue's outline, for a phone, where
+ * the graph's boxes would scroll sideways: indented under what it waits on
+ * (`outlineOf`), and the words `describeQueueState`'s.
  */
-export function outlineOf(tree) {
-  const out = []
-  const walk = (list, depth) => {
-    for (const one of list) {
-      out.push({ row: one.row, depth })
-      walk(one.children, depth + 1)
-    }
-  }
-  walk(tree, 0)
-  return out
-}
-
 export function createPiece() {
   const node = el('li')
   const link = el('a', { class: 'pj-piece', attrs: { href: '/' } })

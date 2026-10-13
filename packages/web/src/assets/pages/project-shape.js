@@ -14,7 +14,7 @@
 
 import { mayFor } from '../access.js'
 import { money, onPlan, shortClockOf, tokensSaid } from '../figures.js'
-import { findingMark, queueMark, rowMark } from '../glyphs.js'
+import { findingMark, joined, queueMark, rowMark } from '../glyphs.js'
 import { pathOf, taskPath } from '../routes.js'
 import {
   checksFold,
@@ -157,6 +157,18 @@ export function checksOf(agents) {
   }
 }
 
+/**
+ * A branch's checks that want a look, in words: which, by the names the
+ * project's own hook and workflows give them, and whether a red run was
+ * overruled — which leaves it red.
+ */
+export function checkSaid(checks) {
+  const named = checks.state === 'fail' ? checks.failed : checks.missing
+  const word = checks.state === 'fail' ? 'red' : 'not run here'
+  const over = checks.overridden ? ' · overruled' : ''
+  return named.length === 0 ? `${word}${over}` : `${word}: ${joined(named)}${over}`
+}
+
 /* ── the queue, as a graph ─────────────────────────────────────────────────── */
 
 /** Queued work's standings, in the order a reader asks about them, each its legend's tone. */
@@ -250,6 +262,23 @@ export function graphOf(store, project, clock = shortClockOf) {
   return { nodes: [...anchors.values(), ...nodes], edges }
 }
 
+/**
+ * The queue's tree (`queueTree`) flattened in reading order — a piece, then
+ * what waits on it — each with how deep it hangs, for the outline a phone has
+ * where a desk has the graph.
+ */
+export function outlineOf(tree) {
+  const out = []
+  const walk = (list, depth) => {
+    for (const one of list) {
+      out.push({ row: one.row, depth })
+      walk(one.children, depth + 1)
+    }
+  }
+  walk(tree, 0)
+  return out
+}
+
 /** A glyph's tone class, as the word the charts tone with. */
 const TONE_OF = {
   't-wants': 'wants',
@@ -319,6 +348,20 @@ export function branchesOf(agents) {
 export function armOf(n, most) {
   if (n === null || n === undefined || n <= 0 || most <= 0) return 0
   return Math.round(Math.sqrt(Math.min(n, most) / most) * 100)
+}
+
+/**
+ * A branch's line beside its bar. Noughts are left out, so it stays one line
+ * on a phone, and a branch neither ahead nor behind with nothing changed says
+ * so in words; ahead that nobody could compare is *cannot tell*, never nought.
+ */
+export function branchSaid(one) {
+  const parts = [
+    one.ahead === null ? 'ahead: cannot tell' : one.ahead > 0 ? `${one.ahead} ahead` : null,
+    (one.behind ?? 0) > 0 ? `${one.behind} behind` : null,
+    (one.dirty ?? 0) > 0 ? `${one.dirty} changed` : null,
+  ].filter(Boolean)
+  return parts.length === 0 ? 'level with where it started' : parts.join(' · ')
 }
 
 /* ── the findings ──────────────────────────────────────────────────────────── */

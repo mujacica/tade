@@ -4,12 +4,15 @@ import {
   agentsOf,
   armOf,
   branchesOf,
+  branchSaid,
+  checkSaid,
   checksOf,
   failedOf,
   findingPart,
   findingsIn,
   graphOf,
   moneyOf,
+  outlineOf,
   partOf,
   queueOf,
   ringOf,
@@ -19,6 +22,7 @@ import {
   wantsOf,
 } from '../src/assets/pages/project-shape.js'
 import { applySnapshot, emptyStore, queueIn, tasksIn } from '../src/assets/store.js'
+import { queueTree } from '../src/assets/tree.js'
 import { projector } from '../src/reading.ts'
 import { blocked, EVERY, finding, input, NOW, queued, reach, spend, task } from './fixtures.ts'
 
@@ -166,6 +170,17 @@ describe('the checks', () => {
 
     expect(checksOf([]).figure).toBe('no work')
   })
+
+  it('names which checks by the project’s own names, and keeps an overruled run red', () => {
+    expect(checkSaid(red('tests', 'lint'))).toBe('red: tests and lint')
+    expect(checkSaid({ ...red('tests'), overridden: true })).toBe('red: tests · overruled')
+    expect(checkSaid({ state: 'unknown', failed: [], missing: ['tests'], overridden: false })).toBe(
+      'not run here: tests',
+    )
+    expect(checkSaid({ state: 'unknown', failed: [], missing: [], overridden: false })).toBe(
+      'not run here',
+    )
+  })
 })
 
 describe('the queue, as a graph', () => {
@@ -218,6 +233,27 @@ describe('the queue, as a graph', () => {
     expect(waitsOn(row)).toEqual(['sentry/z', 'sentry/y'])
     expect(shortName('sentry/x', 'sentry')).toBe('x')
     expect(shortName('acme/x', 'sentry')).toBe('acme/x')
+  })
+
+  it('lays the queue out for a phone as the side’s tree, each piece under what it waits on', () => {
+    const store = held({
+      queue: [
+        queued(),
+        queued({
+          task: 'sentry/pairing',
+          state: { kind: 'waiting', on: ['sentry/away-auth-server'] },
+          waitsOn: [],
+        }),
+        queued({ task: 'sentry/alone', state: { kind: 'ready' }, waitsOn: [] }),
+      ],
+    })
+    const lines = outlineOf(queueTree(queueIn(store, 'sentry')))
+    expect(lines.map((one) => [one.row.task, one.depth])).toEqual([
+      ['sentry/alone', 0],
+      ['sentry/away-auth-server', 0],
+      ['sentry/pairing', 1],
+    ])
+    expect(outlineOf([])).toEqual([])
   })
 
   it('keeps ready and waiting in the legend always, and the rest only where something stands', () => {
@@ -273,6 +309,14 @@ describe('the branches', () => {
       merged: 1,
       unoffered: 1,
     })
+  })
+
+  it('says a branch in one line, noughts left out, and never a nought it could not read', () => {
+    expect(branchSaid({ ahead: 5, behind: 4, dirty: 11 })).toBe('5 ahead · 4 behind · 11 changed')
+    expect(branchSaid({ ahead: 2, behind: 0, dirty: 0 })).toBe('2 ahead')
+    expect(branchSaid({ ahead: 0, behind: 0, dirty: 6 })).toBe('6 changed')
+    expect(branchSaid({ ahead: 0, behind: 0, dirty: 0 })).toBe('level with where it started')
+    expect(branchSaid({ ahead: null, behind: null, dirty: null })).toBe('ahead: cannot tell')
   })
 
   it('draws an arm on a root scale, so one long branch does not flatten the rest', () => {

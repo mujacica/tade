@@ -63,7 +63,6 @@ import {
   fillFinding,
   fillPiece,
   fillWant,
-  outlineOf,
 } from './project-rows.js'
 import {
   agentsOf,
@@ -73,6 +72,7 @@ import {
   findingsIn,
   graphOf,
   moneyOf,
+  outlineOf,
   queueOf,
   ringOf,
   wantsOf,

@@ -39,6 +39,15 @@ declare module '*/assets/pages/project-shape.js' {
     figure: string
     parts: Part[]
   }
+  export function checkSaid(checks: {
+    state: string
+    failed: readonly string[]
+    missing: readonly string[]
+    overridden: boolean
+  }): string
+  export function outlineOf(
+    tree: readonly { row: Row; children: readonly unknown[] }[],
+  ): { row: Row; depth: number }[]
   export function waitsOn(row: unknown): string[]
   export function shortName(id: string, project: string): string
   export function graphOf(
@@ -68,6 +77,11 @@ declare module '*/assets/pages/project-shape.js' {
     parts: Part[]
   }
   export function armOf(n: number | null, most: number): number
+  export function branchSaid(one: {
+    ahead: number | null
+    behind: number | null
+    dirty: number | null
+  }): string
   export function findingPart(finding: unknown): string
   export function findingsIn(
     store: unknown,
