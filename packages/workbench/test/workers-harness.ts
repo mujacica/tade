@@ -11,7 +11,7 @@ import type {
   WorkerSignalListener,
   WorkerSpec,
 } from '@tade/harnesses-core'
-import { noHarnessSpend, PermissionNotPendingError } from '@tade/harnesses-core'
+import { NO_HISTORY, noHarnessSpend, PermissionNotPendingError } from '@tade/harnesses-core'
 import type { Reporter } from '@tade/telemetry'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
@@ -88,6 +88,10 @@ export class FakeAdapter implements WorkerAdapter {
 
   async spent() {
     return noHarnessSpend()
+  }
+
+  async history() {
+    return NO_HISTORY
   }
 
   async models() {

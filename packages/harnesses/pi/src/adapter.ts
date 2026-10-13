@@ -17,6 +17,8 @@ import {
   type HarnessModel,
   type HarnessProbe,
   type HarnessSpend,
+  type HistoryAsk,
+  type HistoryPage,
   type LaunchSpec,
   type ModelFound,
   type PermissionDecision,
@@ -37,7 +39,7 @@ import {
 } from '@tade/harnesses-core'
 import { SignalChannel } from './channel.ts'
 import { findModel, loggedInProviders, usableModels } from './models.ts'
-import { sessionFileFor, sessionsRoot, usageOfTask } from './sessions.ts'
+import { historyOfTask, sessionFileFor, sessionsRoot, usageOfTask } from './sessions.ts'
 import { type Spent, spentBy, spentByMessage } from './usage.ts'
 
 // Drives pi as a Tade worker: pi runs the agent, Tade supervises it through
@@ -350,6 +352,13 @@ export class PiAdapter implements WorkerAdapter {
 
   async spent(task: string, _cwd: string): Promise<HarnessSpend> {
     return usageOfTask(task, this.recordsAt())
+  }
+
+  history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
+    return historyOfTask(task, ask, {
+      ...this.recordsAt(),
+      headless: join(this.opts.runDir, 'sessions'),
+    })
   }
 
   async account(): Promise<AccountStatus> {

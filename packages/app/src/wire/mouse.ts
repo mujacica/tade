@@ -12,6 +12,7 @@ import {
   grabBar,
   leaveLine,
   ORCHESTRATOR_TAB,
+  offsetOf,
   openLine,
   resizeTo,
   scrollBarTo,
@@ -253,6 +254,13 @@ export class Mouse {
     // Everywhere else: the one move, clamped to what the last frame said
     // the region actually is. Nothing is laid out again to find that out.
     const moved = scrollBy(this.wire.state, event.area, event.rows, event.reach)
+    // Up to the top of the conversation, where what was said before this
+    // window opened is read in: the wheel going on is asking for it.
+    if (event.area === 'transcript' && event.rows < 0 && moved.transcript.earlier) {
+      if (offsetOf(moved, 'transcript', event.reach.total, event.reach.shown) === 0) {
+        this.deps.run('transcript-earlier')
+      }
+    }
     if (moved === this.wire.state) return false
     this.wire.put(moved)
     if (event.area === 'pane' || event.area === 'terminal') {

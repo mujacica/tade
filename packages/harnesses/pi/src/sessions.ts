@@ -1,6 +1,13 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import {
+  type HistoryAsk,
+  type HistoryLine,
+  type HistoryPage,
+  historyIn,
+  momentOf,
+} from '@tade/harnesses-core'
 import { sessionIdFor } from './adapter.ts'
 import { modelOfMessage, spentBy } from './usage.ts'
 
@@ -110,4 +117,85 @@ export async function usageOfTask(
 ): Promise<SessionUsage> {
   const file = await sessionFileFor(task, opts)
   return file ? usageOf(file) : noUsage()
+}
+
+/**
+ * A page of a task's conversation, out of pi's own session (`historyIn`).
+ *
+ * A headless run keeps its session flat in `headless` (`--session-dir`), and
+ * one in a lane where pi files it by working directory; the first found is it.
+ */
+export async function historyOfTask(
+  task: string,
+  ask: HistoryAsk,
+  opts: { root?: string; headless?: string } = {},
+): Promise<HistoryPage> {
+  const suffix = `_${sessionIdFor(task)}.jsonl`
+  const flat = opts.headless
+    ? (await readdir(opts.headless).catch(() => [] as string[]))
+        .filter((name) => name.endsWith(suffix))
+        .sort()
+        .map((name) => join(opts.headless ?? '', name))
+    : []
+  const file = flat.at(-1) ?? (await sessionFileFor(task, opts).catch(() => null))
+  return historyIn(file, ask, historyLine)
+}
+
+/** What one session line says, or null for anything that is not a message of the conversation. */
+export function historyLine(text: string): HistoryLine | null {
+  let entry: unknown
+  try {
+    entry = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (typeof entry !== 'object' || entry === null) return null
+  const { type, message, timestamp } = entry as Record<string, unknown>
+  if (type !== 'message' || typeof message !== 'object' || message === null) return null
+  const { role, content, toolCallId, isError } = message as Record<string, unknown>
+  const at = momentOf(timestamp)
+  const parts: Record<string, unknown>[] =
+    typeof content === 'string'
+      ? [{ type: 'text', text: content }]
+      : Array.isArray(content)
+        ? content.filter(
+            (part): part is Record<string, unknown> => typeof part === 'object' && part !== null,
+          )
+        : []
+  const words = parts.flatMap((part) =>
+    part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
+  )
+  const line: HistoryLine = { items: [], results: [], opens: false }
+  if (role === 'user') {
+    const images = parts.filter((part) => part.type === 'image').map(() => 'picture')
+    if (words.join('').trim() === '' && images.length === 0) return line
+    line.items.push({ kind: 'sent', text: words.join('\n'), images, at })
+    line.opens = true
+  } else if (role === 'assistant') {
+    for (const part of parts) {
+      if (part.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+        line.items.push({ kind: 'reply', text: part.text, at })
+      } else if (part.type === 'toolCall' && typeof part.id === 'string') {
+        line.items.push({
+          kind: 'tool',
+          id: part.id,
+          tool: String(part.name ?? ''),
+          input: part.arguments ?? {},
+          ok: null,
+          result: '',
+          at,
+        })
+      }
+    }
+  } else if (role === 'toolResult' && typeof toolCallId === 'string') {
+    const failed = isError === true
+    line.results.push({
+      id: toolCallId,
+      ok: !failed,
+      result: failed ? words.join('\n').slice(0, 300) : '',
+    })
+  } else {
+    return null
+  }
+  return line
 }

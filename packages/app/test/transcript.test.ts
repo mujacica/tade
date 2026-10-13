@@ -1,7 +1,9 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import type { HistoryItem } from '@tade/harnesses-core'
 import { describe, expect, it } from 'vitest'
 import { PLAIN } from '../src/skin.ts'
 import {
+  askingEarlier,
   emptyTranscript,
   fromThinker,
   fromTurn,
@@ -15,6 +17,7 @@ import {
   tadeDid,
   thinking,
   toolDetail,
+  withEarlier,
   youSaid,
 } from '../src/transcript.ts'
 import { transcriptLines } from '../src/transcript-view.ts'
@@ -355,5 +358,106 @@ describe('what a tool was used on', () => {
     )
     expect(toolDetail({ text: 'x'.repeat(80) })).toMatch(/…$/)
     expect(toolDetail(null)).toBe('')
+  })
+})
+
+describe('what was said before the window opened', () => {
+  const page: HistoryItem[] = [
+    {
+      kind: 'sent',
+      text: 'Since you last heard from Tade:\n- 13:51 shop/refunds finished\n\nYou are looking at shop.\n\nWhat they said:\nwhat is running?',
+      images: [],
+      at: 1,
+    },
+    {
+      kind: 'tool',
+      id: 't1',
+      tool: 'tade_status',
+      input: { project: 'shop' },
+      ok: true,
+      result: '',
+      at: 2,
+    },
+    { kind: 'reply', text: 'Two agents.', at: 3 },
+    { kind: 'sent', text: 'A watch found something new.\nTell the person.', images: [], at: 4 },
+    {
+      kind: 'tool',
+      id: 't2',
+      tool: 'Bash',
+      input: { command: 'git log' },
+      ok: false,
+      result: 'fatal',
+      at: 5,
+    },
+    { kind: 'sent', text: 'check the build', images: ['/tmp/shot.png'], at: 6 },
+    { kind: 'tool', id: 't3', tool: 'Read', input: {}, ok: null, result: '', at: 7 },
+  ]
+  const theirs = (words: string) => words === 'check the build'
+
+  it("is drawn as it was shown: their words as theirs, Tade's as Tade's, and the tools with how they went", () => {
+    const now = youSaid(emptyTranscript(), 'and now?', 10)
+    const back = withEarlier(now, page, '4096', theirs)
+    expect(back.entries.map((entry) => entry.kind)).toEqual([
+      'tade',
+      'you',
+      'tool',
+      'said',
+      'tade',
+      'tool',
+      'you',
+      'tool',
+      // What was already on screen stays below what was said before it.
+      'you',
+    ])
+    expect(back.entries[0]).toMatchObject({ text: 'told the orchestrator: shop/refunds finished' })
+    expect(back.entries[1]).toMatchObject({ text: 'what is running?', from: 'you' })
+    expect(back.entries[2]).toMatchObject({ state: 'ok', detail: 'shop' })
+    expect(back.entries[3]).toMatchObject({
+      by: 'orchestrator',
+      streaming: false,
+      text: 'Two agents.',
+    })
+    // Under no heading and never said by the person: Tade's, one line of it.
+    expect(back.entries[4]).toMatchObject({
+      text: 'told the orchestrator: A watch found something new.',
+    })
+    expect(back.entries[5]).toMatchObject({ state: 'failed', result: 'fatal' })
+    expect(back.entries[6]).toMatchObject({ text: 'check the build', images: ['/tmp/shot.png'] })
+    expect(back.entries[7]).toMatchObject({
+      state: 'failed',
+      result: 'no answer to it was recorded',
+    })
+    expect(back.earlier).toEqual({ cursor: '4096', asking: false })
+    expect(back.thinking).toBeNull()
+  })
+
+  it('says there is more above, and that it is being read', () => {
+    const back = withEarlier(emptyTranscript(), page.slice(0, 3), '4096', theirs)
+    expect(text(back)[0]).toContain('said before this')
+    expect(transcriptLines(back, 60, PLAIN, pointer, 0)[0]?.hits).toContainEqual(
+      expect.objectContaining({ target: { kind: 'action', name: 'transcript-earlier' } }),
+    )
+    expect(text(askingEarlier(back))[0]).toContain('reading what was said before')
+    expect(text(withEarlier(emptyTranscript(), page.slice(0, 3), null, theirs))[0]).not.toContain(
+      'said before',
+    )
+  })
+
+  it('keeps what was scrolled back for, and stops offering more once anything falls off the top', () => {
+    const many = Array.from(
+      { length: TRANSCRIPT_MAX + 20 },
+      (_, n): HistoryItem => ({
+        kind: 'reply',
+        text: `r${n}`,
+        at: n,
+      }),
+    )
+    const back = withEarlier(emptyTranscript(), many, '9', theirs)
+    expect(back.entries).toHaveLength(TRANSCRIPT_MAX + 20)
+    const next = said(back, 'new', 999)
+    expect(next.entries).toHaveLength(TRANSCRIPT_MAX + 20)
+    expect(next.entries.at(-1)).toMatchObject({ text: 'new' })
+    expect(next.earlier).toBeNull()
+    expect(said(emptyTranscript(), 'x', 1).earlier).toBeNull()
   })
 })

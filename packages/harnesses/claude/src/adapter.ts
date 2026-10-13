@@ -19,6 +19,8 @@ import {
   type HarnessModel,
   type HarnessProbe,
   type HarnessSpend,
+  type HistoryAsk,
+  type HistoryPage,
   type LaunchSpec,
   type ModelFound,
   type PermissionDecision,
@@ -42,6 +44,7 @@ import { BACKGROUNDED } from './background.ts'
 import { type ChannelRequest, ClaudeChannel } from './channel.ts'
 import {
   defaultConfigDir,
+  historyOn,
   interruptedIn,
   sessionIdFor,
   spentIn,
@@ -415,6 +418,10 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   async spent(task: string, _cwd: string): Promise<HarnessSpend> {
     return spentOn(task, this.opts.configDir)
+  }
+
+  history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
+    return historyOn(task, this.opts.configDir, ask, toolName)
   }
 
   /**

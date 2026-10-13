@@ -1,8 +1,17 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { interruptedIn, sessionIdFor, spentIn, spentOn, transcriptFor } from '../src/transcript.ts'
+import { ClaudeAdapter } from '../src/adapter.ts'
+import {
+  historyLine,
+  interruptedIn,
+  sessionIdFor,
+  spentIn,
+  spentOn,
+  transcriptFor,
+} from '../src/transcript.ts'
 
 const reply = (id: string, usage: Record<string, number>, model = 'claude-sonnet-5') =>
   JSON.stringify({ type: 'assistant', message: { id, model, usage } })
@@ -80,5 +89,83 @@ describe('a turn cut short', () => {
     expect(interruptedIn([reply('m1', {}), cut].join('\n'))).toBe(true)
     expect(interruptedIn([cut, reply('m2', {})].join('\n'))).toBe(false)
     expect(interruptedIn('')).toBe(false)
+  })
+})
+
+// The orchestrator's own conversation as Claude Code 2.1 records it, in the
+// shapes it really writes — its bookkeeping lines, a subagent's side
+// conversation, its own commands, a turn cut short and a last line still
+// being written — so what comes back is what was said and nothing else.
+const RECORDED = fileURLToPath(
+  new URL(
+    '../../../../test/fixtures/transcripts/claude-code/2.1/orchestrator.jsonl',
+    import.meta.url,
+  ),
+)
+
+describe('a conversation read back', () => {
+  it('is what was sent, what it said and the tools it called, in order, out of its own record', async () => {
+    const config = tmp('tade-claude-cfg-')
+    const dir = join(config, 'projects', '-work-shop')
+    mkdirSync(dir, { recursive: true })
+    copyFileSync(RECORDED, join(dir, `${sessionIdFor('tade/orchestrator')}.jsonl`))
+    const adapter = new ClaudeAdapter({
+      runDir: tmp('tcc-'),
+      configDir: config,
+      home: tmp('tcc-home-'),
+    })
+
+    const page = await adapter.history('tade/orchestrator', '/work/shop', { limit: 100 })
+    expect(page.earlier).toBeNull()
+    expect(
+      page.items.map((item) =>
+        item.kind === 'tool'
+          ? ['tool', item.tool, item.ok, item.result]
+          : [item.kind, item.text.split('\n').at(-1)],
+      ),
+    ).toEqual([
+      ['sent', 'what is running?'],
+      // One of Tade's own tools, by the name Tade gave it.
+      ['tool', 'tade_status', true, ''],
+      ['reply', 'Two agents are working in **shop**: `search` and `refunds`.'],
+      ['sent', 'Tell the person what it found.'],
+      ['tool', 'Bash', false, 'fatal: not a git repository'],
+      ['reply', 'That repository has no history yet, so there is nothing to review.'],
+      ['sent', 'stop the flaky agent'],
+      ['reply', 'A paired device can only read, so I cannot stop it from there.'],
+      ['sent', 'what is wrong here?'],
+      // Cut short before it answered, which is all that is known about it.
+      ['tool', 'Read', null, ''],
+    ])
+    const first = page.items[0]
+    expect(first?.kind === 'sent' && first.text.startsWith('Since you last heard from Tade:')).toBe(
+      true,
+    )
+    const tool = page.items[1]
+    expect(tool?.kind === 'tool' && tool.input).toEqual({ project: 'shop' })
+    // The picture it was pointed at is the picture, not words of the message.
+    const pictured = page.items[8]
+    expect(pictured).toMatchObject({
+      kind: 'sent',
+      text: 'What they said:\nwhat is wrong here?',
+      images: ['/tmp/orchestrator/attachments/1791-1.png'],
+    })
+    expect(page.items.every((item) => item.at > Date.UTC(2026, 9, 12))).toBe(true)
+  })
+
+  it('has nothing for a task it never talked in, and null for a line that is not the conversation', async () => {
+    const adapter = new ClaudeAdapter({
+      runDir: tmp('tcc-'),
+      configDir: tmp('tade-claude-cfg-'),
+      home: tmp('tcc-home-'),
+    })
+    expect(await adapter.history('tade/orchestrator', '/work', { limit: 10 })).toEqual({
+      items: [],
+      earlier: null,
+    })
+    expect(historyLine('{"type":"cost-state","totalCostUSD":1}')).toBeNull()
+    expect(historyLine('[1,2]')).toBeNull()
+    expect(historyLine('{"type":"user"}')).toBeNull()
+    expect(historyLine('not json')).toBeNull()
   })
 })

@@ -2,7 +2,17 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { type HarnessSpend, noHarnessSpend, type PlanLimits } from '@tade/harnesses-core'
+import {
+  type HarnessSpend,
+  type HistoryAsk,
+  type HistoryLine,
+  type HistoryPage,
+  historyIn,
+  momentOf,
+  NO_HISTORY,
+  noHarnessSpend,
+  type PlanLimits,
+} from '@tade/harnesses-core'
 
 // Reading what an agent did out of Codex's own records, rather than out of
 // what it told us at the time.
@@ -273,4 +283,87 @@ function claimsIn(token: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+/** A page of a task's conversation, out of Codex's rollout for its thread (`historyIn`). */
+export async function historyOn(
+  task: string,
+  stateDir: string,
+  codexHome: string,
+  ask: HistoryAsk,
+): Promise<HistoryPage> {
+  const thread = await threadOf(task, stateDir)
+  if (!thread) return NO_HISTORY
+  return historyIn(await rolloutFor(thread, codexHome), ask, historyLine)
+}
+
+/**
+ * What one rollout line says of the conversation, or null for everything else.
+ * What was said to it is its `user_message` event, which carries the words
+ * alone; the response item of the same turn carries its context too.
+ */
+export function historyLine(text: string): HistoryLine | null {
+  const [entry] = entries(text)
+  if (!entry) return null
+  const { payload } = entry
+  let at = 0
+  try {
+    at = momentOf((JSON.parse(text) as { timestamp?: unknown }).timestamp)
+  } catch {
+    return null
+  }
+  const line: HistoryLine = { items: [], results: [], opens: false }
+  if (entry.type === 'event_msg' && payload.type === 'user_message') {
+    if (typeof payload.message !== 'string') return null
+    const images = Array.isArray(payload.images) ? payload.images.map(() => 'picture') : []
+    line.items.push({ kind: 'sent', text: payload.message, images, at })
+    line.opens = true
+    return line
+  }
+  if (entry.type !== 'response_item') return null
+  if (
+    payload.type === 'message' &&
+    payload.role === 'assistant' &&
+    Array.isArray(payload.content)
+  ) {
+    for (const part of payload.content) {
+      const said = record(part)
+      if (said?.type === 'output_text' && typeof said.text === 'string' && said.text.trim()) {
+        line.items.push({ kind: 'reply', text: said.text, at })
+      }
+    }
+    return line
+  }
+  if (
+    (payload.type === 'function_call' || payload.type === 'custom_tool_call') &&
+    typeof payload.call_id === 'string'
+  ) {
+    let input: unknown = payload.input ?? payload.arguments ?? {}
+    if (typeof payload.arguments === 'string') {
+      try {
+        input = JSON.parse(payload.arguments)
+      } catch {
+        input = { arguments: payload.arguments }
+      }
+    } else if (typeof input === 'string') input = { input }
+    line.items.push({
+      kind: 'tool',
+      id: payload.call_id,
+      tool: String(payload.name ?? ''),
+      input,
+      ok: null,
+      result: '',
+      at,
+    })
+    return line
+  }
+  if (
+    (payload.type === 'function_call_output' || payload.type === 'custom_tool_call_output') &&
+    typeof payload.call_id === 'string'
+  ) {
+    // Codex records what came back and not whether it worked: it answered.
+    line.results.push({ id: payload.call_id, ok: true, result: '' })
+    return line
+  }
+  return null
 }

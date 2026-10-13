@@ -1,4 +1,4 @@
-import type { TadeEvent } from '@tade/core'
+import { AWAY_WORDS, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   addEnded,
@@ -6,9 +6,11 @@ import {
   agentEnded,
   eventNews,
   NEWS_MAX,
+  TADE_WORDS,
   THEIR_WORDS,
   taskNews,
   unended,
+  unwrapped,
   whereYouAre,
   withNews,
 } from '../src/inbox.ts'
@@ -271,5 +273,45 @@ describe('where they are standing, said every turn', () => {
       'What they said:',
       'start an agent on this',
     ])
+  })
+})
+
+describe('a message taken apart again', () => {
+  // The clock the window tells it in: the time of day, and nothing to guess at.
+  const hours = (at: number) => `${String(at).padStart(2, '0')}:05`
+  const news = addNews(addNews([], 'shop/refunds finished', 13), 'shop/search started', 14)
+
+  it("is the news that went with it and the person's own words, whatever else was said above them", () => {
+    const where = 'You are looking at shop › search. 2 projects are open: shop, docs.'
+    expect(unwrapped(withNews('what is running?', news, hours, THEIR_WORDS, where))).toEqual({
+      news: ['shop/refunds finished', 'shop/search started'],
+      heading: 'them',
+      words: 'what is running?',
+    })
+    expect(unwrapped(withNews('two\nlines', [], hours, THEIR_WORDS, where))).toEqual({
+      news: [],
+      heading: 'them',
+      words: 'two\nlines',
+    })
+  })
+
+  it('says whose the words were when Tade told it something, and when a paired device asked', () => {
+    expect(unwrapped(withNews('a watch found something', news, hours, TADE_WORDS))).toMatchObject({
+      heading: 'tade',
+      words: 'a watch found something',
+    })
+    const away = ['This came from a paired device.', '', AWAY_WORDS, 'stop it'].join('\n')
+    expect(unwrapped(away)).toEqual({ news: [], heading: 'away', words: 'stop it' })
+  })
+
+  it('is the message as it was, under no heading, when nothing went with it', () => {
+    expect(withNews('what is running?', [], hours)).toBe('what is running?')
+    expect(unwrapped('what is running?')).toEqual({
+      news: [],
+      heading: null,
+      words: 'what is running?',
+    })
+    // A heading's words in the middle of a sentence are not a heading.
+    expect(unwrapped(`I typed ${THEIR_WORDS} in a sentence`).heading).toBeNull()
   })
 })

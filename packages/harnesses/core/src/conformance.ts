@@ -264,6 +264,10 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         expect(spent.messages).toBe(0)
         expect(spent.tokens).toBe(0)
         expect(spent.usd).toBe(0)
+        expect(await one.history(fresh.task, fresh.cwd, { limit: 20 })).toEqual({
+          items: [],
+          earlier: null,
+        })
       })
     })
 

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import type { Arm, Config } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
-import type { HarnessModels } from '@tade/harnesses-core'
+import type { HarnessModels, HistoryAsk, HistoryPage } from '@tade/harnesses-core'
 import type { StatusCollector } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
@@ -184,6 +184,12 @@ export interface AppOptions {
    * gets "I didn't catch that", which is a poor answer to a real question.
    */
   thinker?: Thinker
+  /**
+   * The conversation with the orchestrator as its harness kept it, a page at a
+   * time from the newest end, so a window opened again shows what was said
+   * before it closed. Without it the conversation starts empty.
+   */
+  history?: (ask: HistoryAsk) => Promise<HistoryPage>
   /**
    * What one harness offers to run, asked of that harness: never a list
    * gathered across them, because no harness could run one. The workbench

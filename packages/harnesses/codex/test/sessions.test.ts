@@ -6,6 +6,8 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
   contextIn,
   conversationKey,
+  historyLine,
+  historyOn,
   limitsIn,
   rememberThread,
   rolloutFor,
@@ -144,5 +146,52 @@ describe('who a Codex home is signed in as', () => {
     const shapeless = tmp('tade-codex-shapeless-')
     writeFileSync(join(shapeless, 'auth.json'), '{"tokens":{"id_token":"not-a-jwt"}}')
     expect(await whoIn(shapeless)).toEqual({ who: null, plan: null })
+  })
+})
+
+describe('a conversation read back', () => {
+  it('is what was sent, the tools it ran and what it said, out of the rollout of its thread', async () => {
+    const state = tmp('tade-codex-state-')
+    const home = homeWith(fixture(`0.154/${ROLLOUT}`))
+    expect(await historyOn('app/search', state, home, { limit: 20 })).toEqual({
+      items: [],
+      earlier: null,
+    })
+    await rememberThread('app/search', state, THREAD)
+    const page = await historyOn('app/search', state, home, { limit: 20 })
+    expect(page.earlier).toBeNull()
+    expect(page.items).toEqual([
+      {
+        kind: 'sent',
+        text: 'delete the old pagination tests',
+        images: [],
+        at: Date.parse('2026-09-21T09:47:20.500Z'),
+      },
+      {
+        kind: 'tool',
+        id: 'c1',
+        tool: 'shell',
+        input: { input: 'rm -r test/old' },
+        ok: true,
+        result: '',
+        at: Date.parse('2026-09-21T09:47:21.100Z'),
+      },
+      { kind: 'reply', text: 'Removed them.', at: Date.parse('2026-09-21T09:47:22.200Z') },
+    ])
+  })
+
+  it("reads an older release's function calls, and says the same reply once", () => {
+    const text = readFileSync(
+      fixture('0.104/rollout-2026-09-11T09-00-00-aaaaaaaa-0000-7000-8000-000000000001.jsonl'),
+      'utf8',
+    )
+    const items = text
+      .split('\n')
+      .filter(Boolean)
+      .flatMap((line) => historyLine(line)?.items ?? [])
+    expect(items.map((item) => item.kind)).toEqual(['sent', 'tool', 'reply'])
+    expect(items[1]).toMatchObject({ tool: 'shell', input: { command: ['rg', 'paginate'] } })
+    expect(historyLine('{"type":"turn_context","payload":{}}')).toBeNull()
+    expect(historyLine('not json')).toBeNull()
   })
 })

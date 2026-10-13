@@ -75,6 +75,17 @@ export function transcriptLines(
     )
   }
 
+  // More of the conversation above this, in its harness's record: scrolling
+  // up to here reads it, and so does pressing this.
+  if (transcript.earlier?.asking) plainText(`  ${skin.hint('… reading what was said before')}`)
+  else if (transcript.earlier) {
+    const row = new Row(width, skin, pointer)
+    row.text(`  ${skin.hint('↑ said before this')}`)
+    row.right((r) => r.button('more', { kind: 'action', name: 'transcript-earlier' }).space())
+    const built = row.build()
+    lines.push({ text: built.text, hits: built.hits })
+  }
+
   transcript.entries.forEach((entry, index) => {
     // A breath before each thing you said, so exchanges read as exchanges.
     if (entry.kind === 'you' && index > 0) plainText('')

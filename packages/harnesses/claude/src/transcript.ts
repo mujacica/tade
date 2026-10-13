@@ -2,7 +2,16 @@ import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { type HarnessSpend, noHarnessSpend } from '@tade/harnesses-core'
+import {
+  type HarnessSpend,
+  type HistoryAsk,
+  type HistoryItem,
+  type HistoryLine,
+  type HistoryPage,
+  historyIn,
+  momentOf,
+  noHarnessSpend,
+} from '@tade/harnesses-core'
 
 // Reading what an agent did out of Claude Code's own transcript, rather than
 // out of what it told us at the time.
@@ -132,4 +141,115 @@ export function interruptedIn(tail: string): boolean {
     return false
   }
   return false
+}
+
+/**
+ * A page of a task's conversation, out of its transcript (`historyIn`), with
+ * each tool called by the name the adapter gives it.
+ */
+export async function historyOn(
+  task: string,
+  configDir: string,
+  ask: HistoryAsk,
+  named: (tool: string) => string,
+): Promise<HistoryPage> {
+  return historyIn(await transcriptFor(task, configDir), ask, (line) => historyLine(line, named))
+}
+
+/** A picture it was pointed at, as `promptWithImages` writes one. */
+const PICTURE = /^\[picture: (.+)\]$/
+
+/**
+ * What one transcript line says, or null for any line that is not a part of
+ * the conversation as it was had: its own bookkeeping, a side conversation of
+ * a subagent, what it says about its own commands, and anything unrecognised.
+ */
+export function historyLine(
+  text: string,
+  named: (tool: string) => string = (tool) => tool,
+): HistoryLine | null {
+  let entry: unknown
+  try {
+    entry = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (typeof entry !== 'object' || entry === null) return null
+  const { type, message, timestamp, isSidechain, isMeta, isCompactSummary } = entry as Record<
+    string,
+    unknown
+  >
+  // A summary it wrote of itself after compacting is not something anybody said.
+  if (isSidechain === true || isMeta === true || isCompactSummary === true) return null
+  if (type !== 'user' && type !== 'assistant') return null
+  if (typeof message !== 'object' || message === null) return null
+  const at = momentOf(timestamp)
+  const content = (message as { content?: unknown }).content
+  const parts: Record<string, unknown>[] =
+    typeof content === 'string'
+      ? [{ type: 'text', text: content }]
+      : Array.isArray(content)
+        ? content.filter(
+            (part): part is Record<string, unknown> => typeof part === 'object' && part !== null,
+          )
+        : []
+  const line: HistoryLine = { items: [], results: [], opens: false }
+  if (type === 'user') {
+    const words: string[] = []
+    const images: string[] = []
+    for (const part of parts) {
+      if (part.type === 'text' && typeof part.text === 'string') words.push(part.text)
+      else if (part.type === 'image') images.push('picture')
+      else if (part.type === 'tool_result' && typeof part.tool_use_id === 'string') {
+        const failed = part.is_error === true
+        line.results.push({
+          id: part.tool_use_id,
+          ok: !failed,
+          result: failed ? resultText(part.content).slice(0, 300) : '',
+        })
+      }
+    }
+    const said = words.join('\n')
+    // What it says about its own commands, and a turn somebody cut short:
+    // neither was said to it by anybody.
+    if (said.trim() === '' || /^\s*(<[a-z-]+>|\[Request interrupted)/.test(said)) return line
+    const kept = said.split('\n')
+    while (kept.length > 0) {
+      const picture = PICTURE.exec(kept.at(-1) ?? '')
+      if (!picture?.[1]) break
+      images.unshift(picture[1])
+      kept.pop()
+    }
+    line.items.push({ kind: 'sent', text: kept.join('\n').trimEnd(), images, at })
+    line.opens = true
+    return line
+  }
+  for (const part of parts) {
+    if (part.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+      line.items.push({ kind: 'reply', text: part.text, at })
+    } else if (part.type === 'tool_use' && typeof part.id === 'string') {
+      const item: HistoryItem = {
+        kind: 'tool',
+        id: part.id,
+        tool: named(String(part.name ?? '')),
+        input: part.input ?? {},
+        ok: null,
+        result: '',
+        at,
+      }
+      line.items.push(item)
+    }
+  }
+  return line
+}
+
+/** A tool's answer as words, however the transcript kept it. */
+function resultText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((part) =>
+      typeof part === 'object' && part !== null && 'text' in part ? String(part.text) : '',
+    )
+    .join('\n')
 }

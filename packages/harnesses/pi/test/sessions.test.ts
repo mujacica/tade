@@ -3,7 +3,13 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { sessionIdFor } from '../src/adapter.ts'
-import { sessionFileFor, usageOf, usageOfTask } from '../src/sessions.ts'
+import {
+  historyLine,
+  historyOfTask,
+  sessionFileFor,
+  usageOf,
+  usageOfTask,
+} from '../src/sessions.ts'
 
 // Reading an agent's spend out of the harness's own session file, which is the
 // record that survives Tade being closed.
@@ -146,5 +152,124 @@ describe('reading a task’s session', () => {
     const usage = await usageOf(path)
     expect(usage.tokens).toBe(0)
     expect(usage.usd).toBe(0)
+  })
+})
+
+describe('a conversation read back', () => {
+  // Shaped as pi 0.7x writes a headless session: flat in `--session-dir`.
+  const lines = [
+    { type: 'session', version: 3, id: 'tade-orchestrator', timestamp: '2026-09-19T11:47:15.509Z' },
+    { type: 'model_change', id: 'a1', provider: 'openrouter', modelId: 'anthropic/claude-opus-5' },
+    {
+      type: 'message',
+      id: 'b1',
+      timestamp: '2026-09-19T11:47:16.000Z',
+      message: { role: 'system', content: '' },
+    },
+    {
+      type: 'message',
+      id: 'b2',
+      timestamp: '2026-09-19T11:47:17.000Z',
+      message: {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'What they said:\nwhy is it purple?' },
+          { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' },
+        ],
+      },
+    },
+    {
+      type: 'message',
+      id: 'b3',
+      timestamp: '2026-09-19T11:47:18.000Z',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'look first' },
+          { type: 'text', text: 'Looking at the palette.' },
+          { type: 'toolCall', id: 't1', name: 'bash', arguments: { command: 'rg violet' } },
+          { type: 'toolCall', id: 't2', name: 'tade_status', arguments: {} },
+        ],
+      },
+    },
+    {
+      type: 'message',
+      id: 'b4',
+      timestamp: '2026-09-19T11:47:19.000Z',
+      message: {
+        role: 'toolResult',
+        toolCallId: 't1',
+        toolName: 'bash',
+        isError: true,
+        content: [{ type: 'text', text: 'rg: not found' }],
+      },
+    },
+    {
+      type: 'message',
+      id: 'b5',
+      timestamp: '2026-09-19T11:47:19.500Z',
+      message: {
+        role: 'toolResult',
+        toolCallId: 't2',
+        toolName: 'tade_status',
+        isError: false,
+        content: [{ type: 'text', text: '{}' }],
+      },
+    },
+    {
+      type: 'message',
+      id: 'b6',
+      timestamp: '2026-09-19T11:47:20.000Z',
+      message: { role: 'assistant', content: [{ type: 'text', text: 'It is `#8700d7` now.' }] },
+    },
+  ]
+
+  it('is what was sent, what it said and its tools, out of the session a headless run keeps', async () => {
+    const headless = tmp('tade-pi-headless-')
+    writeFileSync(
+      join(headless, `2026-09-19T11-47-15-509Z_${sessionIdFor('tade/orchestrator')}.jsonl`),
+      `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`,
+    )
+    const page = await historyOfTask(
+      'tade/orchestrator',
+      { limit: 50 },
+      { root: tmp('tade-pi-root-'), headless },
+    )
+    expect(page.earlier).toBeNull()
+    expect(page.items).toEqual([
+      {
+        kind: 'sent',
+        text: 'What they said:\nwhy is it purple?',
+        images: ['picture'],
+        at: Date.parse('2026-09-19T11:47:17.000Z'),
+      },
+      {
+        kind: 'reply',
+        text: 'Looking at the palette.',
+        at: Date.parse('2026-09-19T11:47:18.000Z'),
+      },
+      expect.objectContaining({
+        kind: 'tool',
+        tool: 'bash',
+        input: { command: 'rg violet' },
+        ok: false,
+        result: 'rg: not found',
+      }),
+      expect.objectContaining({ kind: 'tool', tool: 'tade_status', ok: true, result: '' }),
+      { kind: 'reply', text: 'It is `#8700d7` now.', at: Date.parse('2026-09-19T11:47:20.000Z') },
+    ])
+  })
+
+  it('finds a session in a lane where pi files it, and nothing for a task with none', async () => {
+    const root = tmp('tade-pi-root-')
+    writeSession(root, '/work/shop', 'shop/purple', lines)
+    const page = await historyOfTask('shop/purple', { limit: 50 }, { root })
+    expect(page.items.map((item) => item.kind)).toEqual(['sent', 'reply', 'tool', 'tool', 'reply'])
+    expect(await historyOfTask('shop/other', { limit: 50 }, { root })).toEqual({
+      items: [],
+      earlier: null,
+    })
+    expect(historyLine('{"type":"model_change"}')).toBeNull()
+    expect(historyLine('{"type":"message","message":{"role":"system","content":""}}')).toBeNull()
   })
 })

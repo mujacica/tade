@@ -20,6 +20,7 @@ import {
   addNews,
   type Ended,
   type News,
+  TADE_WORDS,
   THEIR_WORDS,
   taskNews,
   unended,
@@ -742,7 +743,7 @@ export class Orchestrator implements Subject {
   async tell(text: string): Promise<void> {
     const thinker = this.thinker
     if (!thinker) return
-    const message = withNews(text, this.newsWaiting, clockOf, 'Tade says:')
+    const message = withNews(text, this.newsWaiting, clockOf, TADE_WORDS)
     this.newsWaiting = []
     if (thinker.tell) await thinker.tell(message)
     else await thinker.ask(message)

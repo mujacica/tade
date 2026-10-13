@@ -32,6 +32,7 @@ import {
   loadExtensions,
   Orchestrator,
   orchestratorExtensions,
+  orchestratorHistory,
   ToolHost,
   type ToolHostOptions,
   workbenchExtensions,
@@ -391,6 +392,13 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
           restartThinker: () => restartThinker(),
+          // What was said to it before this window, out of its harness's own
+          // record: shown before it has started, and if it never does.
+          history: orchestratorHistory({
+            config: cfg.config,
+            runDir: join(home, 'orchestrator'),
+            cwd: process.cwd(),
+          }),
           // The orchestrator's own harness may offer other models than agents'.
           // Before it is up there is nobody to ask, which is said rather than
           // answered with somebody else's list.

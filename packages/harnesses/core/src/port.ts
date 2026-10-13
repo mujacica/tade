@@ -9,6 +9,7 @@ import type {
   Unsubscribe,
 } from '@tade/core'
 import { z } from 'zod'
+import type { HistoryAsk, HistoryPage } from './history.ts'
 
 // The WorkerAdapter port: what an agent is telling us, and how we answer it.
 //
@@ -677,6 +678,13 @@ export interface WorkerAdapter {
   hasConversation(task: TaskId, cwd: string): Promise<boolean>
   /** What a task's agent has spent, from the harness's own record. Nothing spent when it has none. */
   spent(task: TaskId, cwd: string): Promise<HarnessSpend>
+  /**
+   * A page of what was said in a task's conversation, read out of the
+   * harness's own record from its newest end (`historyIn`), so a surface that
+   * draws the conversation itself can show it again after a restart. Never
+   * throws: nothing recorded, or nothing it recognises, is an empty page.
+   */
+  history(task: TaskId, cwd: string, ask: HistoryAsk): Promise<HistoryPage>
   /** The models an agent of this harness can be started on, as it offers them. */
   models(): Promise<HarnessModel[]>
   /** A model said the way people say it — "opus 5" — among this harness's. */

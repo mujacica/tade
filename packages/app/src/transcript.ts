@@ -1,5 +1,7 @@
 import { byOf, wentQuiet } from '@tade/core'
+import type { HistoryItem } from '@tade/harnesses-core'
 import type { Turn } from '@tade/voice-core'
+import { unwrapped } from './inbox.ts'
 
 // The conversation with the orchestrator, as it happens.
 //
@@ -85,6 +87,13 @@ export interface Transcript {
    * saying it again would be dropped (`tadeDid`).
    */
   heard: Record<string, number>
+  /**
+   * More of the conversation than is shown, in its harness's own record:
+   * where to read the page before the first entry from, and whether that is
+   * being read. Null when there is nothing earlier — or nothing that would
+   * join up with what is shown, once an entry has fallen off the top.
+   */
+  earlier: { cursor: string; asking: boolean } | null
 }
 
 /** Enough to scroll back through a morning; older entries fall off the top. */
@@ -111,11 +120,87 @@ export function onATurn(transcript: Transcript): boolean {
 }
 
 export function emptyTranscript(): Transcript {
-  return { entries: [], thinking: null, stopped: false, heard: {} }
+  return { entries: [], thinking: null, stopped: false, heard: {}, earlier: null }
 }
 
 function push(transcript: Transcript, entry: Entry): Transcript {
-  return { ...transcript, entries: [...transcript.entries, entry].slice(-TRANSCRIPT_MAX) }
+  const entries = [...transcript.entries, entry]
+  // What somebody scrolled back for is kept while they are reading it: only
+  // what is said now makes the oldest fall off.
+  const room = Math.max(TRANSCRIPT_MAX, transcript.entries.length)
+  if (entries.length <= room) return { ...transcript, entries }
+  return { ...transcript, entries: entries.slice(-room), earlier: null }
+}
+
+/**
+ * The conversation as it went before what is shown, put above it.
+ *
+ * What was sent is taken apart again (`unwrapped`): the news that went with it
+ * is said as the line Tade drew when it told it, the person's words as theirs,
+ * a paired device's as the device's, and what Tade told it on its own as
+ * Tade's. A message under no heading was sent as it was typed, or as Tade
+ * composed it; `theirs` says which, from what the person is recorded as having
+ * said, so a sentence of Tade's is never drawn as somebody's.
+ *
+ * A tool whose answer was never recorded is drawn as one that did not answer,
+ * which is the one thing about it that is known.
+ */
+export function withEarlier(
+  transcript: Transcript,
+  items: readonly HistoryItem[],
+  cursor: string | null,
+  theirs: (text: string) => boolean,
+): Transcript {
+  const entries: Entry[] = []
+  for (const item of items) {
+    if (item.kind === 'reply') {
+      entries.push({
+        kind: 'said',
+        text: item.text,
+        streaming: false,
+        by: 'orchestrator',
+        at: item.at,
+      })
+    } else if (item.kind === 'tool') {
+      entries.push({
+        kind: 'tool',
+        id: item.id,
+        tool: item.tool,
+        detail: toolDetail(item.input),
+        state: item.ok === null ? 'failed' : item.ok ? 'ok' : 'failed',
+        result: item.ok === null ? 'no answer to it was recorded' : item.result,
+        progress: null,
+        at: item.at,
+      })
+    } else {
+      const { news, heading, words } = unwrapped(item.text)
+      const at = item.at
+      if (news.length > 0) {
+        entries.push({ kind: 'tade', text: `told the orchestrator: ${news.join('; ')}`, at })
+      }
+      const mine = heading === 'them' || (heading === null && theirs(words))
+      if (mine || heading === 'away') {
+        const from = mine ? 'you' : 'a paired device'
+        entries.push({ kind: 'you', text: words, images: item.images, at, from })
+      } else if (words.trim() !== '') {
+        const first = words.trim().split('\n')[0] ?? ''
+        const told = first.length > 160 ? `${first.slice(0, 159)}…` : first
+        entries.push({ kind: 'tade', text: `told the orchestrator: ${told}`, at })
+      }
+    }
+  }
+  return {
+    ...transcript,
+    entries: [...entries, ...transcript.entries],
+    earlier: cursor ? { cursor, asking: false } : null,
+  }
+}
+
+/** The page before what is shown is being read. */
+export function askingEarlier(transcript: Transcript): Transcript {
+  return transcript.earlier
+    ? { ...transcript, earlier: { ...transcript.earlier, asking: true } }
+    : transcript
 }
 
 /** You said something: shown at once, before anything has answered. */

@@ -19,6 +19,8 @@ import {
   type HarnessModel,
   type HarnessProbe,
   type HarnessSpend,
+  type HistoryAsk,
+  type HistoryPage,
   type LaunchSpec,
   type ModelFound,
   type PermissionDecision,
@@ -43,6 +45,7 @@ import {
   contextIn,
   conversationKey,
   defaultHome,
+  historyOn,
   limitsIn,
   rememberThread,
   rolloutFor,
@@ -368,6 +371,10 @@ export class CodexAdapter implements WorkerAdapter {
 
   async spent(task: string, _cwd: string): Promise<HarnessSpend> {
     return spentOn(task, this.opts.runDir, this.opts.codexHome)
+  }
+
+  history(task: string, _cwd: string, ask: HistoryAsk): Promise<HistoryPage> {
+    return historyOn(task, this.opts.runDir, this.opts.codexHome, ask)
   }
 
   /**

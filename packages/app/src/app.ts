@@ -36,6 +36,7 @@ import {
   type WorkerImageFile,
   wiringFor,
 } from './wire/context.ts'
+import { Earlier } from './wire/earlier.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
@@ -146,6 +147,7 @@ export class App {
   private readonly projects: Projects
   /** What the agents cost, and what a subscription has used up. */
   private readonly spend: Spend
+  private readonly earlier: Earlier
   /** Where an action, a menu, a panel and a command land. */
   private readonly router: Router
   /**
@@ -438,6 +440,7 @@ export class App {
       rememberWindow: () => this.window.remember(),
     })
     this.spend = new Spend(this.wire)
+    this.earlier = new Earlier(this.wire)
     this.subjects = [
       this.window,
       this.lanes,
@@ -452,6 +455,7 @@ export class App {
       this.queue,
       this.intake,
       this.orchestrator,
+      this.earlier,
       this.extensions,
       this.search,
       this.settings,
@@ -721,7 +725,7 @@ export class App {
     )
     this.release = this.tui.addInputListener((data) => this.keyboard.onInput(data))
     this.tui.start()
-    void this.keyboard.load()
+    void Promise.all([this.keyboard.load(), this.earlier.load()])
     this.timer = setInterval(() => void this.looks.tick(), this.opts.frameMs ?? FRAME_MS)
     this.timer.unref?.()
     await this.looks.tick()

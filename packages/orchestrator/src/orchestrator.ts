@@ -22,7 +22,10 @@ import {
 } from '@tade/core'
 import {
   type HarnessModels,
+  type HistoryAsk,
+  type HistoryPage,
   modelsOffered,
+  NO_HISTORY,
   type WorkerAdapter,
   type WorkerCapabilities,
   type WorkerExtras,
@@ -188,6 +191,60 @@ export type OrchestratorEvent =
   | { type: 'error'; reason: string }
   | { type: 'exited'; code: number | null }
 
+/** The adapter of the harness the orchestrator talks through, or null for one Tade has none of. */
+function adapterFor(
+  opts: Pick<OrchestratorOptions, 'config' | 'runDir' | 'args' | 'env'>,
+): WorkerAdapter | null {
+  const route = opts.config ? orchestratorRoute(opts.config) : null
+  const make = HARNESS_ADAPTERS[route?.harness ?? 'pi']
+  return (
+    make?.({
+      runDir: opts.runDir,
+      socketDir: opts.runDir,
+      approvals: 'bypass',
+      // Tade's own interface: gating its tool calls on an approval would mean
+      // asking permission to answer "where are we".
+      //
+      // **And the gate on a turn from away is not this.** It is a `tool_call`
+      // hook inside Tade's own tools extension, asking the `ToolHost` at the
+      // call (`origin/allow`) — so it needs no approval mode, no supervision
+      // channel, and nothing about a local turn changes. It had to be there
+      // rather than here for a mechanical reason as well: the supervision
+      // extension and the tools extension both register this run's extension
+      // tools, and pi refuses to start on the collision.
+      supervised: false,
+      ...(opts.args ? { args: [...opts.args] } : {}),
+      // The environment its harness runs in, so the adapter looks for the
+      // conversation where the process it starts keeps it.
+      ...(opts.env ? { env: opts.env } : {}),
+    }) ?? null
+  )
+}
+
+/**
+ * The conversation so far, a page at a time, as its harness kept it.
+ *
+ * For a window that draws the conversation itself: the conversation comes back
+ * by itself when the orchestrator starts (`ORCHESTRATOR_SESSION`), but what was
+ * on screen does not, so a window reopened showed an empty strip in front of a
+ * model that remembered everything. Read through the harness's adapter —
+ * whatever touches a harness's records asks its adapter — and without the
+ * model running, so it is there before the orchestrator is, and when it never
+ * starts at all.
+ */
+export function orchestratorHistory(
+  opts: Pick<OrchestratorOptions, 'config' | 'runDir' | 'env' | 'cwd'>,
+): (ask: HistoryAsk) => Promise<HistoryPage> {
+  let adapter: WorkerAdapter | null | undefined
+  return async (ask) => {
+    adapter ??= adapterFor(opts)
+    if (!adapter) return NO_HISTORY
+    return adapter
+      .history(ORCHESTRATOR_TASK, opts.cwd ?? process.cwd(), ask)
+      .catch(() => NO_HISTORY)
+  }
+}
+
 export class Orchestrator {
   private readonly adapter: WorkerAdapter
   private readonly messageListeners = new Set<(text: string) => void>()
@@ -250,32 +307,12 @@ export class Orchestrator {
   static async start(opts: OrchestratorOptions): Promise<Orchestrator> {
     const route = opts.config ? orchestratorRoute(opts.config) : null
     const harness = route?.harness ?? 'pi'
-    const make = HARNESS_ADAPTERS[harness]
-    if (!make) {
+    const adapter = adapterFor(opts)
+    if (!adapter) {
       throw new Error(
         `no harness called ${harness}: Tade runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
       )
     }
-    const adapter = make({
-      runDir: opts.runDir,
-      socketDir: opts.runDir,
-      approvals: 'bypass',
-      // Tade's own interface: gating its tool calls on an approval would mean
-      // asking permission to answer "where are we".
-      //
-      // **And the gate on a turn from away is not this.** It is a `tool_call`
-      // hook inside Tade's own tools extension, asking the `ToolHost` at the
-      // call (`origin/allow`) — so it needs no approval mode, no supervision
-      // channel, and nothing about a local turn changes. It had to be there
-      // rather than here for a mechanical reason as well: the supervision
-      // extension and the tools extension both register this run's extension
-      // tools, and pi refuses to start on the collision.
-      supervised: false,
-      ...(opts.args ? { args: [...opts.args] } : {}),
-      // The environment its harness runs in, so the adapter looks for the
-      // conversation where the process it starts keeps it.
-      ...(opts.env ? { env: opts.env } : {}),
-    })
     // Drawn by Tade rather than drawing itself: a harness that cannot be run
     // that way can run agents, and says so rather than starting something
     // nobody can see.

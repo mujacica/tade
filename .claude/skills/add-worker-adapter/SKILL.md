@@ -82,7 +82,13 @@ closes, which is the thing this design exists to avoid.
   that and never learns a harness's tool names; `exec` is judged by its command.
 - Own the harness's own record: `conversationKey` (two tasks with the same key share a
   conversation), `hasConversation` (whether coming back needs an opening instruction), `spent`
-  (the ledger read on opening). Nothing outside the adapter reads a harness's files.
+  (the ledger read on opening), `history` (what was said, a page at a time from the newest end —
+  the window draws the orchestrator's conversation from it when it opens again, because the
+  harness resumes the conversation and nothing else puts it back on screen). Nothing outside the
+  adapter reads a harness's files. `history` reads through `historyIn`, which pages by whole
+  exchanges so a tool is never cut from its answer; the adapter only says what one line of its
+  record holds (`HistoryLine`), returning null for anything that is not the conversation as it
+  was had — bookkeeping, a subagent's side conversation, its own slash commands.
 
 - Own its accounts, if it can have more than one (`capabilities.accounts`): an adapter is made
   per account (`HarnessOptions.account`: a folder, and for an API key a *command* that prints it),
