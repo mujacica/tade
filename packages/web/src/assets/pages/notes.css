@@ -1,6 +1,416 @@
 /* The notes page's own sheet: every rule scoped to it (`.page-notes`, `test/pages.test.ts`). */
 
-.press.more-page {
+/*
+  One column, one rhythm: the bar, the lead, the line under it, the groups
+  and the older pages, each `--stack` apart. Sections inside keep no margin of
+  their own, so the gap is the only space between them.
+*/
+.nt-body,
+.nt-view {
+  display: grid;
+  gap: var(--stack);
+}
+
+.page-notes .nt-view .section {
+  margin-block-end: 0;
+}
+
+.nt-whole {
+  min-height: 16rem;
+}
+
+/* ── the bar's tool: where, or when ────────────────────────────────────────── */
+
+.nt-by {
+  display: inline-flex;
+  gap: var(--s1);
+}
+
+/* The chips and the `?` together at the end of the bar, the chips first. */
+.page-notes .pg-tools .hint {
+  margin-inline-start: 0;
+}
+
+.nt-by-chip {
+  font-weight: var(--w-label);
+}
+
+/* ── the lead ─────────────────────────────────────────────────────────────── */
+
+/*
+  The figure and its two lines, then the picture under a hairline; at a desk
+  the picture takes the room beside them, with the hairline between.
+*/
+.nt-lead {
+  display: grid;
+  gap: var(--s4);
+  padding: var(--inset);
+}
+
+.nt-sum {
+  display: grid;
+  align-content: start;
+  gap: var(--s1);
+}
+
+.nt-total {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-block-end: var(--s1);
+}
+
+.nt-total-n {
+  color: var(--bright);
+  font-size: var(--step-3);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+}
+
+.nt-total-unit {
+  color: var(--heading);
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+}
+
+.nt-line {
+  color: var(--body);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
+/* Something said in the last day is *now*, and the newest line says it in amber. */
+.nt-line.is-fresh {
+  color: var(--amber);
+}
+
+/* The three places, their marks and words on the left and the counts in a column. */
+.nt-tally {
+  display: grid;
+  margin-block-start: var(--s2);
+}
+
+.nt-tally > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--s2);
+  align-items: center;
+  padding-block: var(--s1);
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.nt-tally > li + li {
+  border-block-start: var(--border);
+}
+
+.nt-tally .ic {
+  width: 1rem;
+  height: 1rem;
+  color: var(--heading);
+}
+
+.nt-tally-n {
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.nt-tally > li.is-none .nt-tally-n {
+  color: var(--heading);
+  font-weight: var(--w-body);
+}
+
+.nt-chart {
+  display: grid;
+  align-content: start;
+  gap: var(--s2);
+  min-width: 0;
+  padding-block-start: var(--s4);
+  border-block-start: var(--border);
+}
+
+.nt-chart-head,
+.nt-chart-foot {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.nt-chart-head {
+  font-weight: var(--w-label);
+}
+
+/* A quiet mark on the lanes is a note that is not new: grey enough to see. */
+.page-notes .nt-lanes .ui-lanes-mark.tone-quiet {
+  --tone: var(--quiet);
+}
+
+/* ── a group: a project's name, how many, and how they divide ──────────────── */
+
+.nt-groups {
+  display: grid;
+  gap: var(--stack);
+}
+
+.nt-group {
+  display: grid;
+  gap: var(--s2);
+}
+
+.nt-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s3);
+}
+
+.nt-group-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  min-height: var(--tap);
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.nt-group-name .ic {
+  flex: 0 0 auto;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--heading);
+}
+
+a.nt-group-name[href]:hover {
+  color: var(--amber-light);
+}
+
+.nt-group-n {
+  color: var(--heading);
+  font-size: var(--step-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.nt-group-under {
+  flex: 1 0 100%;
+  margin-block-start: calc(-1 * var(--s2));
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── a card ───────────────────────────────────────────────────────────────── */
+
+.nt-cards > li + li {
+  border-block-start: var(--border);
+}
+
+.nt-card {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3) var(--inset) var(--s1);
+}
+
+/* The line it is scanned by, and on its right how long ago, in a column. */
+.nt-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: baseline;
+}
+
+.nt-headline {
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  line-height: var(--lead-tight);
+  overflow-wrap: anywhere;
+}
+
+.nt-age {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* New, as *now* is drawn everywhere: amber, with a dot before the age. */
+.nt-card.is-fresh .nt-age {
+  color: var(--amber);
+}
+
+.nt-card.is-fresh .nt-age::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--round);
+  background: currentColor;
+}
+
+/*
+  The words as said: a rule down the side, the page's one mark for somebody's
+  own words, and at most a reading line wide.
+*/
+.nt-words {
+  max-width: 72ch;
+  padding-inline-start: var(--s3);
+  border-inline-start: 2px solid var(--chrome);
+}
+
+.nt-words .said {
+  color: var(--body);
+}
+
+/* A card with no headline is scanned by the words themselves, so they are bright. */
+.nt-card.is-plain .nt-words .said {
+  color: var(--bright);
+}
+
+.nt-said {
+  display: grid;
+  gap: var(--s2);
+  padding-block: var(--s1) var(--s3);
+}
+
+.nt-about {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* Where it applies on the left, and what is behind it on the right, on one line. */
+.nt-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s3);
+  min-height: var(--tap);
+}
+
+.nt-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--tap);
+  color: inherit;
+  text-decoration: none;
+}
+
+.nt-pill {
+  gap: var(--s1);
+  color: var(--body);
+}
+
+a.nt-chip[href]:hover .nt-pill {
+  background: var(--chosen);
+  color: var(--bright);
+}
+
+.nt-pill > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-of {
+  flex: 0 1 auto;
+  color: var(--heading);
+}
+
+.nt-place {
+  flex: 0 1 auto;
+}
+
+.nt-pill .nt-go {
+  flex: 0 0 auto;
+  margin-inline-end: -2px;
+  color: var(--heading);
+}
+
+.nt-by {
+  margin-inline-start: auto;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.nt-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-height: var(--tap);
+  margin-inline: auto calc(-1 * var(--s2));
+  padding-inline: var(--s2);
+  border: 0;
+  border-radius: var(--r1);
+  background: none;
+  color: var(--heading);
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  cursor: pointer;
+}
+
+.nt-open:hover,
+.nt-open[aria-expanded="true"] {
+  color: var(--bright);
+}
+
+.nt-open .ic {
+  width: 1rem;
+  height: 1rem;
+  transform: rotate(90deg);
+  transition: transform var(--ease);
+}
+
+.nt-open[aria-expanded="true"] .ic {
+  transform: rotate(-90deg);
+}
+
+/* ── the folds and the older pages: a press the width of what it opens ────── */
+
+.nt-fold {
   width: 100%;
-  margin-block-start: var(--s3);
+}
+
+.nt-older {
+  display: grid;
+  gap: var(--s2);
+}
+
+.nt-older-press {
+  width: 100%;
+}
+
+.nt-older-said:empty {
+  display: none;
+}
+
+/* ── a tablet and wider: the picture beside the figure ─────────────────────── */
+
+@media (min-width: 768px) {
+  .nt-lead {
+    grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
+    gap: var(--s5);
+  }
+
+  .nt-chart {
+    padding-block-start: 0;
+    padding-inline-start: var(--s5);
+    border-block-start: 0;
+    border-inline-start: var(--border);
+  }
+
+  .nt-group-under {
+    flex: 0 1 auto;
+    margin-block-start: 0;
+    margin-inline-start: auto;
+  }
 }
