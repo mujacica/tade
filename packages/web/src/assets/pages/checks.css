@@ -1,29 +1,484 @@
-/* The checks page's own sheet: every rule scoped to it (`.page-checks`, `test/pages.test.ts`). */
+/*
+  The checks page's own sheet: every rule scoped to it (`.page-checks`) or to a
+  class only its modules draw (`test/pages.test.ts`).
 
-/* Every project's checks: a ring, its name, and three counts. */
-.check-cards {
+  **A check is read as a row of moments**, so the page is drawn round one
+  picture — each check's newest runs as a strip of cells, newest on the right,
+  every strip in a card ending on the same line — and everything else is the
+  grey ladder. Red is where something is failing, and only there: the failing
+  checks are the one card with a red edge, a failing row's name is the one
+  name in red's company, and a check with no answer is grey and says so.
+*/
+
+/* The bar's word takes its tone: red while something fails, green only when all passed. */
+.page-checks .pg-bar > .figure.t-failed {
+  color: var(--red);
+}
+
+.page-checks .pg-bar > .figure.t-done {
+  color: var(--green);
+}
+
+/* ── the lead: three figures, one line on a phone too ──────────────────────── */
+
+/* Three short figures fit a phone's width; stacked, they would push the red under the fold. */
+.page-checks .checks-lead {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-block-end: var(--stack);
+}
+
+.page-checks .checks-lead .ui-stat-under {
+  overflow-wrap: anywhere;
+}
+
+/* ── what is failing now ───────────────────────────────────────────────────── */
+
+.checks-reds,
+.checks-projects,
+.checks-tracks,
+.checks-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks-reds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--s3);
+  align-items: start;
+}
+
+/* The one card with a red edge: what is failing, and nothing else on the page. */
+.checks-red {
+  display: grid;
+  min-width: 0;
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+}
+
+.checks-red {
+  container-type: inline-size;
+}
+
+/*
+  The card's facts down its left and its figure on the right of its name; the
+  strip under them on a phone, and beside them, under the figure, with room —
+  so the newest run ends where *how long* is said.
+*/
+.checks-red-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head for"
+    "where where"
+    "strip strip"
+    "line line";
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+  min-width: 0;
+  min-height: var(--tap);
+  padding: var(--inset);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--r2);
+  transition: background var(--ease);
+}
+
+.checks-red-main:hover {
+  background: var(--surface);
+}
+
+.checks-red-head {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+@container (min-width: 32rem) {
+  .checks-red-main {
+    grid-template-areas:
+      "head for"
+      "where strip"
+      "line strip";
+  }
+
+  .page-checks .checks-red-main > .ui-heat {
+    align-self: center;
+  }
+}
+
+.checks-red-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+}
+
+/* How long it has been red: the card's one figure, on the line's far end. */
+.checks-red-for {
+  grid-area: for;
+  justify-self: end;
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.checks-red-where {
+  grid-area: where;
+}
+
+.checks-red-line {
+  grid-area: line;
+}
+
+.checks-red-where,
+.checks-red-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.checks-red-where > :first-child {
+  color: var(--body);
+  font-weight: var(--w-label);
+}
+
+.checks-red-where > :not(:first-child)::before {
+  content: "·";
+  margin-inline-end: var(--s2);
+}
+
+.checks-red-line {
+  color: var(--body);
+}
+
+/* Who asked last: a line of its own across the card's foot, a press to that agent. */
+.checks-red-by,
+.checks-red-asked {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  margin: 0;
+  padding-inline: var(--inset);
+  border-block-start: var(--border);
+  color: var(--body);
+  font-size: var(--step--1);
+  text-decoration: none;
+}
+
+.checks-red-by {
+  border-end-start-radius: var(--r2);
+  border-end-end-radius: var(--r2);
+  transition: background var(--ease);
+}
+
+.checks-red-by:hover {
+  background: var(--surface);
+}
+
+.checks-red-by > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.checks-red-by::after {
+  content: "›";
+  margin-inline-start: auto;
+  color: var(--heading);
+  font-size: var(--step-1);
+}
+
+/* ── every project: its trees, and a strip of runs per check ───────────────── */
+
+.checks-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s4);
+  margin-block-end: var(--s3);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.checks-legend > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.checks-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  background: var(--tone);
+}
+
+.checks-legend-order {
+  margin-inline-start: auto;
+}
+
+.checks-projects {
+  display: grid;
+  gap: var(--s3);
+}
+
+.checks-project {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--s1) var(--inset) var(--inset);
+  container-type: inline-size;
+}
+
+.checks-project-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.checks-project-name {
+  display: inline-flex;
+  align-items: center;
+  min-width: 1.5rem;
+  min-height: var(--tap);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+
+.checks-project-name:hover {
+  text-decoration: underline;
+}
+
+.checks-project-head > .ui-pill {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.checks-groups {
+  display: grid;
+  gap: var(--s4);
+}
+
+.checks-group {
   display: grid;
   gap: var(--s2);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-  margin-block-end: var(--s4);
+  min-width: 0;
 }
 
-main a.check-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 2px var(--s3);
-  align-items: center;
-  padding: var(--s3) var(--s4);
-}
-
-.check-card .ring {
-  grid-row: 1 / span 2;
-}
-
-.check-counts {
-  display: flex;
-  gap: var(--s3);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+.checks-group-name {
+  margin: 0;
+  color: var(--heading);
   font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.checks-group-link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 1.5rem;
+  min-height: var(--tap);
+  color: var(--heading);
+  text-decoration: none;
+}
+
+.checks-group-link > strong {
+  color: var(--body);
+  font-family: var(--font-mono);
+  font-weight: var(--w-label);
+}
+
+.checks-group-link:hover {
+  text-decoration: underline;
+}
+
+/*
+  The checks of one tree are one grid, and each row is a subgrid of it, so the
+  names, the strips, the answers and the lengths of every row line up with
+  their neighbours whatever their words are. On a phone a row is three short
+  lines — the name and its answer, the strip, since when and how long — with
+  everything about *now* down the right, where the newest run is.
+*/
+.checks-tracks {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
+  gap: var(--s4) var(--s2);
+}
+
+.checks-track {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  grid-template-areas:
+    "mark name word word"
+    ". strip strip strip"
+    ". since since ms";
+  align-items: center;
+  row-gap: var(--s1);
+  min-width: 0;
+}
+
+.checks-track-mark {
+  grid-area: mark;
+  text-align: center;
+}
+
+.checks-track-name {
+  grid-area: name;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  min-width: 0;
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+}
+
+/* A check's name is what somebody tells an agent, so it wraps rather than being cut. */
+.checks-track-name > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.checks-track.is-failing .checks-track-name {
+  font-weight: var(--w-strong);
+}
+
+.checks-track-optional {
+  flex: none;
+  color: var(--heading);
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
+}
+
+.checks-track-word {
+  grid-area: word;
+  justify-self: end;
+  color: var(--body);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.checks-track.is-failing .checks-track-word {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.page-checks .checks-track > .ui-heat {
+  grid-area: strip;
+  justify-content: end;
+  gap: 2px;
+}
+
+.checks-track-since {
+  grid-area: since;
+  justify-self: end;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.checks-track-ms {
+  grid-area: ms;
+  min-width: 2.5rem;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+/* With room, a row is one line: mark, name, strip, answer over since, length. */
+@container (min-width: 36rem) {
+  .checks-tracks {
+    grid-template-columns: 1.25rem fit-content(14rem) minmax(0, 1fr) max-content 3.5rem;
+    gap: var(--s3);
+  }
+
+  .checks-track {
+    grid-template-areas:
+      "mark name strip word ms"
+      "mark name strip since ms";
+    row-gap: 0;
+  }
+
+  .checks-track-word,
+  .checks-track-since {
+    line-height: var(--lead-tight);
+  }
+}
+
+/* The fold of a tree's quiet checks: one quiet press under its rows, at their start. */
+.checks-quiet {
+  justify-self: start;
+}
+
+.checks-project-state {
+  margin: 0;
+}
+
+/* ── each agent's head, as the rollup says it ─────────────────────────────── */
+
+.checks-heads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s3);
+  margin: 0;
+  padding-block-start: var(--s2);
+  border-block-start: var(--border);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.checks-heads-label {
+  color: var(--heading);
+  font-weight: var(--w-label);
+}
+
+.checks-head {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  min-width: 1.5rem;
+  min-height: var(--tap);
+  color: var(--body);
+  text-decoration: none;
+}
+
+.checks-head > strong {
+  color: var(--bright);
+  font-weight: var(--w-label);
+}
+
+.checks-head:hover {
+  text-decoration: underline;
+}
+
+.checks-heads-what {
+  color: var(--heading);
+  font-family: var(--font-mono);
+}
+
+.checks-heads-rest {
+  color: var(--body);
 }
