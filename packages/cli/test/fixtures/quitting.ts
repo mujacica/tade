@@ -21,7 +21,7 @@ if (process.argv[2] === 'hung') {
     last: { name: 'the workbench', close: never },
     meanwhile: [{ name: 'the reporter', close: never }],
   })
-  say(`late ${late.join(',')}`)
+  say(`late ${late.map((one) => one.name).join(',')}`)
   endSoon()
 }
 

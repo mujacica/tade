@@ -17,6 +17,7 @@ import {
   readiness,
   type ThinkingLevel,
   tadeHome,
+  type Unclosed,
 } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { installedServers as claudeServers } from '@tade/harnesses-claude/installed'
@@ -371,8 +372,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // is (`Orchestrator.start`'s `signal`) rather than waited out and stopped.
       const quitting = new AbortController()
       let starting: Promise<void> = Promise.resolve()
-      // What closing gave up waiting for, the window's own and the rest.
-      const late: string[] = []
+      // What closing gave up waiting for or could not close, the window's own and the rest.
+      const late: Unclosed[] = []
       try {
         let shouldReload = false
         const app = await App.start({
@@ -621,8 +622,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             meanwhile: [{ name: 'the reporter', close: () => report.close() }],
           })),
         )
-        const said = leftBehind(late)
-        if (said) io.err(said)
+        for (const line of leftBehind(late)) io.err(line)
         // Whatever still holds the process open now — a child somebody let go
         // of without ending, a socket a reporter left — is not a reason to keep
         // the terminal: everything has had its chance to close.

@@ -94,15 +94,23 @@ describe('quitting', () => {
       last: { name: 'the workbench', close: quick },
       meanwhile: [{ name: 'the reporter', close: quick }],
     })
-    expect(late).toEqual(['the orchestrator'])
+    expect(late).toEqual([{ name: 'the orchestrator' }])
     expect(between).toEqual(['between'])
-    expect(leftBehind(late)).toBe(
+    expect(leftBehind(late)).toEqual([
       'closed without waiting for the orchestrator, which did not finish closing in time',
-    )
-    expect(leftBehind(['the voice', 'the away view', 'the reporter'])).toBe(
+    ])
+    expect(
+      leftBehind([
+        { name: 'the voice' },
+        { name: 'the status child', error: new Error('it had already gone') },
+        { name: 'the away view' },
+        { name: 'the reporter' },
+      ]),
+    ).toEqual([
       'closed without waiting for the voice, the away view and the reporter, which did not finish closing in time',
-    )
-    expect(leftBehind([])).toBe(null)
+      'the status child could not be closed: it had already gone',
+    ])
+    expect(leftBehind([])).toEqual([])
   })
 
   it('takes a signal after a quit already under way as the second ask', () => {

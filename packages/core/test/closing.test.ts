@@ -17,7 +17,7 @@ describe('closeBy', () => {
       ],
       began + 50,
     )
-    expect(late).toEqual(['the listener', 'the reporter'])
+    expect(late).toEqual([{ name: 'the listener' }, { name: 'the reporter' }])
     // A bound, not a measurement: a hang would be the test's own timeout.
     expect(Date.now() - began).toBeLessThan(2_000)
   })
@@ -28,7 +28,7 @@ describe('closeBy', () => {
     expect(Date.now() - began).toBeLessThan(2_000)
   })
 
-  it('counts a close that threw, or threw before it began, as closed rather than late', async () => {
+  it('answers a close that threw, or threw before it began, with what it threw rather than as late', async () => {
     const late = await closeBy(
       [
         {
@@ -47,7 +47,10 @@ describe('closeBy', () => {
       ],
       Date.now() + 50,
     )
-    expect(late).toEqual([])
+    expect(late).toEqual([
+      { name: 'rejects', error: new Error('gone already') },
+      { name: 'throws', error: new Error('not even a promise') },
+    ])
   })
 
   it('closes them side by side, so one slow close is not every close late', async () => {
@@ -65,10 +68,12 @@ describe('closeBy', () => {
       Date.now() + 50,
     )
     expect(order).toEqual(['second'])
-    expect(late).toEqual(['slow'])
+    expect(late).toEqual([{ name: 'slow' }])
   })
 
   it('has already given up on a moment that has passed', async () => {
-    expect(await closeBy([{ name: 'hung', close: never }], Date.now() - 1)).toEqual(['hung'])
+    expect(await closeBy([{ name: 'hung', close: never }], Date.now() - 1)).toEqual([
+      { name: 'hung' },
+    ])
   })
 })

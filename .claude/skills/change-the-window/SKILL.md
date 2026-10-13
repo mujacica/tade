@@ -837,8 +837,8 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   search, then the turn, then stepping off the line — which only ever happens with nothing on it to lose.
 - **Closing gives the prompt back in about a second, and a second ctrl+c is never asked to wait.**
   Everything on the way out — `App.stop`'s own closes, then `closeAll` in `cli/src/quitting.ts` — is
-  closed side by side by one moment (`closeBy`, core). Whatever is late is named on stderr and not
-  waited for, and anything still holding the process open after that is not a reason to keep the
+  closed side by side by one moment (`closeBy`, core). Whatever is late or threw is named on stderr,
+  the late not waited for, and anything still holding the process open after that is not a reason to keep the
   terminal (`endSoon`). A close you add goes in one of those lists, never as a bare `await`. Once
   closing has begun, any signal ends Tade at once (`onSignals`), because a SIGINT listener is what turns
   Node's own answer off. `quitting.test.ts` times a real process with everything hung.

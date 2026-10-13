@@ -1,4 +1,4 @@
-import { type Closing, closeBy } from '@tade/core'
+import { type Closing, closeBy, type Unclosed } from '@tade/core'
 
 // What happens between the window closing and the shell prompt coming back.
 //
@@ -9,7 +9,7 @@ import { type Closing, closeBy } from '@tade/core'
 // held the event loop open, and its reaper ends it only once Tade has gone.
 // Each waited on the other until a second ctrl+c. So:
 //
-// - every close has a deadline, side by side, and a late one is named;
+// - every close has a deadline, side by side, and a late or failed one is named;
 // - whatever still holds the process open after that is not waited for
 //   (`endSoon`), because a handle somebody leaked is not a reason to keep a
 //   terminal;
@@ -46,13 +46,13 @@ export interface Quitting {
 }
 
 /**
- * Close everything on the way out, by `QUIT_MS` at the most, and answer the
- * names of what was still going when it was given up on.
+ * Close everything on the way out, by `QUIT_MS` at the most, and answer what
+ * was still going when it was given up on, and what threw.
  */
 export async function closeAll(
   quitting: Quitting,
   now: () => number = Date.now,
-): Promise<string[]> {
+): Promise<Unclosed[]> {
   const began = now()
   const meanwhile = closeBy(quitting.meanwhile, began + QUIT_MS, now)
   const late = await closeBy(quitting.together, now() + TOGETHER_MS, now)
@@ -62,12 +62,28 @@ export async function closeAll(
   return late
 }
 
-/** What is said when something was left behind: one line, naming each. */
-export function leftBehind(late: readonly string[]): string | null {
-  if (late.length === 0) return null
-  const named =
-    late.length === 1 ? late[0] : `${late.slice(0, -1).join(', ')} and ${late.at(-1) ?? ''}`
-  return `closed without waiting for ${named}, which did not finish closing in time`
+/**
+ * What is said about what did not close: a line naming everything late, then
+ * a line for each that threw, with what it threw. Empty when there is nothing.
+ */
+export function leftBehind(unclosed: readonly Unclosed[]): string[] {
+  const late = unclosed.filter((one) => !('error' in one)).map((one) => one.name)
+  const lines = late.length
+    ? [`closed without waiting for ${listed(late)}, which did not finish closing in time`]
+    : []
+  for (const one of unclosed) {
+    if (!('error' in one)) continue
+    const why = one.error instanceof Error ? one.error.message : String(one.error)
+    lines.push(`${one.name} could not be closed: ${why}`)
+  }
+  return lines
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function listed(names: readonly string[]): string {
+  return names.length === 1
+    ? (names[0] ?? '')
+    : `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`
 }
 
 /**

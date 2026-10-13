@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal } from '@earendil-works/pi-tui'
-import { type Arming, attentionFor, closeBy, titlesOf } from '@tade/core'
+import { type Arming, attentionFor, closeBy, titlesOf, type Unclosed } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -92,8 +92,8 @@ export class App {
   private readonly repaint = new Repaint()
   private release: (() => void) | null = null
   private stopped = false
-  private settle: (late: string[]) => void = () => {}
-  private readonly closed: Promise<string[]>
+  private settle: (late: Unclosed[]) => void = () => {}
+  private readonly closed: Promise<Unclosed[]>
   /**
    * What the subjects are handed: the five names every one of them needs, and
    * nothing else. Built once, over `this`, so a subject reads the state as it
@@ -540,8 +540,8 @@ export class App {
     })
   }
 
-  /** Resolves when the window has been closed, with what it gave up waiting for. */
-  wait(): Promise<string[]> {
+  /** Resolves when the window has been closed, with what it gave up waiting for or could not close. */
+  wait(): Promise<Unclosed[]> {
     return this.closed
   }
 
