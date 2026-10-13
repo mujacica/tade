@@ -49,7 +49,7 @@ import { spendScreen } from './pages/spend.js'
 import { workflowScreen, workflowsScreen } from './pages/workflows.js'
 import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
-import { PAGE_OF, viewOf } from './routes.js'
+import { movedFrom, PAGE_OF, viewOf } from './routes.js'
 import {
   barsFor,
   barsIn,
@@ -281,6 +281,9 @@ function go(path, opts = {}) {
 function draw(asked, top = 0) {
   const at = outside === null ? asked : { view: outside.view }
   where = at
+  // An old address (`/runs`) is the same screen; the bar says the new one.
+  const moved = outside === null ? movedFrom(location.pathname) : null
+  if (moved !== null) history.replaceState(history.state, '', moved)
   const make = SCREENS[at.view] ?? SCREENS.nowhere
   // **The screen being left stops whatever it was asking.** One has something
   // to stop — an agent's page asks for its screen while it is open, and the

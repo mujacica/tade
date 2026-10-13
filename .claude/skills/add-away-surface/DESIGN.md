@@ -16,7 +16,7 @@ harness (`scripts/browser.ts`, see `SKILL.md`).
 | project | `project` | `pages/project.js`, `pages/project.css` |
 | agent | `task` | `pages/agent.js`, `pages/agent-pane.js`, `pages/agent-time.js`, `pages/agent-shape.js`, `pages/agent.css` |
 | inbox | `inbox`, `request` | `pages/inbox.js`, `pages/inbox.css` |
-| runs | `runs`, `run` | `pages/runs.js`, `pages/runs.css` |
+| plans (`/plans`; the views and files kept the wire's word, *run*) | `runs`, `run` | `pages/runs.js`, `pages/runs-*.js`, `pages/runs.css` |
 | workflows | `workflows`, `workflow` | `pages/workflows.js`, `pages/workflows.css` |
 | checks, reviews, findings, spend, notes, devices, settings, queue, more | the same name | `pages/<page>.js`, `pages/<page>.css` |
 

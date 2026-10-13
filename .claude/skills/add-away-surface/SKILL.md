@@ -282,6 +282,11 @@ a device still has none of the scopes that change anything until somebody at thi
 - **A screen is two tables, held equal.** `src/routes.ts` says which paths answer with the shell and
   `src/assets/routes.js` says which the page knows; a path in one and not the other is a screen that
   works until somebody reloads it. `test/routes-client.test.ts` asserts both directions.
+- **A renamed screen keeps its old address answering.** Bookmarks and pushed links outlive a word:
+  when Runs became Plans, `/runs` and `/r/<slug>` stayed shell routes, the router reads them as the
+  same screens, and `movedFrom` (`routes.js`) has `boot.js` write the new path into the address bar
+  — a redirect the browser does itself, offline too. Only what is read was renamed; the views, the
+  page files and the wire (`RunRow`) still say run.
 - **Nothing in the page derives a state.** `deriveState` already decided and the projection carries
   its answer and its own `reason` clause, verbatim. A second wording is a second state machine — the
   queue's words are `describeQueueState`'s, copied into `glyphs.js` because a browser cannot import a

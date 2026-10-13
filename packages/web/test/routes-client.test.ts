@@ -5,6 +5,7 @@ import {
   GROUPS,
   MORE,
   MORE_TAB,
+  movedFrom,
   NAV,
   navFor,
   pathOf,
@@ -154,6 +155,32 @@ describe('reading a path', () => {
     expect(navFor({ view: 'request' })).toBe('inbox')
     expect(navFor({ view: 'run' })).toBe('runs')
     expect(navFor({ view: 'workflow' })).toBe('workflows')
+  })
+
+  it('calls the plans plans, and keeps their old addresses answering', () => {
+    // A run of a workflow came to be called a plan. The screens' paths moved
+    // with the word; a bookmark or a pushed link from before still lands on
+    // the same screen, and `movedFrom` says where to write it instead.
+    expect(pathOf({ view: 'runs' })).toBe('/plans')
+    expect(pathOf({ view: 'run', run: 'shop-1402' })).toBe('/plans/shop-1402')
+    expect(viewOf('/plans')).toEqual({ view: 'runs' })
+    expect(viewOf('/plans/shop-1402')).toEqual({ view: 'run', run: 'shop-1402' })
+    expect(viewOf('/runs')).toEqual({ view: 'runs' })
+    expect(viewOf('/r/shop-1402')).toEqual({ view: 'run', run: 'shop-1402' })
+    expect(movedFrom('/runs')).toBe('/plans')
+    expect(movedFrom('/runs/')).toBe('/plans')
+    expect(movedFrom('/r/shop-1402')).toBe('/plans/shop-1402')
+    expect(movedFrom('/r/my%20plan')).toBe('/plans/my%20plan')
+    // Nothing else moved, and an old address that never was one stays where
+    // it is to be drawn as nowhere.
+    for (const path of ['/', '/plans', '/plans/shop-1402', '/p/tade', '/r', '/r/a/b', '/runs/x']) {
+      expect(movedFrom(path), path).toBeNull()
+    }
+    for (const path of ['/runs', '/r/shop-1402']) {
+      expect(routeFor('GET', path)?.route.document, path).toBe(true)
+    }
+    expect(TITLES.runs).toBe('Plans')
+    expect(MORE.find((one) => one.view === 'runs')?.label).toBe('Plans')
   })
 
   it('reads a request’s item key into its own screen’s path', () => {

@@ -1,5 +1,8 @@
-// A run of a workflow, as two screens: the runs there are (here), and one
-// run's own graph (`runs-run.js`).
+// The plans, as two screens: the plans there are (here), and one plan's own
+// graph (`runs-run.js`).
+//
+// **A plan to a person, a run on the wire**: only what is read was renamed;
+// views, files, classes and `RunRow` still say run.
 //
 // **A run is an effort and nothing new**: one ordinary task per repository,
 // each with its own branch, checks, review and done rule, grouped by the fold
@@ -7,12 +10,9 @@
 // drawn as a graph is read out of the same `start.after` the queue's own rule
 // reads.
 //
-// **What somebody opening this page wants first** is which runs want them,
-// then which are moving and how far along, and only then what is done. So the
-// page leads with the whole as one picture — every step of every run, as a
-// ring, and the runs counted by where they stand — and then the runs in that
-// order: a card each for the ones still going, with its map and what is
-// happening in it now, and a quiet row each for the ones that are finished.
+// **What wants you first**, then what is moving and how far along, then what
+// is done: every step as a ring, then a card per plan still going (its map and
+// what is happening now) and a quiet row per finished one.
 //
 // Nothing here decides a state, a count or a reason (`runs-shape.js`).
 
@@ -43,7 +43,7 @@ export { runSays, stepSays } from './runs-shape.js'
 
 export function runsScreen() {
   const node = el('div')
-  const made = section('RUNS', { top: true })
+  const made = section('PLANS', { top: true })
   const coming = skeleton(3)
   const nothing = stateBox()
   const lead = leadOf()
@@ -58,7 +58,7 @@ export function runsScreen() {
       const had = view.store.had === true
       const rows = had ? runsOf(view.store) : []
       textIn(made.figure, had ? count(rows.length) : '')
-      made.figure.setAttribute('aria-label', `${rows.length} runs`)
+      made.figure.setAttribute('aria-label', `${rows.length} plans`)
       coming.hidden = had
       // **Nothing is two sentences**: none at all, and none on this page while
       // the machine has more. The second is the line under the list.
@@ -67,8 +67,8 @@ export function runsScreen() {
         had && rows.length === 0 && omitted(view.store, 'runs') === 0
           ? stateOf(
               'empty',
-              'No runs yet',
-              'A run is one plan carried out across projects: every task that names the same effort, in the order they wait on each other. Start one from a workflow, or ask Tade to plan one.',
+              'No plans yet',
+              'A plan is one piece of work carried out across projects: every task that names the same effort, in the order they wait on each other. Start one from a workflow, or ask Tade to plan one.',
             )
           : null,
       )
@@ -79,7 +79,7 @@ export function runsScreen() {
         one.fill(grouped[at].runs, view)
       })
       const n = omitted(view.store, 'runs')
-      sayIn(left, n === 0 ? '' : `${n} more runs are not on this page`)
+      sayIn(left, n === 0 ? '' : `${n} more plans are not on this page`)
     },
   }
 }
@@ -95,10 +95,10 @@ const FIGURES = [
 
 function leadOf() {
   const node = el('div', { class: 'ui-card runs-lead' })
-  const ring = donut('Every step of every run')
+  const ring = donut('Every step of every plan')
   const figures = el('ul', {
     class: 'runs-lead-figures',
-    attrs: { 'aria-label': 'Runs, by where they stand' },
+    attrs: { 'aria-label': 'Plans, by where they stand' },
   })
   for (const one of FIGURES) {
     const item = el('li', { class: 'runs-lead-figure' })
@@ -123,7 +123,7 @@ function leadOf() {
         toneOn(n, all[one.key] > 0 ? one.tone : null)
         item.setAttribute(
           'aria-label',
-          `${all[one.key]} ${all[one.key] === 1 ? 'run' : 'runs'} ${one.label}`,
+          `${all[one.key]} ${all[one.key] === 1 ? 'plan' : 'plans'} ${one.label}`,
         )
       })
       legendIn(legend, all.parts)
@@ -148,7 +148,7 @@ function groupOf(group) {
     fill(runs, view) {
       made.node.hidden = runs.length === 0
       textIn(made.figure, count(runs.length))
-      made.figure.setAttribute('aria-label', `${runs.length} runs`)
+      made.figure.setAttribute('aria-label', `${runs.length} plans`)
       if (cards) {
         keyed(
           list,
@@ -191,7 +191,7 @@ function createCard() {
   const item = el('li', { class: 'ui-card runs-card' })
   const head = el('div', { class: 'runs-card-head' })
   const glyph = glyphOf(partMark('waiting'))
-  const link = el('a', { class: 'runs-card-link', attrs: { href: '/runs' } })
+  const link = el('a', { class: 'runs-card-link', attrs: { href: '/plans' } })
   const tally = el('span', { class: 'runs-tally' })
   into(tally, el('span', { class: 'runs-tally-done' }), el('span', { class: 'runs-tally-total' }))
   into(head, glyph, link, tally)
@@ -271,7 +271,7 @@ function fillNowLine(item, one) {
 
 function createRunRow() {
   const node = el('li')
-  const link = el('a', { attrs: { href: '/runs' } })
+  const link = el('a', { attrs: { href: '/plans' } })
   const glyph = glyphOf(partMark('finished'))
   const name = el('span', { class: 'name' })
   const aside = el('span', { class: 'aside' })

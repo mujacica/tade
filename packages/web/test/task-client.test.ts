@@ -256,7 +256,7 @@ describe('its run', () => {
       runs: [run({ steps })],
     })
     const ran = runOf(rowOf(store), store)
-    expect(ran).toMatchObject({ name: 'shop-1402', href: '/r/shop-1402', value: '0 of 2 done' })
+    expect(ran).toMatchObject({ name: 'shop-1402', href: '/plans/shop-1402', value: '0 of 2 done' })
     expect(ran?.steps.map((one) => [one.label, one.state, one.mine])).toEqual([
       ['away-projection', 'now', true],
       ['github-1402-fix', 'next', false],

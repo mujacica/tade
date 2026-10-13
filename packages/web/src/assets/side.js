@@ -9,10 +9,10 @@
 // window's `markOf` carried on the row), the same words (`queueSaid`'s), the
 // same order, and the queue hung as the window hangs it (`tree.js`).
 //
-// **The agent you have open says what the window says beside it**: the run it
+// **The agent you have open says what the window says beside it**: the plan it
 // is part of, with how much of it is finished, and how its checks stood at the
 // commit in hand — the window's ACTIONS page in two lines, each a link to the
-// page that has the rest. That is where Runs and Checks meet one agent; their
+// page that has the rest. That is where Plans and Checks meet one agent; their
 // own pages stay in the menu for what spans every project.
 //
 // Built once and patched, like every screen: a delta writes text and classes
@@ -188,8 +188,8 @@ function createGroup() {
 
 function fillGroup(node, group, view, on) {
   const [run, list] = node.children
-  // The run's own slug, as the window heads the group with it — a link to the
-  // run's graph, which is where *what waits on what* across it is drawn.
+  // The plan's own slug, as the window heads the group with it — a link to the
+  // plan's graph, which is where *what waits on what* across it is drawn.
   run.hidden = group.effort === null
   if (group.effort !== null) {
     run.setAttribute('href', pathOf({ view: 'run', run: group.effort }))
@@ -253,8 +253,8 @@ function fillAgent(node, task, view, on) {
 /**
  * The run this agent is part of and how its checks stand: two facts the
  * window shows beside an agent, each one link from the page that has all of
- * it. A fact with nothing behind it is not drawn — an agent in no run has no
- * run line, rather than a line saying so.
+ * it. A fact with nothing behind it is not drawn — an agent in no plan has no
+ * plan line, rather than a line saying so.
  */
 function detailIn(detail, task, view) {
   const [run, checks, review] = detail.children
@@ -267,7 +267,7 @@ function detailIn(detail, task, view) {
       run,
       '⑁',
       't-quiet',
-      'run',
+      'plan',
       row === null ? effort : `${effort} · ${row.finished} of ${row.total} done`,
     )
   }

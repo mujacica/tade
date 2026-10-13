@@ -57,10 +57,13 @@ export function viewOf(path) {
     if (source === null || id === null) return { view: 'nowhere' }
     return { view: 'request', source, id }
   }
-  if (first === 'r' && parts.length === 3) {
+  // A plan is still a `run` in the views and on the wire; `/r/` and `/runs`
+  // are its addresses from before the rename (`movedFrom`).
+  if ((first === 'plans' || first === 'r') && parts.length === 3) {
     const run = segment(parts[2])
     return run === null ? { view: 'nowhere' } : { view: 'run', run }
   }
+  if ((first === 'plans' || first === 'runs') && parts.length === 2) return { view: 'runs' }
   if (first === 'w' && parts.length === 3) {
     const name = segment(parts[2])
     return name === null ? { view: 'nowhere' } : { view: 'workflow', name }
@@ -82,7 +85,6 @@ const PLAIN = [
   'agents',
   'queue',
   'inbox',
-  'runs',
   'workflows',
   'talk',
   'checks',
@@ -107,13 +109,26 @@ export function pathOf(where) {
       return `/t/${encodeURIComponent(where.project)}/${encodeURIComponent(where.task)}`
     case 'request':
       return `/i/${encodeURIComponent(where.source)}/${encodeURIComponent(where.id)}`
+    case 'runs':
+      return '/plans'
     case 'run':
-      return `/r/${encodeURIComponent(where.run)}`
+      return `/plans/${encodeURIComponent(where.run)}`
     case 'workflow':
       return `/w/${encodeURIComponent(where.name)}`
     default:
       return `/${where.view}`
   }
+}
+
+/**
+ * Where an address from before a rename lives now, or null: `/runs` is
+ * `/plans`. A bookmark outlives a word, so `boot.js` writes the new one over it.
+ */
+export function movedFrom(path) {
+  const first = path.split('/')[1] ?? ''
+  if (first !== 'runs' && first !== 'r') return null
+  const where = viewOf(path)
+  return where.view === 'nowhere' ? null : pathOf(where)
 }
 
 /** The path of one task's own screen, from the `<project>/<task>` id. */
@@ -137,8 +152,8 @@ export const TITLES = {
   queue: 'Queue',
   inbox: 'Handed over',
   request: 'Request',
-  runs: 'Runs',
-  run: 'Run',
+  runs: 'Plans',
+  run: 'Plan',
   workflows: 'Workflows',
   workflow: 'Workflow',
   checks: 'Checks',
@@ -224,7 +239,7 @@ export const MORE = [
   { view: 'inbox', icon: 'inbox', mark: '✉', label: 'Inbox', counts: 'intake' },
   // Under the Tade category, so its own word is what it is: the conversation.
   { view: 'talk', icon: 'talk', mark: '❯', label: 'Conversation', counts: null },
-  { view: 'runs', icon: 'runs', mark: '⑁', label: 'Runs', counts: 'runs' },
+  { view: 'runs', icon: 'runs', mark: '⑁', label: 'Plans', counts: 'runs' },
   { view: 'spend', icon: 'spend', mark: '$', label: 'Spend', counts: null },
   { view: 'checks', icon: 'checks', mark: '✓', label: 'Checks', counts: null },
   { view: 'reviews', icon: 'reviews', mark: '◴', label: 'Reviews', counts: 'reviews' },
@@ -247,10 +262,10 @@ export const MORE = [
  * menu entries, because a menu entry for what is already on the screen beside
  * it is the same thing twice.
  *
- * **Runs and Checks stay.** The window shows one agent's run and checks beside
+ * **Plans and Checks stay.** The window shows one agent's plan and checks beside
  * that agent — its effort heads its group down the side, and its checks are its
  * ACTIONS page — and so does the right-hand side here, under the agent you have
- * open. What these two pages are is the other question: every run across every
+ * open. What these two pages are is the other question: every plan across every
  * repository it spans, and every task's checks in one table. The window has no
  * such page, a side split by project cannot be one, and both are read on a
  * round rather than because one agent is in front of you.

@@ -254,7 +254,7 @@ function leadView() {
   const spend = cellOf('Spend', null)
   const share = meter()
   into(spend.drawing, share)
-  const run = cellOf('Run', '#ag-work')
+  const run = cellOf('Plan', '#ag-work')
   const chain = el('ol', { class: 'ag-chain', attrs: { 'aria-hidden': 'true' } })
   into(run.drawing, chain)
   into(cells, checks.node, branch.node, spend.node, run.node)
@@ -328,7 +328,7 @@ function leadView() {
       else run.node.setAttribute('href', ran.href)
       textIn(run.value, ran === null ? 'on its own' : (ran.value ?? '—'))
       classOn(run.value, 'is-quiet', ran === null || ran.value === null)
-      textIn(run.under, ran === null ? 'in no run' : ran.name)
+      textIn(run.under, ran === null ? 'in no plan' : ran.name)
       keyed(
         chain,
         ran?.steps ?? [],
@@ -492,8 +492,8 @@ function workView() {
   const runName = el('span', { class: 'ag-run-name' })
   const runSaid = el('span', { class: 'ag-run-said' })
   into(runLink, runName, runSaid, icon('chevron'))
-  const runSteps = steps('Its run, step by step')
-  const noRun = el('p', { class: 'ag-none', text: 'Not part of a run' })
+  const runSteps = steps('Its plan, step by step')
+  const noRun = el('p', { class: 'ag-none', text: 'Not part of a plan' })
   into(run, runLink, runSteps, noRun)
 
   const queue = panel('ul', 'queue ag-queue')

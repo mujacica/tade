@@ -213,9 +213,7 @@ function clauseOf(step, run) {
   if (part === 'wants') return 'wants you'
   if (part === 'failed') return 'failed'
   if (part === 'working') return 'working'
-  // **A number, never a list of names.** What it waits on is the run's own
-  // screen's to name, with why; a card that spelt out three task ids under
-  // every step was a paragraph where a figure would do.
+  // A number: the names, and why, are the plan's own screen's.
   const open = waitsOf(step, run).filter((one) => !one.finished).length
   return open === 0 ? 'queued' : `waits on ${open}`
 }
@@ -248,12 +246,8 @@ export function waitsOf(step, run) {
 const CUTS = ['-', '_', '/', '.', ' ']
 
 /**
- * Each step's name with the front every step of its run shares cut off —
- * `checkout-v2-schema` and `checkout-v2-api` are `schema` and `api` — keyed by
- * task. **Drawing, not renaming**: the cut is at a word's end, only where at
- * least two steps share it and every step keeps a name, and the run's own
- * name is on the same screen, so nothing is lost. A box 184 pixels wide that
- * says `checkout-v2-sche…` five times says nothing.
+ * Each step's name without the front every step shares — `checkout-v2-schema`
+ * is `schema` — cut at a word's end, and only where every step keeps a name.
  */
 export function shortNamesOf(steps) {
   const out = new Map(steps.map((step) => [step.task, step.name]))
@@ -416,11 +410,8 @@ export function inOrder(steps) {
 export const MAP = { dx: 56, dxLeast: 32, dxMost: 160, dy: 26, r: 7, pad: 8 }
 
 /**
- * How far apart a map's columns go in `room` pixels: spread to fill it, so a
- * run of three stages uses the card a run of eight does — but never so far
- * that two dots become a line with nothing on it (`dxMost`), and never so
- * close that the curves between them knot (`dxLeast`, under which the drawing
- * scales down instead). No room known is the natural spacing.
+ * How far apart a map's columns go in `room` pixels: spread to fill it, so
+ * three stages use the card eight do, within `dxLeast` and `dxMost`.
  */
 export function spreadOf(columns, room) {
   if (!(room > 0) || columns < 2) return MAP.dx

@@ -137,6 +137,8 @@ declare module '*/assets/routes.js' {
     name?: string
   }): string
   export function taskPath(id: string): string
+  /** Where an address from before a rename lives now: `/runs` is `/plans`. */
+  export function movedFrom(path: string): string | null
   export function requestPath(item: string): string
   export function navFor(where: { view: string }): string
   export function safeHref(url: unknown): string | null

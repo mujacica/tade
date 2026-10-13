@@ -1,16 +1,11 @@
-// One run: how far along it is, what in it wants somebody, and its graph —
-// what is done, what is running, what is waiting and on what.
+// One plan (a run, on the wire): how far along it is, what in it wants
+// somebody, and its graph — what is done, what is running, what is waiting and
+// on what.
 //
-// **Two drawings of one graph, chosen by the room, never two graphs.** Where
-// the work has the width, the run is drawn as boxes and curves (`flow`), layer
-// after layer left to right, which is the picture the window draws with its
-// eighty columns (`plan-graph.ts`). Under it, and alone on a phone, the same
-// graph is drawn as **stages**: a rail down the side with a stop per layer,
-// the steps of a layer side by side where there is room, and under each step
-// what it waits on, whether that has finished, and why it waits. Both read the
-// wire's own `layer` and `waits`, so neither is a second layout of a different
-// graph — and the stages carry what a box has no room for: the reason
-// somebody gave, the checks, the review and the cost.
+// **Two drawings of one graph, chosen by the room.** Boxes and curves (`flow`)
+// where the work is wide, as the window's `plan-graph.ts`; under it, and alone
+// on a phone, **stages** — a rail with a stop per layer, each step with what it
+// waits on and why. Both read the wire's `layer` and `waits`.
 
 import { flow, flowIn, legendIn } from '../charts.js'
 import { el, glyphOf, into, keyed, markIn, skeleton, textIn, toneOn } from '../dom.js'
@@ -40,7 +35,7 @@ import {
 export function runScreen(where) {
   const node = el('div')
   const glyph = glyphOf(partMark('waiting'))
-  const bar = pageBar(where.run, { name: true, glyph, back: { text: 'Runs', href: '/runs' } })
+  const bar = pageBar(where.run, { name: true, glyph, back: { text: 'Plans', href: '/plans' } })
   const fromLink = el('a', { class: 'press quietly small', text: 'The request behind it' })
   into(bar.tools, fromLink)
   const coming = skeleton(4)
@@ -52,7 +47,7 @@ export function runScreen(where) {
   into(needs.body, needList)
   const graph = section('THE GRAPH')
   graph.node.classList.add('runs-graph')
-  const drawing = flow('The run’s steps, and what each waits on')
+  const drawing = flow('The plan’s steps, and what each waits on')
   into(graph.body, drawing)
   const stages = section('STAGE BY STAGE')
   const rail = el('ol', { class: 'runs-stages' })
@@ -74,7 +69,7 @@ export function runScreen(where) {
           ? stateOf(
               'empty',
               'Not on this device',
-              'This run is not one this device may read, or nothing is left of it: its task files are not there.',
+              'This plan is not one this device may read, or nothing is left of it: its task files are not there.',
             )
           : null,
       )
@@ -120,7 +115,7 @@ export function runScreen(where) {
               'No step to draw',
               row.total === 0 && row.projects.length === 0
                 ? 'None of its steps is in a project this device may read.'
-                : 'Nothing is left of this run: its task files are not there.',
+                : 'Nothing is left of this plan: its task files are not there.',
             ),
       )
       const staged = stagesOf(row)
@@ -157,7 +152,7 @@ function heroOf() {
   const line = track('is-big')
   const legend = el('ul', { class: 'ui-legend', attrs: { 'aria-label': 'The steps, by part' } })
   into(progress, figure, line, legend)
-  const about = facts('About this run')
+  const about = facts('About this plan')
   into(node, progress, about)
   return {
     node,
@@ -189,7 +184,7 @@ function heroOf() {
               {
                 label: 'delivery',
                 value: `${row.retries} ${row.retries === 1 ? 'retry' : 'retries'}`,
-                under: 'before the run existed',
+                under: 'before the plan existed',
               },
             ]
           : []),

@@ -204,7 +204,7 @@ export function lastSeenScreen(view, now) {
     ['Working', view.working],
     ['Queued', view.queue],
     ['Inbox', view.inbox],
-    ['Runs', view.runs],
+    ['Plans', view.runs],
     ['Projects', view.projects],
   ]) {
     const tile = el('div', { class: 'ui-card tile' })

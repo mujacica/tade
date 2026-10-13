@@ -167,8 +167,13 @@ export const ROUTES: readonly Route[] = [
   // byte-identical to one it may.
   shellAt('/inbox', 'inbox page'),
   shellAt('/i/:source/:id', 'request page'),
-  shellAt('/runs', 'runs page'),
-  shellAt('/r/:run', 'run page'),
+  shellAt('/plans', 'plans page'),
+  shellAt('/plans/:run', 'plan page'),
+  // The plans' old addresses, from before a run of a workflow was called a
+  // plan: still the shell, so a bookmark or a pushed link lands, and the page
+  // writes the new address over it (`movedFrom` in `assets/routes.js`).
+  shellAt('/runs', 'old plans page'),
+  shellAt('/r/:run', 'old plan page'),
   shellAt('/workflows', 'workflows page'),
   shellAt('/w/:name', 'workflow page'),
   shellAt('/checks', 'checks page'),
