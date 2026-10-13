@@ -252,6 +252,12 @@ export interface AppOptions {
   now?: () => number
   frameMs?: number
   /**
+   * Called once, just before the window takes the terminal: whatever was
+   * drawn on it while Tade opened stops there, so nothing but the window ever
+   * writes to the screen it draws on.
+   */
+  takingScreen?: () => void
+  /**
    * Draw every region the window keeps from the last frame again anyway, and
    * throw where the two differ (`view/last-frame.ts`). What the wire tests run under:
    * a subject that changes something in place is otherwise a region that goes

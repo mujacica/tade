@@ -52,8 +52,10 @@ const TABLE = 'scripts/coverage-floors.ts'
  */
 export const FLOOR: Record<string, number> = {
   // What is left of the CLI once the program itself is taken out (see UNSEEN):
-  // `commands/voice.ts` and `telemetry.ts` are the two with real gaps.
-  'packages/cli': 70,
+  // `commands/voice.ts` and `telemetry.ts` are the two with real gaps. 70 -> 77
+  // when the mark shown while the window opens came with its tests
+  // (`splash.ts`, pure, and `opening.ts` under fake timers).
+  'packages/cli': 77,
   // 77 -> 85 with reviewing a pull request, whose policy half (`reviewing.ts`)
   // is pure and fully covered. What is left uncovered is what it always was:
   // the fixing, which starts an agent.

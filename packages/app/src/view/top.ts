@@ -12,7 +12,7 @@ import {
   shownProject,
   spinner,
 } from '../model.ts'
-import type { Skin } from '../skin.ts'
+import { MARK, type Skin } from '../skin.ts'
 import { blank, box, type Drawn, type Pointer, Row, stack } from '../ui.ts'
 import { clock } from './text.ts'
 
@@ -458,7 +458,8 @@ export function renderTop(
   // thing that draws it. Working out what fits calls these exactly as the
   // drawing does, so the row can never be measured as one shape and drawn as
   // another.
-  const wordmark = (r: Row): void => void r.space().mark('TADE').space(2)
+  const wordmark = (r: Row): void =>
+    void r.space().text(MARK, skin.brand).space().mark('TADE').space(2)
   const plus = (r: Row): void =>
     void r.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
   // A tab's own `×` and `≡` are drawn the way a terminal's are, and the

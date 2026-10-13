@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +      
+ ▄▀   T A D E      checkout    search    infra      +   
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮l  
    │  search sett…   │ Telemetry                    │───

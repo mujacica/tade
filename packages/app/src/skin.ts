@@ -511,6 +511,14 @@ const identity = (text: string) => text
 export const markLabel = (label: string) => [...label].join(' ')
 
 /**
+ * The Tade mark in one row: the away view's favicon and tade-web's, two squares
+ * on a diagonal (`▞`), each a half block — a cell is twice as tall as it is
+ * wide, so half of one is square. The splash `tade` shows while the window
+ * opens is the same drawing larger (`splash.ts` in the CLI, held to this).
+ */
+export const MARK = '▄▀'
+
+/**
  * A tab, painted: filled in the brand's amber when it is the one you are on,
  * lit under the pointer, quiet otherwise.
  *

@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +           ctrl   +   space   
+ ▄▀   T A D E      checkout    search    infra      +        ctrl   +   space   
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2        +    █│ stripe-…    agent    shell    actions     +         
                          █│─────────────────────────────────────────────────────

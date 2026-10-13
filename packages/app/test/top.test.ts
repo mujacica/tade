@@ -11,7 +11,7 @@ import {
   withProjects,
   withTasks,
 } from '../src/model.ts'
-import { COLOUR } from '../src/skin.ts'
+import { COLOUR, MARK, PLAIN } from '../src/skin.ts'
 import { NO_POINTER } from '../src/ui.ts'
 import { projectSays, projectStandings, renderTop, tabsShown } from '../src/view/top.ts'
 
@@ -469,5 +469,21 @@ describe('the × that closes a project', () => {
     expect(
       narrow.hits.some((hit) => hit.target.kind === 'project' && hit.target.project === 'checkout'),
     ).toBe(true)
+  })
+})
+
+describe('the corner', () => {
+  // The away view's favicon and tade-web's mark, in the window's own corner:
+  // the two squares, then the name. Not a control — the brand is the one thing
+  // in the row nothing happens to when it is pressed.
+  it('is the two squares, then the name, with colour and without', () => {
+    const state = world([])
+    const corner = ` ${MARK}   T A D E  `
+    expect(strip(state).startsWith(corner)).toBe(true)
+    const plain = renderTop(state, frame({ skin: PLAIN }), 160, PLAIN, NO_POINTER)
+    expect(plain.rows[0]?.startsWith(corner)).toBe(true)
+    const painted = renderTop(state, frame(), 160, COLOUR, NO_POINTER)
+    expect(painted.rows[0]).toContain(COLOUR.brand(MARK))
+    for (let x = 0; x < corner.length; x++) expect(hitAt(painted.hits, x, 0)).toBeNull()
   })
 })

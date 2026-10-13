@@ -1,4 +1,4 @@
-   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !⠋    search ✓    infra      +          ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2  ╭─ Spend ─────────────────────────────────────────────────────────────────────────── esc ─╮high ▾     ×   
               │ ~$1.88 mixed  2.5M tokens  1h 32m working · 2h 5m open · over 3 runs                    │───────────────

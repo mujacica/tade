@@ -46,7 +46,7 @@ import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import { lookAtUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
-import { unsayOpening } from '../opening.ts'
+import { handOverOpening, unsayOpening } from '../opening.ts'
 import { closeAll, endSoon, leftBehind, onSignals } from '../quitting.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
 import { gather } from './setup-facts.ts'
@@ -385,6 +385,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           status: looking,
           ...(canHear ? { recorder, transcriber } : {}),
           report,
+          // The mark up while it opened stops where the window starts drawing.
+          takingScreen: handOverOpening,
           // What an agent can be started on is its harness's to say, and the
           // workbench holds the adapters: nothing here knows which harness it
           // is, which is the whole point of asking one.

@@ -1,6 +1,5 @@
 import { Command } from 'commander'
 import { describe, expect, it } from 'vitest'
-import { OPENING, opensWindow, sayOpening, unsayOpening } from '../src/opening.ts'
 import { buildProgram, COMMANDS, commandsFor } from '../src/program.ts'
 
 // The program loads the command typed and nothing else, so each command's
@@ -43,34 +42,5 @@ describe('the commands, loaded one at a time', () => {
   it('builds a program with the command typed in it, and not the rest', async () => {
     const program = await buildProgram(io, () => {}, ['status'])
     expect(program.commands.map((one) => one.name())).toEqual(['status'])
-  })
-})
-
-describe('saying the window is opening', () => {
-  it('is said for the window, and for nothing that answers instead', () => {
-    expect(opensWindow([])).toBe(true)
-    expect(opensWindow(['app'])).toBe(true)
-    expect(opensWindow(['--safe'])).toBe(true)
-    expect(opensWindow(['app', '--config', '/x.yaml'])).toBe(true)
-    expect(opensWindow(['status'])).toBe(false)
-    expect(opensWindow(['--version'])).toBe(false)
-    expect(opensWindow(['app', '--help'])).toBe(false)
-    expect(opensWindow(['help'])).toBe(false)
-  })
-
-  it('is said once on a terminal, never down a pipe, and taken back once', () => {
-    const terminal = { isTTY: true, written: '', write: (s: string) => (terminal.written += s) }
-    const pipe = { isTTY: false, written: '', write: (s: string) => (pipe.written += s) }
-    const as = (out: object) => out as NodeJS.WriteStream
-    sayOpening(as(pipe))
-    unsayOpening(as(pipe))
-    expect(pipe.written).toBe('')
-    sayOpening(as(terminal))
-    sayOpening(as(terminal))
-    expect(terminal.written).toBe(OPENING)
-    unsayOpening(as(terminal))
-    unsayOpening(as(terminal))
-    // Back to the start of the line and the line cleared, once.
-    expect(terminal.written).toBe(`${OPENING}\r\x1b[2K`)
   })
 })

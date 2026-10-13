@@ -724,6 +724,7 @@ export class App {
       ),
     )
     this.release = this.tui.addInputListener((data) => this.keyboard.onInput(data))
+    this.opts.takingScreen?.()
     this.tui.start()
     void Promise.all([this.keyboard.load(), this.earlier.load()])
     this.timer = setInterval(() => void this.looks.tick(), this.opts.frameMs ?? FRAME_MS)

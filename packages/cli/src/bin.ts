@@ -4,7 +4,8 @@ import { opensWindow, sayOpening, unsayOpening } from './opening.ts'
 import { needsNode } from './version.ts'
 
 // Nothing below this line is imported at the top, and the three above it are
-// each a file with no dependency of its own. A static import is evaluated
+// each a file with no dependency of its own — but `opening.ts`'s drawing,
+// `splash.ts`, which has none either. A static import is evaluated
 // before any statement in this file, so anything imported here is code that
 // runs before the check that says whether this Node can run it — which on Node
 // 20 is what a person sees instead: a TypeError out of the middle of execa.
@@ -15,7 +16,8 @@ if (tooOld !== null) {
 }
 
 // Before the most of a second it takes to load the rest: a terminal left blank
-// that long reads as a command that did nothing (`opening.ts`).
+// that long reads as a command that did nothing, so the mark goes up at once
+// and turns until the window takes the screen (`opening.ts`).
 if (opensWindow(process.argv.slice(2))) sayOpening()
 
 // Loaded rather than imported, so that a dependency which did not install is a
