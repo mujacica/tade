@@ -62,8 +62,15 @@ describe('the conversation, when the window opens again', () => {
       terminal.press(`\x1b[<64;10;${row + 1}M`)
       await new Promise((resolve) => setTimeout(resolve, 5))
     }
-    expect(terminal.written).toContain('❯ what is running?')
-    expect(terminal.written).toContain('told the orchestrator: shop finished')
+    // The loop stops when the page before is *asked* for, which is a frame
+    // before the top of this one is *drawn*: on a loaded machine that frame
+    // has not landed yet, so wait for it rather than read it at once.
+    await until(
+      'the top of the last page drawn',
+      () =>
+        terminal.written.includes('❯ what is running?') &&
+        terminal.written.includes('told the orchestrator: shop finished'),
+    )
     await until('the page before it read', () => asked.length === 2)
     expect(asked).toEqual([null, '2048'])
     await until('the first answer on screen', () => screen().includes('The very first answer.'))
