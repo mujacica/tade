@@ -17,8 +17,17 @@ import { LaneRegistry } from '../src/registry.ts'
 // way to `spawn` looks exactly like a working feature from inside the unit
 // that built it.
 
-/** A program that says what the kernel thinks of it, and then ends. */
-const SAYS_ITS_NICE = ['-e', "process.stdout.write(`NICE=${require('node:os').getPriority()}\\n`)"]
+/**
+ * A program that says what the kernel thinks of it, and then waits to be
+ * closed. One that ended as soon as it had said it could be gone before
+ * `spawn` returned, which still has the journal and the lane file to write,
+ * and a lane that has exited cannot be listened to (`requireAlive`): whether
+ * the number was heard came down to which of the two the runner got to first.
+ */
+const SAYS_ITS_NICE = [
+  '-e',
+  "process.stdout.write(`NICE=${require('node:os').getPriority()}\\n`); setInterval(() => {}, 1000)",
+]
 
 describe('what gives way to the window', () => {
   let home: string
@@ -70,6 +79,7 @@ describe('what gives way to the window', () => {
       await until(() => /NICE=(-?\d+)/.test(seen), { timeout: 20_000 })
     } finally {
       stop()
+      await registry.close(id as LaneId)
     }
     return {
       said: Number.parseInt(/NICE=(-?\d+)/.exec(seen)?.[1] ?? '', 10),
