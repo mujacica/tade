@@ -11,7 +11,7 @@
 import { toneIn } from '../charts.js'
 import { classOn, el } from '../dom.js'
 import { svgOf } from '../icons.js'
-import { dotPath, MAP, mapOf, mapSaid, orderOf, partOf, toneOfPart } from './runs-shape.js'
+import { dotPath, inOrder, MAP, mapOf, mapSaid, partOf, toneOfPart } from './runs-shape.js'
 
 /** The parts drawn as an outline rather than filled: somewhere along the way, not arrived. */
 const HOLLOW = new Set(['waiting', 'review', 'parked'])
@@ -102,10 +102,7 @@ export function track(extra = '') {
 }
 
 export function trackIn(node, run) {
-  const order = orderOf(run.steps)
-  const steps = [...run.steps].sort(
-    (a, b) => a.layer - b.layer || (order.get(a.task) ?? 0) - (order.get(b.task) ?? 0),
-  )
+  const steps = inOrder(run.steps)
   sized(node, steps.length, () => el('span'))
   steps.forEach((step, at) => {
     toneIn(node.children[at], toneOfPart(partOf(step)))

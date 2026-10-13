@@ -397,6 +397,18 @@ export function orderOf(steps) {
   return rowOf
 }
 
+/**
+ * A run's steps in the order its map reads them — stage by stage, and inside a
+ * stage as `orderOf` places them — which is the order its track's segments
+ * go in, so the third segment is the third dot.
+ */
+export function inOrder(steps) {
+  const order = orderOf(steps)
+  return [...steps].sort(
+    (a, b) => a.layer - b.layer || (order.get(a.task) ?? 0) - (order.get(b.task) ?? 0),
+  )
+}
+
 /** The map's spacing, in the drawing's own units (a CSS pixel at its natural size). */
 export const MAP = { dx: 56, dy: 26, r: 7, pad: 8 }
 

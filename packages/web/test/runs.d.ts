@@ -75,6 +75,7 @@ declare module '*/assets/pages/runs-shape.js' {
     part: string
   }[]
   export function orderOf(steps: readonly any[]): Map<string, number>
+  export function inOrder<T>(steps: readonly T[]): T[]
   export function mapOf(run: any): {
     dots: { task: string; name: string; part: string; x: number; y: number }[]
     lines: { from: string; to: string; done: boolean; d: string }[]

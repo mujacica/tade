@@ -6,6 +6,7 @@ import {
   GROUPS,
   graphOf,
   groupsOf,
+  inOrder,
   MAP,
   mapOf,
   mapSaid,
@@ -371,6 +372,23 @@ describe('the map', () => {
     const order = orderOf(row({ steps }).steps)
     expect(order.get('x/on-a')).toBe(0)
     expect(order.get('x/on-b')).toBe(1)
+  })
+
+  it('reads the steps stage by stage, in the order the map places them', () => {
+    // The track's segments go in this order, so the third segment is the
+    // third dot — whatever order the task files happened to be read in.
+    const steps = [
+      step({ task: 'x/late', layer: 1, waits: [{ task: 'x/b', why: '' }] }),
+      step({ task: 'x/a', name: 'a' }),
+      step({ task: 'x/b', name: 'b' }),
+      step({ task: 'x/early', layer: 1, waits: [{ task: 'x/a', why: '' }] }),
+    ]
+    expect(inOrder(row({ steps }).steps).map((one) => one.task)).toEqual([
+      'x/a',
+      'x/b',
+      'x/early',
+      'x/late',
+    ])
   })
 
   it('survives two steps waiting on each other, which a file anybody can edit may say', () => {
