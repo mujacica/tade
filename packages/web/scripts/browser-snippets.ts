@@ -142,6 +142,13 @@ export const SHAPE = `${SETTLED}.then(() => (() => {
     skip: first === null ? '' : (first.textContent || ''),
     sideways: document.scrollingElement ? document.scrollingElement.scrollWidth : 0,
     room: window.innerWidth,
+    // The screen scrolls itself rather than the document (\`frame.css\`), so
+    // what is wider than the screen is wider than *it*, and the document's
+    // figure alone would say nothing ever does.
+    within: (() => {
+      const main = document.querySelector('main')
+      return main === null ? 0 : main.scrollWidth - main.clientWidth
+    })(),
     small,
   }
 })())`

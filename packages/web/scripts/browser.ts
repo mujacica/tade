@@ -23,6 +23,7 @@ import {
 } from '../test/browser-plan.ts'
 import { agentHeld, input, NOW } from '../test/fixtures.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
+import { frameAt } from './browser-frame.ts'
 import { asPwa } from './browser-pwa.ts'
 import {
   AXE,
@@ -320,6 +321,7 @@ async function run() {
         }
       }
       await deskAt(page, origin, width, found)
+      await frameAt(page, origin, width, found)
       await paletteAt(page, origin, width, found)
       await deltaUnder(page, origin, server, held, width.name)
       await context.close()
@@ -623,6 +625,8 @@ interface Shape {
   skip: string
   sideways: number
   room: number
+  /** How much wider than itself the screen's own content is. */
+  within: number
   small: string[]
 }
 
@@ -658,7 +662,7 @@ async function lookAt(
   }
 
   // At every width: a desk that scrolled sideways is as broken as a phone.
-  const over = shape.sideways - shape.room
+  const over = Math.max(shape.sideways - shape.room, shape.within)
   if (over > 1) found('sideways', where, 'fail', `the page is ${over}px wider than the screen`)
   else found('sideways', where, 'pass', 'nothing scrolls sideways')
 

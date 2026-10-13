@@ -90,7 +90,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | what an agent's state is | `markOf` in `@tade/core`'s `mark.ts` — the window's own rule, computed over its panes and carried on each row as `mark`; the page draws `rowMark(task)` and derives nothing. `finished` is `Live`'s whole-journal fold, never `live.events` |
 | the delta merge and the selectors | `src/assets/store.js` |
 | the router, the stream, the keyboard | `src/assets/boot.js` |
-| the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts`; the desk and `lanes` in `scripts/browser-desk.ts` |
+| the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts`; the desk and `lanes` in `scripts/browser-desk.ts`; the frame pinned to the screen in `scripts/browser-frame.ts` |
 | the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` — `follow` brings it up, down, or up again as a setting it was built from changes (`web-follow.ts`, `builtFrom`) |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
 | what the panel draws | `packages/app/src/panels/away/{state,view,cards}.ts`, with six goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy. A status line in words, a device at the door as a card **above** the code (under it, twenty rows of code scrolled it out of sight), the code and link, the devices and the controls. A grant is a ticked box named in `AWAY_LABELS`, never a chip whose colour says which way it goes (green was read as *granted*); where a device came from is `whereFrom`'s words, never only an address; what a box grants is one clause in the foot while the pointer is on it (`grantsHelp` in `wire/web-panel.ts`), never a paragraph above the list |
@@ -99,6 +99,14 @@ a device still has none of the scopes that change anything until somebody at thi
 
 ## The rules that break things quietly
 
+- **The document never scrolls; the regions inside the frame do.** The body is `100dvh` and clipped,
+  a column of the header, the frame and (on a phone) the tab bar; inside the frame `main`, the menu
+  and the side's list each scroll themselves (`frame.css`). So nothing is `sticky` to the page or
+  sized `100dvh -` a header (`test/design.test.ts`), a new part of the frame takes a row or a column
+  of it, a `sticky` in a screen sticks to `main`, and `draw` opens a screen at its top and keeps the
+  offset for Back, which the browser restores only for a document. The page has no doctype, so it
+  is laid out in quirks mode and `document.scrollingElement` is the body. Where each part lands is
+  `scripts/browser-frame.ts`'s.
 - **No route in `ROUTES` mutates a project or a task.** The two non-`GET` routes there are session
   lifecycle — this browser's own credential, created and destroyed — and `test/routes.test.ts`
   asserts that set is exactly those two **by name**. A third fails the test until somebody puts it

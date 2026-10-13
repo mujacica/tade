@@ -135,7 +135,6 @@ main {
   border: 0;
   border-radius: 0;
   border-block-end: var(--border);
-  margin-inline: calc(-1 * var(--s4));
 }
 
 .bars > .bar.is-stale {
@@ -408,10 +407,6 @@ main .filter {
     margin-inline: calc(-1 * var(--s5));
     padding-inline: var(--s5);
     padding-block: 0;
-  }
-
-  .bars > .bar {
-    margin-inline: 0;
   }
 
   .bars .bar-line {

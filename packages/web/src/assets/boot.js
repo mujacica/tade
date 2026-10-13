@@ -272,12 +272,16 @@ function go(path, opts = {}) {
     location.replace(path)
     return
   }
+  // Where the screen being left was scrolled to, kept on its own entry: the
+  // screen scrolls itself rather than the document (`frame.css`), so the
+  // browser's own restoring on Back has nothing to restore.
+  history.replaceState({ top: shown.main.scrollTop }, '')
   if (opts.replace === true) history.replaceState(null, '', path)
   else if (path !== location.pathname) history.pushState(null, '', path)
   draw(viewOf(path))
 }
 
-function draw(asked) {
+function draw(asked, top = 0) {
   const at = outside === null ? asked : { view: outside.view }
   where = at
   const make = SCREENS[at.view] ?? SCREENS.nowhere
@@ -301,6 +305,8 @@ function draw(asked) {
   shown.main.setAttribute('tabindex', '-1')
   shown.main.focus({ preventScroll: true })
   paint()
+  // A new screen opens at its top, and one gone back to where it was left.
+  shown.main.scrollTop = top
 }
 
 /** Every in-page link, taken over once, at the document. */
@@ -317,7 +323,7 @@ function wireLinks() {
     event.preventDefault()
     go(href)
   })
-  addEventListener('popstate', () => draw(viewOf(location.pathname)))
+  addEventListener('popstate', () => draw(viewOf(location.pathname), history.state?.top ?? 0))
 }
 
 /* ── drawing ───────────────────────────────────────────────────────────────── */

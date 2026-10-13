@@ -314,13 +314,13 @@ a.pal-whole:hover {
 }
 
 /*
-  The conversation's box, docked: at the foot of the screen over the tab bar
-  on a phone, at the foot of the work on a desk, on the page's own ground so
-  lines scrolling under it do not show through.
+  The conversation's box, docked at the foot of the screen it scrolls in —
+  over the tab bar on a phone, over Tade's own dock from a tablet up — on the
+  page's own ground so lines scrolling under it do not show through.
 */
 .section.composer-dock {
   position: sticky;
-  bottom: calc(var(--s7) + var(--s5) + env(safe-area-inset-bottom));
+  bottom: 0;
   z-index: 3;
   margin-block-end: 0;
   padding-block: var(--s3);
@@ -335,12 +335,6 @@ a.pal-whole:hover {
 .composer-dock textarea {
   resize: none;
   max-height: 200px;
-}
-
-@media (min-width: 768px) {
-  .section.composer-dock {
-    bottom: 0;
-  }
 }
 
 /* Who said it and when: a quiet line over the words, as the dock's is. */

@@ -274,6 +274,23 @@ describe('the layout', () => {
     expect(AWAY).toContain('env(safe-area-inset-bottom)')
     expect(HTML).toContain('viewport-fit=cover')
   })
+
+  it('pins the frame to the screen, and scrolls only the regions inside it', () => {
+    // The document scrolling is what carried the header, the menu, the side
+    // and Tade away, and let the page run on past the end of the work. Where
+    // each part actually lands is `scripts/browser-frame.ts`'s to say; this is
+    // the half that can be read without laying anything out.
+    const rule = (selector: string) =>
+      new RegExp(`(?:^|\\n)${selector}\\s*\\{([^}]*)\\}`).exec(AWAY)?.[1] ?? ''
+    expect(rule('html')).toMatch(/overflow:\s*hidden/)
+    expect(rule('html')).toMatch(/overscroll-behavior:\s*none/)
+    expect(rule('body')).toMatch(/height:\s*100dvh/)
+    expect(rule('body')).toMatch(/overflow:\s*clip/)
+    expect(rule('main')).toMatch(/overflow-y:\s*auto/)
+    // Nothing sized as the screen less a header somebody measured: that is a
+    // part held in view by sticking to a document that scrolls.
+    expect(CSS).not.toMatch(/100dvh\s*-/)
+  })
 })
 
 describe('reach and motion', () => {

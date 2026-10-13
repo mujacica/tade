@@ -596,30 +596,21 @@
 /* ── a tablet: Tade docked at the foot of the work, the side a drawer ──────── */
 
 @media (min-width: 768px) {
-  .work {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .work > main {
-    flex: 1 0 auto;
-  }
-
   .work > .bars {
     padding-inline: var(--s5);
   }
 
   /*
-    Held at the bottom of the screen while the work scrolls under it, the way
-    the window's strip sits under its pane — and at the bottom of the work
-    rather than over it, so the last row of a screen is never behind it.
+    The foot of the work, under the screen that scrolls above it, the way the
+    window's strip sits under its pane — at the bottom of the work rather than
+    over it, so the last row of a screen is never behind it, and clear of the
+    phone's own inset at the foot.
   */
   .dock {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
+    flex: none;
     display: flex;
     flex-direction: column;
+    padding-block-end: env(safe-area-inset-bottom);
     background: var(--ground);
     border-block-start: var(--border);
   }
@@ -671,11 +662,10 @@
   /* From the header to the bottom of the screen, its own scroll, its fold at its foot. */
   .side {
     grid-column: 3;
-    position: sticky;
-    top: 3.25rem;
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 3.25rem);
+    min-height: 0;
+    padding-block-end: env(safe-area-inset-bottom);
     border-inline-start: var(--border);
   }
 

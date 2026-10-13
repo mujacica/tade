@@ -30,6 +30,34 @@
 
 /* ── the frame ─────────────────────────────────────────────────────────────── */
 
+/*
+  **The page is an application's shell, and the document never scrolls.** The
+  body is the screen — `100dvh`, so iOS Safari's toolbar is room the shell
+  gives back rather than room it scrolls under — and a column of three: the
+  header, the frame, and on a phone the tab bar. Inside the frame the work's
+  screen scrolls, and so does each side's own list; nothing else does. A
+  document that scrolled carried the header, the menu, the side and Tade away
+  with it, and scrolled on past the end of the work into nothing.
+
+  `clip` rather than `hidden` on the body, because a hidden box is still one
+  focus and `scrollIntoView` can scroll; `none` on both, so a fling at the end
+  of a list never bounces the whole page.
+*/
+html {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: clip;
+  overscroll-behavior: none;
+}
+
 .skip {
   position: absolute;
   left: var(--s4);
@@ -84,21 +112,21 @@ a.name:hover {
 
 /*
   The header: the mark, the command bar, the clock, two tools. The panel's
-  ground under a hairline, and held at the top with the phone's own inset above
-  it, so the clock is never under the notch of an installed app.
+  ground under a hairline, the top of the shell with the phone's own insets
+  round it, so the clock is never under the notch of an installed app.
 */
 .top {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 6;
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s2);
   min-height: 3.25rem;
   margin-inline: calc(-1 * var(--s4));
-  padding-inline: var(--s4);
+  padding-inline: calc(var(--s4) + env(safe-area-inset-left))
+    calc(var(--s4) + env(safe-area-inset-right));
   padding-block: calc(var(--s1) + env(safe-area-inset-top)) var(--s1);
-  /* The page's own ground, so rows scrolling under it do not show through. */
   background: var(--ground);
   border-block-end: var(--border);
 }
@@ -403,15 +431,21 @@ kbd {
 
 /* ── navigation ────────────────────────────────────────────────────────────── */
 
+/*
+  Everything between the header and the foot of the screen, from edge to edge
+  — the phone's gutter is the screen's own padding (`main`), so a strip in it
+  can reach the edges without making it scroll sideways. One row, exactly the
+  room there is, so every column in it is the height of the screen and scrolls
+  inside itself.
+*/
 .frame {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
-  gap: var(--s4);
-  padding-block-start: var(--s3);
-  /*
-    Room for the floating tab bar, plus the phone's own safe area. On a tablet
-    and up there is no tab bar and this goes back to an ordinary margin.
-  */
-  padding-block-end: calc(var(--s7) + var(--s6) + env(safe-area-inset-bottom));
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  margin-inline: calc(-1 * var(--s4));
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 
 .rail {
@@ -419,21 +453,23 @@ kbd {
 }
 
 /*
-  The tab bar: flush with the foot of the screen on the panel's ground, a
-  hairline over it and the phone's inset under it — no float, no blur, no
-  shadow. Four presses: the overview, the work (the side, as a drawer), Tade
-  in the middle (the dock, as a sheet) and More. Where you are is amber, and
-  said to a screen reader as well.
+  The tab bar: the foot of the shell on the panel's ground, a hairline over it
+  and the phone's inset under it — no float, no blur, no shadow. Four presses:
+  the overview, the work (the side, as a drawer), Tade in the middle (the dock,
+  as a sheet) and More. Where you are is amber, and said to a screen reader as
+  well.
 */
 .tabs {
-  position: fixed;
-  inset-inline: 0;
-  bottom: 0;
+  position: relative;
   z-index: 6;
+  flex: none;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   align-items: center;
-  padding: 0 var(--s1) env(safe-area-inset-bottom);
+  margin-inline: calc(-1 * var(--s4));
+  padding-inline: calc(var(--s1) + env(safe-area-inset-left))
+    calc(var(--s1) + env(safe-area-inset-right));
+  padding-block: 0 env(safe-area-inset-bottom);
   background: var(--panel);
   border-block-start: var(--border);
 }
@@ -496,8 +532,28 @@ kbd {
 
 /* ── sections ──────────────────────────────────────────────────────────────── */
 
-main {
+/*
+  The middle column: the page's own bars, the screen, and Tade under it. **The
+  screen is the one thing in it that scrolls**, and it scrolls itself — so the
+  bars above it and the dock below it stay where they are, and its end is the
+  end of the work rather than the start of an empty page.
+*/
+.work {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+}
+
+main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline: var(--s4);
+  padding-block-end: var(--s6);
 }
 
 /*
@@ -627,7 +683,8 @@ main[tabindex="-1"]:focus {
 
   .top {
     margin-inline: calc(-1 * var(--s5));
-    padding-inline: var(--s5);
+    padding-inline: calc(var(--s5) + env(safe-area-inset-left))
+      calc(var(--s5) + env(safe-area-inset-right));
   }
 
   /* A field, drawn as every field is: the chrome's edge on the page's own ground. */
@@ -657,27 +714,24 @@ main[tabindex="-1"]:focus {
   }
 
   /*
-    The frame from here up is an application's: the menu down the left, held
-    the height of the screen under the header from the top to the bottom, and
-    the work beside it with Tade docked at its foot. The frame reaches the
-    page's edges, so the menu's rule runs top to bottom with nothing past it.
+    The frame from here up is an application's: the menu down the left, the
+    height of the screen under the header from the top to the bottom, and the
+    work beside it with Tade docked at its foot. The frame reaches the page's
+    edges, so the menu's rule runs top to bottom with nothing past it.
   */
   .frame {
     grid-template-columns: 3.5rem minmax(0, 1fr);
-    align-items: start;
     gap: 0;
     margin-inline: calc(-1 * var(--s5));
-    padding-block: 0;
   }
 
+  /* Its own scroll, so a short screen never leaves it hanging from the header. */
   .rail {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    position: sticky;
-    top: 3.25rem;
-    height: calc(100dvh - 3.25rem);
-    padding: var(--s3) var(--s2);
+    min-height: 0;
+    padding: var(--s3) var(--s2) calc(var(--s3) + env(safe-area-inset-bottom));
     border-inline-end: var(--border);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -781,7 +835,6 @@ main[tabindex="-1"]:focus {
   /* The work: the screen, with Tade docked under it at the foot of the screen. */
   .work {
     grid-column: 2;
-    min-height: calc(100dvh - 3.25rem);
   }
 
   main {

@@ -118,6 +118,9 @@ export const CHECKS = [
   // from a device not granted it, drawn scrubbed for one that is, and no
   // longer asked for once its page is left.
   'desk',
+  // The frame pinned to the screen's edges (`browser-frame.ts`): the document
+  // never scrolls, and the screen, the menu and the side each scroll alone.
+  'frame',
   'palette',
   'lanes',
   // The three a control owns, and none of them is answerable offline. A tap is
