@@ -2,6 +2,7 @@ import { DONE_RULE_MEANS } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import type { ActivityIn } from '../src/agent.ts'
 import { agentOf } from '../src/agent.ts'
+import { WHY_SAID, whyOf } from '../src/assets/pages/agent-pane.js'
 import {
   aboutOf,
   branchOf,
@@ -419,6 +420,31 @@ describe('its timeline', () => {
     expect(rows[2]).toMatchObject({ glyph: '●', tone: 't-working' })
     expect(foldSaid(1, false)).toBe('Show 1 earlier moment')
     expect(foldSaid(FOLD, true)).toBe('Show fewer')
+  })
+})
+
+describe('its screen, where there is none', () => {
+  it('says each absence as a heading and what to do about it, and only a failed read as wrong', () => {
+    expect(whyOf('not granted')).toEqual({
+      kind: 'empty',
+      icon: 'devices',
+      title: 'Screen not granted',
+      line: 'grant it at the machine',
+    })
+    expect(whyOf('no agent')).toMatchObject({
+      kind: 'empty',
+      title: 'No agent running',
+      line: null,
+    })
+    expect(whyOf('could not read')).toMatchObject({ kind: 'error', icon: 'alert' })
+    // Every word the machine can send has its own heading, so no two absences read alike.
+    const headings = Object.keys(WHY_SAID).map((word) => whyOf(word).title)
+    expect(new Set(headings).size).toBe(headings.length)
+  })
+
+  it('says a word it does not know as the read that failed, never as an empty card', () => {
+    expect(whyOf('something new')).toEqual(whyOf('could not read'))
+    expect(whyOf(null)).toEqual(whyOf('could not read'))
   })
 })
 

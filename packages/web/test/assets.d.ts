@@ -551,11 +551,6 @@ declare module '*/assets/desk.js' {
   export function noAgentsSaid(store: unknown): string
 }
 
-declare module '*/assets/pages/agent-pane.js' {
-  /** One sentence per word of `SCREEN_WHY`. */
-  export const WHY_SAID: Readonly<Record<string, string>>
-}
-
 declare module '*/assets/agents.js' {
   export function byProject<T extends { project: string }>(
     agents: readonly T[],

@@ -123,3 +123,15 @@ declare module '*/assets/pages/agent-shape.js' {
   ): { key: string; at: string; said: string; glyph: string; tone: string }[]
   export function foldSaid(hidden: number, open: boolean): string
 }
+
+declare module '*/assets/pages/agent-pane.js' {
+  /** One sentence per word of `SCREEN_WHY`. */
+  export const WHY_SAID: Readonly<Record<string, string>>
+  /** Why there is no screen, as the card's state. */
+  export function whyOf(word: string | null | undefined): {
+    kind: 'empty' | 'error'
+    icon: string
+    title: string
+    line: string | null
+  }
+}

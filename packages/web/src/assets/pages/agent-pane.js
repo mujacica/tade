@@ -104,12 +104,7 @@ export function agentPane(where, ctx, told = () => {}) {
     if (shown === null) {
       foot.hidden = true
       textIn(read, '')
-      const word = answer.why ?? 'could not read'
-      stateBoxIn(why, {
-        kind: word === 'could not read' ? 'error' : 'empty',
-        icon: WHY_ICON[word] ?? 'alert',
-        ...said(WHY_SAID[word] ?? WHY_SAID['could not read']),
-      })
+      stateBoxIn(why, whyOf(answer.why))
       return
     }
     stateBoxIn(why, null)
@@ -168,9 +163,22 @@ export function agentPane(where, ctx, told = () => {}) {
 }
 
 /**
- * A sentence as a state's heading and its line: what is not there, and — after
- * the dash — what to do about it.
+ * Why there is no screen, as the card's state: the sentence's first half its
+ * heading and — after the dash — what to do about it its line; a read that
+ * failed is wrong, every other absence is nothing to show. A word nothing here
+ * knows is said as the read that failed, never as an empty card.
  */
+export function whyOf(word) {
+  const known = word !== null && word !== undefined && word in WHY_SAID
+  const key = known ? word : 'could not read'
+  return {
+    kind: key === 'could not read' ? 'error' : 'empty',
+    icon: WHY_ICON[key],
+    ...said(WHY_SAID[key]),
+  }
+}
+
+/** A sentence as a state's heading and its line. */
 function said(sentence) {
   const cut = sentence.indexOf(' — ')
   // Shorthand: a `title` key is a tooltip to `design.test.ts`, and this is a heading.
