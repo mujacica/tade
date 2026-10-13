@@ -14,7 +14,7 @@ harness (`scripts/browser.ts`, see `SKILL.md`).
 |---|---|---|
 | overview | `now` | `pages/overview.js`, `pages/overview.css` |
 | project | `project` | `pages/project.js`, `pages/project.css` |
-| agent | `task` | `pages/agent.js`, `pages/agent-pane.js`, `pages/agent.css` |
+| agent | `task` | `pages/agent.js`, `pages/agent-pane.js`, `pages/agent-time.js`, `pages/agent-shape.js`, `pages/agent.css` |
 | inbox | `inbox`, `request` | `pages/inbox.js`, `pages/inbox.css` |
 | runs | `runs`, `run` | `pages/runs.js`, `pages/runs.css` |
 | workflows | `workflows`, `workflow` | `pages/workflows.js`, `pages/workflows.css` |
