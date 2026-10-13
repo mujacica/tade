@@ -49,8 +49,8 @@ export function runMap() {
   return node
 }
 
-export function runMapIn(node, run) {
-  const drawn = mapOf(run)
+export function runMapIn(node, run, room = 0) {
+  const drawn = mapOf(run, room)
   attrIn(node, 'aria-label', mapSaid(run))
   node.hidden = drawn.dots.length === 0
   const svg = node.firstChild

@@ -213,8 +213,11 @@ function clauseOf(step, run) {
   if (part === 'wants') return 'wants you'
   if (part === 'failed') return 'failed'
   if (part === 'working') return 'working'
-  const open = waitsOf(step, run).filter((one) => !one.finished)
-  return open.length === 0 ? 'queued' : `after ${joined(open.map((one) => one.name))}`
+  // **A number, never a list of names.** What it waits on is the run's own
+  // screen's to name, with why; a card that spelt out three task ids under
+  // every step was a paragraph where a figure would do.
+  const open = waitsOf(step, run).filter((one) => !one.finished).length
+  return open === 0 ? 'queued' : `waits on ${open}`
 }
 
 /**
@@ -410,7 +413,20 @@ export function inOrder(steps) {
 }
 
 /** The map's spacing, in the drawing's own units (a CSS pixel at its natural size). */
-export const MAP = { dx: 56, dy: 26, r: 7, pad: 8 }
+export const MAP = { dx: 56, dxLeast: 32, dxMost: 160, dy: 26, r: 7, pad: 8 }
+
+/**
+ * How far apart a map's columns go in `room` pixels: spread to fill it, so a
+ * run of three stages uses the card a run of eight does — but never so far
+ * that two dots become a line with nothing on it (`dxMost`), and never so
+ * close that the curves between them knot (`dxLeast`, under which the drawing
+ * scales down instead). No room known is the natural spacing.
+ */
+export function spreadOf(columns, room) {
+  if (!(room > 0) || columns < 2) return MAP.dx
+  const fit = (room - 2 * (MAP.pad + MAP.r)) / (columns - 1)
+  return Math.round(Math.max(MAP.dxLeast, Math.min(MAP.dxMost, fit)))
+}
 
 /**
  * Where each dot and line of a run's map goes, pure.
@@ -421,11 +437,12 @@ export const MAP = { dx: 56, dy: 26, r: 7, pad: 8 }
  * finished step is `done` (solid); one from a step not finished yet is
  * `ahead` (dashed), because it is a promise rather than a path yet.
  */
-export function mapOf(run) {
+export function mapOf(run, room = 0) {
   const order = orderOf(run.steps)
   const columns = [...new Set(run.steps.map((step) => step.layer))].sort((a, b) => a - b)
   const colOf = new Map(columns.map((layer, at) => [layer, at]))
-  const { dx, dy, r, pad } = MAP
+  const { dy, r, pad } = MAP
+  const dx = spreadOf(columns.length, room)
   const dots = run.steps.map((step) => ({
     task: step.task,
     name: step.name,

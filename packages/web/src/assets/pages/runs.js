@@ -149,7 +149,7 @@ function groupOf(group) {
       made.node.hidden = runs.length === 0
       textIn(made.figure, count(runs.length))
       made.figure.setAttribute('aria-label', `${runs.length} runs`)
-      if (cards)
+      if (cards) {
         keyed(
           list,
           runs,
@@ -157,7 +157,15 @@ function groupOf(group) {
           createCard,
           (one, row) => fillCard(one, row, view),
         )
-      else
+        // **The maps last, once every card is on the page**, so each is drawn
+        // to the room its card has: every width read first, then every map
+        // written, which is one layout for the group rather than one a card.
+        const maps = [...list.children].map((card) => card.querySelector('.runs-map'))
+        const rooms = maps.map((map) => map?.clientWidth ?? 0)
+        maps.forEach((map, at) => {
+          if (map !== null && runs[at] !== undefined) runMapIn(map, runs[at], rooms[at])
+        })
+      } else
         keyed(
           list,
           runs,
@@ -198,15 +206,15 @@ function createCard() {
   )
   into(meta, el('span'), red)
   const line = track()
-  const body = el('div', { class: 'runs-card-body' })
   const now = el('div', { class: 'runs-now' })
   into(now, el('ul'), el('p', { class: 'runs-now-more' }))
-  into(body, runMap(), now)
-  return into(item, head, meta, line, body)
+  // Five parts, each on a row the card shares with the cards beside it
+  // (`grid-template-rows: subgrid`), so two runs side by side line up.
+  return into(item, head, meta, line, runMap(), now)
 }
 
 function fillCard(item, run, view) {
-  const [head, meta, line, body] = item.children
+  const [head, meta, line, , now] = item.children
   const [glyph, link, tally] = head.children
   const [done, total] = tally.children
   markIn(glyph, runMark(run))
@@ -221,12 +229,10 @@ function fillCard(item, run, view) {
   // are its own screen's to explain, and green is what the track already says.
   red.hidden = run.checks !== 'fail'
   trackIn(line, run)
-  const [map, now] = body.children
-  runMapIn(map, run)
   const [list, more] = now.children
   const said = nowOf(run)
   keyed(list, said.lines, (one) => one.task, createNowLine, fillNowLine)
-  sayIn(more, said.more === 0 ? '' : `and ${said.more} more not finished`)
+  sayIn(more, said.more === 0 ? '' : `${said.more} more open`)
 }
 
 /**

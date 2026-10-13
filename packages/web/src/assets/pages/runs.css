@@ -73,19 +73,24 @@
 
 /* ── a run, as a card: its name and fraction, its steps, its map and now ──── */
 
+/*
+  Cards side by side share their rows: each card spans five of the list's rows
+  and lays its head, its line, its track, its map and its now on them
+  (`subgrid`), so two runs in a row line up part for part however long either
+  one's words are.
+*/
 .runs-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
   gap: var(--s3);
-  align-items: start;
 }
 
 .runs-card {
+  grid-row: span 5;
   display: grid;
-  gap: var(--s3);
+  grid-template-rows: subgrid;
   min-width: 0;
   padding: var(--s1) var(--inset) var(--inset);
-  container-type: inline-size;
 }
 
 .runs-card:has(.runs-card-link:hover) {
@@ -185,20 +190,6 @@
   font-size: var(--step--1);
 }
 
-.runs-card-body {
-  display: grid;
-  gap: var(--s3);
-  align-items: center;
-}
-
-/* With room, the map and what is happening now side by side. */
-@container (min-width: 30rem) {
-  .runs-card-body {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--s5);
-  }
-}
-
 /* ── a run's track: a segment per step ─────────────────────────────────────── */
 
 .runs-track {
@@ -227,8 +218,10 @@
 
 /* ── a run's map: its graph in dots ────────────────────────────────────────── */
 
+/* Its columns spread to the card's width (`spreadOf`); a shorter map sits in the middle of its row. */
 .runs-map {
   display: block;
+  align-self: center;
   max-width: 100%;
 }
 
@@ -280,21 +273,27 @@
 
 /* ── now: the loudest of what is happening in a run ────────────────────────── */
 
+/*
+  A row's three columns, as every row on the page: the mark, the name, and
+  at the end what it is doing — a word or a number, aligned down the card.
+*/
 .runs-now {
   display: grid;
+  align-content: start;
   gap: var(--s1);
   min-width: 0;
 }
 
 .runs-now > ul {
   display: grid;
-  gap: var(--s1);
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  gap: var(--s1) var(--s2);
 }
 
 .runs-now li {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 1.25rem minmax(0, max-content) minmax(0, 1fr);
-  gap: var(--s2);
+  grid-template-columns: subgrid;
   align-items: baseline;
   font-size: var(--step--1);
 }
@@ -313,6 +312,9 @@
 
 .runs-now-said {
   color: var(--heading);
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .runs-now-more {

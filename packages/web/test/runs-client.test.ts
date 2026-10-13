@@ -18,6 +18,7 @@ import {
   partsOf,
   runMark,
   shortNamesOf,
+  spreadOf,
   stagesOf,
   standingOf,
   stepSays,
@@ -244,7 +245,9 @@ describe('what is happening in a run, now', () => {
     // `api` waits on `schema` alone, which has finished: so it is *queued*,
     // the queue's own word — never *ready*, which is the queue's rule to say.
     expect(now.lines[0]).toMatchObject({ name: 'api', said: 'queued' })
-    expect(now.lines.find((one) => one.name === 'e2e')?.said).toBe('after api and client')
+    // What it waits on is a number on a card; the names, and why, are the
+    // run's own screen's.
+    expect(now.lines.find((one) => one.name === 'e2e')?.said).toBe('waits on 2')
   })
 
   it('keeps to the room it is given, and says how many more', () => {
@@ -352,6 +355,21 @@ describe('the map', () => {
     expect(drawn.height).toBe(2 * (MAP.pad + MAP.r) + MAP.dy)
     const gappy = mapOf(runRow(SHIP(), reach(EVERY, ['tade']), BUDGET))
     expect(gappy.dots.map((one) => one.x)).toEqual([x(0), x(1)])
+  })
+
+  it('spreads its columns over the room it has, within a least and a most', () => {
+    // A run of four stages in a 300-pixel card fills it; two stages stop at
+    // the most rather than drawing two dots at either edge; and eight in a
+    // phone's card stay the least apart, the drawing scaling down instead.
+    const ends = 2 * (MAP.pad + MAP.r)
+    expect(spreadOf(4, 300)).toBe(Math.round((300 - ends) / 3))
+    expect(spreadOf(2, 900)).toBe(MAP.dxMost)
+    expect(spreadOf(8, 200)).toBe(MAP.dxLeast)
+    expect(spreadOf(4, 0)).toBe(MAP.dx)
+    expect(spreadOf(1, 300)).toBe(MAP.dx)
+    const drawn = mapOf(row(SHIP()), 300)
+    expect(drawn.width).toBe(ends + 3 * spreadOf(4, 300))
+    expect(drawn.width).toBeLessThanOrEqual(300)
   })
 
   it('draws a line from a finished step solid and from an unfinished one as ahead', () => {

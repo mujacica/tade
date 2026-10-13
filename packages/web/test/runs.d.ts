@@ -18,7 +18,14 @@ declare module '*/assets/pages/runs-shape.js' {
   }[]
   export const GROUPS: readonly { key: string; heading: string }[]
   export const STANDINGS: Record<string, Mark & { group: string }>
-  export const MAP: { dx: number; dy: number; r: number; pad: number }
+  export const MAP: {
+    dx: number
+    dxLeast: number
+    dxMost: number
+    dy: number
+    r: number
+    pad: number
+  }
   export function partOf(step: any): string
   export function partMark(part: string): Mark
   export function partsOf(steps: readonly any[]): Part[]
@@ -76,7 +83,11 @@ declare module '*/assets/pages/runs-shape.js' {
   }[]
   export function orderOf(steps: readonly any[]): Map<string, number>
   export function inOrder<T>(steps: readonly T[]): T[]
-  export function mapOf(run: any): {
+  export function spreadOf(columns: number, room: number): number
+  export function mapOf(
+    run: any,
+    room?: number,
+  ): {
     dots: { task: string; name: string; part: string; x: number; y: number }[]
     lines: { from: string; to: string; done: boolean; d: string }[]
     width: number
