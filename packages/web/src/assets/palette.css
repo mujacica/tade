@@ -135,7 +135,7 @@
 /* A screen's keys, drawn as keys. */
 .pal-kind.is-key {
   padding: 0 var(--s1);
-  border-radius: 5px;
+  border-radius: var(--r1);
   border: 1px solid var(--chrome);
   background: var(--raised);
   color: var(--pressed);

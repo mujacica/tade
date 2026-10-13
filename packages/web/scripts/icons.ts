@@ -26,19 +26,24 @@ import { MANIFEST_FILE } from '../src/installable.ts'
 // rule is worth more than an icon format.
 //
 // **Opaque, with the page's own ground painted in.** iOS fills a transparent
-// apple-touch-icon with black, which is near enough to `--ground` to look like
-// a mistake rather than a choice; Android's maskable shape fills it with
-// whatever the manifest's `background_color` says. Painting the ground means
-// every platform shows the same two colours, and the alpha channel is simply
-// not there to be got wrong.
+// apple-touch-icon with black, which beside the terminal grey of `--ground`
+// looks like a mistake rather than a choice; Android's maskable shape fills it
+// with whatever the manifest's `background_color` says. Painting the ground
+// means every platform shows the same two colours, and the alpha channel is
+// simply not there to be got wrong.
+//
+// **That ground is the terminal's**, `#1c1c1c` — the window's pictures, the
+// page and tade-web all stand on it, and tade-web takes its favicon from these
+// files, so the mark sits on the same grey in a browser tab, on a home screen
+// and in the window.
 //
 // **The two colours are the window's own tones**, named here as the literals
 // `tokens.css` holds and read back out of that file by the test — the same
 // treatment `glyphs.js` gets for the domain's words. A third colour, a
 // gradient or a border would be a second brand.
 
-/** `--ground`: the page, and the icon's ground. */
-const GROUND = [0x08, 0x08, 0x08] as const
+/** `--ground`: the terminal's grey, xterm 234 — the page, and the icon's ground. */
+const GROUND = [0x1c, 0x1c, 0x1c] as const
 
 /** `--amber`: Tade itself. The mark, and nothing else on the icon. */
 const AMBER = [0xff, 0xaf, 0x00] as const
@@ -210,8 +215,8 @@ export function manifestOf(): Record<string, unknown> {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#080808',
-    theme_color: '#080808',
+    background_color: '#1c1c1c',
+    theme_color: '#1c1c1c',
     icons: ICONS.map((icon) => ({
       src: `/assets/${icon.name}`,
       sizes: `${icon.size}x${icon.size}`,

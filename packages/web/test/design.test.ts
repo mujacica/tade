@@ -45,8 +45,11 @@ const HTML = read('index.html')
 const SCRIPTS = ['boot.js', 'shell.js', 'screens.js', 'pages.js', 'rows.js', 'dom.js'].map(read)
 const EVERY = [CSS, HTML, ...SCRIPTS].join('\n')
 
-/** The ground every ratio in `tokens.css` is quoted against. */
-const GROUND = '#080808'
+/**
+ * The ground every ratio in `tokens.css` is quoted against: the terminal's
+ * grey, xterm 234, which the window's pictures, tade-web and the icons stand on.
+ */
+const GROUND = '#1c1c1c'
 
 /**
  * The two rules that may set `--quiet` without declaring a size.
@@ -132,6 +135,27 @@ describe('the palette is the window’s own', () => {
     expect(HTML).toContain('content="dark"')
     expect(AWAY).toContain('background: var(--ground)')
   })
+
+  it('stands on the terminal’s ground, the one the window is pictured on', () => {
+    // The colour anybody sees most of is the same wherever Tade is: the
+    // terminal every picture of the window is taken in, tade-web, the icons
+    // (`icons.test.ts` holds those to `--ground`) and the browser's own bar.
+    // Read as text, because `@tade/web` may not import the window's package.
+    const terminal = readFileSync(
+      join(import.meta.dirname, '..', '..', 'app', 'scripts', 'terminal.ts'),
+      'utf8',
+    )
+    const pictured = /THEME: Theme = \{\s*background: '(#[0-9a-f]{6})'/.exec(terminal)?.[1]
+    const ground = /--ground:\s*(#[0-9a-f]{6})/.exec(TOKENS)?.[1]
+    expect(pictured).toBe(hexOf(234))
+    expect(ground).toBe(pictured)
+    expect(HTML).toContain(`<meta name="theme-color" content="${ground}" />`)
+    // And the shell's own regions are on it rather than a grey of their own.
+    for (const selector of ['.top', '.tabs']) {
+      const rule = new RegExp(`\\n\\${selector} \\{([^}]*)\\}`).exec(AWAY)?.[1] ?? ''
+      expect(rule, selector).toContain('background: var(--ground)')
+    }
+  })
 })
 
 describe('what can be read, with the arithmetic', () => {
@@ -150,9 +174,9 @@ describe('what can be read, with the arithmetic', () => {
   })
 
   it('holds the one colour that only passes AA to a size where it does', () => {
-    // `--quiet` is 4.74:1: AA for normal text and **not** AAA. So it is used at
+    // `--quiet` is 5.62:1: AA for normal text and **not** AAA. So it is used at
     // 16px and above, only for figures and hints, and never as the only
-    // statement of a fact — anything that is takes `--heading` at 7.88:1.
+    // statement of a fact — anything that is takes `--heading` at 7.17:1.
     const quiet = contrast(hex('--quiet'), GROUND)
     expect(quiet).toBeGreaterThanOrEqual(4.5)
     expect(quiet).toBeLessThan(7)
@@ -168,7 +192,7 @@ describe('what can be read, with the arithmetic', () => {
   })
 
   it('never uses the one colour the palette calls a ground as text', () => {
-    // `inkOn`'s rule, in type: `--amber-dark` is 3.27:1 and is a **ground and a
+    // `inkOn`'s rule, in type: `--amber-dark` is 2.98:1 and is a **ground and a
     // border**. Text on it would be unreadable on the page's own background,
     // so `color:` may never name it — `border-color:` may, and does.
     expect(AWAY).not.toMatch(/(?:^|[;{])\s*color:\s*var\(--amber-dark\)/m)

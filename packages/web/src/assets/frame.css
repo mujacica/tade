@@ -220,7 +220,7 @@ kbd {
   padding: 0 var(--s1);
   min-width: 1.5rem;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: var(--r1);
   border: var(--border);
   background: var(--surface);
   color: var(--heading);
@@ -453,7 +453,7 @@ kbd {
 }
 
 /*
-  The tab bar: the foot of the shell on the panel's ground, a hairline over it
+  The tab bar: the foot of the shell on the terminal's ground, a hairline over it
   and the phone's inset under it — no float, no blur, no shadow. Four presses:
   the overview, the work (the side, as a drawer), Tade in the middle (the dock,
   as a sheet) and More. Where you are is amber, and said to a screen reader as
@@ -470,7 +470,7 @@ kbd {
   padding-inline: calc(var(--s1) + env(safe-area-inset-left))
     calc(var(--s1) + env(safe-area-inset-right));
   padding-block: 0 env(safe-area-inset-bottom);
-  background: var(--panel);
+  background: var(--ground);
   border-block-start: var(--border);
 }
 

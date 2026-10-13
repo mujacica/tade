@@ -12,10 +12,17 @@
   wash, a ring's track — is `color-mix` of one of these and transparent, never a
   hex of its own.
 
+  **The ground is the terminal's**: `#1c1c1c`, xterm 234 — the ground every
+  picture of the window is taken on (`packages/app/scripts/terminal.ts`), and
+  the ground of tade-web and of the icons (`scripts/icons.ts`). The page, the
+  header, the menu, the side, the dock and the tab bar are all of it, so the
+  one colour anybody sees most of is the same wherever Tade is.
+
   **Depth is a ladder of lighter surfaces and a hairline, never a shadow**
-  (Linear's rule, and Supabase's): the page is the darkest step, panels one up,
-  cards one more, and anything raised above a card one more again. Each step is
-  one xterm grey, so the whole ladder is seven tones and nothing in between.
+  (Linear's rule, and Supabase's): a card one xterm grey up from that ground,
+  anything over the pointer or where you are one more, and anything raised
+  above a card one more again — the window's own greys (`skin.ts`'s `GREY`),
+  read off the same ground, so nothing in between.
 
   **Two colours, and three that only inform** (`skin.ts`'s rule, in type):
   the page is the dark ladder and amber — Tade itself, the primary press, and
@@ -40,42 +47,48 @@
   color-scheme: dark;
 
   /* Tones — meaning. The ratio is against `--ground`. */
-  --amber: #ffaf00; /* 214 · 10.86 · Tade itself; work in progress; the one primary act */
-  --amber-light: #ffd787; /* 222 · 14.61 · amber lit: under the pointer */
-  --amber-dark: #875f00; /* 94 · 3.50 · A GROUND AND A BORDER, never text */
-  --violet: #d787d7; /* 176 · 7.95 · waiting on you. The one colour that means act */
-  --green: #87d787; /* 114 · 11.54 · finished; checks green */
-  --red: #ff5f5f; /* 203 · 6.73 · gone wrong, or about to */
+  --amber: #ffaf00; /* 214 · 9.24 · Tade itself; work in progress; the one primary act */
+  --amber-light: #ffd787; /* 222 · 12.43 · amber lit: under the pointer */
+  --amber-dark: #875f00; /* 94 · 2.98 · A GROUND AND A BORDER, never text */
+  --violet: #d787d7; /* 176 · 6.77 · waiting on you. The one colour that means act */
+  --green: #87d787; /* 114 · 9.82 · finished; checks green */
+  --red: #ff5f5f; /* 203 · 5.72 · gone wrong, or about to */
   --ink: #080808; /* 232 · ink on any light ground */
-  --ink-light: #ffffff; /* 231 · 20.03 · ink on a mid ground */
+  --ink-light: #ffffff; /* 231 · 17.04 · ink on a mid ground */
 
   /*
-    The ladder — structure. Each step one xterm grey up from the last, which is
-    the whole of elevation on this page.
+    The ladder — structure. The terminal's ground, then each step one xterm
+    grey up from the last, which is the whole of elevation on this page.
+
+    **Red is what bounds it.** As text it is 5.08:1 on a card and 4.43:1 one
+    step above — under AA — so a word that can be red never sits on anything
+    lighter than `--panel`: a state's tag is washed in its own tone rather
+    than laid on `--raised` (`ui.css`).
   */
-  --ground: #080808; /* 232 · the page */
-  --panel: #121212; /* 233 · the rail, the bars, the tab bar */
-  --surface: #1c1c1c; /* 234 · a card, a tile */
-  --raised: #262626; /* 235 · a field; anything above a card */
-  --line: #262626; /* 235 · the hairline round a card */
-  --chosen: #303030; /* 236 · the row you are on */
-  --control: #3a3a3a; /* 237 · a button at rest */
-  --hovered: #444444; /* 238 · a control under the pointer */
-  --chrome: #4e4e4e; /* 239 · a field's edge; a rule that has to be seen */
+  --ground: #1c1c1c; /* 234 · the page, the shell, the menu, the side, the dock: the terminal */
+  --panel: #262626; /* 235 · a card, a panel, a bar */
+  --surface: #303030; /* 236 · a row under the pointer, where you are, a tile */
+  --raised: #3a3a3a; /* 237 · a field; anything above a card */
+  --line: #303030; /* 236 · the hairline round a card: one step above it, and no more */
+  --chosen: #444444; /* 238 · the row you are on */
+  --control: #4e4e4e; /* 239 · a button at rest */
+  --hovered: #585858; /* 240 · a control under the pointer */
+  --chrome: #626262; /* 241 · a field's edge; a rule that has to be seen */
 
   /*
-    5.80:1 on the page and 4.94:1 on a card — AA for normal text on both, and
+    5.62:1 on the page and 4.99:1 on a card — AA for normal text on both, and
     **not** AAA. So it is used for figures and hints only, and **never** as the
     only statement of a fact: anything that is takes `--heading`.
     `test/design.test.ts` holds it to that by requiring every rule that sets it
-    to set a size in the same block.
+    to set a size in the same block. It is the window's `tab` grey rather than
+    its `quiet` one, which is 4.32:1 on this ground and so never a word here.
   */
-  --quiet: #8a8a8a; /* 245 · 5.80 · figures and hints */
-  --tab: #949494; /* 246 · 6.60 · a tab or an icon you are not on */
-  --heading: #a8a8a8; /* 248 · 8.42 · labels, secondary text */
-  --pressed: #bcbcbc; /* 250 · 10.55 · a control held; key caps */
-  --body: #c6c6c6; /* 251 · 11.72 · a card's second line */
-  --bright: #eeeeee; /* 255 · 17.26 · body text and the names that matter */
+  --quiet: #949494; /* 246 · 5.62 · figures and hints */
+  --tab: #949494; /* 246 · 5.62 · a tab or an icon you are not on */
+  --heading: #a8a8a8; /* 248 · 7.17 · labels, secondary text */
+  --pressed: #bcbcbc; /* 250 · 8.97 · a control held; key caps */
+  --body: #c6c6c6; /* 251 · 9.98 · a card's second line */
+  --bright: #eeeeee; /* 255 · 14.69 · body text and the names that matter */
 
   /*
     Type. The system face, because it is loaded already; mono for anything that
@@ -107,14 +120,17 @@
   --s7: 48px;
 
   /*
-    **Rounded the way an application is**: a control a little, a card and a
-    panel more, a tag and a count all the way. Everything else is flat — no
+    **Square, the way the terminal is**, with the corner only taken off: the
+    window draws a box in cells and tade-web draws one with no radius at all,
+    so a card here is a box with a corner a few pixels round rather than a
+    bubble, and a tag or a count is the window's `[label]` block rather than a
+    pill. Only a dot and a ring are round. Everything else is flat — no
     gradient, no shadow except what floats over the page.
   */
-  --r1: 6px; /* chips, fields, buttons, a row under the pointer */
-  --r2: 10px; /* cards, panels, tiles */
-  --r3: 999px; /* tags, counts, pills */
-  --r4: 14px; /* sheets, the command bar, the composer */
+  --r1: 3px; /* chips, fields, buttons, a row under the pointer */
+  --r2: 4px; /* cards, panels, tiles */
+  --r3: 3px; /* tags, counts, pills, meters: a block, as the window draws one */
+  --r4: 6px; /* sheets, the command bar, the composer */
   --round: 50%; /* a dot, a pulse, a ring — never a box */
 
   /*

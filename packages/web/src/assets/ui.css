@@ -7,9 +7,10 @@
   screen asks for a tag rather than writing a span with five declarations
   beside it, and a change to how one looks is one rule here.
 
-  **An application's look**: the page is the darkest ground, a panel is one
-  step up with a hairline round it and rounded corners, rows inside it are
-  separated by a hairline and light up under the pointer. State is said by a
+  **An application's look, on the terminal's ground**: the page is the grey
+  every picture of the window is taken on, a panel is one step up with a
+  hairline one step above that and its corner only just taken off, rows inside
+  it are separated by a hairline and light up under the pointer. State is said by a
   small coloured mark beside a word — a dot, a glyph, a word's own colour —
   never by painting a whole box, and amber is the one accent: where you are,
   the one press that counts, the focus ring. Every control is a `--tap`
@@ -73,6 +74,16 @@ a.ui-card:hover,
 .ui-pill .ic {
   width: 0.875rem;
   height: 0.875rem;
+}
+
+/*
+  A tag in a state's tone is washed in that tone rather than laid on
+  `--raised`. Red as text is under AA one step above a card (`tokens.css`), and
+  so is the quiet grey; a wash of the word's own colour keeps every one of them
+  at 4.5:1 or more on a card and on the page alike.
+*/
+.ui-pill:is(.t-wants, .t-failed, .t-working, .t-done, .t-here, .t-quiet) {
+  background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
 /* A state's tag: a dot of its tone before the word (`t-*` colours the word). */
