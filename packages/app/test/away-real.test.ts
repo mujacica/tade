@@ -58,6 +58,7 @@ function project(world: Awaited<ReturnType<typeof worldFor>>) {
     plans: [],
     machineUpSince: null,
     spendSince: null,
+    checks: null,
   })
 }
 

@@ -53,6 +53,7 @@ import {
   talkFor,
   upSinceOf,
 } from './web-beat.ts'
+import { CheckRecords } from './web-checks.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
@@ -180,6 +181,8 @@ export class Away implements Subject {
   private held: AwayHeld | null = null
   /** Agents' screens, read only while a device granted them is looking. */
   private readonly lanes: Lanes
+  /** What ran in each tree, read only while a beat is built for somebody (`web-checks.ts`). */
+  private readonly records = new CheckRecords({ now: () => this.wire.now() })
   /** One line in the journal, said in the strip if it would not go in (`web-told.ts`). */
   private readonly log: (told: Told) => Promise<void>
   /** What the listener was last brought up for (`builtFrom`), null for down, and the turn doing it. */
@@ -407,6 +410,7 @@ export class Away implements Subject {
         // `startOfToday`, which is the same rule `Live` folds by — one rule,
         // so the label and the number cannot be of two different days.
         spendSince: startOfToday(this.wire.now()),
+        checks: this.records.heldNow(this.wire.opts.home, world),
       },
       world,
       (task) => steeringFor(this.wire.opts.client, task),

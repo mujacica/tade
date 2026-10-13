@@ -86,6 +86,31 @@ export interface ChecksIn {
   overridden: boolean
 }
 
+/** One finished run of one check, out of a tree's run record (`checks.jsonl`). */
+export interface CheckRunIn {
+  check: string
+  /** The record's own words: `passed`, `failed`, `timed out`, `skipped`, `cancelled`. */
+  state: string
+  required: boolean
+  /** When it finished, or started where that is all it wrote; null where it wrote neither. */
+  at: number | null
+  ms: number | null
+  /** Who asked for it, in Tade's words: a task's id, `you`, the orchestrator. Null where unsaid. */
+  by: string | null
+}
+
+/**
+ * One tree's record of runs, oldest first, as the window last read it: the
+ * project's own checkout (`task: null`) or a task's worktree. Every run kept
+ * (the record keeps two hundred), so how long a check has been red is asked
+ * of all of them and the projection decides how many cross.
+ */
+export interface CheckTreeIn {
+  project: string
+  task: string | null
+  runs: readonly CheckRunIn[]
+}
+
 /**
  * Why a task is in the state it is.
  *
@@ -560,4 +585,11 @@ export interface SnapshotInput {
    * somewhere else and *today* is not the same day there.
    */
   spendSince: number | null
+  /**
+   * Every tree's run record the window has read, or null before its first
+   * read: *not looked yet* is not *nothing ran*. A project's checkout is here
+   * whenever it was read, runs or none, so a project missing from it is one
+   * nothing looked at.
+   */
+  checks: readonly CheckTreeIn[] | null
 }

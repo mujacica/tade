@@ -10,7 +10,7 @@ import type {
 } from '@tade/core'
 import { documentsIn, overridesFrom, writtenOrder } from '@tade/core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
-import type { IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
+import type { CheckTreeIn, IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
 import {
   type awayCollections,
   nothingKnown,
@@ -135,6 +135,8 @@ export function nothingYet(): AwayHeld {
     // Nothing folded yet, so there is no period to name: `unknown`, which the
     // page says by saying nothing rather than by naming a date in 1970.
     spendSince: null,
+    // No record read yet: *not looked*, which the page draws as coming.
+    checks: null,
     // Overlaid by whoever holds the conversation (`talkFor`): it is not part
     // of the world, so it is not this function's to answer.
     talk: null,
@@ -262,6 +264,7 @@ export function beatParts(
     // a row a device can open again, and its generation is in every project's
     // revision. The roots stay in here and never reach a row.
     projectLines: projectLines(live.rootLines),
+    checks: live.checks,
   }
 }
 
@@ -309,6 +312,8 @@ export interface Beatable {
   machineUpSince: number | null
   /** When `spendToday`'s fold starts, which is the period every figure covers. */
   spendSince: number | null
+  /** Every tree's run record as last read (`CheckRecords`), null before the first read. */
+  checks: readonly CheckTreeIn[] | null
 }
 
 /**

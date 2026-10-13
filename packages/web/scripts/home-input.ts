@@ -187,6 +187,8 @@ export function inputFrom(home: string, reach: Reach, now: number): SnapshotInpu
     // process that is talking, so a script reading files cannot see one.
     // `null` is *not turned on*, which is the honest answer here.
     talk: null,
+    // The run records are the window's look, like the rest of the checks.
+    checks: null,
   }
 }
 

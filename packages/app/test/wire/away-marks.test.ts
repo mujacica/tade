@@ -68,6 +68,7 @@ function held(finished: readonly string[], marks?: ReadonlyMap<string, AgentMark
     ...(marks === undefined ? {} : { marks }),
     machineUpSince: null,
     spendSince: null,
+    checks: null,
   }
 }
 

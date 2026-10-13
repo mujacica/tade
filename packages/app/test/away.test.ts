@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import {
   ableOn,
   awayCollections,
-  checksIn,
   noteIn,
   nothingKnown,
   queueIn,
@@ -12,6 +11,7 @@ import {
   steeringOf,
   taskIn,
 } from '../src/away.ts'
+import { checksIn } from '../src/away-checks.ts'
 import type { ActionsView } from '../src/frame.ts'
 
 /** Every verb about a task, so a task's two lists are held to covering all of them. */
@@ -122,6 +122,7 @@ function collections(over: Partial<Parameters<typeof awayCollections>[0]> = {}) 
     plans: [],
     machineUpSince: Date.parse('2026-10-07T08:00:00.000Z'),
     spendSince: Date.parse('2026-10-08T00:00:00.000Z'),
+    checks: null,
     ...over,
   })
 }

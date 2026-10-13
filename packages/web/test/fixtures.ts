@@ -3,6 +3,8 @@ import type { ActivityIn, AgentIn } from '../src/agent.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from '../src/factory.ts'
 import type {
   ChatIn,
+  CheckRunIn,
+  CheckTreeIn,
   FindingIn,
   NoteIn,
   ProjectIn,
@@ -184,6 +186,44 @@ export function project(over: Partial<ProjectIn> = {}): ProjectIn {
     changes: 1,
     can: [{ verb: 'close', how: 'now' }],
     cannot: [{ verb: 'open', why: 'it is open' }],
+    ...over,
+  }
+}
+
+/** One run out of a record: `at` is minutes after the fixture's morning. */
+export function checkRun(over: Partial<CheckRunIn> & { minute?: number } = {}): CheckRunIn {
+  const { minute = 0, ...rest } = over
+  return {
+    check: 'tests',
+    state: 'passed',
+    required: true,
+    at: Date.parse('2026-10-08T09:00:00.000Z') + minute * 60_000,
+    ms: 90_000,
+    by: 'sentry/away-projection',
+    ...rest,
+  }
+}
+
+/**
+ * A project's checkout record: `format` green throughout, `tests` red for its
+ * last three after passing twice — with a skipped run inside the red row, which
+ * breaks nothing — and `types` run once, without a time to place it by.
+ */
+export function checkTree(over: Partial<CheckTreeIn> = {}): CheckTreeIn {
+  return {
+    project: 'sentry',
+    task: null,
+    runs: [
+      checkRun({ check: 'format', minute: 0, ms: 2_000 }),
+      checkRun({ minute: 1 }),
+      checkRun({ check: 'format', minute: 30, ms: 2_000 }),
+      checkRun({ minute: 31 }),
+      checkRun({ minute: 60, state: 'failed' }),
+      checkRun({ minute: 90, state: 'skipped', ms: null }),
+      checkRun({ minute: 120, state: 'timed out' }),
+      checkRun({ minute: 150, state: 'failed' }),
+      checkRun({ check: 'types', at: null, ms: null }),
+    ],
     ...over,
   }
 }
@@ -534,6 +574,12 @@ export function input(over: Partial<SnapshotInput> = {}): SnapshotInput {
     ],
     machineUpSince: Date.parse('2026-10-07T08:00:00.000Z'),
     spendSince: Date.parse('2026-10-08T00:00:00.000Z'),
+    checks: [
+      checkTree(),
+      checkTree({ task: 'sentry/away-projection', runs: [checkRun({ minute: 200 })] }),
+      // A worktree with no runs of its own crosses as nothing rather than a row.
+      checkTree({ task: 'sentry/pasted', runs: [] }),
+    ],
     talk: talk(),
     ...over,
   }

@@ -142,6 +142,59 @@ export const ChecksOutSchema = z.strictObject({
 })
 export type ChecksOut = z.infer<typeof ChecksOutSchema>
 
+/** One finished run of one check, as its record says. */
+export const CheckRunOutSchema = z.strictObject({
+  /** When it finished, or when it started where that is all it wrote. */
+  at: z.string(),
+  /** `fail` takes in `timed out`; `other` is skipped or cancelled, which says nothing either way. */
+  state: z.enum(['pass', 'fail', 'other']),
+  ms: z.int().nonnegative().nullable(),
+})
+export type CheckRunOut = z.infer<typeof CheckRunOutSchema>
+
+/**
+ * How one check has gone in one tree: its newest runs, and how it has been
+ * answering. **History, not a rollup** — a run is about the tree it read, so a
+ * pass here is never this commit's pass; that is `ChecksOut`'s to say.
+ */
+export const CheckTrackOutSchema = z.strictObject({
+  check: z.string(),
+  required: z.boolean(),
+  /** The newest runs, oldest first. */
+  runs: z.array(CheckRunOutSchema),
+  /** Runs the record keeps of it beyond these. Said, never a silent cut. */
+  more: z.int().nonnegative(),
+  /**
+   * Who asked for its newest run: a task's id, `you`, the orchestrator — the
+   * one somebody would go and tell. Null where the record does not say, or
+   * where it names a task in a project this device may not read.
+   */
+  by: z.string().nullable(),
+  /**
+   * The newest answer that said anything, and since when it has said it: the
+   * first of the runs in a row that answered the same, over every run kept
+   * rather than only these. A skipped or cancelled run breaks no row. Null
+   * where no run of it ever passed or failed.
+   */
+  streak: z
+    .strictObject({
+      state: z.enum(['pass', 'fail']),
+      since: z.string(),
+      runs: z.int().positive(),
+      /** The row reaches the oldest run kept, so it began at `since` or earlier. */
+      atLeast: z.boolean(),
+    })
+    .nullable(),
+})
+export type CheckTrackOut = z.infer<typeof CheckTrackOutSchema>
+
+/** One tree's record of runs: the project's own checkout (`task: null`), or a task's worktree. */
+export const CheckTreeOutSchema = z.strictObject({
+  task: z.string().nullable(),
+  checks: z.array(CheckTrackOutSchema),
+})
+export type CheckTreeOut = z.infer<typeof CheckTreeOutSchema>
+
 export const TaskRowSchema = z.strictObject({
   /** `<project>/<task>`. The stable id. */
   id: z.string(),
@@ -256,6 +309,12 @@ export const ProjectRowSchema = z.strictObject({
     working: z.int().nonnegative(),
     queued: z.int().nonnegative(),
   }),
+  /**
+   * What ran in this project's trees, per check: its checkout first, then each
+   * worktree with runs of its own. Null where nothing has read the records yet
+   * — or never will, for a closed project — which is not *nothing ran*.
+   */
+  checks: z.array(CheckTreeOutSchema).nullable(),
 })
 export type ProjectRow = z.infer<typeof ProjectRowSchema>
 

@@ -13,6 +13,8 @@ import {
 import { withoutPaths } from './fields.ts'
 import {
   type ChatIn,
+  type CheckRunIn,
+  type CheckTreeIn,
   type FindingIn,
   factsOf,
   type NoteIn,
@@ -26,6 +28,9 @@ import {
 import { BUDGET, type Budget, type Page, pageOf, textOf, withheld } from './page.ts'
 import type {
   ChatRow,
+  CheckRunOut,
+  CheckTrackOut,
+  CheckTreeOut,
   Collection,
   FindingRow,
   Freshness,
@@ -545,7 +550,14 @@ export function snapshotOf(
       workflows: info(workflowPage),
     },
     projects: projectPage.rows.map((project) =>
-      projectRow(project, reach, budget, tasks, shownPerProject.get(project.name) ?? 0),
+      projectRow(
+        project,
+        reach,
+        budget,
+        tasks,
+        shownPerProject.get(project.name) ?? 0,
+        input.checks,
+      ),
     ),
     tasks: taskPage.rows.map((task) => taskRow(task, reach, budget)),
     queue: queuePage.rows.map((item) => queueRow(item, reach, budget)),
@@ -579,6 +591,7 @@ function projectRow(
   budget: Budget,
   tasks: readonly TaskIn[],
   shown: number,
+  trees: SnapshotInput['checks'],
 ): ProjectRow {
   const mine = tasks.filter((task) => task.project === project.name)
   return {
@@ -597,5 +610,96 @@ function projectRow(
       working: mine.filter((task) => task.state === 'working' && !task.stalled).length,
       queued: mine.filter((task) => task.state === 'queued').length,
     },
+    checks: project.open ? checkTreesOf(trees, project.name, reach) : null,
   }
+}
+
+/** How many runs of one check in one tree cross: a strip a phone can read in one line. */
+export const CHECK_RUNS = 24
+
+/**
+ * A project's trees of runs: its checkout first, then each worktree that has
+ * any. Null where the checkout was not read — *not looked yet*, never *nothing
+ * ran*, because the window hands every checkout over whenever it reads one.
+ */
+export function checkTreesOf(
+  trees: readonly CheckTreeIn[] | null,
+  project: string,
+  reach: Reach,
+  most = CHECK_RUNS,
+): CheckTreeOut[] | null {
+  const mine = (trees ?? []).filter((tree) => tree.project === project)
+  if (!mine.some((tree) => tree.task === null)) return null
+  return mine
+    .map((tree) => ({ task: tree.task, checks: tracksOf(tree.runs, reach, most) }))
+    .filter((tree) => tree.task === null || tree.checks.length > 0)
+    .sort((a, b) => (a.task === null ? -1 : b.task === null ? 1 : byText(a.task, b.task)))
+}
+
+/** `passed` and `failed` say something; `timed out` is a fail; the rest say nothing either way. */
+function answerOf(state: string): CheckRunOut['state'] {
+  if (state === 'passed') return 'pass'
+  return state === 'failed' || state === 'timed out' ? 'fail' : 'other'
+}
+
+/**
+ * Every check in one record, in the order it first ran, with its newest runs.
+ * A run that wrote no time cannot be placed in a row of moments, so it is
+ * counted in `more` rather than drawn somewhere it did not happen.
+ */
+export function tracksOf(
+  runs: readonly CheckRunIn[],
+  reach: Reach,
+  most = CHECK_RUNS,
+): CheckTrackOut[] {
+  const byCheck = new Map<string, CheckRunIn[]>()
+  for (const run of runs) {
+    const list = byCheck.get(run.check)
+    if (list) list.push(run)
+    else byCheck.set(run.check, [run])
+  }
+  return [...byCheck].map(([check, all]) => {
+    const timed = all.filter((run) => run.at !== null)
+    const kept = timed.slice(-most)
+    return {
+      check,
+      required: all[all.length - 1]?.required ?? false,
+      runs: kept.map((run) => ({
+        at: ISO(run.at ?? 0),
+        state: answerOf(run.state),
+        ms: run.ms === null ? null : Math.max(0, Math.round(run.ms)),
+      })),
+      more: all.length - kept.length,
+      by: byOf(all[all.length - 1]?.by ?? null, reach),
+      streak: streakOf(timed),
+    }
+  })
+}
+
+/** Who asked, unless it is a task in a project this device may not read: a task's id is `<project>/<name>`. */
+function byOf(by: string | null, reach: Reach): string | null {
+  if (by === null || by === '') return null
+  return !by.includes('/') || sees(reach, by.split('/')[0] ?? '') ? by : null
+}
+
+/**
+ * The newest answer that said anything and the first run of the row that said
+ * it, over every run kept — so *red since* is when it went red, not when the
+ * oldest run on the strip happens to be.
+ */
+function streakOf(runs: readonly CheckRunIn[]): CheckTrackOut['streak'] {
+  let state: 'pass' | 'fail' | null = null
+  let since = 0
+  let count = 0
+  let at = runs.length - 1
+  for (; at >= 0; at -= 1) {
+    const said = answerOf(runs[at]?.state ?? '')
+    if (said === 'other') continue
+    if (state !== null && said !== state) break
+    state = said
+    count += 1
+    since = runs[at]?.at ?? since
+  }
+  if (state === null) return null
+  return { state, since: ISO(since), runs: count, atLeast: at < 0 }
 }

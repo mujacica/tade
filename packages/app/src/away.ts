@@ -25,7 +25,7 @@ import type {
   Can,
   Cannot,
   ChatIn,
-  ChecksIn,
+  CheckTreeIn,
   How,
   IntakeIn,
   NoteIn,
@@ -39,6 +39,7 @@ import type {
   WorkflowIn,
 } from '@tade/web'
 import { chatRev } from '@tade/web'
+import { checksIn } from './away-checks.ts'
 import { agentLaneOf, closedIn, type ProjectLine, projectAble } from './away-lifecycle.ts'
 import type { ActionsView, NoteShown } from './frame.ts'
 import type { Entry, Transcript } from './transcript.ts'
@@ -370,32 +371,6 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
   }
 }
 
-/**
- * The rollup at a task's head, as the last look said.
- *
- * `unknown` wherever nothing has looked, and that is the whole point: a check
- * nobody ran is not a check that passed, and the away view may not start a
- * look to find out. `failed` and `missing` are named so a phone can say which,
- * and a check that was queued, running, skipped or cancelled is **missing**
- * rather than fine — that is the bug that draws a red thing green.
- */
-export function checksIn(work: ActionsView | null, overridden: boolean): ChecksIn {
-  if (work === null) {
-    return { state: 'unknown', failed: [], missing: [], overridden }
-  }
-  const required = work.checks.filter((check) => check.required)
-  const failed = required
-    .filter((check) => check.state === 'failed' || check.state === 'timed out')
-    .map((check) => check.id)
-  const missing = required
-    .filter(
-      (check) =>
-        check.state !== 'passed' && check.state !== 'failed' && check.state !== 'timed out',
-    )
-    .map((check) => check.id)
-  return { state: work.rollup, failed, missing, overridden }
-}
-
 /** Who asked for the work, in `taskOrigin`'s own words. */
 export function originIn(origin: TaskOrigin): TaskIn['origin'] {
   return { kind: origin.kind, name: origin.name }
@@ -505,6 +480,8 @@ export interface AwayParts {
   workflows: readonly WorkflowIn[]
   /** What the journal says about where each project lives (`projectLines`). */
   projectLines: ReadonlyMap<string, ProjectLine>
+  /** Every tree's run record as last read (`wire/web-checks.ts`), or null before the first read. */
+  checks: readonly CheckTreeIn[] | null
 }
 
 /** Every collection one projection is built from, as one value. */
@@ -533,6 +510,7 @@ export interface AwayCollections {
   warnings: readonly string[]
   machineUpSince: number | null
   spendSince: number | null
+  checks: readonly CheckTreeIn[] | null
 }
 
 // **The conversation is deliberately not among them.** Everything above is a
@@ -611,6 +589,7 @@ export function awayCollections(parts: AwayParts): AwayCollections {
     // described: the window folds from its own midnight, and the phone is
     // somewhere else.
     spendSince: parts.spendSince,
+    checks: parts.checks,
   }
 }
 
