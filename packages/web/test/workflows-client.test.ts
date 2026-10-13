@@ -153,13 +153,13 @@ describe('the runs stamped from one', () => {
       ['waiting', 1],
       ['unseen', 1],
     ])
-    expect(runsSaid(line)).toBe('2 runs: 1 waiting and 1 not readable here')
+    expect(runsSaid(line)).toBe('2 plans: 1 waiting and 1 not readable here')
   })
 
-  it('says never run rather than drawing nought of nothing', () => {
+  it('says no plans yet rather than drawing nought of nothing', () => {
     const line = runsLineOf(row({ runs: 0 }), [])
     expect(line.total).toBe(0)
-    expect(runsSaid(line)).toBe('never run')
+    expect(runsSaid(line)).toBe('no plans yet')
   })
 
   it('counts the runs under way for the lead, and every run the machine counted', () => {
@@ -181,7 +181,7 @@ describe('the line of its versions', () => {
     ])
     // The fixture's run is stamped from v3, and it says so under v3.
     expect(line.marks.find((one) => one.label === 'v3')?.runs).toBe(1)
-    expect(line.marks.map((one) => one.under)).toEqual(['', '', '1 run', 'draft'])
+    expect(line.marks.map((one) => one.under)).toEqual(['', '', '1 plan', 'draft'])
     // With nothing run from it, the newest says it is what a run starts from.
     expect(versionsOf(row(), []).marks.map((one) => one.under)).toEqual([
       '',
@@ -201,7 +201,9 @@ describe('the line of its versions', () => {
   })
 
   it('says a published version and the draft apart in its sentence', () => {
-    expect(versionsSaid(row(), [ran()])).toBe('published v1, v2 and v3; draft v4 open; 1 run on v3')
+    expect(versionsSaid(row(), [ran()])).toBe(
+      'published v1, v2 and v3; draft v4 open; 1 plan on v3',
+    )
     expect(versionsSaid(row({ versions: [], draft: 1 }))).toBe('never published; draft v1 open')
   })
 })
@@ -330,7 +332,7 @@ describe('how it would publish', () => {
       said: '2 things would stop this draft publishing',
     })
     expect(readinessOf(row({ draft: null, shows: 'published' })).said).toBe(
-      'No draft open: v3 is what a run is stamped from',
+      'No draft open: v3 is what a plan is stamped from',
     )
     expect(readinessOf(row({ builtIn: true })).tone).toBe('t-quiet')
   })

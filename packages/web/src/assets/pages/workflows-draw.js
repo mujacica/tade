@@ -200,12 +200,12 @@ export function versionLineIn(node, row, runs) {
 
 /**
  * The runs from a workflow as marks and counts — `● 1 under way · ✓ 2
- * finished` — or *never run*. Each mark is a glyph in its tone with its word
+ * finished` — or *no plans yet*. Each mark is a glyph in its tone with its word
  * beside it, so the colour is never the only thing saying it.
  */
 export function runsLine() {
   const node = el('p', { class: 'wf-runs' })
-  const none = el('span', { class: 'wf-runs-none', text: 'never run' })
+  const none = el('span', { class: 'wf-runs-none', text: 'no plans yet' })
   return into(node, none, el('span', { class: 'wf-runs-parts' }))
 }
 

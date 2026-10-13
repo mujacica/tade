@@ -133,7 +133,7 @@ function leadOf() {
       textIn(unit, all.workflows === 1 ? 'workflow' : 'workflows')
       const [m, word, going] = ran.children
       textIn(m, String(all.runs))
-      textIn(word, all.runs === 1 ? 'run stamped from them' : 'runs stamped from them')
+      textIn(word, all.runs === 1 ? 'plan stamped from them' : 'plans stamped from them')
       textIn(going, all.going === 0 ? '' : `${all.going} under way`)
       going.hidden = all.going === 0
       stackIn(parts, all.parts)
@@ -241,7 +241,7 @@ export function workflowSays(row) {
   if (row.draft !== null) bits.push(`draft v${row.draft}`)
   if (row.steps.length > 0)
     bits.push(`${row.steps.length} ${row.steps.length === 1 ? 'step' : 'steps'}`)
-  if (row.runs > 0) bits.push(`${row.runs} ${row.runs === 1 ? 'run' : 'runs'}`)
+  if (row.runs > 0) bits.push(`${row.runs} ${row.runs === 1 ? 'plan' : 'plans'}`)
   if (row.problems.length > 0) bits.push(`${row.problems.length} would stop it publishing`)
   return bits.join(' · ')
 }

@@ -809,7 +809,7 @@
   font-size: var(--step--1);
 }
 
-/* ── what a run is given, the runs, and what stays at the machine ──────────── */
+/* ── what a plan is given, the plans, and what stays at the machine ───────── */
 
 /* An input has no mark of its own, so its name and line take the mark's column. */
 .wf-input > .name {

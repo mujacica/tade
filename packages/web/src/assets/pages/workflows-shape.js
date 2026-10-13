@@ -223,9 +223,9 @@ export function runsLineOf(row, runs) {
 
 /** The runs line in one sentence, for a screen reader and the offline suite. */
 export function runsSaid(line) {
-  if (line.total === 0) return 'never run'
-  const runs = `${line.total} ${line.total === 1 ? 'run' : 'runs'}`
-  return `${runs}: ${joined(line.parts.map((one) => `${one.n} ${one.word}`))}`
+  if (line.total === 0) return 'no plans yet'
+  const plans = `${line.total} ${line.total === 1 ? 'plan' : 'plans'}`
+  return `${plans}: ${joined(line.parts.map((one) => `${one.n} ${one.word}`))}`
 }
 
 /* ── the whole page, at a glance ───────────────────────────────────────────── */
@@ -288,7 +288,7 @@ export function versionsOf(row, runs = []) {
  */
 function underOf(kind, runs) {
   if (kind === 'draft') return 'draft'
-  if (runs > 0) return `${runs} ${runs === 1 ? 'run' : 'runs'}`
+  if (runs > 0) return `${runs} ${runs === 1 ? 'plan' : 'plans'}`
   return kind === 'newest' ? 'current' : ''
 }
 
@@ -303,7 +303,7 @@ export function versionsSaid(row, runs = []) {
   bits.push(row.draft === null ? 'no draft open' : `draft v${row.draft} open`)
   const ran = versionsOf(row, runs).marks.filter((one) => one.runs > 0)
   for (const one of ran) {
-    bits.push(`${one.runs} ${one.runs === 1 ? 'run' : 'runs'} on ${one.label}`)
+    bits.push(`${one.runs} ${one.runs === 1 ? 'plan' : 'plans'} on ${one.label}`)
   }
   return bits.join('; ')
 }
@@ -533,7 +533,7 @@ export function readinessOf(row) {
       : {
           glyph: '✓',
           tone: 't-done',
-          said: `No draft open: v${row.published} is what a run is stamped from`,
+          said: `No draft open: v${row.published} is what a plan is stamped from`,
         }
   }
   const warned = row.warnings.length

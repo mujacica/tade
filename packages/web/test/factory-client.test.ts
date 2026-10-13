@@ -198,7 +198,7 @@ describe('one workflow, in a line', () => {
     const said = workflowSays(workflowRow(workflow(), reach(EVERY), BUDGET))
     expect(said).toContain('draft v4')
     expect(said).toContain('2 steps')
-    expect(said).toContain('2 runs')
+    expect(said).toContain('2 plans')
   })
 
   it('says what would stop it publishing, as a count', () => {

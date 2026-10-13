@@ -85,12 +85,15 @@ export function workflowScreen(where, ctx) {
   const noSteps = stateBox()
   into(steps.body, rail, noSteps)
 
-  const given = section('WHAT A RUN IS GIVEN')
+  const given = section('WHAT A PLAN IS GIVEN')
   const inputList = panel('ul', 'rows')
-  const noInputs = el('p', { class: 'empty nothing', text: 'Nothing: a run of it takes no input.' })
+  const noInputs = el('p', {
+    class: 'empty nothing',
+    text: 'Nothing: a plan from it takes no input.',
+  })
   into(given.body, inputList, noInputs)
 
-  const ran = section('RUNS FROM IT')
+  const ran = section('PLANS FROM IT')
   const runList = panel('ul', 'rows')
   const ranNone = el('p', { class: 'empty nothing' })
   const ranMore = el('p', { class: 'unknown' })
@@ -185,13 +188,13 @@ export function workflowScreen(where, ctx) {
 
       const seen = runsFrom(row, runs)
       const line = runsLineOf(row, runs)
-      figureSaid(ran.figure, line.total === 0 ? '' : String(line.total), line.total, 'runs')
+      figureSaid(ran.figure, line.total === 0 ? '' : String(line.total), line.total, 'plans')
       keyed(runList, seen, (run) => run.run, createRunRow, fillRunRow)
       runList.hidden = seen.length === 0
       sayIn(
         ranNone,
         line.total === 0
-          ? 'Nothing has been run from it yet. A run is stamped from a published version.'
+          ? 'No plan has been made from it yet. A plan is stamped from a published version.'
           : '',
       )
       const unseen = line.total - seen.length
@@ -199,7 +202,7 @@ export function workflowScreen(where, ctx) {
         ranMore,
         unseen === 0
           ? ''
-          : `${unseen} ${unseen === 1 ? 'run is' : 'runs are'} in projects this device may not read`,
+          : `${unseen} ${unseen === 1 ? 'plan is' : 'plans are'} in projects this device may not read`,
       )
 
       machine.node.hidden = row.locally.length === 0
@@ -403,7 +406,7 @@ function factsIn(list, facts) {
   list.hidden = facts.length === 0
 }
 
-/* ── what a run is given ───────────────────────────────────────────────────── */
+/* ── what a plan is given ──────────────────────────────────────────────────── */
 
 /** What each input is to the workflow, where the template says it is something. */
 function rolesOf(row, name) {
@@ -445,11 +448,11 @@ function fillInputs(list, none, made, row) {
   )
 }
 
-/* ── the runs stamped from it ──────────────────────────────────────────────── */
+/* ── the plans stamped from it ─────────────────────────────────────────────── */
 
 function createRunRow() {
   const item = el('li')
-  const link = el('a', { attrs: { href: '/runs' } })
+  const link = el('a', { attrs: { href: '/plans' } })
   const glyph = glyphOf(RUN_MARKS.waiting)
   into(
     link,
