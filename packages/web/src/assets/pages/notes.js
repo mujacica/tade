@@ -34,8 +34,12 @@ import {
   foldSaid,
   leadLine,
   notesPage,
+  olderAfter,
+  olderOffered,
+  rowsWith,
   shownOf,
   tallyOf,
+  UNWALKED,
   wholeOf,
 } from './notes-shape.js'
 
@@ -90,8 +94,7 @@ export function notesScreen(ctx = null) {
     const had = store.had === true
     const may = had && mayFor(store, 'notes')
     const sent = may ? notesOf(store) : []
-    const seen = new Set(sent.map((row) => row.id))
-    const rows = [...sent, ...older.held().filter((row) => !seen.has(row.id))]
+    const rows = rowsWith(sent, older.held())
     const total = may ? (store.pages.notes?.total ?? rows.length) : 0
     const page = may ? notesPage(rows, view.asOf, placesIn(store)) : null
     const shut = view.standing === 'unreachable' || view.standing === 'closed'
@@ -437,13 +440,7 @@ function fillCard(item, note, inGroup) {
 
 /* ── the older pages: asked for, not sent ───────────────────────────────────── */
 
-/**
- * **The older pages, asked for, not sent.** The snapshot carries the newest
- * notes and a cursor past them (`pages.notes.next`); each press asks the
- * machine for the page after it (`/api/notes?after=`), and what came joins the
- * notes drawn. Notes are append-only, so a page once read stays true — and a
- * cursor the machine no longer knows starts over and says so.
- */
+/** The press that asks the machine for the page after the newest (`olderAfter`, `olderOffered`). */
 function olderOf(ctx, redraw) {
   const node = el('div', { class: 'nt-older' })
   const press = el('button', {
@@ -452,11 +449,9 @@ function olderOf(ctx, redraw) {
   })
   const said = el('p', { class: 'nt-older-said', attrs: { role: 'status' } })
   into(node, press, said)
-  let held = []
+  let walk = UNWALKED
   let cursor = null
   let asking = false
-  // Until a page has been asked for, the cursor is the snapshot's own.
-  let walked = false
   press.addEventListener('click', async () => {
     if (ctx === null || asking || cursor === null) return
     asking = true
@@ -468,28 +463,21 @@ function olderOf(ctx, redraw) {
       answerIn(said, '', troubleOf(answer) ?? UNKNOWN_TROUBLE)
       return
     }
-    const page = answer.body
-    held = page.restarted === true ? [...page.rows] : [...held, ...page.rows]
-    cursor = page.next ?? null
-    walked = true
-    answerIn(
-      said,
-      page.restarted === true ? 'The notes moved; started again from the newest.' : '',
-      null,
-    )
+    walk = olderAfter(walk, answer.body)
+    answerIn(said, walk.restarted ? 'The notes moved; started again from the newest.' : '', null)
     redraw()
   })
   return {
     node,
-    held: () => held,
+    held: () => walk.held,
     /** Offer the next page where there is one and somebody to ask; true while it is offered. */
     fill(left, next) {
-      if (!walked) cursor = next
-      const offered = left > 0 && cursor !== null && ctx !== null
-      press.hidden = !offered
-      node.hidden = !offered && said.textContent === ''
+      const now = olderOffered(walk, left, next, ctx !== null)
+      cursor = now.cursor
+      press.hidden = !now.offered
+      node.hidden = !now.offered && said.textContent === ''
       textIn(press, `Show older notes · ${left}`)
-      return offered
+      return now.offered
     },
   }
 }

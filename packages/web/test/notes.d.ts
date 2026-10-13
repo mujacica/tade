@@ -102,4 +102,17 @@ declare module '*/assets/pages/notes-shape.js' {
     withheld: number,
   ): Whole | null
   export function asOfLine(frozen: boolean, clock: string, notHere: number): string
+  type Walk = { held: Row[]; cursor: string | null; walked: boolean; restarted?: boolean }
+  export const UNWALKED: Walk
+  export function rowsWith(sent: readonly Row[], held: readonly Row[]): Row[]
+  export function olderAfter(
+    walk: Walk,
+    page: { rows: readonly Row[]; next: string | null; restarted: boolean },
+  ): Walk & { restarted: boolean }
+  export function olderOffered(
+    walk: Walk,
+    left: number,
+    next: string | null,
+    canAsk: boolean,
+  ): { cursor: string | null; offered: boolean }
 }
