@@ -1,10 +1,862 @@
-/* The inbox page's own sheet: every rule scoped to it (`.page-inbox`, `test/pages.test.ts`). */
+/*
+  The inbox page's own sheet: every rule scoped to it (`.page-inbox`) or to a
+  class only its modules draw (`test/pages.test.ts`). Both of its screens — the
+  inbox and one request — wear `page-inbox`.
+
+  **Violet is what waits on you to say yes, and red is what stopped.** The
+  page is the grey ladder with those two: the lead's count and the cards to
+  approve are violet, a held or given-up card and a broken door have a red
+  edge, and everything on its way, settled or shut is grey with only its mark
+  in a tone. Text stays in the text greys — a red word never sits on a red
+  wash, which is under AA.
+
+  One column on a phone, in the order a person reads it: the lead, what waits
+  on you, what is on its way, what is settled, the doors. At a desk the doors
+  stand beside the rest in a narrow column of their own; on a request the
+  facts and what went back do.
+*/
+
+/* ── the page's rhythm ─────────────────────────────────────────────────────── */
+
+/* The bar's word takes violet while something waits on you, and red while a door is broken. */
+.page-inbox .section-head > .figure.t-wants {
+  color: var(--violet);
+}
+
+.page-inbox .section-head > .figure.t-failed {
+  color: var(--red);
+}
+
+/* One gap between every region, and none of the sections' own. */
+.page-inbox :is(.ib-body, .ib-main, .ib-grid, .rq-body, .rq-main, .rq-side, .rq-grid) {
+  display: grid;
+  gap: var(--stack);
+  align-content: start;
+  min-width: 0;
+}
+
+.page-inbox :is(.ib-body, .ib-main, .ib-grid, .rq-main, .rq-side) > .section {
+  margin-block-end: 0;
+  min-width: 0;
+}
+
+.page-inbox .section-head:not(.pg-bar) {
+  margin-block-end: var(--s3);
+}
+
+/* What is somebody's to act on wears its tone as a tag beside its heading. */
+.page-inbox .ib-main > .section:first-child .section-head > .figure:not(:empty) {
+  padding-inline: 6px;
+  border-radius: var(--r3);
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+  font-weight: var(--w-strong);
+}
+
+/* Two columns where both are full: the doors, and a request's facts, are the short ones. */
+@container (min-width: 52rem) {
+  .page-inbox :is(.ib-grid:not(.is-alone), .rq-grid) {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}
+
+.ib-groups,
+.ib-cards,
+.ib-chips,
+.ib-rows,
+.ib-doors,
+.rq-chips,
+.rq-locally,
+.rq-starts,
+.rq-notes,
+.rq-start-after,
+.rq-said,
+.rq-unsent {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ib-omitted > .unknown,
+.page-inbox :is(.rq-words .material, .rq-words > .unknown) {
+  margin: 0;
+}
+
+/* What is said second — a moment, a place, a line under a name — in the label grey. */
+.ib-hero-under,
+.ib-strip-label,
+.ib-chip-word,
+.ib-group-n,
+.ib-card-origin,
+.ib-row-age,
+.ib-row-line,
+.ib-door-state,
+.ib-door-facts,
+.rq-act-starts,
+.rq-start-touches,
+.rq-start-makes,
+.rq-start-after > li,
+.rq-unsent-one > span:last-child,
+.page-inbox .rq-locally .under {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* Somebody's text, a source's id or a task's name: it wraps rather than pushing the page sideways. */
+.ib-card-name,
+.ib-card-origin,
+.ib-card-why,
+.ib-row-name,
+.ib-row-line,
+.ib-door-state,
+.ib-door-why,
+.ib-door-facts,
+.rq-now-said,
+.rq-moved,
+.rq-start-name,
+.rq-start-touches,
+.rq-start-makes,
+.rq-start-after > li,
+.rq-notes > li,
+.rq-unsent-one > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* What is also text in the window — a source's id, a task, a path — in mono. */
+.ib-card-name.is-id,
+.ib-card-foot > strong,
+.ib-row-name.is-mono,
+.ib-door-name,
+.rq-start-name,
+.rq-start-touches {
+  font-family: var(--font-mono);
+}
+
+/* Figures that change under somebody's eyes keep their width. */
+.ib-hero-n,
+.ib-hero-under,
+.ib-group-n,
+.ib-card-age,
+.ib-row-age,
+.rq-now-age {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A hairline between the rows of a panel. */
+.ib-rows > * + *,
+.ib-doors > * + *,
+.rq-unsent > * + * {
+  border-block-start: var(--border);
+}
+
+/* Under a mark, a line starts where the name beside the mark does. */
+.ib-card-origin,
+.ib-card-why,
+.ib-card-tags,
+.ib-door-why,
+.ib-door-facts {
+  padding-inline-start: calc(1.25rem + var(--s2));
+}
+
+/* A press that goes somewhere is drawn as a press, never as an underlined link. */
+.page-inbox :is(.rq-source, .rq-open, .rq-run) {
+  text-decoration: none;
+}
+
+.page-inbox :is(.rq-source, .rq-run) > .ic {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.page-inbox :is(.ib-card-foot, .rq-open) > .ic {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* ── the lead: how many wait on you, where everything stands, the doors ──── */
 
 /*
-* A request's own words, and the heading that travels with them: a warning
-* about whose words follow, so it takes the border and the ground a caveat
-* takes. `--amber-dark` is a ground and a border and never text.
+  The one hero number on the page and its words; the bar of every request by
+  where it stands, its legend the counts; the doors as a strip. With room the
+  number and the bar share a line and the strip runs under both.
 */
-.material-label {
+.ib-lead {
+  display: grid;
+  gap: var(--s4);
+  padding: var(--inset);
+  container-type: inline-size;
+}
+
+.ib-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+  margin: 0;
+}
+
+.ib-hero-n {
   color: var(--bright);
+  font-size: var(--step-4);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: 1;
+}
+
+.ib-lead.is-wanted .ib-hero-n {
+  color: var(--violet);
+}
+
+.ib-hero-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ib-hero-label {
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  line-height: var(--lead-tight);
+}
+
+.page-inbox .ib-stand {
+  align-self: center;
+  min-width: 0;
+}
+
+.page-inbox .ib-stand .ui-stack-bar {
+  height: 10px;
+}
+
+.ib-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+.ib-strip-label {
+  font-weight: var(--w-label);
+}
+
+.ib-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.ib-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px var(--s2);
+  border-radius: var(--r3);
+  background: var(--surface);
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.ib-chip > .glyph,
+.page-inbox .rq-said-one > .glyph {
+  font-size: var(--step--1);
+  line-height: var(--lead-tight);
+}
+
+/* A broken door's chip is outlined in red; its words stay grey on the card's own ground. */
+.ib-chip.is-broken {
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 55%, var(--line));
+  color: var(--bright);
+}
+
+@container (min-width: 40rem) {
+  .ib-lead {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--s6);
+  }
+
+  .ib-strip {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ── waiting on you: a group per kind, a card per request ─────────────────── */
+
+.ib-groups {
+  display: grid;
+  gap: var(--stack);
+}
+
+.ib-group {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+/* The kind's name on the left, how many and the oldest at the line's end. */
+.ib-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s3);
+}
+
+.ib-group-name {
+  margin: 0;
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.ib-group-n {
+  margin-inline-start: auto;
+}
+
+.ib-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--s3);
+}
+
+/*
+  A card waiting on you: an edge of its kind's tone — violet to approve, red
+  where it stopped — and its one press pinned to its foot, so a row of cards
+  ends on one line.
+*/
+.ib-card {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-width: 0;
+  border-color: color-mix(in srgb, var(--violet) 40%, var(--line));
+}
+
+.ib-card:is([data-kind="held"], [data-kind="failure"]) {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+}
+
+.ib-card-body {
+  display: grid;
+  align-content: start;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--inset);
+  border-start-start-radius: var(--r2);
+  border-start-end-radius: var(--r2);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.ib-card-body:hover {
+  background: var(--surface);
+}
+
+/* The mark, the name over two lines at most, and how long it has waited as the card's one figure. */
+.ib-card-head {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.ib-card-name,
+.ib-row-name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--bright);
+}
+
+.ib-card-name {
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  line-height: var(--lead-tight);
+}
+
+.ib-card-age {
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  white-space: nowrap;
+}
+
+.ib-card-why {
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.ib-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s2);
+}
+
+/* The one press, across the card's foot: violet to approve, the text grey where it stopped. */
+.ib-card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--inset);
+  border-block-start: var(--border);
+  border-end-start-radius: var(--r2);
+  border-end-end-radius: var(--r2);
+  color: var(--violet);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.ib-card-foot:hover {
+  background: color-mix(in srgb, var(--violet) 10%, var(--panel));
+}
+
+.ib-card:is([data-kind="held"], [data-kind="failure"]) .ib-card-foot {
+  color: var(--bright);
+}
+
+.ib-card:is([data-kind="held"], [data-kind="failure"]) .ib-card-foot:hover {
+  background: var(--surface);
+}
+
+.ib-card-foot > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-inbox .ib-card-foot > .ic {
+  margin-inline-start: auto;
+}
+
+/* ── the quiet rows: on its way, settled, and what a request made ─────────── */
+
+.ib-row {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark name age"
+    ". line line";
+  align-items: baseline;
+  gap: var(--s1) var(--s2);
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.ib-row[href] {
+  transition: background var(--ease);
+}
+
+a.ib-row[href]:hover {
+  background: var(--surface);
+}
+
+.ib-row-mark {
+  grid-area: mark;
+}
+
+.ib-row-name {
+  grid-area: name;
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+}
+
+.ib-row-age {
+  grid-area: age;
+  white-space: nowrap;
+}
+
+.ib-row-line {
+  grid-area: line;
+}
+
+.page-inbox .ib-fold + .ib-rows {
+  margin-block-start: var(--s3);
+}
+
+/* ── the doors ─────────────────────────────────────────────────────────────── */
+
+/*
+  A door: its mark, its name and its state's word; under them Tade's sentence,
+  and when it last looked — or when a spent budget clears, the figure a person
+  acts on — with what it is set to do. A broken one has a red rule down its
+  edge; a shut one is set back a step.
+*/
+.ib-door {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3) var(--inset);
+}
+
+.ib-door.is-broken,
+.rq-unsent-one {
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.ib-door-head {
+  display: grid;
+  grid-template-columns: 1.25rem auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.ib-door-name {
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.ib-door-state.t-failed {
+  color: var(--red);
+}
+
+.ib-door-why {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.ib-door.is-shut :is(.ib-door-name, .ib-door-why) {
+  color: var(--heading);
+  font-weight: var(--w-label);
+}
+
+/* ── one request: where it stands, and the one thing to do ────────────────── */
+
+.rq-lead {
+  display: grid;
+  overflow: hidden;
+}
+
+/* Its mark large in a square of its tone, the state and when it arrived, and Tade's sentence. */
+.rq-now {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s4);
+  padding: var(--inset);
+}
+
+.rq-now.is-wants {
+  background: color-mix(in srgb, var(--violet) 12%, var(--panel));
+}
+
+.rq-now.is-failed {
+  background: color-mix(in srgb, var(--red) 9%, var(--panel));
+}
+
+.rq-now-mark {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--r2);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  line-height: 1;
+}
+
+.rq-now-words {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.rq-now-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
+  margin: 0;
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.rq-now-state > strong {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.rq-now-said {
+  margin: 0;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  line-height: var(--lead-tight);
+}
+
+/* An edit since the work was made: an amber mark, and the words in the text grey. */
+.rq-moved {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: var(--s1);
+  margin: var(--s2) 0 0;
+  color: var(--bright);
+  font-size: var(--step--1);
+}
+
+.rq-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s3) var(--inset);
+  border-block-start: var(--border);
+}
+
+/* The one thing to do: a press with what it starts beside it, and what stays at the machine under it. */
+.rq-act {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--inset);
+  border-block-start: var(--border);
+}
+
+/*
+  The press's own line is empty until a press says something, and is never
+  hidden by a repaint — the page repaints on a delta, not after a tap. A region
+  with nothing drawn in it is not drawn.
+*/
+.rq-act-said:empty,
+.rq-act:not(:has(> :not([hidden], :empty))) {
+  display: none;
+}
+
+.rq-act-why,
+.rq-act-said {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.rq-act-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+}
+
+.page-inbox .rq-open {
+  justify-self: start;
+}
+
+.rq-locally {
+  display: grid;
+  gap: var(--s1);
+}
+
+.page-inbox .rq-locally .row-static {
+  display: grid;
+  gap: 2px;
+}
+
+.page-inbox .rq-locally .name {
+  color: var(--body);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+}
+
+/* On a phone the press is the width of the card, so a thumb finds it. */
+@container (max-width: 34rem) {
+  .page-inbox :is(.rq-approve, .rq-open) {
+    flex: 1 1 100%;
+    justify-self: stretch;
+  }
+}
+
+@container (min-width: 52rem) {
+  .rq-now {
+    align-items: center;
+    padding: var(--s5) var(--inset);
+  }
+
+  .rq-now-said {
+    font-size: var(--step-2);
+    letter-spacing: var(--tight);
+  }
+}
+
+/* ── the request's own words ──────────────────────────────────────────────── */
+
+.rq-words {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--inset);
+}
+
+/*
+  The heading that travels with a stranger's words: a warning about whose words
+  follow, so it takes a caveat's border. `--amber-dark` is a ground and a border
+  and never text.
+*/
+.page-inbox .material-label {
+  margin: 0;
+  border-color: var(--amber-dark);
+  color: var(--bright);
+}
+
+.page-inbox .rq-words .said {
+  margin: 0;
+  color: var(--bright);
+  font-size: var(--step-0);
+  line-height: var(--lead);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── what approving starts: each task a numbered step down a rail ─────────── */
+
+.rq-would {
+  display: grid;
+  gap: var(--s4);
+  padding: var(--inset);
+}
+
+.rq-starts {
+  display: grid;
+  gap: var(--s4);
+  counter-reset: start;
+}
+
+.rq-start {
+  position: relative;
+  display: grid;
+  gap: var(--s1);
+  padding-inline-start: calc(1.75rem + var(--s2));
+  counter-increment: start;
+}
+
+.rq-start::before {
+  content: counter(start);
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--round);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--control);
+  color: var(--bright);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+}
+
+.rq-start + .rq-start::after {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(-1 * var(--s4));
+  inset-inline-start: calc(0.875rem - 1px);
+  width: 2px;
+  height: var(--s4);
+  background: var(--control);
+}
+
+.rq-start-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  min-height: 1.75rem;
+}
+
+.rq-start-name {
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.rq-start-after {
+  display: grid;
+  gap: 2px;
+}
+
+/* What allows it, what bounds it and what is wrong with it: a mark each, the words grey. */
+.rq-notes {
+  display: grid;
+  gap: var(--s2);
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+.rq-notes > li,
+.rq-unsent-one {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px var(--s2);
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+/* ── what it made, where it came from, what went back ─────────────────────── */
+
+.page-inbox .rq-run {
+  margin-block-start: var(--s3);
+}
+
+.rq-none {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step-0);
+}
+
+.page-inbox .rq-facts {
+  grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr);
+  gap: 0 var(--s3);
+  padding: var(--s1) var(--inset);
+}
+
+.page-inbox .rq-facts > :is(dt, dd) {
+  align-self: baseline;
+}
+
+.page-inbox .rq-facts dd {
+  color: var(--bright);
+  font-size: var(--step--1);
+}
+
+.page-inbox .rq-fold {
+  margin-block: var(--s3) 0;
+}
+
+.page-inbox :is(.rq-fold + .rq-facts, .rq-unsent) {
+  margin-block-start: var(--s3);
+}
+
+.rq-said {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.rq-unsent-one {
+  padding: var(--s3) var(--inset);
+}
+
+.rq-unsent-one > strong {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.rq-unsent-one > span:last-child {
+  grid-column: 2;
 }

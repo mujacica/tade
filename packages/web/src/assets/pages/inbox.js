@@ -1,9 +1,17 @@
 // What has been handed to this machine, as two screens: the inbox and one
 // request.
 //
-// Its own page (`pages/inbox.*`), because this is one subject — work that came
-// from outside — and a reader checking what the inbox draws should not have to
-// scroll past anything else.
+// **What somebody opening the inbox wants first** is whether anything waits on
+// them, how long it has, and what each one needs from them — so the page leads
+// with that count beside a bar of every request by where it stands and a strip
+// of the doors, then a card for each request waiting, grouped by the one thing
+// it needs (to approve, held, given up), oldest first, each with its one press
+// across its foot. What is on its way is a quiet list under them, what is
+// settled is folded away, and beside them at a desk are the doors, the broken
+// one first.
+//
+// One request is its own screen (`inbox-request.js`), re-exported here for the
+// router.
 //
 // The three rules that break something quietly if they go:
 //
@@ -13,452 +21,446 @@
 //   which is what they are.
 // - **An empty list says *which* nothing.** A door that is off, one nobody
 //   watches, one that was unreachable at the last look and one that looked and
-//   found nothing are four different things to do next, and the row says which
-//   out of `because` — Tade's own sentence, never a second wording here.
+//   found nothing are four different things to do next, and the page says
+//   which out of `because` — Tade's own sentence, never a second wording here.
 // - **A stranger's words are drawn under the heading that came with them.**
 //   `materialLabel` rides on the row; the page does not choose a word for it,
 //   because a drawing that put its own word there would be one edit away from
 //   putting none.
 //
-// Nothing here decides a state, a count or a reason: all of it came off the
-// wire already derived.
+// Nothing here decides a state, a count or a reason (`inbox-shape.js`).
 
-import { mayFor } from '../access.js'
-import { afterAnswer, bodyFor, standingOf, wordsFor } from '../acts.js'
-import { classOn, el, glyphOf, into, keyed, markIn, proseOf, textIn } from '../dom.js'
-import { ageSaid, count, untilSaid } from '../figures.js'
-import { intakeMark, sourceMark } from '../glyphs.js'
-import { pathOf, requestPath, safeHref, taskPath } from '../routes.js'
+import { stack, stackIn } from '../charts.js'
 import {
-  createLocally,
-  dl,
-  dlIn,
-  fillLocally,
-  nothingSaid,
-  pageBar,
-  rowFor,
-  sayIn,
-  section,
-} from '../rows.js'
-import { intakeAt, intakeOf, intakeWaiting, omitted, sourcesOf } from '../store.js'
-import { answerIn, panel } from '../ui.js'
+  classOn,
+  el,
+  glyphOf,
+  into,
+  keyed,
+  markIn,
+  skeleton,
+  textIn,
+  toneOn,
+  unknown,
+} from '../dom.js'
+import { count, shortClockOf } from '../figures.js'
+import { intakeMark } from '../glyphs.js'
+import { icon } from '../icons.js'
+import { sayIn, section } from '../rows.js'
+import { intakeOf, omitted, sourcesOf } from '../store.js'
+import { TROUBLES } from '../trouble.js'
+import { panel, stateBox, stateBoxIn } from '../ui.js'
+import { sectionCount } from './inbox-request.js'
+import {
+  byDoor,
+  calmSaid,
+  emptySays,
+  figureSaid,
+  groupSaid,
+  heroSaid,
+  inboxPage,
+  knownIn,
+  omittedSaid,
+  settledSaid,
+  stateOf,
+  troubleOf,
+} from './inbox-shape.js'
 
-/* ── what has been handed over ─────────────────────────────────────────────── */
+export { factsOf, materialIn, requestScreen } from './inbox-request.js'
+export { emptySays } from './inbox-shape.js'
 
-/**
- * The inbox: the doors first, then the requests.
- *
- * **The doors are above the list and not under it**, which is the one layout
- * decision here worth an argument. The commonest reading of this screen is *is
- * anything waiting for me*, and the commonest wrong answer to it is an empty
- * list that means a connector has been failing since Tuesday. Putting the
- * doors where somebody arrives means the empty list is never the first thing
- * read without its reason beside it.
- */
+/** The bar's word: a violet pill while something waits on the person. */
+function figureIn(figure, page) {
+  const said = figureSaid(page)
+  textIn(figure, said.word)
+  figure.classList.toggle('ui-pill', said.word !== '')
+  toneOn(figure, said.tone)
+}
+
+/* ── the inbox ─────────────────────────────────────────────────────────────── */
+
 export function inboxScreen() {
   const node = el('div')
-  const made = section('HANDED OVER', { top: true })
-  const doors = section('THE DOORS')
-  const list = panel('ul', 'rows')
-  const none = el('p', { class: 'empty nothing' })
-  into(made.body, list, none)
-  const doorList = panel('ul', 'rows')
-  const doorNone = el('p', { class: 'empty nothing', text: 'no source is implemented here' })
-  into(doors.body, doorList, doorNone)
-  const left = el('p', { class: 'unknown' })
-  into(node, made.node, left, doors.node)
+  const made = section('INBOX', {
+    top: true,
+    hint: 'Work that came from outside this machine, through the doors it watches. What waits on you comes first; approving one starts work this machine already allowed.',
+  })
+  const coming = skeleton(4)
+  const whole = stateBox()
+  whole.classList.add('ib-whole')
+  const lead = leadOf()
+  const left = el('div', { class: 'ib-omitted' })
+  const waits = waitsOf()
+  const moving = movingOf()
+  const settled = settledOf()
+  const doors = doorsOf()
+  const main = el('div', { class: 'ib-main' })
+  into(main, waits.made.node, moving.made.node, settled.made.node)
+  const grid = el('div', { class: 'ib-grid' })
+  into(grid, main, doors.made.node)
+  made.body.classList.add('ib-body')
+  into(made.body, coming, whole, lead.node, left, grid)
+  into(node, made.node)
 
   return {
     node,
     update(view) {
-      const rows = intakeOf(view.store)
-      const waiting = intakeWaiting(view.store)
-      textIn(made.figure, count(waiting.length))
-      made.figure.setAttribute('aria-label', `${waiting.length} waiting on you`)
-      keyed(
-        list,
-        rows,
-        (row) => row.item,
-        createIntakeRow,
-        (one, row) => fillIntakeRow(one, row, view),
-      )
-      // **Which nothing.** The doors' own sentences, picked the way
-      // `nothingHandedSays` picks one — the trouble first, because that is the
-      // one somebody can do something about.
-      const sources = sourcesOf(view.store)
-      none.hidden = rows.length > 0
-      textIn(none, rows.length > 0 ? '' : emptySays(sources))
-      keyed(
-        doorList,
-        sources,
-        (row) => row.source,
-        createSourceRow,
-        (one, row) => fillSourceRow(one, row, view),
-      )
-      doorNone.hidden = sources.length > 0
-      const n = omitted(view.store, 'intake')
-      sayIn(left, n === 0 ? '' : `${n} more requests are not on this page`)
-    },
-  }
-}
-
-/**
- * What an empty inbox means, out of the doors' own sentences.
- *
- * `nothingHandedSays`' rule, and the same order: a door in trouble first
- * because that is the one a person can act on, then the sentence of whatever
- * is not off, then the first row's. The sentences themselves are the domain's
- * — this picks which one to draw and writes none of its own.
- */
-export function emptySays(sources) {
-  if (sources.length === 0) return 'no source is implemented here'
-  const trouble = sources.find(
-    (row) => row.state === 'trouble' || row.state === 'unreachable' || row.state === 'rate-limited',
-  )
-  if (trouble !== undefined) return trouble.because
-  const working = sources.filter((row) => row.state === 'quiet' || row.state === 'found')
-  if (working.length > 0) {
-    return `${working.length} ${working.length === 1 ? 'source is' : 'sources are'} being looked with and nothing has been handed over`
-  }
-  return sources.find((row) => row.state !== 'off')?.because ?? sources[0].because
-}
-
-function createIntakeRow() {
-  const node = el('li')
-  const link = el('a', { attrs: { href: '/inbox' } })
-  const glyph = glyphOf(intakeMark({ state: 'noticed', work: [] }))
-  const name = el('span', { class: 'name' })
-  const aside = el('span', { class: 'aside' })
-  const under = el('span', { class: 'under' })
-  into(link, glyph, name, aside, under)
-  return into(node, link)
-}
-
-function fillIntakeRow(node, row, view) {
-  const [link] = node.children
-  const [glyph, name, aside, under] = link.children
-  link.setAttribute('href', requestPath(row.item))
-  markIn(glyph, intakeMark(row))
-  // The source's own title where this device was granted it, and the source's
-  // own id where it was not — never the id dressed up as a title.
-  textIn(name, row.title === null ? `${row.source} ${row.externalId}` : row.title.words)
-  textIn(under, row.because)
-  const age = ageSaid(row.at, view.asOf, view.frozen)
-  textIn(aside, age === null ? '' : age)
-  aside.setAttribute('aria-label', age === null ? 'no moment recorded' : `arrived ${age} ago`)
-  classOn(link, 'stalled', row.moved)
-}
-
-function createSourceRow() {
-  const node = el('li')
-  const body = el('div', { class: 'row-static' })
-  const glyph = glyphOf(sourceMark('off'))
-  const name = el('span', { class: 'name' })
-  const aside = el('span', { class: 'aside' })
-  const under = el('span', { class: 'under' })
-  into(body, glyph, name, aside, under)
-  return into(node, body)
-}
-
-function fillSourceRow(node, row, view) {
-  const [body] = node.children
-  const [glyph, name, aside, under] = body.children
-  markIn(glyph, sourceMark(row.state))
-  textIn(name, row.source)
-  textIn(under, row.because)
-  // A rate limit clears on its own, and when is the only figure on this row a
-  // person acts on. Everything else says how long ago the last look was.
-  const when =
-    row.state === 'rate-limited' && row.until !== null
-      ? untilSaid(row.until, view.now)
-      : ageSaid(row.lookedAt, view.asOf, view.frozen)
-  textIn(aside, when === null ? '' : when)
-  aside.setAttribute('aria-label', when === null ? 'never looked with' : `last look ${when}`)
-}
-
-/* ── one request ───────────────────────────────────────────────────────────── */
-
-/**
- * One request: where it came from, what it made, and then its own words.
- *
- * **Provenance and material are two regions and never one**, which is
- * `openIntakeRow`'s own rule carried onto a phone: the first is this machine's
- * record of what arrived and what allowed it, and the second is somebody
- * else's sentences. A layout that merged them would be one change away from
- * drawing a stranger's words as Tade's.
- */
-export function requestScreen(where, ctx) {
-  const item = `${where.source}:${where.id}`
-  const node = el('div')
-  const glyph = glyphOf(intakeMark({ state: 'noticed', work: [] }))
-  const bar = pageBar(where.id, { name: true, glyph, back: { text: 'Inbox', href: '/inbox' } })
-  const gone = el('p', { class: 'empty nothing' })
-
-  const stands = section('WHERE IT STANDS')
-  const standing = el('p', { class: 'why' })
-  const moved = el('p', { class: 'unknown' })
-  into(stands.body, standing, moved)
-
-  const from = section('WHERE IT CAME FROM')
-  const facts = dl()
-  const link = el('a', { class: 'press quietly small', text: 'Open it at its source' })
-  into(from.body, facts)
-  into(bar.tools, link)
-
-  const work = section('WHAT IT MADE')
-  const workList = panel('ul', 'rows')
-  const workNone = el('p', { class: 'empty nothing' })
-  const runLink = el('a', { class: 'press ghost', text: 'The whole run' })
-  into(work.body, workList, workNone, runLink)
-
-  const replies = section('WHAT WENT BACK')
-  const said = el('p', { class: 'said' })
-  const unsent = panel('ul', 'rows')
-  into(replies.body, said, unsent)
-
-  // The request itself, last, under the heading that travels with it.
-  const words = section('THE REQUEST ITSELF')
-  const label = el('p', { class: 'ui-callout material-label' })
-  const body = el('div', { class: 'material' })
-  const noBody = el('p', { class: 'unknown' })
-  into(words.body, label, body, noBody)
-
-  const approve = section('APPROVING IT')
-  const locally = el('ul', { class: 'locally' })
-  const control = approveIn(approve.body, ctx)
-  into(approve.body, locally)
-
-  const parts = [stands, from, work, replies, words, approve]
-  into(node, bar.node, gone, ...parts.map((one) => one.node))
-
-  return {
-    node,
-    update(view) {
-      const row = intakeAt(view.store, item)
-      gone.hidden = row !== null
-      textIn(
-        gone,
-        row === null
-          ? 'This request is not on this device, or nothing by that name has arrived.'
-          : '',
-      )
-      for (const one of parts) one.node.hidden = row === null
-      if (row === null) return
-      markIn(glyph, intakeMark(row))
-      textIn(bar.heading, row.title === null ? row.externalId : row.title.words)
-      textIn(standing, row.because)
-      sayIn(
-        moved,
-        row.moved
-          ? `it has been edited since the work was made: the work is for ${row.taken} and it is at ${row.revision} now`
-          : '',
-      )
-      dlIn(facts, factsOf(row, view))
-      const href = safeHref(row.url)
-      link.hidden = href === null
-      if (href !== null) {
-        link.setAttribute('href', href)
-        link.setAttribute('rel', 'noreferrer noopener')
-        link.setAttribute('target', '_blank')
+      const store = view.store
+      const had = store.had === true
+      const shut = view.standing === 'unreachable' || view.standing === 'closed'
+      const sources = had ? sourcesOf(store) : []
+      const page = had
+        ? inboxPage(intakeOf(store), sources, view.asOf, view.now, knownIn(store))
+        : null
+      coming.hidden = had || shut
+      figureIn(made.figure, page)
+      stateBoxIn(whole, wholeOf(had, shut, page, sources))
+      const some = page !== null && page.total > 0
+      lead.node.hidden = !some
+      main.hidden = !some
+      grid.hidden = page === null
+      classOn(grid, 'is-alone', !some)
+      const gone = page === null ? null : omittedSaid(omitted(store, 'intake'), page.total)
+      left.hidden = !some || (gone === null && !view.frozen)
+      if (!left.hidden) {
+        const clock = view.frozen ? `as of ${shortClockOf(new Date(view.asOf).toISOString())}` : ''
+        sayLeft(left, [clock, gone].filter(Boolean).join(' · '))
       }
-      keyed(workList, row.work, (one) => one.task, createWorkRow, fillWorkRow)
-      workNone.hidden = row.work.length > 0
-      textIn(workNone, row.work.length > 0 ? '' : 'nothing has been made for it')
-      runLink.hidden = row.run === null
-      if (row.run !== null) runLink.setAttribute('href', pathOf({ view: 'run', run: row.run }))
-      textIn(
-        said,
-        row.said.length === 0 ? 'nothing has gone back to the source' : row.said.join(', '),
-      )
-      keyed(unsent, row.unsent, (one) => one.saying, createUnsentRow, fillUnsentRow)
-      materialIn({ label, body, noBody }, row, view)
-      control.update(row, view)
-      keyed(locally, row.locally, (one) => one.act, createLocally, fillLocally)
+      if (page === null) return
+      doors.fill(page)
+      if (!some) return
+      lead.fill(page)
+      waits.fill(page)
+      moving.fill(page)
+      settled.fill(page)
     },
   }
 }
 
 /**
- * Where it came from, as labelled facts — and **nothing a stranger wrote**
- * except the handle and the source's own ids, which are what *who asked* means.
- *
- * `inboxProvenance`'s own list, with the two revisions collapsed the way it
- * collapses them and `—` wherever the answer is that nobody said: a row drawn
- * with an empty grant reads as a request nothing authorised, and one nothing
- * authorised was refused and never got a row.
+ * The page's own state when there is no request to draw: coming, could not
+ * reach, or none — and **which** none, out of the doors' own sentences, red
+ * where a door is why.
  */
-export function factsOf(row, view) {
-  const dash = (value) => (value === null || value === '' ? '—' : value)
-  return [
-    ['source', row.source],
-    ['their id', row.externalId],
-    [
-      'revision',
-      row.taken === row.revision ? row.revision : `${row.revision} now, work made for ${row.taken}`,
-    ],
-    [
-      'asked by',
-      row.who === null
-        ? mayFor(view.store, 'intake.title')
-          ? '—'
-          : 'not granted'
-        : `@${row.who.words}`,
-    ],
-    ['project', dash(row.project)],
-    ['allowed by', dash(row.grant)],
-    ['mode', dash(row.mode)],
-    ['workflow', row.stamp === null ? 'none: one task' : `${row.stamp.name}@${row.stamp.version}`],
-    ['found by', dash(row.watch)],
-    ['raw material', dash(row.ref)],
-    ['its hash', dash(row.hash)],
-    ['tried', `${row.attempts} of ${row.tries}`],
-  ]
+function wholeOf(had, shut, page, sources) {
+  if (!had) {
+    return shut ? stateOf('error', TROUBLES.offline.title, TROUBLES.offline.fix, 'alert') : null
+  }
+  if (page.total > 0) return null
+  // In the doors' own order, so the sentence is about the door drawn first
+  // under it — the broken one before one that clears on its own.
+  const why = emptySays(byDoor(sources))
+  const line = `${why.charAt(0).toUpperCase()}${why.slice(1)}.`
+  return troubleOf(sources) === undefined
+    ? stateOf('empty', 'Nothing handed over', line)
+    : stateOf('error', 'Nothing handed over', line, 'alert')
 }
 
-function createWorkRow() {
-  const node = el('li')
-  const link = el('a', { attrs: { href: '/' } })
-  const name = el('span', { class: 'name' })
-  const aside = el('span', { class: 'aside' })
-  into(link, name, aside)
-  return into(node, link)
+/** The line under the lead: the moment a page that is not live was true at, and what it was not sent. */
+function sayLeft(node, said) {
+  if (node.dataset.said === said) return
+  node.dataset.said = said
+  node.replaceChildren(unknown(said))
 }
 
-function fillWorkRow(node, one) {
-  const [link] = node.children
-  const [name, aside] = link.children
-  link.setAttribute('href', taskPath(one.task))
-  textIn(name, one.task)
-  // Four facts and the order is the order they matter in: held beats finished,
-  // which beats started, which beats parked. `state` is null where nothing
-  // could ask for one, and that is said rather than drawn as a blank.
-  const says = one.held
-    ? `held: ${one.held}`
-    : one.finished
-      ? 'finished'
-      : one.started
-        ? 'an agent has been on it'
-        : one.parked
-          ? 'parked, waiting to be approved'
-          : (one.state ?? 'nothing here knows its state')
-  textIn(aside, says)
-}
+/* ── the lead: how many wait on you, where everything stands, the doors ──── */
 
-function createUnsentRow() {
-  const node = el('li')
-  const body = el('div', { class: 'row-static' })
-  const name = el('span', { class: 'name' })
-  const under = el('span', { class: 'under' })
-  into(body, name, under)
-  return into(node, body)
-}
-
-function fillUnsentRow(node, one) {
-  const [body] = node.children
-  const [name, under] = body.children
-  textIn(
-    name,
-    `could not say “${one.saying}”, ${one.attempts} ${one.attempts === 1 ? 'time' : 'times'}`,
+function leadOf() {
+  const node = el('div', { class: 'ui-card ib-lead' })
+  const hero = el('p', { class: 'ib-hero' })
+  const words = el('span', { class: 'ib-hero-words' })
+  into(words, el('span', { class: 'ib-hero-label' }), el('span', { class: 'ib-hero-under' }))
+  into(hero, el('strong', { class: 'ib-hero-n' }), words)
+  const bar = stack('Every request, by where it stands')
+  bar.classList.add('ib-stand')
+  const strip = el('div', { class: 'ib-strip' })
+  const chips = el('ul', { class: 'ib-chips', attrs: { 'aria-label': 'Doors' } })
+  into(
+    strip,
+    el('span', { class: 'ib-strip-label', text: 'Doors', attrs: { 'aria-hidden': 'true' } }),
+    chips,
   )
-  textIn(under, one.problem ?? 'nothing said why')
+  into(node, hero, bar, strip)
+  return {
+    node,
+    fill(page) {
+      const [n, said] = hero.children
+      const [label, under] = said.children
+      const words = heroSaid(page)
+      textIn(n, String(page.waiting))
+      textIn(label, words.label)
+      sayIn(under, words.under)
+      node.classList.toggle('is-wanted', page.waiting > 0)
+      stackIn(bar, page.parts)
+      strip.hidden = page.doors.length === 0
+      keyed(chips, page.doors, (one) => one.key, createChip, fillChip)
+    },
+  }
+}
+
+/** A door in the lead's strip: its mark and its name, and its state's word where it is not calm. */
+function createChip() {
+  const item = el('li', { class: 'ib-chip' })
+  into(
+    item,
+    glyphOf(intakeMark({ state: 'noticed', work: [] })),
+    el('span'),
+    el('span', { class: 'ib-chip-word' }),
+  )
+  return item
+}
+
+function fillChip(item, door) {
+  const [glyph, name, word] = item.children
+  markIn(glyph, door.mark)
+  textIn(name, door.name)
+  const loud = door.broken || door.state === 'rate-limited'
+  // The word is said once: the glyph carries it for a screen reader, and the
+  // visible one is for the doors a person has to look at.
+  textIn(word, loud ? door.mark.word : '')
+  word.hidden = !loud
+  word.setAttribute('aria-hidden', 'true')
+  classOn(item, 'is-broken', door.broken)
+}
+
+/* ── waiting on you: a group per kind, a card per request ─────────────────── */
+
+function waitsOf() {
+  const made = section('WAITS ON YOU')
+  const calm = stateBox()
+  const list = el('ul', { class: 'ib-groups', attrs: { 'aria-label': 'By what it needs' } })
+  into(made.body, calm, list)
+  return {
+    made,
+    fill(page) {
+      sectionCount(made.figure, page.waiting, 'wait on you')
+      stateBoxIn(
+        calm,
+        page.waiting > 0 ? null : stateOf('empty', 'Nothing waits on you', calmSaid(page), 'check'),
+      )
+      list.hidden = page.waiting === 0
+      keyed(list, page.groups, (one) => one.kind, createGroup, fillGroup)
+    },
+  }
+}
+
+function createGroup() {
+  const item = el('li', { class: 'ib-group' })
+  const head = el('div', { class: 'ib-group-head' })
+  into(head, el('h3', { class: 'ib-group-name' }), el('span', { class: 'ib-group-n' }))
+  into(item, head, el('ul', { class: 'ib-cards' }))
+  return item
+}
+
+function fillGroup(item, group) {
+  const [head, cards] = item.children
+  const [name, n] = head.children
+  textIn(name, group.heading)
+  textIn(n, groupSaid(group))
+  item.dataset.kind = group.kind
+  cards.setAttribute('aria-label', group.heading)
+  keyed(cards, group.cards, (one) => one.key, createCard, fillCard)
 }
 
 /**
- * The request's own words, or **which** nothing there is instead.
- *
- * Three nothings and the page says which: this device was not granted them,
- * Tade never wrote one down, or the words are not on this frame because the
- * snapshot carries the ones waiting on somebody first. A single "nothing to
- * read" over all three tells somebody a request is empty.
+ * A request waiting on a person: its mark, its name and how long it has
+ * waited as the card's one figure, where it came from, Tade's sentence about
+ * it — the whole of that a press to the request — and the one thing to do
+ * about it across the card's foot.
  */
-export function materialIn(nodes, row, view) {
-  const has = row.material !== null
-  nodes.label.hidden = !has
-  textIn(nodes.label, row.materialLabel ?? '')
-  nodes.body.replaceChildren()
-  if (has) into(nodes.body, proseOf(row.material))
-  nodes.noBody.hidden = has
-  textIn(
-    nodes.noBody,
-    has
-      ? ''
-      : (row.materialSays ??
-          nothingSaid(mayFor(view.store, 'intake.material'), 1, 'nothing was written down')),
+function createCard() {
+  const item = el('li', { class: 'ui-card ib-card' })
+  const body = el('a', { class: 'ib-card-body', attrs: { href: '/inbox' } })
+  const head = el('span', { class: 'ib-card-head' })
+  into(
+    head,
+    glyphOf(intakeMark({ state: 'proposed', work: [] }), 'ib-card-mark'),
+    el('strong', { class: 'ib-card-name' }),
+    el('span', { class: 'ib-card-age' }),
   )
+  const from = el('span', { class: 'ib-card-origin' })
+  const tags = el('span', { class: 'ib-card-tags' })
+  into(
+    tags,
+    el('span', { class: 'ui-pill t-working ib-card-moved', text: 'edited since' }),
+    el('span', { class: 'ui-pill ib-card-starts' }),
+  )
+  into(body, head, from, el('span', { class: 'ib-card-why' }), tags)
+  const foot = el('a', { class: 'ib-card-foot', attrs: { href: '/inbox' } })
+  into(foot, el('span'), el('strong'), icon('chevron'))
+  into(item, body, foot)
+  return item
 }
 
-/**
- * The one control on this screen, and it is an **existing verb on an existing
- * target**.
- *
- * Approving a request from away is `intake` on the parked task the request
- * made — the verb that already re-asks the local grant and the source at the
- * moment of the act (`intakeStands`). So this looks that task up in what the
- * page already holds and draws the control the task screen draws, through the
- * same `controlsFor`/`bodyFor`: there is no second body, no second scope and
- * no second idea of what approving means.
- *
- * Two presses, because the schema's `confirm` literal is the other half and
- * neither stands in for the other: this stops a mis-tap, and the literal means
- * there is no shape of the body that says *do not*.
- */
-function approveIn(parent, ctx) {
-  const why = el('p', { class: 'empty' })
-  const press = el('button', { class: 'press', attrs: { type: 'button' } })
-  const said = el('p', { class: 'said' })
-  into(parent, why, press, said)
-  let asked = false
-  let held = null
-  let key = null
-  const keyOf = () => {
-    key ??= `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
-    return key
+function fillCard(item, card) {
+  const [body, foot] = item.children
+  const [head, from, why, tags] = body.children
+  const [mark, name, age] = head.children
+  body.setAttribute('href', card.href)
+  markIn(mark, card.mark)
+  textIn(name, card.name)
+  classOn(name, 'is-id', !card.named)
+  textIn(age, card.waitedSaid)
+  age.setAttribute(
+    'aria-label',
+    card.waited === null ? 'no moment recorded' : `arrived ${card.waitedSaid} ago`,
+  )
+  textIn(from, card.from)
+  textIn(why, card.because)
+  const [moved, starts] = tags.children
+  moved.hidden = !card.moved
+  moved.setAttribute('aria-label', 'edited at its source since the work was made')
+  sayIn(starts, card.starts)
+  tags.hidden = moved.hidden && starts.hidden
+  item.dataset.kind = card.state
+  const [word, who] = foot.children
+  foot.setAttribute('href', card.action.href)
+  textIn(word, card.action.word)
+  textIn(who, card.action.name ?? '')
+  who.hidden = card.action.name === null
+}
+
+/* ── on its way, and settled: quiet rows ──────────────────────────────────── */
+
+function movingOf() {
+  const made = section('ON ITS WAY')
+  const list = panel('ul', 'ib-rows')
+  list.setAttribute('aria-label', 'On its way')
+  into(made.body, list)
+  return {
+    made,
+    fill(page) {
+      made.node.hidden = page.moving.length === 0
+      sectionCount(made.figure, page.moving.length, 'on their way')
+      keyed(list, page.moving, (one) => one.key, createRow, fillRow)
+    },
+  }
+}
+
+/** Whether the settled requests are unfolded, for as long as the page is open. */
+let unfolded = false
+
+function settledOf() {
+  const made = section('SETTLED')
+  const list = panel('ul', 'ib-rows')
+  list.id = 'ib-settled'
+  list.setAttribute('aria-label', 'Settled')
+  const press = el('button', {
+    class: 'press quietly small ib-fold',
+    attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': list.id },
+  })
+  let n = 0
+  const foldIn = () => {
+    list.hidden = !unfolded
+    press.setAttribute('aria-expanded', unfolded ? 'true' : 'false')
+    textIn(press, settledSaid(n, unfolded))
   }
   press.addEventListener('click', () => {
-    if (held === null || ctx === undefined || ctx === null) return
-    if (!asked) {
-      asked = true
-      textIn(press, 'Yes — approve it')
-      textIn(said, 'Approving starts the work this machine already allowed. Press again.')
-      return
-    }
-    asked = false
-    press.disabled = true
-    const body = bodyFor('intake', held, keyOf(), ctx.revOf(), {})
-    void ctx.ask('POST', '/api/act/intake', body).then((answer) => {
-      press.disabled = false
-      const came = afterAnswer(answer, ctx.sentence(answer))
-      answerIn(said, came.said, came.trouble)
-      textIn(press, wordsFor('intake', held ?? {}))
-      // **The key is kept across a retry and minted again only once it
-      // happened**: a press whose answer never arrived is a press whose repeat
-      // must not be a second approval, and the key is what lets the machine
-      // tell the two apart.
-      if (came.ok) key = null
-    })
+    unfolded = !unfolded
+    foldIn()
   })
+  into(made.body, press, list)
   return {
-    update(row, view) {
-      const task = row.approve === null ? null : rowFor(view.store, row.approve)
-      held = task
-      const acts = view.may.acts ?? { answer: false, steer: false }
-      const standing = task === null ? { kind: 'no', why: '' } : standingOf('intake', task, acts)
-      press.hidden = standing.kind !== 'yes'
-      textIn(press, wordsFor('intake', task ?? {}))
-      press.disabled = false
-      const reason =
-        task === null
-          ? row.state === 'proposed'
-            ? 'the parked task this would approve is not on this device'
-            : `there is nothing to approve: ${row.because}`
-          : standing.kind === 'no'
-            ? standing.why
-            : ''
-      sayIn(why, standing.kind === 'off' ? '' : reason)
-      if (standing.kind !== 'yes') {
-        asked = false
-        textIn(said, '')
-      }
+    made,
+    fill(page) {
+      n = page.settled.length
+      made.node.hidden = n === 0
+      sectionCount(made.figure, n, 'settled')
+      keyed(list, page.settled, (one) => one.key, createRow, fillRow)
+      foldIn()
     },
   }
+}
+
+/** A row: the mark, the name and how long ago it arrived, and under them where it came from and why it stands where it does. */
+function createRow() {
+  const item = el('li')
+  const link = el('a', { class: 'ib-row', attrs: { href: '/inbox' } })
+  into(
+    link,
+    glyphOf(intakeMark({ state: 'noticed', work: [] }), 'ib-row-mark'),
+    el('span', { class: 'ib-row-name' }),
+    el('span', { class: 'ib-row-age' }),
+    el('span', { class: 'ib-row-line' }),
+  )
+  into(item, link)
+  return item
+}
+
+function fillRow(item, row) {
+  const [link] = item.children
+  const [mark, name, age, line] = link.children
+  link.setAttribute('href', row.href)
+  markIn(mark, row.mark)
+  textIn(name, row.name)
+  textIn(age, row.waitedSaid)
+  age.setAttribute(
+    'aria-label',
+    row.waited === null ? 'no moment recorded' : `arrived ${row.waitedSaid} ago`,
+  )
+  textIn(line, `${row.from} · ${row.because}`)
+}
+
+/* ── the doors ─────────────────────────────────────────────────────────────── */
+
+function doorsOf() {
+  const made = section('DOORS', {
+    hint: 'Where outside work comes in. An empty inbox means something different behind each: a door that is off, one nothing looks through, one that could not be read, and one that looked and found nothing.',
+  })
+  const none = stateBox()
+  const list = panel('ul', 'ib-doors')
+  list.setAttribute('aria-label', 'Doors')
+  into(made.body, none, list)
+  return {
+    made,
+    fill(page) {
+      const broken = page.doors.filter((one) => one.broken).length
+      textIn(made.figure, broken === 0 ? count(page.doors.length) : `${broken} broken`)
+      toneOn(made.figure, broken === 0 ? null : 't-failed')
+      made.figure.classList.toggle('ui-pill', broken > 0)
+      if (page.doors.length === 0) made.figure.removeAttribute('aria-label')
+      else
+        made.figure.setAttribute(
+          'aria-label',
+          broken === 0
+            ? `${page.doors.length} doors`
+            : `${broken} of ${page.doors.length} doors broken`,
+        )
+      stateBoxIn(
+        none,
+        page.doors.length > 0
+          ? null
+          : stateOf('empty', 'No doors', 'No source of outside work is implemented here.'),
+      )
+      list.hidden = page.doors.length === 0
+      keyed(list, page.doors, (one) => one.key, createDoor, fillDoor)
+    },
+  }
+}
+
+/** A door: its mark, its name and its state's word, Tade's sentence, and when it last looked — or clears — with what it is set to do. */
+function createDoor() {
+  const item = el('li', { class: 'ib-door' })
+  const head = el('div', { class: 'ib-door-head' })
+  into(
+    head,
+    glyphOf(intakeMark({ state: 'noticed', work: [] }), 'ib-door-mark'),
+    el('strong', { class: 'ib-door-name' }),
+    el('span', { class: 'ib-door-state', attrs: { 'aria-hidden': 'true' } }),
+  )
+  into(item, head, el('p', { class: 'ib-door-why' }), el('p', { class: 'ib-door-facts' }))
+  return item
+}
+
+function fillDoor(item, door) {
+  const [head, why, facts] = item.children
+  const [mark, name, state] = head.children
+  markIn(mark, door.mark)
+  textIn(name, door.name)
+  textIn(state, door.mark.word)
+  toneOn(state, door.broken ? 't-failed' : null)
+  textIn(why, door.because)
+  sayIn(facts, door.facts)
+  classOn(item, 'is-broken', door.broken)
+  classOn(item, 'is-shut', door.state === 'off' || door.state === 'ungranted')
 }
