@@ -255,7 +255,7 @@ export function parseTemplate(name: string, text: string): TemplateParse {
 export async function readDraft(
   home: string,
   name: string,
-): Promise<Published | { problem: string }> {
+): Promise<Published | { problem: string; missing?: true }> {
   const refused = templateNameProblem(name)
   if (refused) return { problem: refused }
   const path = join(templateDirs(home).drafts, `${name}.yaml`)
@@ -263,7 +263,11 @@ export async function readDraft(
   try {
     text = await readFile(path, 'utf8')
   } catch {
-    return { problem: `there is no draft at ${path}` }
+    // `missing` is said rather than left in the sentence, because no draft is
+    // the ordinary state of every template Tade ships and of one somebody only
+    // published — a reader should fall back to the published version — while
+    // a draft that will not read must never be quietly replaced by it.
+    return { problem: `there is no draft at ${path}`, missing: true }
   }
   const read = parseTemplate(name, text)
   if (!read.ok) return { problem: `${path}: ${joined(read.problems)}` }

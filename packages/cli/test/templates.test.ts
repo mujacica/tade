@@ -95,6 +95,31 @@ agents:
     expect(stdout).toContain('Dry-run it against the real tree before you publish it')
   })
 
+  // A fresh home has no `templates/drafts` at all, and every one Tade ships
+  // never has a draft: `check` used to refuse each of them over a file under
+  // it, which is what every installation saw.
+  it.each(['bug-repro-fix-review', 'research-then-plan'])(
+    'checks %s, which Tade ships, in a fresh home with no draft of it',
+    async (name) => {
+      const { code, stdout, stderr } = await tade('templates', 'check', name)
+      expect(stderr).toBe('')
+      expect(code).toBe(0)
+      expect(stdout).toContain(`${name}@1 has no draft: checking the one Tade ships`)
+      expect(stdout).toContain(`${name}@1 holds together`)
+      expect(stdout).not.toContain('before you publish it')
+    },
+  )
+
+  it('still refuses a draft that will not read rather than check the published one', async () => {
+    draft()
+    expect((await tade('templates', 'publish', 'mine')).code).toBe(0)
+    draft('template: [', 'mine')
+    const { code, stdout, stderr } = await tade('templates', 'check', 'mine')
+    expect(code).toBe(2)
+    expect(stderr).toContain('mine.yaml')
+    expect(stdout).not.toContain('holds together')
+  })
+
   it('refuses a draft with a cycle in it, naming who waits on whom', async () => {
     draft(DRAFT.replace('  - name: read', '    after: [{ agent: read, why: so }]\n  - name: read'))
     const { code, stderr } = await tade('templates', 'check', 'mine')

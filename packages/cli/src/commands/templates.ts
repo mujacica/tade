@@ -170,7 +170,19 @@ export function registerTemplates(program: Command, io: Io, setExit: (code: numb
       // The store's own answer, not a path built here: a second `join` on a
       // name from a command line is a second way out of the folder, even in a
       // message — and a message naming a file somewhere else reads as a bug.
-      const read = await readDraft(home, name)
+      let read = await readDraft(home, name)
+      if ('missing' in read) {
+        // No draft is what every template Tade ships looks like, and one only
+        // published: check the version there is rather than refuse over a
+        // file that was never going to be there.
+        const published = await readPublished(home, name)
+        if (!('problem' in published)) {
+          io.out(
+            `${name}@${published.template.version} has no draft: checking the ${published.builtIn ? 'one Tade ships' : 'published version'}`,
+          )
+          read = published
+        }
+      }
       if ('problem' in read) {
         io.err(read.problem)
         setExit(Exit.invalidInput)
@@ -192,6 +204,8 @@ export function registerTemplates(program: Command, io: Io, setExit: (code: numb
         return
       }
       io.out(`${name}@${draft.version} holds together.`)
+      // Only a draft has no hash, and only a draft is about to be published.
+      if (read.hash) return
       // The human rule, said where a human is about to decide. It is not in
       // the suite because nothing mechanical can check it against a tree that
       // has not been named yet.

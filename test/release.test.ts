@@ -2,9 +2,12 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, posix } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
+import { parsePersona } from '../packages/core/src/personas.ts'
+import { BUILT_IN_PERSONAS, BUILT_IN_TEMPLATES } from '../packages/core/src/templates-builtin.ts'
+import { parseTemplate } from '../packages/core/src/templates-store.ts'
 // The server's own reader of the browser's files, pointed at the staged tree
 // rather than at the checkout — which is the whole of what these two assert.
 import { assetFor, readAssets, WORKER_FILE } from '../packages/web/src/assets.ts'
@@ -161,6 +164,29 @@ describe('the publish directory', () => {
     // appears only after publishing.
     const assets = await readAssets(join(staged.out, 'packages/web/src/assets'))
     for (const name of assets.keys()) expect(name.endsWith('.ts'), name).toBe(false)
+  })
+
+  it('ships every workflow and persona Tade ships, as source and not as files', async () => {
+    // **No `.yaml` of Tade's is read at run time**: the shipped ones are
+    // constants in `templates-builtin.ts`, because staging copies only tracked
+    // files and renames nothing but `.ts`. So what a stranger's install must
+    // find is that module, stripped, holding the same bytes — imported here
+    // from the staged tree, which it can be because it imports nothing.
+    const at = join(staged.out, 'packages/core/src/templates-builtin.js')
+    const theirs = (await import(pathToFileURL(at).href)) as {
+      BUILT_IN_TEMPLATES: Record<string, string>
+      BUILT_IN_PERSONAS: Record<string, string>
+    }
+    expect(theirs.BUILT_IN_TEMPLATES).toEqual(BUILT_IN_TEMPLATES)
+    expect(theirs.BUILT_IN_PERSONAS).toEqual(BUILT_IN_PERSONAS)
+    for (const [name, text] of Object.entries(theirs.BUILT_IN_TEMPLATES)) {
+      const read = parseTemplate(name, text)
+      expect(read.ok ? [] : read.problems, name).toEqual([])
+    }
+    for (const [name, text] of Object.entries(theirs.BUILT_IN_PERSONAS)) {
+      const read = parsePersona(name, text)
+      expect(read.ok ? [] : read.problems, name).toEqual([])
+    }
   })
 
   it('brings the native modules it cannot work without', () => {

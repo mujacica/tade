@@ -4,6 +4,7 @@ import {
   publishTemplate,
   readDraft,
   readPersonas,
+  readPublished,
   readTemplates,
   removeWorkflowStep,
   type Template,
@@ -40,8 +41,12 @@ import { type Wiring, why } from './context.ts'
 
 export class Workflows {
   private readonly wire: Wiring
-  /** The template as last read, and which one it is. */
-  private read: { name: string; template: Template } | null = null
+  /**
+   * The template as last read, and which one it is. `snapshot` is why it
+   * cannot be edited when it is a published version rather than a draft —
+   * every one Tade ships, and one somebody published and has no draft of.
+   */
+  private read: { name: string; template: Template; snapshot: string | null } | null = null
   /** Every template there is, as last listed, for the rows down the left. */
   private listed: WorkflowRow[] = []
   private published: Record<string, readonly number[]> = {}
@@ -86,7 +91,13 @@ export class Workflows {
     }
     const scope: WorkflowScope =
       panel.row < 0 ? { kind: 'template' } : { kind: 'step', at: panel.row }
-    const checked = templateProblems(read.template, { personas: new Map() })
+    // A published version was checked when it was published, and its
+    // personas are folded into it or are Tade's own: checking it again here
+    // with none would refuse it for naming them.
+    const checked = read.snapshot
+      ? { problems: [], warnings: [] }
+      : templateProblems(read.template, { personas: new Map() })
+    const fields = workflowFields(read.template, scope)
     return {
       rows: this.listed.map((one) => ({
         ...one,
@@ -97,8 +108,8 @@ export class Workflows {
         panel.row < 0
           ? `${read.template.template} — the template`
           : `${read.template.template} › ${read.template.agents[panel.row]?.name ?? 'step'}`,
-      says: `v${read.template.version} draft`,
-      fields: workflowFields(read.template, scope),
+      says: `v${read.template.version} ${read.snapshot === null ? 'draft' : read.snapshot === SHIPPED ? 'built in' : 'published'}`,
+      fields: read.snapshot ? fields.map((one) => ({ ...one, off: read.snapshot ?? '' })) : fields,
       places: workflowPlaces(read.template),
       problems: checked.problems,
       warnings: checked.warnings,
@@ -139,17 +150,32 @@ export class Workflows {
   private async load(name: string, row: number): Promise<void> {
     const home = this.wire.opts.client.home
     const draft = await readDraft(home, name)
+    // **No draft is the ordinary state of every template Tade ships**, and of
+    // one somebody only published: the page shows that version, read only,
+    // rather than an error naming a file under `templates/drafts` that was
+    // never going to be there. A draft that is there and will not read is
+    // still said as a problem, never hidden behind the published version.
+    const published = 'missing' in draft ? await readPublished(home, name) : null
+    if (published && !('problem' in published)) {
+      this.read = {
+        name,
+        template: published.template,
+        snapshot: published.builtIn ? SHIPPED : PUBLISHED,
+      }
+      this.problem = null
+      this.steps(name, published.template.agents.length)
+      this.settle(name, row)
+      return
+    }
     if ('problem' in draft) {
       this.read = null
-      // A template with no draft is the ordinary case for one that is only
-      // published: said as what it is, with what to do about it, rather than
-      // drawn as an error.
-      this.problem = `${draft.problem}. A published version is immutable: copy it to a draft to change it`
+      // A draft that will not read, or a name with nothing under it at all.
+      this.problem = draft.problem
       this.steps(name, 0)
       this.settle(name, row)
       return
     }
-    this.read = { name, template: draft.template }
+    this.read = { name, template: draft.template, snapshot: null }
     this.problem = null
     this.steps(name, draft.template.agents.length)
     this.settle(name, row)
@@ -187,8 +213,13 @@ export class Workflows {
   /** One of the page's presses, carried out. */
   async from(panel: WorkflowPanel, choice: string): Promise<void> {
     try {
-      if (choice === 'publish') return await this.publish(panel)
       const read = this.read
+      // A published version is not edited or published again from here, and
+      // the reason is the one its fields already say.
+      if (read?.name === panel.template && read.snapshot) {
+        return this.said(panel, null, read.snapshot)
+      }
+      if (choice === 'publish') return await this.publish(panel)
       if (!read || read.name !== panel.template) return this.settle(panel.template, panel.row)
       const scope: WorkflowScope =
         panel.row < 0 ? { kind: 'template' } : { kind: 'step', at: panel.row }
@@ -211,7 +242,7 @@ export class Workflows {
         this.said(panel, null, written.problem)
         return
       }
-      this.read = { name: edit.template.template, template: edit.template }
+      this.read = { name: edit.template.template, template: edit.template, snapshot: null }
       // Removing the last step moves the form to the one before it; adding one
       // moves to what was added, because that is what somebody pressed + for.
       const row =
@@ -284,6 +315,12 @@ export class Workflows {
     await this.load(panel.template, panel.row)
   }
 }
+
+// Why a published version cannot be edited here, said on every field of it.
+const SHIPPED =
+  "Tade ships this one and its bytes are in Tade's own source: give yours another name"
+const PUBLISHED =
+  'a published version never changes: write a draft at the next version to change it'
 
 /** A row's own words: a template by its name, a step by its own. */
 function labelOf(row: WorkflowRow, template?: Template): string {

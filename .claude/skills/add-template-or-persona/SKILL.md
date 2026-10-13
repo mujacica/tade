@@ -140,6 +140,12 @@ has three to five steps with one shape, and a canvas is for a graph you do not a
   one-line field is where prose goes to die: the field says so and the edit is refused, because a
   field that quietly dropped every line after the first would be a form that edits an agent's
   instructions by deleting them.
+- **No draft is the ordinary state, not an error.** Every template Tade ships has none, ever, and
+  neither has one somebody only published — so whatever reads a draft (`readDraft`) falls back to
+  `readPublished` on `missing` and shows that version read only, every field `off` with the reason.
+  The window used to say `there is no draft at …/templates/drafts/<name>.yaml` for both shipped
+  ones on every machine. A draft that is there and **will not read** is never `missing`, and is said
+  rather than hidden behind the published version.
 - **Saving rewrites the draft file**, so a comment in it is not kept — said in the file's own header
   (`draftYaml`) rather than discovered. `writeDraft` writes drafts by absence: the path is the
   drafts directory and nothing passed in can move it.

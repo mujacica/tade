@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, parseTemplate } from '@tade/core'
+import { BUILT_IN_TEMPLATES, ConfigSchema, parseTemplate, publishTemplate } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type AppState, initialState } from '../../src/model.ts'
@@ -36,9 +36,9 @@ const DRAFT = [
   '      - { agent: reproduce, why: no fix before a failure }',
 ].join('\n')
 
-function wiring(over: { draft?: string } = {}) {
+function wiring(over: { draft?: string; fresh?: boolean } = {}) {
   const home = tmp('tade-workflows-')
-  mkdirSync(join(home, 'templates', 'drafts'), { recursive: true })
+  if (!over.fresh) mkdirSync(join(home, 'templates', 'drafts'), { recursive: true })
   if (over.draft !== undefined) {
     writeFileSync(join(home, 'templates', 'drafts', 'mine.yaml'), over.draft)
   }
@@ -123,10 +123,68 @@ describe('writing a stored workflow', () => {
     expect(w.view()?.places[1]?.why).toEqual([{ on: 'reproduce', why: 'no fix before a failure' }])
   })
 
-  it('says there is no draft of a template that is only published, and what to do', async () => {
+  it('says there is no draft of a template that is neither drafted nor published', async () => {
     const w = wiring()
     await w.open('mine')
-    expect(w.view()?.problem).toContain('A published version is immutable')
+    expect(w.view()?.problem).toContain('there is no draft at')
+  })
+
+  // **What every installation saw.** A fresh home has no `templates` folder,
+  // and a template Tade ships never has a draft — so the page opened on the
+  // first one and said there was no draft at a `.yaml` under
+  // `templates/drafts`, and told somebody to copy one that cannot be copied.
+  it('opens on every workflow Tade ships in a fresh home, read only, with nothing wrong', async () => {
+    const w = wiring({ fresh: true })
+    await w.open('')
+    const shipped = Object.keys(BUILT_IN_TEMPLATES)
+    expect(shipped.length).toBeGreaterThan(0)
+    expect(w.panel().template).toBe(shipped.sort()[0])
+    for (const name of shipped) {
+      await w.open(name)
+      const view = w.view()
+      const read = parseTemplate(name, BUILT_IN_TEMPLATES[name] ?? '')
+      if (!read.ok) throw new Error(read.problems.join('; '))
+      expect(view?.problem, name).toBeNull()
+      expect(view?.says).toBe(`v${read.template.version} built in`)
+      expect(view?.problems).toEqual([])
+      // Its steps are under it, and the preview draws them.
+      const steps = view?.rows.filter((row) => row.template === name && row.step >= 0)
+      expect(steps?.map((row) => row.label)).toEqual(read.template.agents.map((one) => one.name))
+      expect(view?.places.length).toBe(read.template.agents.length)
+      // Every field is shown and none can be changed, each saying why.
+      expect(view?.fields.length).toBeGreaterThan(0)
+      for (const field of view?.fields ?? []) expect(field.off).toContain('Tade ships this one')
+    }
+  })
+
+  it('refuses an edit to one Tade ships and writes no draft of it', async () => {
+    const w = wiring({ fresh: true })
+    await w.open('bug-repro-fix-review')
+    await w.click('add')
+    expect(w.panel().problem).toContain('Tade ships this one')
+    expect(existsSync(join(w.home, 'templates'))).toBe(false)
+  })
+
+  it('shows a version somebody published and has no draft of, read only', async () => {
+    const w = wiring({ draft: DRAFT })
+    const done = await publishTemplate({ home: w.home, name: 'mine', personas: new Map() })
+    expect(done.kind).toBe('published')
+    // The draft goes; the published version is what is left.
+    rmSync(join(w.home, 'templates', 'drafts', 'mine.yaml'))
+    await w.open('mine')
+    expect(w.view()?.problem).toBeNull()
+    expect(w.view()?.says).toBe('v1 published')
+    await w.click('remove')
+    expect(w.panel().problem).toContain('a published version never changes')
+    expect(existsSync(join(w.home, 'templates', 'drafts', 'mine.yaml'))).toBe(false)
+  })
+
+  it('says a draft that will not read, rather than show the published version over it', async () => {
+    const w = wiring({ draft: DRAFT })
+    await publishTemplate({ home: w.home, name: 'mine', personas: new Map() })
+    writeFileSync(join(w.home, 'templates', 'drafts', 'mine.yaml'), 'template: [')
+    await w.open('mine')
+    expect(w.view()?.problem).toContain('mine.yaml')
   })
 
   it('saves a field a letter at a time, and the file is what it says', async () => {
@@ -180,11 +238,18 @@ describe('writing a stored workflow', () => {
   })
 
   it('will not write a draft for a name Tade ships', async () => {
-    const w = wiring({ draft: DRAFT.replace('template: mine', 'template: bug-repro-fix-review') })
+    const w = wiring()
+    // A draft file under that name, put there by hand: it reads, and saving
+    // it is still refused, because the shipped one's bytes are in the source.
+    const file = join(w.home, 'templates', 'drafts', 'bug-repro-fix-review.yaml')
+    const text = DRAFT.replace('template: mine', 'template: bug-repro-fix-review')
+    writeFileSync(file, text)
     await w.open('bug-repro-fix-review')
-    // It will not even read as that template's draft: the name in the block
-    // must equal the file's.
-    expect(w.view()?.problem).toBeTruthy()
+    expect(w.view()?.says).toBe('v1 draft')
+    await w.press(undefined, 'X')
+    await w.press('tab')
+    expect(w.panel().problem).toContain("its bytes are in Tade's own source")
+    expect(readFileSync(file, 'utf8')).toBe(text)
   })
 
   it('asks before publishing, because a published version never changes', async () => {
