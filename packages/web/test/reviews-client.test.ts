@@ -9,6 +9,7 @@ import {
   heldSaid,
   holdOf,
   leadSaid,
+  leftSaid,
   omittedSaid,
   reviewOf,
   reviewsPage,
@@ -16,6 +17,7 @@ import {
   settledSaid,
   stagesOf,
   textTone,
+  wholeOf,
 } from '../src/assets/pages/reviews-shape.js'
 import { applySnapshot, emptyStore, reviewsOf } from '../src/assets/store.js'
 import type { TaskIn } from '../src/input.ts'
@@ -184,11 +186,17 @@ describe('a review’s checks at its head', () => {
 
 describe('the forge', () => {
   it('gives the review’s number where its link ends in one', () => {
-    expect(forgeOf({ state: 'open', url: url(412) })).toEqual({ href: url(412), number: '#412' })
+    expect(forgeOf({ state: 'open', url: url(412) })).toEqual({
+      href: url(412),
+      number: '#412',
+      said: 'Open review #412 on its forge, in a new tab',
+    })
     expect(
       forgeOf({ state: 'open', url: 'https://gitlab.invalid/acme/app/-/merge_requests/12/' }),
-    ).toEqual({ href: 'https://gitlab.invalid/acme/app/-/merge_requests/12/', number: '#12' })
-    expect(forgeOf({ state: 'open', url: 'https://forge.invalid/review/abc' })?.number).toBeNull()
+    ).toMatchObject({ number: '#12' })
+    const unnumbered = forgeOf({ state: 'open', url: 'https://forge.invalid/review/abc' })
+    expect(unnumbered?.number).toBeNull()
+    expect(unnumbered?.said).toBe('Open the review on its forge, in a new tab')
   })
 
   it('links nothing that is not https, and nothing this device was not sent', () => {
@@ -207,6 +215,7 @@ describe('one review, as its card says it', () => {
     const card = reviewOf(row(asking('a/you', 14)), NOW)
     expect(card.because).toBe('wants approval: Bash')
     expect(card.waitedSaid).toBe('14m')
+    expect(card.ageLabel).toBe('waiting 14m')
     expect(card.asksYou).toBe(true)
     expect(card.holdMark).toMatchObject({ word: 'Waiting on you', tone: 't-wants' })
   })
@@ -215,6 +224,7 @@ describe('one review, as its card says it', () => {
     const card = reviewOf(row(offered('a/red', 3, { checks: red(['tests']) })), NOW)
     expect(card.because).toBe('agent working')
     expect(card.waitedSaid).toBe('3m')
+    expect(card.ageLabel).toBe('moved 3m')
     expect(card.holdMark.tone).toBe('t-failed')
   })
 
@@ -222,6 +232,11 @@ describe('one review, as its card says it', () => {
     const one = offered('a/words', 1, { title: 'Let an alert fire on a percentage' })
     expect(reviewOf(row(one), NOW).words).toBe('Let an alert fire on a percentage')
     expect(reviewOf(row(one, []), NOW).words).toBeNull()
+  })
+
+  it('says no age, and labels none, for a task that never moved', () => {
+    const card = reviewOf(row(offered('a/still', 1, { movedAt: null })), NOW)
+    expect([card.waitedSaid, card.ageLabel]).toEqual([null, null])
   })
 
   it('freezes its age at the server’s last word when the page is not live', () => {
@@ -348,6 +363,31 @@ describe('the page', () => {
     expect(
       stagesOf(page([offered('a/m', 1, { review: { state: 'merged', url: url(2) } })])).after,
     ).toEqual({ n: 1, under: 'merged' })
+  })
+})
+
+describe('the page’s own state', () => {
+  it('draws nothing of its own while the first snapshot is coming, and says when it cannot come', () => {
+    expect(wholeOf(false, false, null)).toBeNull()
+    expect(wholeOf(false, true, null)).toMatchObject({ kind: 'error', icon: 'alert' })
+  })
+
+  it('says there are no reviews, and what would put one here, rather than drawing a blank', () => {
+    expect(wholeOf(true, false, page([]))).toMatchObject({ kind: 'empty', title: 'No reviews' })
+    // Commits and no review is still something to draw.
+    expect(wholeOf(true, false, page([task({ id: 'a/q', review: null, ahead: 1 })]))).toBeNull()
+    expect(wholeOf(true, false, page([offered('a/one', 1)]))).toBeNull()
+    // A machine that stopped answering after a snapshot keeps drawing what it sent.
+    expect(wholeOf(true, true, page([offered('a/one', 1)]))).toBeNull()
+  })
+
+  it('says the moment a dead page was true at, and what was not sent, under the lead', () => {
+    expect(leftSaid(false, NOW, 0)).toBeNull()
+    expect(leftSaid(true, NOW, 0)).toMatch(/^as of \d\d:\d\d$/)
+    expect(leftSaid(false, NOW, 2)).toBe(
+      '2 tasks not sent to this device, so any review of theirs is not here',
+    )
+    expect(leftSaid(true, NOW, 1)).toMatch(/^as of \d\d:\d\d · 1 task not sent/)
   })
 })
 

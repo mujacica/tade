@@ -20,9 +20,10 @@
 // besides. So the page says the threads were not read rather than drawing a
 // review with none.
 
-import { ageSaid } from '../figures.js'
+import { ageSaid, shortClockOf } from '../figures.js'
 import { reviewMark, rowMark } from '../glyphs.js'
 import { safeHref, taskPath } from '../routes.js'
+import { TROUBLES } from '../trouble.js'
 
 /**
  * What holds an open review, in the order the page says them: the first that
@@ -130,7 +131,13 @@ export function forgeOf(review) {
   const href = safeHref(review?.url ?? null)
   if (href === null) return null
   const last = new URL(href).pathname.split('/').filter(Boolean).at(-1) ?? ''
-  return { href, number: /^\d+$/.test(last) ? `#${last}` : null }
+  const number = /^\d+$/.test(last) ? `#${last}` : null
+  return {
+    href,
+    number,
+    // The press shows the number alone; this is what it is, for anybody listening.
+    said: `Open ${number === null ? 'the review' : `review ${number}`} on its forge, in a new tab`,
+  }
 }
 
 /**
@@ -191,6 +198,8 @@ export function reviewOf(task, asOf, frozen = false) {
     since,
     waited: since === null ? null : Math.max(0, asOf - Date.parse(since)),
     waitedSaid,
+    // How long, as it is heard: a wait on you is a wait, anything else a move.
+    ageLabel: waitedSaid === null ? null : `${hold === 'you' ? 'waiting' : 'moved'} ${waitedSaid}`,
     asksYou: hold === 'you',
   }
 }
@@ -292,4 +301,39 @@ export function settledSaid(n, open) {
 export function omittedSaid(omitted) {
   if (!(omitted > 0)) return null
   return `${plural(omitted, 'task')} not sent to this device, so any review of ${omitted === 1 ? 'it' : 'theirs'} is not here`
+}
+
+/** A region's state, as `stateBoxIn` takes it, with this page's mark unless it says. */
+function stateOf(kind, title, line, icon = 'reviews') {
+  return { kind, icon, title, line }
+}
+
+/**
+ * The page's own state, where there is nothing else to draw: nothing yet
+ * while the first snapshot is coming (a skeleton says that), could not reach
+ * the machine before one ever came, or nothing offered and nothing waiting to
+ * be — four answers, and never a blank. Null where the page has reviews.
+ */
+export function wholeOf(had, shut, page) {
+  if (!had) {
+    return shut ? stateOf('error', TROUBLES.offline.title, TROUBLES.offline.fix, 'alert') : null
+  }
+  if (page !== null && page.total > 0) return null
+  return stateOf(
+    'empty',
+    'No reviews',
+    'When an agent offers its branch for merge, it is drawn here with what holds it.',
+  )
+}
+
+/**
+ * The line under the lead: the moment a page that is not live was true at,
+ * and what this device was not sent — or null where it has nothing to say.
+ */
+export function leftSaid(frozen, asOf, omitted) {
+  const parts = [
+    frozen ? `as of ${shortClockOf(new Date(asOf).toISOString())}` : null,
+    omittedSaid(omitted),
+  ].filter(Boolean)
+  return parts.length === 0 ? null : parts.join(' · ')
 }

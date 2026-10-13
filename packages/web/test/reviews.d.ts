@@ -26,7 +26,7 @@ declare module '*/assets/pages/reviews-shape.js' {
     because: string
     review: string | null
     reviewMark: Mark
-    forge: { href: string; number: string | null } | null
+    forge: Forge | null
     agent: Mark
     checks: Checks
     branch: string | null
@@ -34,9 +34,12 @@ declare module '*/assets/pages/reviews-shape.js' {
     since: string | null
     waited: number | null
     waitedSaid: string | null
+    ageLabel: string | null
     asksYou: boolean
   }
+  type Forge = { href: string; number: string | null; said: string }
   type Part = { key: Hold; label: string; tone: string; n: number }
+  type State = { kind: 'loading' | 'empty' | 'error'; icon: string; title: string; line: string }
   type Page = {
     total: number
     open: number
@@ -59,7 +62,7 @@ declare module '*/assets/pages/reviews-shape.js' {
   export function textTone(tone: string): string
   export function holdOf(task: any): Hold | 'settled' | null
   export function checksRowOf(checks: any): Checks
-  export function forgeOf(review: any): { href: string; number: string | null } | null
+  export function forgeOf(review: any): Forge | null
   export function aheadSaid(ahead: number | null, behind: number | null): string | null
   export function reviewOf(task: any, asOf: number, frozen?: boolean): Card
   export function reviewsPage(
@@ -78,4 +81,6 @@ declare module '*/assets/pages/reviews-shape.js' {
   export function rowLine(card: Card): string
   export function settledSaid(n: number, open: boolean): string
   export function omittedSaid(omitted: number): string | null
+  export function wholeOf(had: boolean, shut: boolean, page: Page | null): State | null
+  export function leftSaid(frozen: boolean, asOf: number, omitted: number): string | null
 }

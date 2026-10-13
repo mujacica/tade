@@ -20,28 +20,23 @@
 import { mayFor } from '../access.js'
 import { stack, stackIn, toneIn } from '../charts.js'
 import { el, glyphOf, into, keyed, markIn, skeleton, textIn, toneOn, unknown } from '../dom.js'
-import { count, shortClockOf } from '../figures.js'
+import { count } from '../figures.js'
 import { icon } from '../icons.js'
 import { quickActs } from '../quick.js'
 import { section } from '../rows.js'
 import { omitted, reviewsOf, taskAt } from '../store.js'
-import { TROUBLES } from '../trouble.js'
 import { note, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
   figureSaid,
   heldSaid,
   leadSaid,
-  omittedSaid,
+  leftSaid,
   reviewsPage,
   rowLine,
   settledSaid,
   stagesOf,
+  wholeOf,
 } from './reviews-shape.js'
-
-/** A region's state, as `stateBoxIn` takes it, with this page's mark unless it says. */
-function stateOf(kind, title, line, mark = 'reviews') {
-  return { kind, icon: mark, title, line }
-}
 
 export function reviewsScreen(ctx = null) {
   const node = el('div')
@@ -106,12 +101,9 @@ export function reviewsScreen(ctx = null) {
       const shown = page !== null && page.total > 0
       lead.node.hidden = !shown
       scope.hidden = !shown || mayFor(store, 'tasks.review.url')
-      const gone = had ? omittedSaid(omitted(store, 'tasks')) : null
-      left.hidden = !shown || (gone === null && !view.frozen)
-      if (!left.hidden) {
-        const clock = view.frozen ? `as of ${shortClockOf(new Date(view.asOf).toISOString())}` : ''
-        sayLeft(left, [clock, gone].filter(Boolean).join(' · '))
-      }
+      const said = shown ? leftSaid(view.frozen, view.asOf, omitted(store, 'tasks')) : null
+      left.hidden = said === null
+      if (said !== null) sayLeft(left, said)
       if (!shown) {
         for (const one of regions) one.made.node.hidden = true
         return
@@ -124,22 +116,6 @@ export function reviewsScreen(ctx = null) {
       settled.fill(page.settled)
     },
   }
-}
-
-/**
- * The page's own state, when there is nothing to draw: coming, could not
- * reach, or nothing offered and nothing waiting to be — never a blank.
- */
-function wholeOf(had, shut, page) {
-  if (!had) {
-    return shut ? stateOf('error', TROUBLES.offline.title, TROUBLES.offline.fix, 'alert') : null
-  }
-  if (page.total > 0) return null
-  return stateOf(
-    'empty',
-    'No reviews',
-    'When an agent offers its branch for merge, it is drawn here with what holds it.',
-  )
 }
 
 /** The bar's word: what most wants the person, as a pill in its tone. */
@@ -343,17 +319,17 @@ function headIn(head, card) {
   head.setAttribute('href', card.href)
   textIn(name, card.name)
   textIn(project, card.project)
-  ageIn(age, card.waitedSaid, card.asksYou ? 'waiting' : 'moved')
+  ageIn(age, card.waitedSaid, card.ageLabel)
 }
 
 /**
  * How long, with its verb for anybody listening — and no label at all where
  * there is no moment, since a label on an empty span is one axe refuses.
  */
-function ageIn(node, said, verb) {
+function ageIn(node, said, label) {
   textIn(node, said ?? '')
-  if (said === null) node.removeAttribute('aria-label')
-  else node.setAttribute('aria-label', `${verb} ${said}`)
+  if (label === null) node.removeAttribute('aria-label')
+  else node.setAttribute('aria-label', label)
 }
 
 /**
@@ -400,10 +376,7 @@ function footIn(foot, card) {
   if (forge.getAttribute('href') !== card.forge.href) forge.setAttribute('href', card.forge.href)
   const [, n] = forge.children
   textIn(n, card.forge.number ?? 'forge')
-  forge.setAttribute(
-    'aria-label',
-    `Open ${card.forge.number === null ? 'the review' : `review ${card.forge.number}`} on its forge, in a new tab`,
-  )
+  forge.setAttribute('aria-label', card.forge.said)
 }
 
 /* ── commits and no review: quiet rows ────────────────────────────────────── */
@@ -455,7 +428,7 @@ function fillRow(item, row, mark, word) {
   link.setAttribute('href', row.href)
   markIn(glyph, { ...mark, word })
   textIn(name, `${row.project} / ${row.name}`)
-  ageIn(age, row.waitedSaid, 'moved')
+  ageIn(age, row.waitedSaid, row.ageLabel)
   textIn(line, rowLine(row))
 }
 
