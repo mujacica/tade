@@ -83,6 +83,9 @@ export class Earlier implements Subject {
 
   private async said(): Promise<Set<string>> {
     if (this.theirs) return this.theirs
+    // Unread, nothing under no heading is drawn as theirs: the safe way to
+    // be wrong, since a sentence of Tade's shown as somebody's is the one
+    // mistake this may never make.
     const events = await this.wire.opts.client
       .events({ types: ['said'], limit: SAID_LOOKED_AT })
       .catch(() => [])

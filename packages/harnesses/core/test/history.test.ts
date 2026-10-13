@@ -142,3 +142,12 @@ describe('a conversation read back from its end', () => {
     expect(await historyIn(path, { limit: 5, before: '0' }, read)).toEqual(NO_HISTORY)
   })
 })
+
+describe('a record that is there and could not be read', () => {
+  it('says so, rather than reading as a conversation with nothing in it', async () => {
+    // A folder where the file should be: there, and not readable as one.
+    await expect(historyIn(tmp('tade-history-'), { limit: 5 }, read)).rejects.toThrow(
+      /could not read/,
+    )
+  })
+})

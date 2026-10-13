@@ -78,6 +78,17 @@ describe('the conversation, when the window opens again', () => {
     expect(screen()).not.toContain('told the orchestrator: check the build')
   })
 
+  it('says a record it could not read, rather than drawing an empty conversation', async () => {
+    await start({
+      history: async () => {
+        throw new Error('could not read /x.jsonl: EACCES')
+      },
+    })
+    await until('the reason in the conversation', () =>
+      screen().includes('could not read what was said before'),
+    )
+  })
+
   it('starts empty, as it always did, with no record to read', async () => {
     await start()
     expect(screen()).not.toContain('said before this')

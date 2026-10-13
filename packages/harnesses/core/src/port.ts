@@ -681,8 +681,9 @@ export interface WorkerAdapter {
   /**
    * A page of what was said in a task's conversation, read out of the
    * harness's own record from its newest end (`historyIn`), so a surface that
-   * draws the conversation itself can show it again after a restart. Never
-   * throws: nothing recorded, or nothing it recognises, is an empty page.
+   * draws the conversation itself can show it again after a restart. Nothing
+   * recorded, or nothing it recognises, is an empty page; a record that is
+   * there and could not be read throws, because that is not an empty one.
    */
   history(task: TaskId, cwd: string, ask: HistoryAsk): Promise<HistoryPage>
   /** The models an agent of this harness can be started on, as it offers them. */

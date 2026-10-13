@@ -239,9 +239,8 @@ export function orchestratorHistory(
   return async (ask) => {
     adapter ??= adapterFor(opts)
     if (!adapter) return NO_HISTORY
-    return adapter
-      .history(ORCHESTRATOR_TASK, opts.cwd ?? process.cwd(), ask)
-      .catch(() => NO_HISTORY)
+    // A record that could not be read throws, and the window says so.
+    return adapter.history(ORCHESTRATOR_TASK, opts.cwd ?? process.cwd(), ask)
   }
 }
 

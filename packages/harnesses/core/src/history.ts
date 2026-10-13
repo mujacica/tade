@@ -86,9 +86,12 @@ const REACH = 8 * 1024 * 1024
  * A page of a JSONL record, read from its end: at least `limit` items, back to
  * the start of an exchange, ending before `before`.
  *
- * Never throws. A file that is not there, a cursor that does not fit it and a
- * line the harness's reader does not recognise are all a shorter answer — a
- * conversation that cannot be read is a gap, never an error.
+ * A file that is not there, a cursor that does not fit it and a line the
+ * harness's reader does not recognise are all a shorter answer: nothing of the
+ * conversation is there to show. A file that *is* there and could not be read
+ * throws, saying which — that is a conversation that could not be looked at,
+ * not one that is empty, and drawn as empty it is exactly the window that
+ * reopened on nothing.
  */
 export async function historyIn(
   file: string | null,
@@ -96,7 +99,10 @@ export async function historyIn(
   read: (line: string) => HistoryLine | null,
 ): Promise<HistoryPage> {
   if (!file) return NO_HISTORY
-  const handle = await open(file, 'r').catch(() => null)
+  const handle = await open(file, 'r').catch((err: NodeJS.ErrnoException) => {
+    if (err.code === 'ENOENT') return null
+    throw new Error(`could not read ${file}: ${err.message}`)
+  })
   if (!handle) return NO_HISTORY
   try {
     const size = (await handle.stat()).size
@@ -141,8 +147,8 @@ export async function historyIn(
     }
     const items = paired(lines.reverse().map((one) => one.line))
     return { items, earlier: start > 0 ? String(start) : null }
-  } catch {
-    return NO_HISTORY
+  } catch (err) {
+    throw new Error(`could not read ${file}: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
     await handle.close().catch(() => {})
   }
