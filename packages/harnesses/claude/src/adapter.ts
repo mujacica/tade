@@ -14,6 +14,7 @@ import {
 } from '@tade/core'
 import {
   type AccountStatus,
+  endHeadless,
   type HarnessAccount,
   type HarnessModel,
   type HarnessProbe,
@@ -988,14 +989,7 @@ export class ClaudeAdapter implements WorkerAdapter {
   async stop(run: RunId): Promise<void> {
     const entry = this.require(run)
     // A headless run is ours to end: its group, since it runs in its own.
-    const pid = entry.child?.pid
-    if (pid) {
-      try {
-        process.kill(-pid, 'SIGTERM')
-      } catch {
-        entry.child?.kill('SIGTERM')
-      }
-    }
+    if (entry.child) endHeadless(entry.child)
     // A lane is closed by whoever opened it; this lets go of the channel.
     await this.forget(entry)
   }
@@ -1014,9 +1008,20 @@ export class ClaudeAdapter implements WorkerAdapter {
     return [...this.runs.values()].map((run) => ({ ...run.handle }))
   }
 
-  /** Let go of every agent without ending it: they carry on in their lanes. */
+  /**
+   * Let go of every agent without ending it: they carry on in their lanes.
+   *
+   * A headless run has no lane to carry on in and nobody could find it again
+   * (`reaped`), so letting go of it is ending it. Left running, its pipes held
+   * this process open after the window closed, and its reaper ends it only
+   * once this process has gone: each waited on the other, and closing Tade
+   * took a second ctrl+c.
+   */
   async detach(): Promise<void> {
-    for (const run of [...this.runs.values()]) await this.forget(run)
+    for (const run of [...this.runs.values()]) {
+      if (run.child) endHeadless(run.child)
+      await this.forget(run)
+    }
   }
 
   async shutdown(): Promise<void> {

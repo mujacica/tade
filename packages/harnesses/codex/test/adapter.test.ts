@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -699,4 +699,50 @@ describe('what Codex is told, and what it says back', () => {
     })
     expect(told).toContain('nameless')
   })
+})
+
+describe('a turn Tade draws itself, when the window closes', () => {
+  /** A `codex` whose turn never ends by itself, and which writes down where it is. */
+  const stubborn = (): string => {
+    const bin = join(tmp('tade-codex-fake-'), 'codex')
+    writeFileSync(bin, '#!/bin/sh\necho $$ > "$0.pid"\nexec sleep 600\n')
+    chmodSync(bin, 0o755)
+    return bin
+  }
+  const alive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // A turn is a process of ours with no lane to carry on in: let go of rather
+  // than ended, its pipes held Tade open after its window had closed.
+  for (const how of ['detach', 'shutdown'] as const) {
+    it(`is ended on ${how}, because nobody could find it again`, async () => {
+      const bin = stubborn()
+      const one = new CodexAdapter({
+        runDir: tmp('tcx-'),
+        codexHome: tmp('tade-codex-account-'),
+        home: tmp('tade-codex-home-'),
+        bin,
+      })
+      const spec = {
+        run: 'tade/orchestrator/agent',
+        task: 'tade/orchestrator',
+        cwd: tmp('tade-codex-cwd-'),
+        prompt: '',
+      }
+      await one.start(spec)
+      await one.prompt(spec.run, 'where are we')
+      await until(() => existsSync(`${bin}.pid`))
+      const pid = Number(readFileSync(`${bin}.pid`, 'utf8'))
+      expect(alive(pid)).toBe(true)
+      await one[how]()
+      expect(await one.list()).toEqual([])
+      await until(() => !alive(pid))
+    })
+  }
 })

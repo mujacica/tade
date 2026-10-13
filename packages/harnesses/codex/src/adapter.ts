@@ -14,6 +14,7 @@ import {
 } from '@tade/core'
 import {
   type AccountStatus,
+  endHeadless,
   type HarnessAccount,
   type HarnessModel,
   type HarnessProbe,
@@ -723,7 +724,7 @@ export class CodexAdapter implements WorkerAdapter {
 
   async stop(run: RunId): Promise<void> {
     const entry = this.require(run)
-    if (entry.child) this.kill(entry.child)
+    if (entry.child) endHeadless(entry.child)
     // A lane is closed by whoever opened it; this lets go of the channel.
     await this.forget(entry)
   }
@@ -742,9 +743,18 @@ export class CodexAdapter implements WorkerAdapter {
     return [...this.runs.values()].map((run) => ({ ...run.handle }))
   }
 
-  /** Let go of every agent without ending it: they carry on in their lanes. */
+  /**
+   * Let go of every agent without ending it: they carry on in their lanes.
+   *
+   * A turn Tade draws itself is a process of ours with no lane to carry on
+   * in, so letting go of it is ending it: its pipes would hold this process
+   * open after the window closed (`endHeadless`).
+   */
   async detach(): Promise<void> {
-    for (const run of [...this.runs.values()]) await this.forget(run)
+    for (const run of [...this.runs.values()]) {
+      if (run.child) endHeadless(run.child)
+      await this.forget(run)
+    }
   }
 
   async shutdown(): Promise<void> {

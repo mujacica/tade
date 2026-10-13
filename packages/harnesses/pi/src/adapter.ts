@@ -13,6 +13,7 @@ import {
 } from '@tade/core'
 import {
   type AccountStatus,
+  endHeadless,
   type HarnessModel,
   type HarnessProbe,
   type HarnessSpend,
@@ -710,7 +711,7 @@ export class PiAdapter implements WorkerAdapter {
     // Null for an agent in a lane: the process is the lane's, and closing the
     // lane is what ends it. Killing it from here would leave the lane holding
     // a corpse.
-    if (entry.child) endProcess(entry.child)
+    if (entry.child) endHeadless(entry.child)
     await entry.channel?.close()
     this.runs.delete(run)
   }
@@ -739,6 +740,9 @@ export class PiAdapter implements WorkerAdapter {
    */
   async detach(): Promise<void> {
     for (const run of [...this.runs.values()]) {
+      // Except the one Tade draws itself: it has no lane to carry on in, and
+      // its pipes would hold this process open (`endHeadless`).
+      if (run.child) endHeadless(run.child)
       await run.channel?.close()
       run.pendingRpc.clear()
     }
@@ -973,16 +977,6 @@ export class PiAdapter implements WorkerAdapter {
  * worktree. A group that has already gone — or a platform without them —
  * falls back to the child, which is the outcome either way.
  */
-function endProcess(child: ChildProcess): void {
-  const pid = child.pid
-  if (pid === undefined) return
-  try {
-    process.kill(-pid, 'SIGTERM')
-  } catch {
-    child.kill()
-  }
-}
-
 /** Why pi went away, in its own words where it left any. */
 export function exitReason(code: number | null, stderr: string): string {
   const said = stderr

@@ -45,6 +45,7 @@ import { lookAtUpdates } from '@tade/workbench/programs'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { unsayOpening } from '../opening.ts'
+import { closeAll, endSoon, leftBehind, onSignals } from '../quitting.ts'
 import { reporterLater, reportJournal } from '../telemetry.ts'
 import { gather } from './setup-facts.ts'
 
@@ -370,6 +371,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // is (`Orchestrator.start`'s `signal`) rather than waited out and stopped.
       const quitting = new AbortController()
       let starting: Promise<void> = Promise.resolve()
+      // What closing gave up waiting for, the window's own and the rest.
+      const late: string[] = []
       try {
         let shouldReload = false
         const app = await App.start({
@@ -564,16 +567,20 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           starting = startThinker()
           await starting
         }
-        // Leaving the terminal in raw mode would outlive us, so stop on a
-        // signal the same way as on quitting.
-        const stop = () => void app.stop()
-        process.on('SIGINT', stop)
-        process.on('SIGTERM', stop)
+        // Leaving the terminal in raw mode would outlive us, so the first
+        // signal closes the window the same way as quitting. Any after it — or
+        // after a quit already under way — ends Tade there and then: the
+        // terminal is already back, and asking twice is never asking for a wait.
+        // Kept to the end, since a listener on SIGINT is what turns Node's off.
+        onSignals(
+          process,
+          () => void app.stop(),
+          () => process.exit(130),
+          () => app.closing,
+        )
         try {
-          await app.wait()
+          late.push(...(await app.wait()))
         } finally {
-          process.removeListener('SIGINT', stop)
-          process.removeListener('SIGTERM', stop)
           // The window has given the screen back, so the line said before it
           // took it is taken back too.
           unsayOpening()
@@ -590,26 +597,36 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         io.err(err instanceof Error ? err.message : String(err))
         setExit(Exit.error)
       } finally {
-        // Everything that can close at once does, rather than each waiting on
-        // the one before: the status child and Sentry take up to two seconds
-        // apiece. An orchestrator still starting is stopped under its start,
-        // which then settles at once — closing while it starts would otherwise
-        // leave a model process behind with nothing to talk to, or wait for one.
+        // Everything that can close at once does, each by one deadline rather
+        // than each waiting on the one before (`quitting.ts`). An orchestrator
+        // still starting is stopped under its start, which then settles at once
+        // — closing while it starts would otherwise leave a model process
+        // behind with nothing to talk to, or wait for one.
         quitting.abort()
         stopReporting()
-        await Promise.all([
-          starting.then(stopOrchestrator),
-          // Whoever started a server ends it: a window that closed is a window
-          // with no MCP client in it.
-          mcp.close().catch(() => {}),
-          tools.close().catch(() => {}),
-          looking.close(),
-          // What is queued has a moment to be sent, and never more than that.
-          report.close(),
-        ])
-        stopWatching()
-        // Last, and alone: lets go of the lanes; under tmux the agents carry on working.
-        await client.close().catch(() => {})
+        late.push(
+          ...(await closeAll({
+            together: [
+              { name: 'the orchestrator', close: () => starting.then(stopOrchestrator) },
+              // Whoever started a server ends it: a window that closed is a
+              // window with no MCP client in it.
+              { name: 'the MCP servers', close: () => mcp.close() },
+              { name: "the orchestrator's tools", close: () => tools.close() },
+              { name: 'the status child', close: () => looking.close() },
+            ],
+            between: stopWatching,
+            // Last, and alone: lets go of the lanes; under tmux the agents carry on working.
+            last: { name: 'the workbench', close: () => client.close() },
+            // What is queued has a moment to be sent, and never more than that.
+            meanwhile: [{ name: 'the reporter', close: () => report.close() }],
+          })),
+        )
+        const said = leftBehind(late)
+        if (said) io.err(said)
+        // Whatever still holds the process open now — a child somebody let go
+        // of without ending, a socket a reporter left — is not a reason to keep
+        // the terminal: everything has had its chance to close.
+        endSoon()
       }
     })
 }

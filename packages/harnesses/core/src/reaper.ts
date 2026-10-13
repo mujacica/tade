@@ -46,17 +46,29 @@ const end = (signal: NodeJS.Signals = 'SIGTERM') => {
   }
 }
 
-const looking = setInterval(() => {
-  if (alive(parent)) return
+/** How long a harness is given to go once told to, before it is made to. */
+const POLITE_MS = 5_000
+
+/**
+ * Tell the harness to go, and make it go if it has not by `POLITE_MS`: a
+ * harness that ignores SIGTERM is still a process nobody can reach. Said once,
+ * whoever asks first — Tade going, or Tade asking.
+ */
+let ending = false
+const goodbye = (signal: NodeJS.Signals = 'SIGTERM') => {
   clearInterval(looking)
-  end()
-  // Gone politely, or gone anyway: a harness that ignores SIGTERM is still a
-  // process nobody can reach.
+  end(signal)
+  if (ending) return
+  ending = true
   const forced = setTimeout(() => {
     end('SIGKILL')
     process.exit(0)
-  }, 5_000)
+  }, POLITE_MS)
   forced.unref?.()
+}
+
+const looking = setInterval(() => {
+  if (!alive(parent)) goodbye()
 }, LOOK_MS)
 
 child.on('exit', (code, signal) => {
@@ -70,8 +82,5 @@ child.on('error', (err) => {
 
 // Asked to stop, it stops what it started: never leaving the harness behind.
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
-  process.on(signal, () => {
-    clearInterval(looking)
-    end(signal)
-  })
+  process.on(signal, () => goodbye(signal))
 }

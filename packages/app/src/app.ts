@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal } from '@earendil-works/pi-tui'
-import { type Arming, attentionFor, titlesOf } from '@tade/core'
+import { type Arming, attentionFor, closeBy, titlesOf } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -75,6 +75,9 @@ import { Window } from './wire/window.ts'
 // nothing outside the package has to know that they moved.
 export type { AppOptions, Thinker, WorkerImageFile } from './wire/context.ts'
 
+/** How long the window's own closes may take, of the second quitting has (`quitting.ts`). */
+const STOP_MS = 300
+
 export class App {
   private readonly opts: AppOptions
   private readonly terminal: Terminal
@@ -89,8 +92,8 @@ export class App {
   private readonly repaint = new Repaint()
   private release: (() => void) | null = null
   private stopped = false
-  private settle: () => void = () => {}
-  private readonly closed: Promise<void>
+  private settle: (late: string[]) => void = () => {}
+  private readonly closed: Promise<string[]>
   /**
    * What the subjects are handed: the five names every one of them needs, and
    * nothing else. Built once, over `this`, so a subject reads the state as it
@@ -537,9 +540,14 @@ export class App {
     })
   }
 
-  /** Resolves when the window has been closed. */
-  wait(): Promise<void> {
+  /** Resolves when the window has been closed, with what it gave up waiting for. */
+  wait(): Promise<string[]> {
     return this.closed
+  }
+
+  /** Whether the window is closing or closed, however that began. */
+  get closing(): boolean {
+    return this.stopped
   }
 
   /** What goes with the prompt of an agent the orchestrator starts: what you attached (`Images`). */
@@ -567,10 +575,17 @@ export class App {
     // the TUI, but whatever was painted before it goes back is a half-window
     // stranded in your scrollback.
     this.terminal.clearScreen()
-    await this.voice.stop()
-    await this.away.stop()
-    await this.live?.stop()
-    this.settle()
+    // Side by side, by one moment: a listener or a look that never answers is
+    // named on the way out, never what keeps the prompt from coming back.
+    const late = await closeBy(
+      [
+        { name: 'the voice', close: () => this.voice.stop() },
+        { name: 'the away view', close: () => this.away.stop() },
+        { name: 'the status look', close: () => this.live?.stop() },
+      ],
+      Date.now() + STOP_MS,
+    )
+    this.settle(late)
   }
 
   private async begin(): Promise<void> {

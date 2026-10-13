@@ -835,6 +835,13 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
   one pure place (`escapeMeans`) and is always exactly **one** thing: a panel, then whatever else has the
   keyboard (pi interrupts its own agent on escape and a shell's editor wants it too), then a history
   search, then the turn, then stepping off the line — which only ever happens with nothing on it to lose.
+- **Closing gives the prompt back in about a second, and a second ctrl+c is never asked to wait.**
+  Everything on the way out — `App.stop`'s own closes, then `closeAll` in `cli/src/quitting.ts` — is
+  closed side by side by one moment (`closeBy`, core). Whatever is late is named on stderr and not
+  waited for, and anything still holding the process open after that is not a reason to keep the
+  terminal (`endSoon`). A close you add goes in one of those lists, never as a bare `await`. Once
+  closing has begun, any signal ends Tade at once (`onSignals`), because a SIGINT listener is what turns
+  Node's own answer off. `quitting.test.ts` times a real process with everything hung.
 - **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):
   `appKey` names them, `keyAction` gives them meaning, the shortcuts sheet and Shortcuts settings read the
   same list. A new shortcut is a binding there, never a literal key in `app.ts`.

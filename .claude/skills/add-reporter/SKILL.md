@@ -78,8 +78,10 @@ extension can watch Tade and hand an agent its own bug. It is off until someone 
   inside it, the model and the tokens on it. **Never from the journal**, which knows when a turn ended
   but not when the agent was waiting to be asked. Sampling is the reporter's one decision: turns are
   always kept, Tade's own work is kept at `telemetry.traces`.
-- **Never block.** `flush(ms)` gives up after `ms`; `close()` gets two seconds on the way out and
-  no more. Nothing waits on a network to draw a frame or to quit.
+- **Never block.** `flush(ms)` gives up after `ms`; `close()` asks for two seconds, and the window
+  gives it what is left of quitting's one second (`QUIT_MS`, `cli/src/quitting.ts`) and no more:
+  past that the reporter is named on stderr and the process ends. Nothing waits on a network to
+  draw a frame or to quit.
 - **Off is the default, and it is a working reporter.** `openReporter` answers `none` when there is
   no DSN, so call sites report without asking first whether anyone is listening.
 - **One place decides.** `reporterFor` in the CLI reads the config and the environment; everything

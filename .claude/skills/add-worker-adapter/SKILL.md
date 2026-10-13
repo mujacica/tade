@@ -276,7 +276,10 @@ asked by name:
   than drawing a terminal (pi's `--mode rpc`, Claude Code's `-p --input-format stream-json`).
   `start(spec)` maps that protocol to the same signals a lane agent sends, deltas included: the
   window draws the conversation itself. Spawn it through `reaped()` — it has no lane to carry on
-  in, so it must not outlive Tade even when Tade is killed outright.
+  in, so it must not outlive Tade even when Tade is killed outright. And **`detach()` ends it**,
+  with `endHeadless`, as `shutdown()` does: "let go" is for a lane's agent. A headless child only
+  forgotten keeps its pipes open, so Tade's process cannot end, while its reaper waits for Tade to
+  end before ending it — the quit that needed a second ctrl+c. Each adapter's test holds it.
 - **`capabilities.mcp` or `capabilities.nativeExtensions`** — some way to be handed Tade's own
   tools. They are declared once in `orchestratorTools` and served to pi as registered tools and to
   an MCP-speaking harness by `tools-mcp.ts`; an adapter never declares a tool of its own.
