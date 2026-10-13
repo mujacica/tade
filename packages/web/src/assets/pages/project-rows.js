@@ -155,7 +155,9 @@ export function fillBranch(node, one, most) {
   const mark = one.review === null ? null : reviewMark(one.review)
   review.hidden = mark === null && !((one.ahead ?? 0) > 0)
   textIn(review, mark === null ? 'not offered' : mark.word)
-  toneOn(review, mark === null ? '' : mark.tone)
+  // A quiet word (draft, closed) is the plain pill: the quiet grey is under AA
+  // at a pill's size on a wash of itself, and saying nothing loud is its point.
+  toneOn(review, mark === null || mark.tone === 't-quiet' ? '' : mark.tone)
   const share = (n) => `${armOf(n, most)}%`
   const [behind, ahead] = bar.children
   behind.style.setProperty('--w', share(one.behind))

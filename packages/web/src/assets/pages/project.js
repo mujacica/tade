@@ -253,8 +253,11 @@ export function projectScreen(where, ctx) {
       )
 
       // The agents: what is still in play, and what is over behind a count.
-      textIn(agents.figure, list.all.length === 0 ? '' : String(list.all.length))
-      agents.figure.setAttribute('aria-label', countSaid(list.all.length, 'agent', 'agents'))
+      figureSaid(
+        agents.figure,
+        list.all.length === 0 ? '' : String(list.all.length),
+        countSaid(list.all.length, 'agent', 'agents'),
+      )
       agentsView.update(
         list.live,
         list.over,
@@ -281,11 +284,11 @@ export function projectScreen(where, ctx) {
 
       // The queue: a graph where there is the width, an outline where there is not.
       const paused = queuePaused(queued)
-      textIn(
+      figureSaid(
         queue.figure,
         queued.length === 0 ? '' : paused ? `${queued.length} · paused` : String(queued.length),
+        `${queued.length} queued${paused ? ', paused' : ''}`,
       )
-      queue.figure.setAttribute('aria-label', `${queued.length} queued${paused ? ', paused' : ''}`)
       graph.hidden = queued.length === 0
       outline.hidden = queued.length === 0
       if (queued.length > 0) flowIn(graph, graphOf(store, where.project), 'right')
@@ -354,11 +357,21 @@ const stateOf = (kind, title, line = null, drawn = undefined) => ({
   icon: drawn,
 })
 
+/**
+ * A section's figure, and the words for it read aloud — **only while it says
+ * something**: a label on an empty `<span>` is a name for nothing, which axe
+ * refuses (`aria-prohibited-attr`).
+ */
+function figureSaid(node, said, label) {
+  textIn(node, said)
+  if (said === '') node.removeAttribute('aria-label')
+  else if (node.getAttribute('aria-label') !== label) node.setAttribute('aria-label', label)
+}
+
 /** A count that is somebody's to act on, worn as a tag of its tone beside the heading. */
 function tagIn(node, n, tone, noun) {
-  textIn(node, n === 0 ? '' : String(n))
+  figureSaid(node, n === 0 ? '' : String(n), `${n} ${noun}`)
   toneOn(node, n === 0 ? '' : tone)
-  node.setAttribute('aria-label', `${n} ${noun}`)
 }
 
 /* ── the lead ──────────────────────────────────────────────────────────────── */
