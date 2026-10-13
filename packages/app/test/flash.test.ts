@@ -77,7 +77,21 @@ describe('an acknowledgement', () => {
     const rule = stripTerminalSequences(
       draw(window(), frame(120, { flash: 'copied ~/app/README.md' })).rows.at(-2) ?? '',
     )
-    expect(rule).toMatch(/^── {2}copied ~\/app\/README\.md {2}─+$/)
+    expect(rule).toMatch(/^── copied ~\/app\/README\.md ─+$/)
+  })
+
+  it('is ink on the rule and never a block sitting on the buttons under it', () => {
+    const at = { ...frame(120), skin: COLOUR }
+    const plain = draw(window(), at)
+    const flashed = draw(window(), { ...at, flash: 'opened tade/boot-splash where it left off' })
+    const rule = flashed.rows.at(-2) ?? ''
+    expect(stripTerminalSequences(rule)).toContain('opened tade/boot-splash where it left off')
+    // A ground is `48;5;n`: the buttons under it each have one, the rule none.
+    expect(rule).not.toContain('\x1b[48;5;')
+    expect(flashed.rows.at(-1)).toContain('\x1b[48;5;')
+    // The buttons are where they were, drawn the same, flash or none.
+    expect(flashed.rows.at(-1)).toBe(plain.rows.at(-1))
+    expect(flashed.rows.at(-3)).toBe(plain.rows.at(-3))
   })
 
   it('says as much of itself as fits, and says that it was cut', () => {

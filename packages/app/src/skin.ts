@@ -144,7 +144,7 @@ export interface Skin {
   toggle(on: boolean, state: SwitchState): string
   /** The microphone is open. */
   transmit(text: string): string
-  /** An acknowledgement, for a moment (`flash.ts`). Pass the spaces you want inside. */
+  /** An acknowledgement, for a moment (`flash.ts`): ink only, never a ground. */
   flash(text: string): string
 
   /**
@@ -726,8 +726,9 @@ export const COLOUR: Skin = {
   // The microphone open, said on the red: dark letters, because that is what
   // the red carries. White on it is 3:1 and was the worst-read thing drawn.
   transmit: paint(`${bg(TONE.red)}${fg(inkOn(TONE.red))}${BOLD}`),
-  // Done, said on the green the way the microphone is said on the red.
-  flash: paint(`${bg(TONE.green)}${fg(inkOn(TONE.green))}`),
+  // Done, said in the green `done` is said in, and on no ground: it is drawn in
+  // the rule straight over the foot's buttons, and a block there sat on them.
+  flash: paint(`${fg(TONE.green)}${BOLD}`),
   item: (row, band) => {
     if (!band) return ` ${row} `
     const ground = TAB_GROUNDS[band]

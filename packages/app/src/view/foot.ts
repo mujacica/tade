@@ -674,12 +674,18 @@ export function renderFoot(
  * Nothing is drawn on it and nothing on it is pressed, so what is said there
  * covers no control and moves no row, at any width; and it is the edge of the
  * window, where the eye goes for what just happened.
+ *
+ * Said in the rule's own words, ink and no ground. The row under it is the
+ * buttons, each a block of ground the height of a cell, and a flash on a green
+ * block of its own sat flush on them — read as a fifth button, or a banner
+ * over the four. A row of space between the two would be bought on every frame
+ * for a moment's flash, and one that came and went with it would move the row.
  */
 function ruled(flash: string | null, width: number, skin: Skin): string {
   const lead = '── '
   if (!flash || width < widthOf(lead) + 8) return skin.chrome('─'.repeat(width))
   // A column for the space after it and one for the rule it runs back into.
-  const said = shortened(` ${flash} `, width - widthOf(lead) - 2)
+  const said = shortened(flash, width - widthOf(lead) - 2)
   const rest = Math.max(0, width - widthOf(lead) - widthOf(said))
   return `${skin.chrome(lead)}${skin.flash(said)}${skin.chrome(` ${'─'.repeat(Math.max(0, rest - 1))}`)}`
 }
