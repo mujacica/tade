@@ -6,6 +6,7 @@ import {
   type Arm,
   type Config,
   ConfigSchema,
+  finishedFrom,
   type GitSnapshot,
   LOCAL,
   type Queued,
@@ -281,7 +282,9 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     },
     queueFacts: () => ({
       tasks: new Map(),
-      finished: new Map(),
+      // Folded from the whole journal, as `Live` folds it: an empty map here
+      // would be a window that never saw anything finish.
+      finished: finishedFrom(events),
       events,
       now: Date.now(),
     }),

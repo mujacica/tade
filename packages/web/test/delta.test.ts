@@ -110,6 +110,7 @@ describe('what changed', () => {
     expect(Object.keys(delta?.set.tasks ?? {})).toEqual(['sentry/away-projection'])
     expect(delta?.set.tasks?.['sentry/away-projection']).toEqual({
       state: 'review',
+      mark: 'done',
       reason: '2 commits, tests unknown',
     })
   })

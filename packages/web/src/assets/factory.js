@@ -25,6 +25,7 @@
 // Nothing here decides a state, a count or a reason: all of it came off the
 // wire already derived.
 
+import { mayFor } from './access.js'
 import { afterAnswer, bodyFor, standingOf, wordsFor } from './acts.js'
 import { classOn, el, glyphOf, into, keyed, markIn, proseOf, textIn } from './dom.js'
 import { ageSaid, count, untilSaid } from './figures.js'
@@ -32,7 +33,7 @@ import { intakeMark, sourceMark } from './glyphs.js'
 import { nothingSaid } from './pages.js'
 import { pathOf, requestPath, safeHref, taskPath } from './routes.js'
 import { createLocally, dl, dlIn, fillLocally, rowFor, sayIn, section } from './rows.js'
-import { intakeAt, intakeOf, intakeWaiting, mayRead, omitted, sourcesOf } from './store.js'
+import { intakeAt, intakeOf, intakeWaiting, omitted, sourcesOf } from './store.js'
 import { answerIn, panel } from './ui.js'
 
 /* ── what has been handed over ─────────────────────────────────────────────── */
@@ -293,7 +294,7 @@ export function factsOf(row, view) {
     [
       'asked by',
       row.who === null
-        ? mayRead(view.store, 'requests')
+        ? mayFor(view.store, 'intake.title')
           ? '—'
           : 'not granted'
         : `@${row.who.words}`,
@@ -377,7 +378,7 @@ export function materialIn(nodes, row, view) {
     has
       ? ''
       : (row.materialSays ??
-          nothingSaid(mayRead(view.store, 'material'), 1, 'nothing was written down')),
+          nothingSaid(mayFor(view.store, 'intake.material'), 1, 'nothing was written down')),
   )
 }
 

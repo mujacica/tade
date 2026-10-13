@@ -22,6 +22,7 @@ import {
 import { AWAY_CONTROLS, AWAY_LABELS } from '../panels/away/state.ts'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
 import type { Panel } from '../panels.ts'
+import { BOXES, ticked } from './web-boxes.ts'
 import { RUNS, SEES } from './web-grants.ts'
 
 // What the pairing panel draws, and where a phone should go to reach this
@@ -234,13 +235,14 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       from: whereFrom(one.from, one.host, MACHINE),
       pairedAt: one.pairedAt,
       reads: readsOf(reachOf(one)),
-      mayAct: one.scopes.some((scope) => scope === 'answer' || scope === 'steer'),
-      mayTalk: one.scopes.includes('ask'),
-      maySee: one.granted.includes('lanes'),
-      mayStop: one.scopes.includes('agents'),
-      mayClose: one.scopes.includes('projects'),
-      mayReadSettings: one.granted.includes('settings'),
-      mayConfigure: one.scopes.includes('configure'),
+      // Each box ticked by the table that says what pressing it writes (`BOXES`).
+      mayAct: ticked(one, BOXES.act),
+      mayTalk: ticked(one, BOXES.talk),
+      maySee: ticked(one, BOXES.see),
+      mayStop: ticked(one, BOXES.agents),
+      mayClose: ticked(one, BOXES.projects),
+      mayReadSettings: ticked(one, BOXES.settings),
+      mayConfigure: ticked(one, BOXES.configure),
       full:
         GRANTS.every((grant) => one.granted.includes(grant)) &&
         SCOPES.every((scope) => one.scopes.includes(scope)),

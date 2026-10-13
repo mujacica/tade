@@ -24,13 +24,14 @@
 // Hidden below its width by the stylesheet alone, so a tablet turned on its
 // side gains the dock without anything here knowing.
 
+import { mayFor } from './access.js'
 import { runsOn } from './agents.js'
 import { classOn, el, empty, glyphOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
 import { count } from './figures.js'
-import { CHAT_KINDS, taskMark } from './glyphs.js'
+import { CHAT_KINDS, rowMark, taskMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { navFor, pathOf, taskPath } from './routes.js'
-import { agentsOf, chatOf, mayRead, projectsOf, talkOf } from './store.js'
+import { agentsOf, chatOf, projectsOf, talkOf } from './store.js'
 import { composerOf, saidOn, whoSaid } from './talk.js'
 
 /** How many lines of the conversation the dock shows: the exchange that just happened. */
@@ -212,7 +213,7 @@ function fillAgent(node, task, on) {
   link.setAttribute('href', taskPath(task.id))
   if (task.id === on) link.setAttribute('aria-current', 'page')
   else link.removeAttribute('aria-current')
-  markIn(glyph, taskMark(task.state))
+  markIn(glyph, rowMark(task))
   textIn(name, task.name)
   textIn(runs, runsOn(task))
   classOn(link, 'stalled', task.stalled)
@@ -230,7 +231,7 @@ function stripIn(made, view) {
   const there = navFor(view.where) === 'talk'
   made.node.hidden = there
   if (there) return
-  const may = mayRead(view.store, 'talk')
+  const may = mayFor(view.store, 'chat')
   const talk = talkOf(view.store)
   const shown = may ? chatOf(view.store).slice(-STRIP_LINES) : []
   keyed(made.lines, shown, (line) => line.id, createLine, fillLine)

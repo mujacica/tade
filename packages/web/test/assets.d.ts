@@ -77,12 +77,20 @@ interface Mark {
   tone: string
 }
 
+declare module '*/assets/access.js' {
+  export const WITHHOLDS: Readonly<Record<string, readonly string[]>>
+  export function grantOf(path: string): string | null
+  export function mayFor(store: Record<string, any>, path: string): boolean
+}
+
 declare module '*/assets/glyphs.js' {
   export const TASK_STATES: Readonly<Record<string, Mark>>
   export const CHECK_STATES: Readonly<Record<string, Mark>>
   export const REVIEW_STATES: Readonly<Record<string, Mark>>
   export const FRESH_MARKS: Readonly<Record<string, Mark>>
   export function taskMark(state: string): Mark
+  export const AGENT_MARKS: Readonly<Record<string, Mark>>
+  export function rowMark(task: { state?: string; mark?: string }): Mark
   export function checkMark(state: string): Mark
   export function reviewMark(state: string): Mark
   export function findingMark(finding: unknown): Mark
@@ -143,8 +151,6 @@ declare module '*/assets/store.js' {
   export function applyDelta(store: Store, delta: unknown): string | null
   export function rowsOf(store: Store, collection: string): readonly any[]
   export function wantsYou(store: Store): readonly any[]
-  export const IDLE_REASON: string
-  export function needsYou(task: unknown): boolean
   export function wantingIds(store: Store): Set<string>
   export function projectsOf(store: Store): readonly any[]
   export function tasksIn(store: Store, project: string): readonly any[]

@@ -1,4 +1,4 @@
-import { IDLE_REASON, type PlanStanding, type Spend } from '@tade/core'
+import type { PlanStanding, Spend } from '@tade/core'
 import { projectRev, taskRev } from './acting.ts'
 import {
   type IntakeIn,
@@ -95,22 +95,14 @@ export function reasonOf(reason: ReasonIn): string {
 }
 
 /**
- * Whether a task is waiting on a decision of yours — the one flag this file
- * derives rather than reads, and **by the window's own rule** (`markOf` in the
- * app's model), so the count on a phone is the count on the screen at the
- * machine: an approval waiting, a turn that ended on something to decide, or
- * an agent that failed. Not an agent idle at its prompt — it finished its turn
- * and is waiting to be told something, which is no decision — and not one in
- * `review` or already finished, which the window draws as done.
+ * Whether a task is waiting on a decision of yours: the window's own mark
+ * (`markOf`), carried on the row, so the count on a phone is the count on the
+ * screen at the machine — an approval waiting, a turn that ended on something
+ * to decide, or an agent that failed, and never one idle at its prompt or one
+ * the journal says is finished.
  */
-export function wantsYou(
-  task: Pick<TaskIn, 'state' | 'reason' | 'approval' | 'finished'>,
-): boolean {
-  if (task.approval !== null) return true
-  if (task.finished && task.state !== 'working' && task.state !== 'parked') return false
-  if (task.state === 'failed') return true
-  if (task.state !== 'blocked') return false
-  return !(task.reason.kind === 'clause' && task.reason.said === IDLE_REASON)
+export function wantsYou(task: Pick<TaskIn, 'mark'>): boolean {
+  return task.mark === 'needs-you'
 }
 
 function spendOf(spend: Spend): SpendOut {
@@ -156,6 +148,7 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     project: task.project,
     name: task.id.slice(task.project.length + 1) || task.id,
     state: task.state,
+    mark: task.mark,
     reason: reasonOf(task.reason),
     stalled: task.stalled,
     parked: task.parked,

@@ -61,6 +61,8 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
+| **where** a grant withholds, and what a page says *not granted* about | `WITHHOLDS` in `src/reach.ts` — one line per place on the wire; `test/withholds.test.ts` takes each grant away and asserts the snapshot changes there and nowhere else. The page asks by path (`mayFor(store, 'plans')`, `src/assets/access.js`, a copy held equal), never by a grant's name, so a new gate is a line here or the test fails |
+| what a box in the panel grants | `BOXES` in `packages/app/src/wire/web-boxes.ts`: each box's scopes, the reading grants that go with them and the places its page draws — ticked only when it has all of them (`ticked`), so `talk to Tade` carries the conversation and `change settings` the settings |
 | the credential | `src/sessions.ts` |
 | the device list | `src/devices.ts` — `<home>/web-devices.jsonl` |
 | the headers and the content policy | `src/headers.ts` |
@@ -80,6 +82,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | a screen | `src/assets/overview.js` (the landing), `screens.js` (a project, a task), `spend.js` (the money), `pages.js` (lists), `factory.js` (what was handed over), `runs.js` (a run's graph) or `designer.js` (the workflows), plus a route in `src/routes.ts` **and** a view in `src/assets/routes.js` |
 | what a figure says | `src/assets/figures.js` — money, tokens, ages, plan bars |
 | what a state looks like | `src/assets/glyphs.js` — glyph, word and tone, never colour alone |
+| what an agent's state is | `markOf` in `@tade/core`'s `mark.ts` — the window's own rule, computed over its panes and carried on each row as `mark`; the page draws `rowMark(task)` and derives nothing. `finished` is `Live`'s whole-journal fold, never `live.events` |
 | the delta merge and the selectors | `src/assets/store.js` |
 | the router, the stream, the keyboard | `src/assets/boot.js` |
 | the browser, a11y and visual harness | `scripts/browser.ts` + `test/browser-plan.ts`; the desk and `lanes` in `scripts/browser-desk.ts` |

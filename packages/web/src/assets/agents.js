@@ -22,7 +22,7 @@
 
 import { classOn, el, empty, glyphOf, into, keyed, markIn, stateIn, textIn, toneOn } from './dom.js'
 import { ageSaid, count } from './figures.js'
-import { taskMark } from './glyphs.js'
+import { rowMark, taskMark } from './glyphs.js'
 import { taskPath } from './routes.js'
 import { section } from './rows.js'
 import { agentsOf, omitted } from './store.js'
@@ -169,7 +169,7 @@ export function fillAgentRow(node, task, view) {
   const [link] = node.children
   const [glyph, name, aside, runs, why] = link.children
   link.setAttribute('href', taskPath(task.id))
-  markIn(glyph, taskMark(task.state))
+  markIn(glyph, rowMark(task))
   stateIn(link, task.state)
   textIn(name, task.name)
   const age = ageSaid(task.movedAt, view.asOf, view.frozen)

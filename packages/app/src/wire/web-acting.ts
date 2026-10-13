@@ -14,6 +14,7 @@ import {
   type Device,
   type DoneCall,
   type From,
+  grantDevice,
   type IntakeCall,
   Moved,
   type NoteCall,
@@ -42,6 +43,7 @@ import {
   ParkMovedOn,
 } from '@tade/workbench'
 import type { Steering } from '../away.ts'
+import { BOXES, readsAfter, ticked } from './web-boxes.ts'
 import type { LifecycleActing, LifecycleDeps } from './web-lifecycle.ts'
 
 // The window's end of acting: what a verb actually does, and the one door a
@@ -601,6 +603,8 @@ async function rowOf(deps: ActingDeps, task: string): Promise<InboxRow | null> {
 export interface Granted {
   /** What that device may do now, in full. */
   scopes: readonly string[]
+  /** What it may read now, in full, where the box wrote that too (`BOXES`). */
+  reads?: readonly string[]
   /** Tade's own sentence for the strip. */
   said: string
 }
@@ -653,7 +657,7 @@ export async function letOneAct(
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
-  const may = device.scopes.some((scope) => scope === 'answer' || scope === 'steer')
+  const may = ticked(device, BOXES.act)
   // **`read` is never taken away here, and neither is anything this control
   // does not decide.** Widening what one device may do and signing it out are
   // different acts, and only the first of them is this control; a grant
@@ -674,7 +678,8 @@ export async function letOneAct(
  * its own control: eight bounded verbs, and free text to a model that holds
  * tools. A person who granted the first has not answered the second.
  *
- * What it grants is `ask` and nothing else. What a turn sent under it may
+ * What it grants is `ask` and the conversation it is about (`BOXES.talk`),
+ * and nothing that changes anything. What a turn sent under it may
  * *do* is read off the `answer` and `steer` scopes the act control writes
  * (`armFor`), so a device that may talk and may not act is answered in words
  * and changes nothing — and there is no third list of the same decision.
@@ -689,12 +694,18 @@ export async function letOneTalk(
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
-  const may = device.scopes.includes('ask')
+  // Ticked only with the conversation too (`BOXES.talk`): a device that may
+  // ask and may not read what came back has a composer and *Not granted*.
+  const may = ticked(device, BOXES.talk)
   const scopes = kept(device, ['ask'], !may)
-  await allowDevice(deps.home, id, scopes, new Date(deps.now()))
+  const reads = readsAfter(device, BOXES.talk, !may)
+  const when = new Date(deps.now())
+  await grantDevice(deps.home, id, reads, when)
+  await allowDevice(deps.home, id, scopes, when)
   const what = device.label === '' ? 'that device' : device.label
   return {
     scopes,
+    reads,
     said: may ? `${what} can no longer talk to Tade` : `${what} can talk to Tade`,
   }
 }

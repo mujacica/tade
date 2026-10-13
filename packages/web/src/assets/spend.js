@@ -9,6 +9,7 @@
 // carries one figure per task and not a series, so *today* is a question this
 // data cannot answer and a control offering it would be a lie with a tab on it.
 
+import { mayFor } from './access.js'
 import { ringOf, shareIn } from './charts.js'
 import { el, empty, foldOf, into, keyed, textIn } from './dom.js'
 import { count, money, onPlan, planBar, sinceSaid, tokensSaid, untilSaid } from './figures.js'
@@ -87,7 +88,7 @@ export function spendScreen() {
       const tasks = rowsOf(view.store, 'tasks')
       const partial = omitted(view.store, 'tasks') > 0
       const fold = spendFold(tasks, partial)
-      const paid = money(fold, view.may.spend)
+      const paid = money(fold, mayFor(view.store, 'tasks.spend'))
       textIn(big, paid.said === '—' ? '—' : `${partial ? '≥' : ''}${paid.said}`)
       textIn(under, paid.said === '—' ? paid.why : 'billed')
       const tokens = tokensSaid(fold)
@@ -103,7 +104,7 @@ export function spendScreen() {
         ],
       ])
       planEquivalentIn({ outside, planWhy, planSaid }, fold)
-      caveatsIn(caveats, fold, view.may.spend, spendSince(view.store))
+      caveatsIn(caveats, fold, mayFor(view.store, 'tasks.spend'), spendSince(view.store))
       plans.update(view)
       const names = projectsOf(view.store)
       // The largest project's money is the full width of every bar, so the
@@ -138,7 +139,11 @@ export function quotasSection() {
       none.hidden = rows.length > 0
       textIn(
         none,
-        nothingSaid(view.may.spend, omitted(view.store, 'plans'), 'no account reported a quota'),
+        nothingSaid(
+          mayFor(view.store, 'plans'),
+          omitted(view.store, 'plans'),
+          'no account reported a quota',
+        ),
       )
       keyed(
         list,
@@ -285,7 +290,7 @@ function fillSpendRow(node, project, view, most = 0) {
   const cells = node.children
   const tasks = tasksIn(view.store, project.name)
   const fold = spendFold(tasks, omitted(view.store, 'tasks') > 0)
-  const paid = money(fold, view.may.spend)
+  const paid = money(fold, mayFor(view.store, 'tasks.spend'))
   const [name, share] = cells[0].children
   textIn(name, project.name)
   const part = paid.said === '—' || most <= 0 ? 0 : fold.usd / most

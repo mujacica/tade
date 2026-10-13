@@ -25,14 +25,15 @@
 // and patched, so a delta that arrives mid-sentence moves nothing under the
 // thumb.
 
+import { mayFor } from './access.js'
 import { afterAnswer, askBody, bodyFor, confirms, controlsFor } from './acts.js'
 import { commandsFor, litOf, movedTo, rememberedWith } from './commands.js'
 import { el, felt, hintOf, into, keyed, textIn, toneOn } from './dom.js'
-import { CHAT_KINDS, taskMark } from './glyphs.js'
+import { CHAT_KINDS, rowMark } from './glyphs.js'
 import { icon, iconIn } from './icons.js'
 import { MORE, NAV, pathOf, taskPath } from './routes.js'
 import { keyOf } from './screens.js'
-import { agentsOf, chatOf, mayRead, projectsOf, talkOf, wantsYou } from './store.js'
+import { agentsOf, chatOf, projectsOf, talkOf, wantsYou } from './store.js'
 import { reasonFor, saidOn, whoSaid } from './talk.js'
 import { answerIn } from './ui.js'
 
@@ -129,7 +130,7 @@ export function jumpsOf(store, acts = {}) {
       title: task.title?.words ?? null,
       path: taskPath(task.id),
       icon: STATE_ICONS[task.state] ?? 'bolt',
-      tone: taskMark(task.state).tone,
+      tone: rowMark(task).tone,
       wants: task.wantsYou === true,
       acts: actsOn(task, acts),
     })
@@ -275,7 +276,7 @@ export function palette(ctx) {
   /** The conversation's standing, its last lines, and why there is no message row. */
   const talkIn = () => {
     const talk = talkNow()
-    const may = mayRead(view.store, 'talk')
+    const may = mayFor(view.store, 'chat')
     // With something typed the list is what matters, and the conversation
     // steps back to its one line of standing.
     const shown = may && input.value.trim() === '' ? chatOf(view.store).slice(-LINES) : []

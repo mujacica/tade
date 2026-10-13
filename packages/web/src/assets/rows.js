@@ -22,6 +22,7 @@ import {
   queueMark,
   queueSaid,
   reviewMark,
+  rowMark,
   taskMark,
 } from './glyphs.js'
 import { safeHref, taskPath } from './routes.js'
@@ -92,7 +93,7 @@ export function fillTaskRow(node, task, view) {
   const [link] = node.children
   const [glyph, name, aside, under] = link.children
   link.setAttribute('href', taskPath(task.id))
-  markIn(glyph, taskMark(task.state))
+  markIn(glyph, rowMark(task))
   stateIn(link, task.state)
   textIn(name, task.name)
   textIn(under, task.reason)

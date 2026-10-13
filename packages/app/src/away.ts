@@ -1,5 +1,7 @@
 import {
+  type AgentMark,
   type Finished,
+  markOf,
   modelIn,
   type PlanStanding,
   type Project,
@@ -83,6 +85,8 @@ export interface TaskExtra {
   produced: boolean
   /** Whether the journal already says the task is finished. */
   finished: boolean
+  /** What the window draws beside it (`markOf` over its pane), or null where it drew none. */
+  mark: AgentMark | null
   /** `QueueState`'s own word, or empty for work that is not queued. */
   queue: string
   /** How its agent may be told something, as its harness says. */
@@ -295,6 +299,15 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
     id: task.id,
     project: task.project,
     state: task.state,
+    // The window's own mark, and `markOf` over the same facts for a task it drew no pane for.
+    mark:
+      extra.mark ??
+      markOf({
+        state: task.state,
+        reason: task.reason,
+        approval: extra.approval,
+        finished: extra.finished ? {} : null,
+      }),
     reason:
       extra.approval === null
         ? { kind: 'clause', said: task.reason }
@@ -714,6 +727,7 @@ export function nothingKnown(): TaskExtra {
     approval: null,
     produced: false,
     finished: false,
+    mark: null,
     queue: '',
     // **Nothing known is nothing offered**, which is the direction that has to
     // be right: a task the window has learned nothing about must not draw a

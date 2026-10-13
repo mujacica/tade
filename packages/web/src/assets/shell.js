@@ -21,7 +21,7 @@
 
 import { classOn, el, glyphOf, hintOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
 import { clockOf, duration, shortClockOf } from './figures.js'
-import { freshMark, taskMark } from './glyphs.js'
+import { freshMark, rowMark, taskMark } from './glyphs.js'
 import { icon, wordmark } from './icons.js'
 import { backoffAt, partsOf } from './live.js'
 import { GROUPS, MORE_TAB, NAV, navFor, pathOf, placeOf, TITLES, taskPath } from './routes.js'
@@ -297,7 +297,7 @@ function fillTreeProject(node, project, view, here, on) {
       to.setAttribute('href', taskPath(task.id))
       if (task.id === on) to.setAttribute('aria-current', 'page')
       else to.removeAttribute('aria-current')
-      markIn(to.firstChild, taskMark(task.state))
+      markIn(to.firstChild, rowMark(task))
       textIn(to.lastChild, task.name)
     },
   )

@@ -6,6 +6,7 @@
 // keyboard keeps its row, a half-made selection survives, and the scroll
 // position stays the browser's own business.
 //
+import { mayFor } from './access.js'
 import {
   afterAnswer,
   asksFor,
@@ -34,7 +35,7 @@ import {
   unknown,
 } from './dom.js'
 import { count, money, onPlan, sinceSaid, tokensSaid } from './figures.js'
-import { checkMark, taskMark } from './glyphs.js'
+import { checkMark, rowMark, taskMark } from './glyphs.js'
 import { glanceOf, glanceTiles, tilesIn } from './overview.js'
 import { quickActs } from './quick.js'
 import { pathOf } from './routes.js'
@@ -132,7 +133,10 @@ export function projectScreen(where, ctx) {
       if (project === null || shut) return
       tilesIn(glance, glanceOf(view.store, where.project), view)
       const tasks = tasksIn(view.store, where.project)
-      const paid = money(spendFold(tasks, omitted(view.store, 'tasks') > 0), view.may.spend)
+      const paid = money(
+        spendFold(tasks, omitted(view.store, 'tasks') > 0),
+        mayFor(view.store, 'tasks.spend'),
+      )
       textIn(figure, paid.said === '—' ? `— ${paid.why}` : paid.said)
       textIn(agents.figure, count(tasks.length))
       agents.figure.setAttribute('aria-label', `${tasks.length} tasks`)
@@ -163,7 +167,7 @@ export function projectScreen(where, ctx) {
         folds,
         tasks,
         omitted(view.store, 'tasks') > 0,
-        view.may.spend,
+        mayFor(view.store, 'tasks.spend'),
         spendSince(view.store),
       )
     },
@@ -334,13 +338,13 @@ export function taskScreen(where, ctx) {
       for (const one of pane?.nodes ?? []) one.hidden = task === null
       if (task === null) return
       pane?.update(view)
-      markIn(glyph, taskMark(task.state))
-      textIn(pill, taskMark(task.state).word)
+      markIn(glyph, rowMark(task))
+      textIn(pill, rowMark(task).word)
       quick?.update(task, view)
-      toneOn(pill, taskMark(task.state).tone)
+      toneOn(pill, rowMark(task).tone)
       stateIn(made, task, view)
-      askedIn(asked, task, view.may)
-      agentIn(made, task, view.may)
+      askedIn(asked, task, view.store)
+      agentIn(made, task, view.store)
       workIn(made, task)
       taskChecksIn(made, task)
       restIn(made, task, view)
@@ -661,9 +665,9 @@ function stateIn(made, task, view) {
  * Written once: what somebody asked for does not change, and rebuilding it
  * would close a fold they had opened.
  */
-function askedIn(made, task, may) {
+function askedIn(made, task, store) {
   if (made.body.children.length > 0) return
-  if (!may.intent && !may.titles) {
+  if (!mayFor(store, 'tasks.intent') && !mayFor(store, 'tasks.title')) {
     into(made.body, unknown('not granted to this device'))
     return
   }
@@ -674,13 +678,13 @@ function askedIn(made, task, may) {
   }
 }
 
-function agentIn(made, task, may) {
+function agentIn(made, task, store) {
   dlIn(made.agent, [
     ['harness', task.harness],
     ['model', task.model],
     // Which sign-in an agent runs as is its own grant, so a null here is two
     // different facts and the page says which.
-    ['account', may.accounts ? (task.account?.words ?? null) : 'not granted'],
+    ['account', mayFor(store, 'tasks.account') ? (task.account?.words ?? null) : 'not granted'],
     ['agents', String(task.agents), `${task.agents} agents`],
     ['lanes', String(task.lanes), `${task.lanes} lanes`],
   ])

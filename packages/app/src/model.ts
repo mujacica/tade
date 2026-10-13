@@ -1,6 +1,8 @@
 import {
+  type AgentMark,
   type DoneRule,
-  IDLE_REASON,
+  type Marked,
+  markOf,
   type PlanChoice,
   type QueueState,
   type TadeEvent,
@@ -1663,44 +1665,7 @@ export function sidebar(state: AppState): SidebarGroup[] {
   return [...groups.values()].sort((a, b) => a.project.localeCompare(b.project))
 }
 
-/**
- * What an agent is doing, as its mark says at a glance: working right now,
- * idle with its session open, waiting on you, failed, finished, not running,
- * or parked.
- */
-export type AgentMark = 'working' | 'idle' | 'needs-you' | 'failed' | 'done' | 'stopped' | 'parked'
-
-/** What a mark is read from: an agent's state and why, and whether anything waits on you. */
-type Marked = Pick<AgentPane, 'state' | 'reason'> & {
-  waiting?: boolean
-  approval?: AgentPane['approval']
-  finished?: AgentPane['finished']
-  queued?: AgentPane['queued']
-}
-
-export function markOf(pane: Marked): AgentMark {
-  // Held queued work is a decision nobody has made yet, like an approval.
-  if (pane.waiting || pane.approval || pane.queued?.state.kind === 'held') return 'needs-you'
-  // Finished is what its rule says, or what someone said: an agent that ended
-  // its turn after saying so is done, not idle. Put back to work, it is working.
-  if (pane.finished && pane.state !== 'working' && pane.state !== 'parked') return 'done'
-  switch (pane.state) {
-    case 'working':
-      return 'working'
-    case 'failed':
-      return 'failed'
-    case 'parked':
-      return 'parked'
-    case 'review':
-    case 'merged':
-      return 'done'
-    // Its turn is over. Only waiting to be told something is not a decision to make.
-    case 'blocked':
-      return pane.reason === IDLE_REASON ? 'idle' : 'needs-you'
-    default:
-      return 'stopped'
-  }
-}
+export { type AgentMark, markOf } from '@tade/core'
 
 /** Which of the skin's tones each mark is drawn in. */
 export const MARK_TONES: Readonly<Record<AgentMark, 'busy' | 'hint' | 'waiting' | 'bad' | 'done'>> =

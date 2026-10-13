@@ -36,10 +36,11 @@ async function ready(
     ask?: (said: string, arm: Arm) => Promise<void>
     stop?: () => Promise<boolean>
     talking?: boolean
+    granted?: readonly string[]
   } = {},
 ): Promise<Machine> {
   const one = await machine({ talking: over.talking ?? true, ...over })
-  await paired(one.home, one.port, over.scopes ?? ['read', 'ask'])
+  await paired(one.home, one.port, over.scopes ?? ['read', 'ask'], over.granted ?? [])
   await one.away.open()
   return one
 }
@@ -185,7 +186,8 @@ describe('the grant, which is a keypress at this machine', () => {
   })
 
   it('takes it back, and the next message is refused', async () => {
-    const one = await ready()
+    // Ticked is `ask` with the conversation it is about (`BOXES.talk`).
+    const one = await ready({ granted: ['talk'] })
     one.show()
     await one.away.submits().away?.(awayPanel(), `${AWAY_CONTROLS.talk}${DEVICE}`)
     await one.away.reread()

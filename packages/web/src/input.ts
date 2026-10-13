@@ -1,4 +1,4 @@
-import type { DoneRule, PlanStanding, ReviewState, Spend, TaskState } from '@tade/core'
+import type { AgentMark, DoneRule, PlanStanding, ReviewState, Spend, TaskState } from '@tade/core'
 import type { AgentLane, Can, Cannot, ProjectFacts, TaskFacts } from './acting.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from './factory.ts'
 import type { Reach } from './reach.ts'
@@ -128,6 +128,13 @@ export interface TaskIn {
   project: string
   /** `deriveState`'s own enum. Metadata. */
   state: TaskState
+  /**
+   * What the window draws beside this agent (`markOf`), as the window worked
+   * it out. Carried rather than derived here: the window's own answer is the
+   * one a phone must agree with, and `deriveState`'s `blocked` is `done` there
+   * once the journal says the task is finished.
+   */
+  mark: AgentMark
   reason: ReasonIn
   /** Metadata. */
   stalled: boolean

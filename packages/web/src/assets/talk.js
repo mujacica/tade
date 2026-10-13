@@ -1,3 +1,4 @@
+import { mayFor } from './access.js'
 import { afterAnswer, askBody, stopBody } from './acts.js'
 import { classOn, el, empty, hintOf, into, keyed, proseOf, textIn, toneOn } from './dom.js'
 import { ageSaid } from './figures.js'
@@ -108,7 +109,10 @@ export function talkScreen(ctx) {
       }
       textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
       none.hidden = lines.length > 0
-      textIn(none, nothingSaid(view.may.talk, omitted(view.store, 'chat'), 'nothing said yet'))
+      textIn(
+        none,
+        nothingSaid(mayFor(view.store, 'chat'), omitted(view.store, 'chat'), 'nothing said yet'),
+      )
       keyed(
         list,
         lines,
@@ -117,7 +121,7 @@ export function talkScreen(ctx) {
         (one, line) => fillChatLine(one, line, view),
       )
       const left = omitted(view.store, 'chat')
-      const more = left > 0 && view.may.talk === true
+      const more = left > 0 && mayFor(view.store, 'chat')
       textIn(older, more ? `${left} earlier lines are not on this page` : '')
       older.hidden = !more
       typing.update(talkOf(view.store))

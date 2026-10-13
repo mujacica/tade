@@ -1,5 +1,13 @@
 import { uptime } from 'node:os'
-import type { PlanStanding, Queued, QueueFacts, Spend, TadeEvent, Workspace } from '@tade/core'
+import type {
+  AgentMark,
+  PlanStanding,
+  Queued,
+  QueueFacts,
+  Spend,
+  TadeEvent,
+  Workspace,
+} from '@tade/core'
 import { documentsIn, overridesFrom, writtenOrder } from '@tade/core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import type { IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
@@ -182,9 +190,10 @@ export function beatParts(
   // everywhere else in Tade and is not a state: `deriveState` has no `done`.
   // The page needs it so it never offers to finish what is finished, and
   // `taskRev` carries it so a second `done` from an old screen is refused.
-  const finished = new Set(
-    live.events.flatMap((one) => (one.type === 'task_done' && one.task ? [one.task] : [])),
-  )
+  // Out of the **whole** journal, as the window's own panes have it: the last
+  // five hundred lines forget an agent that finished an hour ago, which the
+  // window drew `✓` and a phone drew as `blocked`.
+  const finished = new Set(queueFacts.finished.keys())
   // How many agents each task has had: what tells one run of a task's agent
   // from the next, so a stop replayed after a reopen is refused rather than
   // stopping the agent somebody opened since. Out of the queue's own events,
@@ -216,6 +225,7 @@ export function beatParts(
               { id: approval.requestId, tool: approval.tool, sinceAt: approval.at },
         produced: written.has(task.id),
         finished: finished.has(task.id),
+        mark: live.marks?.get(task.id) ?? null,
         // Asked of the harness the run actually started on, through `offer()`
         // — the same rule the window's own controls and the orchestrator's
         // tools ask, so no surface offers what another hides.
@@ -290,6 +300,12 @@ export interface Beatable {
   titles: Readonly<Record<string, string>>
   /** The task snapshots the window already drew, for `waiting`. */
   tasks: readonly { task: string; waiting?: boolean }[]
+  /**
+   * What the window draws beside each agent (`markOf` over its own panes): the
+   * one answer a phone is shown, so the two can never disagree about whether
+   * an agent is done, idle, working or wanting you.
+   */
+  marks?: ReadonlyMap<string, AgentMark>
   machineUpSince: number | null
   /** When `spendToday`'s fold starts, which is the period every figure covers. */
   spendSince: number | null

@@ -17,6 +17,7 @@
 // act at the machine with no route at all. They are *named* with their clause
 // (`locally`) rather than left as holes.
 
+import { mayFor } from './access.js'
 import { afterAnswer, draftBody, savingOf } from './acts.js'
 import { el, into, keyed, proseOf, textIn } from './dom.js'
 import { count } from './figures.js'
@@ -35,7 +36,7 @@ import {
   sayIn,
   section,
 } from './rows.js'
-import { mayRead, omitted, workflowAt, workflowsOf } from './store.js'
+import { omitted, workflowAt, workflowsOf } from './store.js'
 import { answerIn, note, panel } from './ui.js'
 
 /* ── the workflows ─────────────────────────────────────────────────────────── */
@@ -61,7 +62,7 @@ export function workflowsScreen() {
         rows.length > 0
           ? ''
           : nothingSaid(
-              mayRead(view.store, 'workflows'),
+              mayFor(view.store, 'workflows'),
               total,
               'no workflow has been written here',
             ),
@@ -180,7 +181,7 @@ export function workflowScreen(where, ctx) {
       textIn(
         gone,
         row === null
-          ? mayRead(view.store, 'workflows')
+          ? mayFor(view.store, 'workflows')
             ? 'There is no workflow by that name here.'
             : 'This device was not granted the workflows.'
           : '',
@@ -440,7 +441,7 @@ function shapeIn(parent) {
         none,
         places.length > 0
           ? ''
-          : mayRead(view.store, 'workflows')
+          : mayFor(view.store, 'workflows')
             ? 'there are no steps to put in an order'
             : 'not granted to this device',
       )

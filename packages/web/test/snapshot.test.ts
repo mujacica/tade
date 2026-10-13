@@ -68,28 +68,22 @@ describe('the projection', () => {
     )
   })
 
-  it('derives one flag and reads the rest', () => {
-    // The window's rule: a decision waiting is *wants you*; an agent idle at its
-    // prompt, work in review and work already finished are not.
-    const of = (state: string, said = 'turn ended with 2 uncommitted files', more = {}) =>
-      wantsYou({
-        state,
-        reason: { kind: 'clause', said },
-        approval: null,
-        finished: false,
-        ...more,
-      } as never)
-    expect(['blocked', 'failed'].map((state) => of(state))).toEqual([true, true])
-    expect(['review', 'working', 'queued', 'merged', 'parked'].map((state) => of(state))).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
-    ])
-    expect(of('blocked', IDLE_REASON)).toBe(false)
-    expect(of('blocked', 'x', { finished: true })).toBe(false)
-    expect(of('working', 'x', { approval: { id: 'a', tool: 'Bash', sinceAt: 0 } })).toBe(true)
+  it('derives no flag of its own: wants-you is the window’s mark', () => {
+    // The window's rule (`markOf`) decided, and the row carries its answer: a
+    // decision waiting is *wants you*; an agent idle at its prompt, work in
+    // review and work already finished are not.
+    const marks = ['working', 'idle', 'needs-you', 'failed', 'done', 'stopped', 'parked'] as const
+    expect(marks.filter((mark) => wantsYou({ mark }))).toEqual(['needs-you'])
+    const done = snapshotOf(
+      input({
+        tasks: [
+          task({ state: 'blocked', reason: { kind: 'clause', said: IDLE_REASON }, finished: true }),
+        ],
+      }),
+      NOW,
+    ).tasks[0]
+    expect(done?.mark).toBe('done')
+    expect(done?.wantsYou).toBe(false)
   })
 
   it('splits a task’s name out of its id, so a phone need not', () => {

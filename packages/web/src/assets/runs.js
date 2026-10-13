@@ -16,12 +16,13 @@
 //
 // Nothing here decides a state, a count or a reason.
 
+import { mayFor } from './access.js'
 import { el, glyphOf, into, keyed, markIn, textIn } from './dom.js'
 import { count, money } from './figures.js'
 import { checkMark, reviewMark, stepMark } from './glyphs.js'
 import { pathOf, requestPath, taskPath } from './routes.js'
 import { createWaitRow, dl, dlIn, fillWaitRow, sayIn, section } from './rows.js'
-import { mayRead, omitted, runAt, runsOf } from './store.js'
+import { omitted, runAt, runsOf } from './store.js'
 import { panel } from './ui.js'
 
 /* ── the runs ──────────────────────────────────────────────────────────────── */
@@ -103,7 +104,7 @@ export function runSays(row, view) {
   // screen has the room and says it there.
   const paid = money(
     { usd: row.usd ?? 0, usdEstimated: 0, hasCost: row.usd !== null && row.usd > 0 },
-    mayRead(view.store, 'spend'),
+    mayFor(view.store, 'runs.usd'),
   )
   if (paid.said !== '—') bits.push(paid.said)
   return bits.join(' · ')
@@ -242,7 +243,7 @@ function fillStepRow(node, step, view) {
   textIn(name, step.name)
   const paid = money(
     { usd: step.usd ?? 0, usdEstimated: 0, hasCost: step.usd !== null },
-    mayRead(view.store, 'spend'),
+    mayFor(view.store, 'runs.usd'),
   )
   textIn(aside, paid.said)
   aside.setAttribute('aria-label', paid.why === '' ? `cost ${paid.said}` : `cost ${paid.why}`)
@@ -264,7 +265,7 @@ export function stepSays(step, view) {
   if (step.review !== null) bits.push(`review ${reviewMark(step.review).word}`)
   if (step.runs > 1) bits.push(`${step.runs} agents have been on it`)
   if (step.parked) bits.push('set aside')
-  if (!mayRead(view.store, 'spend')) bits.push('cost not granted')
+  if (!mayFor(view.store, 'runs.usd')) bits.push('cost not granted')
   return bits.join(' · ')
 }
 
@@ -278,7 +279,7 @@ export function stepSays(step, view) {
 function costSaid(usd, view) {
   const paid = money(
     { usd: usd ?? 0, usdEstimated: 0, hasCost: usd !== null },
-    mayRead(view.store, 'spend'),
+    mayFor(view.store, 'runs.usd'),
   )
   return paid.why === '' ? paid.said : `${paid.said} ${paid.why}`
 }

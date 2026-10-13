@@ -10,6 +10,7 @@ import {
 } from '@tade/web'
 import { AWAY_CONTROLS } from '../panels/away/state.ts'
 import { type Granted, kept, letOneAct, letOneTalk } from './web-acting.ts'
+import { BOXES, readsAfter, ticked } from './web-boxes.ts'
 
 /**
  * What a device the person lets in may read and do: **everything, and the
@@ -65,7 +66,7 @@ export async function widen(deps: Widening, control: string): Promise<boolean> {
     const id = control.slice(AWAY_CONTROLS.talk.length)
     const talking = () => surfaceOf(deps.config().surfaces.web).talking
     const granted = await letOneTalk({ ...at, talking }, deps.devices(), id)
-    await written(deps, id, { scopes: granted.scopes.join(' ') }, granted.said)
+    await written(deps, id, both(granted), granted.said)
     return true
   }
   if (control.startsWith(AWAY_CONTROLS.act)) {
@@ -87,7 +88,7 @@ export async function widen(deps: Widening, control: string): Promise<boolean> {
     const id = control.slice(AWAY_CONTROLS.configure.length)
     const configuring = () => surfaceOf(deps.config().surfaces.web).configuring
     const granted = await letOneConfigure({ ...at, configuring }, deps.devices(), id)
-    await written(deps, id, { scopes: granted.scopes.join(' ') }, granted.said)
+    await written(deps, id, both(granted), granted.said)
     return true
   }
   if (control.startsWith(AWAY_CONTROLS.everything)) {
@@ -110,6 +111,12 @@ export async function widen(deps: Widening, control: string): Promise<boolean> {
     return true
   }
   return false
+}
+
+/** What a box wrote, for the journal line: its scopes, and its reading grants where it wrote them. */
+function both(granted: Granted): Record<string, string> {
+  const scopes = { scopes: granted.scopes.join(' ') }
+  return granted.reads === undefined ? scopes : { ...scopes, reads: granted.reads.join(' ') }
 }
 
 /**
@@ -210,9 +217,9 @@ export async function letOneRead(
  * Composed from what the device already has (`kept`), so granting it takes
  * nothing else away. Refused while `surfaces.web.settings` is off, for
  * `letOneAct`'s reason: a grant nothing could use is what Tade accepting and
- * ignoring a setting would be. It does not grant reading — the `settings` chip
- * beside it does, and a device needs both, because it may not change what it
- * was not allowed to see.
+ * ignoring a setting would be. It grants reading the settings with it
+ * (`BOXES.configure`), because a device may not change what it was not allowed
+ * to see; taking it back leaves the reading, which has a box of its own.
  */
 export async function letOneConfigure(
   deps: { home: string; configuring: () => boolean; now: () => number },
@@ -224,12 +231,16 @@ export async function letOneConfigure(
   }
   const device = devices.find((one) => one.id === id && one.revoked === null)
   if (device === undefined) throw new Error('that device is not paired')
-  const may = device.scopes.includes('configure')
+  const may = ticked(device, BOXES.configure)
   const scopes = kept(device, ['configure'], !may)
-  await allowDevice(deps.home, id, scopes, new Date(deps.now()))
+  const reads = readsAfter(device, BOXES.configure, !may)
+  const when = new Date(deps.now())
+  await grantDevice(deps.home, id, reads, when)
+  await allowDevice(deps.home, id, scopes, when)
   const what = device.label === '' ? 'that device' : device.label
   return {
     scopes,
+    reads,
     said: may
       ? `${what} can no longer change a setting`
       : `${what} can change the settings a request is enough for`,

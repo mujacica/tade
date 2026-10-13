@@ -301,7 +301,10 @@ describe('letting one device act, at the machine', () => {
   })
 
   it('takes it back the same way, and the device is read-only again', async () => {
-    const one = await ready()
+    // Ticked is both tiers (`BOXES.act`): one alone is a box pressing completes.
+    const one = await machine()
+    await paired(one.home, one.port, ['read', 'answer', 'steer'])
+    await one.away.open()
     await one.away.reread()
     await grant(one.away, '00112233445566aa')
     expect(one.news.join(' ')).toContain('can no longer act')

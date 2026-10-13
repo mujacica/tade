@@ -10,6 +10,7 @@
 // viewport, each in its own `overflow-x` container, and each is a real `<table>`
 // with a `<caption>` and `<th scope>`.
 
+import { mayFor } from './access.js'
 import { ringIn, ringOf } from './charts.js'
 import { classOn, el, empty, into, keyed, textIn, toneOn } from './dom.js'
 import { ageSaid, count, untilSaid } from './figures.js'
@@ -301,12 +302,13 @@ export function reviewsScreen() {
   const quietList = panel('ul', 'rows')
   const noQuiet = empty('nothing is waiting to be offered')
   into(quiet.body, quietList, noQuiet)
-  // Without the grant the link to each review is withheld, so **every** task
-  // reads as unoffered. Said before the lists rather than left to look like a
-  // repository where nobody reviews anything.
+  // Without the grant only the **link** to each review is withheld
+  // (`tasks.review.url`): whether a branch was offered, and how it stands, is
+  // sent to every device and drawn below. Said before the lists, so a row with
+  // no link reads as withheld rather than as a forge with nothing to open.
   const scope = note(
-    'reviews not granted',
-    'This device was not granted the reviews, so nothing here can say whether a branch was offered for merge.',
+    'review links not granted',
+    'This device was not granted the link to each review on its forge.',
     'reviews',
   )
   into(node, scope, open.node, quiet.node)
@@ -314,7 +316,7 @@ export function reviewsScreen() {
   return {
     node,
     update(view) {
-      scope.hidden = view.may.reviews
+      scope.hidden = mayFor(view.store, 'tasks.review.url')
       const { offered, unoffered } = reviewsOf(view.store)
       textIn(open.figure, count(offered.length))
       open.figure.setAttribute('aria-label', `${offered.length} offered for merge`)
@@ -370,7 +372,10 @@ export function findingsScreen() {
       textIn(made.figure, count(rows.length))
       made.figure.setAttribute('aria-label', `${rows.length} findings`)
       none.hidden = rows.length > 0
-      textIn(none, nothingSaid(view.may.findings, omitted(view.store, 'findings'), 'no findings'))
+      textIn(
+        none,
+        nothingSaid(mayFor(view.store, 'findings'), omitted(view.store, 'findings'), 'no findings'),
+      )
       keyed(
         list,
         rows,
@@ -463,10 +468,17 @@ export function notesScreen(ctx = null) {
       createNoteRow,
       (one, row) => fillNoteRow(one, row, view),
     )
-    textIn(none, nothingSaid(view.may.notes, omitted(view.store, 'notes'), 'nothing written down'))
+    textIn(
+      none,
+      nothingSaid(
+        mayFor(view.store, 'notes'),
+        omitted(view.store, 'notes'),
+        'nothing written down',
+      ),
+    )
     if (cursor === null && held.length === 0) cursor = view.store.pages.notes?.next ?? null
     const n = Math.max(0, total - rows.length - extra.length)
-    const may = view.may.notes === true
+    const may = mayFor(view.store, 'notes')
     more.hidden = !may || n === 0 || cursor === null || ctx === null
     textIn(more, `Show older · ${n}`)
     textIn(left, n === 0 || !may || !more.hidden ? '' : `${n} older notes are not on this page`)

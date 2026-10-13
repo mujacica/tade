@@ -124,6 +124,47 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
 }
 
 /**
+ * Where each grant is enforced: every place on the wire it withholds, and
+ * nowhere else.
+ *
+ * **One table for the three that must agree** — what the projection withholds,
+ * what the page says *not granted* about, and what a box in the window's panel
+ * grants. A bare name is a whole collection (its rows withheld, its count
+ * kept); a dotted one is a field, null on every row. `agent.screen` and
+ * `settings` are answers of their own (`/api/agent/...`, `/api/settings`)
+ * rather than a part of the snapshot.
+ *
+ * `test/withholds.test.ts` takes each grant away from a device that has every
+ * other one and asserts the snapshot changes in exactly these places, so a gate
+ * added to the projection without a line here, or a line here with no gate
+ * behind it, fails; the page asks by path (`mayFor` in `assets/access.js`, a
+ * copy held equal to this one) and never names a grant itself.
+ */
+export const WITHHOLDS: Readonly<Record<Grant, readonly string[]>> = {
+  titles: ['projects.title', 'tasks.title'],
+  intent: ['tasks.intent', 'queue.waitsOn.why', 'runs.steps.waits.why'],
+  notes: ['notes'],
+  findings: ['findings'],
+  // Quotas are `plans`: what a sign-in has used of its plan is a figure about
+  // money, and goes with the rest of it.
+  spend: ['tasks.spend', 'plans', 'intake.would.limits', 'runs.steps.usd', 'runs.usd'],
+  reviews: ['tasks.review.url'],
+  accounts: ['tasks.account', 'plans.account'],
+  talk: ['chat'],
+  requests: ['intake.title', 'intake.who', 'intake.url'],
+  material: ['intake.material', 'intake.materialSays', 'intake.materialLabel'],
+  workflows: ['workflows'],
+  lanes: ['agent.screen'],
+  settings: ['settings'],
+}
+
+/** The grant a place on the wire is withheld under, or null for what every paired device reads. */
+export function grantOf(path: string): Grant | null {
+  for (const grant of GRANTS) if (WITHHOLDS[grant].includes(path)) return grant
+  return null
+}
+
+/**
  * Which projects a device may read.
  *
  * Explicit, with no spelling for "whatever is there": a scope arrived at by

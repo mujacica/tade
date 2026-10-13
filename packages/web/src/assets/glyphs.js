@@ -71,6 +71,34 @@ export function taskMark(state) {
 }
 
 /**
+ * What an agent is doing, as the window draws it: the row's `mark`, which is
+ * the window's own `markOf` carried over the wire — never `deriveState`'s state,
+ * which says `blocked` of an agent the journal says is finished.
+ *
+ * The glyphs are the window's (`markGlyph`) and the tones its `MARK_TONES`,
+ * copied because a browser cannot import a `.ts` file and held equal by
+ * `test/glyphs.test.ts`. The window turns a spinner for `working`; a page
+ * draws the dot it has always drawn there.
+ */
+export const AGENT_MARKS = {
+  working: mark('●', 'working', 't-working'),
+  idle: mark('●', 'idle', 't-quiet'),
+  'needs-you': mark('!', 'needs you', 't-wants'),
+  failed: mark('✕', 'failed', 't-failed'),
+  done: mark('✓', 'done', 't-done'),
+  stopped: mark('○', 'stopped', 't-quiet'),
+  parked: mark('‖', 'parked', 't-quiet'),
+}
+
+/**
+ * What one task row looks like: its agent's mark, or — from a machine whose
+ * window predates the field — the state as `deriveState` said it.
+ */
+export function rowMark(task) {
+  return AGENT_MARKS[task?.mark] ?? taskMark(task?.state ?? '')
+}
+
+/**
  * A check rollup.
  *
  * `unknown` is first-class and is **not** drawn as a pass: a check nobody ran

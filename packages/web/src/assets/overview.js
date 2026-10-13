@@ -18,6 +18,7 @@
 // text write, a card is filled in place (`keyed`), and a delta never moves
 // where somebody's thumb is.
 
+import { mayFor } from './access.js'
 import { createAgentRow, fillAgentRow } from './agents.js'
 import { barIn, barOf, ringIn, ringOf } from './charts.js'
 import {
@@ -36,7 +37,7 @@ import {
   toneOn,
 } from './dom.js'
 import { ageSaid, money, tokensSaid } from './figures.js'
-import { taskMark } from './glyphs.js'
+import { rowMark, taskMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { quickActs } from './quick.js'
 import { pathOf, taskPath } from './routes.js'
@@ -400,7 +401,7 @@ export function tilesIn(made, glance, view) {
     `${q.n} queued`,
   )
 
-  const paid = money(glance.spend, view.may.spend)
+  const paid = money(glance.spend, mayFor(view.store, 'tasks.spend'))
   const figure = paid.said === '—' ? '—' : `${glance.spend.partial ? '≥' : ''}${paid.said}`
   const toks = tokensSaid(glance.spend)
   said(
@@ -448,9 +449,9 @@ function createWant(ctx) {
 function fillWant(node, task, view) {
   const [top, why, asked] = node.children
   const [glyph, link, age] = top.children
-  const mark = taskMark(task.state)
-  classOn(node, 'is-wants', task.state === 'blocked')
-  classOn(node, 'is-failed', task.state === 'failed')
+  const mark = rowMark(task)
+  classOn(node, 'is-wants', task.mark === 'needs-you')
+  classOn(node, 'is-failed', task.mark === 'failed')
   classOn(node, 'is-review', task.state === 'review')
   markIn(glyph, mark)
   stateIn(node, task.state)
@@ -509,7 +510,10 @@ function fillProject(node, project, view) {
     total === 0 ? 'no checks' : fold.fail > 0 ? `${fold.fail} red` : `${fold.pass}/${total} green`,
   )
   toneOn(checkSaid, fold.fail > 0 ? 't-failed' : total > 0 && fold.unknown === 0 ? 't-done' : '')
-  const money_ = money(spendFold(tasks, counts.shown < counts.tasks), view.may.spend)
+  const money_ = money(
+    spendFold(tasks, counts.shown < counts.tasks),
+    mayFor(view.store, 'tasks.spend'),
+  )
   textIn(paid, money_.said === '—' ? `— ${money_.why}` : money_.said)
 }
 

@@ -1,4 +1,4 @@
-import { noSpend, type PlanStanding, type Spend } from '@tade/core'
+import { markOf, noSpend, type PlanStanding, type Spend } from '@tade/core'
 import type { ActivityIn, AgentIn } from '../src/agent.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from '../src/factory.ts'
 import type {
@@ -89,7 +89,7 @@ export function spend(usd = 1.25): Spend {
 }
 
 export function task(over: Partial<TaskIn> = {}): TaskIn {
-  return {
+  const made: Omit<TaskIn, 'mark'> = {
     id: 'sentry/away-projection',
     project: 'sentry',
     state: 'working',
@@ -145,6 +145,11 @@ export function task(over: Partial<TaskIn> = {}): TaskIn {
     review: { state: 'open', url: 'https://github.invalid/acme/sentry/pull/412' },
     ...over,
   }
+  // The window's own mark over what the fixture says, unless a test names one:
+  // the projection carries the window's answer and derives none of its own.
+  const reason = made.reason.kind === 'clause' ? made.reason.said : ''
+  const marked = { ...made, reason, finished: made.finished ? {} : null }
+  return { ...made, mark: over.mark ?? markOf(marked) }
 }
 
 /** A task whose every authored field has something private pasted into it. */

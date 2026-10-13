@@ -9,12 +9,10 @@ import {
   checksWord,
   emptyStore,
   GRANTS,
-  IDLE_REASON,
   intakeAt,
   intakeOf,
   intakeWaiting,
   mayRead,
-  needsYou,
   notesOf,
   omitted,
   projectAt,
@@ -207,8 +205,9 @@ describe('what wants you', () => {
       NOW,
     )
     applySnapshot(store, made.snapshot())
-    // Review is the window's *done*, not a decision waiting.
-    expect(wantsYou(store).map((one: { id: string }) => one.id)).toEqual(['a/blocked', 'a/failed'])
+    // Review is the window's *done*, and failed its own red mark: neither is
+    // the window's *needs you*, which is a decision waiting on a keypress.
+    expect(wantsYou(store).map((one: { id: string }) => one.id)).toEqual(['a/blocked'])
     expect(wantingIds(store).has('a/working')).toBe(false)
   })
 
@@ -217,13 +216,18 @@ describe('what wants you', () => {
     applySnapshot(store, projector(input({ tasks: [task()] }), NOW).snapshot())
     expect(wantsYou(store)).toEqual([])
   })
-  it("is the window's rule, applied by the page too, so an older machine cannot overcount", () => {
-    // The two copies of one rule: the projection's (`snapshot.ts`) and the
-    // page's (`needsYou`), which the page applies over whatever arrived — so
-    // a window still running yesterday's rule cannot put idle agents in it.
-    expect(IDLE_REASON).toBe(CORE_IDLE)
+  it('is what the window marked, and the page derives nothing of its own', () => {
+    // The window's mark rides on every row (`markOf`): a finished agent idle at
+    // its prompt is `done` there whatever `deriveState` said, so it is never
+    // counted here — and the page applies no second copy of the rule over it.
     const tasks = [
       task({ id: 'a/idle', state: 'blocked', reason: { kind: 'clause', said: CORE_IDLE } }),
+      task({
+        id: 'a/finished',
+        state: 'blocked',
+        reason: { kind: 'clause', said: CORE_IDLE },
+        finished: true,
+      }),
       task({
         id: 'a/dirty',
         state: 'blocked',
@@ -234,12 +238,21 @@ describe('what wants you', () => {
       task({ id: 'a/working', state: 'working' }),
     ]
     const made = projector(input({ tasks }), NOW).snapshot()
-    for (const row of made.tasks) expect(needsYou(row), row.id).toBe(row.wantsYou)
-    // An old projection that flagged every blocked task is put right on arrival.
-    const old = { ...made, tasks: made.tasks.map((row) => ({ ...row, wantsYou: true })) }
+    const marks = Object.fromEntries(made.tasks.map((row) => [row.id, row.mark]))
+    expect(marks['a/finished']).toBe('done')
+    expect(marks['a/idle']).toBe('idle')
+    expect(marks['a/review']).toBe('done')
     const store = emptyStore()
-    applySnapshot(store, old)
-    expect(wantsYou(store).map((one: { id: string }) => one.id)).toEqual(['a/dirty', 'a/failed'])
+    applySnapshot(store, made)
+    expect(wantsYou(store).map((one: { id: string }) => one.id)).toEqual(['a/dirty'])
+    // What arrived is what is drawn: the page does not put a row's flag right.
+    const odd = {
+      ...made,
+      tasks: made.tasks.map((row) => ({ ...row, wantsYou: row.id === 'a/idle' })),
+    }
+    const again = emptyStore()
+    applySnapshot(again, odd)
+    expect(wantsYou(again).map((one: { id: string }) => one.id)).toEqual(['a/idle'])
   })
 })
 

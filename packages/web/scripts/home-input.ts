@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { NoteSchema, noSpend, PROJECTS_DIR, TaskFile, taskOrigin } from '@tade/core'
+import { markOf, NoteSchema, noSpend, PROJECTS_DIR, TaskFile, taskOrigin } from '@tade/core'
 import { parse } from 'yaml'
 import type { NoteIn, ProjectIn, SnapshotInput, TaskIn } from '../src/input.ts'
 import type { Reach } from '../src/reach.ts'
@@ -65,6 +65,7 @@ function taskIn(project: string, folder: string, file: TaskFile): TaskIn {
     // Nothing here looks at git or at a process, so the state is the one thing
     // a file can answer on its own and the rest is honestly unknown.
     state: file.parked ? 'parked' : 'queued',
+    mark: markOf({ state: file.parked ? 'parked' : 'queued' }),
     reason: { kind: 'clause', said: file.parked ? 'parked by you' : 'no agent has started' },
     stalled: false,
     parked: false,

@@ -1,4 +1,4 @@
-import { DONE_RULES, ReviewState, TaskState } from '@tade/core'
+import { AGENT_MARKS, DONE_RULES, ReviewState, TaskState } from '@tade/core'
 import { z } from 'zod'
 import { AGENT_LANES, HOWS } from './acting.ts'
 import {
@@ -150,6 +150,12 @@ export const TaskRowSchema = z.strictObject({
   name: z.string(),
   state: TaskState,
   /**
+   * What the window draws beside this agent (`markOf`), and what the page
+   * draws: done, working, idle, needs you, failed, stopped or parked. `state`
+   * stays `deriveState`'s answer, and the page reads it for nothing it draws.
+   */
+  mark: z.enum(AGENT_MARKS),
+  /**
    * `deriveState`'s own clause. The page does not reword it: a second wording
    * of it is a second state machine.
    */
@@ -170,7 +176,7 @@ export const TaskRowSchema = z.strictObject({
    * value to read.
    */
   rev: z.string(),
-  /** `blocked | failed | review`. The one flag derived here rather than read. */
+  /** The window's *needs you*: `mark` is `needs-you`. */
   wantsYou: z.boolean(),
   question: z.boolean(),
   /** The tool's **name** and when it started waiting. Never the command. */
