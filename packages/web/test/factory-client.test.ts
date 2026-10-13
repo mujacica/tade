@@ -95,9 +95,13 @@ describe('one step of a run, in a line', () => {
     expect(stepSays(once, view())).not.toContain('agents have been on it')
   })
 
-  it('says the cost is not granted rather than drawing nought', () => {
+  it('draws no money at all, so a withheld figure is never drawn as nought', () => {
+    // A step's figure is beside its name where there is one, and *not
+    // granted* is said once, in the run's facts (`costSaid`,
+    // `runs-client.test.ts`), rather than under every step.
     const said = stepSays(rowFor([]).steps[0], view([]))
-    expect(said).toContain('cost not granted')
+    expect(said).not.toContain('$')
+    expect(said).not.toContain('—')
   })
 })
 

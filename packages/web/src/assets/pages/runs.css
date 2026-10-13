@@ -1,1 +1,704 @@
-/* The runs page's own sheet: every rule scoped to it (`.page-runs`, `test/pages.test.ts`). */
+/*
+  The runs page's own sheet: every rule scoped to it (`.page-runs`) or to a
+  class only its modules draw (`test/pages.test.ts`).
+
+  **A run is read as progress and a graph**, so the page is drawn round two
+  pictures — a run's map on its card, and its stages on its own screen — and
+  everything else is the grey ladder, with colour only where a step wants
+  somebody, has failed, is at work or is finished (DESIGN.md beside the
+  add-away-surface skill). What is finished is quiet; what wants you is washed
+  in its tone.
+*/
+
+/* ── the lead: a ring of every step, and the runs counted beside it ────────── */
+
+.runs-lead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "ring figures"
+    "legend legend";
+  align-items: center;
+  gap: var(--s4) var(--s5);
+  margin-block-end: var(--stack);
+  padding: var(--inset);
+}
+
+.page-runs .runs-lead > .ui-donut {
+  grid-area: ring;
+  width: 6.5rem;
+}
+
+.runs-lead > .ui-legend {
+  grid-area: legend;
+}
+
+.runs-lead-figures {
+  grid-area: figures;
+  display: grid;
+  gap: var(--s2);
+}
+
+.runs-lead-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.runs-lead-n {
+  min-width: 1.5rem;
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.runs-lead-n.t-wants {
+  color: var(--violet);
+}
+
+.runs-lead-n.t-working {
+  color: var(--amber);
+}
+
+.runs-lead-n.t-done {
+  color: var(--green);
+}
+
+/* ── a run, as a card: its name and fraction, its steps, its map and now ──── */
+
+.runs-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--s3);
+  align-items: start;
+}
+
+.runs-card {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--s1) var(--inset) var(--inset);
+  container-type: inline-size;
+}
+
+.runs-card:has(.runs-card-link:hover) {
+  border-color: var(--control);
+  background: var(--surface);
+}
+
+/* What wants somebody is the one card washed in its tone; the rest stay grey. */
+.runs-card:has(.runs-card-head > .t-wants) {
+  border-color: color-mix(in srgb, var(--violet) 40%, var(--line));
+  background: color-mix(in srgb, var(--violet) 6%, var(--panel));
+}
+
+.runs-card:has(.runs-card-head > .t-failed) {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+  background: color-mix(in srgb, var(--red) 5%, var(--panel));
+}
+
+.runs-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.runs-card-head > .glyph {
+  flex: none;
+  width: 1.25rem;
+}
+
+/* The name is the link, and the whole card is what it answers to. */
+.runs-card-link {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A block, as `main a`'s inline-flex would keep a long name from its ellipsis. */
+.page-runs .runs-card-link {
+  display: block;
+}
+
+.runs-card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.runs-tally {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.runs-tally-done {
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+}
+
+.runs-tally-total {
+  color: var(--heading);
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+}
+
+.runs-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+  margin-block-start: calc(-1 * var(--s2));
+  padding-inline-start: calc(1.25rem + var(--s2));
+  color: var(--heading);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+.runs-card-red {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s1);
+  color: var(--body);
+  font-weight: var(--w-label);
+}
+
+.runs-card-red > .glyph {
+  font-size: var(--step--1);
+}
+
+.runs-card-body {
+  display: grid;
+  gap: var(--s3);
+  align-items: center;
+}
+
+/* With room, the map and what is happening now side by side. */
+@container (min-width: 30rem) {
+  .runs-card-body {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--s5);
+  }
+}
+
+/* ── a run's track: a segment per step ─────────────────────────────────────── */
+
+.runs-track {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+
+.runs-track.is-big {
+  gap: 3px;
+  height: 10px;
+}
+
+.runs-track > span {
+  flex: 1 1 0;
+  min-width: 3px;
+  border-radius: 2px;
+  background: var(--tone);
+}
+
+/* Not started is a place on the line, not a colour: the track's own grey. */
+.runs-track > .tone-queued,
+.runs-track > .tone-quiet {
+  background: var(--control);
+}
+
+/* ── a run's map: its graph in dots ────────────────────────────────────────── */
+
+.runs-map {
+  display: block;
+  max-width: 100%;
+}
+
+.runs-map-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.runs-map-line {
+  fill: none;
+  stroke: var(--chrome);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* A line into work not started is a promise, not a path yet: dashed. */
+.runs-map-line.is-ahead {
+  stroke-dasharray: 3 3;
+}
+
+.runs-map-shape {
+  fill: var(--tone);
+  stroke: var(--tone);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.runs-map-dot.is-hollow .runs-map-shape {
+  fill: var(--panel);
+}
+
+.runs-map-dot.tone-queued .runs-map-shape {
+  stroke: var(--chrome);
+}
+
+/* At work, the dot breathes as a working glyph does in a row. */
+.runs-map-halo {
+  fill: var(--tone);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.runs-map-dot.is-working .runs-map-halo {
+  animation: pulse 2s cubic-bezier(0.2, 0, 0, 1) infinite;
+}
+
+/* ── now: the loudest of what is happening in a run ────────────────────────── */
+
+.runs-now {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.runs-now > ul {
+  display: grid;
+  gap: var(--s1);
+}
+
+.runs-now li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, max-content) minmax(0, 1fr);
+  gap: var(--s2);
+  align-items: baseline;
+  font-size: var(--step--1);
+}
+
+.runs-now .glyph {
+  font-size: var(--step--1);
+}
+
+.runs-now-name {
+  color: var(--bright);
+  font-weight: var(--w-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runs-now-said {
+  color: var(--heading);
+}
+
+.runs-now-more {
+  padding-inline-start: calc(1.25rem + var(--s2));
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── one run: the hero ─────────────────────────────────────────────────────── */
+
+.runs-hero {
+  display: grid;
+  gap: var(--s5);
+  margin-block-end: var(--stack);
+  padding: var(--inset);
+}
+
+.runs-hero-progress {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.runs-hero-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s1);
+  font-variant-numeric: tabular-nums;
+}
+
+.runs-hero-done {
+  color: var(--bright);
+  font-size: var(--step-4);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: 1;
+}
+
+.runs-hero-total {
+  color: var(--heading);
+  font-size: var(--step-2);
+  font-weight: var(--w-label);
+  letter-spacing: var(--tight);
+}
+
+.runs-hero-label {
+  margin-inline-start: var(--s2);
+  color: var(--heading);
+  font-size: var(--step-0);
+}
+
+/* The run's facts, inside the card: names over values, no second frame. */
+.page-runs .runs-hero .ui-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3) var(--s4);
+  align-content: center;
+  border: 0;
+  background: none;
+  overflow: visible;
+}
+
+.page-runs .runs-hero .ui-fact {
+  padding: 0;
+  background: none;
+}
+
+/* A workflow's name wraps rather than losing its version under an ellipsis. */
+.page-runs .runs-hero .ui-fact > dd {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* ── one run: the graph, where the work has the width for it ───────────────── */
+
+.page-runs .runs-graph {
+  display: none;
+}
+
+.page-runs .runs-graph .ui-flow-canvas {
+  margin-inline: auto;
+}
+
+/* The box that wants somebody, and the one that failed, washed in their tone. */
+.page-runs .ui-flow-box.tone-wants {
+  background: color-mix(in srgb, var(--violet) 12%, var(--panel));
+}
+
+.page-runs .ui-flow-box.tone-failed {
+  background: color-mix(in srgb, var(--red) 12%, var(--panel));
+}
+
+.page-runs .ui-flow-box.tone-done .ui-flow-name {
+  color: var(--body);
+}
+
+/* ── one run: stage by stage, a rail down the side ─────────────────────────── */
+
+.runs-stages {
+  display: grid;
+}
+
+.runs-stage {
+  --tone: var(--control);
+  position: relative;
+  display: grid;
+  gap: var(--s3);
+  padding-block-end: var(--s5);
+  padding-inline-start: calc(1.75rem + var(--s3));
+}
+
+.runs-stage.is-finished {
+  --tone: var(--green);
+}
+
+.runs-stage.is-working {
+  --tone: var(--amber);
+}
+
+.runs-stage.is-wants {
+  --tone: var(--violet);
+}
+
+.runs-stage.is-failed {
+  --tone: var(--red);
+}
+
+/* The rail from this stage's stop down to the next: green once it has finished. */
+.runs-stage::before {
+  content: "";
+  position: absolute;
+  inset-block: 1.75rem 0;
+  inset-inline-start: calc(0.875rem - 1px);
+  width: 2px;
+  background: var(--raised);
+}
+
+.runs-stage.is-finished::before {
+  background: color-mix(in srgb, var(--green) 55%, var(--raised));
+}
+
+.runs-stage:last-child {
+  padding-block-end: 0;
+}
+
+.runs-stage:last-child::before {
+  display: none;
+}
+
+.runs-stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  min-height: 1.75rem;
+  margin-inline-start: calc(-1 * (1.75rem + var(--s3)));
+}
+
+.runs-stage-stop {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-inline-end: var(--s1);
+  border-radius: var(--round);
+  border: 2px solid var(--tone);
+  background: var(--ground);
+  color: var(--bright);
+  font-size: var(--step--1);
+  font-weight: var(--w-loud);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.runs-stage.is-finished .runs-stage-stop {
+  background: var(--green);
+  color: var(--ink);
+}
+
+.runs-stage-title {
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.runs-stage-said {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.runs-stage-tally {
+  margin-inline-start: auto;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A stage's steps side by side where there is room: parallel work, drawn so. */
+.runs-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: var(--s3);
+}
+
+/* ── one step, in its stage ────────────────────────────────────────────────── */
+
+.runs-step {
+  --tone: var(--control);
+  display: grid;
+  gap: var(--s2);
+  align-content: start;
+  min-width: 0;
+  padding: var(--s1) var(--inset) var(--s3);
+  border-inline-start: 3px solid var(--tone);
+}
+
+.runs-step:is(.is-finished, .is-review) {
+  --tone: color-mix(in srgb, var(--green) 70%, var(--panel));
+}
+
+.runs-step.is-working {
+  --tone: var(--amber);
+}
+
+.runs-step.is-wants {
+  --tone: var(--violet);
+  background: color-mix(in srgb, var(--violet) 8%, var(--panel));
+}
+
+.runs-step.is-failed {
+  --tone: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--panel));
+}
+
+.runs-step:has(.runs-step-link:hover) {
+  background: var(--surface);
+}
+
+.runs-step-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.runs-step-head > .glyph {
+  flex: none;
+  width: 1rem;
+}
+
+.runs-step-link {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-runs .runs-step-link {
+  display: block;
+}
+
+.runs-step-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* Finished work is history: its name quiet. */
+.runs-step.is-finished .runs-step-link {
+  color: var(--body);
+  font-weight: var(--w-label);
+}
+
+.runs-step-cost {
+  flex: none;
+  color: var(--heading);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.runs-step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  margin-block-start: calc(-1 * var(--s2));
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* What it waits on: a hairline, then each wait with its mark and its reason. */
+.runs-waits {
+  display: grid;
+  gap: var(--s2);
+  padding-block-start: var(--s2);
+  border-block-start: var(--border);
+}
+
+.runs-waits:empty {
+  display: none;
+}
+
+/* What a finished step waited on is history, and folded away. */
+.runs-step:is(.is-finished, .is-review) .runs-waits {
+  display: none;
+}
+
+.runs-waits > li {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0 var(--s2);
+  align-items: baseline;
+  font-size: var(--step--1);
+}
+
+.runs-waits .glyph {
+  font-size: var(--step--1);
+}
+
+.runs-wait-name {
+  color: var(--body);
+  font-weight: var(--w-label);
+  overflow-wrap: anywhere;
+}
+
+.runs-wait-why {
+  grid-column: 2;
+  color: var(--heading);
+}
+
+/* ── where the work has the width ──────────────────────────────────────────── */
+
+@container (min-width: 36rem) {
+  .runs-lead {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "ring figures"
+      "ring legend";
+    align-items: end;
+    gap: var(--s3) var(--s6);
+  }
+
+  .page-runs .runs-lead > .ui-donut {
+    width: 7.5rem;
+  }
+
+  .runs-lead-figures {
+    grid-template-columns: repeat(3, minmax(0, max-content));
+    gap: var(--s6);
+    align-self: end;
+  }
+
+  .runs-lead-figure {
+    display: grid;
+    gap: 2px;
+  }
+
+  .runs-lead-n {
+    text-align: start;
+  }
+
+  .runs-lead > .ui-legend {
+    align-self: start;
+    padding-block-start: var(--s3);
+    border-block-start: var(--border);
+  }
+}
+
+@container (min-width: 40rem) {
+  .runs-hero {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--s6);
+  }
+
+  .page-runs .runs-graph {
+    display: block;
+  }
+}

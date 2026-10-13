@@ -1,5 +1,5 @@
-// A run of a workflow, as two screens: the runs there are, and one run's own
-// graph.
+// A run of a workflow, as two screens: the runs there are (here), and one
+// run's own graph (`runs-run.js`).
 //
 // **A run is an effort and nothing new**: one ordinary task per repository,
 // each with its own branch, checks, review and done rule, grouped by the fold
@@ -7,62 +7,266 @@
 // drawn as a graph is read out of the same `start.after` the queue's own rule
 // reads.
 //
-// **Layers and not a canvas.** A node canvas needs a layout engine, hit
-// testing and a zoom, and at 360 pixels there is nowhere to put any of them.
-// What a reader needs is which steps can go now, which wait, and on what — and
-// a layer number answers all three. The window draws the same graph with boxes
-// and lines because it has the room (`plan-graph.ts`); both read the same
-// `waits`, so neither is a second layout of a different graph.
+// **What somebody opening this page wants first** is which runs want them,
+// then which are moving and how far along, and only then what is done. So the
+// page leads with the whole as one picture — every step of every run, as a
+// ring, and the runs counted by where they stand — and then the runs in that
+// order: a card each for the ones still going, with its map and what is
+// happening in it now, and a quiet row each for the ones that are finished.
 //
-// Nothing here decides a state, a count or a reason.
+// Nothing here decides a state, a count or a reason (`runs-shape.js`).
 
-import { mayFor } from '../access.js'
-import { el, glyphOf, into, keyed, markIn, textIn } from '../dom.js'
-import { count, money } from '../figures.js'
-import { checkMark, reviewMark, stepMark } from '../glyphs.js'
-import { pathOf, requestPath, taskPath } from '../routes.js'
-import { createWaitRow, dl, dlIn, fillWaitRow, pageBar, sayIn, section } from '../rows.js'
-import { omitted, runAt, runsOf } from '../store.js'
-import { panel } from '../ui.js'
+import { donut, donutIn, legendIn } from '../charts.js'
+import { el, glyphOf, into, keyed, markIn, skeleton, textIn, toneOn } from '../dom.js'
+import { count } from '../figures.js'
+import { pathOf } from '../routes.js'
+import { sayIn, section } from '../rows.js'
+import { omitted, runsOf } from '../store.js'
+import { panel, stateBox, stateBoxIn } from '../ui.js'
+import { runMap, runMapIn, track, trackIn } from './runs-draw.js'
+import {
+  GROUPS,
+  groupsOf,
+  nowOf,
+  overallOf,
+  paidOf,
+  partMark,
+  runMark,
+  runSays,
+  stateOf,
+} from './runs-shape.js'
+
+export { runScreen } from './runs-run.js'
+export { runSays, stepSays } from './runs-shape.js'
 
 /* ── the runs ──────────────────────────────────────────────────────────────── */
 
 export function runsScreen() {
   const node = el('div')
   const made = section('RUNS', { top: true })
-  const list = panel('ul', 'rows')
-  const none = el('p', {
-    class: 'empty nothing',
-    text: 'no runs yet',
-  })
-  into(made.body, list, none)
+  const coming = skeleton(3)
+  const nothing = stateBox()
+  const lead = leadOf()
+  const groups = GROUPS.map((one) => groupOf(one))
   const left = el('p', { class: 'unknown' })
-  into(node, made.node, left)
+  into(made.body, coming, nothing, lead.node, ...groups.map((one) => one.made.node), left)
+  into(node, made.node)
 
   return {
     node,
     update(view) {
-      const rows = runsOf(view.store)
-      textIn(made.figure, count(rows.length))
+      const had = view.store.had === true
+      const rows = had ? runsOf(view.store) : []
+      textIn(made.figure, had ? count(rows.length) : '')
       made.figure.setAttribute('aria-label', `${rows.length} runs`)
-      none.hidden = rows.length > 0
-      keyed(
-        list,
-        rows,
-        (row) => row.run,
-        createRunRow,
-        (one, row) => fillRunRow(one, row, view),
+      coming.hidden = had
+      // **Nothing is two sentences**: none at all, and none on this page while
+      // the machine has more. The second is the line under the list.
+      stateBoxIn(
+        nothing,
+        had && rows.length === 0 && omitted(view.store, 'runs') === 0
+          ? stateOf(
+              'empty',
+              'No runs yet',
+              'A run is one plan carried out across projects: every task that names the same effort, in the order they wait on each other. Start one from a workflow, or ask Tade to plan one.',
+            )
+          : null,
       )
+      lead.node.hidden = rows.length === 0
+      if (rows.length > 0) lead.fill(overallOf(rows))
+      const grouped = groupsOf(rows)
+      groups.forEach((one, at) => {
+        one.fill(grouped[at].runs, view)
+      })
       const n = omitted(view.store, 'runs')
       sayIn(left, n === 0 ? '' : `${n} more runs are not on this page`)
     },
   }
 }
 
+/* ── the lead: every step of every run, and the runs by where they stand ───── */
+
+/** The figures beside the ring, in the order a person wants them. */
+const FIGURES = [
+  { key: 'needs', label: 'need you', tone: 't-wants' },
+  { key: 'going', label: 'under way', tone: 't-working' },
+  { key: 'finished', label: 'finished', tone: 't-done' },
+]
+
+function leadOf() {
+  const node = el('div', { class: 'ui-card runs-lead' })
+  const ring = donut('Every step of every run')
+  const figures = el('ul', {
+    class: 'runs-lead-figures',
+    attrs: { 'aria-label': 'Runs, by where they stand' },
+  })
+  for (const one of FIGURES) {
+    const item = el('li', { class: 'runs-lead-figure' })
+    into(item, el('span', { class: 'runs-lead-n' }), el('span', { text: one.label }))
+    figures.append(item)
+  }
+  const legend = el('ul', { class: 'ui-legend', attrs: { 'aria-label': 'Every step, by part' } })
+  into(node, ring, figures, legend)
+  return {
+    node,
+    fill(all) {
+      donutIn(ring, all.parts, {
+        said: `${all.done}/${all.steps}`,
+        under: 'steps done',
+      })
+      FIGURES.forEach((one, at) => {
+        const item = figures.children[at]
+        const [n] = item.children
+        textIn(n, String(all[one.key]))
+        // A figure takes its tone only where there is something to see:
+        // nought violet would be a colour saying *act* about nothing.
+        toneOn(n, all[one.key] > 0 ? one.tone : null)
+        item.setAttribute(
+          'aria-label',
+          `${all[one.key]} ${all[one.key] === 1 ? 'run' : 'runs'} ${one.label}`,
+        )
+      })
+      legendIn(legend, all.parts)
+    },
+  }
+}
+
+/* ── the groups ────────────────────────────────────────────────────────────── */
+
+/**
+ * One group of runs under its heading: cards for what is still going, where
+ * the map and the line about now earn their room, and plain rows for what is
+ * finished or out of sight, where they would only be noise.
+ */
+function groupOf(group) {
+  const made = section(group.heading)
+  const cards = group.key === 'needs' || group.key === 'going'
+  const list = cards ? el('ul', { class: 'runs-cards' }) : panel('ul', 'rows')
+  into(made.body, list)
+  return {
+    made,
+    fill(runs, view) {
+      made.node.hidden = runs.length === 0
+      textIn(made.figure, count(runs.length))
+      made.figure.setAttribute('aria-label', `${runs.length} runs`)
+      if (cards)
+        keyed(
+          list,
+          runs,
+          (row) => row.run,
+          createCard,
+          (one, row) => fillCard(one, row, view),
+        )
+      else
+        keyed(
+          list,
+          runs,
+          (row) => row.run,
+          createRunRow,
+          (one, row) => fillRunRow(one, row, view),
+        )
+    },
+  }
+}
+
+/* ── a run, as a card ──────────────────────────────────────────────────────── */
+
+/**
+ * A run still going: its mark, its name and how far along it is, the line of
+ * its steps, its map, and the loudest of what is happening in it now.
+ *
+ * **The name is the link, and the card is its target**: the whole card
+ * answers a tap (`.runs-card-link::after`), but what a screen reader hears as
+ * the link is the run's name — not a paragraph of everything the card says.
+ */
+function createCard() {
+  const item = el('li', { class: 'ui-card runs-card' })
+  const head = el('div', { class: 'runs-card-head' })
+  const glyph = glyphOf(partMark('waiting'))
+  const link = el('a', { class: 'runs-card-link', attrs: { href: '/runs' } })
+  const tally = el('span', { class: 'runs-tally' })
+  into(tally, el('span', { class: 'runs-tally-done' }), el('span', { class: 'runs-tally-total' }))
+  into(head, glyph, link, tally)
+  const meta = el('p', { class: 'runs-card-meta' })
+  // The ✕ carries the red and the words stay a text grey: red as text is under
+  // AA on a card washed in its own tone, which is where this line most often is.
+  const red = el('span', { class: 'runs-card-red' })
+  into(
+    red,
+    el('span', { class: 'glyph t-failed', text: '✕', attrs: { 'aria-hidden': 'true' } }),
+    el('span', { text: 'checks red' }),
+  )
+  into(meta, el('span'), red)
+  const line = track()
+  const body = el('div', { class: 'runs-card-body' })
+  const now = el('div', { class: 'runs-now' })
+  into(now, el('ul'), el('p', { class: 'runs-now-more' }))
+  into(body, runMap(), now)
+  return into(item, head, meta, line, body)
+}
+
+function fillCard(item, run, view) {
+  const [head, meta, line, body] = item.children
+  const [glyph, link, tally] = head.children
+  const [done, total] = tally.children
+  markIn(glyph, runMark(run))
+  link.setAttribute('href', pathOf({ view: 'run', run: run.run }))
+  textIn(link, run.run)
+  textIn(done, String(run.finished))
+  textIn(total, `/${run.total}`)
+  tally.setAttribute('aria-label', `${run.finished} of ${run.total} steps finished`)
+  const [where, red] = meta.children
+  textIn(where, metaOf(run, view))
+  // **Red is the one check a card says**: a run's checks that nobody ran here
+  // are its own screen's to explain, and green is what the track already says.
+  red.hidden = run.checks !== 'fail'
+  trackIn(line, run)
+  const [map, now] = body.children
+  runMapIn(map, run)
+  const [list, more] = now.children
+  const said = nowOf(run)
+  keyed(list, said.lines, (one) => one.task, createNowLine, fillNowLine)
+  sayIn(more, said.more === 0 ? '' : `and ${said.more} more not finished`)
+}
+
+/**
+ * Where a run is and what it came from, in one quiet line: its projects, the
+ * workflow it was stamped from, and its cost where there is a figure — never
+ * a dash in a line of clauses, which the run's own screen has room to explain.
+ */
+function metaOf(run, view) {
+  const bits = [run.projects.join(' · ') || 'no project this device may read']
+  if (run.stamp !== null) bits.push(`${run.stamp.name}@${run.stamp.version}`)
+  const paid = paidOf(run.usd, view, run.usd !== null && run.usd > 0)
+  if (paid.said !== '—') bits.push(paid.said)
+  return bits.join(' · ')
+}
+
+function createNowLine() {
+  const item = el('li')
+  // The glyph is the picture and the clause beside the name is the word, so a
+  // screen reader hears *wants you* once rather than twice.
+  const glyph = el('span', { class: 'glyph', attrs: { 'aria-hidden': 'true' } })
+  const name = el('span', { class: 'runs-now-name' })
+  const said = el('span', { class: 'runs-now-said' })
+  return into(item, glyph, name, said)
+}
+
+function fillNowLine(item, one) {
+  const [glyph, name, said] = item.children
+  const mark = partMark(one.part)
+  textIn(glyph, mark.glyph)
+  toneOn(glyph, mark.tone)
+  textIn(name, one.name)
+  textIn(said, one.said)
+}
+
+/* ── a run, as a row: finished, or out of sight ────────────────────────────── */
+
 function createRunRow() {
   const node = el('li')
   const link = el('a', { attrs: { href: '/runs' } })
-  const glyph = glyphOf(checkMark('unknown'))
+  const glyph = glyphOf(partMark('finished'))
   const name = el('span', { class: 'name' })
   const aside = el('span', { class: 'aside' })
   const under = el('span', { class: 'under' })
@@ -74,210 +278,16 @@ function fillRunRow(node, row, view) {
   const [link] = node.children
   const [glyph, name, aside, under] = link.children
   link.setAttribute('href', pathOf({ view: 'run', run: row.run }))
-  markIn(glyph, checkMark(row.checks))
+  markIn(glyph, runMark(row))
   textIn(name, row.run)
-  textIn(aside, `${row.finished}/${row.total}`)
+  textIn(aside, row.total === 0 ? '' : `${row.finished}/${row.total}`)
   aside.setAttribute('aria-label', `${row.finished} of ${row.total} steps finished`)
-  textIn(under, runSays(row, view))
-}
-
-/**
- * One run in a line: what is happening, and what it has cost.
- *
- * **Partial completion is a fraction and never a percentage.** "Two of three"
- * is what somebody can act on — the third is the one to go and look at — and a
- * percentage is a figure about a run rather than about a step.
- */
-export function runSays(row, view) {
-  const active = row.steps.filter((step) => step.active)
-  const waiting = row.steps.filter((step) => !step.finished && !step.active)
-  const bits = []
-  if (active.length > 0) bits.push(`${active.map((step) => step.name).join(', ')} working`)
-  else if (waiting.length > 0) bits.push(`${waiting.length} waiting`)
-  else if (row.total > 0) bits.push('every step finished')
-  if (row.retries > 0)
-    bits.push(`${row.retries} delivery ${row.retries === 1 ? 'retry' : 'retries'}`)
-  if (row.stamp !== null) bits.push(`${row.stamp.name}@${row.stamp.version}`)
-  // **The figure or nothing, never a dash in a list of clauses.** `money`
-  // answers with the three dashes apart — not granted, not recorded, nought —
-  // and a row's quiet line is the wrong place to say which: the run's own
-  // screen has the room and says it there.
-  const paid = money(
-    { usd: row.usd ?? 0, usdEstimated: 0, hasCost: row.usd !== null && row.usd > 0 },
-    mayFor(view.store, 'runs.usd'),
+  // A run with no step this device may read says so, rather than *every step
+  // finished* of nought steps — which is the one sentence it must not say.
+  textIn(
+    under,
+    row.steps.length === 0
+      ? 'none of its steps is in a project this device may read'
+      : runSays(row, view),
   )
-  if (paid.said !== '—') bits.push(paid.said)
-  return bits.join(' · ')
-}
-
-/* ── one run ───────────────────────────────────────────────────────────────── */
-
-/**
- * One run, as layers: everything in a layer can go once the layers before it
- * have finished, and what each step waits on is drawn under it.
- *
- * **Layers and not a canvas**, which is the same decision the designer makes
- * and for a harder reason: a node canvas needs a layout engine, hit testing
- * and a zoom, and at 360 pixels there is nowhere to put any of it. What a
- * reader needs is which steps can go now, which wait, and on what — and a
- * layer number answers all three. The window draws the same graph with boxes
- * and lines because it has the room (`plan-graph.ts`); both read the same
- * `waits`, so neither is a second layout of a different graph.
- */
-export function runScreen(where) {
-  const node = el('div')
-  const glyph = glyphOf(checkMark('unknown'))
-  const bar = pageBar(where.run, { name: true, glyph, back: { text: 'Runs', href: '/runs' } })
-  const gone = el('p', { class: 'empty nothing' })
-
-  const about = section('THE RUN')
-  const facts = dl()
-  const fromLink = el('a', { class: 'press quietly small', text: 'The request behind it' })
-  into(about.body, facts)
-  into(bar.tools, fromLink)
-
-  const steps = section('THE STEPS')
-  const layers = el('div', { class: 'layers' })
-  const none = el('p', { class: 'empty nothing' })
-  into(steps.body, layers, none)
-
-  const parts = [about, steps]
-  into(node, bar.node, gone, ...parts.map((one) => one.node))
-
-  return {
-    node,
-    update(view) {
-      const row = runAt(view.store, where.run)
-      gone.hidden = row !== null
-      textIn(gone, row === null ? 'This run is not on this device, or is not there.' : '')
-      for (const one of parts) one.node.hidden = row === null
-      if (row === null) return
-      markIn(glyph, checkMark(row.checks))
-      dlIn(facts, [
-        ['steps', `${row.finished} of ${row.total} finished`],
-        ['depth', `${row.layers} ${row.layers === 1 ? 'layer' : 'layers'}`],
-        ['repositories', row.projects.join(', ') || '—'],
-        [
-          'workflow',
-          row.stamp === null ? 'none: ordinary tasks' : `${row.stamp.name}@${row.stamp.version}`,
-        ],
-        ['checks', checkMark(row.checks).word],
-        ['delivery retries', String(row.retries)],
-        // **Which dash it is, said in the one place with room for it.** Not
-        // granted, not recorded and nought are three different mornings, and
-        // a page that drew the first two the same way would tell somebody
-        // their work cost nothing when their phone was never allowed to ask.
-        ['cost', costSaid(row.usd, view)],
-      ])
-      fromLink.hidden = row.from === null
-      if (row.from !== null) fromLink.setAttribute('href', requestPath(row.from.item))
-      // **No layer where there is no step.** A run whose tasks are all in
-      // projects this device may not read, or whose task files are gone, has
-      // nothing to put in a column — and a heading with nothing under it reads
-      // as something that failed to load rather than as an answer.
-      none.hidden = row.steps.length > 0
-      textIn(
-        none,
-        row.steps.length > 0
-          ? ''
-          : row.total === 0 && row.projects.length === 0
-            ? 'none of its steps is in a project this device may read'
-            : 'nothing is left of this run: its task files are not there',
-      )
-      const deep = Array.from({ length: row.layers }, (_, n) => n)
-      keyed(
-        layers,
-        deep,
-        (n) => String(n),
-        createLayer,
-        (one, n) =>
-          fillLayer(
-            one,
-            n,
-            row.steps.filter((step) => step.layer === n),
-            view,
-          ),
-      )
-    },
-  }
-}
-
-function createLayer() {
-  const node = el('div', { class: 'layer' })
-  const head = el('h3', { class: 'aside' })
-  const list = panel('ul', 'rows')
-  return into(node, head, list)
-}
-
-function fillLayer(node, n, steps, view) {
-  const [head, list] = node.children
-  textIn(head, n === 0 ? 'can go first' : `after layer ${n}`)
-  keyed(
-    list,
-    steps,
-    (step) => step.task,
-    createStepRow,
-    (one, step) => fillStepRow(one, step, view),
-  )
-}
-
-function createStepRow() {
-  const node = el('li')
-  const link = el('a', { attrs: { href: '/' } })
-  const glyph = glyphOf(stepMark({ state: 'queued', finished: false, active: false }))
-  const name = el('span', { class: 'name' })
-  const aside = el('span', { class: 'aside' })
-  const under = el('span', { class: 'under' })
-  const waits = el('ul', { class: 'waits' })
-  into(link, glyph, name, aside, under)
-  return into(node, link, waits)
-}
-
-function fillStepRow(node, step, view) {
-  const [link, waits] = node.children
-  const [glyph, name, aside, under] = link.children
-  link.setAttribute('href', taskPath(step.task))
-  markIn(glyph, stepMark(step))
-  textIn(name, step.name)
-  const paid = money(
-    { usd: step.usd ?? 0, usdEstimated: 0, hasCost: step.usd !== null },
-    mayFor(view.store, 'runs.usd'),
-  )
-  textIn(aside, paid.said)
-  aside.setAttribute('aria-label', paid.why === '' ? `cost ${paid.said}` : `cost ${paid.why}`)
-  textIn(under, stepSays(step, view))
-  keyed(waits, step.waits, (wait) => wait.task, createWaitRow, fillWaitRow)
-}
-
-/**
- * One step in a line: its checks, its review, and **how many agents have been
- * on it**.
- *
- * The last of those is the retry history and there is no counter behind it: it
- * is how many `run_started` lines the journal still holds for this task, so
- * *two* means somebody or something started it again. A figure of one is not
- * worth saying and is left out.
- */
-export function stepSays(step, view) {
-  const bits = [checkMark(step.checks).word]
-  if (step.review !== null) bits.push(`review ${reviewMark(step.review).word}`)
-  if (step.runs > 1) bits.push(`${step.runs} agents have been on it`)
-  if (step.parked) bits.push('set aside')
-  if (!mayFor(view.store, 'runs.usd')) bits.push('cost not granted')
-  return bits.join(' · ')
-}
-
-/**
- * What one figure of money says, with **which** dash it is where it is one.
- *
- * `money`'s own three answers, put into the one shape a labelled fact takes:
- * the figure where there is one, and the word for the dash where there is not.
- * Not granted, not recorded and nought are three different mornings.
- */
-function costSaid(usd, view) {
-  const paid = money(
-    { usd: usd ?? 0, usdEstimated: 0, hasCost: usd !== null },
-    mayFor(view.store, 'runs.usd'),
-  )
-  return paid.why === '' ? paid.said : `${paid.said} ${paid.why}`
 }
