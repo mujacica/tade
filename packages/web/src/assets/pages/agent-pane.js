@@ -1,6 +1,7 @@
-// One agent, looked into: what it has been doing, and what its screen shows — the
-// pane on the agent's own page (`agent.js`). The list of every agent is
-// `../agents.js`.
+// One agent, looked into: what its screen shows, and the asking that brings
+// it and its activity back — the screen card on the agent's own page
+// (`agent.js`), which draws the activity as its timeline (`agent-time.js`).
+// The list of every agent is `../agents.js`.
 //
 // **Read-only, and the absences are the point.** Nothing here writes to an
 // agent: there is no box that types into a lane, no key that reaches one, and
@@ -21,10 +22,10 @@
 // node in a `<pre>`, set through `textContent` like everything else — never
 // markup, never a link, never a colour read out of an escape — and what the
 // machine took out of them (`screen.ts`) is drawn as the `…` it left.
-import { el, empty, into, keyed, skeleton, textIn, toneOn } from '../dom.js'
-import { ageSaid, count } from '../figures.js'
-import { section } from '../rows.js'
+import { el, into, skeleton, textIn } from '../dom.js'
+import { ageSaid } from '../figures.js'
 import { troubleOf, troubleSaid, UNKNOWN_TROUBLE } from '../trouble.js'
+import { stateBox, stateBoxIn } from '../ui.js'
 
 /** How often a page that is looking asks again: the window's own beat. */
 const EVERY_MS = 2000
@@ -32,7 +33,7 @@ const EVERY_MS = 2000
 /**
  * Why there is no screen, as a sentence somebody can act on.
  *
- * One per word of `SCREEN_WHY`, held equal to it by `test/agents.test.ts`:
+ * One per word of `SCREEN_WHY`, held equal to it by `test/agents-client.test.ts`:
  * each is a different thing to do next, and one sentence for all five would be
  * the page lying four times out of five.
  */
@@ -44,45 +45,27 @@ export const WHY_SAID = {
   'not here': 'Not on this device',
 }
 
-/**
- * What each kind of moment looks like: a glyph, and a tone that is never the
- * only thing saying it — the sentence beside it is Tade's own (`activitySaid`).
- */
-const MOMENTS = {
-  made: { glyph: '+', tone: 't-quiet' },
-  state: { glyph: '◆', tone: 't-here' },
-  started: { glyph: '▶', tone: 't-working' },
-  stopped: { glyph: '■', tone: 't-quiet' },
-  turn: { glyph: '↺', tone: 't-quiet' },
-  used: { glyph: '⌸', tone: 't-quiet' },
-  asked: { glyph: '?', tone: 't-wants' },
-  allowed: { glyph: '✓', tone: 't-done' },
-  refused: { glyph: '✕', tone: 't-failed' },
-  checked: { glyph: '✓', tone: 't-quiet' },
-  committed: { glyph: '●', tone: 't-working' },
-  finished: { glyph: '✓', tone: 't-done' },
-  told: { glyph: '✎', tone: 't-quiet' },
-  failed: { glyph: '▲', tone: 't-failed' },
+/** The icon each absence is drawn with: a lock is not a broken pane. */
+const WHY_ICON = {
+  'not granted': 'devices',
+  'no agent': 'agents',
+  'not read yet': 'clock',
+  'could not read': 'alert',
+  'not here': 'folder',
 }
 
-/* ── one agent, looked into ────────────────────────────────────────────────── */
-
 /**
- * What it has been doing, and what its screen shows — for the task screen.
+ * The screen card, and the asking behind it.
  *
- * Returns its two sections, an `update` the screen calls with every paint, and
- * a `leave` the router calls when somebody goes elsewhere: the one thing that
- * stops the asking, and so the reading at the machine.
+ * Returns the card, an `update` the page calls with every paint, `heard()` —
+ * the last answer and the last failure, which the page draws its timeline
+ * from — and a `leave` the router calls when somebody goes elsewhere: the one
+ * thing that stops the asking, and so the reading at the machine. `told` is
+ * called after every ask, so the timeline moves when the answer does rather
+ * than at the next delta.
  */
-export function agentPane(where, ctx) {
-  // **The current turn and its screen are one card**, as the window draws a
-  // pane: what the agent is doing on its top line (`head`, the task screen's
-  // to fill), the last rows of its screen under it, and what was left out at
-  // its foot.
-  const screen = section('NOW')
-  const card = el('div', { class: 'ui-panel term' })
-  const head = el('div', { class: 'term-head' })
-  const why = el('p', { class: 'empty term-why' })
+export function agentPane(where, ctx, told = () => {}) {
+  const card = el('div', { class: 'ui-panel ag-term' })
   const frame = el('div', {
     class: 'scrolls screen',
     attrs: { role: 'region', 'aria-label': 'The last rows of its screen', tabindex: '0' },
@@ -91,17 +74,13 @@ export function agentPane(where, ctx) {
   into(frame, rows)
   // Before the first answer, the rows that are coming rather than a sentence.
   const coming = skeleton(8)
-  coming.classList.add('term-coming')
-  const facts = el('p', { class: 'aside term-foot' })
-  into(card, head, why, coming, frame, facts)
-  into(screen.body, card)
-
-  const activity = section('ACTIVITY')
-  const list = el('ul', { class: 'ui-timeline moments' })
-  const none = empty('nothing written down about it yet')
-  const more = el('p', { class: 'unknown', text: 'and more before this' })
-  const waiting = skeleton(4)
-  into(activity.body, waiting, list, none, more)
+  coming.classList.add('ag-term-coming')
+  const why = stateBox()
+  why.classList.add('ag-term-why')
+  const foot = el('p', { class: 'ag-term-foot' })
+  into(card, coming, why, frame, foot)
+  // What the section's figure says: when the rows were read.
+  const read = el('span')
 
   const path = `/api/agent/${encodeURIComponent(where.project)}/${encodeURIComponent(where.task)}`
   let answer = null
@@ -113,45 +92,32 @@ export function agentPane(where, ctx) {
   const draw = () => {
     if (view === null) return
     coming.hidden = answer !== null || failed !== null
-    waiting.hidden = answer !== null || failed !== null
-    if (failed !== null && answer === null) {
-      why.hidden = false
-      textIn(why, failed)
-      frame.hidden = true
-      facts.hidden = true
-      none.hidden = true
-      return
-    }
     if (answer === null) {
-      why.hidden = true
       frame.hidden = true
-      facts.hidden = true
-      none.hidden = true
-      more.hidden = true
+      foot.hidden = true
+      textIn(read, '')
+      stateBoxIn(why, failed === null ? null : { kind: 'error', icon: 'alert', ...said(failed) })
       return
     }
-    // Asked for and answered, where there is no screen to draw: the reason,
-    // and no rows coming.
-    coming.hidden = true
-    screenIn(answer, view)
-    momentsIn(answer, view)
-  }
-
-  const screenIn = (said, at) => {
-    const shown = said.screen
-    why.hidden = shown !== null
-    textIn(why, shown === null ? (WHY_SAID[said.why] ?? WHY_SAID['could not read']) : '')
+    const shown = answer.screen
     frame.hidden = shown === null
     if (shown === null) {
-      facts.hidden = true
-      textIn(screen.figure, '')
+      foot.hidden = true
+      textIn(read, '')
+      const word = answer.why ?? 'could not read'
+      stateBoxIn(why, {
+        kind: word === 'could not read' ? 'error' : 'empty',
+        icon: WHY_ICON[word] ?? 'alert',
+        ...said(WHY_SAID[word] ?? WHY_SAID['could not read']),
+      })
       return
     }
+    stateBoxIn(why, null)
     // **One text node, written only when it changed**, so a selection somebody
     // is making in it survives every ask that brought the same rows back.
     textIn(rows, shown.lines.join('\n'))
-    const age = ageSaid(shown.at, at.asOf, at.frozen)
-    textIn(screen.figure, age === null ? '' : `read ${age} ago`)
+    const age = ageSaid(shown.at, view.asOf, view.frozen)
+    textIn(read, age === null ? '' : `read ${age} ago`)
     const parts = []
     if (shown.above > 0) parts.push(`${shown.above} rows above these`)
     if (shown.cut > 0) parts.push(`${shown.cut} cut at the edge`)
@@ -159,28 +125,8 @@ export function agentPane(where, ctx) {
     // A failed ask after a good one keeps the rows and says so: what is on
     // screen is the last thing that was true, and never a blank pane.
     if (failed !== null) parts.push(failed)
-    textIn(facts, parts.join(' · '))
-    facts.hidden = parts.length === 0
-  }
-
-  const momentsIn = (said, at) => {
-    const seen = new Map()
-    const keyedRows = said.activity.map((one) => {
-      const base = `${one.at}|${one.kind}|${one.said}`
-      const n = seen.get(base) ?? 0
-      seen.set(base, n + 1)
-      return { ...one, key: `${base}|${n}` }
-    })
-    keyed(
-      list,
-      keyedRows,
-      (one) => one.key,
-      createMoment,
-      (one, row) => fillMoment(one, row, at),
-    )
-    none.hidden = keyedRows.length > 0 || !said.here
-    more.hidden = !said.more
-    textIn(activity.figure, said.activity.length === 0 ? '' : count(said.activity.length))
+    textIn(foot, parts.join(' · '))
+    foot.hidden = parts.length === 0
   }
 
   const ask = async () => {
@@ -199,14 +145,16 @@ export function agentPane(where, ctx) {
         failed = troubleSaid(troubleOf(got) ?? UNKNOWN_TROUBLE)
       }
       draw()
+      told()
     }
     timer = setTimeout(() => void ask(), EVERY_MS)
   }
   void ask()
 
   return {
-    nodes: [screen.node, activity.node],
-    head,
+    card,
+    read,
+    heard: () => ({ answer, failed }),
     update(next) {
       view = next
       draw()
@@ -219,24 +167,14 @@ export function agentPane(where, ctx) {
   }
 }
 
-function createMoment() {
-  const node = el('li')
-  const row = el('div')
-  const glyph = el('span', { class: 'glyph', attrs: { 'aria-hidden': 'true' } })
-  const said = el('span', { class: 'name' })
-  const aside = el('span', { class: 'aside' })
-  into(row, glyph, said, aside)
-  into(node, row)
-  return node
-}
-
-function fillMoment(node, moment, view) {
-  const [row] = node.children
-  const [glyph, said, aside] = row.children
-  const mark = MOMENTS[moment.kind] ?? { glyph: '·', tone: 't-quiet' }
-  textIn(glyph, mark.glyph)
-  toneOn(glyph, mark.tone)
-  textIn(said, moment.said)
-  const age = ageSaid(moment.at, view.asOf, view.frozen)
-  textIn(aside, age ?? '')
+/**
+ * A sentence as a state's heading and its line: what is not there, and — after
+ * the dash — what to do about it.
+ */
+function said(sentence) {
+  const cut = sentence.indexOf(' — ')
+  // Shorthand: a `title` key is a tooltip to `design.test.ts`, and this is a heading.
+  const title = cut < 0 ? sentence : sentence.slice(0, cut)
+  const line = cut < 0 ? null : sentence.slice(cut + 3)
+  return { title, line }
 }

@@ -248,8 +248,10 @@ describe('the real folder', () => {
     // until the overview's redesign had spent that room and the runs, project,
     // checks and workflows pages were redrawn on it at once: a redesigned page
     // is 10–20 KB on the wire where the old one was 3, so the next page is
-    // this conversation again.
-    expect(wire).toBeLessThan(296 * 1024)
+    // this conversation again. 296 until the agent's page (13 KB more: its
+    // lead, timeline and checks drawn rather than listed) and the findings
+    // page were redrawn at once, which took the folder to 316.
+    expect(wire).toBeLessThan(320 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: still under a megabyte, with the comments every module carries.
     // 768 until the pages were redrawn one at a time, each 40–90 KB as it
