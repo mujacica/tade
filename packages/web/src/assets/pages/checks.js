@@ -45,6 +45,7 @@ export function checksScreen() {
   const made = section('CHECKS', { top: true })
   const coming = skeleton(4)
   const nothing = stateBox()
+  nothing.classList.add('checks-nothing')
   const lead = leadOf()
   const red = redOf()
   const board = boardOf()
@@ -128,7 +129,9 @@ function redOf() {
     made,
     fill(page) {
       textIn(made.figure, page.red.length === 0 ? '' : count(page.red.length))
-      made.figure.setAttribute('aria-label', `${page.red.length} failing`)
+      // A label on an empty figure is one axe refuses: said only when drawn.
+      if (page.red.length === 0) made.figure.removeAttribute('aria-label')
+      else made.figure.setAttribute('aria-label', `${page.red.length} failing`)
       stateBoxIn(calm, page.red.length > 0 ? null : calmOf(page.totals))
       list.hidden = page.red.length === 0
       keyed(list, page.red, (one) => one.key, createRed, fillRed)

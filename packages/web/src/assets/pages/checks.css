@@ -19,6 +19,11 @@
   color: var(--green);
 }
 
+/* The page's own state — no projects, or nothing read yet — stands a group's gap above the rest. */
+.checks-nothing {
+  margin-block-end: var(--stack);
+}
+
 /* ── the lead: three figures, one line on a phone too ──────────────────────── */
 
 /* Three short figures fit a phone's width; stacked, they would push the red under the fold. */
