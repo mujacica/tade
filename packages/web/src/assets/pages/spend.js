@@ -1,285 +1,317 @@
-// The money: what the work cost, what a plan's windows hold, and by project.
+// The money: what the work cost today, how full each plan is, and where it went.
 //
-// The screen that most has to not lie. `usdOnPlan` goes below a rule and in
-// **no** total, because a subscription paid a flat fee and nobody was charged
-// those turns; `~` marks any bucket with an estimate in it; `≥` appears
-// wherever some tokens had no rate, or wherever the snapshot left tasks out,
-// because a sum over what arrived is a floor; and `—` is nobody wrote it down,
-// never a nought. There are no period buttons on this page: the projection
-// carries one figure per task and not a series, so *today* is a question this
-// data cannot answer and a control offering it would be a lie with a tab on it.
+// **What somebody opening this wants first** is what this has cost since the
+// day began, and whether a plan is about to stop the work: so the bill, a
+// plan's worth at list and the tokens lead, then every plan as a card of
+// gauges, fullest first, then where it went as ranked bars by project, agent,
+// harness or model. Three claims in three places, each with its mark and word,
+// and never added (`spend-shape.js` says every figure).
+//
+// **The period is said once, in the bar** (`fresh.spendSince`, in this reader's
+// clock). No period buttons: the projection carries one figure per task, not a
+// series, so *this week* is a question this data cannot answer.
 
 import { mayFor } from '../access.js'
-import { ringOf, shareIn } from '../charts.js'
-import { el, empty, foldOf, into, keyed, textIn } from '../dom.js'
-import { count, money, onPlan, planBar, sinceSaid, tokensSaid, untilSaid } from '../figures.js'
-import { nothingSaid, sayIn, section } from '../rows.js'
-import { omitted, plansOf, projectsOf, rowsOf, spendFold, spendSince, tasksIn } from '../store.js'
-import { callout, facts, factsIn, meter, meterIn, panel } from '../ui.js'
+import { bars, barsIn, gauge, gaugeIn } from '../charts.js'
+import { classOn, el, into, keyed, skeleton, textIn, toneOn } from '../dom.js'
+import { count } from '../figures.js'
+import { nothingSaid, section } from '../rows.js'
+import { omitted, plansOf, rowsOf, spendSince } from '../store.js'
+import { stateBox, stateBoxIn } from '../ui.js'
+import {
+  GROUPS,
+  leadOf,
+  periodOf,
+  plansShape,
+  pressureSaid,
+  spentAny,
+  wentOf,
+} from './spend-shape.js'
 
-/* ── the money ─────────────────────────────────────────────────────────────── */
+/** A region's state, as `stateBoxIn` takes it, with this page's mark unless it says. */
+function stateOf(kind, title, line, icon = 'spend') {
+  return { kind, icon, title, line }
+}
+
+/** Which way the page was last asked where it went, for as long as the page is open. */
+let chosen = 'project'
 
 export function spendScreen() {
   const node = el('div')
   const made = section('SPEND', { top: true })
-  // **The figures are one row of facts** — what was billed, how much of it is
-  // exact and how much estimated, the tokens, and what the turns on a plan
-  // would have cost, which is in no total — and what each mark means is one
-  // press away at the end of the bar.
-  const strip = facts('Spend')
-  // The caveats are built once and shown or hidden, so a figure somebody is
-  // reading does not move down the page because a new one appeared under it.
-  const scope = callout(
-    'This device was not granted what the work costs, so every figure here is a dash. What each device may read is decided at the machine, and the Devices screen lists what this one was given.',
-  )
-  const floor = el('p', { class: 'unknown', text: '≥ some tasks are not on this page' })
-  const noMoney = el('p', { class: 'unknown' })
-  const unrated = el('p', {
-    class: 'unknown',
-    text: '~ some tokens ran on a model with no known rate',
-  })
-  // **The period, said rather than denied.** The window folds spend from its
-  // own midnight, so without this a phone reads a dash on a task that cost
-  // forty dollars yesterday as *not recorded*.
-  const covers = el('p', { class: 'unknown' })
-  const caveats = { scope, floor, noMoney, unrated, covers }
-  const about = foldOf('About these figures')
-  into(made.tools, about.press)
-  into(about.body, scope, floor, noMoney, unrated, covers)
-  into(made.body, about.body, strip)
-
-  const plans = quotasSection()
-
-  const by = section('BY PROJECT')
-  const wrap = el('div', {
-    class: 'scrolls ui-panel',
-    attrs: { tabindex: '0', role: 'region', 'aria-label': 'Spend by project, scrollable' },
-  })
-  const table = el('table')
-  const caption = el('caption', { class: 'sr-only', text: 'Folded over the tasks on this page.' })
-  const headRow = el('tr')
-  for (const [name, klass] of [
-    ['Project', ''],
-    ['Money', 'figure'],
-    ['Tokens', 'figure'],
-    ['On a plan', 'figure'],
-  ]) {
-    into(headRow, el('th', { class: klass, text: name, attrs: { scope: 'col' } }))
-  }
-  const body = el('tbody')
-  into(table, caption, into(el('thead'), headRow), body)
-  into(wrap, table)
-  into(by.body, wrap)
-  into(node, made.node, plans.node, by.node)
+  const coming = skeleton(4)
+  const closed = stateBox()
+  closed.classList.add('spend-closed')
+  const money = moneyView()
+  const plans = plansView()
+  const went = wentView()
+  into(made.body, coming, closed, money.made.node, plans.made.node, went.made.node)
+  into(node, made.node)
 
   return {
     node,
     update(view) {
-      const tasks = rowsOf(view.store, 'tasks')
-      const partial = omitted(view.store, 'tasks') > 0
-      const fold = spendFold(tasks, partial)
-      const paid = money(fold, mayFor(view.store, 'tasks.spend'))
-      const total = paid.said === '—' ? '—' : `${partial ? '≥' : ''}${paid.said}`
-      textIn(made.figure, total)
-      const tokens = tokensSaid(fold)
-      const plan = onPlan(fold)
-      factsIn(strip, [
-        { label: 'Billed', value: total, under: paid.said === '—' ? paid.why : null },
-        { label: 'Exact', value: fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null },
-        {
-          label: 'Estimated',
-          value: fold.usdEstimated > 0 ? `~$${fold.usdEstimated.toFixed(2)}` : null,
-        },
-        {
-          label: 'Tokens',
-          value: tokens === null ? null : tokens.said,
-          under: tokens === null || tokens.unpriced === '' ? null : tokens.unpriced,
-        },
-        { label: 'On a plan', value: plan === null ? null : plan.said, under: plan?.why ?? null },
-      ])
-      caveatsIn(caveats, fold, mayFor(view.store, 'tasks.spend'), spendSince(view.store))
-      plans.update(view)
-      const names = projectsOf(view.store)
-      // The largest project's money is the full width of every bar, so the
-      // bars compare the projects with each other and nothing else.
-      const most = Math.max(0, ...names.map((row) => spendFold(tasksIn(view.store, row.name)).usd))
+      const store = view.store
+      const had = store.had === true
+      coming.hidden = had
+      const granted = mayFor(store, 'tasks.spend')
+      const period = had && granted ? periodOf(spendSince(store), view.asOf) : null
+      textIn(made.figure, period ?? '')
+      const tasks = had && granted ? rowsOf(store, 'tasks') : []
+      const partial = omitted(store, 'tasks') > 0
+      const lead = leadOf(tasks, { granted, partial })
+      const spent = spentAny(lead.fold)
+      // Two nulls, two sentences: not granted is not nothing spent. And a
+      // period with nothing spent and no plan is one sentence for the page.
+      const bare = had && granted && !spent && plansOf(store).length === 0
+      stateBoxIn(
+        closed,
+        had && !granted
+          ? stateOf(
+              'empty',
+              'This device cannot read what the work costs',
+              'What each device may read is decided at the machine; the Devices screen lists what this one was given.',
+            )
+          : bare
+            ? stateOf(
+                'empty',
+                period === null ? 'Nothing spent yet' : `Nothing spent ${period}`,
+                'Each agent’s turns are added here as it runs, and each plan’s windows as its harness says them.',
+              )
+            : null,
+      )
+      const open = had && granted && !bare
+      money.made.node.hidden = !open
+      plans.made.node.hidden = !open
+      // Nothing spent is said once, by the lead, and there is nothing to ask it by.
+      went.made.node.hidden = !open || !spent
+      if (!open) return
+      money.fill(lead, period)
+      plans.fill(view)
+      if (spent) went.fill(tasks, partial)
+    },
+  }
+}
+
+/* ── the lead: what it cost ────────────────────────────────────────────────── */
+
+/** The bill large, a plan's worth and the tokens beside it: a hairline between, never a sum. */
+function moneyView() {
+  const made = section('SPENT')
+  const card = el('dl', { class: 'ui-panel spend-money', attrs: { 'aria-label': 'What it cost' } })
+  const billed = cellOf('Billed', 'spend-billed')
+  const parts = el('ul', { class: 'spend-parts', attrs: { 'aria-label': 'Made of' } })
+  const holder = el('dd', { class: 'spend-parts-holder' })
+  into(holder, parts)
+  billed.node.append(holder)
+  const plan = cellOf('On a plan')
+  const toks = cellOf('Tokens')
+  into(card, billed.node, plan.node, toks.node)
+  const nothing = stateBox()
+  into(made.body, nothing, card)
+  return {
+    made,
+    fill(lead, period) {
+      // A period with nothing in it is one sentence, not three dashes.
+      const none = !spentAny(lead.fold)
+      card.hidden = none
+      stateBoxIn(
+        nothing,
+        none
+          ? stateOf(
+              'empty',
+              period === null ? 'Nothing spent yet' : `Nothing spent ${period}`,
+              'Each agent’s turns are added here as it runs.',
+            )
+          : null,
+      )
+      cellIn(billed, lead.billed)
+      cellIn(plan, lead.onPlan)
+      cellIn(toks, lead.tokens)
+      holder.hidden = lead.billed.parts.length === 0
       keyed(
-        body,
-        names,
-        (row) => row.name,
-        createSpendRow,
-        (one, row) => fillSpendRow(one, row, view, most),
+        parts,
+        lead.billed.parts,
+        (one) => one.key,
+        () => into(el('li'), el('span', { class: 'spend-part-figure' }), el('span')),
+        (item, one) => {
+          textIn(item.firstChild, one.said)
+          textIn(item.lastChild, one.word)
+        },
       )
     },
   }
 }
 
+function cellOf(label, extra = '') {
+  const node = el('div', { class: extra === '' ? 'spend-cell' : `spend-cell ${extra}` })
+  const value = el('dd', { class: 'spend-figure' })
+  const word = el('dd', { class: 'spend-word' })
+  into(node, el('dt', { text: label }), value, word)
+  return { node, value, word }
+}
+
+/** A cell's figure, or its dash in the quiet grey with the word that says which dash. */
+function cellIn(cell, one) {
+  textIn(cell.value, one.value ?? '—')
+  classOn(cell.value, 'is-unknown', one.value === null)
+  textIn(cell.word, one.word)
+}
+
+/* ── the plans: every account's windows as gauges ──────────────────────────── */
+
 /**
- * Quotas: every account's plan windows — the 5 hours, the week — each a bar
- * of how much of it is used and when it starts over, as the harness reported
- * them. The Spend screen and the overview draw the same section.
+ * The accounts with windows as gauge cards, and those with nothing to gauge —
+ * cannot tell, per token — as one panel of rows beside them, stretched to the
+ * cards' height so the two columns end on one line; stacked on a phone.
  */
-export function quotasSection() {
-  const made = section('QUOTAS')
-  // The overview's Quota figure is a link to here.
+function plansView() {
+  const made = section('PLAN LIMITS')
+  // The overview's plan limits are a link to here.
   made.node.setAttribute('id', 'quotas')
-  const list = panel('ul', 'rows quotas')
-  const none = empty('no account reported a quota')
-  into(made.body, list, none)
+  const none = stateBox()
+  const grid = el('div', { class: 'spend-plan-grid' })
+  const list = el('ul', { class: 'spend-plans', attrs: { 'aria-label': 'Plans with windows' } })
+  const others = el('ul', {
+    class: 'ui-panel spend-others',
+    attrs: { 'aria-label': 'Plans with nothing to show' },
+  })
+  into(grid, list, others)
+  into(made.body, none, grid)
   return {
-    node: made.node,
-    update(view) {
+    made,
+    fill(view) {
       const rows = plansOf(view.store)
-      textIn(made.figure, count(rows.length))
-      none.hidden = rows.length > 0
-      textIn(
+      const cards = plansShape(rows, view.asOf)
+      textIn(made.figure, rows.length === 0 ? '' : count(rows.length))
+      // A label on an empty figure is one axe refuses: said only when drawn.
+      if (rows.length === 0) made.figure.removeAttribute('aria-label')
+      else made.figure.setAttribute('aria-label', `${rows.length} accounts`)
+      stateBoxIn(
         none,
-        nothingSaid(
-          mayFor(view.store, 'plans'),
-          omitted(view.store, 'plans'),
-          'no account reported a quota',
-        ),
+        rows.length > 0
+          ? null
+          : stateOf(
+              'empty',
+              'No plan reported',
+              nothingSaid(
+                mayFor(view.store, 'plans'),
+                omitted(view.store, 'plans'),
+                'A sign-in on a plan says how much of it is used while its agents run.',
+              ),
+              'clock',
+            ),
       )
-      keyed(
-        list,
-        rows,
-        (row) => row.id,
-        createPlanRow,
-        (one, row) => fillPlanRow(one, row, view),
-      )
+      const gauged = cards.filter((one) => one.kind === 'windows')
+      const rest = cards.filter((one) => one.kind !== 'windows')
+      grid.hidden = rows.length === 0
+      list.hidden = gauged.length === 0
+      others.hidden = rest.length === 0
+      classOn(grid, 'is-split', gauged.length > 0 && rest.length > 0)
+      keyed(list, gauged, (one) => one.key, createPlan, fillPlan)
+      keyed(others, rest, (one) => one.key, createOther, fillOther)
     },
   }
 }
 
-/**
- * Every way this figure is incomplete, said beside it rather than smoothed.
- *
- * Shown and hidden rather than built and thrown away, so a figure somebody is
- * reading does not move down the page because a caveat appeared under it.
- */
-function caveatsIn(made, fold, granted, since) {
-  // The sentence the two-word column cannot carry, said once where there is
-  // room: a dash here is about this device's reach and not about the work.
-  made.scope.hidden = granted
-  for (const one of ['floor', 'noMoney', 'unrated', 'covers']) made[one].hidden = !granted
-  if (!granted) return
-  // Null where nothing has been folded yet, which is `unknown` and is said by
-  // saying nothing rather than by naming a date in 1970.
-  sayIn(made.covers, sinceSaid(since))
-  made.floor.hidden = !fold.partial
-  sayIn(
-    made.noMoney,
-    fold.unknown > 0 ? `— ${fold.unknown} tasks here reported no money at all` : null,
-  )
-  made.unrated.hidden = fold.tokensUnpriced === 0
-}
-
-function createPlanRow() {
-  const node = el('li')
-  const body = el('div')
-  const name = el('span', { class: 'name' })
-  const meter = el('span', { class: 'meter' })
-  const under = el('span', { class: 'under' })
-  // One line per window: its name, a bar of how much of it is used, the
-  // share, and when it starts over — drawn, rather than a row of `▰`.
-  const windows = el('ul', { class: 'windows' })
-  into(body, ringOf('plan'), name, meter, under, windows)
-  return into(node, body)
-}
-
-/**
- * One account's plan windows.
- *
- * **A plan is not money**: what is drawn is the share of a window that is used
- * up, which is the service's own number, and `resets in` beside it. A harness
- * that said nothing says `cannot tell` in its own words — the projection
- * carries that sentence, so this does not invent one.
- */
-function fillPlanRow(node, plan, view) {
-  const [body] = node.children
-  const [ring, name, meter, under, windows] = body.children
-  // The fullest window as the ring beside the name: the one that runs out first.
-  const most = Math.max(...(plan.windows ?? []).map((one) => one.used), -1)
-  shareIn(ring, most < 0 ? null : most, most < 0 ? '' : planBar(most).pressure)
-  textIn(name, `${plan.harness}${plan.account === null ? '' : ` · ${plan.account.words}`}`)
-  const told = (said) => {
-    textIn(under, said)
-    under.hidden = said === ''
-  }
-  if (plan.cannotTell !== null && plan.cannotTell !== undefined) {
-    textIn(meter, '—')
-    told(plan.cannotTell)
-    keyed(windows, [], (one) => one.label, createWindow, fillWindow)
-    return
-  }
-  if (plan.pays === 'per-token') {
-    textIn(meter, '')
-    told('per-token — no window')
-    keyed(windows, [], (one) => one.label, createWindow, fillWindow)
-    return
-  }
-  textIn(meter, plan.windows.length === 0 ? '—' : '')
-  told(plan.windows.length === 0 ? 'no window was reported' : '')
-  keyed(
-    windows,
-    plan.windows,
-    (one) => one.label,
-    createWindow,
-    (one, window) => fillWindow(one, window, view),
+function createOther() {
+  return into(
+    el('li', { class: 'spend-other' }),
+    el('strong', { class: 'spend-plan-name' }),
+    el('span', { class: 'spend-plan-harness' }),
+    el('span', { class: 'spend-plan-line' }),
   )
 }
 
-function createWindow() {
-  const node = el('li')
-  const bar = meter()
+/** An account with no window to draw: its name, its harness, and the line for why. */
+function fillOther(item, card) {
+  const [name, harness, line] = item.children
+  textIn(name, card.name)
+  textIn(harness, card.account === null ? '' : card.harness)
+  harness.hidden = card.account === null
+  textIn(line, card.line)
+}
+
+function createPlan() {
+  const item = el('li', { class: 'ui-card spend-plan' })
+  const head = el('div', { class: 'spend-plan-head' })
   into(
-    node,
-    el('span', { class: 'window-label' }),
-    bar,
-    el('span', { class: 'window-share num' }),
-    el('span', { class: 'window-resets' }),
+    head,
+    el('strong', { class: 'spend-plan-name' }),
+    el('span', { class: 'spend-plan-harness' }),
+    el('span', { class: 'ui-pill spend-plan-pill' }),
   )
-  return node
+  into(item, head, el('div', { class: 'spend-gauges' }))
+  return item
 }
 
-function fillWindow(node, window, view) {
-  const [label, bar, share, resets] = node.children
-  const drawn = planBar(window.used)
-  textIn(label, window.label)
-  meterIn(bar, window.used, drawn.pressure)
-  textIn(share, drawn.said)
-  const until = untilSaid(window.resetsAt, view?.asOf ?? Date.now())
-  textIn(resets, until === null ? 'no reset said' : `resets in ${until}`)
+/** One account's windows, a gauge each. Red is never alone: the card says *nearly out*. */
+function fillPlan(item, card) {
+  const [head, gauges] = item.children
+  const [name, harness, pill] = head.children
+  textIn(name, card.name)
+  textIn(harness, card.account === null ? '' : card.harness)
+  harness.hidden = card.account === null
+  const word = pressureSaid(card)
+  textIn(pill, word)
+  pill.hidden = word === ''
+  toneOn(pill, card.pressure === 'tight' ? 't-failed' : null)
+  classOn(item, 'is-tight', card.pressure === 'tight')
+  keyed(
+    gauges,
+    card.windows,
+    (one) => one.key,
+    (one) => gauge(`${card.name} ${one.label} window`),
+    (node, one) => gaugeIn(node, one),
+  )
 }
 
-function createSpendRow() {
-  const node = el('tr')
-  for (let at = 0; at < 4; at += 1) {
-    into(node, el('td', { class: at === 0 ? '' : 'figure' }))
+/* ── where it went ─────────────────────────────────────────────────────────── */
+
+function wentView() {
+  const made = section('WHERE IT WENT')
+  const switcher = el('div', {
+    class: 'spend-by',
+    attrs: { role: 'group', 'aria-label': 'Where it went, by' },
+  })
+  const presses = new Map()
+  let last = null
+  for (const one of GROUPS) {
+    const press = el('button', {
+      class: 'ui-chip spend-by-press',
+      text: one.word,
+      attrs: { type: 'button', 'aria-pressed': String(one.key === chosen) },
+    })
+    press.addEventListener('click', () => {
+      chosen = one.key
+      for (const [key, node] of presses) node.setAttribute('aria-pressed', String(key === chosen))
+      if (last !== null) draw(...last)
+    })
+    presses.set(one.key, press)
+    switcher.append(press)
   }
-  // Each project's share of the largest, as a bar under its name: a picture
-  // of the money column beside it, and `aria-hidden` because it is that.
-  const name = el('span', { class: 'share-name' })
-  const share = meter()
-  share.classList.add('share')
-  into(node.firstChild, name, share)
-  return node
-}
+  const panel = el('div', { class: 'ui-panel spend-went' })
+  const list = bars('Where it went')
+  const quiet = el('p', { class: 'spend-quiet' })
+  into(panel, list, quiet)
+  into(made.body, switcher, panel)
 
-function fillSpendRow(node, project, view, most = 0) {
-  const cells = node.children
-  const tasks = tasksIn(view.store, project.name)
-  const fold = spendFold(tasks, omitted(view.store, 'tasks') > 0)
-  const paid = money(fold, mayFor(view.store, 'tasks.spend'))
-  const [name, share] = cells[0].children
-  textIn(name, project.name)
-  const part = paid.said === '—' || most <= 0 ? 0 : fold.usd / most
-  share.hidden = part === 0
-  meterIn(share, part * 100)
-  textIn(cells[1], paid.said === '—' ? '—' : `${fold.partial ? '≥' : ''}${paid.said}`)
-  cells[1].setAttribute('aria-label', paid.said === '—' ? paid.why : paid.said)
-  const tokens = tokensSaid(fold)
-  textIn(cells[2], tokens === null ? '—' : tokens.said)
-  const plan = onPlan(fold)
-  textIn(cells[3], plan === null ? '—' : plan.said)
+  const draw = (tasks, partial) => {
+    last = [tasks, partial]
+    for (const [key, node] of presses) node.setAttribute('aria-pressed', String(key === chosen))
+    const went = wentOf(tasks, chosen, { partial })
+    const by = GROUPS.find((one) => one.key === chosen) ?? GROUPS[0]
+    list.setAttribute('aria-label', `Where it went, by ${by.noun[0]}, ${went.measure}`)
+    textIn(made.figure, went.rows.length === 0 ? '' : `by ${went.measure}`)
+    barsIn(list, went.rows)
+    went.rows.forEach((row, at) => {
+      const item = list.children[at]
+      classOn(item, 'is-plan', row.kind === 'plan')
+      classOn(item, 'is-unrecorded', row.unrecorded)
+      classOn(item, 'is-mono', chosen === 'harness' || chosen === 'model')
+    })
+    textIn(quiet, went.quietSaid)
+    quiet.hidden = went.quietSaid === ''
+  }
+  return { made, fill: draw }
 }

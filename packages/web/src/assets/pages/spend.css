@@ -1,23 +1,256 @@
-/* The spend page's own sheet: every rule scoped to it (`.page-spend`, `test/pages.test.ts`). */
+/*
+  The spend page's sheet, every rule scoped to it (`test/pages.test.ts`).
+  Three claims, three places, the grey ladder between them: the bill is the one
+  big number, a plan's worth and the tokens a step down. The gauges are the
+  colour — amber filling, red about to stop the work, the one red edge — and
+  where it went is grey bars, amber only for an agent still running. With room,
+  one right rail runs top to bottom: the tokens, then the plans with no gauge.
+*/
 
-/* A project's share of the largest in the money column, under its name. */
-.share-name {
-  display: block;
+.page-spend {
+  container-type: inline-size;
 }
 
-.window-label {
-  font-family: var(--font-mono);
+.spend-closed {
+  margin-block-end: var(--stack);
+}
+
+.spend-cell > dt,
+.spend-word,
+.spend-parts,
+.spend-plan-harness,
+.spend-plan-line,
+.spend-quiet {
   color: var(--heading);
   font-size: var(--step--1);
 }
 
-.window-share {
-  text-align: end;
+/* ── the lead: the bill, a plan's worth, the tokens ───────────────────────── */
+
+/* A hairline between cells (the line through a 1px gap); the bill across the top on a phone. */
+.spend-money {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: var(--line);
+}
+
+.spend-cell {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: var(--s1);
+  min-width: 0;
+  padding: var(--inset);
+  background: var(--panel);
+}
+
+.spend-cell > dt {
+  font-weight: var(--w-label);
+}
+
+.spend-cell > dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.spend-figure {
   color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
-.window-resets {
-  grid-column: 2 / -1;
+/* A dash is not an amount: the label's grey, and never at the hero's size. */
+.spend-figure.is-unknown {
   color: var(--heading);
+}
+
+.spend-billed {
+  grid-column: 1 / -1;
+  grid-template-rows: auto auto auto 1fr;
+}
+
+.spend-billed > .spend-figure:not(.is-unknown) {
+  font-size: var(--step-4);
+}
+
+.spend-parts-holder {
+  margin-block-start: var(--s2);
+}
+
+.spend-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spend-part-figure {
+  margin-inline-end: var(--s1);
+  color: var(--body);
+  font-weight: var(--w-strong);
+}
+
+/* ── the plans: a card per account with windows, a panel for the rest ─────── */
+
+.spend-plan-grid,
+.spend-plans {
+  display: grid;
+  gap: var(--s3);
+}
+
+.spend-plans,
+.spend-others {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Cards side by side are one height, so a row ends on one line. */
+.spend-plans {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+.spend-plan {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--inset);
+}
+
+.spend-plan.is-tight {
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+}
+
+/* The name and, at its end, *nearly out*; the harness under the name. */
+.spend-plan-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px var(--s2);
+}
+
+.spend-plan-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+}
+
+.spend-plan-harness {
+  grid-row: 2;
+  font-family: var(--font-mono);
+}
+
+.spend-plan-pill {
+  grid-area: 1 / 2;
+}
+
+/* Gauges in the middle of whatever room a taller neighbour gives the card. */
+.spend-gauges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  align-content: center;
+  gap: var(--s3);
+}
+
+/* Which window, then when it starts over: two lines under every gauge. */
+.page-spend .spend-gauges .ui-gauge-under {
+  white-space: pre-line;
+  line-height: var(--lead-tight);
+}
+
+/* The rows share the panel's height, so a short list beside tall cards fills it evenly. */
+.spend-others {
+  display: flex;
+  flex-direction: column;
+}
+
+.spend-other {
+  flex: 1 1 auto;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: var(--s3) var(--inset);
+}
+
+.spend-other + .spend-other {
+  border-block-start: var(--border);
+}
+
+/* ── where it went ─────────────────────────────────────────────────────────── */
+
+/* Four presses across a phone's width; their own width with room. */
+.spend-by {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s2);
+  margin-block-end: var(--s3);
+}
+
+.page-spend .spend-by-press {
+  justify-content: center;
+  min-width: 0;
+  padding-inline: var(--s2);
+}
+
+.spend-went {
+  padding: var(--s1) var(--inset) var(--s3);
+}
+
+/* A plan's worth where a bill would be: a step quieter, because nobody is charged it. */
+.page-spend .spend-went .is-plan .ui-bars-value {
+  color: var(--heading);
+  font-weight: var(--w-label);
+}
+
+/* A harness or a model is set as the window sets it; *not recorded* is a word, not a name. */
+.page-spend .spend-went .is-mono .ui-bars-label {
+  font-family: var(--font-mono);
   font-size: var(--step--1);
+}
+
+.page-spend .spend-went .is-unrecorded .ui-bars-label {
+  color: var(--heading);
+  font-family: var(--font-ui);
+}
+
+.spend-quiet {
+  margin: var(--s3) 0 0;
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+/* With room, the right rail: the tokens over the plans that have nothing to gauge. */
+@container (min-width: 44rem) {
+  .spend-money {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 20rem);
+  }
+
+  .spend-billed {
+    grid-column: auto;
+  }
+
+  .spend-plan-grid.is-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  }
+}
+
+@media (min-width: 768px) {
+  .spend-by {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .page-spend .spend-by-press {
+    padding-inline: var(--s4);
+  }
 }
