@@ -625,3 +625,56 @@ declare module '*/assets/pages/agent.js' {
     store: Record<string, any>,
   ): { label: string; value: string | null; under?: string | null; tone?: string | null }[]
 }
+
+declare module '*/assets/pages/overview-figures.js' {
+  /**
+   * The landing screen's figures: pure folds over the store, so a test holds
+   * every count and word the board, the money, the plan windows and the
+   * projects' grid say. How they are drawn is the browser's to check.
+   */
+  type Dots = { dots: { tone: string; hollow: boolean }[]; more: number }
+  type Cell = { n: number; under: string; dots: Dots }
+  export const DOTS: number
+  export const TOP: number
+  export function boardOf(store: Record<string, any>): {
+    wants: Cell & { approvals: number; questions: number; deciding: number; requests: number }
+    working: Cell & { stalled: number }
+    queue: Cell & { ready: number }
+    checks: Cell & { pass: number; unknown: number }
+  }
+  export function dotsOf(
+    parts: readonly { n: number; tone: string; hollow?: boolean }[],
+    most?: number,
+  ): Dots
+  export function moneyOf(store: Record<string, any>): {
+    value: string | null
+    under: string
+    top: { key: string; label: string; value: number; said: string; href: string; tone: string }[]
+  }
+  export function gaugesOf(
+    store: Record<string, any>,
+    now: number,
+  ): {
+    key: string
+    label: string
+    window: string | null
+    who: string
+    share: number | null
+    said: string | null
+    under: string
+    pressure: string | null
+  }[]
+  export function projectRowsOf(store: Record<string, any>): {
+    name: string
+    href: string
+    shape: number[]
+    wants: number
+    working: number
+    queued: number
+    checks: { parts: number[]; said: string; tone: string }
+    spend: string | null
+    spendWhy: string
+  }[]
+  export function failedOf(store: Record<string, any>): readonly any[]
+  export function workingOf(store: Record<string, any>): readonly any[]
+}

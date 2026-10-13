@@ -250,7 +250,9 @@ export async function lanesSeen(
   try {
     await until(page, `${ASKED} >= 2`)
     await page.evaluate(`document.querySelector('header .brand').click()`)
-    await page.waitForSelector('main .cards', { timeout: 10_000 })
+    // The overview by the router's own mark on its screen, never by a class of
+    // its drawing: a page redrawn is not a page that did not arrive.
+    await page.waitForSelector('main .page-overview', { timeout: 10_000 })
     const then = Number(await page.evaluate(ASKED))
     // Two beats of the pane's own, and one for a request already in flight.
     await page.waitForTimeout(4_500)

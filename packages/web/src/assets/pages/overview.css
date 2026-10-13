@@ -1,218 +1,666 @@
 /* The overview page's own sheet: every rule scoped to it (`.page-overview`, `test/pages.test.ts`). */
 
 /*
-The overview's own drawing — the six tiles, the two charts, a card of work
-that wants somebody with its presses, a project's card, the places that are a
-count and a link, the screen a cold open draws from what it kept — and the
-figures elsewhere drawn the same way: a plan's windows as bars, a project's
-share of the money, a state as a pill, a strip of small stats, the sentences
-folded under a `?`, the notes and the older pages of them.
+The landing screen, top to bottom: the board — four cells and, under them, the
+money and the plan windows, all in one panel with a hairline between each —
+then what needs you, what failed, the projects as one grid, and the agents at
+work on a phone. Composed of the shared pieces (the stat, ranked bars, the
+gauge, a ring and a segmented bar, the state box), each placed here and nowhere
+else; the marks under a cell's figure are this page's own.
 
-The same construction as everything in `ui.css` — a flat square box with a
-hairline round it, a state as the colour of its edge — kept in its own file
-because the landing screen is a page of its own.
+The hairlines inside the board are the board's own ground showing through a
+one-pixel gap between cells, so they meet exactly however the cells reflow.
 */
 
-/* ── tiles: the overview's figures ─────────────────────────────────────────── */
+/* ── the board ─────────────────────────────────────────────────────────────── */
+
+.page-overview .ov-board {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+}
+
+/* Two by two on a phone, four across where the work has the room. */
+.page-overview .ov-cells {
+  gap: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 
 /*
-The top of the overview is one line of five figures at a desk — what wants
-you, what works, what waits, what it cost and the quota that runs out first,
-each the same tile. On a phone they are two by two and the quota the width
-of both under them.
+A cell is the shared stat with its own box taken off: the board is the box.
+Its marks sit between the figure and the line under it, on the same row in
+every cell, so the four read across on one baseline.
 */
-.ov-top .tile-quiet:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
+.page-overview .ov-cell {
+  grid-template-rows: none;
+  align-content: start;
+  border: 0;
+  border-radius: 0;
 }
 
-/* ── the overview's own pieces ─────────────────────────────────────────────── */
-.all-clear {
+.page-overview .ov-cell > :is(.ui-stat-under, .ui-stat-delta, .ui-spark) {
+  order: 2;
+}
+
+/* What wants you, when something does: the one cell washed in its tone. */
+.page-overview .ov-cell.is-hot {
+  background: color-mix(in srgb, var(--violet) 9%, var(--panel));
+}
+
+.page-overview a.ov-cell.is-hot:hover {
+  background: color-mix(in srgb, var(--violet) 15%, var(--panel));
+}
+
+/* A mark per thing: square, as the window draws a cell; hollow while it waits. */
+.page-overview .ov-dots {
+  order: 1;
   display: flex;
   align-items: center;
-  gap: var(--s2);
-  min-height: var(--tap);
-  padding-inline: var(--s4);
-  border: 1px solid var(--green);
-  border-inline-start-width: 3px;
-  color: var(--green);
-  font-weight: var(--w-strong);
+  gap: var(--s1);
+  min-height: var(--s3);
+  margin-block: var(--s1);
 }
 
-.projects-grid {
-  display: grid;
-  gap: var(--s3);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+.page-overview .ov-dot {
+  flex: none;
+  width: var(--s2);
+  height: var(--s2);
+  border-radius: 2px;
+  background: var(--tone);
 }
 
-.proj-head {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--tab);
+.page-overview .ov-dot.is-hollow {
+  background: transparent;
+  border: 1.5px solid var(--tone);
 }
 
-.proj-go {
-  color: var(--chrome);
+.page-overview .ov-dot.tone-unknown {
+  background: repeating-linear-gradient(135deg, var(--chrome) 0 2px, var(--raised) 2px 5px);
 }
 
-main a.proj:hover .proj-go {
-  color: var(--bright);
-}
-
-.proj-stats {
-  display: flex;
-  gap: var(--s2);
-  min-height: 1.25rem;
-}
-
-.proj-foot {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  padding-block-start: var(--s3);
-  border-block-start: var(--border);
-  font-size: var(--step--1);
+.page-overview .ov-more {
   color: var(--heading);
-}
-
-.proj-foot .ring {
-  width: 1.125rem;
-  height: 1.125rem;
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
-}
-
-.proj-checks {
-  flex: 1 1 auto;
-}
-
-.proj-paid {
-  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
   font-variant-numeric: tabular-nums;
-  color: var(--body);
+  line-height: 1;
 }
 
-/* The places that are a count and a link: a list, each with its icon. */
-.signals {
+/* ── the money and the plan windows, the board's second line ───────────────── */
+
+.page-overview .ov-budget {
   display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.signals > li + li {
-  border-block-start: var(--border);
+.page-overview .ov-money,
+.page-overview .ov-plan {
+  background: var(--panel);
 }
 
-.signals a {
-  display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
-  gap: var(--s3);
+/* Where most of the money went is a desk's: a phone has it under Projects. */
+.page-overview .ov-most {
+  display: none;
+  align-content: center;
+  padding: var(--s2) var(--inset) var(--inset);
+}
+
+.page-overview .ov-plan {
+  padding: var(--inset);
+}
+
+/*
+The plan's heading is a press to every window, a thumb's height, pulled up so
+its words stand level with the label of the cell beside it.
+*/
+.page-overview .ov-plan-head {
+  display: inline-flex;
   align-items: center;
-  min-height: 3.25rem;
-  padding-inline: var(--s4) var(--s3);
-  color: var(--bright);
+  gap: var(--s1);
+  min-height: var(--tap);
+  margin-block-start: calc((1.25rem - var(--tap)) / 2);
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
   text-decoration: none;
 }
 
-main .signals a {
-  display: grid;
-}
-
-.signals a:hover {
-  color: var(--amber-light);
-}
-
-.signals .ic {
-  color: var(--tab);
-}
-
-.signals .count {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+.page-overview .ov-plan-head:hover {
   color: var(--bright);
 }
 
-.signals .go {
+.page-overview .ov-go {
+  width: 1rem;
+  height: 1rem;
   color: var(--chrome);
 }
 
-/* ── what wants you: a list of rows, each with its presses ─────────────────── */
-
-/*
-Each piece of work that wants somebody is a row in one panel, as an issue
-list draws them: its mark, its name with its project after it, why in
-`deriveState`'s own words under the name, how long ago at the end, and the
-presses on the right at a desk (under it on a phone). The name is the link,
-stretched over the row, and the presses sit above it.
-*/
-/* One column of rows, whatever `.cards` would reflow a grid of cards into. */
-.cards.wants-cards {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-}
-
-.wants-cards:empty {
+/* A gauge per window where there is the room (below); a line per window on a phone. */
+.page-overview .ov-gauges {
   display: none;
-}
-
-.wants-cards > .card {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.wants-cards > .card + .card {
-  border-block-start: var(--border);
-}
-
-.wants-cards > .card:hover {
-  background: var(--surface);
-}
-
-.card-top {
-  display: grid;
-  grid-template-columns: 1rem minmax(0, 1fr) auto;
   gap: var(--s3);
-  align-items: center;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
+  align-items: start;
 }
 
-.card-name {
-  order: 1;
+.page-overview .ov-gauges .ui-gauge {
+  max-width: 8rem;
+}
+
+.page-overview .ov-gauges .ui-gauge-under {
+  margin-block-start: var(--s1);
+  line-height: var(--lead-tight);
+  white-space: pre-line;
+}
+
+.page-overview .ov-gauges .ui-gauge.is-unread .ui-gauge-figure {
+  color: var(--heading);
+}
+
+.page-overview .ov-meters {
+  display: grid;
+  gap: var(--s2);
+}
+
+/* The name and the share on one line, the bar under both. */
+.page-overview .ov-meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s1) var(--s2);
+  align-items: baseline;
+  font-size: var(--step--1);
+}
+
+.page-overview .ov-meter-name {
   min-width: 0;
-  font-size: var(--step-0);
-  font-weight: var(--w-strong);
   overflow: hidden;
+  color: var(--heading);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.card-project {
-  order: 2;
+/* Which dash it is is never cut: *not granted to this device* wraps rather than trails off. */
+.page-overview .ov-meter.is-unread .ov-meter-name {
+  white-space: normal;
+}
+
+.page-overview .ov-meter-name > strong {
+  margin-inline-end: var(--s1);
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.page-overview .ov-meter-value {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-overview .ov-meter > .ui-meter {
+  grid-column: 1 / -1;
+}
+
+/* ── what needs you, and what failed ───────────────────────────────────────── */
+
+/* A count that is somebody's to act on wears its tone, as a tag beside the heading. */
+.page-overview .section-head > .figure:is(.t-wants, .t-failed) {
+  padding-inline: 6px;
+  border-radius: var(--r3);
+  font-weight: var(--w-strong);
+}
+
+.page-overview .section-head > .figure.t-wants {
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+}
+
+.page-overview .section-head > .figure.t-failed {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+
+.page-overview .ov-wants {
+  display: grid;
+}
+
+.page-overview .ov-wants:empty {
+  display: none;
+}
+
+/*
+A row: its mark in a square of its own tone, the name (the link, stretched over
+the row) with the project after it, how long ago at the end, why under the
+name, and the presses under that on a phone — beside it at a desk.
+*/
+.page-overview .ov-want {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark name age"
+    ". why why"
+    "acts acts acts";
+  gap: 0 var(--s3);
+  align-items: center;
+  padding: var(--s2) var(--inset) var(--s3);
+  transition: background var(--ease);
+}
+
+.page-overview .ov-want + .ov-want {
+  border-block-start: var(--border);
+}
+
+.page-overview .ov-want:hover {
+  background: var(--surface);
+}
+
+.page-overview .ov-want-mark {
+  grid-area: mark;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--r1);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: var(--step--1);
+  font-weight: var(--w-loud);
+  line-height: 1;
+}
+
+.page-overview .ov-want-link {
+  grid-area: name;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  min-width: 0;
+  min-height: var(--tap);
+  padding-block-start: calc((var(--tap) - 1.5rem) / 2);
+  color: var(--bright);
+  text-decoration: none;
+}
+
+.page-overview .ov-want-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.page-overview .ov-want-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-overview .ov-want-project {
+  flex: none;
   color: var(--heading);
   font-size: var(--step--1);
 }
 
+.page-overview .ov-want-age {
+  grid-area: age;
+  color: var(--heading);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.page-overview .ov-want-why {
+  grid-area: why;
+  margin-block-start: calc(var(--s1) * -1);
+  color: var(--body);
+  overflow-wrap: anywhere;
+}
+
+.page-overview .ov-want-acts {
+  grid-area: acts;
+  margin: var(--s3) 0 0;
+  padding: 0;
+}
+
+.page-overview .ov-want-acts .quick-said:empty {
+  display: none;
+}
+
+/* The inbox's requests: a line of their own under the rows, one press to all of them. */
+.page-overview .ov-inbox {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: calc(var(--tap) + var(--s2));
+  padding: var(--s2) var(--inset);
+  color: var(--bright);
+  font-weight: var(--w-label);
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.page-overview .ov-wants + .ov-inbox {
+  margin-block-start: var(--s2);
+}
+
+.page-overview .ov-inbox:hover {
+  background: var(--surface);
+}
+
+.page-overview .ov-inbox-mark {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--r1);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.page-overview .ov-inbox-mark .ic {
+  width: 1rem;
+  height: 1rem;
+}
+
+.page-overview .ov-inbox-words {
+  flex: 1 1 auto;
+}
+
+/* Nothing waiting on anybody: one calm line, never a box the size of a list. */
+.page-overview .ov-clear {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--inset);
+}
+
+.page-overview .ov-clear-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--round);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+.page-overview .ov-clear-words {
+  display: grid;
+}
+
+.page-overview .ov-clear-words strong {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.page-overview .ov-clear-line {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── the projects: one grid ────────────────────────────────────────────────── */
+
+/*
+On a phone a row is three lines: its name and money, the shape of its work
+across the whole width, and its counts — each with its word — with the checks
+at the end. Every count of nought steps aside there; at a desk it stays, quiet,
+because a column is read down.
+*/
+.page-overview .ov-proj-head {
+  display: none;
+}
+
+.page-overview .ov-projects > li + li {
+  border-block-start: var(--border);
+}
+
+.page-overview .ov-proj {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  min-height: calc(var(--tap) + var(--s2));
+  padding: var(--s3) var(--inset);
+  color: var(--body);
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.page-overview .ov-proj:hover {
+  background: var(--surface);
+}
+
+.page-overview .ov-proj-name {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-overview .ov-proj-spend {
+  order: 1;
+  color: var(--bright);
+  font-weight: var(--w-label);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.page-overview .ov-proj-spend.is-unknown {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-body);
+}
+
+.page-overview .ov-proj-bar {
+  order: 2;
+  flex: 1 0 100%;
+}
+
+.page-overview .ov-n {
+  order: 3;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.page-overview .ov-n.is-zero {
+  display: none;
+}
+
+.page-overview .ov-n-value {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.page-overview .ov-n-wants .ov-n-value {
+  color: var(--violet);
+}
+
+.page-overview .ov-n-working .ov-n-value {
+  color: var(--amber);
+}
+
+.page-overview .ov-n-word {
+  color: var(--heading);
+}
+
+.page-overview .ov-proj-checks {
+  order: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-inline-start: auto;
+  color: var(--heading);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+.page-overview .ov-proj-checks .ring {
+  width: 1rem;
+  height: 1rem;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+}
+
+.page-overview .ov-closed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin-block-start: var(--s3);
+}
+
+.page-overview .ov-closed-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-overview .ov-closed-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.page-overview .ov-table + .ui-state,
+.page-overview .ov-table ~ .unknown {
+  margin-block-start: var(--s3);
+}
+
+/* ── the agents at work: what a phone has instead of the side ──────────────── */
+
+/* Where it runs is the agent's own page's to say; here, its name and why. */
+.page-overview .ov-agents .runs {
+  display: none;
+}
+
+/* ── coming: a shimmer where each figure will be ───────────────────────────── */
+
+.is-loading .page-overview .ov-cell .ui-stat-value:empty,
+.is-loading .page-overview .ov-gauges:empty,
+.is-loading .page-overview .ov-wants:empty {
+  display: block;
+  border-radius: var(--r1);
+  background: var(--surface);
+  animation: shimmer 1.4s ease-in-out infinite alternate;
+}
+
+.is-loading .page-overview .ov-cell .ui-stat-value:empty {
+  width: 3ch;
+  height: 1em;
+}
+
+.is-loading .page-overview .ov-gauges:empty {
+  height: 5rem;
+}
+
+.is-loading .page-overview .ov-wants:empty {
+  height: 9rem;
+}
+
+/* ── where the work has the room ───────────────────────────────────────────── */
+
 @container (min-width: 44rem) {
-  .wants-cards > .card {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .page-overview .ov-cells {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .page-overview .ov-budget {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-overview .ov-money {
+    display: grid;
+    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+  }
+
+  .page-overview .ov-most,
+  .page-overview .ov-gauges {
+    display: grid;
+  }
+
+  .page-overview .ov-meters {
+    display: none;
+  }
+
+  /* The presses beside the row, level with its name; how long ago after them. */
+  .page-overview .ov-want {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "mark name acts age"
+      ". why acts age";
+    padding-block: var(--s2);
+  }
+
+  .page-overview .ov-want-acts {
+    flex-wrap: nowrap;
+    align-self: center;
+    margin: 0;
+  }
+
+  .page-overview .ov-want-age {
+    min-width: 3.5rem;
+    text-align: end;
+  }
+
+  /* One column template for the head and every row, so each column is one line down. */
+  .page-overview .ov-proj-head,
+  .page-overview .ov-proj {
+    display: grid;
+    grid-template-columns:
+      minmax(6rem, 1.6fr) minmax(4rem, 1.2fr) repeat(3, 4.75rem)
+      minmax(6.5rem, 1fr) 5.5rem;
+    gap: 0 var(--s4);
     align-items: center;
   }
 
-  .wants-cards > .card > :not(.quick) {
-    grid-column: 1;
+  .page-overview .ov-proj-head {
+    min-height: var(--s6);
+    padding-inline: var(--inset);
+    border-block-end: var(--border);
+    color: var(--heading);
+    font-size: var(--step--1);
+    font-weight: var(--w-label);
   }
 
-  .wants-cards > .card > .quick {
-    grid-column: 2;
-    grid-row: 1 / span 3;
-    margin: 0;
-    padding: 0;
+  .page-overview .ov-proj-head > :is(.ov-c-n, .ov-c-spend) {
+    text-align: end;
   }
 
-  .ov-top .tiles {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+  .page-overview .ov-proj > * {
+    order: 0;
   }
 
-  .ov-top .tile-quiet:last-child:nth-child(odd) {
-    grid-column: auto;
+  .page-overview .ov-proj-bar {
+    flex: none;
+  }
+
+  .page-overview .ov-n,
+  .page-overview .ov-n.is-zero {
+    display: block;
+    font-size: var(--step-0);
+    text-align: end;
+  }
+
+  .page-overview .ov-n.is-zero .ov-n-value {
+    color: var(--heading);
+    font-weight: var(--w-body);
+  }
+
+  /* The word is the column's head now; still read aloud, no longer drawn. */
+  .page-overview .ov-n-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .page-overview .ov-proj-checks {
+    margin-inline-start: 0;
   }
 }
 
@@ -221,20 +669,4 @@ stretched over the row, and the presses sit above it.
   .frame:not(.side-mini) .ov-agents {
     display: none;
   }
-}
-
-.is-loading .projects-grid:empty {
-  display: block;
-  border-radius: var(--r1);
-  background: var(--surface);
-  animation: shimmer 1.4s ease-in-out infinite alternate;
-}
-
-.is-loading .projects-grid:empty {
-  height: 10rem;
-}
-
-.signals a {
-  transition-property: background, border-color, color, transform;
-  transition-duration: 140ms;
 }
