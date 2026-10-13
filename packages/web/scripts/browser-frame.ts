@@ -16,6 +16,9 @@ import { until } from './browser-until.ts'
 // - nothing makes the document move: not setting its scroll, not a wheel over
 //   the header, not a wheel over the screen run on past the screen's end, and
 //   not the keyboard's PageDown on the screen;
+// - a new screen opens at its top, and Back returns to where the last one was
+//   left — the browser restores a document's scroll on its own, and the screen
+//   is not the document (`draw` in `boot.js`);
 // - each region scrolls on its own, and scrolling one moves no other — the
 //   screen, the menu from a tablet up, and the side's list, docked at a desk
 //   and in its drawer below one.
@@ -68,6 +71,12 @@ type Region = keyof typeof REGIONS
 
 /** Longer than Chromium keeps a run of wheel events latched to the scroller it started on. */
 const LATCH_MS = 600
+
+/** How far the overview is scrolled before going somewhere else and coming back. */
+const OFFSET = 120
+
+/** The one agent in the fixtures every width lists down the side, drawn or not. */
+const TASK = '/t/sentry/away-projection'
 
 const STANDS = `(() => {
   const box = (selector) => {
@@ -270,6 +279,8 @@ export async function frameAt(
     await until(page, `document.querySelector('main').scrollTop > 0`)
     await until(page, still('main'))
     await fixed(was, 'PageDown on the screen')
+    await page.evaluate(UNDO)
+    await backAt(page)
   } catch (problem) {
     found('frame', where, 'fail', said(problem))
     await page.evaluate(UNDO).catch(() => undefined)
@@ -281,11 +292,51 @@ export async function frameAt(
       'frame',
       where,
       'pass',
-      'the header, menu, side and Tade at the edges; the page never scrolls, each region alone',
+      'the header, menu, side and Tade at the edges; the page never scrolls, each region alone, Back keeps its place',
     )
     return
   }
   await drawerAt(page, width, found)
+}
+
+/**
+ * Leave a scrolled screen for another one, and come back.
+ *
+ * The screen it goes to has more room to scroll than the offset it left, so a
+ * screen that kept the last one's offset would show it; and the one it comes
+ * back to is asked for exactly the offset it was left at.
+ */
+async function backAt(page: Page): Promise<void> {
+  const main = `document.querySelector('main')`
+  await page.evaluate(`(() => { ${main}.scrollTop = ${String(OFFSET)}; return true })()`)
+  await until(page, still('main'))
+  const left = Number(await page.evaluate(`${main}.scrollTop`))
+  if (left !== OFFSET)
+    throw new Error(`the overview scrolls to ${String(left)}px, not ${String(OFFSET)}`)
+  // A click on a link, as a person leaves: the side's row for the agent.
+  await page.evaluate(`document.querySelector('aside.side a[href="${TASK}"]').click()`)
+  try {
+    await until(
+      page,
+      `location.pathname === '${TASK}' && ${main}.scrollHeight - ${main}.clientHeight >= ${String(OFFSET)}`,
+    )
+  } catch {
+    throw new Error(
+      `the agent's page has under ${String(OFFSET)}px to scroll, so a kept offset could not show`,
+    )
+  }
+  const opened = Number(await page.evaluate(`${main}.scrollTop`))
+  if (opened !== 0)
+    throw new Error(`the agent's page opened ${String(opened)}px down, not at its top`)
+  await page.evaluate('history.back()')
+  try {
+    await until(page, `location.pathname === '/' && ${main}.scrollTop === ${String(OFFSET)}`)
+  } catch {
+    const back = Number(await page.evaluate(`${main}.scrollTop`))
+    throw new Error(
+      `Back came to the overview at ${String(back)}px, not the ${String(OFFSET)} it was left at`,
+    )
+  }
 }
 
 /**
@@ -324,7 +375,7 @@ async function drawerAt(
       'frame',
       where,
       'pass',
-      'the frame at the edges; the page never scrolls; the screen and the drawer each alone',
+      'the frame at the edges; the page never scrolls; the screen and the drawer each alone, Back keeps its place',
     )
   } catch (problem) {
     found('frame', where, 'fail', said(problem))
