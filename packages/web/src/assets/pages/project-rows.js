@@ -10,11 +10,11 @@
 
 import { classOn, el, glyphOf, into, markIn, textIn, toneOn } from '../dom.js'
 import { ageSaid, shortClockOf } from '../figures.js'
-import { checkMark, queueMark, reviewMark, rowMark, taskMark } from '../glyphs.js'
+import { checkMark, queueMark, rowMark, taskMark } from '../glyphs.js'
 import { quickActs } from '../quick.js'
 import { taskPath } from '../routes.js'
 import { queueAt, queueLine } from '../tree.js'
-import { armOf, branchSaid, checkSaid } from './project-shape.js'
+import { armOf, branchSaid, checkSaid, reviewOf, spentSaid } from './project-shape.js'
 
 /* ── what wants somebody ───────────────────────────────────────────────────── */
 
@@ -90,10 +90,7 @@ export function fillAgent(node, task, view) {
   textIn(age, moved ?? '')
   age.setAttribute('aria-label', moved === null ? 'never moved' : `moved ${moved} ago`)
   textIn(why, task.reason)
-  // A task with no money on its row is not one that cost nothing: the cell is
-  // left empty, and the money's own section says why.
-  const paid = task.spend?.hasCost === true ? task.spend : null
-  textIn(spend, paid === null ? '' : `${paid.usdEstimated > 0 ? '~' : ''}$${paid.usd.toFixed(2)}`)
+  textIn(spend, spentSaid(task.spend) ?? '')
 }
 
 /* ── a branch's checks ─────────────────────────────────────────────────────── */
@@ -152,12 +149,10 @@ export function fillBranch(node, one, most) {
   const [name, review, bar, said] = link.children
   link.setAttribute('href', one.href)
   textIn(name, one.branch)
-  const mark = one.review === null ? null : reviewMark(one.review)
-  review.hidden = mark === null && !((one.ahead ?? 0) > 0)
-  textIn(review, mark === null ? 'not offered' : mark.word)
-  // A quiet word (draft, closed) is the plain pill: the quiet grey is under AA
-  // at a pill's size on a wash of itself, and saying nothing loud is its point.
-  toneOn(review, mark === null || mark.tone === 't-quiet' ? '' : mark.tone)
+  const offered = reviewOf(one)
+  review.hidden = offered === null
+  textIn(review, offered?.word ?? '')
+  toneOn(review, offered?.tone ?? '')
   const share = (n) => `${armOf(n, most)}%`
   const [behind, ahead] = bar.children
   behind.style.setProperty('--w', share(one.behind))

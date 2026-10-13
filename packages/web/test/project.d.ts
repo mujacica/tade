@@ -77,6 +77,11 @@ declare module '*/assets/pages/project-shape.js' {
     parts: Part[]
   }
   export function armOf(n: number | null, most: number): number
+  export function reviewOf(one: {
+    review: string | null
+    ahead: number | null
+  }): { word: string; tone: string } | null
+  export function spentSaid(spend: unknown): string | null
   export function branchSaid(one: {
     ahead: number | null
     behind: number | null

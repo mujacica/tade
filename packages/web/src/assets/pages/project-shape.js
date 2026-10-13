@@ -14,7 +14,7 @@
 
 import { mayFor } from '../access.js'
 import { money, onPlan, shortClockOf, tokensSaid } from '../figures.js'
-import { findingMark, joined, queueMark, rowMark } from '../glyphs.js'
+import { findingMark, joined, queueMark, reviewMark, rowMark } from '../glyphs.js'
 import { pathOf, taskPath } from '../routes.js'
 import {
   checksFold,
@@ -364,6 +364,20 @@ export function branchSaid(one) {
   return parts.length === 0 ? 'level with where it started' : parts.join(' · ')
 }
 
+/**
+ * Whether a branch is offered for review, as its pill says it — the forge's
+ * word, *not offered* for work ahead that nobody asked to have looked at, or
+ * null for a branch with nothing to offer. A quiet word (draft, closed) takes
+ * no tone: the quiet grey is under AA at a pill's size on a wash of itself.
+ */
+export function reviewOf(one) {
+  if (one.review === null || one.review === undefined) {
+    return (one.ahead ?? 0) > 0 ? { word: 'not offered', tone: '' } : null
+  }
+  const mark = reviewMark(one.review)
+  return { word: mark.word, tone: mark.tone === 't-quiet' ? '' : mark.tone }
+}
+
 /* ── the findings ──────────────────────────────────────────────────────────── */
 
 /** Whose move a finding is: a person's, an agent's, or nobody's any more. */
@@ -458,7 +472,7 @@ export function moneyOf(store, project) {
           key: task.id,
           label: task.name,
           value: task.spend.usd,
-          said: `${task.spend.usdEstimated > 0 ? '~' : ''}$${task.spend.usd.toFixed(2)}`,
+          said: spentSaid(task.spend),
           href: taskPath(task.id),
           // Money is not a state: a quiet bar, never one in Tade's own amber.
           tone: 'queued',
@@ -478,6 +492,16 @@ export function moneyOf(store, project) {
     partial,
     top,
   }
+}
+
+/**
+ * One agent's money, for its row: `~` where any of it was estimated, and null
+ * where nothing was recorded or this device was not granted it — **never a
+ * nought**; the money's own section says which.
+ */
+export function spentSaid(spend) {
+  if (spend === null || spend === undefined || spend.hasCost !== true) return null
+  return `${spend.usdEstimated > 0 ? '~' : ''}$${spend.usd.toFixed(2)}`
 }
 
 /* ── words ─────────────────────────────────────────────────────────────────── */

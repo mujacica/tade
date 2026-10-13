@@ -15,8 +15,10 @@ import {
   outlineOf,
   partOf,
   queueOf,
+  reviewOf,
   ringOf,
   shortName,
+  spentSaid,
   TOP,
   waitsOn,
   wantsOf,
@@ -319,6 +321,14 @@ describe('the branches', () => {
     expect(branchSaid({ ahead: null, behind: null, dirty: null })).toBe('ahead: cannot tell')
   })
 
+  it('offers a branch’s review in the forge’s word, and keeps a quiet one out of the quiet grey', () => {
+    expect(reviewOf({ review: 'open', ahead: 2 })).toEqual({ word: 'open', tone: 't-working' })
+    expect(reviewOf({ review: 'draft', ahead: 2 })).toEqual({ word: 'draft', tone: '' })
+    expect(reviewOf({ review: null, ahead: 3 })).toEqual({ word: 'not offered', tone: '' })
+    expect(reviewOf({ review: null, ahead: 0 })).toBeNull()
+    expect(reviewOf({ review: null, ahead: null })).toBeNull()
+  })
+
   it('draws an arm on a root scale, so one long branch does not flatten the rest', () => {
     expect(armOf(2, 32)).toBe(25)
     expect(armOf(32, 32)).toBe(100)
@@ -377,6 +387,13 @@ describe('the money', () => {
     expect(paid.top.length).toBeLessThanOrEqual(TOP)
     expect(paid.since).not.toBeNull()
     expect(paid.plan?.why).toBe('on a plan · not in the total')
+  })
+
+  it('says an agent’s own money on its row, and nothing where none was recorded', () => {
+    expect(spentSaid(spend(2.5))).toBe('$2.50')
+    expect(spentSaid({ ...spend(1), usdEstimated: 0.2 })).toBe('~$1.00')
+    expect(spentSaid(noMoney)).toBeNull()
+    expect(spentSaid(null)).toBeNull()
   })
 
   it('is a dash with its word where nothing was granted or nothing was recorded', () => {
