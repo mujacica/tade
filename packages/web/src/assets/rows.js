@@ -21,11 +21,10 @@ import {
   originSaid,
   queueMark,
   queueSaid,
-  reviewMark,
   rowMark,
   taskMark,
 } from './glyphs.js'
-import { safeHref, taskPath } from './routes.js'
+import { taskPath } from './routes.js'
 import { taskAt } from './store.js'
 import { panel } from './ui.js'
 
@@ -290,63 +289,6 @@ function labelled(what, said) {
   if (said === null || said === undefined) return null
   const node = el('div')
   return into(node, el('p', { class: 'aside', text: what }), proseOf(said))
-}
-
-/* ── a branch offered for merge ────────────────────────────────────────────── */
-
-export function createReviewRow() {
-  const node = el('li')
-  const body = el('div')
-  const glyph = glyphOf(reviewMark('open'))
-  const link = el('a', { class: 'name', attrs: { href: '/' } })
-  const aside = el('span', { class: 'aside' })
-  const under = el('span', { class: 'under' })
-  into(body, glyph, link, aside, under)
-  into(node, body)
-  return node
-}
-
-/**
- * One review: its state, its branch, how far ahead it is, and its checks.
- *
- * The outbound link is **the only one in the design** and is `https:`-only
- * (`safeHref`): the URL came from the forge, which makes it the one string on
- * this page written by something off this machine. It opens in a new tab with
- * `noopener noreferrer`, so the forge gets no handle on this window and no
- * referrer carrying the away view's address.
- */
-export function fillReviewRow(node, task, view) {
-  const [body] = node.children
-  const [glyph, link, aside, under] = body.children
-  const review = task.review
-  markIn(glyph, review === null ? reviewMark('') : reviewMark(review.state))
-  link.setAttribute('href', taskPath(task.id))
-  textIn(link, `${task.project} / ${task.name}`)
-  const checks = checkMark(task.checks.state)
-  textIn(aside, `${checks.glyph} ${checks.word}`)
-  aside.setAttribute('aria-label', `checks ${checks.word}`)
-  const ahead = task.ahead === null ? null : `${task.ahead} ahead`
-  const parts = [review === null ? 'not offered for merge' : review.state, task.branch, ahead]
-  textIn(under, parts.filter((one) => one !== null && one !== '').join(' · '))
-  outbound(body, review === null ? null : safeHref(review.url))
-  void view
-}
-
-/** The forge link, added once and removed when there is nothing safe to link. */
-function outbound(body, href) {
-  const held = body.querySelector('.out')
-  if (href === null) {
-    held?.remove()
-    return
-  }
-  if (held !== null && held.getAttribute('href') === href) return
-  held?.remove()
-  const link = el('a', {
-    class: 'out',
-    text: 'open on the forge ↗',
-    attrs: { href, target: '_blank', rel: 'noopener noreferrer' },
-  })
-  into(body, link)
 }
 
 /* ── a plain figure row, for the tables that are not lists ─────────────────── */

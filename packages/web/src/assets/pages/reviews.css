@@ -1,1 +1,549 @@
-/* The reviews page's own sheet: every rule scoped to it (`.page-reviews`, `test/pages.test.ts`). */
+/*
+  The reviews page's own sheet: every rule scoped to it (`.page-reviews`) or
+  to a class only its modules draw (`test/pages.test.ts`).
+
+  **The colour is down the left edge of the cards, and only where something
+  holds a review or frees it**: violet where it waits on you, red where a
+  check failed, green where it is free to merge — a draft and a review nobody
+  checked are grey, because neither is anybody's to act on. Read top to
+  bottom, the edges are the answer before a word is. Everything else is the
+  grey ladder: names bright, what was asked for in the body grey, the rest in
+  labels.
+
+  The lead is the flow of the work: what has commits and no review, what is
+  open — the page's one big figure over a bar of what holds each — and what
+  merged. On a phone the open part goes first, the two either side under it.
+*/
+
+/* The bar's word takes its tone: the shared bar's grey would out-rank it. */
+.page-reviews .pg-bar > .figure.t-wants {
+  color: var(--violet);
+}
+
+.page-reviews .pg-bar > .figure.t-failed {
+  color: var(--red);
+}
+
+.page-reviews .pg-bar > .figure.t-done {
+  color: var(--green);
+}
+
+/* One gap between every region of the page, and none of the sections' own. */
+.page-reviews .rv-body {
+  display: grid;
+  gap: var(--stack);
+  align-content: start;
+  min-width: 0;
+}
+
+.page-reviews .rv-body > .section {
+  margin-block-end: 0;
+  min-width: 0;
+}
+
+.page-reviews .rv-body .section-head:not(.pg-bar) {
+  margin-block-end: var(--s3);
+}
+
+/* What waits on you is the one count that wears its tone, as a tag beside its heading. */
+.page-reviews .rv-group-you > .section-head > .figure:not(:empty) {
+  padding-inline: 6px;
+  border-radius: var(--r3);
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+  font-weight: var(--w-strong);
+}
+
+.rv-cards,
+.rv-cells,
+.rv-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rv-scope,
+.rv-omitted > .unknown {
+  margin: 0;
+}
+
+/* ── the lead: not offered › open › merged ─────────────────────────────────── */
+
+.rv-lead {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "open open"
+    "before after";
+  gap: var(--s4);
+  padding: var(--inset);
+}
+
+.rv-open {
+  grid-area: open;
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.rv-before {
+  grid-area: before;
+}
+
+.rv-after {
+  grid-area: after;
+}
+
+/* The page's one big figure, its word beside it, and how many are held at the line's end. */
+.rv-open-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
+  margin: 0;
+}
+
+.rv-open-n {
+  color: var(--bright);
+  font-size: var(--step-3);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-open-word {
+  color: var(--body);
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+}
+
+.rv-open-held {
+  margin-inline-start: auto;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-reviews .rv-bar > .ui-stack-bar {
+  height: 12px;
+}
+
+/* What was not read is said as a dash and its word, at a label's size. */
+.page-reviews .rv-threads {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* A stage either side of open: its word, its figure under it, a line under that. */
+.rv-stage {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+.rv-stage-word,
+.rv-stage-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.rv-stage-word {
+  font-weight: var(--w-label);
+}
+
+.rv-stage-n {
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-stage.is-none > .rv-stage-n {
+  color: var(--heading);
+}
+
+.rv-arrow {
+  display: none;
+}
+
+/* With room, the flow runs left to right: the stages centred in their columns, an arrow between. */
+@container (min-width: 44rem) {
+  .rv-lead {
+    grid-template-columns: minmax(7rem, auto) auto minmax(0, 1fr) auto minmax(7rem, auto);
+    grid-template-areas: "before to open from after";
+    align-items: center;
+    gap: var(--s4) var(--s5);
+  }
+
+  .rv-lead > .rv-arrow:nth-child(2) {
+    grid-area: to;
+  }
+
+  .rv-lead > .rv-arrow:nth-child(4) {
+    grid-area: from;
+  }
+
+  .rv-arrow {
+    display: block;
+    color: var(--chrome);
+    font-size: var(--step-2);
+    line-height: 1;
+  }
+
+  .rv-stage {
+    justify-items: center;
+    padding: 0;
+    border: 0;
+    text-align: center;
+  }
+
+  .rv-open {
+    padding-inline: var(--s5);
+    border-inline: var(--border);
+  }
+}
+
+/* ── a card for each open review ───────────────────────────────────────────── */
+
+.rv-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--s3);
+}
+
+.rv-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The edge: what holds it, in its tone, the height of the card. */
+.rv-card::before {
+  content: "";
+  position: absolute;
+  inset-block: -1px;
+  inset-inline-start: -1px;
+  width: 3px;
+  border-start-start-radius: var(--r2);
+  border-end-start-radius: var(--r2);
+  background: transparent;
+}
+
+.rv-card.is-you {
+  border-color: color-mix(in srgb, var(--violet) 40%, var(--line));
+}
+
+.rv-card.is-you::before {
+  background: var(--violet);
+}
+
+.rv-card.is-red::before {
+  background: var(--red);
+}
+
+.rv-card.is-ready::before {
+  background: var(--green);
+}
+
+/* The head is the press to the agent's page: its mark, its name, its project, how long. */
+.rv-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset) 0;
+  border-start-start-radius: var(--r2);
+  border-start-end-radius: var(--r2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.rv-card-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+}
+
+.rv-card-head:hover .rv-card-name {
+  color: var(--amber-light);
+}
+
+.rv-card-project {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.rv-card-age {
+  flex: none;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-go {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--heading);
+}
+
+/* What was asked for, in the body grey, two lines at most: the whole of it is one press away. */
+.rv-card-words {
+  display: -webkit-box;
+  margin: 0;
+  padding-inline: var(--inset);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--body);
+  font-size: var(--step-0);
+}
+
+/* What holds it, and why: the mark, then the word in its tone and the reason after it in one block. */
+.rv-hold {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s3) var(--inset) 0;
+}
+
+.rv-hold-said {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rv-hold-word {
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.rv-card.is-you .rv-hold-word {
+  color: var(--violet);
+}
+
+.rv-card.is-red .rv-hold-word {
+  color: var(--red);
+}
+
+.rv-card.is-ready .rv-hold-word {
+  color: var(--green);
+}
+
+.rv-hold-sep,
+.rv-hold-because {
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+/* The presses that answer it, under the reason and on its line. */
+.page-reviews .rv-acts {
+  margin: 0;
+  padding: var(--s3) var(--inset) 0;
+}
+
+.page-reviews .rv-acts .quick-said:empty {
+  display: none;
+}
+
+/* The checks at its head: a cell for each check that is not green, or one for the rollup's word. */
+.rv-checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--inset) var(--inset);
+}
+
+.rv-checks-word {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.rv-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s2);
+  min-width: 0;
+}
+
+/* A cell: a wash of its tone with the glyph in it, the name in text bright enough on any wash. */
+.rv-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px var(--s2);
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+  border-radius: var(--r3);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  color: var(--bright);
+  font-size: var(--step--1);
+  line-height: 1.5;
+}
+
+.rv-cell-mark {
+  flex: none;
+  color: var(--tone);
+  font-weight: var(--w-strong);
+}
+
+.rv-cell-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+/* Nobody could read it: a dashed edge and no wash, never a colour of an answer. */
+.rv-cell.tone-unknown {
+  border-style: dashed;
+  border-color: var(--chrome);
+  background: transparent;
+  color: var(--body);
+}
+
+.rv-cell.tone-unknown > .rv-cell-mark {
+  color: var(--heading);
+}
+
+/* The foot: its branch and how far from its base, and the press to its forge at the end. */
+.rv-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin-block-start: auto;
+  min-height: calc(var(--tap) + 2 * var(--s2));
+  padding: var(--s2) var(--inset);
+  border-block-start: var(--border);
+}
+
+/* The branch over how far it is from its base, the two lines the height of the press beside them. */
+.rv-branch {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  line-height: var(--lead-tight);
+}
+
+/* One line: a long branch is cut here and is whole on its agent's page, one press away. */
+.rv-branch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--body);
+  font-family: var(--font-mono);
+}
+
+.rv-branch-distance {
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-forge {
+  flex: none;
+  margin-inline-start: auto;
+  text-decoration: none;
+}
+
+.rv-forge-n {
+  font-family: var(--font-mono);
+  font-weight: var(--w-strong);
+}
+
+/* ── the quiet rows: not offered, and settled ─────────────────────────────── */
+
+.rv-rows > li + li {
+  border-block-start: var(--border);
+}
+
+.rv-row {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "mark name age go"
+    ". line line .";
+  align-items: baseline;
+  gap: 2px var(--s2);
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.rv-row:hover {
+  background: var(--surface);
+}
+
+.rv-row-mark {
+  grid-area: mark;
+}
+
+.rv-row-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-weight: var(--w-label);
+}
+
+.rv-row-age {
+  grid-area: age;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-row > .rv-go {
+  grid-area: go;
+  align-self: center;
+}
+
+.rv-row-line {
+  grid-area: line;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* The settled ones are folded behind one press, and the list sits under it once open. */
+.rv-fold:not([aria-expanded="true"]) {
+  margin: 0;
+}
+
+.rv-fold[aria-expanded="true"] {
+  margin-block-end: var(--s3);
+}

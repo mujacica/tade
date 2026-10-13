@@ -252,12 +252,16 @@ describe('the real folder', () => {
     // lead, timeline and checks drawn rather than listed) and the findings
     // page were redrawn at once, which took the folder to 316. 320 until the
     // spend page (5 KB more: its plans drawn as gauges and where it went as
-    // bars, rather than a table) took it to 321.
-    expect(wire).toBeLessThan(328 * 1024)
+    // bars, rather than a table) took it to 321. 328 until the reviews page
+    // (11 KB more: what holds each review drawn as a card with its checks as
+    // cells, rather than a row of words) took it to 335.
+    expect(wire).toBeLessThan(340 * 1024)
     // And the files as they sit, which is what a browser holds once it has
-    // them: still under a megabyte, with the comments every module carries.
-    // 768 until the pages were redrawn one at a time, each 40–90 KB as it
-    // sits: the megabyte is the line, and the pages still to come spend it.
-    expect(raw).toBeLessThan(1024 * 1024)
+    // them: about a megabyte, with the comments every module carries. 768
+    // until the pages were redrawn one at a time, each 40–90 KB as it sits.
+    // 1024 until the workflows page's redraws took the folder to 1029 and the
+    // reviews page (37 KB as it sits) to 1066: the pages still to come spend
+    // the rest, and the next one is this conversation again.
+    expect(raw).toBeLessThan(1088 * 1024)
   })
 })

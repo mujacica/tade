@@ -210,16 +210,6 @@ main .section.pg {
   margin-block-start: var(--s3);
 }
 
-/* A row's link off this machine sits under its name, never in the mark's column. */
-.rows > li > div > .out {
-  grid-column: 2 / -1;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--tap);
-  font-size: var(--step--1);
-}
-
 /* ── names and values ──────────────────────────────────────────────────────── */
 
 /*
