@@ -1,1 +1,520 @@
-/* The findings page's own sheet: every rule scoped to it (`.page-findings`, `test/pages.test.ts`). */
+/*
+  The findings page's own sheet: every rule scoped to it (`.page-findings`) or
+  to a class only its modules draw (`test/pages.test.ts`).
+
+  **Violet is what waits on you, and only that.** The page is the grey ladder
+  with one colour that means *act*: the cards waiting on a verdict are the one
+  thing with a violet edge, their count the one violet figure in the lead.
+  Red and green are verdicts somebody wrote and appear only where one was.
+  **A probability is grey**: the judge's reading is a meter in a text grey,
+  labelled, so it can never be taken for the colour of an answer.
+
+  One column on a phone, in the order a person reads it: the ring, what waits
+  on you, what waits on an agent, what is done; at a desk the questions stand
+  beside them in a narrow column of their own.
+*/
+
+/* The bar's word takes violet while something waits on a verdict. */
+.page-findings .pg-bar > .figure.t-wants {
+  color: var(--violet);
+}
+
+/* One gap between every region of the page, and none of the sections' own. */
+.page-findings .fd-body,
+.page-findings .fd-grid,
+.page-findings .fd-main {
+  display: grid;
+  gap: var(--stack);
+  align-content: start;
+  min-width: 0;
+}
+
+.page-findings .fd-body > .section,
+.page-findings .fd-main > .section,
+.page-findings .fd-grid > .section {
+  margin-block-end: 0;
+  min-width: 0;
+}
+
+.page-findings .section-head:not(.pg-bar) {
+  margin-block-end: var(--s3);
+}
+
+/* A count that is somebody's to act on wears its tone, as a tag beside the heading. */
+.page-findings .fd-main > .section:first-child .section-head > .figure:not(:empty) {
+  padding-inline: 6px;
+  border-radius: var(--r3);
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+  font-weight: var(--w-strong);
+}
+
+/* Two columns where both are full: the questions are the short one. */
+@container (min-width: 52rem) {
+  .page-findings .fd-grid {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}
+
+.fd-groups,
+.fd-cards,
+.fd-tally,
+.fd-rows,
+.fd-questions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* What the page could not say: the moment a dead page was true at, and what it was not sent. */
+.fd-omitted > .unknown {
+  margin: 0;
+}
+
+/* ── the lead: the ring and its tally ──────────────────────────────────────── */
+
+/*
+  The ring on the left and the tally beside it, both centred on one line; the
+  tally is a column of four on a phone and two by two with room, so every
+  count and every wait lines up with the one above it.
+*/
+.fd-lead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--inset);
+  container-type: inline-size;
+}
+
+.page-findings .fd-lead > .ui-donut {
+  width: 6.5rem;
+}
+
+/* The ring's middle is the one count that wants you: violet while it is not nought. */
+.page-findings .fd-lead.is-wanted .ui-donut-figure {
+  color: var(--violet);
+}
+
+.fd-tally {
+  display: grid;
+  gap: var(--s2) var(--s5);
+  min-width: 0;
+}
+
+.fd-tally > li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark label n"
+    ". under under";
+  align-items: baseline;
+  column-gap: var(--s2);
+  min-width: 0;
+}
+
+.fd-tally-mark {
+  grid-area: mark;
+}
+
+.fd-tally-label {
+  grid-area: label;
+  min-width: 0;
+  color: var(--body);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.fd-tally-n {
+  grid-area: n;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.fd-tally-under {
+  grid-area: under;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* What waits on you is the loud row; a kind with none is the quiet one. */
+.fd-tally > li.is-yours .fd-tally-label {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.fd-tally > li.is-yours .fd-tally-n {
+  color: var(--violet);
+}
+
+.fd-tally > li.is-none :is(.fd-tally-label, .fd-tally-n) {
+  color: var(--heading);
+  font-weight: var(--w-label);
+}
+
+/* With room, the four side by side: each count over its word, the way a row of stats reads. */
+@container (min-width: 40rem) {
+  .fd-tally {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .fd-tally > li {
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    grid-template-areas:
+      "mark n"
+      ". label"
+      ". under";
+    row-gap: 2px;
+  }
+
+  .fd-tally-n {
+    font-size: var(--step-2);
+    letter-spacing: var(--tight);
+    line-height: var(--lead-tight);
+    text-align: start;
+  }
+}
+
+/* ── waiting on you: a group per project, a card per finding ──────────────── */
+
+.fd-groups {
+  display: grid;
+  gap: var(--stack);
+}
+
+.fd-group {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+/* The project's name is a press to its page; its count and oldest wait at the line's end. */
+.fd-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s3);
+  min-width: 0;
+}
+
+.fd-group-name {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--tap);
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+
+.fd-group-name:hover {
+  color: var(--amber-light);
+}
+
+.fd-group-n {
+  margin-inline-start: auto;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.fd-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--s3);
+  align-items: start;
+}
+
+/* The one card with a violet edge: a finding somebody has to read. */
+.fd-card {
+  display: grid;
+  min-width: 0;
+  border-color: color-mix(in srgb, var(--violet) 40%, var(--line));
+}
+
+.fd-card-body {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--inset);
+}
+
+/* The question on the left, how long it has waited as the card's one figure on the right. */
+.fd-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.fd-q {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-weight: var(--w-strong);
+}
+
+.fd-card-head > .fd-q {
+  font-size: var(--step-1);
+}
+
+.fd-card-wait {
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fd-card-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.fd-card-file {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+}
+
+/* The judge's reading: a label, a grey meter and the figure, on one line. */
+.fd-p {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.fd-p-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-findings .fd-p > .ui-meter > span {
+  background: var(--heading);
+}
+
+.fd-p-value {
+  min-width: 2.5rem;
+  color: var(--body);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+/* The agent's account: testimony, set off by a hairline down its edge. */
+.fd-account {
+  display: grid;
+  gap: var(--s1);
+  padding-inline-start: var(--s3);
+  border-inline-start: 2px solid var(--chrome);
+}
+
+.fd-account-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-findings .fd-account-words .said {
+  margin: 0;
+  color: var(--body);
+}
+
+.fd-account-none {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* One press across the card's foot, to the agent the finding is about. */
+.fd-card-foot,
+.fd-card-gone {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  margin: 0;
+  padding-inline: var(--inset);
+  border-block-start: var(--border);
+  color: var(--body);
+  font-size: var(--step--1);
+  text-decoration: none;
+}
+
+.fd-card-foot {
+  border-end-start-radius: var(--r2);
+  border-end-end-radius: var(--r2);
+  transition: background var(--ease);
+}
+
+.fd-card-foot:hover {
+  background: var(--surface);
+}
+
+.fd-card-foot > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.fd-card-foot > span:empty {
+  display: none;
+}
+
+.fd-card-foot > .ic {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-inline-start: auto;
+  color: var(--heading);
+}
+
+/* ── the quiet rows: waiting on an agent, and done with ───────────────────── */
+
+.fd-rows > li + li {
+  border-block-start: var(--border);
+}
+
+.fd-row {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark q aside"
+    ". line line";
+  align-items: baseline;
+  gap: var(--s1) var(--s2);
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.fd-row[href] {
+  transition: background var(--ease);
+}
+
+a.fd-row[href]:hover {
+  background: var(--surface);
+}
+
+.fd-row-mark {
+  grid-area: mark;
+}
+
+.fd-row > .fd-q {
+  grid-area: q;
+  color: var(--body);
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+}
+
+.fd-row-aside {
+  grid-area: aside;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fd-row-line {
+  grid-area: line;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-findings .fd-fold + .fd-rows {
+  margin-block-start: var(--s3);
+}
+
+/* ── each question: its precision, and its findings by verdict ─────────────── */
+
+.fd-question {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s3) var(--inset);
+}
+
+.fd-question + .fd-question {
+  border-block-start: var(--border);
+}
+
+.fd-question-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+/* The name, and under it how many of its findings wait on you — always under, so every row reads alike. */
+.fd-question-name {
+  display: grid;
+  justify-items: start;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.fd-question-name > .fd-q {
+  font-size: var(--step-0);
+}
+
+/* The precision on the right: the figure, and under it which of the three it is. */
+.fd-question-figure {
+  display: grid;
+  justify-items: end;
+  flex: none;
+  text-align: end;
+}
+
+.fd-question-value {
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lead-tight);
+}
+
+.fd-question-word {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* A question with enough verdicts for a rate says it as large as the lead's counts. */
+.fd-question.is-rate .fd-question-value {
+  font-size: var(--step-2);
+  letter-spacing: var(--tight);
+}
+
+.page-findings .fd-question-bar {
+  gap: var(--s2);
+}
+
+.page-findings .fd-question-bar .ui-legend {
+  gap: var(--s1) var(--s3);
+}
