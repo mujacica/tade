@@ -179,6 +179,14 @@ describe('the line of its versions', () => {
     ])
     // The fixture's run is stamped from v3, and it says so under v3.
     expect(line.marks.find((one) => one.label === 'v3')?.runs).toBe(1)
+    expect(line.marks.map((one) => one.under)).toEqual(['', '', '1 run', 'draft'])
+    // With nothing run from it, the newest says it is what a run starts from.
+    expect(versionsOf(row(), []).marks.map((one) => one.under)).toEqual([
+      '',
+      '',
+      'current',
+      'draft',
+    ])
     expect(line.earlier).toBe(0)
   })
 
@@ -239,6 +247,13 @@ describe('the shape its steps make', () => {
       [2, 'after plan'],
       [3, 'after api and web'],
     ])
+    // What a screen reader hears before the names, since the number is drawn.
+    expect(stages[2]?.heard).toBe('Stage 3, after api and web: ')
+    const cycled = stagesOf({
+      ...row(),
+      places: [{ at: 0, name: 'loop', depth: 0, parent: null, why: [], circular: true }],
+    })
+    expect(cycled.map((one) => [one.n, one.heard])).toEqual([[null, 'In a cycle: ']])
     // A step the device was sent is carried with its stage; one it was not is
     // still named, because the places ride without the grant.
     const own = stagesOf(row())

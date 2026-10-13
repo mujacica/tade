@@ -265,16 +265,31 @@ export function versionsOf(row, runs = []) {
   }
   const published = [...row.versions].sort((a, b) => a - b)
   const shown = published.slice(-MOST_VERSIONS)
-  const marks = shown.map((version) => ({
-    key: `v${version}`,
-    label: `v${version}`,
-    kind: version === row.published ? 'newest' : 'published',
-    runs: counts.get(version) ?? 0,
-  }))
+  const marks = shown.map((version) => {
+    const kind = version === row.published ? 'newest' : 'published'
+    const runs = counts.get(version) ?? 0
+    return { key: `v${version}`, label: `v${version}`, kind, runs, under: underOf(kind, runs) }
+  })
   if (row.draft !== null) {
-    marks.push({ key: 'draft', label: `v${row.draft}`, kind: 'draft', runs: 0 })
+    marks.push({
+      key: 'draft',
+      label: `v${row.draft}`,
+      kind: 'draft',
+      runs: 0,
+      under: underOf('draft', 0),
+    })
   }
   return { marks, earlier: published.length - shown.length }
+}
+
+/**
+ * The word under a stop: the draft says it is one, a version runs point at
+ * says how many, and the newest says it is what a run starts from now.
+ */
+function underOf(kind, runs) {
+  if (kind === 'draft') return 'draft'
+  if (runs > 0) return `${runs} ${runs === 1 ? 'run' : 'runs'}`
+  return kind === 'newest' ? 'current' : ''
 }
 
 /** The line of versions in one sentence: what is published, what is open, what ran. */
@@ -387,10 +402,12 @@ export function stagesOf(row) {
   const stages = depths.map((depth, at) => {
     const here = drawn.filter((place) => place.depth === depth).sort((a, b) => a.at - b.at)
     const on = [...new Set(here.flatMap((place) => place.why.map((wait) => wait.on)))]
+    const label = on.length === 0 ? 'goes first' : `after ${joined(on)}`
     return {
       key: `stage-${depth}`,
       n: at + 1,
-      label: on.length === 0 ? 'goes first' : `after ${joined(on)}`,
+      label,
+      heard: `Stage ${at + 1}, ${label}: `,
       steps: here.map((place) => ({
         name: place.name,
         step: byName.get(place.name) ?? null,
@@ -404,6 +421,7 @@ export function stagesOf(row) {
       key: 'cycle',
       n: null,
       label: 'in a cycle: each waits, directly or not, on itself',
+      heard: 'In a cycle: ',
       steps: circular.map((place) => ({
         name: place.name,
         step: byName.get(place.name) ?? null,

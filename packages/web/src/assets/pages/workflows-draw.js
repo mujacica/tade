@@ -87,7 +87,7 @@ export function shapeIn(node, row) {
     (item, stage) => {
       const [n, heard, names] = item.children
       textIn(n, stage.n === null ? '↻' : String(stage.n))
-      textIn(heard, stage.n === null ? 'In a cycle: ' : `Stage ${stage.n}, ${stage.label}: `)
+      textIn(heard, stage.heard)
       classOn(item, 'is-cycle', stage.n === null)
       textIn(names, stage.steps.map((one) => one.name).join(' · '))
     },
@@ -152,16 +152,7 @@ export function versionLineIn(node, row, runs) {
         classOn(item, `is-${kind}`, one.kind === kind)
       }
       textIn(label, one.label)
-      textIn(
-        under,
-        one.kind === 'draft'
-          ? 'draft'
-          : one.runs > 0
-            ? `${one.runs} ${one.runs === 1 ? 'run' : 'runs'}`
-            : one.kind === 'newest'
-              ? 'current'
-              : '',
-      )
+      textIn(under, one.under)
     },
   )
 }

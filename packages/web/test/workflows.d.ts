@@ -38,7 +38,10 @@ declare module '*/assets/pages/workflows-shape.js' {
   export function versionsOf(
     row: any,
     runs?: readonly any[],
-  ): { marks: { key: string; label: string; kind: string; runs: number }[]; earlier: number }
+  ): {
+    marks: { key: string; label: string; kind: string; runs: number; under: string }[]
+    earlier: number
+  }
   export function versionsSaid(row: any, runs?: readonly any[]): string
   export function shapeOf(places: readonly any[]): {
     dots: { name: string; x: number; y: number }[]
@@ -53,6 +56,7 @@ declare module '*/assets/pages/workflows-shape.js' {
     key: string
     n: number | null
     label: string
+    heard: string
     steps: { name: string; step: any; waits: readonly any[] }[]
   }[]
   export function graphOf(row: any): {
