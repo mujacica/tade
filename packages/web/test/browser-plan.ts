@@ -33,9 +33,10 @@ export interface Width {
  * Three widths, content-driven like the breakpoints themselves.
  *
  * 360 is the floor the brief names and the one a phone in a case actually has;
- * 834 is a tablet in portrait, where the glyph rail and the projects along the
- * top have to work; 1440 is a laptop, where the page is the window's own shape
- * — the work, with the running agents and Tade docked beside it (`desk.js`).
+ * 834 is a tablet in portrait, where the glyph rail, Tade at the foot and the
+ * work as a drawer have to work; 1440 is a laptop, where the page is the
+ * window's own shape — the menu, the work down the right and Tade docked at the
+ * foot of the middle (`desk.js`).
  */
 export const WIDTHS: readonly Width[] = [
   { name: 'phone', width: 360, height: 780, narrow: true },

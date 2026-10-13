@@ -362,6 +362,7 @@ describe('the release workflow', () => {
     // keep — and a rehearsal is the only thing that finds it, because no
     // release has ever been cut when it breaks.
     const ci = parse(readFileSync(join(ROOT, CI_PATH), 'utf8')) as Workflow
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, matched as the literal text the workflow file holds
     const asCalled = ci.concurrency.group.replaceAll('${{ github.workflow }}', release.name)
     expect(release.concurrency.group).not.toBe(asCalled)
   })

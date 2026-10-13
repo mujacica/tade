@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { ICONS } from '../src/assets/icons.js'
 import {
+  DOCKED,
+  GROUPS,
   MORE,
   MORE_TAB,
   NAV,
@@ -192,6 +194,20 @@ describe('the navigation', () => {
 
   it('draws every place with an icon the sprite has', () => {
     for (const one of [...NAV, ...MORE, MORE_TAB]) expect(ICONS, one.view).toContain(one.icon)
+  })
+
+  it('puts every place in exactly one menu group, but the frame’s own parts', () => {
+    // **The left is places, the right is the work, the foot is Tade.** The
+    // agents and the queue are the side and the conversation is the dock, so
+    // a menu entry for either is the same thing twice on one screen; every
+    // other place is in one category, at a desk and under More alike.
+    const grouped = GROUPS.flatMap((group) => group.views)
+    expect(new Set(grouped).size).toBe(grouped.length)
+    for (const one of [...NAV, ...MORE]) {
+      const times = grouped.filter((view) => view === one.view).length
+      expect(times, one.view).toBe(DOCKED.includes(one.view) ? 0 : 1)
+    }
+    expect([...DOCKED].sort()).toEqual(['agents', 'queue', 'talk'])
   })
 
   it('names each view once across both lists', () => {

@@ -112,6 +112,10 @@ declare module '*/assets/routes.js' {
   export const NAV: readonly Place[]
   export const MORE: readonly Place[]
   export const MORE_TAB: Place
+  /** The menu's categories, and the places in each. */
+  export const GROUPS: readonly { key: string; title: string; views: readonly string[] }[]
+  /** The places that are the frame's own parts — the side and the dock — rather than menu entries. */
+  export const DOCKED: readonly string[]
   export function viewOf(path: string): {
     view: string
     project?: string
@@ -480,6 +484,34 @@ declare module '*/assets/push.js' {
     auth: string
   }
   export function keyBytes(key: string): Uint8Array
+}
+
+declare module '*/assets/tree.js' {
+  interface Piece {
+    task: string
+    project: string
+    state: { kind: string; [field: string]: unknown }
+    order: number | null
+    waitsOn: readonly { task: string; why: unknown }[]
+  }
+  interface Node<R> {
+    row: R
+    depth: number
+    children: Node<R>[]
+  }
+  export function queueTree<R extends Piece>(rows: readonly R[]): Node<R>[]
+  export function queueAt(state: unknown, clock: (at: string) => string): string
+  export function queueLine(state: unknown, project: string): string
+  export function queuePaused(rows: readonly { state: unknown }[]): boolean
+  export function sideAgents<
+    T extends { state: string; name: string; createdAt?: string; agents?: number; lanes?: number },
+  >(tasks: readonly T[]): T[]
+  export function agentGroups<T extends { effort?: string | null }>(
+    agents: readonly T[],
+  ): { effort: string | null; agents: T[] }[]
+  export const FOLDS: readonly string[]
+  export function foldsFrom(kept: unknown): Record<string, boolean>
+  export function foldsTo(folds: Record<string, boolean>): string
 }
 
 declare module '*/assets/desk.js' {

@@ -450,15 +450,18 @@ every project at once — what wants you, what is working, what is queued, the c
 and how full each plan is, as six figures with a chart each — then the work that wants somebody,
 with the presses that device was granted right on the card (allow, deny, done, set aside), then
 every project as a card with the shape of its work. Tade is one press away from anywhere: the
-middle of the tab bar on a phone, `⌘K` at a keyboard — one bar that sends what you type to Tade, or
-jumps to any screen, project or piece of work by name. Letting a device in is a keypress here, so a
+middle of the tab bar on a phone raises the conversation as a sheet, and the search in the header —
+`⌘K` at a keyboard — is one bar that sends what you type to Tade, or jumps to any screen, project or
+piece of work by name. The agents and the queue are the tab beside it, a drawer split by project. Letting a device in is a keypress here, so a
 typed address reaches the pairing page with nothing to present. The listener dies with the window:
 a page opened with Tade closed says it cannot reach the machine — and, where the phone kept its
 last view, what it last knew — never an empty control room.
 
-On a laptop it takes the window's shape — a sidebar in categories with every project as a tree
-that opens onto its work, the work in the middle, the agents running and Tade docked beside it —
-and an agent's page says what it has been doing. Pairing is four steps the page leads you through:
+On a laptop it takes the window's shape — the places in a menu down the left, the work down the
+right a project at a time (its agents with their marks, grouped by run, and its queue hung as a tree
+of what waits on what), and Tade docked at the foot of the middle; each of the three folds, with
+`[`, `]` and `\`, and stays folded on that device — and an agent's page says what it has been
+doing, with its run and its checks under it down the right. Pairing is four steps the page leads you through:
 open Tade, scan its code — or, on a computer, click the link under it or its Open or Copy — name
 the device, approve it at the machine. What its
 screen shows is a grant of its own, per device and off for every one: the last rows, read only

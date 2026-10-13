@@ -166,8 +166,25 @@ describe('what the client may never do', () => {
     for (const name of TEXT) {
       const text = readFileSync(join(DIR, name), 'utf8')
       expect(text, name).not.toContain('document.cookie')
-      expect(text, name).not.toContain('localStorage')
       expect(text, name).not.toContain('sessionStorage')
+      // **One file keeps something in `localStorage`, and it is the docks'
+      // three folds** — words the page wrote, about the layout, never about
+      // anybody's work. A second file reaching for it is a second thing on a
+      // device's disk that nobody listed.
+      if (name !== 'docks.js') expect(text, name).not.toContain('localStorage')
+    }
+  })
+
+  it('keeps nothing in localStorage but the folds, under one key', () => {
+    const text = readFileSync(join(DIR, 'docks.js'), 'utf8')
+    const uses = [...text.matchAll(/localStorage\?\.(\w+)\(([^)]*)\)/g)].map((one) => [
+      one[1],
+      (one[2] ?? '').split(',')[0]?.trim(),
+    ])
+    expect(uses.length).toBeGreaterThan(0)
+    for (const [verb, key] of uses) {
+      expect(['getItem', 'setItem', 'removeItem'], String(verb)).toContain(verb)
+      expect(key, String(verb)).toBe('FOLDS_KEY')
     }
   })
 

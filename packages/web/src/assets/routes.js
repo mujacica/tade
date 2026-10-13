@@ -209,22 +209,36 @@ export const MORE = [
 ]
 
 /**
- * The sidebar, in categories: the four places read because something is
- * happening, then the projects themselves (filled from the store, each one
- * opening onto its work), then the rest by what they are about. The phone's
- * More screen is the same groups, so a place is in one category everywhere.
+ * The menu down the left, in categories, as the window's own frame divides
+ * it: **the left is places, the right is the work, the foot is Tade.** So the
+ * agents and the queue are not here — they are the right-hand side, a tree per
+ * project (`side.js`), as the window's side list has them — and neither is the
+ * conversation, which is the dock at the foot of the work (`desk.js`). Their
+ * screens are still paths (a deep link, `g a`, the command bar); they are not
+ * menu entries, because a menu entry for what is already on the screen beside
+ * it is the same thing twice.
  *
- * Every place in `NAV` and `MORE` is in exactly one group
- * (`test/routes-client.test.ts`), and `projects` names none: it is data.
+ * **Runs and Checks stay.** The window shows one agent's run and checks beside
+ * that agent — its effort heads its group down the side, and its checks are its
+ * ACTIONS page — and so does the right-hand side here, under the agent you have
+ * open. What these two pages are is the other question: every run across every
+ * repository it spans, and every task's checks in one table. The window has no
+ * such page, a side split by project cannot be one, and both are read on a
+ * round rather than because one agent is in front of you.
+ *
+ * The phone's More screen is the same groups, so a place is in one category
+ * everywhere.
  */
 export const GROUPS = [
-  { key: 'main', title: '', views: ['now', 'agents', 'queue', 'inbox'] },
-  { key: 'projects', title: 'Projects', views: [] },
+  { key: 'main', title: '', views: ['now', 'inbox'] },
   { key: 'work', title: 'Work', views: ['runs', 'reviews', 'findings', 'workflows'] },
   { key: 'insight', title: 'Insight', views: ['spend', 'checks'] },
-  { key: 'tade', title: 'Tade', views: ['talk', 'notes'] },
+  { key: 'tade', title: 'Tade', views: ['notes'] },
   { key: 'system', title: 'System', views: ['devices', 'settings'] },
 ]
+
+/** The places that are the frame's own parts rather than menu entries: the side and the dock. */
+export const DOCKED = ['agents', 'queue', 'talk']
 
 /** One place's entry, out of either list, by its view. */
 export function placeOf(view) {

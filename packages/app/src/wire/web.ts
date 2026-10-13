@@ -221,7 +221,10 @@ export class Away implements Subject {
       this.problem = err instanceof Error ? err.message : String(err)
       this.deps.news(`the away view could not ${what}: ${this.problem}`)
     }
-    const mint = () => (codeShownOn(this.wire.state.panel) === null ? undefined : this.mint())
+    // `stop` clears every code, so one outstanding is the frame's, for this listener, on screen.
+    const shown = () => this.tickets.outstanding(this.wire.now()).length > 0
+    const mint = () =>
+      codeShownOn(this.wire.state.panel) === null || shown() ? undefined : this.mint()
     const away = { open: () => this.open(), stop: () => this.stop(), mint, failed }
     // One turn after another, never two listeners on a port.
     this.turning = this.turning.then(() => turnTo(was, want, away)).finally(() => this.wire.draw())

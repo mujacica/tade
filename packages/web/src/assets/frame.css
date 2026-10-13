@@ -20,11 +20,12 @@
   which is why none of them is left to chance.
 
   Four breakpoints, content-driven and not device-driven: one column with a
-  floating tab bar and Tade in its middle, then an icon rail with the projects
-  along the top, then a rail with names, categories and the project tree
-  (`rail.css`), then the desk — the work in the middle and a dock beside it
-  with the running agents and Tade (`dock.css`). `away.css`
-  has the screens drawn inside this, and `dash.css` the overview.
+  tab bar whose middle raises Tade as a sheet and the work as a drawer, then
+  an icon rail with Tade docked at the foot of the work, then a menu with
+  names and categories (`rail.css`), then the desk — the menu, the work down
+  the right and Tade at the foot of the middle, as the window has them
+  (`dock.css`). `away.css` has the screens drawn inside this, and `dash.css`
+  the overview.
 */
 
 /* ── the frame ─────────────────────────────────────────────────────────────── */
@@ -173,13 +174,6 @@ a.name:hover {
 
 .cmd .ic {
   color: var(--amber);
-}
-
-/* On a phone the bar's door is the middle of the tab bar, under the thumb. */
-@media (max-width: 767px) {
-  .cmd {
-    display: none;
-  }
 }
 
 .cmd-said,
@@ -425,22 +419,11 @@ kbd {
 }
 
 /*
-  The desk's parts, off until there is room for them. Each is in the document at
-  every width — so the reading order is the same everywhere — and each is
-  turned on by its breakpoint below and by nothing else.
-*/
-.projects,
-.dock,
-.side,
-.strip {
-  display: none;
-}
-
-/*
   The tab bar: flush with the foot of the screen on the panel's ground, a
   hairline over it and the phone's inset under it — no float, no blur, no
-  shadow. Five places: three, Tade in the middle, and More. Where you are is
-  an amber line over the tab, as a desk's tabs draw it.
+  shadow. Four presses: the overview, the work (the side, as a drawer), Tade
+  in the middle (the dock, as a sheet) and More. Where you are is amber, and
+  said to a screen reader as well.
 */
 .tabs {
   position: fixed;
@@ -448,7 +431,7 @@ kbd {
   bottom: 0;
   z-index: 6;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   align-items: center;
   padding: 0 var(--s1) env(safe-area-inset-bottom);
   background: var(--panel);
@@ -479,8 +462,9 @@ kbd {
   line-height: 1.1;
 }
 
-/* Where you are, in amber, and said to a screen reader as well. */
-.tab[aria-current="page"] {
+/* Where you are, in amber, and said to a screen reader as well; a drawer that is open is where you are too. */
+.tab[aria-current="page"],
+.tab[aria-expanded="true"] {
   color: var(--amber);
 }
 
@@ -634,7 +618,7 @@ main[tabindex="-1"]:focus {
   color: var(--bright);
 }
 
-/* ── tablet: an icon rail, the projects along the top, and no tab bar ──────── */
+/* ── tablet: an icon rail, Tade docked at the foot, and no tab bar ─────────── */
 
 @media (min-width: 768px) {
   body {
@@ -672,20 +656,31 @@ main[tabindex="-1"]:focus {
     flex: 0 1 auto;
   }
 
+  /*
+    The frame from here up is an application's: the menu down the left, held
+    the height of the screen under the header from the top to the bottom, and
+    the work beside it with Tade docked at its foot. The frame reaches the
+    page's edges, so the menu's rule runs top to bottom with nothing past it.
+  */
   .frame {
     grid-template-columns: 3.5rem minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
     align-items: start;
-    gap: var(--s4) var(--s5);
-    padding-block-end: var(--s6);
+    gap: 0;
+    margin-inline: calc(-1 * var(--s5));
+    padding-block: 0;
   }
 
   .rail {
-    display: grid;
-    align-content: start;
+    display: flex;
+    flex-direction: column;
     gap: 2px;
     position: sticky;
-    top: calc(var(--tap) + var(--s5));
+    top: 3.25rem;
+    height: calc(100dvh - 3.25rem);
+    padding: var(--s3) var(--s2);
+    border-inline-end: var(--border);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   /* An icon, centred, with its word a label beside it under the pointer. */
@@ -757,10 +752,9 @@ main[tabindex="-1"]:focus {
 
   /*
     An icon rail has no room for words: its categories are a hairline between
-    them, the projects are along the top instead, and folding is the desk's.
+    them, and folding it is the desk's.
   */
   .rail-head,
-  .rail-projects,
   .rail-fold {
     display: none;
   }
@@ -784,26 +778,13 @@ main[tabindex="-1"]:focus {
     inset-block-end: var(--s5);
   }
 
-  /*
-    The projects, along the top as the window has them: each a name and the
-    counts that are true over every task in it. Wrapped rather than scrolled,
-    so a machine with nine projects is two lines and never a page wider than
-    the screen.
-  */
-  .projects {
+  /* The work: the screen, with Tade docked under it at the foot of the screen. */
+  .work {
     grid-column: 2;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--s2);
-  }
-
-  .rail {
-    grid-row: 1 / span 2;
+    min-height: calc(100dvh - 3.25rem);
   }
 
   main {
-    grid-column: 2;
+    padding: var(--s4) var(--s5) var(--s6);
   }
-
-  /* Where you are, in amber, as the rail says it — and said to a screen reader. */
 }

@@ -19,13 +19,12 @@
 //   and **an update never moves it**: the tab you are on changes when you
 //   navigate and at no other time.
 
-import { classOn, el, glyphOf, hintOf, into, keyed, markIn, textIn, toneOn } from './dom.js'
+import { classOn, el, hintOf, into, textIn, toneOn } from './dom.js'
 import { clockOf, duration, shortClockOf } from './figures.js'
-import { freshMark, rowMark, taskMark } from './glyphs.js'
+import { freshMark } from './glyphs.js'
 import { icon, wordmark } from './icons.js'
 import { backoffAt, partsOf } from './live.js'
-import { GROUPS, MORE_TAB, NAV, navFor, pathOf, placeOf, TITLES, taskPath } from './routes.js'
-import { projectsOf, tasksIn } from './store.js'
+import { GROUPS, MORE_TAB, NAV, navFor, pathOf, placeOf, TITLES } from './routes.js'
 
 /**
  * The whole frame, built once for the life of the page.
@@ -33,14 +32,15 @@ import { projectsOf, tasksIn } from './store.js'
  * Returns the parts the wiring writes into. Nothing here is rebuilt: a screen
  * is swapped inside `main`, and everything else is patched.
  *
- * `desk` is the three parts a desk adds (`desk.js`) — projects along the top,
- * and a dock beside the work with the running agents and Tade — placed here so
- * the reading order is the window's: what is open, the work, what is running,
- * and then the conversation. Each is hidden by the stylesheet below its width.
+ * **The window's own arrangement** (`desk.js`): the places down the left, the
+ * work down the right — a project at a time, its agents and its queue — and
+ * Tade docked at the foot of the middle, under whatever screen is open. The
+ * reading order is the window's too: the places, the screen, Tade, the work.
+ * Each of the three folds (`docks.js`), and its press is at its own foot.
  *
- * **Tade is one press from anywhere**: the command bar in the header at every
- * width, `⌘K` at a keyboard, and the middle of the tab bar under a thumb. All
- * three open the same bar (`palette.js`), which `boot.js` hands in as `ask`.
+ * **Tade is one press from anywhere**: the dock at the foot, the command bar
+ * in the header at every width (`⌘K` at a keyboard), and the middle of the tab
+ * bar on a phone, which raises the dock as a sheet.
  */
 export function shell(desk = null) {
   const skip = el('a', {
@@ -58,8 +58,12 @@ export function shell(desk = null) {
   })
   into(
     ask,
-    icon('spark'),
-    el('span', { class: 'cmd-said', text: 'Ask Tade', attrs: { 'aria-hidden': 'true' } }),
+    icon('search'),
+    el('span', {
+      class: 'cmd-said',
+      text: 'Go anywhere, or ask Tade',
+      attrs: { 'aria-hidden': 'true' },
+    }),
     el('kbd', { text: '⌘K', attrs: { 'aria-hidden': 'true' } }),
   )
   const fresh = el('p', { class: 'fresh', attrs: { role: 'status' } })
@@ -77,7 +81,15 @@ export function shell(desk = null) {
     attrs: { type: 'button', 'aria-label': 'Keyboard keys' },
   })
   into(keys, icon('help'))
-  into(tools, again, keys)
+  // The side's door where it is a drawer: a tablet's header. A desk has it
+  // docked and a phone has it in the tab bar, so the stylesheet shows this
+  // between the two and nowhere else.
+  const sideDoor = el('button', {
+    class: 'tap icon side-door',
+    attrs: { type: 'button', 'aria-controls': 'side' },
+  })
+  into(sideDoor, icon('agents'))
+  into(tools, sideDoor, again, keys)
   into(top, brand, ask, fresh, tools)
 
   const bars = el('div', { class: 'bars' })
@@ -85,24 +97,32 @@ export function shell(desk = null) {
   const frame = el('div', { class: 'frame' })
   const rail = el('nav', { class: 'rail', attrs: { 'aria-label': 'Sections' } })
   const main = el('main', { attrs: { id: 'main' } })
-  // The dock: what is running and the conversation, beside the work at a desk.
-  const dock =
-    desk === null
-      ? null
-      : el('aside', { class: 'dock', attrs: { 'aria-label': 'Running agents and Tade' } })
-  if (dock !== null) into(dock, desk.side, desk.strip)
-  // The projects head the work's own column, so the rail and the dock start
-  // level with them and the dock's foot — Tade's box — is on the screen.
-  into(frame, rail, desk?.projects, main, dock)
+  // The middle column: what the page says about itself, the screen, and Tade
+  // docked at its foot — so the docks either side run from the header to the
+  // bottom of the screen with nothing above them.
+  const work = el('div', { class: 'work' })
+  into(work, bars, main, desk?.dock)
+  const side = desk?.side ?? null
+  if (side !== null) side.setAttribute('id', 'side')
+  into(frame, rail, work, side)
+  // What a drawer is opened over: a press anywhere on it closes the drawer.
+  const scrim = el('div', { class: 'scrim', attrs: { 'aria-hidden': 'true' } })
+  scrim.hidden = true
 
   const tabs = el('nav', { class: 'tabs', attrs: { 'aria-label': 'Sections' } })
-  const talk = el('button', {
+  const tabSide = el('button', {
+    class: 'tab',
+    attrs: { type: 'button', 'aria-controls': 'side' },
+  })
+  const sideFigure = el('span', { class: 'count ui-count' })
+  into(tabSide, icon('agents'), el('span', { class: 'label', text: 'Agents' }), sideFigure)
+  const tabTade = el('button', {
     class: 'tab tab-ask',
-    attrs: { type: 'button', 'aria-label': 'Ask Tade, or go anywhere', 'aria-haspopup': 'dialog' },
+    attrs: { type: 'button' },
   })
   const disc = el('span', { class: 'ask-disc' })
   into(disc, icon('spark'))
-  into(talk, disc, el('span', { class: 'label', text: 'Ask' }))
+  into(tabTade, disc, el('span', { class: 'label', text: 'Tade' }))
 
   const sheet = el('div', {
     class: 'sheet',
@@ -116,31 +136,28 @@ export function shell(desk = null) {
     attrs: { 'aria-live': 'polite', 'aria-atomic': 'false' },
   })
 
-  const { made: links, tree } = navLinks(rail, tabs, talk)
-  // The whole rail folds to its icons at a desk, and back: a press at its foot.
-  const fold = el('button', {
-    class: 'rail-fold',
-    attrs: { type: 'button', 'aria-label': 'Fold the sidebar', 'aria-pressed': 'false' },
-  })
-  into(fold, icon('back'))
-  fold.addEventListener('click', () => {
-    const mini = !frame.classList.contains('rail-mini')
-    frame.classList.toggle('rail-mini', mini)
-    fold.setAttribute('aria-pressed', mini ? 'true' : 'false')
-    fold.setAttribute('aria-label', mini ? 'Unfold the sidebar' : 'Fold the sidebar')
-  })
-  rail.append(fold)
+  const links = navLinks(rail, tabs, tabSide, tabTade)
+  // The drawer's press carries the count its screen would: agents running.
+  links.push({ link: tabSide, figure: sideFigure, view: null, counts: 'agents', where: 'tab' })
+  // The press at each docked part's foot that folds it, and says so in a word.
+  const railFold = foldPress('rail-fold', 'back')
+  rail.append(railFold)
+  const sideFold = foldPress('side-fold', 'back')
+  side?.append(sideFold)
 
   return {
-    parts: [skip, top, bars, frame, tabs, sheet, announce].filter(
+    parts: [skip, top, frame, scrim, tabs, sheet, announce].filter(
       (one) => one !== null && one !== undefined,
     ),
     // What only a device with a session is drawn (`insideIn`).
-    inside: [rail, tabs, again, ask, desk?.projects, dock, desk?.side, desk?.strip].filter(
+    inside: [rail, tabs, again, ask, sideDoor, side, desk?.dock].filter(
       (one) => one !== null && one !== undefined,
     ),
     frame,
     main,
+    side,
+    dock: desk?.dock ?? null,
+    scrim,
     bars,
     dot,
     freshSaid,
@@ -149,32 +166,43 @@ export function shell(desk = null) {
     again,
     keys,
     links,
-    tree,
-    // The two presses that open the command bar; `boot.js` wires both.
-    asks: [ask, talk],
+    // Every press that folds or opens a dock, by the dock (`docks.js`).
+    folds: {
+      menu: [railFold],
+      side: [sideFold, sideDoor, tabSide],
+      tade: [desk?.fold, tabTade].filter((one) => one !== null && one !== undefined),
+    },
+    // The press that opens the command bar; `boot.js` wires it.
+    asks: [ask],
   }
 }
 
+/** A dock's own fold: an icon and the word for what pressing it does, written by `docks.js`. */
+function foldPress(klass, glyph) {
+  const press = el('button', { class: `${klass} dock-press`, attrs: { type: 'button' } })
+  into(press, icon(glyph), el('span', { class: 'fold-said' }))
+  return press
+}
+
 /**
- * The navigation, drawn twice: a rail for a tablet and up, a bottom bar for a
+ * The navigation, drawn twice: a menu for a tablet and up, a bottom bar for a
  * phone.
  *
  * Twice rather than one list moved by CSS, because the two are different
- * shapes — the rail carries every place with its count at a desk and the bar
- * carries three plus Ask plus More, which is the only arrangement that fits
- * 360px with 44px targets. Both are in the DOM, one is displayed, and each is
- * a `<nav>` a screen reader can jump to.
+ * shapes. The menu carries every place in its categories (`GROUPS`). The bar
+ * is the phone's whole frame in four presses — the overview, **the side** (the
+ * agents and the queue, as a drawer), **Tade** in the middle (the dock, as a
+ * sheet) and More — which is the window's arrangement folded to a thumb, and
+ * the only one that fits 360px with 44px targets. Both are in the DOM, one is
+ * displayed, and each is a `<nav>` a screen reader can jump to.
  */
-function navLinks(rail, tabs, talk) {
+function navLinks(rail, tabs, tabSide, tabTade) {
   const made = []
-  const [first, second, ...rest] = NAV
-  for (const one of [first, second]) made.push(entry(tabs, one, 'tab'))
-  tabs.append(talk)
-  for (const one of [...rest, MORE_TAB]) made.push(entry(tabs, one, 'tab'))
-  // **The rail, in its categories.** A group with a title has a header that
-  // folds it — a press, with `aria-expanded`, never a hover — and the
-  // projects' group is the project tree, filled from the store (`railIn`).
-  let tree = null
+  made.push(entry(tabs, NAV[0], 'tab'))
+  tabs.append(tabSide, tabTade)
+  made.push(entry(tabs, MORE_TAB, 'tab'))
+  // **The menu, in its categories.** A group with a title has a header that
+  // folds it — a press, with `aria-expanded`, never a hover.
   for (const group of GROUPS) {
     const node = el('div', { class: `rail-group rail-${group.key}` })
     const items = el('div', { class: 'rail-items', attrs: { id: `rail-${group.key}` } })
@@ -194,113 +222,10 @@ function navLinks(rail, tabs, talk) {
       const one = placeOf(view)
       if (one !== null) made.push(entry(items, one, 'rail'))
     }
-    if (group.key === 'projects') {
-      tree = el('ul', { class: 'rail-tree', attrs: { 'aria-label': 'Projects' } })
-      into(items, tree)
-    }
     into(node, items)
     rail.append(node)
   }
-  return { made, tree }
-}
-
-/* ── the project tree in the rail ──────────────────────────────────────────── */
-
-/** Which projects somebody opened or closed in the tree, for as long as the page is. */
-const opened = new Map()
-
-/**
- * The projects in the rail, each a link with its counts and a press that
- * opens it onto its work: every task in it, the ones that want somebody first,
- * each with its state's glyph and a link to its page.
- *
- * **The project you are in opens on its own**, and one somebody closed stays
- * closed; nothing else moves on a delta. Built once per project and patched,
- * as every list here is.
- */
-export function railIn(shown, view) {
-  if (shown.tree === null) return
-  const here =
-    view.where.view === 'project' || view.where.view === 'task' ? view.where.project : null
-  const on = view.where.view === 'task' ? `${view.where.project}/${view.where.task}` : null
-  keyed(
-    shown.tree,
-    projectsOf(view.store),
-    (row) => row.name,
-    createTreeProject,
-    (one, row) => fillTreeProject(one, row, view, here, on),
-  )
-}
-
-function createTreeProject() {
-  const node = el('li', { class: 'tree-project' })
-  const row = el('div', { class: 'tree-row' })
-  const twist = el('button', {
-    class: 'tree-twist',
-    attrs: { type: 'button', 'aria-expanded': 'false' },
-  })
-  into(twist, icon('chevron', 'twist'))
-  const link = el('a', { class: 'tree-link', attrs: { href: '/' } })
-  const wants = el('span', { class: 'ui-count is-wants' })
-  const working = el('span', { class: 'ui-count is-working' })
-  into(link, el('span', { class: 'tree-name' }), wants, working)
-  into(row, twist, link)
-  const tasks = el('ul', { class: 'tree-tasks' })
-  tasks.hidden = true
-  into(node, row, tasks)
-  twist.addEventListener('click', () => {
-    const name = node.getAttribute('data-key') ?? ''
-    opened.set(name, tasks.hidden)
-    tasks.hidden = !tasks.hidden
-    twist.setAttribute('aria-expanded', tasks.hidden ? 'false' : 'true')
-  })
-  return node
-}
-
-/** The order a project's tasks are listed in: what wants somebody, then what works. */
-const RANK = { blocked: 0, failed: 1, review: 2, working: 3, queued: 4, parked: 5, merged: 6 }
-
-function fillTreeProject(node, project, view, here, on) {
-  const [row, tasks] = node.children
-  const [twist, link] = row.children
-  const [name, wants, working] = link.children
-  link.setAttribute('href', pathOf({ view: 'project', project: project.name }))
-  if (project.name === here) link.setAttribute('aria-current', 'page')
-  else link.removeAttribute('aria-current')
-  textIn(name, project.name)
-  const counts = project.counts
-  textIn(wants, counts.wantsYou === 0 ? '' : String(counts.wantsYou))
-  wants.setAttribute('aria-label', `${counts.wantsYou} wanting you`)
-  textIn(working, counts.working === 0 ? '' : String(counts.working))
-  working.setAttribute('aria-label', `${counts.working} working`)
-  const open = opened.get(project.name) ?? project.name === here
-  tasks.hidden = !open
-  twist.setAttribute('aria-expanded', open ? 'true' : 'false')
-  twist.setAttribute('aria-label', `${open ? 'Close' : 'Open'} ${project.name}`)
-  if (!open) return
-  const rows = tasksIn(view.store, project.name)
-    .filter((task) => task.state !== 'merged')
-    .sort((a, b) => (RANK[a.state] ?? 9) - (RANK[b.state] ?? 9) || (a.name < b.name ? -1 : 1))
-  keyed(
-    tasks,
-    rows,
-    (task) => task.id,
-    () => {
-      const item = el('li')
-      const to = el('a', { class: 'tree-task', attrs: { href: '/' } })
-      into(to, glyphOf(taskMark('queued')), el('span', { class: 'tree-name' }))
-      into(item, to)
-      return item
-    },
-    (item, task) => {
-      const to = item.firstChild
-      to.setAttribute('href', taskPath(task.id))
-      if (task.id === on) to.setAttribute('aria-current', 'page')
-      else to.removeAttribute('aria-current')
-      markIn(to.firstChild, rowMark(task))
-      textIn(to.lastChild, task.name)
-    },
-  )
+  return made
 }
 
 function entry(parent, one, where) {
@@ -527,6 +452,10 @@ function keySheet() {
     ['g n', 'Overview'],
     ['g a', 'Agents'],
     ['g q', 'Queue'],
+    ['g t', 'the whole conversation'],
+    ['[', 'fold the menu'],
+    [']', 'fold the agents and queue'],
+    ['\\', 'fold Tade'],
     ['g s', 'Spend'],
     ['g c', 'Checks'],
     ['j / k', 'move through rows'],

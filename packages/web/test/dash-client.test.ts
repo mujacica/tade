@@ -294,6 +294,7 @@ describe('the icons', () => {
       'palette.js',
       'quick.js',
       'desk.js',
+      'side.js',
       'pages.js',
     ]) {
       const text = readFileSync(join(DIR, name), 'utf8')

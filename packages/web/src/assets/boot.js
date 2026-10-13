@@ -28,6 +28,7 @@ import { actsOf } from './acts.js'
 import { agentsScreen } from './agents.js'
 import { workflowScreen, workflowsScreen } from './designer.js'
 import { deskParts } from './desk.js'
+import { docksOn, forgetFolds } from './docks.js'
 import { classOn, el, textIn } from './dom.js'
 import { inboxScreen, requestScreen } from './factory.js'
 import { forget, NOT_SECURE, startInstall, takeUpdate } from './install.js'
@@ -60,7 +61,6 @@ import {
   insideIn,
   navCounts,
   navOn,
-  railIn,
   shell,
   titleFor,
 } from './shell.js'
@@ -194,6 +194,8 @@ const ctx = {
 // they send through, and patched on every paint like a screen.
 const desk = deskParts(ctx)
 const shown = shell(desk)
+// The three docks' folds, put back as this device left them (`docks.js`).
+const docks = docksOn(shown)
 // The command bar: Tade, and everywhere else, one press away (`palette.js`).
 const bar = palette(ctx)
 // What just changed, as a toast that links to it (`toasts.js`).
@@ -398,7 +400,6 @@ function paint() {
   if (outside === null) {
     desk.update(view)
     bar.update(view)
-    railIn(shown, view)
   }
 }
 
@@ -693,6 +694,7 @@ const GOES = {
   n: '/',
   a: '/agents',
   q: '/queue',
+  t: '/talk',
   s: '/spend',
   c: '/checks',
   r: '/reviews',
@@ -740,11 +742,22 @@ function wireKeys() {
         event.preventDefault()
         shown.sheet.hidden = !shown.sheet.hidden
         return
+      // The three docks, each folded or opened by a key of its own: the menu
+      // on the left, the work on the right, Tade at the foot.
+      case '[':
+      case ']':
+      case '\\':
+        if (outside !== null) return
+        event.preventDefault()
+        docks.toggle(event.key === '[' ? 'menu' : event.key === ']' ? 'side' : 'tade')
+        return
       case 'Escape':
         if (!shown.sheet.hidden) {
           shown.sheet.hidden = true
           return
         }
+        // A drawer open over the work is what Escape closes first.
+        if (docks.close()) return
         history.back()
         return
       case 'j':
@@ -791,6 +804,7 @@ function tookDevices(body) {
  */
 async function signedOut() {
   held.session = null
+  forgetFolds()
   await forgetView()
   await forget()
   go('/pair', { replace: true, reload: true })

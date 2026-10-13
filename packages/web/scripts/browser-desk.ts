@@ -17,11 +17,11 @@ import { until } from './browser-until.ts'
 // What only a browser can answer, and nothing offline can:
 //
 // - `desk` — that the frame is the window's shape where there is room for it
-//   and a phone's where there is not: projects along the top on a tablet and
-//   as a tree in the rail from a desk up,
-//   the running agents and Tade in a dock beside the work from a desk up, and
-//   none of the three on a phone. The stylesheet decides all of it, so only a
-//   laid-out page can say it.
+//   and a phone's where there is not: the work down the right from a desk up
+//   and a drawer below that, Tade docked at the foot of the work from a tablet
+//   up and a sheet on a phone — each opened, and closed again by Escape — and
+//   that folding a dock at a desk is kept across a reload. The stylesheet
+//   decides all of it, so only a laid-out page can say it.
 // - `lanes` — that a device not granted agents' screens is told so and is sent
 //   no row of one; that one granted them is drawn the rows with the machine's
 //   paths and keys gone from them; that axe has nothing to say about the pane
@@ -48,23 +48,23 @@ const TASK = '/t/sentry/away-projection'
 /** A row of the fixture's screen that survives the scrubbing, so its presence means drawn. */
 const ROW = '4 files touched, the tests pass'
 
-/** Which of the desk's parts are drawn, and how many agents are down the side. */
+/** Which of the frame's parts are drawn, and how many agents are down the side. */
 const DESK = `(() => {
   const shown = (selector) => {
     const one = document.querySelector(selector)
     return one !== null && getComputedStyle(one).display !== 'none' && !one.hidden
   }
+  const side = document.querySelector('aside.side')
   return {
-    projects: shown('nav.projects'),
-    // Laid out, not only displayed: the tree's own display is a list's at
-    // every width, and the rail around it is what is off on a phone.
-    tree: (document.querySelector('.rail-tree')?.getClientRects().length ?? 0) > 0 &&
-      document.querySelectorAll('.rail-tree .tree-project').length > 0,
-    side: shown('nav.side'),
-    strip: shown('section.strip'),
+    side: shown('aside.side'),
+    dock: shown('section.dock'),
     tabs: shown('nav.tabs'),
-    agents: document.querySelectorAll('nav.side li a').length,
-    lit: document.querySelectorAll('nav.side a[aria-current="page"]').length,
+    agents: document.querySelectorAll('aside.side .side-agent').length,
+    lit: document.querySelectorAll('aside.side .side-agent[aria-current="page"]').length,
+    // The side's own width, so a fold is a column that gave its room back.
+    wide: side === null ? 0 : Math.round(side.getBoundingClientRect().width),
+    // From the header to the bottom of the screen, with nothing left under it.
+    foot: side === null ? 0 : Math.round(innerHeight - side.getBoundingClientRect().bottom),
   }
 })()`
 
@@ -73,10 +73,10 @@ const ASKED = `performance.getEntriesByType('resource')
   .filter((one) => one.name.includes('/api/agent/')).length`
 
 /**
- * The desk's parts at one width, for the device granted nothing.
+ * The frame's parts at one width, for the device granted nothing.
  *
  * What each width is meant to draw is written here once, against the
- * breakpoints in `frame.css`: 768 for the projects, 1280 for the rest.
+ * breakpoints in `dock.css`: 768 for Tade at the foot, 1280 for the side.
  */
 export async function deskAt(
   page: Page,
@@ -90,15 +90,7 @@ export async function deskAt(
     await page.waitForSelector('main .section', { timeout: 10_000 })
     const shape = (await page.evaluate(DESK)) as Record<string, boolean | number>
     const desk = width.width >= 1280
-    // The projects are chips along the top while the rail is icons, and a
-    // tree in the rail once it has its words (`rail.css`).
-    const wanted = {
-      projects: width.width >= 768 && width.width < 1100,
-      tree: width.width >= 1100,
-      side: desk,
-      strip: desk,
-      tabs: width.width < 768,
-    }
+    const wanted = { side: desk, dock: width.width >= 768, tabs: width.width < 768 }
     const wrong = Object.entries(wanted)
       .filter(([part, on]) => shape[part] !== on)
       .map(([part, on]) => `${part} ${on ? 'missing' : 'drawn'}`)
@@ -107,25 +99,28 @@ export async function deskAt(
       found('desk', where, 'fail', `${String(shape.agents)} agents down the side, wanted 4`)
     } else if (desk && shape.lit !== 1) {
       found('desk', where, 'fail', `${String(shape.lit)} agents marked as the one open`)
+    } else if (desk && shape.foot !== 0) {
+      found('desk', where, 'fail', `the side stops ${String(shape.foot)}px above the bottom`)
     } else
       found(
         'desk',
         where,
         'pass',
         desk
-          ? 'the project tree, agents and Tade around the work'
+          ? 'the menu, the work down the right and Tade at the foot, as the window has them'
           : 'the shape this width has room for',
       )
   } catch (problem) {
     found('desk', where, 'fail', said(problem))
     return
   }
+  await docksAt(page, origin, width, found)
   // **Not granted is said, and nothing of the screen is sent.** The pane asks
   // once on opening; its answer for this device is the sentence, and the
   // fixture's rows must be nowhere on the page — nor in what came back.
   const at = `lanes not granted @ ${width.name}`
   try {
-    // The pane's own sentence: at a desk the strip says the conversation is
+    // The pane’s own sentence: the dock at the foot says the conversation is
     // not granted either, and that is a different fact.
     await until(page, `document.querySelector('main').innerText.includes('Screen not granted')`)
     const words = String(await page.evaluate('document.body.innerText'))
@@ -133,6 +128,71 @@ export async function deskAt(
     else found('lanes', at, 'pass', 'told it is not granted, and shown no row of it')
   } catch (problem) {
     found('lanes', at, 'fail', said(problem))
+  }
+}
+
+/**
+ * The docks opened and folded the way a person would, at one width.
+ *
+ * Below a desk the side is a drawer: its door opens it with the agents in it,
+ * and Escape closes it. On a phone Tade is a sheet from the tab bar's middle.
+ * At a desk `]` folds the side to a narrow column, the fold outlives a reload
+ * — it is this device's — and `]` puts it back, so nothing after this runs on
+ * a folded page.
+ */
+async function docksAt(
+  page: Page,
+  origin: string,
+  width: { name: string; width: number },
+  found: Found,
+): Promise<void> {
+  const where = `the docks @ ${width.name}`
+  const keys = page.keyboard
+  if (keys === undefined) {
+    found('desk', where, 'unrun', 'this page has no keyboard to press')
+    return
+  }
+  try {
+    if (width.width < 1280) {
+      const door = width.width < 768 ? 'nav.tabs button[aria-controls="side"]' : 'header .side-door'
+      await page.evaluate(`document.querySelector('${door}').click()`)
+      await until(page, `getComputedStyle(document.querySelector('aside.side')).display !== 'none'`)
+      const open = (await page.evaluate(DESK)) as Record<string, number>
+      if (open.agents !== 4)
+        throw new Error(`${String(open.agents)} agents in the drawer, wanted 4`)
+      await keys.press('Escape')
+      await until(page, `getComputedStyle(document.querySelector('aside.side')).display === 'none'`)
+      if (width.width < 768) {
+        await page.evaluate(`document.querySelector('nav.tabs .tab-ask').click()`)
+        await until(
+          page,
+          `getComputedStyle(document.querySelector('section.dock')).display !== 'none'`,
+        )
+        await keys.press('Escape')
+        await until(
+          page,
+          `getComputedStyle(document.querySelector('section.dock')).display === 'none'`,
+        )
+      }
+      found('desk', where, 'pass', 'the side opens as a drawer and Escape closes it')
+      return
+    }
+    const before = (await page.evaluate(DESK)) as Record<string, number>
+    await keys.press(']')
+    await page.goto(`${origin}${TASK}`, { waitUntil: READY })
+    await page.waitForSelector('main .section', { timeout: 10_000 })
+    await until(page, `document.querySelector('.frame').classList.contains('side-mini')`)
+    const folded = (await page.evaluate(DESK)) as Record<string, number>
+    await keys.press(']')
+    await until(page, `!document.querySelector('.frame').classList.contains('side-mini')`)
+    if ((folded.wide ?? 0) * 3 > (before.wide ?? 0)) {
+      throw new Error(
+        `folded, the side is still ${String(folded.wide)}px of ${String(before.wide)}`,
+      )
+    }
+    found('desk', where, 'pass', 'folded by a key, kept across a reload, and unfolded again')
+  } catch (problem) {
+    found('desk', where, 'fail', said(problem))
   }
 }
 
@@ -209,7 +269,7 @@ const OUTSIDE = `(() => {
     return one !== null && getComputedStyle(one).display !== 'none' && !one.hidden
   }
   return {
-    drawn: ['nav.rail', 'nav.tabs', 'nav.projects', 'nav.side', 'section.strip']
+    drawn: ['nav.rail', 'nav.tabs', 'aside.side', 'section.dock']
       .filter(shown),
     words: document.body.innerText,
     path: location.pathname,

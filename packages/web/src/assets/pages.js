@@ -654,13 +654,12 @@ export function moreScreen() {
   const made = section('MORE', { top: true })
   into(node, made.node)
   const figures = []
-  // **The sidebar's own categories**, so a place is in one group on a phone
-  // and at a desk alike — and the projects as a group of their own, each a
-  // link with what wants you and what works in it, as the rail has them.
-  let projects = null
+  // **The menu's own categories**, so a place is in one group on a phone and
+  // at a desk alike. The projects are not here: they are the side, which a
+  // phone opens from its tab bar.
   for (const group of GROUPS) {
     const views = group.views.filter((view) => MORE.some((one) => one.view === view))
-    if (group.key !== 'projects' && views.length === 0) continue
+    if (views.length === 0) continue
     const list = panel('ul', 'places')
     if (group.title === '') into(made.body, list)
     else {
@@ -668,7 +667,6 @@ export function moreScreen() {
       into(part.body, list)
       into(node, part.node)
     }
-    if (group.key === 'projects') projects = list
     for (const view of views) {
       const one = placeOf(view)
       const row = el('li')
@@ -686,31 +684,6 @@ export function moreScreen() {
         const n = one.counts === null ? 0 : (view.counts?.[one.counts] ?? 0)
         textIn(one.figure, n === 0 ? '' : String(n))
       }
-      if (projects === null) return
-      keyed(
-        projects,
-        projectsOf(view.store),
-        (row) => row.name,
-        () => {
-          const row = el('li')
-          const link = el('a', { attrs: { href: '/' } })
-          into(
-            link,
-            icon('folder'),
-            el('span', { class: 'label' }),
-            el('span', { class: 'ui-count is-wants' }),
-          )
-          return into(row, link)
-        },
-        (row, project) => {
-          const link = row.firstChild
-          link.setAttribute('href', pathOf({ view: 'project', project: project.name }))
-          textIn(link.children[1], project.name)
-          const n = project.counts.wantsYou
-          textIn(link.children[2], n === 0 ? '' : String(n))
-          link.children[2].setAttribute('aria-label', `${n} wanting you`)
-        },
-      )
     },
   }
 }

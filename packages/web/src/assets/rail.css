@@ -1,14 +1,18 @@
 /*
-  The sidebar at a desk: the places in their categories, each category a
-  header that folds it, the projects as a tree that opens onto their work,
-  and a press at the foot that folds the whole rail to its icons (`shell.js`).
-  Below 1100px the rail is the tablet's icon rail in `frame.css`, and folded
-  it is that again.
+  The menu at a desk: the places in their categories, each category a header
+  that folds it, and a press at the foot — marked with what it does — that
+  folds the whole menu to its icons (`docks.js`). Below 1100px the menu is the
+  tablet's icon rail in `frame.css`, and folded it is that again.
 
-  **An application's sidebar**: its own column ruled off from the work, rows
-  of icon and word with their count at the end, a row under the pointer a
-  step lighter, and where you are a step lighter again with its icon in
-  amber — never a bar, never a box round it.
+  **The left is places and nothing else.** The projects, their agents and
+  their queue are the work, down the right (`side.js`, `dock.css`), as the
+  window keeps them; a project tree here was the same thing twice.
+
+  **An application's sidebar**: its own column ruled off from the work, the
+  height of the screen from the header to the bottom, rows of icon and word
+  with their count at the end, a row under the pointer a step lighter, and
+  where you are a step lighter again with its icon in amber — never a bar,
+  never a box round it.
 */
 
 @media (min-width: 1100px) {
@@ -16,24 +20,8 @@
     grid-template-columns: 15rem minmax(0, 1fr);
   }
 
-  .frame:not(.rail-mini) > .projects {
-    display: none;
-  }
-
-  .frame:not(.rail-mini) > main {
-    grid-row: 1 / span 2;
-  }
-
-  .rail {
-    max-height: calc(100vh - 3.25rem - var(--s5));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-block-end: var(--s3);
-  }
-
   .frame:not(.rail-mini) .rail {
-    padding-inline-end: var(--s3);
-    border-inline-end: var(--border);
+    padding-inline: var(--s3);
   }
 
   .frame:not(.rail-mini) .rail-group {
@@ -127,123 +115,28 @@
     color: var(--ink);
   }
 
-  /* The projects' tree: a project, its counts, and the press that opens it. */
-  .frame:not(.rail-mini) .rail-projects {
-    display: grid;
-  }
-
-  .tree-row {
-    display: grid;
-    grid-template-columns: 1.5rem minmax(0, 1fr);
-    align-items: center;
-  }
-
-  .tree-twist {
-    display: grid;
-    place-items: center;
-    min-height: var(--tap);
-    min-width: 1.5rem;
-    border-radius: var(--r1);
-    color: var(--tab);
-    cursor: pointer;
-  }
-
-  .tree-twist:hover {
-    color: var(--bright);
-  }
-
-  .twist {
-    width: 0.875rem;
-    height: 0.875rem;
-    transition: transform var(--ease);
-  }
-
-  .tree-twist[aria-expanded="true"] .twist,
   .rail-head[aria-expanded="true"] .twist {
     transform: rotate(90deg);
   }
 
-  .tree-link,
-  .tree-task {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: var(--s1);
-    align-items: center;
-    min-height: var(--tap);
-    padding-inline: var(--s2);
-    border-radius: var(--r1);
-    color: var(--pressed);
-    text-decoration: none;
-    transition:
-      background var(--ease),
-      color var(--ease);
+  /*
+    The press at the menu's foot that folds it to its icons, and back: pinned
+    to the bottom of the screen, under a rule, with its word beside the icon
+    while there is room for one (`.dock-press`, `dock.css`).
+  */
+  .rail .rail-fold {
+    display: flex;
   }
 
-  .tree-link .ui-count {
-    min-width: 1rem;
-    padding-inline: 2px;
+  .rail-mini .rail-fold {
+    justify-content: center;
   }
 
-  /* A project's tasks hang off a hairline under its name. */
-  .tree-project > ul {
-    margin-inline-start: calc(1.5rem + var(--s2));
-    padding-inline-start: var(--s2);
-    border-inline-start: var(--border);
-  }
-
-  .tree-task {
-    grid-template-columns: 1rem minmax(0, 1fr);
-    gap: var(--s2);
-    font-size: var(--step--1);
-  }
-
-  .tree-task .glyph {
-    font-size: var(--step--1);
-    line-height: 1;
-  }
-
-  .tree-link:hover,
-  .tree-task:hover {
-    background: var(--panel);
-    color: var(--bright);
-  }
-
-  /* Where you are: a step lighter, and the word bright. */
-  .tree-link[aria-current="page"],
-  .tree-task[aria-current="page"] {
-    background: var(--surface);
-    color: var(--bright);
-    font-weight: 500;
-  }
-
-  .tree-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* The press at the rail's foot that folds it to its icons, and back. */
-  .rail-fold {
-    display: grid;
-    place-items: center;
-    min-height: var(--tap);
-    margin-block-start: var(--s3);
-    border-radius: var(--r1);
-    color: var(--tab);
-    cursor: pointer;
-  }
-
-  .rail-fold:hover {
-    background: var(--panel);
-    color: var(--bright);
+  .rail-mini .rail-fold .fold-said {
+    display: none;
   }
 
   .rail-mini .rail-fold .ic {
     transform: rotate(180deg);
-  }
-
-  .frame:not(.rail-mini) .rail-fold {
-    justify-items: start;
-    padding-inline: var(--s2);
   }
 }
