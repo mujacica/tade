@@ -1,11 +1,11 @@
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type CheckLog, readRuns, writeRun } from '@tade/checks-core'
 import { recordsDir, type Task, type Workspace } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { checkTreeIn } from '../../src/away-checks.ts'
-import { CheckRecords, RECORDS_MS, treesOf } from '../../src/wire/web-checks.ts'
+import { CheckRecords, RECORDS_MS, stampOf, treesOf } from '../../src/wire/web-checks.ts'
 
 // The run records the away view's checks are drawn from, read the way the
 // window reads them: a held value the beat takes at once, a look behind it no
@@ -166,7 +166,7 @@ describe('the run records, held', () => {
     ])
   })
 
-  it('say what was read in time when a read never answers, and look again later', async () => {
+  it('leave out a record that never answered in time, never drawing it as empty', async () => {
     const home = await mkdtemp(join(tmpdir(), 'tade-records-'))
     await writeRun(recordsDir(home, 'app'), run())
     const records = new CheckRecords({
@@ -180,7 +180,33 @@ describe('the run records, held', () => {
     expect(records.heldNow(home, worldOf([]))).toEqual([])
   })
 
-  it('make a record that cannot be read a tree with no runs, never a throw', async () => {
+  it('keep the last good read of a record that stops answering, whether it throws or hangs', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-records-'))
+    const dir = recordsDir(home, 'app')
+    await writeRun(dir, run())
+    let answer: 'read' | 'throw' | 'hang' = 'read'
+    const records = new CheckRecords({
+      now: () => NOW,
+      lookMs: 50,
+      read: (at) => {
+        if (answer === 'throw') return Promise.reject(new Error('EACCES'))
+        if (answer === 'hang') return new Promise<never>(() => {})
+        return readRuns(at)
+      },
+    })
+    await records.look(home, worldOf([]))
+    const good = records.heldNow(home, worldOf([]))
+    expect(good?.[0]?.runs).toHaveLength(1)
+    for (const next of ['throw', 'hang'] as const) {
+      // A new run moves the stamp, so the look has to read the record again.
+      await writeRun(dir, run({ startedAt: `2026-10-13T08:3${next.length}:00.000Z` }))
+      answer = next
+      await records.look(home, worldOf([]))
+      expect(records.heldNow(home, worldOf([]))).toEqual(good)
+    }
+  })
+
+  it('leave out a record that throws on its first read, rather than say nothing ran', async () => {
     const home = await mkdtemp(join(tmpdir(), 'tade-records-'))
     await writeRun(recordsDir(home, 'app'), run())
     const records = new CheckRecords({
@@ -190,6 +216,18 @@ describe('the run records, held', () => {
       },
     })
     await records.look(home, worldOf([]))
-    expect(records.heldNow(home, worldOf([]))).toEqual([{ project: 'app', task: null, runs: [] }])
+    expect(records.heldNow(home, worldOf([]))).toEqual([])
+  })
+})
+
+describe('a record’s stamp', () => {
+  it('is null where there is no record, and a throw where one cannot be looked at', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-records-'))
+    expect(await stampOf(join(home, 'nothing-here'))).toBeNull()
+    const file = join(home, 'a-file')
+    await writeFile(file, 'not a folder')
+    await expect(stampOf(join(file, 'under'))).rejects.toThrow()
+    await writeRun(recordsDir(home, 'app'), run())
+    expect(await stampOf(recordsDir(home, 'app'))).toMatch(/^\d+:\d/)
   })
 })

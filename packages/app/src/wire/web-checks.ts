@@ -34,10 +34,19 @@ export interface RecordsDeps {
   lookMs: number
 }
 
-/** The record's size and time: a write that changed it changed one of the two. */
+/**
+ * The record's size and time: a write that changed it changed one of the two.
+ * Null where there is no record — nothing ran there — and a throw where there
+ * is one that cannot be looked at, which is a different answer.
+ */
 export async function stampOf(dir: string): Promise<string | null> {
-  const found = await stat(recordsPath(dir)).catch(() => null)
-  return found === null ? null : `${found.size}:${found.mtimeMs}`
+  try {
+    const found = await stat(recordsPath(dir))
+    return `${found.size}:${found.mtimeMs}`
+  } catch (problem) {
+    if ((problem as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw problem
+  }
 }
 
 /** The trees a project's runs are recorded in: its checkout, then each task in a worktree of its own. */
@@ -82,34 +91,48 @@ export class CheckRecords {
     return this.held
   }
 
-  /** One look at every tree, finished or given up on inside `lookMs`. Never throws. */
+  /**
+   * One look at every tree, finished or given up on inside `lookMs`. Never
+   * throws.
+   *
+   * **A look that could not read a record is not a look that found it
+   * empty.** A tree whose record would not answer — a throw, or no answer in
+   * time — keeps what the last read that could said, and one never read yet
+   * is left out: a checkout left out is a project the projection calls *not
+   * read*, never one where nothing ran.
+   */
   async look(home: string, world: Workspace): Promise<void> {
     this.looking = true
     this.lookedAt = this.deps.now()
     try {
       const trees = treesOf(home, world)
-      const made: CheckTreeIn[] = []
+      const made = new Map<string, CheckTreeIn>()
       const reading = (async () => {
-        for (const one of trees) made.push(await this.treeAt(one))
-        return true
-      })().catch(() => false)
-      // A tree that did not answer in time is left out, and a checkout left
-      // out is a project the projection says nothing was read for — never a
-      // project where nothing ran.
-      await inTime(reading, this.deps.lookMs, false)
+        for (const one of trees) {
+          const tree = await this.treeAt(one).catch(() => null)
+          if (tree !== null) made.set(one.dir, tree)
+        }
+      })()
+      await inTime(reading, this.deps.lookMs, undefined)
+      const held: CheckTreeIn[] = []
+      for (const one of trees) {
+        const tree = made.get(one.dir) ?? this.read.get(one.dir)?.tree
+        if (tree !== undefined) held.push(tree)
+      }
       const dirs = new Set(trees.map((one) => one.dir))
       for (const dir of this.read.keys()) if (!dirs.has(dir)) this.read.delete(dir)
-      this.held = [...made]
+      this.held = held
     } finally {
       this.looking = false
     }
   }
 
+  /** One tree, read again only when its stamp moved. Throws where its record would not answer. */
   private async treeAt(one: { dir: string; project: string; task: string | null }) {
-    const stamp = await this.deps.stamp(one.dir).catch(() => null)
+    const stamp = await this.deps.stamp(one.dir)
     const was = this.read.get(one.dir)
     if (was !== undefined && was.stamp === stamp) return was.tree
-    const runs = stamp === null ? [] : await this.deps.read(one.dir).catch(() => [])
+    const runs = stamp === null ? [] : await this.deps.read(one.dir)
     const tree = checkTreeIn(one.project, one.task, runs)
     this.read.set(one.dir, { stamp, tree })
     return tree
