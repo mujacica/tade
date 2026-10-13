@@ -16,14 +16,14 @@
 //
 // Nothing here decides a state, a count or a reason.
 
-import { mayFor } from './access.js'
-import { el, glyphOf, into, keyed, markIn, textIn } from './dom.js'
-import { count, money } from './figures.js'
-import { checkMark, reviewMark, stepMark } from './glyphs.js'
-import { pathOf, requestPath, taskPath } from './routes.js'
-import { createWaitRow, dl, dlIn, fillWaitRow, pageBar, sayIn, section } from './rows.js'
-import { omitted, runAt, runsOf } from './store.js'
-import { panel } from './ui.js'
+import { mayFor } from '../access.js'
+import { el, glyphOf, into, keyed, markIn, textIn } from '../dom.js'
+import { count, money } from '../figures.js'
+import { checkMark, reviewMark, stepMark } from '../glyphs.js'
+import { pathOf, requestPath, taskPath } from '../routes.js'
+import { createWaitRow, dl, dlIn, fillWaitRow, pageBar, sayIn, section } from '../rows.js'
+import { omitted, runAt, runsOf } from '../store.js'
+import { panel } from '../ui.js'
 
 /* ── the runs ──────────────────────────────────────────────────────────────── */
 

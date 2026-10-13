@@ -26,31 +26,30 @@
 
 import { actsOf } from './acts.js'
 import { agentsScreen } from './agents.js'
-import { workflowScreen, workflowsScreen } from './designer.js'
 import { deskParts } from './desk.js'
 import { docksOn, forgetFolds } from './docks.js'
 import { classOn, el, textIn } from './dom.js'
-import { inboxScreen, requestScreen } from './factory.js'
 import { forget, NOT_SECURE, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
-import { nowScreen } from './overview.js'
-import {
-  checksScreen,
-  devicesScreen,
-  findingsScreen,
-  moreScreen,
-  notesScreen,
-  nowhereScreen,
-  queueScreen,
-  reviewsScreen,
-} from './pages.js'
+import { taskScreen } from './pages/agent.js'
+import { checksScreen } from './pages/checks.js'
+import { devicesScreen } from './pages/devices.js'
+import { findingsScreen } from './pages/findings.js'
+import { inboxScreen, requestScreen } from './pages/inbox.js'
+import { moreScreen, nowhereScreen } from './pages/more.js'
+import { notesScreen } from './pages/notes.js'
+import { nowScreen } from './pages/overview.js'
+import { projectScreen } from './pages/project.js'
+import { queueScreen } from './pages/queue.js'
+import { reviewsScreen } from './pages/reviews.js'
+import { runScreen, runsScreen } from './pages/runs.js'
+import { settingsScreen } from './pages/settings.js'
+import { spendScreen } from './pages/spend.js'
+import { workflowScreen, workflowsScreen } from './pages/workflows.js'
 import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
-import { viewOf } from './routes.js'
-import { runScreen, runsScreen } from './runs.js'
-import { projectScreen } from './screens.js'
-import { settingsScreen } from './settings.js'
+import { PAGE_OF, viewOf } from './routes.js'
 import {
   barsFor,
   barsIn,
@@ -64,7 +63,6 @@ import {
   shell,
   titleFor,
 } from './shell.js'
-import { spendScreen } from './spend.js'
 import {
   agentsOf,
   applyDelta,
@@ -79,7 +77,6 @@ import {
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
-import { taskScreen } from './task.js'
 import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
@@ -295,6 +292,9 @@ function draw(asked, top = 0) {
   // A navigation is the one moment a screen is built fresh, so it is the one
   // moment it rises in (`motion.css`); a delta patches and never animates it.
   screen.node.classList.add('enter')
+  // The page's own sheet is scoped under this class (`pages/<page>.css`).
+  const page = PAGE_OF[at.view]
+  if (page !== undefined) screen.node.classList.add(`page-${page}`)
   shown.main.replaceChildren(screen.node)
   document.title = titleFor(at)
   badged = -1

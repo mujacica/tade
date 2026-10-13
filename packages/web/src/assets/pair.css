@@ -137,7 +137,7 @@
 
 .step-title {
   color: var(--heading);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   transition: color var(--ease-sheet);
 }
 
@@ -172,7 +172,7 @@
   gap: var(--s3);
   min-height: 4rem;
   color: var(--bright);
-  font-weight: 600;
+  font-weight: var(--w-strong);
 }
 
 /* The wait at the machine: a dot breathing, as an agent at work does. */

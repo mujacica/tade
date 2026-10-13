@@ -1,6 +1,6 @@
 import { cpSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
@@ -155,7 +155,11 @@ describe('what the client may never do', () => {
         // request the policy refuses: relative, always.
         expect(spec, `${name} imports ${spec}`).toMatch(/^\.\.?\//)
         expect(spec, `${name} imports ${spec}`).toMatch(/\.js$/)
-        expect(ALL, `${name} imports ${spec}`).toContain(spec.replace(/^\.\//, ''))
+        // Resolved against the importing file's own folder, as a browser
+        // resolves it: `../dom.js` from `pages/checks.js` is `dom.js`.
+        const resolved = posix.join(posix.dirname(name), spec)
+        expect(resolved, `${name} imports ${spec}`).not.toMatch(/^\.\./)
+        expect(ALL, `${name} imports ${spec}`).toContain(resolved)
       }
     }
   })

@@ -123,6 +123,19 @@ function drawn(id, klass, box) {
   return svg
 }
 
+/**
+ * An element in the SVG namespace, for the charts (`charts.js`) — the
+ * namespace read off the sprite as every icon's is — or null where there is no
+ * sprite, so a chart degrades to the words beside it rather than throwing.
+ */
+export function svgOf(tag, attrs = {}) {
+  const space = spaceOf()
+  if (space === null) return null
+  const node = document.createElementNS(space, tag)
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value))
+  return node
+}
+
 /** Point an icon made by `icon` at another symbol, without rebuilding it. */
 export function iconIn(node, name) {
   const use = node.firstChild

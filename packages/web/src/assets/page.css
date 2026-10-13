@@ -26,11 +26,15 @@ main .section-head.pg-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 var(--s2);
-  min-height: var(--tap);
-  margin-inline: calc(-1 * var(--s4));
-  margin-block: 0 var(--s4);
-  padding-inline: var(--s4);
+  gap: var(--s1) var(--s2);
+  min-height: var(--bar);
+  margin-inline: calc(-1 * var(--gutter));
+  margin-block: 0 var(--stack);
+  padding-inline: var(--gutter);
+  /*
+    Room above and below whatever wraps onto a second line on a phone; on one
+    line the bar's own height centres the press with `--bar`'s margin round it.
+  */
   padding-block: var(--s1);
   border-block-end: var(--border);
 }
@@ -47,7 +51,7 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--step-0);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   letter-spacing: normal;
   color: var(--bright);
 }
@@ -147,8 +151,8 @@ main {
 
 .bars .bar-line {
   gap: var(--s2);
-  min-height: var(--tap);
-  padding-inline: var(--s4);
+  min-height: var(--bar);
+  padding-inline: var(--gutter);
 }
 
 .bars .bar .glyph {
@@ -166,13 +170,13 @@ main {
 }
 
 .bars .bar .under {
-  padding: 0 var(--s4) var(--s2) calc(var(--s4) + 1rem + var(--s2));
+  padding: 0 var(--gutter) var(--s2) calc(var(--gutter) + 1rem + var(--s2));
 }
 
 /* ── groups, headed as the menu heads its categories ───────────────────────── */
 
 main .section {
-  margin-block-end: var(--s5);
+  margin-block-end: var(--stack);
 }
 
 main .section-head {
@@ -183,7 +187,7 @@ main .section-head {
 main .section-head h2 {
   color: var(--heading);
   font-size: var(--step--1);
-  font-weight: 500;
+  font-weight: var(--w-label);
 }
 
 main .section-head:not(.pg-bar) > .figure {
@@ -197,7 +201,7 @@ main .section-head .hint {
 
 /* A screen's own section is the bar and what is under it, with no gap of its own. */
 main .section.pg {
-  margin-block-end: var(--s5);
+  margin-block-end: var(--stack);
 }
 
 /* A press under a list is its own line, never glued to the panel above it. */
@@ -256,173 +260,16 @@ main .filter {
   margin-block-end: var(--s3);
 }
 
-/* ── an agent: the bar, a row of facts, the turn and its screen ────────────── */
-
-.task-coming {
-  display: grid;
-  gap: var(--s4);
-}
-
-.task-coming > .skeleton:first-child span {
-  height: 3.5rem;
-}
-
 .task .ui-facts {
   margin-block-end: var(--s5);
-}
-
-.task-grid {
-  display: grid;
-  gap: 0 var(--s5);
-}
-
-.task-lead,
-.task-side {
-  min-width: 0;
-}
-
-/* The current turn on the card's top line, the screen under it, what was left out at its foot. */
-.term {
-  display: grid;
-}
-
-.term-head {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: var(--tap);
-  padding-inline: var(--s4);
-  border-block-end: var(--border);
-}
-
-.term-head:empty {
-  display: none;
-}
-
-.term-said {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--bright);
-  font-weight: 500;
-}
-
-.term-head > .aside {
-  margin-inline-start: auto;
-}
-
-.term .screen {
-  border: 0;
-  border-radius: 0;
-}
-
-.term-why.empty {
-  padding: var(--s4);
-}
-
-.term-coming {
-  padding: var(--s4);
-}
-
-.term-foot {
-  padding: var(--s2) var(--s4);
-  border-block-start: var(--border);
-}
-
-.term-foot:empty {
-  display: none;
-}
-
-.task-side .asked {
-  padding: var(--s3) var(--s4);
-}
-
-.task-run {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--s2) var(--s3);
-  align-items: baseline;
-  padding: var(--s3) var(--s4);
-}
-
-.task-run > .ui-meter {
-  grid-column: 1 / -1;
-}
-
-.task-side .queue {
-  margin-block-start: var(--s2);
-}
-
-.task-side .section > div > .aside,
-.task-side .section > div > .ui-chip {
-  margin-block-start: var(--s2);
-}
-
-/*
-  The controls: one panel, a verb a row — its word, what it takes, and its
-  press at the end — and a verb that can only say why not one quiet line.
-*/
-.task-acts > div:last-child {
-  border-radius: var(--r2);
-  border: var(--border);
-  overflow: hidden;
-}
-
-.task-acts .section {
-  margin: 0;
-  padding: var(--s3) var(--s4);
-}
-
-.task-acts .section + .section {
-  border-block-start: var(--border);
-}
-
-.task-acts .section-head {
-  min-height: 0;
-  margin-block-end: var(--s2);
-}
-
-.task-acts .section.is-off .section-head {
-  margin: 0;
-}
-
-.task-acts .section .empty {
-  padding-block: 0;
-}
-
-.task-acts textarea {
-  width: 100%;
-}
-
-.task-acts .presses {
-  justify-content: flex-end;
-  margin-block-start: var(--s2);
 }
 
 /* ── a tablet: the room main gives itself ──────────────────────────────────── */
 
 @media (min-width: 768px) {
-  main .section-head.pg-bar {
-    margin-inline: calc(-1 * var(--s5));
-    padding-inline: var(--s5);
-    padding-block: 0;
-  }
-
-  .bars .bar-line {
-    padding-inline: var(--s5);
-  }
-
   .bars .bar .under {
-    padding-inline: calc(var(--s5) + 1rem + var(--s2)) var(--s5);
+    padding-inline: calc(var(--gutter) + 1rem + var(--s2)) var(--gutter);
   }
 }
 
 /* ── a desk: the agent's two columns ───────────────────────────────────────── */
-
-@media (min-width: 1100px) {
-  .task-grid {
-    grid-template-columns: minmax(0, 1fr) 20rem;
-    align-items: start;
-  }
-}

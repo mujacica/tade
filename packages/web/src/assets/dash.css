@@ -1,28 +1,3 @@
-/*
-  The overview's own drawing — the six tiles, the two charts, a card of work
-  that wants somebody with its presses, a project's card, the places that are a
-  count and a link, the screen a cold open draws from what it kept — and the
-  figures elsewhere drawn the same way: a plan's windows as bars, a project's
-  share of the money, a state as a pill, a strip of small stats, the sentences
-  folded under a `?`, the notes and the older pages of them.
-
-  The same construction as everything in `ui.css` — a flat square box with a
-  hairline round it, a state as the colour of its edge — kept in its own file
-  because the landing screen is a page of its own.
-*/
-
-/* ── tiles: the overview's figures ─────────────────────────────────────────── */
-
-/*
-  The top of the overview is one line of five figures at a desk — what wants
-  you, what works, what waits, what it cost and the quota that runs out first,
-  each the same tile. On a phone they are two by two and the quota the width
-  of both under them.
-*/
-.ov-top .tile-quiet:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-}
-
 .tiles {
   display: grid;
   gap: var(--s3);
@@ -54,7 +29,7 @@ main a.tile {
   gap: var(--s2);
   color: var(--heading);
   font-size: var(--step--1);
-  font-weight: 500;
+  font-weight: var(--w-label);
 }
 
 .tile-ic {
@@ -71,7 +46,7 @@ main a.tile {
 .tile-figure {
   margin-block-start: var(--s2);
   font-size: var(--step-3);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tight);
   line-height: 1.1;
@@ -196,26 +171,6 @@ main a.tile {
   background: var(--control);
 }
 
-/* ── the overview's own pieces ─────────────────────────────────────────────── */
-
-.all-clear {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: var(--tap);
-  padding-inline: var(--s4);
-  border: 1px solid var(--green);
-  border-inline-start-width: 3px;
-  color: var(--green);
-  font-weight: 600;
-}
-
-.projects-grid {
-  display: grid;
-  gap: var(--s3);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
-}
-
 /*
   A project: its name, the shape of its work as one bar, three counts, and its
   checks and money at the foot. The whole card goes to the project.
@@ -227,76 +182,26 @@ main a.proj {
   padding: var(--s4);
 }
 
-.proj-head {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--tab);
-}
-
 .proj-name {
   flex: 1 1 auto;
   min-width: 0;
   color: var(--bright);
   font-size: var(--step-1);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.proj-go {
-  color: var(--chrome);
-}
-
-main a.proj:hover .proj-go {
-  color: var(--bright);
-}
-
-.proj-stats {
-  display: flex;
-  gap: var(--s2);
-  min-height: 1.25rem;
-}
-
-.proj-foot {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  padding-block-start: var(--s3);
-  border-block-start: var(--border);
-  font-size: var(--step--1);
-  color: var(--heading);
-}
-
-.proj-foot .ring {
-  width: 1.125rem;
-  height: 1.125rem;
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
-}
-
-.proj-checks {
-  flex: 1 1 auto;
-}
-
-.proj-paid {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--body);
-}
-
 /* The places that are a count and a link: a list, each with its icon. */
-.signals,
 .places {
   display: grid;
 }
 
-.signals > li + li,
 .places > li + li {
   border-block-start: var(--border);
 }
 
-.signals a,
 .places a {
   display: grid;
   grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
@@ -308,30 +213,22 @@ main a.proj:hover .proj-go {
   text-decoration: none;
 }
 
-main .signals a,
 main .places a {
   display: grid;
 }
 
-.signals a:hover,
 .places a:hover {
   color: var(--amber-light);
 }
 
-.signals .ic,
 .places .ic {
   color: var(--tab);
 }
 
-.signals .count,
 .places .count {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--bright);
-}
-
-.signals .go {
-  color: var(--chrome);
 }
 
 .places a {
@@ -345,26 +242,6 @@ main .places a {
   gap: var(--s2);
 }
 
-/* ── what wants you: a list of rows, each with its presses ─────────────────── */
-
-/*
-  Each piece of work that wants somebody is a row in one panel, as an issue
-  list draws them: its mark, its name with its project after it, why in
-  `deriveState`'s own words under the name, how long ago at the end, and the
-  presses on the right at a desk (under it on a phone). The name is the link,
-  stretched over the row, and the presses sit above it.
-*/
-/* One column of rows, whatever `.cards` would reflow a grid of cards into. */
-.cards.wants-cards {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-}
-
-.wants-cards:empty {
-  display: none;
-}
-
 .card {
   position: relative;
   display: grid;
@@ -372,27 +249,6 @@ main .places a {
   gap: var(--s1) var(--s4);
   padding: var(--s3) var(--s4);
   transition: background var(--ease);
-}
-
-.wants-cards > .card {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.wants-cards > .card + .card {
-  border-block-start: var(--border);
-}
-
-.wants-cards > .card:hover {
-  background: var(--surface);
-}
-
-.card-top {
-  display: grid;
-  grid-template-columns: 1rem minmax(0, 1fr) auto;
-  gap: var(--s3);
-  align-items: center;
 }
 
 /*
@@ -415,22 +271,6 @@ main a.card-link {
   content: "";
   position: absolute;
   inset: 0;
-}
-
-.card-name {
-  order: 1;
-  min-width: 0;
-  font-size: var(--step-0);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card-project {
-  order: 2;
-  color: var(--heading);
-  font-size: var(--step--1);
 }
 
 .card .why {
@@ -466,23 +306,6 @@ main a.card-link {
 }
 
 /* At a desk the presses go to the right of the row, level with its name. */
-@container (min-width: 44rem) {
-  .wants-cards > .card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-
-  .wants-cards > .card > :not(.quick) {
-    grid-column: 1;
-  }
-
-  .wants-cards > .card > .quick {
-    grid-column: 2;
-    grid-row: 1 / span 3;
-    margin: 0;
-    padding: 0;
-  }
-}
 
 /* The screen a cold open with nothing answering draws, from what was kept. */
 .last-seen {
@@ -512,20 +335,6 @@ main {
 }
 
 /* With room for all five, one line. */
-@container (min-width: 44rem) {
-  .ov-top .tiles {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .ov-top .tile-quiet:last-child:nth-child(odd) {
-    grid-column: auto;
-  }
-}
-
-/* A project's share of the largest in the money column, under its name. */
-.share-name {
-  display: block;
-}
 
 .share {
   width: 8rem;
@@ -535,11 +344,6 @@ main {
 /* The older pages of a list, asked for a page at a time, stacked under it. */
 .rows + .rows {
   margin-block-start: var(--s2);
-}
-
-.press.more-page {
-  width: 100%;
-  margin-block-start: var(--s3);
 }
 
 /* The total and its `?`, side by side. */
@@ -610,23 +414,6 @@ main {
   align-items: center;
 }
 
-.window-label {
-  font-family: var(--font-mono);
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-.window-share {
-  text-align: end;
-  color: var(--bright);
-}
-
-.window-resets {
-  grid-column: 2 / -1;
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
 /* The presses under a task's name, before its sections: flush with the title. */
 .page-head + .quick {
   padding-inline-start: 0;
@@ -634,43 +421,6 @@ main {
 }
 
 /* A project's page: four tiles, two across on a phone and four from there up. */
-@container (min-width: 32rem) {
-  .tiles.tiles-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.tiles.tiles-4 {
-  margin-block-end: var(--s4);
-}
-
-/* Every project's checks: a ring, its name, and three counts. */
-.check-cards {
-  display: grid;
-  gap: var(--s2);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-  margin-block-end: var(--s4);
-}
-
-main a.check-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 2px var(--s3);
-  align-items: center;
-  padding: var(--s3) var(--s4);
-}
-
-.check-card .ring {
-  grid-row: 1 / span 2;
-}
-
-.check-counts {
-  display: flex;
-  gap: var(--s3);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--step--1);
-}
 
 /*
   A project's counts, in the rail's tree and on the More screen: what wants
@@ -684,16 +434,11 @@ main a.check-card {
   margin-block-end: var(--s4);
 }
 
-.filter-chip .num {
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
 /* The queue: a project's name over its rows, and what each waits on close under it. */
 .section > h3.aside {
   margin-block-end: var(--s2);
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   color: var(--heading);
 }
 

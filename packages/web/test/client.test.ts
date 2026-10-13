@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { keyOf } from '../src/assets/controls.js'
 // The browser's own copy of the rule. A `.js` asset with no DOM in it, so a
 // test can import it: `boot.js` cannot be imported, because importing it runs
 // the page.
@@ -12,7 +13,6 @@ import {
   STALE_AFTER_MS,
   standingOf,
 } from '../src/assets/live.js'
-import { keyOf } from '../src/assets/screens.js'
 import { barsFor } from '../src/assets/shell.js'
 import { emptyStore } from '../src/assets/store.js'
 import {

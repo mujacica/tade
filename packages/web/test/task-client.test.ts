@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { grantOf } from '../src/assets/access.js'
-import { stripOf } from '../src/assets/task.js'
+import { stripOf } from '../src/assets/pages/agent.js'
 
 // The agent's page opens on one row of facts: how it stands, what it runs on
 // and as whom, its branch, its checks and what it cost. What it looks like is

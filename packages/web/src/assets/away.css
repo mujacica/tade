@@ -92,7 +92,7 @@
 .name {
   min-width: 0;
   color: var(--bright);
-  font-weight: 500;
+  font-weight: var(--w-label);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -272,7 +272,7 @@ tr:last-child td {
 th {
   color: var(--heading);
   font-size: var(--step--1);
-  font-weight: 500;
+  font-weight: var(--w-label);
 }
 
 tbody tr:hover td {
@@ -291,7 +291,7 @@ th.figure {
 .big {
   font-variant-numeric: tabular-nums;
   font-size: var(--step-4);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   letter-spacing: var(--tight);
   color: var(--bright);
   line-height: var(--lead-tight);
@@ -427,7 +427,7 @@ th.figure {
   border-radius: var(--r1);
   background: var(--amber);
   color: var(--ink); /* a coloured ground takes the dark ink: `inkOn`'s rule */
-  font-weight: 600;
+  font-weight: var(--w-strong);
   cursor: pointer;
   transition:
     background var(--ease),
@@ -443,7 +443,7 @@ th.figure {
   background: var(--surface);
   border: 1px solid var(--control);
   color: var(--ink-light);
-  font-weight: 500;
+  font-weight: var(--w-label);
 }
 
 .press.quietly:hover:not(:disabled) {

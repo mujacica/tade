@@ -336,9 +336,9 @@ describe('what a press sends', () => {
     // phone and then refused whole; one that let them type less would be the
     // page inventing a limit nobody decided. The machine still refuses one
     // past the bound either way: a client bound is a courtesy, never a check.
-    const text = readFileSync(new URL('../src/assets/screens.js', import.meta.url), 'utf8')
+    const text = readFileSync(new URL('../src/assets/controls.js', import.meta.url), 'utf8')
     const block = /const TYPES = \{([^}]*(?:\}[^}]*)*?)\n\}/.exec(text)?.[1] ?? ''
-    expect(block, 'the TYPES block in screens.js').not.toBe('')
+    expect(block, 'the TYPES block in controls.js').not.toBe('')
     const found = new Map<string, number>()
     for (const one of block.matchAll(/([a-z]+): \{[^}]*?maxlength: '(\d+)'/g)) {
       found.set(one[1] ?? '', Number(one[2]))

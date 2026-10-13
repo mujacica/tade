@@ -1,0 +1,240 @@
+/* The overview page's own sheet: every rule scoped to it (`.page-overview`, `test/pages.test.ts`). */
+
+/*
+The overview's own drawing — the six tiles, the two charts, a card of work
+that wants somebody with its presses, a project's card, the places that are a
+count and a link, the screen a cold open draws from what it kept — and the
+figures elsewhere drawn the same way: a plan's windows as bars, a project's
+share of the money, a state as a pill, a strip of small stats, the sentences
+folded under a `?`, the notes and the older pages of them.
+
+The same construction as everything in `ui.css` — a flat square box with a
+hairline round it, a state as the colour of its edge — kept in its own file
+because the landing screen is a page of its own.
+*/
+
+/* ── tiles: the overview's figures ─────────────────────────────────────────── */
+
+/*
+The top of the overview is one line of five figures at a desk — what wants
+you, what works, what waits, what it cost and the quota that runs out first,
+each the same tile. On a phone they are two by two and the quota the width
+of both under them.
+*/
+.ov-top .tile-quiet:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* ── the overview's own pieces ─────────────────────────────────────────────── */
+.all-clear {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s4);
+  border: 1px solid var(--green);
+  border-inline-start-width: 3px;
+  color: var(--green);
+  font-weight: var(--w-strong);
+}
+
+.projects-grid {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+}
+
+.proj-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--tab);
+}
+
+.proj-go {
+  color: var(--chrome);
+}
+
+main a.proj:hover .proj-go {
+  color: var(--bright);
+}
+
+.proj-stats {
+  display: flex;
+  gap: var(--s2);
+  min-height: 1.25rem;
+}
+
+.proj-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+  font-size: var(--step--1);
+  color: var(--heading);
+}
+
+.proj-foot .ring {
+  width: 1.125rem;
+  height: 1.125rem;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+}
+
+.proj-checks {
+  flex: 1 1 auto;
+}
+
+.proj-paid {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--body);
+}
+
+/* The places that are a count and a link: a list, each with its icon. */
+.signals {
+  display: grid;
+}
+
+.signals > li + li {
+  border-block-start: var(--border);
+}
+
+.signals a {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
+  gap: var(--s3);
+  align-items: center;
+  min-height: 3.25rem;
+  padding-inline: var(--s4) var(--s3);
+  color: var(--bright);
+  text-decoration: none;
+}
+
+main .signals a {
+  display: grid;
+}
+
+.signals a:hover {
+  color: var(--amber-light);
+}
+
+.signals .ic {
+  color: var(--tab);
+}
+
+.signals .count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--bright);
+}
+
+.signals .go {
+  color: var(--chrome);
+}
+
+/* ── what wants you: a list of rows, each with its presses ─────────────────── */
+
+/*
+Each piece of work that wants somebody is a row in one panel, as an issue
+list draws them: its mark, its name with its project after it, why in
+`deriveState`'s own words under the name, how long ago at the end, and the
+presses on the right at a desk (under it on a phone). The name is the link,
+stretched over the row, and the presses sit above it.
+*/
+/* One column of rows, whatever `.cards` would reflow a grid of cards into. */
+.cards.wants-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.wants-cards:empty {
+  display: none;
+}
+
+.wants-cards > .card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.wants-cards > .card + .card {
+  border-block-start: var(--border);
+}
+
+.wants-cards > .card:hover {
+  background: var(--surface);
+}
+
+.card-top {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: center;
+}
+
+.card-name {
+  order: 1;
+  min-width: 0;
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-project {
+  order: 2;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+@container (min-width: 44rem) {
+  .wants-cards > .card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .wants-cards > .card > :not(.quick) {
+    grid-column: 1;
+  }
+
+  .wants-cards > .card > .quick {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+    padding: 0;
+  }
+
+  .ov-top .tiles {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .ov-top .tile-quiet:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* The agents are down the side now; the overview's own copy steps aside while it is open. */
+  .frame:not(.side-mini) .ov-agents {
+    display: none;
+  }
+}
+
+.is-loading .projects-grid:empty {
+  display: block;
+  border-radius: var(--r1);
+  background: var(--surface);
+  animation: shimmer 1.4s ease-in-out infinite alternate;
+}
+
+.is-loading .projects-grid:empty {
+  height: 10rem;
+}
+
+.signals a {
+  transition-property: background, border-color, color, transform;
+  transition-duration: 140ms;
+}

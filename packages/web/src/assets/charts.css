@@ -1,0 +1,843 @@
+/*
+  The charts (`charts.js`): every graphical component a page draws with — a
+  stat with its sparkline, a gauge, a stack and its legend, a donut, ranked
+  bars, lanes over time, a flow of what waits on what, a heat strip, steps —
+  and the state a region is in when it has nothing to draw.
+
+  **A mark's colour is its tone, and its tone is a word.** Each mark carries a
+  `tone-*` class and the class sets `--tone`, which is all a mark is painted
+  with; the tones are the palette's meanings and nothing else (`tokens.css`).
+  So a page never chooses a colour for a chart — it says what the thing *is*.
+  The tone rules come last in this sheet, so a tone always beats a
+  component's own default.
+
+  **Marks are thin and data-ink only** — no gridlines, no frames round a
+  plot, no shadows: a hairline track under a value, a 2px gap between parts of
+  a whole so neighbours never run together, rounded ends. The figure is always
+  also written in text beside the drawing, in text colours rather than the
+  mark's own (except the one figure a tile is about, which may take its tone).
+
+  Loaded right after `ui.css`, before every frame and screen sheet, so a
+  screen's own rule wins.
+*/
+
+/* ── a stat, and a row of them ─────────────────────────────────────────────── */
+
+.ui-stats {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}
+
+/*
+  Label, figure, line, delta and trend, top to bottom and left-aligned, so a
+  row of tiles reads across on one baseline; the trend sits at the foot of
+  every tile whatever its words did, because the tiles in a row stretch to one
+  height and the spare room goes above it.
+*/
+.ui-stat {
+  display: grid;
+  grid-template-rows: auto auto auto auto 1fr;
+  align-content: start;
+  gap: var(--s1);
+  min-width: 0;
+  padding: var(--inset);
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background var(--ease),
+    border-color var(--ease);
+}
+
+a.ui-stat:hover {
+  background: var(--surface);
+  border-color: var(--control);
+}
+
+.ui-stat-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.ui-stat-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s1);
+  min-width: 0;
+  color: var(--bright);
+  font-size: var(--step-3);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A figure too long for its tile is cut at its end, never wrapped under its unit. */
+.ui-stat-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-stat-figure.is-unknown {
+  color: var(--heading);
+}
+
+.ui-stat-unit {
+  color: var(--heading);
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+  letter-spacing: normal;
+}
+
+.ui-stat-under,
+.ui-stat-delta {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.ui-stat-delta {
+  justify-self: start;
+  font-weight: var(--w-label);
+}
+
+.ui-stat > .ui-spark {
+  align-self: end;
+  margin-block-start: var(--s2);
+}
+
+/* ── a sparkline ───────────────────────────────────────────────────────────── */
+
+.ui-spark {
+  position: relative;
+  display: block;
+  height: 1.75rem;
+}
+
+.ui-spark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.ui-spark-line path {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ui-spark-area path {
+  fill: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+
+/* The last known value: a dot ringed in the card's own ground. */
+.ui-spark-dot {
+  position: absolute;
+  inset-inline-start: var(--x);
+  inset-block-start: var(--y);
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: var(--round);
+  background: var(--tone);
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+/* ── a gauge ───────────────────────────────────────────────────────────────── */
+
+/* The figure sits inside the arc, on its floor, in the same cell as the drawing. */
+.ui-gauge {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  max-width: 11rem;
+  margin-inline: auto;
+}
+
+.ui-gauge > svg,
+.ui-gauge-figure {
+  grid-area: 1 / 1;
+}
+
+.ui-gauge > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ui-gauge-track,
+.ui-gauge-value {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.ui-gauge-track {
+  stroke: var(--raised);
+}
+
+.ui-gauge-value {
+  stroke: var(--tone);
+  transition: stroke-dasharray var(--ease-sheet);
+}
+
+/* A round cap on a dash of nought is a dot of the wrong thing. */
+.ui-gauge-value.is-empty {
+  display: none;
+}
+
+.ui-gauge-figure {
+  align-self: end;
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-gauge-under {
+  margin-block-start: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+  text-align: center;
+}
+
+.ui-gauge-under:empty {
+  display: none;
+}
+
+/* ── a stack and its legend ────────────────────────────────────────────────── */
+
+.ui-stack {
+  display: grid;
+  gap: var(--s3);
+}
+
+.ui-stack-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  border-radius: var(--r3);
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.ui-stack-bar > span {
+  flex: 0 1 0;
+  min-width: 4px;
+  background: var(--tone);
+  transition: flex-grow var(--ease-sheet);
+}
+
+.ui-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  font-size: var(--step--1);
+}
+
+.ui-legend > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.ui-legend-mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--tone);
+}
+
+.ui-legend-label {
+  color: var(--heading);
+}
+
+.ui-legend-value {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── a donut ───────────────────────────────────────────────────────────────── */
+
+.ui-donut {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 7rem;
+  aspect-ratio: 1;
+}
+
+.ui-donut > svg,
+.ui-donut-middle {
+  grid-area: 1 / 1;
+}
+
+.ui-donut > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ui-donut-track,
+.ui-donut-part {
+  fill: none;
+  stroke-width: 3.2;
+}
+
+.ui-donut-track {
+  stroke: var(--raised);
+}
+
+.ui-donut-part {
+  stroke: var(--tone);
+  transition:
+    stroke-dasharray var(--ease-sheet),
+    stroke-dashoffset var(--ease-sheet);
+}
+
+.ui-donut-middle {
+  display: grid;
+  justify-items: center;
+  line-height: var(--lead-tight);
+}
+
+.ui-donut-figure {
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-donut-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* Beside a row's name: the ring alone, its middle said by the row. */
+.ui-donut.is-small {
+  width: 2.25rem;
+}
+
+.ui-donut.is-small .ui-donut-middle {
+  display: none;
+}
+
+/* ── ranked bars ───────────────────────────────────────────────────────────── */
+
+.ui-bars {
+  display: grid;
+  gap: var(--s2);
+}
+
+.ui-bars > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--s3);
+  align-items: center;
+}
+
+/* One line with an ellipsis, a thumb's height from its line box (`a.name`'s way). */
+.ui-bars-label {
+  display: block;
+  min-width: 0;
+  min-height: var(--tap);
+  overflow: hidden;
+  color: var(--body);
+  line-height: var(--tap);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.ui-bars-label[href]:hover {
+  color: var(--bright);
+}
+
+.ui-bars-value {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.ui-bars-track {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: var(--r3);
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.ui-bars-fill {
+  display: block;
+  width: var(--w);
+  min-width: 2px;
+  height: 100%;
+  border-radius: var(--r3);
+  background: var(--tone);
+  transition: width var(--ease-sheet);
+}
+
+.ui-bars-under {
+  grid-column: 1 / -1;
+  margin-block-start: var(--s1);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── lanes over time ───────────────────────────────────────────────────────── */
+
+/*
+  The label column is a share of the chart clamped between two widths, and
+  the axis is pushed in by the same amount, so a tick stands exactly over the
+  moment it names on every track.
+*/
+.ui-lanes {
+  display: grid;
+  gap: var(--s1);
+}
+
+.ui-lanes-rows > li {
+  display: grid;
+  grid-template-columns: clamp(6rem, 28%, 11rem) minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: center;
+}
+
+.ui-lanes-rows > li + li {
+  border-block-start: var(--border);
+}
+
+.ui-lanes-label {
+  display: block;
+  min-height: var(--tap);
+  overflow: hidden;
+  color: var(--body);
+  font-size: var(--step--1);
+  line-height: var(--tap);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.ui-lanes-label[href]:hover {
+  color: var(--bright);
+}
+
+.ui-lanes-track {
+  position: relative;
+  height: 1.25rem;
+  border-radius: var(--r1);
+  background: color-mix(in srgb, var(--raised) 45%, transparent);
+}
+
+.ui-lanes-span {
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: var(--a);
+  width: max(4px, calc(var(--b) - var(--a)));
+  border-radius: 2px;
+  background: var(--tone);
+}
+
+.ui-lanes-mark {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--a);
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: var(--round);
+  background: var(--tone);
+  box-shadow: 0 0 0 2px var(--ground);
+}
+
+/* Now: one amber hair across every track, the same instant on each. */
+.ui-lanes-now {
+  position: absolute;
+  z-index: 1;
+  inset-block: -4px;
+  inset-inline-start: var(--a);
+  width: 1px;
+  background: var(--amber);
+}
+
+.ui-lanes-axis {
+  position: relative;
+  height: 1.25rem;
+  margin-inline-start: calc(clamp(6rem, 28%, 11rem) + var(--s3));
+}
+
+.ui-lanes-tick {
+  position: absolute;
+  inset-inline-start: var(--a);
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.ui-lanes-tick:first-child {
+  transform: none;
+}
+
+.ui-lanes-tick:last-child {
+  transform: translateX(-100%);
+}
+
+/* ── a flow ────────────────────────────────────────────────────────────────── */
+
+/*
+  Boxes and curves on one canvas the size the layout says (`flowGeometry`), in
+  pixels both, so a curve meets the side of the box it names without anybody
+  measuring the page. Wider than the work, it scrolls in its own region.
+*/
+.ui-flow {
+  padding-block: var(--s2);
+}
+
+.ui-flow-canvas {
+  position: relative;
+  width: var(--fw);
+  height: var(--fh);
+}
+
+.ui-flow-edges {
+  position: absolute;
+  inset: 0;
+  width: var(--fw);
+  height: var(--fh);
+  overflow: visible;
+}
+
+.ui-flow-edge,
+.ui-flow-head {
+  fill: none;
+  stroke: var(--chrome);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* An edge into work still waiting is a promise, not a path yet: dashed. */
+.ui-flow-edges .tone-queued > .ui-flow-edge {
+  stroke-dasharray: 4 4;
+}
+
+.ui-flow-nodes {
+  position: absolute;
+  inset: 0;
+}
+
+.ui-flow-node {
+  position: absolute;
+  inset-inline-start: var(--x);
+  inset-block-start: var(--y);
+  width: var(--nw);
+  height: var(--nh);
+}
+
+/* Its tone as a bar down its leading edge; grey where it has none. */
+.ui-flow-box {
+  --tone: var(--chrome);
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-content: center;
+  gap: 0 var(--s2);
+  height: 100%;
+  padding-inline: var(--s3);
+  border-radius: var(--r2);
+  background: var(--panel);
+  border: var(--border);
+  border-inline-start: 3px solid var(--tone);
+  color: var(--bright);
+  text-decoration: none;
+}
+
+a.ui-flow-box[href]:hover {
+  background: var(--surface);
+}
+
+.ui-flow-glyph {
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--tone);
+  text-align: center;
+}
+
+.ui-flow-name,
+.ui-flow-under {
+  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--step--1);
+}
+
+.ui-flow-name {
+  font-weight: var(--w-strong);
+}
+
+.ui-flow-under {
+  color: var(--heading);
+}
+
+.ui-flow-under:empty {
+  display: none;
+}
+
+/* ── a heat strip ──────────────────────────────────────────────────────────── */
+
+/* Cells square, never wider than a thumb's nail, shrinking before they overflow. */
+.ui-heat {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rows), auto);
+  grid-auto-columns: minmax(0, 0.875rem);
+  gap: 3px;
+}
+
+.ui-heat-cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--tone);
+}
+
+.ui-heat-cell.is-l0 {
+  background: var(--raised);
+}
+
+.ui-heat-cell.is-l1 {
+  background: color-mix(in srgb, var(--tone) 30%, var(--raised));
+}
+
+.ui-heat-cell.is-l2 {
+  background: color-mix(in srgb, var(--tone) 55%, var(--raised));
+}
+
+.ui-heat-cell.is-l3 {
+  background: color-mix(in srgb, var(--tone) 80%, var(--raised));
+}
+
+/* ── steps ─────────────────────────────────────────────────────────────────── */
+
+.ui-steps {
+  container-type: inline-size;
+}
+
+.ui-steps > ol {
+  display: flex;
+}
+
+/*
+  Each stop a dot over its word, centred in an equal share of the line; the
+  rule between two dots is drawn by the second, and is green where the one
+  before it is done.
+*/
+.ui-steps li {
+  position: relative;
+  flex: 1 1 0;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: var(--s1);
+  min-width: 0;
+  text-align: center;
+}
+
+.ui-steps li + li::before {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(0.75rem - 1px);
+  inset-inline: calc(-50% + 1rem) calc(50% + 1rem);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--raised);
+}
+
+.ui-steps li.is-done + li::before {
+  background: var(--green);
+}
+
+.ui-steps-dot {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--round);
+  border: 2px solid var(--tone);
+  color: var(--ink);
+  font-size: var(--step--1);
+  font-weight: var(--w-loud);
+  line-height: 1;
+}
+
+.ui-steps :is(.is-done, .tone-failed, .tone-wants) > .ui-steps-dot {
+  background: var(--tone);
+}
+
+/* Where things are: a filled middle and a halo of its tone. */
+.ui-steps .is-now > .ui-steps-dot {
+  background: radial-gradient(circle, var(--tone) 0 30%, transparent 34%);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 22%, transparent);
+}
+
+.ui-steps-label {
+  max-width: 100%;
+  color: var(--body);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  overflow-wrap: anywhere;
+}
+
+.ui-steps .is-now > .ui-steps-label {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.ui-steps-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.ui-steps-under:empty {
+  display: none;
+}
+
+/* Narrow: a column, the dot beside its words and the rule running down. */
+@container (max-width: 30rem) {
+  .ui-steps > ol {
+    flex-direction: column;
+    gap: var(--s3);
+  }
+
+  .ui-steps li {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+    justify-items: start;
+    text-align: start;
+    column-gap: var(--s3);
+  }
+
+  .ui-steps-dot {
+    grid-row: 1 / span 2;
+  }
+
+  .ui-steps li + li::before {
+    inset-block: calc(-1 * var(--s3) - 1px) auto;
+    inset-inline: calc(0.75rem - 1px) auto;
+    width: 2px;
+    height: var(--s3);
+  }
+}
+
+/* ── a region's state: coming, nothing, wrong ──────────────────────────────── */
+
+/* Centred in the room the content would have had, never a line in a corner. */
+.ui-state {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--s2);
+  min-height: 11rem;
+  padding: var(--s6) var(--inset);
+  border-radius: var(--r2);
+  border: 1px dashed var(--line);
+  text-align: center;
+}
+
+.ui-state-mark {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-block-end: var(--s1);
+  border-radius: var(--round);
+  background: var(--surface);
+  color: var(--heading);
+}
+
+.ui-state-title {
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+}
+
+.ui-state-line {
+  max-width: 34rem;
+  color: var(--heading);
+}
+
+.ui-state > .press {
+  margin-block-start: var(--s2);
+}
+
+.ui-state.is-loading .ui-state-mark {
+  animation: shimmer 1.4s ease-in-out infinite alternate;
+}
+
+.ui-state.is-error {
+  border: 1px solid color-mix(in srgb, var(--red) 40%, var(--line));
+}
+
+.ui-state.is-error .ui-state-mark {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+}
+
+/* ── the tones, last, so a tone beats any component's own default ─────────── */
+
+.tone-wants {
+  --tone: var(--violet);
+}
+
+.tone-working,
+.tone-here {
+  --tone: var(--amber);
+}
+
+.tone-done {
+  --tone: var(--green);
+}
+
+.tone-failed {
+  --tone: var(--red);
+}
+
+.tone-queued {
+  --tone: var(--tab);
+}
+
+.tone-quiet {
+  --tone: var(--control);
+}
+
+.tone-unknown {
+  --tone: var(--chrome);
+}
+
+/* A figure in its tone where the tone is a state; text, so never the grey ones. */
+.ui-stat-figure:is(.tone-wants, .tone-working, .tone-done, .tone-failed, .tone-here),
+.ui-stat-delta:is(.tone-wants, .tone-working, .tone-done, .tone-failed, .tone-here) {
+  color: var(--tone);
+}
+
+/* Unknown is hatched: something is there that nobody could read. */
+.ui-stack-bar > .tone-unknown,
+.ui-heat-cell.tone-unknown,
+.ui-lanes-span.tone-unknown {
+  background: repeating-linear-gradient(135deg, var(--chrome) 0 2px, var(--raised) 2px 5px);
+}

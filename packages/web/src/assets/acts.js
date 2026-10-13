@@ -2,7 +2,7 @@
 //
 // **Its own file, and the split is the point.** Everything here is a function
 // of a row and this device's scopes: which controls to draw, what each one
-// sends, and what to do with the answer. `screens.js` turns these into nodes
+// sends, and what to do with the answer. `controls.js` turns these into nodes
 // and listeners. That is what makes the page's own rules testable at all —
 // there is no DOM in this repository's `lib` and no jsdom in its lockfile, so
 // a rule that lived inside a listener could only be checked in a real browser

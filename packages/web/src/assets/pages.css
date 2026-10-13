@@ -1,8 +1,8 @@
 /*
-  The screens that are more than a list: what was handed over and the doors it
-  came through (`factory.js`), a run's graph (`runs.js`), the designer's form
-  (`designer.js`) and an agent looked into (`agents.js`). Drawn with the same
-  construction as everything in `away.css`, which they sit on.
+  What more than one screen that is more than a list draws: what was handed
+  over (`pages/inbox.js`), a run's graph (`pages/runs.js`), the designer's form
+  (`pages/workflows.js`) and an agent looked into (`pages/agent-pane.js`). What
+  only one page draws is in that page's own sheet (`pages/<page>.css`).
 */
 
 /* ── the factory floor ─────────────────────────────────────────────────────── */
@@ -98,16 +98,7 @@
 .field > label {
   color: var(--bright);
   font-size: var(--step-0);
-  font-weight: 600;
-}
-
-/*
- * A request's own words, and the heading that travels with them: a warning
- * about whose words follow, so it takes the border and the ground a caveat
- * takes. `--amber-dark` is a ground and a border and never text.
- */
-.material-label {
-  color: var(--bright);
+  font-weight: var(--w-strong);
 }
 
 .material {
@@ -119,7 +110,7 @@
   background: transparent;
   border: 1px solid var(--chrome);
   color: var(--bright);
-  font-weight: 500;
+  font-weight: var(--w-label);
   text-decoration: none;
 }
 
@@ -128,14 +119,6 @@
   border-color: var(--heading);
 }
 
-/* ── an agent, looked into ─────────────────────────────────────────────────── */
-
-/* One column until a desk gives it two (`frame.css`). */
-.task-grid {
-  display: grid;
-}
-
-.task-lead,
 .task-facts {
   min-width: 0;
 }
@@ -174,18 +157,6 @@
   text-overflow: ellipsis;
 }
 
-/* ── settings ──────────────────────────────────────────────────────────────── */
-
-/*
-  A setting is one row of a panel: its name, and its value as a pill at the
-  end; a tag under it for what it is (*on restart*, *at the machine*), each
-  with its sentence one `?` away; and, where this device may change it, the
-  box and its press on one line.
-*/
-.settings-list {
-  display: grid;
-}
-
 .setting {
   display: grid;
   gap: var(--s2);
@@ -196,43 +167,7 @@
   border-block-start: var(--border);
 }
 
-.setting-line {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: 2rem;
-}
-
-.setting-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--bright);
-}
-
-.setting-value {
-  flex: 0 1 auto;
-  max-width: 50%;
-}
-
 .setting .hint-body {
   color: var(--heading);
   font-size: var(--step--1);
-}
-
-/* The box and its press on one line where there is room. */
-.setting > div:last-child:not(.setting-tags) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  align-items: center;
-}
-
-.setting > div:last-child:not(.setting-tags) > select,
-.setting > div:last-child:not(.setting-tags) > input {
-  flex: 1 1 12rem;
-  max-width: none;
 }

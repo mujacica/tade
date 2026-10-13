@@ -162,6 +162,35 @@ export const TITLES = {
 }
 
 /**
+ * Which page's own files draw a view: `pages/<page>.js` builds it and
+ * `pages/<page>.css` styles it, and the router puts `page-<page>` on the
+ * screen's root so every rule in that sheet is scoped under it
+ * (`test/pages.test.ts`). Two views that are one subject — a list and one of its
+ * rows — are one page. A view with no entry is drawn by a shared module.
+ */
+export const PAGE_OF = {
+  now: 'overview',
+  project: 'project',
+  task: 'agent',
+  inbox: 'inbox',
+  request: 'inbox',
+  runs: 'runs',
+  run: 'runs',
+  workflows: 'workflows',
+  workflow: 'workflows',
+  checks: 'checks',
+  reviews: 'reviews',
+  findings: 'findings',
+  spend: 'spend',
+  notes: 'notes',
+  devices: 'devices',
+  settings: 'settings',
+  queue: 'queue',
+  more: 'more',
+  nowhere: 'more',
+}
+
+/**
  * The navigation, and it is five things because a thumb has room for five.
  *
  * Three places, Tade in the middle and More — iOS's own convention with the

@@ -1,0 +1,10 @@
+/* The inbox page's own sheet: every rule scoped to it (`.page-inbox`, `test/pages.test.ts`). */
+
+/*
+* A request's own words, and the heading that travels with them: a warning
+* about whose words follow, so it takes the border and the ground a caveat
+* takes. `--amber-dark` is a ground and a border and never text.
+*/
+.material-label {
+  color: var(--bright);
+}

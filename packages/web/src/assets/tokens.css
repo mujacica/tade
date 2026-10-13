@@ -110,6 +110,17 @@
   --lead: 1.5;
   --tight: -0.02em; /* big numerals, set close as Railway and Linear set theirs */
 
+  /*
+    Four weights, each with one job, so emphasis is a decision rather than a
+    habit: reading text, a label or a figure's unit, a name or a heading or a
+    press, and what must be seen first — the one number a tile exists to say, a
+    badge.
+  */
+  --w-body: 400;
+  --w-label: 500;
+  --w-strong: 600;
+  --w-loud: 700;
+
   /* A 4px grid. */
   --s1: 4px;
   --s2: 8px;
@@ -118,6 +129,26 @@
   --s5: 24px;
   --s6: 32px;
   --s7: 48px;
+
+  /*
+    The rhythm, named, so a screen spends the grid the same way every other
+    does (DESIGN.md beside the add-away-surface skill):
+
+    - `--gutter` is the room between the edge of the work and anything in it,
+      and every full-width line (the page bar, a strip) runs out to the edge by
+      exactly that much and back in by it again.
+    - `--inset` is inside a card or a panel, on all four sides.
+    - `--stack` is between two groups on a screen; inside a group, `--s3`.
+    - `--bar` is a line of the frame — the header, the page bar, the side's
+      heading, a strip — and it is always **taller than a control**: a
+      thumb's 44px press has 4px above and below it in a 52px bar, a mouse's
+      32px one 8px in a 48px bar. A press in a bar never touches the bar's
+      hairlines, which is the squeezed button this token exists to end.
+  */
+  --gutter: var(--s4);
+  --inset: var(--s4);
+  --stack: var(--s5);
+  --bar: calc(var(--tap) + 2 * var(--s1));
 
   /*
     **Square, the way the terminal is**, with the corner only taken off: the
@@ -151,13 +182,38 @@
   --p1: 0%;
   --p2: 0%;
   --p3: 0%;
+  /*
+    The rest of a chart's geometry (`charts.js`), each set per element through
+    the CSSOM and nought until it is: a mark's tone (a `tone-*` class sets it),
+    where a dot is (`--x`, `--y`), where a span starts and ends on a track
+    (`--a`, `--b`), a bar's share (`--w`), a flow's canvas and box (`--fw`,
+    `--fh`, `--nw`, `--nh`) and a heat strip's rows.
+  */
+  --tone: var(--amber);
+  --x: 0%;
+  --y: 0%;
+  --a: 0%;
+  --b: 0%;
+  --w: 0%;
+  --fw: 0px;
+  --fh: 0px;
+  --nw: 0px;
+  --nh: 0px;
+  --rows: 1;
   --ease: 140ms cubic-bezier(0.2, 0, 0, 1);
   --ease-sheet: 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --gutter: var(--s5);
+  }
 }
 
 @media (min-width: 1100px) and (pointer: fine) {
   :root {
     --tap: 32px;
+    --bar: calc(var(--tap) + 2 * var(--s2));
   }
 }
 
@@ -213,7 +269,7 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--w-strong);
   line-height: var(--lead-tight);
 }
 

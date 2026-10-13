@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
@@ -122,7 +122,9 @@ describe('the publish directory', () => {
       if (!name.endsWith('.js')) continue
       const text = asset.bytes.toString('utf8')
       for (const found of text.matchAll(/\bfrom\s*['"](\.[^'"]+)['"]/g)) {
-        const spec = (found[1] ?? '').replace(/^\.\//, '')
+        // Resolved against the importing module's own folder, as a browser
+        // resolves it: `../dom.js` from `pages/checks.js` is `dom.js`.
+        const spec = posix.join(posix.dirname(name), found[1] ?? '')
         expect(assetFor(`/assets/${spec}`, assets), `${name} imports ${spec}`).not.toBeNull()
       }
     }

@@ -34,12 +34,12 @@ import {
   settingStanding,
   settingsSaid,
   shownOf,
-} from './acts.js'
-import { el, hintOf, into, textIn } from './dom.js'
-import { section } from './rows.js'
-import { keyOf } from './screens.js'
-import { troubleOf, UNKNOWN_TROUBLE } from './trouble.js'
-import { answerIn, note, panel } from './ui.js'
+} from '../acts.js'
+import { keyOf } from '../controls.js'
+import { el, hintOf, into, textIn } from '../dom.js'
+import { section } from '../rows.js'
+import { troubleOf, UNKNOWN_TROUBLE } from '../trouble.js'
+import { answerIn, note, panel } from '../ui.js'
 
 /**
  * The screen: built once on open, again after a change, and **never by a

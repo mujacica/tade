@@ -1,0 +1,29 @@
+/* The checks page's own sheet: every rule scoped to it (`.page-checks`, `test/pages.test.ts`). */
+
+/* Every project's checks: a ring, its name, and three counts. */
+.check-cards {
+  display: grid;
+  gap: var(--s2);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  margin-block-end: var(--s4);
+}
+
+main a.check-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--s3);
+  align-items: center;
+  padding: var(--s3) var(--s4);
+}
+
+.check-card .ring {
+  grid-row: 1 / span 2;
+}
+
+.check-counts {
+  display: flex;
+  gap: var(--s3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step--1);
+}

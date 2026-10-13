@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { byProject, runsOn, WHY_SAID } from '../src/assets/agents.js'
+import { byProject, runsOn } from '../src/assets/agents.js'
+import { WHY_SAID } from '../src/assets/pages/agent-pane.js'
 import { SCREEN_WHY } from '../src/protocol.ts'
 
 // The page's half of an agent looked into, as far as anything offline can see

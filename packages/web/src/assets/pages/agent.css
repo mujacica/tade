@@ -1,0 +1,158 @@
+/* The agent page's own sheet: every rule scoped to it (`.page-agent`, `test/pages.test.ts`). */
+
+/* ── an agent, looked into ─────────────────────────────────────────────────── */
+
+/* One column until a desk gives it two (`frame.css`). */
+.task-grid {
+  display: grid;
+}
+
+.task-lead {
+  min-width: 0;
+}
+
+/* ── an agent: the bar, a row of facts, the turn and its screen ────────────── */
+.task-coming {
+  display: grid;
+  gap: var(--s4);
+}
+
+.task-coming > .skeleton:first-child span {
+  height: 3.5rem;
+}
+
+.task-grid {
+  display: grid;
+  gap: 0 var(--s5);
+}
+
+.task-lead,
+.task-side {
+  min-width: 0;
+}
+
+/* The current turn on the card's top line, the screen under it, what was left out at its foot. */
+.term {
+  display: grid;
+}
+
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s4);
+  border-block-end: var(--border);
+}
+
+.term-head:empty {
+  display: none;
+}
+
+.term-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-weight: var(--w-label);
+}
+
+.term-head > .aside {
+  margin-inline-start: auto;
+}
+
+.term .screen {
+  border: 0;
+  border-radius: 0;
+}
+
+.term-why.empty {
+  padding: var(--s4);
+}
+
+.term-coming {
+  padding: var(--s4);
+}
+
+.term-foot {
+  padding: var(--s2) var(--s4);
+  border-block-start: var(--border);
+}
+
+.term-foot:empty {
+  display: none;
+}
+
+.task-side .asked {
+  padding: var(--s3) var(--s4);
+}
+
+.task-run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s2) var(--s3);
+  align-items: baseline;
+  padding: var(--s3) var(--s4);
+}
+
+.task-run > .ui-meter {
+  grid-column: 1 / -1;
+}
+
+.task-side .queue {
+  margin-block-start: var(--s2);
+}
+
+.task-side .section > div > .aside,
+.task-side .section > div > .ui-chip {
+  margin-block-start: var(--s2);
+}
+
+/*
+The controls: one panel, a verb a row — its word, what it takes, and its
+press at the end — and a verb that can only say why not one quiet line.
+*/
+.task-acts > div:last-child {
+  border-radius: var(--r2);
+  border: var(--border);
+  overflow: hidden;
+}
+
+.task-acts .section {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+}
+
+.task-acts .section + .section {
+  border-block-start: var(--border);
+}
+
+.task-acts .section-head {
+  min-height: 0;
+  margin-block-end: var(--s2);
+}
+
+.task-acts .section.is-off .section-head {
+  margin: 0;
+}
+
+.task-acts .section .empty {
+  padding-block: 0;
+}
+
+.task-acts textarea {
+  width: 100%;
+}
+
+.task-acts .presses {
+  justify-content: flex-end;
+  margin-block-start: var(--s2);
+}
+
+@media (min-width: 1100px) {
+  .task-grid {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}

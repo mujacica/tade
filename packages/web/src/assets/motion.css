@@ -207,7 +207,6 @@ main a.proj,
 .is-loading .tile-under:empty,
 .is-loading .rows:empty,
 .is-loading .queue:empty,
-.is-loading .projects-grid:empty,
 .skeleton span {
   display: block;
   border-radius: var(--r1);
@@ -230,10 +229,6 @@ main a.proj,
 .is-loading .queue:empty {
   height: 9rem;
   border: 0;
-}
-
-.is-loading .projects-grid:empty {
-  height: 10rem;
 }
 
 /* ── the machine being asked again ─────────────────────────────────────────── */
@@ -262,7 +257,6 @@ main a.proj,
 .icon,
 .cmd,
 main a.proj,
-.signals a,
 .places a {
   transition-property: background, border-color, color, transform;
   transition-duration: 140ms;
@@ -324,7 +318,7 @@ a.toast.leaving {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--w-strong);
 }
 
 .toast-word {

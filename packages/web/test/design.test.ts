@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { assetsDir } from '../src/assets.ts'
+import { scripts, sheets } from './asset-files.ts'
 import { contrast, hexOf } from './colour.ts'
 
 // The design, checked by arithmetic rather than by looking.
@@ -28,6 +29,7 @@ const TOKENS = read('tokens.css')
 // except the breakpoints, which are in order within each file.
 const SHEETS = [
   'ui.css',
+  'charts.css',
   'frame.css',
   'rail.css',
   'away.css',
@@ -38,11 +40,20 @@ const SHEETS = [
   'page.css',
   'pair.css',
   'motion.css',
+  // **Each page's own sheet, last**, so a page's rule wins over every shared
+  // one — and what a page may say there is `pages.test.ts`'s.
+  ...sheets(DIR).filter((name) => name.startsWith('pages/')),
 ]
 const AWAY = SHEETS.map(read).join('\n')
+/** Every page's own modules, which say as much to a person as the shared ones. */
+function pageScripts(): string[] {
+  return scripts(DIR).filter((name) => name.startsWith('pages/'))
+}
 const CSS = `${TOKENS}\n${AWAY}`
 const HTML = read('index.html')
-const SCRIPTS = ['boot.js', 'shell.js', 'screens.js', 'pages.js', 'rows.js', 'dom.js'].map(read)
+const SCRIPTS = ['boot.js', 'shell.js', 'controls.js', 'rows.js', 'dom.js', ...pageScripts()].map(
+  read,
+)
 const EVERY = [CSS, HTML, ...SCRIPTS].join('\n')
 
 /**
@@ -281,7 +292,7 @@ describe('the layout', () => {
     expect(all).toContain(1100)
     expect(all).toContain(1280)
     // And they are linked in that order, so a desk's rules come after a tablet's.
-    const linked = [...HTML.matchAll(/href="\/assets\/([\w-]+\.css)"/g)].map((one) => one[1])
+    const linked = [...HTML.matchAll(/href="\/assets\/([\w/-]+\.css)"/g)].map((one) => one[1])
     expect(linked).toEqual(['tokens.css', ...SHEETS])
   })
 

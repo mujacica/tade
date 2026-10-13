@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { agentOf } from '../src/agent.ts'
@@ -6,6 +6,7 @@ import { mayFor, WITHHOLDS as PAGE, grantOf as pageGrantOf } from '../src/assets
 import { settingsFor } from '../src/configuring.ts'
 import { GRANTS, type Grant, grantOf, WITHHOLDS } from '../src/reach.ts'
 import { snapshotOf } from '../src/snapshot.ts'
+import { scripts } from './asset-files.ts'
 import { agentHeld, EVERY, input, NOW, reach } from './fixtures.ts'
 
 // **One table, and a page can never disagree with the machine.** `WITHHOLDS`
@@ -114,7 +115,7 @@ describe('the page’s copy of it', () => {
     const asked = /mayFor\([^,]+, '([^']+)'\)/g
     const named = new RegExp(`\\bmay\\.(${GRANTS.join('|')})\\b|\\bmayRead\\(`)
     let paths = 0
-    for (const file of readdirSync(folder).filter((one) => one.endsWith('.js'))) {
+    for (const file of scripts(folder)) {
       const text = readFileSync(join(folder, file), 'utf8')
       // `store.js` defines `mayRead` and `boot.js` builds the view's flags from it.
       if (file !== 'store.js' && file !== 'boot.js') expect(named.test(text), file).toBe(false)

@@ -142,3 +142,54 @@ export function factsIn(node, cells) {
     under.hidden = one.under === undefined || one.under === null || one.under === ''
   })
 }
+
+/**
+ * A region's state when it has no content to show yet or at all — one shape
+ * for the three, centred in the room the content would have had: **coming**
+ * (`loading`: what is being asked, under a sweeping bar), **nothing** (`empty`:
+ * a calm mark, what is not there and what would put something there), and
+ * **wrong** (`error`: red, what happened and the one thing to do, with the
+ * press where the page can do it). `role="status"`, so arriving is said once.
+ */
+export function stateBox() {
+  const node = el('div', { class: 'ui-state', attrs: { role: 'status' } })
+  const mark = el('span', { class: 'ui-state-mark', attrs: { 'aria-hidden': 'true' } })
+  const press = el('button', { class: 'press quietly small', attrs: { type: 'button' } })
+  press.hidden = true
+  into(
+    node,
+    mark,
+    el('strong', { class: 'ui-state-title' }),
+    el('span', { class: 'ui-state-line' }),
+    press,
+  )
+  node.hidden = true
+  return node
+}
+
+/**
+ * Show a region's state, or hide the box with null: `{ kind, title, line,
+ * icon, action: { word, run } }`, `kind` one of `loading`, `empty`, `error`.
+ */
+export function stateBoxIn(node, one) {
+  node.hidden = one === null
+  if (one === null) return
+  const [mark, title, line, press] = node.children
+  for (const kind of ['loading', 'empty', 'error']) {
+    node.classList.toggle(`is-${kind}`, kind === one.kind)
+  }
+  const drawn =
+    one.icon ?? (one.kind === 'error' ? 'alert' : one.kind === 'loading' ? 'clock' : 'check')
+  if (mark.dataset.icon !== drawn) {
+    mark.dataset.icon = drawn
+    mark.replaceChildren(icon(drawn))
+  }
+  textIn(title, one.title)
+  textIn(line, one.line ?? '')
+  line.hidden = !one.line
+  press.hidden = one.action === undefined || one.action === null
+  if (!press.hidden) {
+    textIn(press, one.action.word)
+    press.onclick = one.action.run
+  }
+}

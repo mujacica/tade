@@ -242,7 +242,10 @@ describe('the real folder', () => {
           : brotliCompressSync(one.bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 9 } })
               .length
     }
-    expect(wire).toBeLessThan(224 * 1024)
+    // 224 until the charts (`charts.js`, `charts.css`) arrived: one library
+    // every page draws with instead of each drawing its own, about 15 KB on
+    // the wire, and the room the pages being redrawn on it will spend.
+    expect(wire).toBeLessThan(256 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: still under a megabyte, with the comments every module carries.
     expect(raw).toBeLessThan(768 * 1024)

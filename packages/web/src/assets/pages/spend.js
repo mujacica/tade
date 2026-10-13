@@ -9,14 +9,13 @@
 // carries one figure per task and not a series, so *today* is a question this
 // data cannot answer and a control offering it would be a lie with a tab on it.
 
-import { mayFor } from './access.js'
-import { ringOf, shareIn } from './charts.js'
-import { el, empty, foldOf, into, keyed, textIn } from './dom.js'
-import { count, money, onPlan, planBar, sinceSaid, tokensSaid, untilSaid } from './figures.js'
-import { nothingSaid } from './pages.js'
-import { sayIn, section } from './rows.js'
-import { omitted, plansOf, projectsOf, rowsOf, spendFold, spendSince, tasksIn } from './store.js'
-import { callout, facts, factsIn, meter, meterIn, panel } from './ui.js'
+import { mayFor } from '../access.js'
+import { ringOf, shareIn } from '../charts.js'
+import { el, empty, foldOf, into, keyed, textIn } from '../dom.js'
+import { count, money, onPlan, planBar, sinceSaid, tokensSaid, untilSaid } from '../figures.js'
+import { nothingSaid, sayIn, section } from '../rows.js'
+import { omitted, plansOf, projectsOf, rowsOf, spendFold, spendSince, tasksIn } from '../store.js'
+import { callout, facts, factsIn, meter, meterIn, panel } from '../ui.js'
 
 /* ── the money ─────────────────────────────────────────────────────────────── */
 

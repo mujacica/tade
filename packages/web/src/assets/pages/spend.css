@@ -1,0 +1,23 @@
+/* The spend page's own sheet: every rule scoped to it (`.page-spend`, `test/pages.test.ts`). */
+
+/* A project's share of the largest in the money column, under its name. */
+.share-name {
+  display: block;
+}
+
+.window-label {
+  font-family: var(--font-mono);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.window-share {
+  text-align: end;
+  color: var(--bright);
+}
+
+.window-resets {
+  grid-column: 2 / -1;
+  color: var(--heading);
+  font-size: var(--step--1);
+}

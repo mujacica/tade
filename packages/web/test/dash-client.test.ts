@@ -12,9 +12,9 @@ import {
   rememberedWith,
   scoreOf,
 } from '../src/assets/commands.js'
+import { glanceOf, projectShape } from '../src/assets/glance.js'
 import { ICONS } from '../src/assets/icons.js'
 import { partsOf } from '../src/assets/live.js'
-import { glanceOf, projectShape } from '../src/assets/overview.js'
 import { deviceWord, FLOWS, formOf, STEP_COUNT, stepOf } from '../src/assets/pair.js'
 import { actsOn, jumpsOf } from '../src/assets/palette.js'
 import { quickWord } from '../src/assets/quick.js'
@@ -31,6 +31,7 @@ import {
 } from '../src/assets/toasts.js'
 import { assetsDir } from '../src/assets.ts'
 import { projector } from '../src/reading.ts'
+import { scripts } from './asset-files.ts'
 import { blocked, EVERY, input, NOW, plan, reach, task } from './fixtures.ts'
 
 // The overview, the command bar and the presses on a card — the parts of them
@@ -288,15 +289,7 @@ describe('the icons', () => {
   it('are only ever asked for by a name the sprite has', () => {
     // A name nobody drew is a blank square where an icon should be, and no
     // test that does not look for it would see one.
-    for (const name of [
-      'shell.js',
-      'overview.js',
-      'palette.js',
-      'quick.js',
-      'desk.js',
-      'side.js',
-      'pages.js',
-    ]) {
+    for (const name of scripts(DIR)) {
       const text = readFileSync(join(DIR, name), 'utf8')
       for (const found of text.matchAll(/\bicon\('([\w-]+)'/g)) {
         expect(drawn.has(found[1] ?? ''), `${name} asks for ${found[1]}`).toBe(true)

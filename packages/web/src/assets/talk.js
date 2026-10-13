@@ -1,20 +1,9 @@
-import { mayFor } from './access.js'
-import { afterAnswer, askBody, stopBody } from './acts.js'
-import { classOn, el, empty, hintOf, into, keyed, proseOf, textIn, toneOn } from './dom.js'
-import { ageSaid } from './figures.js'
-import { CHAT_KINDS } from './glyphs.js'
-import { nothingSaid } from './pages.js'
-import { section } from './rows.js'
-import { keyOf } from './screens.js'
-import { chatOf, omitted, talkOf } from './store.js'
-import { answerIn } from './ui.js'
-
 // The conversation with Tade, and the one box on this page that sends words.
 //
 // **Its own file**, because it is the one screen that is not a list of rows
 // about work: it is an exchange, read from the bottom, with a composer under
-// it. `pages.js` was at the size a file is allowed to be and the seam is
-// honest rather than convenient.
+// it, and the strip on a desk is drawn from the same module (`composerOf`), so
+// it is shared rather than a page of its own.
 //
 // The five rules that break this screen quietly:
 //
@@ -39,6 +28,16 @@ import { answerIn } from './ui.js'
 // - **The line that says who asked is not decoration.** A request from a
 //   paired device that read as something the person typed would be the `said`
 //   confusion in the one place somebody actually reads the words.
+
+import { mayFor } from './access.js'
+import { afterAnswer, askBody, stopBody } from './acts.js'
+import { keyOf } from './controls.js'
+import { classOn, el, empty, hintOf, into, keyed, proseOf, textIn, toneOn } from './dom.js'
+import { ageSaid } from './figures.js'
+import { CHAT_KINDS } from './glyphs.js'
+import { nothingSaid, section } from './rows.js'
+import { chatOf, omitted, talkOf } from './store.js'
+import { answerIn } from './ui.js'
 
 /** How long a message may be, which is `ASK_BOUND` said on this side. */
 const BOUND = 4000

@@ -1,0 +1,6 @@
+/* The notes page's own sheet: every rule scoped to it (`.page-notes`, `test/pages.test.ts`). */
+
+.press.more-page {
+  width: 100%;
+  margin-block-start: var(--s3);
+}

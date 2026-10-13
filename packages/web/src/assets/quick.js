@@ -17,10 +17,10 @@
 // write one.
 
 import { afterAnswer, bodyFor, confirms, controlsFor } from './acts.js'
+import { keyOf } from './controls.js'
 import { classOn, el, felt, into, textIn } from './dom.js'
 import { icon } from './icons.js'
 import { taskPath } from './routes.js'
-import { keyOf } from './screens.js'
 import { answerIn } from './ui.js'
 
 /** The verbs a card offers a press for, in the order they are drawn. */

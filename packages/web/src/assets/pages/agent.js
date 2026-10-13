@@ -19,8 +19,8 @@
 // answer its screen and its activity are; and only a snapshot that has been
 // read and does not have this task says that it is not here.
 
-import { mayFor } from './access.js'
-import { agentPane } from './agents.js'
+import { mayFor } from '../access.js'
+import { actsIn } from '../controls.js'
 import {
   classOn,
   el,
@@ -34,11 +34,11 @@ import {
   textIn,
   toneOn,
   unknown,
-} from './dom.js'
-import { ageSaid, money, tokensSaid } from './figures.js'
-import { checkMark, rowMark, taskMark } from './glyphs.js'
-import { quickActs } from './quick.js'
-import { pathOf } from './routes.js'
+} from '../dom.js'
+import { ageSaid, money, tokensSaid } from '../figures.js'
+import { checkMark, rowMark, taskMark } from '../glyphs.js'
+import { quickActs } from '../quick.js'
+import { pathOf } from '../routes.js'
 import {
   createQueueRow,
   dl,
@@ -48,10 +48,10 @@ import {
   pageBar,
   sayIn,
   section,
-} from './rows.js'
-import { actsIn } from './screens.js'
-import { runAt, spendFold, taskAt } from './store.js'
-import { facts, factsIn, meter, meterIn, note, panel } from './ui.js'
+} from '../rows.js'
+import { runAt, spendFold, taskAt } from '../store.js'
+import { facts, factsIn, meter, meterIn, note, panel } from '../ui.js'
+import { agentPane } from './agent-pane.js'
 
 export function taskScreen(where, ctx) {
   const node = el('div', { class: 'task' })

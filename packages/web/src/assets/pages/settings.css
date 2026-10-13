@@ -1,0 +1,49 @@
+/* The settings page's own sheet: every rule scoped to it (`.page-settings`, `test/pages.test.ts`). */
+
+/* ── settings ──────────────────────────────────────────────────────────────── */
+
+/*
+A setting is one row of a panel: its name, and its value as a pill at the
+end; a tag under it for what it is (*on restart*, *at the machine*), each
+with its sentence one `?` away; and, where this device may change it, the
+box and its press on one line.
+*/
+.settings-list {
+  display: grid;
+}
+
+.setting-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 2rem;
+}
+
+.setting-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--bright);
+}
+
+.setting-value {
+  flex: 0 1 auto;
+  max-width: 50%;
+}
+
+/* The box and its press on one line where there is room. */
+.setting > div:last-child:not(.setting-tags) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.setting > div:last-child:not(.setting-tags) > select,
+.setting > div:last-child:not(.setting-tags) > input {
+  flex: 1 1 12rem;
+  max-width: none;
+}

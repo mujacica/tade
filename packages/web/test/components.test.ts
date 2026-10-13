@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { assetsDir } from '../src/assets.ts'
+import { scripts, sheets } from './asset-files.ts'
 
 // The components (`ui.css`, `ui.js`), held to being the one place a look is
 // defined.
@@ -15,12 +16,11 @@ import { assetsDir } from '../src/assets.ts'
 
 const DIR = assetsDir()
 const read = (name: string) => readFileSync(join(DIR, name), 'utf8')
-const UI = read('ui.css')
-const SCRIPTS = readdirSync(DIR)
-  .filter((name) => name.endsWith('.js'))
-  .map((name) => ({ name, text: read(name) }))
-const SHEETS = readdirSync(DIR)
-  .filter((name) => name.endsWith('.css') && name !== 'ui.css' && name !== 'tokens.css')
+// The two component sheets: the looks (`ui.css`) and the charts (`charts.css`).
+const UI = `${read('ui.css')}\n${read('charts.css')}`
+const SCRIPTS = scripts(DIR).map((name) => ({ name, text: read(name) }))
+const SHEETS = sheets(DIR)
+  .filter((name) => !['ui.css', 'charts.css', 'tokens.css'].includes(name))
   .map((name) => ({ name, text: read(name) }))
 
 /** Every `ui-*` class a script puts on an element, by the file that does. */
@@ -42,10 +42,10 @@ const OWN_GROUND = ['.fresh', '.bar']
 
 describe('the components', () => {
   it('are loaded right after the tokens, so a screen’s own rule always wins', () => {
-    const links = [...read('index.html').matchAll(/href="\/assets\/([a-z]+\.css)"/g)].map(
+    const links = [...read('index.html').matchAll(/href="\/assets\/([a-z/]+\.css)"/g)].map(
       (one) => one[1],
     )
-    expect(links.slice(0, 2)).toEqual(['tokens.css', 'ui.css'])
+    expect(links.slice(0, 3)).toEqual(['tokens.css', 'ui.css', 'charts.css'])
   })
 
   it('define every component a script asks for', () => {

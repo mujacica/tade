@@ -145,7 +145,7 @@ export function fillTaskRow(node, task, view) {
   classOn(link, 'stalled', task.stalled)
 }
 
-/* A task as a card is the overview's own drawing now (`overview.js`), with its presses. */
+/* A task as a card is the overview's own drawing now (`pages/overview.js`), with its presses. */
 
 /* ── queued work ───────────────────────────────────────────────────────────── */
 
@@ -458,4 +458,21 @@ export function fillSaidRow(node, one) {
   const [glyph, name] = body.children
   markIn(glyph, one.bad ? checkMark('fail') : { glyph: '⚠', word: 'warning', tone: 't-working' })
   textIn(name, one.said)
+}
+
+/**
+ * What an empty list says, which is **two different nothings**.
+ *
+ * A collection with no rows because there are none, and one with no rows
+ * because this device was not granted them, are different facts — and the
+ * second carries its count, because *there are forty-one notes and you may not
+ * read them from here* is the honest shape of a read scope. A nought in its
+ * place reads as "you have none", which is a page answering a question nobody
+ * asked it.
+ */
+export function nothingSaid(may, total, nothing) {
+  if (may) return nothing
+  return total === 0
+    ? 'not granted to this device'
+    : `${total} here, and this device was not granted them`
 }

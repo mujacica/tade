@@ -1,0 +1,11 @@
+/* The project page's own sheet: every rule scoped to it (`.page-project`, `test/pages.test.ts`). */
+
+@container (min-width: 32rem) {
+  .tiles.tiles-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.tiles.tiles-4 {
+  margin-block-end: var(--s4);
+}

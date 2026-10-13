@@ -62,7 +62,7 @@
   border-radius: var(--r1);
   color: var(--heading);
   font-size: var(--step--1);
-  font-weight: 500;
+  font-weight: var(--w-label);
   cursor: pointer;
   transition:
     background var(--ease),
@@ -142,14 +142,14 @@
   display: flex;
   align-items: center;
   gap: var(--s2);
-  min-height: var(--tap);
+  min-height: var(--bar);
   padding-inline: var(--s3);
   border-block-end: var(--border);
 }
 
 .side-top h2 {
   font-size: var(--step-0);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   color: var(--bright);
 }
 
@@ -192,7 +192,7 @@
   padding-inline: var(--s2);
   border-radius: var(--r1);
   color: var(--bright);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   text-decoration: none;
   transition: background var(--ease);
 }
@@ -224,7 +224,7 @@
   margin-block: var(--s2) 2px;
   padding-inline: var(--s2);
   font-size: var(--step--1);
-  font-weight: 500;
+  font-weight: var(--w-label);
   color: var(--heading);
 }
 
@@ -250,7 +250,7 @@
   padding-inline: var(--s2);
   border-radius: var(--r1);
   font-size: var(--step--1);
-  font-weight: 500;
+  font-weight: var(--w-label);
   letter-spacing: var(--tight);
   color: var(--heading);
   text-decoration: none;
@@ -469,7 +469,7 @@
 .dock-head h2 {
   flex: 0 0 auto;
   font-size: var(--step-0);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   color: var(--bright);
 }
 
@@ -525,7 +525,7 @@
 
 .dock .who {
   font-size: var(--step--1);
-  font-weight: 500;
+  font-weight: var(--w-label);
   color: var(--heading);
 }
 
@@ -729,11 +729,6 @@
 
   .side-mini .side-fold .ic {
     transform: none;
-  }
-
-  /* The agents are down the side now; the overview's own copy steps aside while it is open. */
-  .frame:not(.side-mini) .ov-agents {
-    display: none;
   }
 }
 

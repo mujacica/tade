@@ -17,13 +17,12 @@
 // act at the machine with no route at all. They are *named* with their clause
 // (`locally`) rather than left as holes.
 
-import { mayFor } from './access.js'
-import { afterAnswer, draftBody, savingOf } from './acts.js'
-import { el, into, keyed, proseOf, textIn } from './dom.js'
-import { count } from './figures.js'
-import { icon } from './icons.js'
-import { nothingSaid } from './pages.js'
-import { pathOf } from './routes.js'
+import { mayFor } from '../access.js'
+import { afterAnswer, draftBody, savingOf } from '../acts.js'
+import { el, into, keyed, proseOf, textIn } from '../dom.js'
+import { count } from '../figures.js'
+import { icon } from '../icons.js'
+import { pathOf } from '../routes.js'
 import {
   createLocally,
   createSaidRow,
@@ -33,12 +32,13 @@ import {
   fillLocally,
   fillSaidRow,
   fillWaitRow,
+  nothingSaid,
   pageBar,
   sayIn,
   section,
-} from './rows.js'
-import { omitted, workflowAt, workflowsOf } from './store.js'
-import { answerIn, note, panel } from './ui.js'
+} from '../rows.js'
+import { omitted, workflowAt, workflowsOf } from '../store.js'
+import { answerIn, note, panel } from '../ui.js'
 
 /* ── the workflows ─────────────────────────────────────────────────────────── */
 

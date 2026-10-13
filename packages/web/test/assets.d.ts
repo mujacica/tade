@@ -116,6 +116,8 @@ declare module '*/assets/routes.js' {
   export const GROUPS: readonly { key: string; title: string; views: readonly string[] }[]
   /** The places that are the frame's own parts — the side and the dock — rather than menu entries. */
   export const DOCKED: readonly string[]
+  /** Which page's own files (`pages/<page>.js`, `.css`) draw a view. */
+  export const PAGE_OF: Readonly<Record<string, string>>
   export function viewOf(path: string): {
     view: string
     project?: string
@@ -184,7 +186,7 @@ declare module '*/assets/store.js' {
   export function spendSince(store: Store): string | null
 }
 
-declare module '*/assets/screens.js' {
+declare module '*/assets/controls.js' {
   /**
    * Only `keyOf` is declared, because only `keyOf` is a rule rather than a
    * renderer: the key a press mints has to be one the server's own `KEY`
@@ -251,7 +253,38 @@ declare module '*/assets/icons.js' {
 }
 
 declare module '*/assets/charts.js' {
+  /**
+   * Only the geometry is declared: each is pure arithmetic a test can hold.
+   * What the components *draw* is checked in a browser.
+   */
+  export const TONES: readonly string[]
   export function stopsOf(parts: readonly number[]): number[]
+  export function sparkPath(
+    values: readonly (number | null)[],
+    w?: number,
+    h?: number,
+  ): { lines: string[]; areas: string[]; last: { x: number; y: number } | null }
+  export function donutParts(
+    parts: readonly (number | null)[],
+    gap?: number,
+  ): ({ start: number; length: number } | null)[]
+  export function placeOf(at: number | null, from: number, to: number): number | null
+  export function layered(
+    nodes: readonly { id: string }[],
+    edges: readonly { from: string; to: string }[],
+  ): { at: Map<string, { layer: number; row: number }>; layers: number; rows: number }
+  export function flowGeometry(
+    nodes: readonly { id: string }[],
+    edges: readonly { from: string; to: string }[],
+    direction?: 'right' | 'down',
+  ): {
+    boxes: Map<string, { x: number; y: number }>
+    paths: { from: string; to: string; d: string; head: string }[]
+    width: number
+    height: number
+    size: { w: number; h: number; gapX: number; gapY: number }
+  }
+  export function levelsOf(values: readonly (number | null)[], levels?: number): (number | null)[]
 }
 
 declare module '*/assets/commands.js' {
@@ -294,7 +327,7 @@ declare module '*/assets/commands.js' {
   export function litOf(label: string, at: readonly number[]): { text: string; on: boolean }[]
 }
 
-declare module '*/assets/overview.js' {
+declare module '*/assets/glance.js' {
   export function glanceOf(store: unknown): {
     wants: { n: number; blocked: number; failed: number; review: number }
     working: { n: number; stalled: number }
@@ -398,7 +431,7 @@ declare module '*/assets/acts.js' {
   export function howSaid(how: string): string
 }
 
-declare module '*/assets/factory.js' {
+declare module '*/assets/pages/inbox.js' {
   /**
    * Deliberately loose, for `store.js`' reason: these declarations exist so a
    * test can *call* the browser's own copy of a sentence, and a second typed
@@ -410,12 +443,12 @@ declare module '*/assets/factory.js' {
   export function materialIn(nodes: any, row: any, view: any): void
 }
 
-declare module '*/assets/runs.js' {
+declare module '*/assets/pages/runs.js' {
   export function runSays(row: any, view: any): string
   export function stepSays(step: any, view: any): string
 }
 
-declare module '*/assets/designer.js' {
+declare module '*/assets/pages/workflows.js' {
   export function workflowSays(row: any): string
 }
 
@@ -518,9 +551,12 @@ declare module '*/assets/desk.js' {
   export function noAgentsSaid(store: unknown): string
 }
 
-declare module '*/assets/agents.js' {
+declare module '*/assets/pages/agent-pane.js' {
   /** One sentence per word of `SCREEN_WHY`. */
   export const WHY_SAID: Readonly<Record<string, string>>
+}
+
+declare module '*/assets/agents.js' {
   export function byProject<T extends { project: string }>(
     agents: readonly T[],
   ): { project: string; agents: T[] }[]
@@ -578,7 +614,7 @@ declare module '*/assets/trouble.js' {
   export function troubleSaid(trouble: Trouble): string
 }
 
-declare module '*/assets/task.js' {
+declare module '*/assets/pages/agent.js' {
   /**
    * Only the row of facts is declared, because it is the one rule on the
    * agent's page: what each cell says, and which dash it draws when it cannot.

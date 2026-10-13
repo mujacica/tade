@@ -1,11 +1,9 @@
 // What has been handed to this machine, as two screens: the inbox and one
 // request.
 //
-// Its own file beside `pages.js` and `screens.js`, for the reason those two are
-// apart: this is one subject — work that came from outside — and a reader
-// checking what the inbox draws should not have to scroll past the money. The
-// runs are `runs.js` and the designer is `designer.js`, for the same reason
-// again.
+// Its own page (`pages/inbox.*`), because this is one subject — work that came
+// from outside — and a reader checking what the inbox draws should not have to
+// scroll past anything else.
 //
 // The three rules that break something quietly if they go:
 //
@@ -25,16 +23,25 @@
 // Nothing here decides a state, a count or a reason: all of it came off the
 // wire already derived.
 
-import { mayFor } from './access.js'
-import { afterAnswer, bodyFor, standingOf, wordsFor } from './acts.js'
-import { classOn, el, glyphOf, into, keyed, markIn, proseOf, textIn } from './dom.js'
-import { ageSaid, count, untilSaid } from './figures.js'
-import { intakeMark, sourceMark } from './glyphs.js'
-import { nothingSaid } from './pages.js'
-import { pathOf, requestPath, safeHref, taskPath } from './routes.js'
-import { createLocally, dl, dlIn, fillLocally, pageBar, rowFor, sayIn, section } from './rows.js'
-import { intakeAt, intakeOf, intakeWaiting, omitted, sourcesOf } from './store.js'
-import { answerIn, panel } from './ui.js'
+import { mayFor } from '../access.js'
+import { afterAnswer, bodyFor, standingOf, wordsFor } from '../acts.js'
+import { classOn, el, glyphOf, into, keyed, markIn, proseOf, textIn } from '../dom.js'
+import { ageSaid, count, untilSaid } from '../figures.js'
+import { intakeMark, sourceMark } from '../glyphs.js'
+import { pathOf, requestPath, safeHref, taskPath } from '../routes.js'
+import {
+  createLocally,
+  dl,
+  dlIn,
+  fillLocally,
+  nothingSaid,
+  pageBar,
+  rowFor,
+  sayIn,
+  section,
+} from '../rows.js'
+import { intakeAt, intakeOf, intakeWaiting, omitted, sourcesOf } from '../store.js'
+import { answerIn, panel } from '../ui.js'
 
 /* ── what has been handed over ─────────────────────────────────────────────── */
 
