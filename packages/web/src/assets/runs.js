@@ -21,7 +21,7 @@ import { el, glyphOf, into, keyed, markIn, textIn } from './dom.js'
 import { count, money } from './figures.js'
 import { checkMark, reviewMark, stepMark } from './glyphs.js'
 import { pathOf, requestPath, taskPath } from './routes.js'
-import { createWaitRow, dl, dlIn, fillWaitRow, sayIn, section } from './rows.js'
+import { createWaitRow, dl, dlIn, fillWaitRow, pageBar, sayIn, section } from './rows.js'
 import { omitted, runAt, runsOf } from './store.js'
 import { panel } from './ui.js'
 
@@ -126,17 +126,15 @@ export function runSays(row, view) {
  */
 export function runScreen(where) {
   const node = el('div')
-  const back = el('a', { class: 'back', text: '‹ Runs', attrs: { href: '/runs' } })
-  const head = el('div', { class: 'page-head' })
   const glyph = glyphOf(checkMark('unknown'))
-  const title = el('h1', { text: where.run })
-  into(head, glyph, title)
+  const bar = pageBar(where.run, { name: true, glyph, back: { text: 'Runs', href: '/runs' } })
   const gone = el('p', { class: 'empty nothing' })
 
   const about = section('THE RUN')
   const facts = dl()
-  const fromLink = el('a', { class: 'press ghost', text: 'The request behind it' })
-  into(about.body, facts, fromLink)
+  const fromLink = el('a', { class: 'press quietly small', text: 'The request behind it' })
+  into(about.body, facts)
+  into(bar.tools, fromLink)
 
   const steps = section('THE STEPS')
   const layers = el('div', { class: 'layers' })
@@ -144,7 +142,7 @@ export function runScreen(where) {
   into(steps.body, layers, none)
 
   const parts = [about, steps]
-  into(node, back, head, gone, ...parts.map((one) => one.node))
+  into(node, bar.node, gone, ...parts.map((one) => one.node))
 
   return {
     node,

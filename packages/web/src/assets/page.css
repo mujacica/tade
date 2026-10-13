@@ -1,0 +1,433 @@
+/*
+  The page: the one template every screen in the middle is drawn in.
+
+  **The middle is drawn like the sides it sits between.** The menu down the
+  left and the work down the right are lines, quiet labels and hairlines, and
+  the top is one bar with a hairline under it — so a screen is too:
+
+  1. **A bar** (`pageBar`, `rows.js`): the name, where it is one row of, how
+     many, and what may be done here — the height of the side's own heading,
+     on the same line, its hairline running into the side's.
+  2. **Groups headed as the menu heads them**: a small quiet word and its
+     count, never a second title.
+  3. **The shared pieces under them**: a panel of rows, a row of facts
+     (`ui-facts`), a list of names and values, a chip for a filter.
+  4. **Every region says one of four things**: coming (a skeleton the shape of
+     what is coming), nothing (`empty`), unknown (a dash and which), or what
+     went wrong (`problem`).
+
+  Loaded after the screens' own sheets and the docks, so this is the rule a
+  screen is drawn by, and only its own particulars sit in the sheet before it.
+*/
+
+/* ── the bar ───────────────────────────────────────────────────────────────── */
+
+main .section-head.pg-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s2);
+  min-height: var(--tap);
+  margin-inline: calc(-1 * var(--s4));
+  margin-block: 0 var(--s4);
+  padding-inline: var(--s4);
+  padding-block: var(--s1);
+  border-block-end: var(--border);
+}
+
+/* The bar is the top of the screen, at every width. */
+main {
+  padding-block-start: 0;
+}
+
+.section-head.pg-bar h1 {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--step-0);
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--bright);
+}
+
+/* A name is set as it was written, never in sentence case. */
+.pg-bar.is-name h1 {
+  text-transform: none;
+}
+
+.pg-bar.is-name h1::first-letter {
+  text-transform: none;
+}
+
+.pg-bar > .figure {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.section-head:has(> h1) > .figure {
+  margin-inline-start: 0;
+}
+
+.pg-bar > .figure:empty {
+  display: none;
+}
+
+/* Where this screen is one row of: quiet, then a slash, then the name. */
+.pg-crumb.back {
+  min-height: var(--tap);
+  color: var(--heading);
+  font-size: var(--step-0);
+}
+
+.pg-sep {
+  color: var(--chrome);
+}
+
+.pg-bar > .glyph {
+  flex: 0 0 auto;
+}
+
+/*
+  What may be done here, at the end of the line — and, where the name leaves
+  no room on a phone, a line of its own under it, still at the end.
+*/
+.pg-tools {
+  flex: 1 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.pg-tools:empty {
+  display: none;
+}
+
+.pg-tools .quick {
+  margin: 0;
+  padding: 0;
+}
+
+.pg-tools .quick-said {
+  flex: 0 1 auto;
+}
+
+/* ── the page-wide bars: reconnecting, a new version, the page changed ─────── */
+
+/*
+  **A strip, not a box.** Each is one line across the whole of the middle, the
+  height of the page bar and the side's heading — so, at a desk, level with
+  the side's own heading and its hairline running into it — its glyph where
+  the page's name starts, its words, the `?`, and its press at the end where
+  every screen keeps what may be done. Its tone is a wash of the ground and
+  its glyph, never a coloured edge round a card.
+*/
+.work > .bars,
+.bars {
+  gap: 0;
+  padding: 0;
+}
+
+.bars > .bar {
+  border: 0;
+  border-radius: 0;
+  border-block-end: var(--border);
+  margin-inline: calc(-1 * var(--s4));
+}
+
+.bars > .bar.is-stale {
+  background: color-mix(in srgb, var(--amber) 7%, var(--ground));
+}
+
+.bars > .bar.is-gone {
+  background: color-mix(in srgb, var(--red) 8%, var(--ground));
+}
+
+.bars .bar-line {
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s4);
+}
+
+.bars .bar .glyph {
+  width: auto;
+  min-width: 1rem;
+  text-align: center;
+}
+
+.bars .bar .lead {
+  font-size: var(--step-0);
+}
+
+.bars .bar .press {
+  flex: 0 0 auto;
+}
+
+.bars .bar .under {
+  padding: 0 var(--s4) var(--s2) calc(var(--s4) + 1rem + var(--s2));
+}
+
+/* ── groups, headed as the menu heads its categories ───────────────────────── */
+
+main .section {
+  margin-block-end: var(--s5);
+}
+
+main .section-head {
+  min-height: 1.75rem;
+  margin-block-end: var(--s2);
+}
+
+main .section-head h2 {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: 500;
+}
+
+main .section-head:not(.pg-bar) > .figure {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+main .section-head .hint {
+  margin-inline-start: auto;
+}
+
+/* A screen's own section is the bar and what is under it, with no gap of its own. */
+main .section.pg {
+  margin-block-end: var(--s5);
+}
+
+/* A press under a list is its own line, never glued to the panel above it. */
+.section .ui-panel + .press,
+.section .dl + .press {
+  margin-block-start: var(--s3);
+}
+
+/* A row's link off this machine sits under its name, never in the mark's column. */
+.rows > li > div > .out {
+  grid-column: 2 / -1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-size: var(--step--1);
+}
+
+/* ── names and values ──────────────────────────────────────────────────────── */
+
+/*
+  A list of names and values: the name quiet in its own column, the value in
+  the page's own face — a hairline between each pair, as the rows of a panel.
+*/
+main .dl {
+  grid-template-columns: minmax(6.5rem, max-content) minmax(0, 1fr);
+  gap: 0 var(--s4);
+  padding: 0 var(--s4);
+}
+
+main .dl > dt,
+main .dl > dd {
+  padding-block: var(--s2);
+}
+
+main .dl > dt + dd ~ dt,
+main .dl > dt + dd ~ dt + dd {
+  border-block-start: var(--border);
+}
+
+main .dl dt {
+  align-self: baseline;
+}
+
+main .dl dd {
+  font-family: var(--font-ui);
+  color: var(--bright);
+}
+
+/* ── chips: a filter, a choice ─────────────────────────────────────────────── */
+
+main .filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-end: var(--s3);
+}
+
+/* ── an agent: the bar, a row of facts, the turn and its screen ────────────── */
+
+.task-coming {
+  display: grid;
+  gap: var(--s4);
+}
+
+.task-coming > .skeleton:first-child span {
+  height: 3.5rem;
+}
+
+.task .ui-facts {
+  margin-block-end: var(--s5);
+}
+
+.task-grid {
+  display: grid;
+  gap: 0 var(--s5);
+}
+
+.task-lead,
+.task-side {
+  min-width: 0;
+}
+
+/* The current turn on the card's top line, the screen under it, what was left out at its foot. */
+.term {
+  display: grid;
+}
+
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s4);
+  border-block-end: var(--border);
+}
+
+.term-head:empty {
+  display: none;
+}
+
+.term-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-weight: 500;
+}
+
+.term-head > .aside {
+  margin-inline-start: auto;
+}
+
+.term .screen {
+  border: 0;
+  border-radius: 0;
+}
+
+.term-why.empty {
+  padding: var(--s4);
+}
+
+.term-coming {
+  padding: var(--s4);
+}
+
+.term-foot {
+  padding: var(--s2) var(--s4);
+  border-block-start: var(--border);
+}
+
+.term-foot:empty {
+  display: none;
+}
+
+.task-side .asked {
+  padding: var(--s3) var(--s4);
+}
+
+.task-run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s2) var(--s3);
+  align-items: baseline;
+  padding: var(--s3) var(--s4);
+}
+
+.task-run > .ui-meter {
+  grid-column: 1 / -1;
+}
+
+.task-side .queue {
+  margin-block-start: var(--s2);
+}
+
+.task-side .section > div > .aside,
+.task-side .section > div > .ui-chip {
+  margin-block-start: var(--s2);
+}
+
+/*
+  The controls: one panel, a verb a row — its word, what it takes, and its
+  press at the end — and a verb that can only say why not one quiet line.
+*/
+.task-acts > div:last-child {
+  border-radius: var(--r2);
+  border: var(--border);
+  overflow: hidden;
+}
+
+.task-acts .section {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+}
+
+.task-acts .section + .section {
+  border-block-start: var(--border);
+}
+
+.task-acts .section-head {
+  min-height: 0;
+  margin-block-end: var(--s2);
+}
+
+.task-acts .section.is-off .section-head {
+  margin: 0;
+}
+
+.task-acts .section .empty {
+  padding-block: 0;
+}
+
+.task-acts textarea {
+  width: 100%;
+}
+
+.task-acts .presses {
+  justify-content: flex-end;
+  margin-block-start: var(--s2);
+}
+
+/* ── a tablet: the room main gives itself ──────────────────────────────────── */
+
+@media (min-width: 768px) {
+  main .section-head.pg-bar {
+    margin-inline: calc(-1 * var(--s5));
+    padding-inline: var(--s5);
+    padding-block: 0;
+  }
+
+  .bars > .bar {
+    margin-inline: 0;
+  }
+
+  .bars .bar-line {
+    padding-inline: var(--s5);
+  }
+
+  .bars .bar .under {
+    padding-inline: calc(var(--s5) + 1rem + var(--s2)) var(--s5);
+  }
+}
+
+/* ── a desk: the agent's two columns ───────────────────────────────────────── */
+
+@media (min-width: 1100px) {
+  .task-grid {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}

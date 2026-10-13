@@ -14,17 +14,13 @@
 /* ── tiles: the overview's figures ─────────────────────────────────────────── */
 
 /*
-  The top of the overview is one line at a desk: the four figures and the
-  quotas beside them (`overview.js` puts the quotas in the same section). On
-  a phone the figures are two by two and the quotas under them.
+  The top of the overview is one line of five figures at a desk — what wants
+  you, what works, what waits, what it cost and the quota that runs out first,
+  each the same tile. On a phone they are two by two and the quota the width
+  of both under them.
 */
-.ov-top > div:not(.section-head) {
-  display: grid;
-  gap: var(--s4);
-}
-
-.ov-top .ov-quotas {
-  margin: 0;
+.ov-top .tile-quiet:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .tiles {
@@ -515,25 +511,14 @@ main {
   }
 }
 
-/*
-  With room for both, the figures and the quotas share the top line: the
-  figures two by two beside the quotas, and all four in a row once there is
-  room for that as well.
-*/
+/* With room for all five, one line. */
 @container (min-width: 44rem) {
-  .ov-top > div:not(.section-head) {
-    grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
-    align-items: start;
+  .ov-top .tiles {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
-  .ov-top .tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 70rem) {
-  .ov-top .tiles {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .ov-top .tile-quiet:last-child:nth-child(odd) {
+    grid-column: auto;
   }
 }
 

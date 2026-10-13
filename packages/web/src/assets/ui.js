@@ -6,7 +6,7 @@
 // looks is one rule in `ui.css`. Text goes in through `textContent` as it does
 // everywhere on this page; nothing here builds markup.
 
-import { el, hintOf, into, textIn } from './dom.js'
+import { el, hintOf, into, textIn, toneOn } from './dom.js'
 import { icon } from './icons.js'
 
 /** A panel: the container a list of rows sits in. */
@@ -110,4 +110,35 @@ export function answerIn(node, said, trouble) {
   const words = el('span', { class: 'ui-problem-words' })
   into(words, el('strong', { text: trouble.title }), el('span', { text: trouble.fix }))
   node.replaceChildren(icon('alert'), words)
+}
+
+/**
+ * Facts: a row of figures in one panel — a label, the value, a line under it —
+ * the overview's tiles at the size of a heading. `factsIn` fills it.
+ */
+export function facts(label = 'Facts') {
+  return el('dl', { class: 'ui-facts', attrs: { 'aria-label': label } })
+}
+
+/**
+ * Fill a row of facts, reusing the cells it has: `{ label, value, under, tone }`
+ * each, a null value drawn as `—` rather than left out, so the row keeps its
+ * shape while a figure is unknown. A selection in a value survives a repaint
+ * that wrote the same text.
+ */
+export function factsIn(node, cells) {
+  while (node.children.length > cells.length) node.lastElementChild?.remove()
+  while (node.children.length < cells.length) {
+    const cell = el('div', { class: 'ui-fact' })
+    into(cell, el('dt'), el('dd'), el('dd', { class: 'ui-fact-under' }))
+    node.append(cell)
+  }
+  cells.forEach((one, at) => {
+    const [label, value, under] = node.children[at].children
+    textIn(label, one.label)
+    textIn(value, one.value ?? '—')
+    toneOn(value, one.tone ?? null)
+    textIn(under, one.under ?? '')
+    under.hidden = one.under === undefined || one.under === null || one.under === ''
+  })
 }

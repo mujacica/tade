@@ -446,8 +446,8 @@ instruction**: an agent reads it as evidence about the work, under a heading tha
 ## A remote control, while the window is open
 
 The same floor on a phone you paired by scanning a code in the window. It opens on an overview of
-every project at once — what wants you, what is working, what is queued, the checks, what it cost
-and how full each plan is, as six figures with a chart each — then the work that wants somebody,
+every project at once — what wants you, what is working, what is queued, what it cost and the
+quota that runs out first, five figures on one line — then the work that wants somebody,
 with the presses that device was granted right on the card (allow, deny, done, set aside), then
 every project as a card with the shape of its work. Tade is one press away from anywhere: the
 middle of the tab bar on a phone raises the conversation as a sheet, and the search in the header —
@@ -460,8 +460,11 @@ last view, what it last knew — never an empty control room.
 On a laptop it takes the window's shape — the places in a menu down the left, the work down the
 right a project at a time (its agents with their marks, grouped by run, and its queue hung as a tree
 of what waits on what), and Tade docked at the foot of the middle; each of the three folds, with
-`[`, `]` and `\`, and stays folded on that device — and an agent's page says what it has been
-doing, with its run and its checks under it down the right. Pairing is four steps the page leads you through:
+`[`, `]` and `\`, and stays folded on that device. Every page in the middle is one template: a bar
+level with the side's own heading — its name, where it is one row of, and what may be done there —
+then groups headed as the menu heads its own. An agent's page opens on a row of facts (its state,
+harness and model, account, branch, checks and cost), then its current turn and screen as one card,
+its activity, and what was asked for, its run and the controls beside them. Pairing is four steps the page leads you through:
 open Tade, scan its code — or, on a computer, click the link under it or its Open or Copy — name
 the device, approve it at the machine. What its
 screen shows is a grant of its own, per device and off for every one: the last rows, read only

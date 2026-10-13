@@ -14,23 +14,20 @@ import { ringOf, shareIn } from './charts.js'
 import { el, empty, foldOf, into, keyed, textIn } from './dom.js'
 import { count, money, onPlan, planBar, sinceSaid, tokensSaid, untilSaid } from './figures.js'
 import { nothingSaid } from './pages.js'
-import { dl, dlIn, sayIn, section } from './rows.js'
+import { sayIn, section } from './rows.js'
 import { omitted, plansOf, projectsOf, rowsOf, spendFold, spendSince, tasksIn } from './store.js'
-import { callout, meter, meterIn, panel } from './ui.js'
+import { callout, facts, factsIn, meter, meterIn, panel } from './ui.js'
 
 /* ── the money ─────────────────────────────────────────────────────────────── */
 
 export function spendScreen() {
   const node = el('div')
   const made = section('SPEND', { top: true })
-  const big = el('p', { class: 'big' })
-  const under = el('p', { class: 'big-under' })
-  const kinds = dl()
-  const outside = el('div', { class: 'outside' })
-  const planWhy = el('p', { class: 'aside' })
-  const planSaid = el('p', { class: 'num big-under' })
-  // `plan.why` already says *not in the total*; nothing more on the page.
-  into(outside, planWhy, planSaid)
+  // **The figures are one row of facts** — what was billed, how much of it is
+  // exact and how much estimated, the tokens, and what the turns on a plan
+  // would have cost, which is in no total — and what each mark means is one
+  // press away at the end of the bar.
+  const strip = facts('Spend')
   // The caveats are built once and shown or hidden, so a figure somebody is
   // reading does not move down the page because a new one appeared under it.
   const scope = callout(
@@ -42,21 +39,15 @@ export function spendScreen() {
     class: 'unknown',
     text: '~ some tokens ran on a model with no known rate',
   })
-  // **The period, said rather than denied.** The sentence that used to be here
-  // said this was not a figure for a day — and it is one: the window folds
-  // spend from its own midnight, so without this a phone reads a dash on a
-  // task that cost forty dollars yesterday as *not recorded*.
+  // **The period, said rather than denied.** The window folds spend from its
+  // own midnight, so without this a phone reads a dash on a task that cost
+  // forty dollars yesterday as *not recorded*.
   const covers = el('p', { class: 'unknown' })
   const caveats = { scope, floor, noMoney, unrated, covers }
-  // **The figure, its marks, and the sentences one `?` away.** `≥`, `~` and
-  // the dash's own word stay on the figures; what each of them means, and
-  // which period this is, is folded under the press beside the total.
   const about = foldOf('About these figures')
-  const head = el('div', { class: 'big-head' })
-  into(head, big, about.press)
+  into(made.tools, about.press)
   into(about.body, scope, floor, noMoney, unrated, covers)
-  kinds.classList.add('minis')
-  into(made.body, head, under, about.body, kinds, outside)
+  into(made.body, about.body, strip)
 
   const plans = quotasSection()
 
@@ -89,21 +80,24 @@ export function spendScreen() {
       const partial = omitted(view.store, 'tasks') > 0
       const fold = spendFold(tasks, partial)
       const paid = money(fold, mayFor(view.store, 'tasks.spend'))
-      textIn(big, paid.said === '—' ? '—' : `${partial ? '≥' : ''}${paid.said}`)
-      textIn(under, paid.said === '—' ? paid.why : 'billed')
+      const total = paid.said === '—' ? '—' : `${partial ? '≥' : ''}${paid.said}`
+      textIn(made.figure, total)
       const tokens = tokensSaid(fold)
-      dlIn(kinds, [
-        ['exact', fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null],
-        ['estimated', fold.usdEstimated > 0 ? `~$${fold.usdEstimated.toFixed(2)}` : null],
-        ['tokens', tokens === null ? null : tokens.said],
-        [
-          'unpriced',
-          tokens === null || tokens.unpriced === ''
-            ? null
-            : tokens.unpriced.replace(/ unpriced$/, ''),
-        ],
+      const plan = onPlan(fold)
+      factsIn(strip, [
+        { label: 'Billed', value: total, under: paid.said === '—' ? paid.why : null },
+        { label: 'Exact', value: fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null },
+        {
+          label: 'Estimated',
+          value: fold.usdEstimated > 0 ? `~$${fold.usdEstimated.toFixed(2)}` : null,
+        },
+        {
+          label: 'Tokens',
+          value: tokens === null ? null : tokens.said,
+          under: tokens === null || tokens.unpriced === '' ? null : tokens.unpriced,
+        },
+        { label: 'On a plan', value: plan === null ? null : plan.said, under: plan?.why ?? null },
       ])
-      planEquivalentIn({ outside, planWhy, planSaid }, fold)
       caveatsIn(caveats, fold, mayFor(view.store, 'tasks.spend'), spendSince(view.store))
       plans.update(view)
       const names = projectsOf(view.store)
@@ -128,6 +122,8 @@ export function spendScreen() {
  */
 export function quotasSection() {
   const made = section('QUOTAS')
+  // The overview's Quota figure is a link to here.
+  made.node.setAttribute('id', 'quotas')
   const list = panel('ul', 'rows quotas')
   const none = empty('no account reported a quota')
   into(made.body, list, none)
@@ -154,21 +150,6 @@ export function quotasSection() {
       )
     },
   }
-}
-
-/**
- * What a subscription's turns would have cost at list — **below a rule, in no
- * total, and labelled as what it is.**
- *
- * `≥` whenever some of those tokens ran on a model no rate here knows, because
- * the figure is then a floor and drawing it as a total would simply be wrong.
- */
-function planEquivalentIn(made, fold) {
-  const plan = onPlan(fold)
-  made.outside.hidden = plan === null
-  if (plan === null) return
-  textIn(made.planWhy, plan.why)
-  textIn(made.planSaid, plan.said)
 }
 
 /**

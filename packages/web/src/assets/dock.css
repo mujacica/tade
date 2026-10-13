@@ -745,13 +745,6 @@
   .frame:not(.side-mini) .ov-agents {
     display: none;
   }
-
-  /* The state and the agent's own screen where the eye lands, the facts beside. */
-  .task-grid {
-    grid-template-columns: minmax(0, 1fr) 18rem;
-    gap: var(--s5);
-    align-items: start;
-  }
 }
 
 /* ── wide: the side widens ─────────────────────────────────────────────────── */

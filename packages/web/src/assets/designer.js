@@ -33,6 +33,7 @@ import {
   fillLocally,
   fillSaidRow,
   fillWaitRow,
+  pageBar,
   sayIn,
   section,
 } from './rows.js'
@@ -136,10 +137,7 @@ export function workflowSays(row) {
  */
 export function workflowScreen(where, ctx) {
   const node = el('div')
-  const back = el('a', { class: 'back', text: '‹ Workflows', attrs: { href: '/workflows' } })
-  const head = el('div', { class: 'page-head' })
-  const title = el('h1', { text: where.name })
-  into(head, title)
+  const bar = pageBar(where.name, { name: true, back: { text: 'Workflows', href: '/workflows' } })
   const gone = el('p', { class: 'empty nothing' })
 
   const about = section('THE WORKFLOW')
@@ -171,7 +169,7 @@ export function workflowScreen(where, ctx) {
   into(stays.body, locally)
 
   const parts = [about, problems, steps, form, shape, stays]
-  into(node, back, head, gone, ...parts.map((one) => one.node))
+  into(node, bar.node, gone, ...parts.map((one) => one.node))
 
   return {
     node,

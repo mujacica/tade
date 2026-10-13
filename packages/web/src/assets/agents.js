@@ -20,7 +20,19 @@
 // markup, never a link, never a colour read out of an escape — and what the
 // machine took out of them (`screen.ts`) is drawn as the `…` it left.
 
-import { classOn, el, empty, glyphOf, into, keyed, markIn, stateIn, textIn, toneOn } from './dom.js'
+import {
+  classOn,
+  el,
+  empty,
+  glyphOf,
+  into,
+  keyed,
+  markIn,
+  skeleton,
+  stateIn,
+  textIn,
+  toneOn,
+} from './dom.js'
 import { ageSaid, count } from './figures.js'
 import { rowMark, taskMark } from './glyphs.js'
 import { taskPath } from './routes.js'
@@ -203,22 +215,33 @@ export function runsOn(task) {
  * stops the asking, and so the reading at the machine.
  */
 export function agentPane(where, ctx) {
-  const screen = section('SCREEN')
-  const why = el('p', { class: 'empty' })
+  // **The current turn and its screen are one card**, as the window draws a
+  // pane: what the agent is doing on its top line (`head`, the task screen's
+  // to fill), the last rows of its screen under it, and what was left out at
+  // its foot.
+  const screen = section('NOW')
+  const card = el('div', { class: 'ui-panel term' })
+  const head = el('div', { class: 'term-head' })
+  const why = el('p', { class: 'empty term-why' })
   const frame = el('div', {
     class: 'scrolls screen',
     attrs: { role: 'region', 'aria-label': 'The last rows of its screen', tabindex: '0' },
   })
   const rows = el('pre')
   into(frame, rows)
-  const facts = el('p', { class: 'aside' })
-  into(screen.body, why, frame, facts)
+  // Before the first answer, the rows that are coming rather than a sentence.
+  const coming = skeleton(8)
+  coming.classList.add('term-coming')
+  const facts = el('p', { class: 'aside term-foot' })
+  into(card, head, why, coming, frame, facts)
+  into(screen.body, card)
 
   const activity = section('ACTIVITY')
   const list = el('ul', { class: 'ui-timeline moments' })
   const none = empty('nothing written down about it yet')
   const more = el('p', { class: 'unknown', text: 'and more before this' })
-  into(activity.body, list, none, more)
+  const waiting = skeleton(4)
+  into(activity.body, waiting, list, none, more)
 
   const path = `/api/agent/${encodeURIComponent(where.project)}/${encodeURIComponent(where.task)}`
   let answer = null
@@ -229,6 +252,8 @@ export function agentPane(where, ctx) {
 
   const draw = () => {
     if (view === null) return
+    coming.hidden = answer !== null || failed !== null
+    waiting.hidden = answer !== null || failed !== null
     if (failed !== null && answer === null) {
       why.hidden = false
       textIn(why, failed)
@@ -238,14 +263,16 @@ export function agentPane(where, ctx) {
       return
     }
     if (answer === null) {
-      why.hidden = false
-      textIn(why, WHY_SAID['not read yet'])
+      why.hidden = true
       frame.hidden = true
       facts.hidden = true
       none.hidden = true
       more.hidden = true
       return
     }
+    // Asked for and answered, where there is no screen to draw: the reason,
+    // and no rows coming.
+    coming.hidden = true
     screenIn(answer, view)
     momentsIn(answer, view)
   }
@@ -319,6 +346,7 @@ export function agentPane(where, ctx) {
 
   return {
     nodes: [screen.node, activity.node],
+    head,
     update(next) {
       view = next
       draw()

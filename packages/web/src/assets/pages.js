@@ -12,7 +12,7 @@
 
 import { mayFor } from './access.js'
 import { ringIn, ringOf } from './charts.js'
-import { classOn, el, empty, into, keyed, textIn, toneOn } from './dom.js'
+import { classOn, el, empty, into, keyed, skeleton, textIn, toneOn } from './dom.js'
 import { ageSaid, count, untilSaid } from './figures.js'
 import { checkMark } from './glyphs.js'
 import { icon } from './icons.js'
@@ -502,12 +502,20 @@ export function notesScreen(ctx = null) {
  */
 export function devicesScreen(ctx) {
   const node = el('div')
-  const mine = section('THIS DEVICE', { top: true })
+  // The page bar, with signing this device out at its end: an act on the
+  // page's own subject, where every screen keeps what may be done here.
+  const top = section('DEVICES', { top: true })
+  const out = el('button', {
+    class: 'press quietly small',
+    text: 'Sign this device out',
+    attrs: { type: 'button' },
+  })
+  into(top.tools, out)
+  const mine = section('THIS DEVICE')
   const facts = dl()
   const noSession = el('p', { class: 'unknown' })
-  const out = el('button', { class: 'press quietly', text: 'Sign this device out' })
   const said = el('p', { attrs: { role: 'status' } })
-  into(mine.body, facts, noSession, out, said)
+  into(mine.body, said, facts, noSession)
 
   // **The notifications control, and it is on this screen because this is the
   // screen about this device.** The permission belongs to the phone, not to
@@ -560,11 +568,11 @@ export function devicesScreen(ctx) {
     drawTelling()
   })
 
-  const others = section('DEVICES', {
+  const others = section('PAIRED', {
     hint: 'Every device let in is listed here; disconnecting one is done at the machine and needs no network. Nothing on that machine is contained: anything there runs as you.',
   })
   const list = panel('ul', 'rows')
-  const loading = el('p', { class: 'empty', text: 'asking…' })
+  const loading = skeleton(2)
   into(others.body, list, loading)
   // The device list is not on the stream — letting a phone in or disconnecting
   // one is not a projection change — so it is asked for when this screen
@@ -588,7 +596,7 @@ export function devicesScreen(ctx) {
     answerIn(said, '', troubleOf(answer) ?? UNKNOWN_TROUBLE)
   })
 
-  into(node, mine.node, telling.node, others.node)
+  into(node, top.node, mine.node, telling.node, others.node)
 
   return {
     node,
@@ -617,6 +625,7 @@ export function devicesScreen(ctx) {
         (one, row) => fillDeviceRow(one, row, view),
       )
       textIn(others.figure, rows === null ? '' : count(rows.length))
+      textIn(top.figure, rows === null ? '' : count(rows.length))
     },
   }
 }

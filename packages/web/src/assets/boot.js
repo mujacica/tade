@@ -49,7 +49,7 @@ import { pairScreen } from './pair.js'
 import { palette } from './palette.js'
 import { viewOf } from './routes.js'
 import { runScreen, runsScreen } from './runs.js'
-import { projectScreen, taskScreen } from './screens.js'
+import { projectScreen } from './screens.js'
 import { settingsScreen } from './settings.js'
 import {
   barsFor,
@@ -79,6 +79,7 @@ import {
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
+import { taskScreen } from './task.js'
 import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */

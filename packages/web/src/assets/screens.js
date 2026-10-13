@@ -20,25 +20,10 @@ import {
   SHOWN,
   wordsFor,
 } from './acts.js'
-import { agentPane } from './agents.js'
-import {
-  classOn,
-  el,
-  empty,
-  glyphOf,
-  into,
-  keyed,
-  markIn,
-  proseOf,
-  textIn,
-  toneOn,
-  unknown,
-} from './dom.js'
+import { classOn, el, empty, into, keyed, textIn } from './dom.js'
 import { count, money, onPlan, sinceSaid, tokensSaid } from './figures.js'
-import { checkMark, rowMark, taskMark } from './glyphs.js'
+import { checkMark } from './glyphs.js'
 import { glanceOf, glanceTiles, tilesIn } from './overview.js'
-import { quickActs } from './quick.js'
-import { pathOf } from './routes.js'
 import {
   createQueueRow,
   createTaskRow,
@@ -46,11 +31,11 @@ import {
   dlIn,
   fillQueueRow,
   fillTaskRow,
-  originOf,
+  pageBar,
   sayIn,
   section,
 } from './rows.js'
-import { omitted, projectAt, queueIn, spendFold, spendSince, taskAt, tasksIn } from './store.js'
+import { omitted, projectAt, queueIn, spendFold, spendSince, tasksIn } from './store.js'
 import { answerIn, note, panel } from './ui.js'
 
 /* The overview is `overview.js`: the landing screen has grown its own file. */
@@ -59,11 +44,8 @@ import { answerIn, note, panel } from './ui.js'
 
 export function projectScreen(where, ctx) {
   const node = el('div')
-  const head = el('div', { class: 'page-head' })
-  const back = el('a', { class: 'back', text: '‹ Overview', attrs: { href: '/' } })
-  const title = el('h1', { text: where.project })
-  const figure = el('span', { class: 'figure' })
-  into(head, title, figure)
+  const bar = pageBar(where.project, { name: true, back: { text: 'Overview', href: '/' } })
+  const figure = bar.figure
   const strip = el('nav', { class: 'tabstrip', attrs: { 'aria-label': 'This project' } })
   const gone = el('p', { class: 'empty nothing' })
 
@@ -98,7 +80,7 @@ export function projectScreen(where, ctx) {
     queue: `#${queue.heading.id}`,
     spend: `#${spend.heading.id}`,
   })
-  into(node, back, head, tiles, strip, gone, agents.node, queue.node, checks.node, spend.node)
+  into(node, bar.node, tiles, strip, gone, agents.node, queue.node, checks.node, spend.node)
   const folds = foldsOf(checks, spend)
   // Closing it, or opening it again: the same blocks a task's page builds, over
   // the two verbs about the whole project, at the foot where a reach for the
@@ -264,97 +246,9 @@ function spendIn(section_, made, tasks, partial, may, since = null) {
   made.floor.hidden = !fold.partial
 }
 
-/* ── one task ──────────────────────────────────────────────────────────────── */
+/* ── the controls a task's page and a project's page are built with ──────── */
 
-/**
- * A task, and the agent on it: what it is, what it has been doing, what its
- * screen shows, and what may be asked of it.
- *
- * **What is absent is still the point.** There is no diff and no transcript —
- * each ships source to a phone and to a browser cache. An agent's screen is
- * here only as the `lanes` grant has it (`agents.js`, `screen.ts`): the last
- * rows, read while this page is open, with paths and keys taken out, and
- * nothing on this page can type into it. And a control that nothing could
- * carry out is absent too, with the reason beside it: not greyed out and not
- * behind a toast, because a disabled button invites a tap and then says
- * nothing.
- *
- * **Two columns at a desk** (`.task-grid`): the state and the agent's own
- * screen where the eye lands, and the facts and the controls beside them. One
- * column everywhere else, in the same order — so a phone reads the state, then
- * the screen, then everything else.
- */
-export function taskScreen(where, ctx) {
-  const node = el('div')
-  const back = el('a', {
-    class: 'back',
-    text: `‹ ${where.project}`,
-    attrs: { href: pathOf({ view: 'project', project: where.project }) },
-  })
-  const head = el('div', { class: 'page-head' })
-  const glyph = glyphOf(taskMark('queued'))
-  const title = el('h1', { text: where.task })
-  // The state again as a pill beside the name: the word in its tone's tint,
-  // so what the glyph says is readable at a glance from across a desk.
-  const pill = el('span', { class: 'ui-pill' })
-  into(head, glyph, title, pill)
-  // The presses this device was granted, under the name and above the fold:
-  // on a phone the full controls are a long scroll down, and the answer to an
-  // agent that is waiting is the reason somebody opened this page.
-  const quick = ctx === undefined || ctx === null ? null : quickActs(ctx, { tell: false })
-  const gone = el('p', { class: 'empty nothing' })
-
-  const state = section('STATE')
-  const asked = section('ASKED FOR')
-  const agent = section('AGENT')
-  const work = section('WORK')
-  const checks = section('CHECKS')
-  const rest = section('ABOUT')
-  const parts = [state, asked, agent, work, checks, rest]
-  const made = partsOf(state, agent, work, checks, rest)
-  // The agent's own: what it has been doing and what its screen shows, asked
-  // for while this page is open and not a moment after (`leave`).
-  const pane = ctx === undefined || ctx === null ? null : agentPane(where, ctx)
-  const grid = el('div', { class: 'task-grid' })
-  const lead = el('div', { class: 'task-lead' })
-  const facts = el('div', { class: 'task-facts' })
-  into(lead, state.node, ...(pane?.nodes ?? []))
-  into(facts, asked.node, agent.node, work.node, checks.node, rest.node)
-  into(grid, lead, facts)
-  into(node, back, head, quick?.node, gone, grid)
-  // **Every control the page has, built once** — one block per verb, in the
-  // order `SHOWN` gives, each hidden until the row says it may be asked for.
-  // Built here rather than per update, so what somebody has typed into one
-  // survives every delta (`keyed`'s rule, one layer up).
-  const acts = ctx === undefined || ctx === null ? null : actsIn(facts, ctx)
-
-  return {
-    node,
-    update(view) {
-      const task = taskAt(view.store, where.project, where.task)
-      gone.hidden = task !== null
-      textIn(gone, task === null ? 'This task is not on this device, or is not there.' : '')
-      for (const one of parts) one.node.hidden = task === null
-      for (const one of pane?.nodes ?? []) one.hidden = task === null
-      if (task === null) return
-      pane?.update(view)
-      markIn(glyph, rowMark(task))
-      textIn(pill, rowMark(task).word)
-      quick?.update(task, view)
-      toneOn(pill, rowMark(task).tone)
-      stateIn(made, task, view)
-      askedIn(asked, task, view.store)
-      agentIn(made, task, view.store)
-      workIn(made, task)
-      taskChecksIn(made, task)
-      restIn(made, task, view)
-      acts?.update(task, view)
-    },
-    leave() {
-      pane?.leave()
-    },
-  }
-}
+/* One task's own page is `task.js`; its controls are these. */
 
 /**
  * Every control this page has, as one block per verb.
@@ -373,7 +267,7 @@ export function taskScreen(where, ctx) {
  *
  * What is typed stays typed until the act actually happened (`afterAnswer`).
  */
-function actsIn(node, ctx, verbs = SHOWN) {
+export function actsIn(node, ctx, verbs = SHOWN) {
   const blocks = new Map()
   for (const verb of verbs) {
     const block = blockFor(verb, ctx)
@@ -575,178 +469,3 @@ export function keyOf() {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   return [...bytes].map((one) => one.toString(16).padStart(2, '0')).join('')
 }
-
-/**
- * Every part of the task screen, built once.
- *
- * The file's rule, kept: **a screen is built once and then patched.** These
- * sections hold the branch, the model and the account — the things somebody
- * actually selects and copies — and the page repaints every two seconds, so
- * rebuilding them would collapse that selection on every beat. Each `*In`
- * below writes text and toggles `hidden`, and nothing under here is created or
- * removed after this.
- */
-function partsOf(state, agent, work, checks, rest) {
-  const made = {
-    word: el('p', { class: 'word' }),
-    why: el('p', { class: 'said' }),
-    asked: el('p', { class: 'block' }),
-    askedWhy: note(
-      'at the machine',
-      'the whole of what it asked is in the window, at the machine',
-      'laptop',
-    ),
-    stalled: note('stalled', 'Nothing has moved here for a while.', 'clock'),
-    queue: panel('ul', 'queue'),
-    agent: dl(),
-    noHarness: el('p', { class: 'unknown', text: 'no harness' }),
-    work: dl(),
-    noBranch: el('p', { class: 'unknown', text: 'no branch of its own' }),
-    shared: note(
-      'shared checkout',
-      'other agents work in this checkout, so uncommitted work here is nobody’s',
-      'agents',
-    ),
-    checksWord: el('p', { class: 'word' }),
-    checksNames: dl(),
-    overruled: note(
-      'overruled',
-      'a failing check here was overruled, with a reason, at the machine',
-      'alert',
-    ),
-    noChecks: note(
-      'not run here',
-      'nobody ran these here — which is not that they passed',
-      'clock',
-    ),
-    rest: dl(),
-    origin: el('p', { class: 'aside' }),
-    findings: el('p', { class: 'aside' }),
-    toFindings: el('a', { text: 'Findings ›', attrs: { href: '/findings' } }),
-  }
-  into(state.body, made.word, made.why, made.asked, made.askedWhy, made.stalled, made.queue)
-  into(agent.body, made.agent, made.noHarness)
-  into(work.body, made.work, made.noBranch, made.shared)
-  into(checks.body, made.checksWord, made.checksNames, made.overruled, made.noChecks)
-  into(rest.body, made.rest, made.origin, made.findings, made.toFindings)
-  return made
-}
-
-function stateIn(made, task, view) {
-  // The state's word is the pill beside the title; here only why.
-  made.word.hidden = true
-  textIn(made.why, task.reason)
-  const approval = task.approval
-  // **The tool's name, and never its arguments.** A command's arguments are the
-  // field that reliably holds a path and a credential, and the place to read
-  // the whole of one is the window, at the machine, where the person who has to
-  // decide is.
-  sayIn(made.asked, approval ? approval.tool : null)
-  made.askedWhy.hidden = !approval
-  made.stalled.hidden = !task.stalled
-  const queue = view.store.rows.queue.get(task.id)
-  keyed(
-    made.queue,
-    queue === undefined ? [] : [queue],
-    (row) => row.task,
-    createQueueRow,
-    (one, row) => fillQueueRow(one, row, { ...view, project: task.project }),
-  )
-}
-
-/**
- * What somebody asked for, in their own words, folded to three lines.
- *
- * **Verbatim, and never reworded.** This is the person's own sentence; the fold
- * is a control they open, not an edit. And a device that was granted neither
- * the titles nor the intent is told *that*, rather than that nobody wrote
- * anything down — which would be a page blaming them for their own read scope.
- *
- * Written once: what somebody asked for does not change, and rebuilding it
- * would close a fold they had opened.
- */
-function askedIn(made, task, store) {
-  if (made.body.children.length > 0) return
-  if (!mayFor(store, 'tasks.intent') && !mayFor(store, 'tasks.title')) {
-    into(made.body, unknown('not granted to this device'))
-    return
-  }
-  const said = task.intent ?? task.title
-  into(made.body, proseOf(said, true) ?? empty('nothing written down'))
-  if (task.intent !== null && task.title !== null) {
-    into(made.body, el('p', { class: 'aside', text: 'as a title' }), proseOf(task.title))
-  }
-}
-
-function agentIn(made, task, store) {
-  dlIn(made.agent, [
-    ['harness', task.harness],
-    ['model', task.model],
-    // Which sign-in an agent runs as is its own grant, so a null here is two
-    // different facts and the page says which.
-    ['account', mayFor(store, 'tasks.account') ? (task.account?.words ?? null) : 'not granted'],
-    ['agents', String(task.agents), `${task.agents} agents`],
-    ['lanes', String(task.lanes), `${task.lanes} lanes`],
-  ])
-  made.noHarness.hidden = task.harness !== null
-}
-
-/**
- * The work: a branch, how far it is from its base, and **counts of changed
- * files rather than their names**.
- *
- * A branch name is not a path, which is why it may be here at all. The names of
- * changed files are repository-relative when the projection carries them and it
- * does not carry them in this phase, so what is drawn is the count — a figure
- * that is honest at every width.
- */
-function workIn(made, task) {
-  dlIn(made.work, [
-    ['branch', task.branch],
-    ['ahead', task.ahead === null ? null : String(task.ahead)],
-    ['behind', task.behind === null ? null : String(task.behind)],
-    ['changed', task.dirty === null ? null : String(task.dirty)],
-    ['workspace', task.shared ? `${task.workspace} · shared` : task.workspace],
-  ])
-  made.noBranch.hidden = task.branch !== null
-  made.shared.hidden = !task.shared
-}
-
-function taskChecksIn(made, task) {
-  const mark = checkMark(task.checks.state)
-  // The coloured word says it; a second copy in the section's figure is the
-  // same fact twice on one line.
-  textIn(made.checksWord, mark.word)
-  // Not run here is said by its note, with the reason one `?` away; once is enough.
-  made.checksWord.hidden = task.checks.state === 'unknown'
-  toneOn(made.checksWord, mark.tone)
-  dlIn(made.checksNames, [
-    ['red', task.checks.failed.length === 0 ? null : task.checks.failed.join(', ')],
-    ['not run', task.checks.missing.length === 0 ? null : task.checks.missing.join(', ')],
-  ])
-  // A red run that was overruled is still recorded red, and this is where
-  // somebody reading from away finds out that it was.
-  made.overruled.hidden = !task.checks.overridden
-  made.noChecks.hidden = task.checks.state !== 'unknown'
-}
-
-function restIn(made, task, view) {
-  const produces = task.produces
-  dlIn(made.rest, [
-    ['done when', task.done],
-    ['effort', task.effort],
-    ['produces', produces === null ? null : `${produces.name} · ${written(produces)}`],
-    ['review', task.review === null ? null : task.review.state],
-  ])
-  textIn(made.origin, originOf(task))
-  const found = [...view.store.rows.findings.values()].filter((one) => one.tasks.includes(task.id))
-  sayIn(
-    made.findings,
-    found.length === 0
-      ? null
-      : `${found.length} finding${found.length === 1 ? '' : 's'} about this change`,
-  )
-  made.toFindings.hidden = found.length === 0
-}
-
-const written = (produces) => (produces.written ? 'written' : 'not yet')

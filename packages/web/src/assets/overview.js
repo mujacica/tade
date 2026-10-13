@@ -36,13 +36,12 @@ import {
   textIn,
   toneOn,
 } from './dom.js'
-import { ageSaid, money, tokensSaid } from './figures.js'
+import { ageSaid, money, planPressure, tokensSaid } from './figures.js'
 import { rowMark, taskMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { quickActs } from './quick.js'
 import { pathOf, taskPath } from './routes.js'
 import { section } from './rows.js'
-import { quotasSection } from './spend.js'
 import {
   agentsOf,
   checksFold,
@@ -62,7 +61,7 @@ import {
   wantsYou,
 } from './store.js'
 import { changesSeen, KINDS } from './toasts.js'
-import { count, countIn, panel } from './ui.js'
+import { count, countIn, meter, meterIn, panel } from './ui.js'
 
 /* ── the figures, as pure folds over what the store holds ──────────────────── */
 
@@ -189,12 +188,6 @@ export function nowScreen(ctx = null) {
   const closedList = el('div', { class: 'chips' })
   into(closed.body, closedList)
 
-  // Every account's quota — the 5 hours, the week — as a bar each, on the
-  // same line as the figures where there is room for both.
-  const quotas = quotasSection()
-  quotas.node.classList.add('ov-quotas')
-  into(top.body, quotas.node)
-
   into(
     node,
     top.node,
@@ -211,7 +204,6 @@ export function nowScreen(ctx = null) {
     update(view) {
       const glance = glanceOf(view.store)
       tilesIn(made, glance, view)
-      quotas.update(view)
 
       const rows = wantsYou(view.store)
       textIn(wants.figure, rows.length === 0 ? '' : String(rows.length))
@@ -323,6 +315,10 @@ const TILE_SPECS = {
   working: { icon: 'bolt', label: 'Working', href: '/agents', tone: 'working' },
   queue: { icon: 'queue', label: 'Queued', href: '/queue', tone: 'quiet' },
   spend: { icon: 'spend', label: 'Spend', href: '/spend', tone: 'quiet' },
+  // **The quotas are a figure like the others, on the same line**: the window
+  // that runs out first, as its share and a bar — every account's windows are
+  // a press away, on the Spend page. A project's page has no quota.
+  quota: { icon: 'clock', label: 'Quota', href: '/spend#quotas', tone: 'quiet', meter: true },
 }
 
 const TILES = Object.keys(TILE_SPECS)
@@ -352,7 +348,9 @@ function tileOf(spec) {
       ? ringOf(spec.ring)
       : spec.bar === true
         ? barOf(['wants', 'failed', 'done'])
-        : null
+        : spec.meter === true
+          ? meter()
+          : null
   into(node, head, figure, under, chart)
   return { node, figure, under, chart }
 }
@@ -410,6 +408,23 @@ export function tilesIn(made, glance, view) {
     paid.said === '—' ? paid.why : toks === null ? 'today' : `${toks.said} tokens`,
     paid.said === '—' ? `spend: ${paid.why}` : `spend ${figure}`,
   )
+
+  // The tightest window of any account. *Not granted* and *none reported*
+  // are two different dashes, and neither is a nought.
+  if (made.quota !== undefined) {
+    const may = mayFor(view.store, 'plans')
+    const plan = may ? glance.plan : null
+    said(
+      made.quota,
+      plan === null ? '—' : `${Math.round(plan.used)}%`,
+      !may ? 'not granted' : plan === null ? 'none reported' : `${plan.harness} · ${plan.label}`,
+      plan === null
+        ? `quota: ${may ? 'none reported' : 'not granted'}`
+        : `quota ${Math.round(plan.used)}% used`,
+    )
+    made.quota.chart.hidden = plan === null || !had
+    if (plan !== null) meterIn(made.quota.chart, plan.used, planPressure(plan.used))
+  }
 }
 
 /** `2 blocked · 1 failed`, leaving out what is nought. */

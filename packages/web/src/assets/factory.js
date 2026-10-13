@@ -32,7 +32,7 @@ import { ageSaid, count, untilSaid } from './figures.js'
 import { intakeMark, sourceMark } from './glyphs.js'
 import { nothingSaid } from './pages.js'
 import { pathOf, requestPath, safeHref, taskPath } from './routes.js'
-import { createLocally, dl, dlIn, fillLocally, rowFor, sayIn, section } from './rows.js'
+import { createLocally, dl, dlIn, fillLocally, pageBar, rowFor, sayIn, section } from './rows.js'
 import { intakeAt, intakeOf, intakeWaiting, omitted, sourcesOf } from './store.js'
 import { answerIn, panel } from './ui.js'
 
@@ -183,11 +183,8 @@ function fillSourceRow(node, row, view) {
 export function requestScreen(where, ctx) {
   const item = `${where.source}:${where.id}`
   const node = el('div')
-  const back = el('a', { class: 'back', text: '‹ Handed over', attrs: { href: '/inbox' } })
-  const head = el('div', { class: 'page-head' })
   const glyph = glyphOf(intakeMark({ state: 'noticed', work: [] }))
-  const title = el('h1', { text: where.id })
-  into(head, glyph, title)
+  const bar = pageBar(where.id, { name: true, glyph, back: { text: 'Inbox', href: '/inbox' } })
   const gone = el('p', { class: 'empty nothing' })
 
   const stands = section('WHERE IT STANDS')
@@ -197,8 +194,9 @@ export function requestScreen(where, ctx) {
 
   const from = section('WHERE IT CAME FROM')
   const facts = dl()
-  const link = el('a', { class: 'press ghost', text: 'Open it at its source' })
-  into(from.body, facts, link)
+  const link = el('a', { class: 'press quietly small', text: 'Open it at its source' })
+  into(from.body, facts)
+  into(bar.tools, link)
 
   const work = section('WHAT IT MADE')
   const workList = panel('ul', 'rows')
@@ -224,7 +222,7 @@ export function requestScreen(where, ctx) {
   into(approve.body, locally)
 
   const parts = [stands, from, work, replies, words, approve]
-  into(node, back, head, gone, ...parts.map((one) => one.node))
+  into(node, bar.node, gone, ...parts.map((one) => one.node))
 
   return {
     node,
@@ -240,7 +238,7 @@ export function requestScreen(where, ctx) {
       for (const one of parts) one.node.hidden = row === null
       if (row === null) return
       markIn(glyph, intakeMark(row))
-      textIn(title, row.title === null ? row.externalId : row.title.words)
+      textIn(bar.heading, row.title === null ? row.externalId : row.title.words)
       textIn(standing, row.because)
       sayIn(
         moved,

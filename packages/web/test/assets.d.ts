@@ -577,3 +577,15 @@ declare module '*/assets/trouble.js' {
   ): Trouble | null
   export function troubleSaid(trouble: Trouble): string
 }
+
+declare module '*/assets/task.js' {
+  /**
+   * Only the row of facts is declared, because it is the one rule on the
+   * agent's page: what each cell says, and which dash it draws when it cannot.
+   * The page itself is a thing to look at in a browser.
+   */
+  export function stripOf(
+    task: Record<string, any>,
+    store: Record<string, any>,
+  ): { label: string; value: string | null; under?: string | null; tone?: string | null }[]
+}

@@ -36,30 +36,72 @@ import { panel } from './ui.js'
  * sentence case, so a screen reader reads a heading instead of spelling it. The
  * body is a landmark of its own (`aria-labelledby`), which is what makes the
  * page navigable by region rather than by scrolling.
+ *
+ * **A screen's own section (`top`) is the page bar** (`pageBar`): the one line
+ * every screen in the middle starts with, level with the side's own heading.
  */
 let seq = 0
 
 export function section(title, opts = {}) {
   seq += 1
   const id = `h${seq}`
-  const node = el('section', { class: 'section', attrs: { 'aria-labelledby': id } })
-  const head = el('div', { class: 'section-head' })
-  const heading = el(opts.top === true ? 'h1' : 'h2', {
-    text: title,
-    attrs: { id, 'aria-label': sentence(title) },
+  const top = opts.top === true
+  const node = el('section', {
+    class: top ? 'section pg' : 'section',
+    attrs: { 'aria-labelledby': id },
   })
-  const figure = el('span', { class: 'figure' })
-  into(head, heading)
-  // What the section is, when it needs saying: one `?` beside the heading,
+  const bar = top ? pageBar(title, { id }) : null
+  const head = bar?.node ?? el('div', { class: 'section-head' })
+  const heading =
+    bar?.heading ??
+    el('h2', {
+      text: title,
+      attrs: { id, 'aria-label': sentence(title) },
+    })
+  const figure = bar?.figure ?? el('span', { class: 'figure' })
+  if (bar === null) into(head, heading, figure)
+  // What the section is, when it needs saying: one `?` at the end of its line,
   // the sentence under it only when asked — never a paragraph on the page.
   const hint = opts.hint === undefined ? null : hintOf(opts.hint)
-  if (hint !== null) into(head, hint.press)
-  into(head, figure)
+  if (hint !== null) (bar?.tools ?? head).append(hint.press)
   const body = el('div')
   into(node, head)
   if (hint !== null) into(node, hint.body)
   into(node, body)
-  return { node, body, figure, heading }
+  return { node, body, figure, heading, tools: bar?.tools ?? null }
+}
+
+/**
+ * The page bar: where you are, how many, and what may be done here — one line
+ * the height of the side's own heading, with a hairline under it across the
+ * whole of the middle, so the three columns read as one frame.
+ *
+ * `back` is the place this screen is one row of (`{ text, href }`), drawn as
+ * the crumb before the name; `name` says the title is somebody's name, set as
+ * it was written rather than in sentence case; `glyph` goes before it.
+ */
+export function pageBar(title, opts = {}) {
+  seq += 1
+  const id = opts.id ?? `h${seq}`
+  const node = el('div', {
+    class: opts.name === true ? 'section-head pg-bar is-name' : 'section-head pg-bar',
+  })
+  if (opts.back !== undefined && opts.back !== null) {
+    into(
+      node,
+      el('a', { class: 'back pg-crumb', text: opts.back.text, attrs: { href: opts.back.href } }),
+      el('span', { class: 'pg-sep', text: '/', attrs: { 'aria-hidden': 'true' } }),
+    )
+  }
+  if (opts.glyph !== undefined) into(node, opts.glyph)
+  const heading = el('h1', {
+    text: title,
+    attrs: opts.name === true ? { id } : { id, 'aria-label': sentence(title) },
+  })
+  const figure = el('span', { class: 'figure' })
+  const tools = el('div', { class: 'pg-tools' })
+  into(node, heading, figure, tools)
+  return { node, heading, figure, tools }
 }
 
 /** `WANTS YOU` read aloud as "Wants you", not as five letters and three. */

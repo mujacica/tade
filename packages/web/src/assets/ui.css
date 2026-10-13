@@ -368,3 +368,54 @@ a.ui-card:hover,
 .ui-problem:empty {
   display: none;
 }
+
+/* ── facts: a row of figures, a label over each ────────────────────────────── */
+
+/*
+  The overview's tiles at the size of a heading: one panel, its cells side by
+  side with a hairline between them, each a quiet label, the value and a line
+  under it. As many across as fit; two on a phone.
+*/
+.ui-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin: 0;
+  border-radius: var(--r2);
+  border: var(--border);
+  background: var(--line);
+  overflow: hidden;
+}
+
+.ui-fact {
+  flex: 1 1 7.5rem;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s3) var(--s4);
+  background: var(--panel);
+  color: var(--bright);
+}
+
+.ui-fact > dt {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.ui-fact > dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+}
+
+.ui-fact > dd.ui-fact-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: 400;
+}
