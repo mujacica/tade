@@ -1,6 +1,7 @@
 import {
   addWorkflowStep,
   editWorkflow,
+  type Persona,
   publishTemplate,
   readDraft,
   readPersonas,
@@ -51,6 +52,11 @@ export class Workflows {
   private listed: WorkflowRow[] = []
   private published: Record<string, readonly number[]> = {}
   private problem: string | null = null
+  /**
+   * The personas there are — Tade's own and yours — as `publishTemplate`
+   * reads them, read with each template so a draw never waits on a file.
+   */
+  private personas: ReadonlyMap<string, Persona> = new Map()
 
   constructor(wire: Wiring) {
     this.wire = wire
@@ -91,12 +97,9 @@ export class Workflows {
     }
     const scope: WorkflowScope =
       panel.row < 0 ? { kind: 'template' } : { kind: 'step', at: panel.row }
-    // A published version was checked when it was published, and its
-    // personas are folded into it or are Tade's own: checking it again here
-    // with none would refuse it for naming them.
-    const checked = read.snapshot
-      ? { problems: [], warnings: [] }
-      : templateProblems(read.template, { personas: new Map() })
+    // Against the personas publishing would read: checked against none, every
+    // step naming `implementer` was refused for a persona every home has.
+    const checked = templateProblems(read.template, { personas: this.personas })
     const fields = workflowFields(read.template, scope)
     return {
       rows: this.listed.map((one) => ({
@@ -149,6 +152,7 @@ export class Workflows {
   /** The draft of one template, read, with its steps put into the list under it. */
   private async load(name: string, row: number): Promise<void> {
     const home = this.wire.opts.client.home
+    this.personas = (await readPersonas(home)).personas
     const draft = await readDraft(home, name)
     // **No draft is the ordinary state of every template Tade ships**, and of
     // one somebody only published: the page shows that version, read only,

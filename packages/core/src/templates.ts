@@ -219,9 +219,12 @@ export function templateProblems(
       )
     }
     if (agent.persona !== undefined && !context.personas.has(agent.persona)) {
-      const known = [...context.personas.keys()]
+      // Which step, which persona, and both ways out — because "not one here"
+      // left a reader asking where *here* was and what one would look like.
+      const known = [...context.personas.keys()].sort()
+      const write = `write personas/active/${agent.persona}.md in Tade's home`
       say(
-        `${agent.name} wants the persona ${agent.persona}, which is not one here${known.length ? `; there are ${joined(known)}` : ''}`,
+        `the ${agent.name} step names the persona ${agent.persona}, and there is no persona called that: ${known.length ? `pick one of ${joined(known)}, or ${write}` : write}`,
       )
     }
     const resolved = resolveAgent(agent, context.personas)

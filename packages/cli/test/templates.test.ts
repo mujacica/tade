@@ -131,7 +131,7 @@ agents:
     draft(DRAFT.replace('persona: implementer', 'persona: wizard'))
     const { code, stderr } = await tade('templates', 'check', 'mine')
     expect(code).toBe(2)
-    expect(stderr).toMatch(/wants the persona wizard/)
+    expect(stderr).toMatch(/names the persona wizard, and there is no persona called that/)
   })
 
   it('dry-runs a draft and makes nothing: no task folder anywhere after it', async () => {
@@ -265,7 +265,7 @@ agents:
     draft(DRAFT.replace('persona: implementer', 'persona: wizard'))
     const { code, stderr } = await tade('templates', 'publish', 'mine')
     expect(code).toBe(2)
-    expect(stderr).toMatch(/wants the persona wizard/)
+    expect(stderr).toMatch(/names the persona wizard, and there is no persona called that/)
     const { stdout } = await tade('templates', 'list')
     expect(stdout).toContain('mine — drafted, nothing published')
   })

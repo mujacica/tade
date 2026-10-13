@@ -131,7 +131,7 @@ async function foldOf(one: Machine): Promise<FactoryHeld> {
         watches: [CLI_WATCH],
       }),
     ),
-    workflows: workflowsIn(await workflowsRead(one.home, one.client.config, new Map(), false)),
+    workflows: workflowsIn(await workflowsRead(one.home, new Map(), false)),
     runFrom: new Map(),
   }
 }

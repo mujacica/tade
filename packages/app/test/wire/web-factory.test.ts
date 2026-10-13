@@ -343,7 +343,7 @@ describe('the workflows, read off disk', () => {
 
   it('carries the draft, its hash, and what the validator said', async () => {
     const home = await homeWith(draftYaml(draft))
-    const held = await workflowsRead(home, config(), new Map([['reproduce-and-fix', 2]]), true)
+    const held = await workflowsRead(home, new Map([['reproduce-and-fix', 2]]), true)
     const one = held.find((each) => each.name === 'reproduce-and-fix')
     expect(one?.shows).toBe('draft')
     expect(one?.draft?.version).toBe(4)
@@ -356,7 +356,7 @@ describe('the workflows, read off disk', () => {
     // The failure this prevents: a broken file drawn as a workflow that would
     // publish as it stands.
     const home = await homeWith('this: [is not, a template')
-    const held = await workflowsRead(home, config(), new Map(), true)
+    const held = await workflowsRead(home, new Map(), true)
     const one = held.find((each) => each.name === 'reproduce-and-fix')
     expect(one?.problems.length).toBeGreaterThan(0)
     expect(one?.shows).toBe('nothing')
@@ -366,14 +366,36 @@ describe('the workflows, read off disk', () => {
   it('never offers a workflow Tade ships for saving, whatever the setting says', async () => {
     // Its bytes are in Tade's own source and `writeDraft` refuses the name —
     // said here as a fact rather than discovered at the save.
-    const held = await workflowsRead(await homeWith(null), config(), new Map(), true)
+    const held = await workflowsRead(await homeWith(null), new Map(), true)
     for (const one of held.filter((each) => each.builtIn))
       expect(one.editable, one.name).toBe(false)
   })
 
+  // What a phone showed under "Before it publishes" for both workflows Tade
+  // ships: `fix wants the persona implementer, which is not one here`. They
+  // were checked against no personas at all, and Tade ships the ones they name.
+  it('finds nothing wrong with a workflow Tade ships, in a home with nothing in it', async () => {
+    const held = await workflowsRead(await homeWith(null), new Map(), true)
+    const shipped = held.filter((each) => each.builtIn)
+    expect(shipped.length).toBeGreaterThan(0)
+    for (const one of shipped) {
+      expect(one.shows, one.name).toBe('published')
+      expect(one.problems, one.name).toEqual([])
+    }
+  })
+
+  it('names a persona there is not, and says which there are and where one goes', async () => {
+    const naming = { ...draft, agents: [{ ...draft.agents[0], persona: 'wizard' }] }
+    const held = await workflowsRead(await homeWith(draftYaml(naming as Template)), new Map(), true)
+    const said = held.find((each) => each.name === 'reproduce-and-fix')?.problems.join('\n')
+    expect(said).toContain('the reproduce step names the persona wizard')
+    expect(said).toContain('implementer')
+    expect(said).toContain('personas/active/wizard.md')
+  })
+
   it('offers nothing for saving while the setting is off', async () => {
     const home = await homeWith(draftYaml(draft))
-    const held = await workflowsRead(home, config(), new Map(), false)
+    const held = await workflowsRead(home, new Map(), false)
     for (const one of held) expect(one.editable, one.name).toBe(false)
   })
 })

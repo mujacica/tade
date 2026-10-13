@@ -344,7 +344,6 @@ export class Intake implements Subject {
     this.readAt = now
     this.reading = workflowsRead(
       this.wire.opts.client.home,
-      this.wire.opts.config,
       this.runsPerWorkflow(),
       this.wire.opts.config.surfaces.web.drafts,
     )

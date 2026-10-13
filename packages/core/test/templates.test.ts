@@ -199,7 +199,10 @@ describe('a template', () => {
       template({ agents: [{ name: 'a', persona: 'wizard', prompt: 'a' }] }),
       { personas: personas() },
     ).problems
-    expect(problems.join('\n')).toMatch(/wants the persona wizard, which is not one here/)
+    const said = problems.join('\n')
+    expect(said).toMatch(/the a step names the persona wizard, and there is no persona called that/)
+    expect(said).toMatch(/pick one of .*implementer/)
+    expect(said).toContain('or write personas/active/wizard.md')
   })
 
   // The brief's deadlock, made a refusal rather than a three-in-the-morning

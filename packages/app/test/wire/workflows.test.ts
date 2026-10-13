@@ -187,6 +187,19 @@ describe('writing a stored workflow', () => {
     expect(w.view()?.problem).toContain('mine.yaml')
   })
 
+  it('checks a draft against the personas there are, Tade’s own among them', async () => {
+    const naming = (one: string) =>
+      DRAFT.replace('  - name: fix\n', `  - name: fix\n    persona: ${one}\n`)
+    const w = wiring({ draft: naming('implementer') })
+    await w.open()
+    expect(w.view()?.problems).toEqual([])
+    const v = wiring({ draft: naming('wizard') })
+    await v.open()
+    expect(v.view()?.problems.join(' ')).toContain(
+      'the fix step names the persona wizard, and there is no persona called that: pick one of',
+    )
+  })
+
   it('saves a field a letter at a time, and the file is what it says', async () => {
     const w = wiring({ draft: DRAFT })
     await w.open()

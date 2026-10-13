@@ -6,6 +6,7 @@ import {
   type InboxRow,
   type IntakeSource,
   type Persona,
+  readPersonas,
   readPublished,
   readTemplates,
   type Schedule,
@@ -238,11 +239,14 @@ export async function wouldOf(
  */
 export async function workflowsRead(
   home: string,
-  config: Config,
   runs: ReadonlyMap<string, number>,
   drafting: boolean,
 ): Promise<WorkflowHeld[]> {
   const { templates } = await readTemplates(home)
+  // The personas publishing would fold in — Tade's own and yours — read once,
+  // so a step naming `implementer` is not refused here for a persona every
+  // home has.
+  const { personas } = await readPersonas(home)
   const held: WorkflowHeld[] = []
   for (const one of templates) {
     // **Which template the steps are of is said rather than left to be
@@ -276,7 +280,7 @@ export async function workflowsRead(
       // empty list that reads as *it would publish as it stands*.
       ...(draft !== null && !draft.ok
         ? { problems: [...draft.problems], warnings: [] }
-        : checkedOf(template, config)),
+        : checkedOf(template, personas)),
       runs: runs.get(one.name) ?? 0,
       // A workflow Tade ships has its bytes in Tade's own source, so there is
       // no draft to save and `writeDraft` refuses one by name — said here as a
@@ -290,15 +294,13 @@ export async function workflowsRead(
 /** What the validator said about one draft. */
 function checkedOf(
   template: Template | null,
-  _config: Config,
+  personas: ReadonlyMap<string, Persona>,
 ): { problems: string[]; warnings: string[] } {
   if (template === null) return { problems: [], warnings: [] }
-  // The personas are **deliberately not read here**: `templateProblems` with
-  // none says a step naming one cannot be resolved, which is a problem a
-  // reader should see rather than a silence. Publishing folds the real ones in
-  // and refuses the same way (`publishTemplate`), so what a phone is told is
-  // never softer than what publishing would say.
-  const personas: ReadonlyMap<string, Persona> = new Map()
+  // Against the personas there are, which is what `publishTemplate` checks
+  // against: what a phone is told is then never softer than what publishing
+  // would say — and never harsher either. Checking against none refused every
+  // workflow Tade ships, for naming personas Tade ships.
   const checked = templateProblems(template, { personas })
   return { problems: [...checked.problems], warnings: [...checked.warnings] }
 }
