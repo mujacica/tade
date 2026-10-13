@@ -1,102 +1,229 @@
-// The workflow designer, as two screens: the workflows there are, and one
-// workflow as a list, a form and a dry run.
+// The workflows, as two screens: the workflows there are (here), and one
+// workflow (`workflows-one.js`).
 //
-// **A list, a form and a dry run — never a canvas.** That is
-// `templates-edit.ts`'s own decision carried onto a phone rather than a new
-// one: a template has three to five steps with one shape, a canvas is for a
-// graph you do not already know, and positions are noise in every diff. The
-// form's rows are `workflowFields`' own, which is the same form the window
-// walks, so neither surface can offer a field the validator would refuse.
+// **What somebody opening this page wants first** is which workflows are
+// ready to run, which are being written, and whether any draft would not
+// publish — then what each one *does*. So the page leads with the whole as one
+// picture (how many, how they stand, what was run from them) and then the
+// workflows as cards grouped the same way: the drafts first, because a draft
+// is the one thing a device may write to; then what is published; then what
+// Tade ships. Each card draws its workflow's shape — a column per stage, a dot
+// per step, a curve per wait, and the stages in words beside it — its versions
+// as a line, and the runs stamped from it.
 //
-// **A published version is a snapshot and never changes.** `versions` is the
-// list of them and `draft` is the one thing an edit can reach, so what is
-// published cannot move under a run that is going.
+// **A published version is a snapshot and never changes**, and a draft is a
+// file no run reads: the line of versions draws them as two kinds of mark,
+// always, so `v3` never means two things on one screen.
 //
 // **What is absent is the point.** There is no publish, no new, no rename and
-// no delete: each of those decides what every future run does, and each is an
-// act at the machine with no route at all. They are *named* with their clause
-// (`locally`) rather than left as holes.
+// no delete: each decides what every future run does, and each is an act at
+// the machine with no route at all (`workflows-one.js` names them).
+//
+// Nothing here decides a state, a count or a reason (`workflows-shape.js`).
 
 import { mayFor } from '../access.js'
-import { afterAnswer, draftBody, savingOf } from '../acts.js'
-import { el, into, keyed, proseOf, textIn } from '../dom.js'
+import { stack, stackIn } from '../charts.js'
+import { el, glyphOf, into, keyed, markIn, skeleton, textIn } from '../dom.js'
 import { count } from '../figures.js'
-import { icon } from '../icons.js'
 import { pathOf } from '../routes.js'
+import { sayIn, section } from '../rows.js'
+import { omitted, runsOf, workflowsOf } from '../store.js'
+import { stateBox, stateBoxIn } from '../ui.js'
 import {
-  createLocally,
-  createSaidRow,
-  createWaitRow,
-  dl,
-  dlIn,
-  fillLocally,
-  fillSaidRow,
-  fillWaitRow,
-  nothingSaid,
-  pageBar,
-  sayIn,
-  section,
-} from '../rows.js'
-import { omitted, workflowAt, workflowsOf } from '../store.js'
-import { answerIn, note, panel } from '../ui.js'
+  figureSaid,
+  runsLine,
+  runsLineIn,
+  shape,
+  shapeIn,
+  versionLine,
+  versionLineIn,
+} from './workflows-draw.js'
+import {
+  GROUPS,
+  groupsOf,
+  overallOf,
+  runsLineOf,
+  standingMark,
+  standingOf,
+  stateOf,
+} from './workflows-shape.js'
+
+export { workflowScreen } from './workflows-one.js'
 
 /* ── the workflows ─────────────────────────────────────────────────────────── */
 
 export function workflowsScreen() {
   const node = el('div')
   const made = section('WORKFLOWS', { top: true })
-  const list = panel('ul', 'rows')
-  const none = el('p', { class: 'empty nothing' })
-  into(made.body, list, none)
+  const coming = skeleton(3)
+  const nothing = stateBox()
+  const lead = leadOf()
+  const groups = GROUPS.map((one) => groupOf(one))
+  const left = el('p', { class: 'unknown' })
+  into(made.body, coming, nothing, lead.node, ...groups.map((one) => one.made.node), left)
   into(node, made.node)
 
   return {
     node,
     update(view) {
-      const rows = workflowsOf(view.store)
+      const had = view.store.had === true
+      const rows = had ? workflowsOf(view.store) : []
       const total = rows.length + omitted(view.store, 'workflows')
-      textIn(made.figure, count(total))
-      made.figure.setAttribute('aria-label', `${total} workflows`)
-      none.hidden = rows.length > 0
-      textIn(
-        none,
-        rows.length > 0
-          ? ''
-          : nothingSaid(
-              mayFor(view.store, 'workflows'),
-              total,
-              'no workflow has been written here',
-            ),
-      )
-      keyed(list, rows, (row) => row.name, createWorkflowRow, fillWorkflowRow)
+      figureSaid(made.figure, had ? count(total) : '', total, 'workflows')
+      coming.hidden = had
+      // **Two nothings, two sentences**: none written, and none this device
+      // was granted — which carries its count, because *there are three and
+      // you may not read them from here* is not *there are none*.
+      stateBoxIn(nothing, had && rows.length === 0 ? nothingOf(view, total) : null)
+      const runs = had ? runsOf(view.store) : []
+      lead.node.hidden = rows.length === 0
+      if (rows.length > 0) lead.fill(overallOf(rows, runs))
+      const grouped = groupsOf(rows)
+      groups.forEach((one, at) => {
+        one.fill(grouped[at].rows, runs)
+      })
+      const n = rows.length === 0 ? 0 : omitted(view.store, 'workflows')
+      sayIn(left, n === 0 ? '' : `${n} more workflows are not on this page`)
     },
   }
 }
 
-function createWorkflowRow() {
-  const node = el('li')
-  const link = el('a', { attrs: { href: '/workflows' } })
-  // The row's first column is its mark, as every row's is: a workflow's own.
-  const mark = el('span', { class: 'glyph t-quiet', attrs: { 'aria-hidden': 'true' } })
-  into(mark, icon('workflows'))
-  const name = el('span', { class: 'name' })
-  const aside = el('span', { class: 'aside' })
-  const under = el('span', { class: 'under' })
-  into(link, mark, name, aside, under)
-  return into(node, link)
+function nothingOf(view, total) {
+  if (!mayFor(view.store, 'workflows')) {
+    return stateOf(
+      'empty',
+      'Not granted to this device',
+      total === 0
+        ? 'The workflows are a grant of their own, given at the machine when a device is paired.'
+        : total === 1
+          ? 'There is one workflow at the machine, and this device was not granted it.'
+          : `There are ${total} workflows at the machine, and this device was not granted them.`,
+    )
+  }
+  if (total > 0) return null
+  return stateOf(
+    'empty',
+    'No workflows yet',
+    'A workflow is the steps of work that arrives the same way again and again. One is written and published at the machine; a draft of it can then be filled in here.',
+  )
 }
 
-function fillWorkflowRow(node, row) {
-  const [link] = node.children
-  const [, name, aside, under] = link.children
-  link.setAttribute('href', pathOf({ view: 'workflow', name: row.name }))
-  textIn(name, row.name)
-  textIn(aside, row.published === null ? 'not published' : `v${row.published}`)
-  aside.setAttribute(
-    'aria-label',
-    row.published === null ? 'no published version' : `published version ${row.published}`,
+/* ── the lead: how many, how they stand, and what ran from them ────────────── */
+
+function leadOf() {
+  const node = el('div', { class: 'ui-card wf-lead' })
+  const figures = el('div', { class: 'wf-lead-figures' })
+  const many = el('p', { class: 'wf-lead-many' })
+  into(many, el('span', { class: 'wf-lead-n' }), el('span', { class: 'wf-lead-unit' }))
+  const ran = el('p', { class: 'wf-lead-ran' })
+  into(
+    ran,
+    el('span', { class: 'wf-lead-m' }),
+    el('span', { class: 'wf-lead-unit' }),
+    el('span', { class: 'wf-lead-going' }),
   )
-  textIn(under, workflowSays(row))
+  into(figures, many, ran)
+  const parts = stack('How the workflows stand')
+  into(node, figures, parts)
+  return {
+    node,
+    fill(all) {
+      const [n, unit] = many.children
+      textIn(n, String(all.workflows))
+      textIn(unit, all.workflows === 1 ? 'workflow' : 'workflows')
+      const [m, word, going] = ran.children
+      textIn(m, String(all.runs))
+      textIn(word, all.runs === 1 ? 'run stamped from them' : 'runs stamped from them')
+      textIn(going, all.going === 0 ? '' : `${all.going} under way`)
+      going.hidden = all.going === 0
+      stackIn(parts, all.parts)
+    },
+  }
+}
+
+/* ── a group of cards ──────────────────────────────────────────────────────── */
+
+function groupOf(group) {
+  const made = section(group.heading)
+  const list = el('ul', { class: 'wf-cards' })
+  into(made.body, list)
+  return {
+    made,
+    fill(rows, runs) {
+      made.node.hidden = rows.length === 0
+      figureSaid(made.figure, count(rows.length), rows.length, 'workflows')
+      keyed(
+        list,
+        rows,
+        (row) => row.name,
+        createCard,
+        (one, row) => fillCard(one, row, runs),
+      )
+    },
+  }
+}
+
+/* ── one workflow, as a card ───────────────────────────────────────────────── */
+
+let cards = 0
+
+/**
+ * A workflow as a card: its mark and name, what it is for, the shape its steps
+ * make, its versions, the runs from it, and what would stop it publishing.
+ *
+ * **The name is the link, and the card is its target**: the whole card
+ * answers a tap (`.wf-card-link::after`), but what a screen reader hears as
+ * the link is the workflow's name, described by its line (`workflowSays`) —
+ * not a paragraph of everything the card draws.
+ */
+function createCard() {
+  cards += 1
+  const item = el('li', { class: 'ui-card wf-card' })
+  const head = el('div', { class: 'wf-card-head' })
+  const glyph = glyphOf(standingMark('empty'))
+  // Hidden, and still the link's description: a node `aria-describedby` names
+  // is read from whether or not it is drawn, and drawn it would be read twice.
+  const says = el('span', { attrs: { id: `wf-says${cards}`, hidden: '' } })
+  const link = el('a', {
+    class: 'wf-card-link',
+    attrs: { href: '/workflows', 'aria-describedby': `wf-says${cards}` },
+  })
+  const tag = el('span', { class: 'ui-pill', text: 'ships with Tade' })
+  into(head, glyph, link, tag, says)
+  const about = el('p', { class: 'wf-card-about' })
+  const drawn = shape()
+  const foot = el('div', { class: 'wf-card-foot' })
+  into(foot, versionLine(), runsLine())
+  const stops = el('p', { class: 'wf-card-stops' })
+  into(
+    stops,
+    el('span', { class: 'glyph t-failed', text: '▲', attrs: { 'aria-hidden': 'true' } }),
+    el('span'),
+  )
+  return into(item, head, about, stops, drawn, foot)
+}
+
+function fillCard(item, row, runs) {
+  const [head, about, stops, drawn, foot] = item.children
+  const [glyph, link, tag, says] = head.children
+  const standing = standingOf(row)
+  markIn(glyph, standingMark(standing))
+  item.setAttribute('data-standing', standing)
+  link.setAttribute('href', pathOf({ view: 'workflow', name: row.name }))
+  textIn(link, row.name)
+  textIn(says, workflowSays(row))
+  tag.hidden = !row.builtIn
+  sayIn(about, row.title?.words ?? '')
+  shapeIn(drawn, row)
+  const [versions, ran] = foot.children
+  versionLineIn(versions, row, runs)
+  runsLineIn(ran, runsLineOf(row, runs))
+  const n = row.problems.length
+  stops.hidden = n === 0
+  textIn(
+    stops.lastChild,
+    n === 0 ? '' : `${n} ${n === 1 ? 'thing' : 'things'} would stop it publishing`,
+  )
 }
 
 /**
@@ -110,397 +237,11 @@ function fillWorkflowRow(node, row) {
 export function workflowSays(row) {
   const bits = []
   if (row.builtIn) bits.push('one Tade ships')
+  bits.push(row.published === null ? 'not published' : `published v${row.published}`)
   if (row.draft !== null) bits.push(`draft v${row.draft}`)
   if (row.steps.length > 0)
     bits.push(`${row.steps.length} ${row.steps.length === 1 ? 'step' : 'steps'}`)
   if (row.runs > 0) bits.push(`${row.runs} ${row.runs === 1 ? 'run' : 'runs'}`)
   if (row.problems.length > 0) bits.push(`${row.problems.length} would stop it publishing`)
   return bits.join(' · ')
-}
-
-/* ── one workflow: the designer ────────────────────────────────────────────── */
-
-/**
- * One workflow, as a list, a form and a dry run.
- *
- * **Three regions and no fourth.** The list is the steps in the order they go,
- * with what each waits on; the form is `workflowFields`' own rows, which is
- * the same form the window walks, so neither can offer a field the validator
- * would refuse; and the dry run is `dryRunOf`'s own answer — what would be
- * made, what it grants, and what bounds it — which is the thing that makes a
- * stored workflow safe to have at all.
- *
- * **What is absent is the point.** There is no publish, no new, no rename and
- * no delete: each of those decides what every future run does, and each is an
- * act at the machine with no route at all. They are *named* with their clause
- * (`locally`) rather than left as holes.
- */
-export function workflowScreen(where, ctx) {
-  const node = el('div')
-  const bar = pageBar(where.name, { name: true, back: { text: 'Workflows', href: '/workflows' } })
-  const gone = el('p', { class: 'empty nothing' })
-
-  const about = section('THE WORKFLOW')
-  const facts = dl()
-  const says = el('div')
-  into(about.body, facts, says)
-
-  const problems = section('WHAT WOULD STOP IT PUBLISHING')
-  const problemList = panel('ul', 'rows')
-  const problemNone = el('p', {
-    class: 'empty nothing',
-    text: 'nothing: it would publish as it stands',
-  })
-  into(problems.body, problemList, problemNone)
-
-  const steps = section('THE STEPS')
-  const stepList = el('div')
-  const stepNone = el('p', { class: 'empty nothing' })
-  into(steps.body, stepList, stepNone)
-
-  const form = section('THE TEMPLATE’S OWN FIELDS')
-  const formBody = formIn(form.body, ctx)
-
-  const shape = section('THE SHAPE A RUN TAKES')
-  const shapeBody = shapeIn(shape.body)
-
-  const stays = section('AT THE MACHINE')
-  const locally = el('ul', { class: 'locally' })
-  into(stays.body, locally)
-
-  const parts = [about, problems, steps, form, shape, stays]
-  into(node, bar.node, gone, ...parts.map((one) => one.node))
-
-  return {
-    node,
-    update(view) {
-      const row = workflowAt(view.store, where.name)
-      gone.hidden = row !== null
-      textIn(
-        gone,
-        row === null
-          ? mayFor(view.store, 'workflows')
-            ? 'There is no workflow by that name here.'
-            : 'This device was not granted the workflows.'
-          : '',
-      )
-      for (const one of parts) one.node.hidden = row === null
-      if (row === null) return
-      dlIn(facts, [
-        [
-          'published',
-          row.versions.length === 0 ? 'never' : row.versions.map((v) => `v${v}`).join(', '),
-        ],
-        ['draft', row.draft === null ? 'none' : `v${row.draft}`],
-        // **Which template the steps below are of.** A draft is a file nothing
-        // runs and the one thing an edit reaches; a published snapshot is what
-        // a run points at and never changes. Said, because `v3` meaning two
-        // things on one screen is the ambiguity this row must not have.
-        ['the steps below', SHOWS[row.shows] ?? row.shows],
-        ['runs pointing at it', String(row.runs)],
-        ['names the repository', row.projectInput],
-        ['becomes the sentence', row.saidInput],
-        ['name tail', row.nameSuffix],
-      ])
-      says.replaceChildren()
-      into(says, proseOf(row.about))
-      keyed(
-        problemList,
-        [
-          ...row.problems.map((said) => ({ said, bad: true })),
-          ...row.warnings.map((said) => ({ said, bad: false })),
-        ],
-        (one) => one.said,
-        createSaidRow,
-        fillSaidRow,
-      )
-      problemNone.hidden = row.problems.length + row.warnings.length > 0
-      keyed(
-        stepList,
-        row.steps,
-        (step) => step.name,
-        createStepBlock,
-        (one, step) => fillStepBlock(one, step, row, ctx, view),
-      )
-      stepNone.hidden = row.steps.length > 0
-      textIn(
-        stepNone,
-        row.steps.length > 0
-          ? ''
-          : row.draft === null
-            ? 'there is no draft: what is published is a snapshot nothing may change'
-            : 'this draft has no steps yet',
-      )
-      formBody.update(row, { scope: 'template', fields: row.fields }, view)
-      shapeBody.update(row, view)
-      keyed(locally, row.locally, (one) => one.act, createLocally, fillLocally)
-    },
-  }
-}
-
-function createStepBlock() {
-  const node = el('div', { class: 'section' })
-  const head = el('h3', { class: 'aside' })
-  const facts = dl()
-  const prompt = el('div')
-  const waits = el('ul', { class: 'waits' })
-  const form = el('div')
-  return into(node, head, facts, prompt, waits, form)
-}
-
-/**
- * One step's form, made once and kept on its own node.
- *
- * Kept rather than rebuilt because `keyed` fills a row it already has, and a
- * form rebuilt on every delta is a box that empties itself twice a second
- * under somebody's thumb. `ctx` is handed in so a step block made before the
- * page knew its scopes still gets the same one.
- */
-const FORMS = new WeakMap()
-
-function formOn(node, parent, ctx) {
-  const held = FORMS.get(node)
-  if (held !== undefined) return held
-  const made = formIn(parent, ctx)
-  FORMS.set(node, made)
-  return made
-}
-
-function fillStepBlock(node, step, row, ctx, view) {
-  const [head, facts, prompt, waits, form] = node.children
-  textIn(head, step.name)
-  dlIn(facts, [
-    ['persona', step.persona],
-    ['model', step.model],
-    ['finished when', step.done],
-    ['produces', step.produces],
-    ['leaves the checks', step.leaves],
-    ['touches', step.touches.join(', ') || null],
-  ])
-  prompt.replaceChildren()
-  into(prompt, proseOf(step.prompt, true))
-  keyed(
-    waits,
-    step.after,
-    (one) => one.agent,
-    createWaitRow,
-    (one, wait) => fillWaitRow(one, { task: wait.agent, why: wait.why }),
-  )
-  // The step's own form, built once and then patched, so what somebody is part
-  // way through typing survives every delta.
-  formOn(node, form, ctx).update(row, { scope: step.name, fields: step.fields }, view)
-}
-
-/**
- * The form: one row per field, each with what it means under it.
- *
- * **Saving is one field at a time**, which is the bound rather than a
- * limitation: the body carries a field id, a value and the draft's own hash, so
- * an edit from a stale screen meets a draft that has moved and is refused —
- * and there is no shape in which it writes a whole template, renames one or
- * publishes anything.
- */
-function formIn(parent, ctx) {
-  const node = el('div', { class: 'form' })
-  const list = el('div')
-  const none = el('p', { class: 'empty nothing' })
-  const said = el('p', { class: 'said' })
-  into(node, list, none, said)
-  into(parent, node)
-  let scope = 'template'
-  let held = null
-  return {
-    node,
-    update(row, part, view) {
-      scope = part.scope
-      held = row
-      const acts = view.may.acts ?? {}
-      none.hidden = part.fields.length > 0
-      textIn(none, part.fields.length > 0 ? '' : 'nothing to fill in here')
-      keyed(
-        list,
-        part.fields,
-        (field) => field.id,
-        createField,
-        (one, field) =>
-          fillField(one, field, { standing: savingOf(row, field, acts), send: sendOne }),
-      )
-    },
-  }
-
-  /**
-   * One field, saved.
-   *
-   * **The key is minted once per press**: a press whose answer never arrived
-   * is a press whose repeat must not be a second write, and the key is what
-   * lets the machine tell the two apart. `afterAnswer`'s rule holds here too —
-   * only a `200` clears the box, because a `409` is somebody else having saved
-   * the same draft and throwing away what was typed because of it is the one
-   * failure a person cannot undo.
-   */
-  function sendOne(field, box) {
-    if (ctx === undefined || ctx === null || held === null) return
-    const key = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
-    const body = draftBody(held, scope, field.id, box.value, key, ctx.revOf())
-    void ctx.ask('POST', '/api/draft/save', body).then((answer) => {
-      const came = afterAnswer(answer, ctx.sentence(answer))
-      answerIn(said, came.said, came.trouble)
-      if (came.clear) box.value = ''
-    })
-  }
-}
-
-/**
- * One field, built once.
- *
- * The `<label>` is tied to the box with `for`/`id` rather than only by an
- * `aria-label`, because a label that names nothing is a label a pointer
- * cannot use: tapping one should put the keyboard in the field, which on a
- * phone is the difference between a 44px target and a 16px one.
- */
-let fields = 0
-
-function createField() {
-  fields += 1
-  const id = `f${fields}`
-  const node = el('div', { class: 'field' })
-  const label = el('label', { attrs: { for: id } })
-  const value = el('p', { class: 'said' })
-  const means = el('p', { class: 'unknown' })
-  const off = el('p', { class: 'empty' })
-  const box = el('input', { attrs: { type: 'text', id } })
-  const press = el('button', {
-    class: 'press',
-    text: 'Save to the draft',
-    attrs: { type: 'button' },
-  })
-  return into(node, label, value, means, off, box, press)
-}
-
-function fillField(node, field, how) {
-  const [label, value, means, off, box, press] = node.children
-  textIn(label, field.label)
-  textIn(value, field.value === null ? '—' : field.value.words)
-  sayIn(means, field.means ?? '')
-  // **Absent with its reason, never disabled** — `acts.js`' own rule, and
-  // `savingOf` is where the four answers are decided. A field the template
-  // says cannot be changed here, a workflow Tade ships, a published snapshot
-  // with no draft behind it: each turns the box off *and* says why. A device
-  // that was not granted saving at all is told nothing, because a sentence
-  // naming a scope somebody does not have is a map of what else to ask for.
-  const yes = how.standing.kind === 'yes'
-  sayIn(off, how.standing.kind === 'no' ? how.standing.why : '')
-  box.hidden = !yes
-  press.hidden = !yes
-  box.setAttribute('aria-label', `${field.label}, a new value for the draft`)
-  // Wired once. A listener added on every fill would send one act per delta
-  // the row has seen, which is the bug a page that patches rather than rebuilds
-  // is most likely to have.
-  if (node.getAttribute('data-wired') !== 'yes') {
-    node.setAttribute('data-wired', 'yes')
-    press.addEventListener('click', () => how.send(field, box))
-  }
-}
-
-/** What `shows` means, in words rather than as a word nobody defined. */
-const SHOWS = {
-  draft: 'a draft nothing runs until it is published',
-  published: 'the newest published version, which never changes',
-  nothing: 'nothing: there is neither a draft nor a published version',
-}
-
-/**
- * The shape a run takes: one block per column, the steps in it, and the waits.
- *
- * **The shape and not a dry run**, which is the honest preview a template can
- * give: nobody has asked for a run, so there are no inputs, and a dry run
- * filled with invented values would say a run would happen somewhere it would
- * not. The dry run proper is on a request, where the inputs are real — and
- * this says so rather than leaving a reader to wonder where the figures are.
- *
- * A step in a cycle is **named** rather than drawn at some column: a cycle has
- * no column, `templateProblems` is what refuses it, and a drawing that put one
- * at depth nought would read as an order.
- */
-function shapeIn(parent) {
-  const columns = el('div', { class: 'layers' })
-  const none = el('p', { class: 'empty nothing' })
-  const says = note(
-    'per request',
-    'What one run of this would make — which repository, which names, what it may spend — is answered on the request it is stamped for.',
-    'inbox',
-  )
-  into(parent, columns, none, says)
-  return {
-    update(row, view) {
-      const places = row.places
-      none.hidden = places.length > 0
-      textIn(
-        none,
-        places.length > 0
-          ? ''
-          : mayFor(view.store, 'workflows')
-            ? 'there are no steps to put in an order'
-            : 'not granted to this device',
-      )
-      const deep = [...new Set(places.map((place) => place.depth))].sort((a, b) => a - b)
-      keyed(
-        columns,
-        deep,
-        (n) => String(n),
-        createColumn,
-        (one, n) =>
-          fillColumn(
-            one,
-            n,
-            places.filter((place) => place.depth === n),
-          ),
-      )
-      says.hidden = places.length === 0
-    },
-  }
-}
-
-function createColumn() {
-  const node = el('div', { class: 'layer' })
-  const head = el('h3', { class: 'aside' })
-  const list = panel('ul', 'rows')
-  return into(node, head, list)
-}
-
-function fillColumn(node, n, places) {
-  const [head, list] = node.children
-  textIn(head, n === 0 ? 'can go first' : `after column ${n}`)
-  keyed(list, places, (place) => place.name, createPlaceRow, fillPlaceRow)
-}
-
-function createPlaceRow() {
-  const node = el('li')
-  const body = el('div', { class: 'row-static' })
-  const name = el('span', { class: 'name' })
-  const aside = el('span', { class: 'aside' })
-  const under = el('span', { class: 'under' })
-  into(body, name, aside, under)
-  const waits = el('ul', { class: 'waits' })
-  return into(node, body, waits)
-}
-
-function fillPlaceRow(node, place) {
-  const [body, waits] = node.children
-  const [name, aside, under] = body.children
-  textIn(name, place.name)
-  textIn(aside, place.circular ? 'in a cycle' : place.parent === null ? 'waits on nothing' : '')
-  textIn(
-    under,
-    place.circular
-      ? 'it waits, directly or not, on itself: publishing refuses this, and no column is drawn for it'
-      : '',
-  )
-  keyed(
-    waits,
-    place.why,
-    (one) => one.on,
-    createWaitRow,
-    (one, wait) => fillWaitRow(one, { task: wait.on, why: wait.why }),
-  )
 }

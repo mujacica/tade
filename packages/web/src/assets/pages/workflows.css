@@ -1,1 +1,776 @@
-/* The workflows page's own sheet: every rule scoped to it (`.page-workflows`, `test/pages.test.ts`). */
+/*
+  The workflows page's own sheet: every rule scoped to it (`.page-workflows`)
+  or to a class only its modules draw (`test/pages.test.ts`).
+
+  **A workflow is read as a shape and a line of versions**, so the page is
+  drawn round those two pictures — the shape on every card and as stages down
+  a rail on one workflow's screen, the versions as a line of stops — and
+  everything else is the grey ladder. Colour says three things here and
+  nothing else: red for a draft that would not publish, amber for a draft
+  open, green for what is published (DESIGN.md beside the add-away-surface
+  skill). A step of a template has no state of its own, so the shape is grey.
+*/
+
+/* ── the lead: how many, how they stand, and what ran from them ────────────── */
+
+.wf-lead {
+  display: grid;
+  gap: var(--s4);
+  margin-block-end: var(--stack);
+  padding: var(--inset);
+}
+
+.wf-lead-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2) var(--s5);
+}
+
+.wf-lead-many,
+.wf-lead-ran {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s2);
+  min-width: 0;
+}
+
+.wf-lead-n,
+.wf-lead-m {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one figure the page says loudest; what ran from them is a step under it. */
+.wf-lead-n {
+  font-size: var(--step-3);
+}
+
+.wf-lead-m {
+  font-size: var(--step-2);
+}
+
+.wf-lead-unit {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.wf-lead-going {
+  color: var(--amber);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+/* ── a group of cards ──────────────────────────────────────────────────────── */
+
+.wf-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--s3);
+}
+
+/* ── a workflow, as a card ─────────────────────────────────────────────────── */
+
+.wf-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--s1) var(--inset) var(--inset);
+}
+
+.wf-card:has(.wf-card-link:hover) {
+  border-color: var(--control);
+  background: var(--surface);
+}
+
+/* The link is the whole card's target, so the card is where its ring is drawn. */
+.wf-card:has(.wf-card-link:focus-visible) {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/*
+  The one card washed in a tone: a draft that would not publish. Its words
+  stay a text grey and only the ▲ is red, because red as text is under AA on
+  a card washed in its own tone.
+*/
+.wf-card[data-standing="broken"] {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+  background: color-mix(in srgb, var(--red) 5%, var(--panel));
+}
+
+.wf-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.wf-card-head > .glyph {
+  flex: none;
+  width: 1.25rem;
+}
+
+/* The name is the link, and the whole card is what it answers to. */
+.page-workflows .wf-card-link {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--tap);
+  line-height: var(--tap);
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.wf-card-head > .ui-pill {
+  flex: none;
+}
+
+/* What it is for, set on the name's line rather than under the mark. */
+.wf-card-about {
+  margin-block-start: calc(-1 * var(--s2));
+  padding-inline-start: calc(1.25rem + var(--s2));
+  color: var(--body);
+  font-size: var(--step-0);
+  line-height: var(--lead);
+  overflow-wrap: anywhere;
+}
+
+.wf-card-stops {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  color: var(--body);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.wf-card-stops > .glyph {
+  flex: none;
+  width: 1.25rem;
+  font-size: var(--step--1);
+}
+
+/* The foot stands on the card's floor, so a row of cards ends on one line. */
+.wf-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3) var(--s5);
+  margin-block-start: auto;
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+/* ── the shape: a map, and the stages beside it ────────────────────────────── */
+
+.wf-shape {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "map stages"
+    "map said";
+  align-items: center;
+  gap: var(--s1) var(--s4);
+}
+
+.wf-map {
+  grid-area: map;
+  display: block;
+  overflow: visible;
+}
+
+.wf-map-line {
+  fill: none;
+  stroke: var(--chrome);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.wf-map-dot {
+  fill: var(--body);
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+
+.wf-shape-stages {
+  grid-area: stages;
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.wf-shape-stages > li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--step--1);
+}
+
+.wf-shape-n {
+  display: inline-grid;
+  place-items: center;
+  height: 1.25rem;
+  border-radius: var(--r1);
+  background: var(--raised);
+  color: var(--body);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.wf-shape-stages > .is-cycle > .wf-shape-n {
+  background: color-mix(in srgb, var(--red) 14%, var(--panel));
+  color: var(--red);
+}
+
+.wf-shape-names {
+  min-width: 0;
+  color: var(--bright);
+  font-weight: var(--w-label);
+  overflow-wrap: anywhere;
+}
+
+.wf-shape-said {
+  grid-area: said;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── the line of its versions ──────────────────────────────────────────────── */
+
+.wf-versions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.wf-versions-earlier {
+  padding-block-start: 1px;
+  color: var(--heading);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+.wf-versions-line {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.wf-version {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 2.25rem;
+  /* Room between two words under neighbouring stops: `1 run` and `draft`. */
+  padding-inline: 3px;
+}
+
+/* The stop: a published one filled, the newest lit, the draft a ring. */
+.wf-version-dot {
+  position: relative;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin-block: 4px;
+  border-radius: var(--round);
+  background: color-mix(in srgb, var(--green) 45%, var(--panel));
+}
+
+.wf-versions.is-big .wf-version-dot {
+  width: 14px;
+  height: 14px;
+}
+
+.wf-version.is-newest .wf-version-dot {
+  background: var(--green);
+}
+
+.wf-version.is-draft .wf-version-dot {
+  background: var(--panel);
+  border: 2px solid var(--amber);
+}
+
+.wf-versions.is-broken .wf-version.is-draft .wf-version-dot {
+  border-color: var(--red);
+}
+
+/* The line between two stops; into the draft it is a promise, so dashed. */
+.wf-version + .wf-version::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 50%;
+  width: 100%;
+  border-block-start: 1.5px solid var(--chrome);
+}
+
+.wf-version.is-draft::before {
+  border-block-start-style: dashed;
+}
+
+.wf-version-label {
+  color: var(--heading);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.wf-version.is-newest .wf-version-label,
+.wf-version.is-draft .wf-version-label {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+}
+
+.wf-version-under {
+  min-height: 1.25rem;
+  color: var(--heading);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+/* On one workflow's screen, the line is the hero's picture: a size up. */
+
+.wf-versions.is-big .wf-version + .wf-version::before {
+  inset-block-start: 10px;
+}
+
+.wf-versions.is-big .wf-version-label {
+  font-size: var(--step-0);
+}
+
+/* ── the runs stamped from it ──────────────────────────────────────────────── */
+
+.wf-runs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s3);
+  min-height: 1.25rem;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.wf-runs-parts {
+  display: contents;
+}
+
+.wf-runs-part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s1);
+  white-space: nowrap;
+}
+
+.wf-runs-part > .glyph {
+  font-size: var(--step--1);
+}
+
+.wf-runs-n {
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* What would stop it publishing is read whole, never cut at the panel's edge. */
+.wf-before .name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* ── one workflow: the hero ────────────────────────────────────────────────── */
+
+.wf-hero {
+  display: grid;
+  gap: var(--s4);
+  margin-block-end: var(--stack);
+  padding: var(--inset);
+  container-type: inline-size;
+}
+
+.wf-hero-top {
+  display: grid;
+  gap: var(--s4) var(--s6);
+}
+
+/*
+  With room, the words on the left and the versions beside them, each stop a
+  little further apart; on a phone the line keeps the card's spacing, so nine
+  versions still fit across 360 pixels.
+*/
+@container (min-width: 34rem) {
+  .wf-hero-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .wf-versions.is-big .wf-version {
+    min-width: 3.5rem;
+  }
+}
+
+.wf-hero-text {
+  display: grid;
+  align-content: start;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.wf-hero-title {
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  line-height: var(--lead-tight);
+  overflow-wrap: anywhere;
+}
+
+.wf-hero-title.is-missing {
+  color: var(--heading);
+  font-weight: var(--w-label);
+}
+
+.page-workflows .wf-hero-about .said {
+  color: var(--body);
+}
+
+.wf-ready {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-block-start: var(--s1);
+  color: var(--bright);
+  font-weight: var(--w-label);
+}
+
+.wf-ready > .glyph {
+  flex: none;
+  width: 1.25rem;
+}
+
+.wf-hero-saving {
+  padding-inline-start: calc(1.25rem + var(--s2));
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.wf-hero-versions {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.wf-hero-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+/* ── editing: one press, and the form it opens ─────────────────────────────── */
+
+.wf-hero-edit,
+.wf-step-edit {
+  display: grid;
+  justify-items: start;
+  gap: var(--s4);
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+.wf-form {
+  justify-self: stretch;
+  display: grid;
+  gap: var(--s3);
+}
+
+.wf-fields {
+  display: grid;
+  gap: var(--s5);
+}
+
+.wf-field {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.wf-field-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s3);
+}
+
+.page-workflows .wf-field-label {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.wf-field-now {
+  flex: 1 1 100%;
+  color: var(--bright);
+  overflow-wrap: anywhere;
+}
+
+.wf-field-dirty {
+  margin-inline-start: auto;
+  color: var(--amber);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.page-workflows .wf-field :is(input, select) {
+  max-width: none;
+}
+
+.page-workflows .wf-field textarea {
+  margin-block-end: 0;
+}
+
+.wf-field-means,
+.wf-field-off,
+.wf-form-none {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.wf-field-cut {
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.wf-field-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+}
+
+.wf-field-said {
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+/* ── one workflow: the steps beside what is short ──────────────────────────── */
+
+.wf-cols {
+  display: grid;
+  gap: 0 var(--s5);
+}
+
+/* ── the steps, stage by stage, down a rail ────────────────────────────────── */
+
+.wf-rail {
+  display: grid;
+  gap: var(--s5);
+}
+
+.wf-stage {
+  position: relative;
+  display: grid;
+  gap: var(--s3);
+  padding-inline-start: calc(1.75rem + var(--s3));
+}
+
+/* The rail: from under a stage's number to the next stage's. */
+.wf-stage::before {
+  content: "";
+  position: absolute;
+  inset-block: calc(1.75rem + var(--s1)) calc(-1 * var(--s5) + var(--s1));
+  inset-inline-start: calc(0.875rem - 1px);
+  border-inline-start: 2px solid var(--raised);
+}
+
+.wf-stage:last-child::before {
+  display: none;
+}
+
+.wf-stage-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 1.75rem;
+  margin-inline-start: calc(-1 * (1.75rem + var(--s3)));
+}
+
+.wf-stage-n {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--round);
+  background: var(--raised);
+  color: var(--bright);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.wf-stage.is-cycle .wf-stage-n {
+  background: color-mix(in srgb, var(--red) 14%, var(--panel));
+  color: var(--red);
+}
+
+.wf-stage-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.wf-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--s3);
+}
+
+/* ── a step's card ─────────────────────────────────────────────────────────── */
+
+.wf-step {
+  display: grid;
+  align-content: start;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--inset);
+}
+
+.wf-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.wf-step-name {
+  margin-inline-end: auto;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  overflow-wrap: anywhere;
+}
+
+.wf-waits {
+  display: grid;
+  gap: var(--s2);
+}
+
+.wf-wait {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0 var(--s2);
+  font-size: var(--step--1);
+}
+
+.wf-wait-arrow {
+  grid-row: span 2;
+  color: var(--heading);
+  text-align: center;
+}
+
+.wf-wait-on {
+  color: var(--bright);
+  font-weight: var(--w-label);
+}
+
+.wf-wait-why {
+  color: var(--body);
+}
+
+.wf-wait-why.is-missing {
+  color: var(--heading);
+  font-style: italic;
+}
+
+.wf-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s1) var(--s4);
+  font-size: var(--step--1);
+}
+
+.wf-facts > dt {
+  color: var(--heading);
+}
+
+.wf-facts > dd {
+  color: var(--bright);
+  overflow-wrap: anywhere;
+}
+
+.wf-facts > dd.is-mono {
+  font-family: var(--font-mono);
+}
+
+/* What its agent is told: the owner's own words, set off as a quotation. */
+.wf-told {
+  display: grid;
+  gap: var(--s1);
+  padding-inline-start: var(--s3);
+  border-inline-start: 2px solid var(--chrome);
+}
+
+.wf-told-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.wf-step-cycle {
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+/* ── what a run is given, the runs, and what stays at the machine ──────────── */
+
+/* An input has no mark of its own, so its name and line take the mark's column. */
+.wf-input > .name {
+  grid-column: 1 / 3;
+  font-family: var(--font-mono);
+}
+
+.wf-input > .under {
+  grid-column: 1 / -1;
+}
+
+.wf-locally {
+  display: grid;
+  gap: var(--s2);
+}
+
+/*
+  At a desk, the steps and what is short beside them — inputs, runs, the acts
+  at the machine — each column starting on the same line.
+*/
+@media (min-width: 1100px) {
+  .wf-cols {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}
