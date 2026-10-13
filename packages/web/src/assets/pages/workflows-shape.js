@@ -583,6 +583,46 @@ export function toggleSaid(field) {
   return field.value?.words === 'true' ? `Stop waiting on ${on}` : `Wait on ${on}`
 }
 
+/** What a tick's press sends: the other answer, which is what saving one does. */
+export function toggledValue(field) {
+  return field.value?.words === 'true' ? 'false' : 'true'
+}
+
+/**
+ * What a box holds after a fill, pure — the rule that keeps somebody's words.
+ *
+ * `box` is `{ value, was, saved, focused }`: what is in it, what it was last
+ * filled with, the draft revision it was saved at (null when nothing is
+ * waiting to be read back), and whether the keyboard is in it. `now` is what
+ * the field holds now, `rev` the draft revision the row is of.
+ *
+ * - **A box nobody has typed in follows the draft** (`value === was`), unless
+ *   the keyboard is in it — a value changing under a caret is a sentence
+ *   rewritten while somebody reads it.
+ * - **A box somebody typed in is theirs**, whatever arrives, until they save
+ *   or put it back.
+ * - **A saved box keeps what was saved until the draft moves**: a beat that
+ *   lands before the machine has read the draft again still carries the old
+ *   value, and putting that back would look like the save undoing itself.
+ */
+export function boxAfter(box, now, rev) {
+  if (box.saved !== null) {
+    if (box.saved === (rev ?? '')) return box
+  }
+  const untouched = box.was === null || box.value === box.was
+  return {
+    value: untouched && !box.focused ? now : box.value,
+    was: untouched ? now : box.was,
+    saved: null,
+    focused: box.focused,
+  }
+}
+
+/** Whether a box says something the field does not hold: drawn as *not saved*. */
+export function boxDirty(box) {
+  return box.value !== (box.was ?? '')
+}
+
 /**
  * Whether what a step is told is long enough to fold. A line or two is read
  * whole: a `more` under a sentence that has no more is a press that does

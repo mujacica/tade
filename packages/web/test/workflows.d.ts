@@ -72,6 +72,10 @@ declare module '*/assets/pages/workflows-shape.js' {
   export function prefillOf(field: any): string
   export function cutOf(field: any): string
   export function toggleSaid(field: any): string
+  export function toggledValue(field: any): string
+  type Box = { value: string; was: string | null; saved: string | null; focused: boolean }
+  export function boxAfter(box: Box, now: string, rev: string | null): Box
+  export function boxDirty(box: Box): boolean
   export function stateOf(
     kind: string,
     heading: string,

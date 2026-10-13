@@ -20,12 +20,15 @@ import { el, into, keyed, textIn } from '../dom.js'
 import { sayIn } from '../rows.js'
 import { answerIn } from '../ui.js'
 import {
+  boxAfter,
+  boxDirty,
   choicesOf,
   cutOf,
   editorOf,
   fieldLabel,
   fieldSaid,
   prefillOf,
+  toggledValue,
   toggleSaid,
 } from './workflows-shape.js'
 
@@ -145,12 +148,7 @@ function createField(field) {
   press.addEventListener('click', () => {
     const parts = item.wf
     if (parts.send === null) return
-    const value =
-      parts.editor === 'toggle'
-        ? parts.field.value?.words === 'true'
-          ? 'false'
-          : 'true'
-        : parts.control.value
+    const value = parts.editor === 'toggle' ? toggledValue(parts.field) : parts.control.value
     parts.send(parts.field, value, press, said, parts.control)
   })
   return item
@@ -191,8 +189,17 @@ function fillField(item, field, standing, send, rev) {
 /** Whether a box differs from what the field holds, said beside its label. */
 function dirtyIn(parts) {
   const control = parts.control
-  parts.dirty.hidden =
-    control === null || control.hidden || control.value === (control.getAttribute('data-was') ?? '')
+  parts.dirty.hidden = control === null || control.hidden || !boxDirty(boxOf(control))
+}
+
+/** A box's state, as `boxAfter` reads it, off the element and its two marks. */
+function boxOf(control) {
+  return {
+    value: control.value,
+    was: control.getAttribute('data-was'),
+    saved: control.getAttribute('data-saved-at'),
+    focused: control.ownerDocument.activeElement === control,
+  }
 }
 
 /** The ids a box is described by: what it means, and that only its start was sent. */
@@ -206,24 +213,14 @@ function describedBy(parts) {
   return `${parts.means.id} ${parts.cut.id}`
 }
 
-/**
- * A box filled with what the field holds — **only while nobody has typed in
- * it**. `data-was` is what it was last filled with; a box that still says that
- * is untouched and follows the draft, and one that does not is somebody's
- * sentence and is left alone, focused or not.
- */
+/** A box filled with what the field holds, by `boxAfter`'s rule. */
 function prefillIn(control, now, rev) {
-  const saved = control.getAttribute('data-saved-at')
-  if (saved !== null) {
-    if (saved === (rev ?? '')) return
-    control.removeAttribute('data-saved-at')
-  }
-  const was = control.getAttribute('data-was')
-  const untouched = was === null || control.value === was
-  if (untouched && control.value !== now && control.ownerDocument.activeElement !== control) {
-    control.value = now
-  }
-  if (untouched) control.setAttribute('data-was', now)
+  const next = boxAfter(boxOf(control), now, rev)
+  if (control.value !== next.value) control.value = next.value
+  if (next.was === null) control.removeAttribute('data-was')
+  else control.setAttribute('data-was', next.was)
+  if (next.saved === null) control.removeAttribute('data-saved-at')
+  else control.setAttribute('data-saved-at', next.saved)
 }
 
 /** A choice's options, rebuilt only when the list of them changed. */

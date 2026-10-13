@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  boxAfter,
+  boxDirty,
   choicesOf,
   cutOf,
   editorOf,
@@ -23,6 +25,7 @@ import {
   stagesOf,
   standingOf,
   stepFactsOf,
+  toggledValue,
   toggleSaid,
   versionsOf,
   versionsSaid,
@@ -331,5 +334,56 @@ describe('a step and its fields', () => {
     const cut = { ...prompt, value: { words: 'Write a fail', more: true } }
     expect(prefillOf(cut)).toBe('')
     expect(cutOf(cut)).toContain('replaces all of it')
+  })
+})
+
+describe('a box somebody is typing in', () => {
+  /** A box as a fill finds it. */
+  const box = (over = {}) => ({
+    value: 'Write a failing test.',
+    was: 'Write a failing test.',
+    saved: null,
+    focused: false,
+    ...over,
+  })
+
+  it('follows the draft while nobody has typed in it', () => {
+    const next = boxAfter(box(), 'Write two failing tests.', 'sha256:2')
+    expect(next.value).toBe('Write two failing tests.')
+    expect(next.was).toBe('Write two failing tests.')
+    expect(boxDirty(next)).toBe(false)
+    // The first fill of a box that was never filled is a box nobody typed in.
+    expect(boxAfter(box({ value: '', was: null }), 'held', 'sha256:1').value).toBe('held')
+  })
+
+  it('keeps what somebody typed, whatever the draft says next', () => {
+    const typed = box({ value: 'my own words' })
+    const next = boxAfter(typed, 'Write two failing tests.', 'sha256:2')
+    expect(next.value).toBe('my own words')
+    expect(boxDirty(next)).toBe(true)
+  })
+
+  it('never rewrites a box the keyboard is in, and then says it differs', () => {
+    const next = boxAfter(box({ focused: true }), 'somebody else’s words', 'sha256:2')
+    expect(next.value).toBe('Write a failing test.')
+    expect(boxDirty(next)).toBe(true)
+  })
+
+  it('keeps a saved value until the draft it was saved against has moved', () => {
+    // Saved at sha256:1: a beat still at sha256:1 carries the old value, and
+    // putting it back would look like the save undoing itself.
+    const saved = box({ value: 'new words', was: 'new words', saved: 'sha256:1' })
+    const early = boxAfter(saved, 'Write a failing test.', 'sha256:1')
+    expect(early.value).toBe('new words')
+    expect(boxDirty(early)).toBe(false)
+    // The machine has read the draft again: the box follows it from here.
+    const read = boxAfter(saved, 'new words', 'sha256:2')
+    expect(read).toEqual({ value: 'new words', was: 'new words', saved: null, focused: false })
+  })
+
+  it('sends a tick the other answer, which is what saving one does', () => {
+    const tick = { id: 'after:plan', value: { words: 'true', more: false }, kind: 'check' }
+    expect(toggledValue(tick)).toBe('false')
+    expect(toggledValue({ ...tick, value: { words: 'false', more: false } })).toBe('true')
   })
 })
