@@ -351,7 +351,7 @@ describe('saying the window is opening', () => {
     }
   })
 
-  it('is drawn again at a new size, and not at all where it no longer fits', () => {
+  it('is drawn again at a new size, and is the line where it no longer fits', () => {
     const out = terminal()
     sayOpening(as(out), asProcess(process_()))
     out.resize(30, 14)
@@ -359,9 +359,13 @@ describe('saying the window is opening', () => {
     if (at === null) throw new Error('30 × 14 has room for the mark')
     expect(out.written.endsWith(splashBytes(at, markRows(at.side), '256'))).toBe(true)
     out.resize(10, 4)
-    expect(out.written.endsWith('\x1b[2J')).toBe(true)
-    const cleared = out.written
+    expect(out.written.endsWith(`\x1b[2J\x1b[H${OPENING}`)).toBe(true)
+    const small = out.written
     vi.advanceTimersByTime(REST_MS + TURN_MS)
-    expect(out.written).toBe(cleared)
+    expect(out.written).toBe(small)
+    // And the mark again, from nothing, once there is room for it.
+    out.resize(80, 24)
+    expect(out.written.slice(small.length).startsWith('\x1b[2J')).toBe(true)
+    expect(out.written).toContain('T A D E')
   })
 })

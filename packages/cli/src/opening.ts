@@ -131,11 +131,11 @@ function showMark(out: OpeningTerminal, proc: OpeningProcess, first: Placed): ()
     shown = rows
     out.write(markBytes(at, rows, palette))
   }
-  // Drawn again from nothing at the new size, or not at all where it no longer fits.
+  // Drawn again from nothing at the new size, or the line where it no longer fits.
   const resized = (): void => {
     at = placed(roomOf(out))
     if (at === null) {
-      out.write('\x1b[2J')
+      out.write(`\x1b[2J\x1b[H${OPENING}`)
       return
     }
     shown = markRows(at.side, turnedAt(Date.now() - began))
