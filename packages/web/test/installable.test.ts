@@ -244,10 +244,16 @@ describe('the real folder', () => {
     }
     // 224 until the charts (`charts.js`, `charts.css`) arrived: one library
     // every page draws with instead of each drawing its own, about 15 KB on
-    // the wire, and the room the pages being redrawn on it will spend.
-    expect(wire).toBeLessThan(256 * 1024)
+    // the wire, and the room the pages being redrawn on it will spend. 256
+    // until the overview's redesign had spent that room and the runs, project,
+    // checks and workflows pages were redrawn on it at once: a redesigned page
+    // is 10–20 KB on the wire where the old one was 3, so the next page is
+    // this conversation again.
+    expect(wire).toBeLessThan(296 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: still under a megabyte, with the comments every module carries.
-    expect(raw).toBeLessThan(768 * 1024)
+    // 768 until the pages were redrawn one at a time, each 40–90 KB as it
+    // sits: the megabyte is the line, and the pages still to come spend it.
+    expect(raw).toBeLessThan(1024 * 1024)
   })
 })

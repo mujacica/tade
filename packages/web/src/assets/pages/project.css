@@ -1,11 +1,841 @@
 /* The project page's own sheet: every rule scoped to it (`.page-project`, `test/pages.test.ts`). */
 
-@container (min-width: 32rem) {
-  .tiles.tiles-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+/*
+One project, top to bottom: the lead — what wants you as a strip across its
+top, the agents as a ring, four meters and the money, all one panel with a
+hairline between each cell — then what needs you and what failed, then two
+bands of two columns at a desk (the agents beside the checks and the
+findings, the branches beside the money) with the queue's graph across the
+whole width between them. One column on a phone, in that order.
+
+The hairlines inside the lead are the panel's own line showing through a
+one-pixel gap between cells, so they meet exactly however the cells reflow.
+Composed of the shared pieces (the donut and its legend, the stack, the flow,
+ranked bars, facts, the state box, a pill); the rows and the meters are this
+page's own.
+*/
+
+.page-project {
+  display: grid;
+  gap: var(--stack);
+}
+
+/* The grid's gap is the one space between regions: the bar's and the sections' own are taken off. */
+.page-project > .section-head.pg-bar {
+  margin-block-end: 0;
+}
+
+.page-project .section {
+  margin-block-end: 0;
+}
+
+.page-project .section-head {
+  margin-block-end: var(--s3);
+}
+
+/* A count that is somebody's to act on wears its tone, as a tag beside the heading. */
+.page-project .section-head > .figure:is(.t-wants, .t-failed) {
+  padding-inline: 6px;
+  border-radius: var(--r3);
+  font-weight: var(--w-strong);
+}
+
+.page-project .section-head > .figure.t-wants {
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+}
+
+.page-project .section-head > .figure.t-failed {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+
+/* ── the lead ──────────────────────────────────────────────────────────────── */
+
+/* Two columns on a phone: the strip, the ring and the money across both, the meters two by two. */
+.page-project .pj-lead {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+}
+
+.page-project :is(.pj-alerts, .pj-ring, .pj-money) {
+  grid-column: 1 / -1;
+}
+
+.page-project :is(.pj-ring, .pj-meter) {
+  background: var(--panel);
+}
+
+/* What wants you, and what failed: a line each, washed in its tone. */
+.page-project .pj-alerts {
+  display: grid;
+  gap: 1px;
+}
+
+.page-project .pj-alert {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--bar);
+  padding: var(--s2) var(--inset);
+  color: var(--bright);
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.page-project .pj-alert.is-wants {
+  background: color-mix(in srgb, var(--violet) 12%, var(--panel));
+}
+
+.page-project .pj-alert.is-wants:hover {
+  background: color-mix(in srgb, var(--violet) 18%, var(--panel));
+}
+
+.page-project .pj-alert.is-failed {
+  background: color-mix(in srgb, var(--red) 9%, var(--panel));
+}
+
+.page-project .pj-alert.is-failed:hover {
+  background: color-mix(in srgb, var(--red) 14%, var(--panel));
+}
+
+/*
+The mark in a square of its tone. Only the glyph is coloured: red words on a
+red wash are under AA, so the word a screen reader hears is in the text grey.
+*/
+.page-project .pj-alert-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r1);
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  font-weight: var(--w-loud);
+}
+
+.page-project .pj-alert-mark > .sr-only {
+  color: var(--bright);
+}
+
+.page-project .pj-alert-words {
+  display: grid;
+  min-width: 0;
+}
+
+.page-project .pj-alert-words > strong {
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.page-project .pj-alert-words > span {
+  overflow: hidden;
+  color: var(--body);
+  font-size: var(--step--1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-project .pj-go {
+  width: 1rem;
+  height: 1rem;
+  color: var(--heading);
+}
+
+/* The ring: the donut and its legend side by side, centred in the cell. */
+.page-project .pj-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s5);
+  padding: var(--inset);
+}
+
+.page-project .pj-ring > .ui-donut {
+  width: 6.5rem;
+}
+
+/* The legend read down: its mark, its word, and each figure under the one above it. */
+.page-project .pj-ring-legend {
+  display: grid;
+  grid-template-columns: 8px max-content auto;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  min-width: 0;
+}
+
+.page-project .pj-ring-legend > li {
+  display: contents;
+}
+
+.page-project .pj-ring-legend .ui-legend-value {
+  padding-inline-start: var(--s3);
+  text-align: end;
+}
+
+/* A meter: its label and figure on one line, the bar under them, its parts' words under that. */
+.page-project .pj-meter {
+  display: grid;
+  align-content: start;
+  gap: var(--s3);
+  min-width: 0;
+  min-height: var(--tap);
+  padding: var(--inset);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.page-project a.pj-meter:hover {
+  background: var(--surface);
+}
+
+.page-project .pj-meter-head {
+  display: grid;
+  gap: 2px;
+}
+
+.page-project .pj-meter-label {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.page-project .pj-meter-figure {
+  overflow: hidden;
+  color: var(--bright);
+  font-size: var(--step-1);
+  text-overflow: ellipsis;
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.page-project .pj-meter-figure:is(.tone-failed, .tone-done, .tone-wants) {
+  color: var(--tone);
+}
+
+.page-project .pj-meter-figure.is-unknown {
+  color: var(--heading);
+}
+
+.page-project .pj-meter-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-project .pj-meter .ui-stack {
+  gap: var(--s2);
+}
+
+.page-project .pj-meter .ui-legend {
+  gap: 2px var(--s3);
+}
+
+/* The money: its figure, and since when and how many tokens, on one line where it fits. */
+.page-project .pj-money {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s3);
+  background: var(--panel);
+}
+
+.page-project .pj-money > .pj-meter-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+/*
+At a desk: the ring down the left, the four meters two by two beside it, the
+money under them, and the strip across the whole.
+*/
+@container (min-width: 44rem) {
+  .page-project .pj-lead {
+    grid-template-columns: minmax(17rem, 1.05fr) repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "alerts alerts alerts"
+      "ring checks queue"
+      "ring branches findings"
+      "ring money money";
+  }
+
+  .page-project .pj-alerts {
+    grid-area: alerts;
+  }
+
+  .page-project .pj-ring {
+    grid-area: ring;
+    flex-direction: column;
+    gap: var(--s4);
+  }
+
+  .page-project .pj-ring > .ui-donut {
+    width: 7.5rem;
+  }
+
+  .page-project .pj-m-checks {
+    grid-area: checks;
+  }
+
+  .page-project .pj-m-queue {
+    grid-area: queue;
+  }
+
+  .page-project .pj-m-branches {
+    grid-area: branches;
+  }
+
+  .page-project .pj-m-findings {
+    grid-area: findings;
+  }
+
+  .page-project .pj-money {
+    grid-area: money;
   }
 }
 
-.tiles.tiles-4 {
-  margin-block-end: var(--s4);
+/* ── the bands ─────────────────────────────────────────────────────────────── */
+
+.page-project :is(.pj-band, .pj-col) {
+  display: grid;
+  gap: var(--stack);
+  align-content: start;
+  min-width: 0;
+}
+
+/* Two columns where both are full: the narrow one holds what is short. */
+@container (min-width: 48rem) {
+  .page-project .pj-band {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}
+
+/* ── rows ──────────────────────────────────────────────────────────────────── */
+
+.page-project .pj-list > li + li {
+  border-block-start: var(--border);
+}
+
+/* A row's mark, its tone the glyph's, in the first column of every list. */
+.page-project :is(.pj-agent-mark, .pj-check-mark, .pj-finding-mark, .pj-piece-mark) {
+  grid-area: mark;
+  font-weight: var(--w-strong);
+  text-align: center;
+}
+
+/* ── what wants you, and what failed ───────────────────────────────────────── */
+
+/*
+A row: its mark in a square of its tone, the name (the link, stretched over the
+row) and how long ago, why under the name, and the presses under that on a
+phone — beside it where there is the room.
+*/
+.page-project .pj-want {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark name age"
+    "mark why why"
+    "acts acts acts";
+  gap: 0 var(--s3);
+  align-items: center;
+  padding: var(--s2) var(--inset) var(--s3);
+  transition: background var(--ease);
+}
+
+.page-project .pj-want + .pj-want {
+  border-block-start: var(--border);
+}
+
+.page-project .pj-want:hover {
+  background: var(--surface);
+}
+
+.page-project .pj-want-mark {
+  grid-area: mark;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-block-start: calc((var(--tap) - 2rem) / 2);
+  border-radius: var(--r1);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-weight: var(--w-loud);
+}
+
+.page-project .pj-want-name {
+  grid-area: name;
+  min-width: 0;
+  min-height: var(--tap);
+  overflow: hidden;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  line-height: var(--tap);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-project .pj-want-name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.page-project .pj-want-age {
+  grid-area: age;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.page-project .pj-want-why {
+  grid-area: why;
+  margin-block-start: calc(var(--s2) * -1);
+  color: var(--body);
+  overflow-wrap: anywhere;
+}
+
+.page-project .pj-want-acts {
+  position: relative;
+  grid-area: acts;
+  margin: var(--s3) 0 0;
+  padding: 0;
+}
+
+.page-project .pj-want-acts .quick-said:empty {
+  display: none;
+}
+
+@container (min-width: 44rem) {
+  .page-project .pj-want {
+    grid-template-columns: 2rem minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "mark name age acts"
+      "mark why why acts";
+  }
+
+  .page-project .pj-want-acts {
+    margin: 0 0 0 var(--s3);
+  }
+}
+
+/* ── an agent ──────────────────────────────────────────────────────────────── */
+
+/*
+Two lines: the mark, the name and how long since it moved; why, and what it
+cost. An agent that wants somebody or failed has an edge of its tone, and one
+that is over is quieter than the ones at work.
+*/
+.page-project .pj-agent {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark name age"
+    ". why spend";
+  gap: 2px var(--s3);
+  align-items: baseline;
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset) var(--s3) calc(var(--inset) - 3px);
+  border-inline-start: 3px solid transparent;
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.page-project .pj-agent:hover {
+  background: var(--surface);
+}
+
+.page-project .pj-agent.is-wants {
+  border-inline-start-color: var(--violet);
+}
+
+.page-project .pj-agent.is-failed {
+  border-inline-start-color: var(--red);
+}
+
+.page-project .pj-agent-name {
+  grid-area: name;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.page-project .pj-agent-words {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-project .pj-agent.is-over .pj-agent-words {
+  color: var(--body);
+  font-weight: var(--w-label);
+}
+
+.page-project .pj-agent-tag {
+  flex: none;
+}
+
+.page-project :is(.pj-agent-age, .pj-agent-spend) {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.page-project .pj-agent-why {
+  grid-area: why;
+  min-width: 0;
+  color: var(--body);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+.page-project .pj-agent-spend {
+  grid-area: spend;
+}
+
+/* What is over, behind a count: a press the width of the list. */
+.page-project .pj-folded {
+  display: grid;
+  gap: var(--s2);
+}
+
+.page-project .pj-more {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s2);
+  border: 0;
+  border-radius: var(--r1);
+  background: none;
+  color: var(--heading);
+  font: inherit;
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.page-project .pj-more:hover {
+  background: var(--surface);
+  color: var(--bright);
+}
+
+.page-project .pj-twist {
+  width: 1rem;
+  height: 1rem;
+  transition: transform var(--ease);
+}
+
+.page-project .pj-more[aria-expanded="true"] .pj-twist {
+  transform: rotate(90deg);
+}
+
+/* ── the checks and the findings ───────────────────────────────────────────── */
+
+.page-project :is(.pj-check, .pj-finding) {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark name figure"
+    ". which which";
+  gap: 2px var(--s3);
+  align-items: baseline;
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.page-project :is(.pj-check, .pj-finding):hover {
+  background: var(--surface);
+}
+
+.page-project :is(.pj-check-name, .pj-finding-name) {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-project .pj-finding-name {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+.page-project :is(.pj-check-which, .pj-finding-where) {
+  grid-area: which;
+  min-width: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+.page-project .pj-finding-p {
+  grid-area: figure;
+  color: var(--bright);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* What needs nobody: one quiet line under the list, never a row each. */
+.page-project .pj-green {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  margin: 0;
+  padding-inline: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+  text-decoration: none;
+}
+
+.page-project a.pj-green:hover {
+  color: var(--bright);
+}
+
+/* ── the queue ─────────────────────────────────────────────────────────────── */
+
+/*
+The graph where there is the width; an outline — a piece, and what waits on it
+indented under it — on a phone, where the boxes would scroll sideways.
+*/
+.page-project .pj-graph {
+  display: none;
+  padding: var(--inset);
+  border: var(--border);
+  border-radius: var(--r2);
+}
+
+@container (min-width: 40rem) {
+  .page-project .pj-graph:not([hidden]) {
+    display: block;
+  }
+
+  .page-project .pj-outline {
+    display: none;
+  }
+}
+
+.page-project .pj-piece {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark name at"
+    ". line line";
+  gap: 2px var(--s3);
+  align-items: baseline;
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset);
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-project .pj-piece:hover {
+  background: var(--surface);
+}
+
+/* Each step of depth is one mark's width in, with a rail down from the piece above. */
+.page-project .pj-outline > li:is(.is-d1, .is-d2, .is-d3) > .pj-piece {
+  position: relative;
+}
+
+.page-project .pj-outline > li.is-d1 > .pj-piece {
+  padding-inline-start: calc(var(--inset) + 1.5rem);
+}
+
+.page-project .pj-outline > li.is-d2 > .pj-piece {
+  padding-inline-start: calc(var(--inset) + 3rem);
+}
+
+.page-project .pj-outline > li.is-d3 > .pj-piece {
+  padding-inline-start: calc(var(--inset) + 4.5rem);
+}
+
+/* The rail runs down from the middle of the mark of the piece it hangs under. */
+.page-project .pj-outline > li:is(.is-d1, .is-d2, .is-d3) > .pj-piece::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  border-inline-start: 1px solid var(--chrome);
+}
+
+.page-project .pj-outline > li.is-d1 > .pj-piece::before {
+  inset-inline-start: calc(var(--inset) + 0.75rem);
+}
+
+.page-project .pj-outline > li.is-d2 > .pj-piece::before {
+  inset-inline-start: calc(var(--inset) + 2.25rem);
+}
+
+.page-project .pj-outline > li.is-d3 > .pj-piece::before {
+  inset-inline-start: calc(var(--inset) + 3.75rem);
+}
+
+.page-project .pj-piece-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bright);
+  font-weight: var(--w-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-project .pj-piece-at {
+  grid-area: at;
+  color: var(--heading);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+.page-project .pj-piece-line {
+  grid-area: line;
+  min-width: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+/* ── the branches ──────────────────────────────────────────────────────────── */
+
+/*
+The branch as git spells it and whether it is offered for review on one line;
+under it a bar either side of a centre line — behind to the left, ahead to the
+right, every branch to one scale — and the figures in words.
+*/
+.page-project .pj-branch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name review"
+    "said bar";
+  gap: var(--s2) var(--s3);
+  align-items: center;
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--ease);
+}
+
+.page-project .pj-branch:hover {
+  background: var(--surface);
+}
+
+.page-project .pj-branch-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-project .pj-branch-review {
+  grid-area: review;
+  justify-self: end;
+}
+
+.page-project .pj-branch-bar {
+  grid-area: bar;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  width: 7rem;
+  height: 6px;
+  background: linear-gradient(var(--chrome), var(--chrome)) center / 2px 100% no-repeat;
+}
+
+.page-project :is(.pj-branch-behind, .pj-branch-ahead) {
+  display: block;
+  width: var(--w);
+  height: 100%;
+  background: var(--control);
+  transition: width var(--ease-sheet);
+}
+
+.page-project .pj-branch-behind {
+  justify-self: end;
+  border-radius: var(--r3) 0 0 var(--r3);
+}
+
+.page-project .pj-branch-ahead {
+  border-radius: 0 var(--r3) var(--r3) 0;
+  background: var(--heading);
+}
+
+.page-project .pj-branch-bar.is-unknown {
+  background: repeating-linear-gradient(135deg, var(--chrome) 0 2px, var(--raised) 2px 5px);
+}
+
+.page-project .pj-branch-said {
+  grid-area: said;
+  min-width: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the money ─────────────────────────────────────────────────────────────── */
+
+.page-project .pj-spend-body {
+  display: grid;
+  gap: var(--s3);
+}
+
+.page-project .pj-most {
+  padding: var(--s2) var(--inset);
+  border: var(--border);
+  border-radius: var(--r2);
+}
+
+.page-project .pj-notes {
+  display: grid;
+  gap: var(--s1);
+  padding-inline: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* ── the region states ─────────────────────────────────────────────────────── */
+
+/* A short region's nothing is a short box, not one the height of a list. */
+.page-project .pj-col .ui-state,
+.page-project #pj-queue .ui-state {
+  min-height: 8rem;
+  padding: var(--s5) var(--inset);
+}
+
+.page-project .pj-foot {
+  display: grid;
+  gap: var(--stack);
+}
+
+.page-project .pj-foot:empty {
+  display: none;
 }
