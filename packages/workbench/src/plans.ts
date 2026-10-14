@@ -146,6 +146,8 @@ export async function makePlan(
   const made: TaskWorktree[] = []
   for (const agent of check.order) {
     const model = models.get(agentId(plan, agent))
+    // What the plan says to every agent, then what it says to this one.
+    const context = [plan.context, agent.context].filter(Boolean).join('\n\n')
     try {
       made.push(
         await deps.createTask({
@@ -157,10 +159,11 @@ export async function makePlan(
           ...(agent.done ? { done: agent.done } : {}),
           ...(agent.produces ? { produces: agent.produces } : {}),
           // Written beside the task file for its agent to read first, exactly
-          // as a task made one at a time gets it. A plan that carries one is a
-          // plan stamped out of something stored, and this is where everything
-          // it filled in goes — never into the prompt above.
-          ...(agent.context ? { context: agent.context } : {}),
+          // as a task made one at a time gets it. A template's plan puts what
+          // it filled in here, never into the prompt below; the orchestrator's
+          // puts a brief its agents share here, said once rather than in
+          // every prompt.
+          ...(context ? { context } : {}),
           start: {
             after: check.waitsOn.get(agentId(plan, agent)) ?? [],
             prompt: agent.prompt,

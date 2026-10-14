@@ -1,9 +1,10 @@
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type PlannedAgent, taskDir } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { makePlan } from '../src/plans.ts'
+import { taskContextPath } from '../src/tasks.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Making a plan is all or nothing about names, against real git and a real
@@ -178,6 +179,22 @@ describe('making a plan', () => {
       (event) => event.detail.intent_spoken,
     )
     expect(said).toEqual(['a steady spinner', 'an even spinner'])
+  })
+
+  it('writes the plan’s context beside every task it makes, before each agent’s own', async () => {
+    // Said once in the plan, where on 2026-10-13 it had nowhere to go but
+    // thirteen prompts and was left in each of them as PAGE_BRIEF.
+    const brief = 'Every page: its own files only, and the design doc first.'
+    const { made } = await client.planTasks({
+      project: 'app',
+      said: 'redesign the pages',
+      context: brief,
+      agents: [agent('page-inbox'), agent('page-runs', { context: 'A run is an effort.' })],
+    })
+    expect(made.map((task) => task.id)).toEqual(['app/page-inbox', 'app/page-runs'])
+    const read = (id: string) => readFileSync(taskContextPath(home, id), 'utf8')
+    expect(read('app/page-inbox')).toBe(`${brief}\n`)
+    expect(read('app/page-runs')).toBe(`${brief}\n\nA run is an effort.\n`)
   })
 
   describe('when making stops after every check has passed', () => {

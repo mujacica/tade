@@ -1,0 +1,258 @@
+{
+  "project": "tade",
+  "said": "Ok amazing - so let's then find a better way on how to visualize and present runs, workflows, findings, reviews, checks, spend, notes, checks, devices, settings, inbox, overview, project overview, agent overview - it's very cluttered just random data placed in the middle, all pages almost look the same, using same components, data is not nicely aligned (e.g. right side of agent page is 3 times longer than the middle where it's empty space etc.)  - run one agent per page to do a proper component and page design - thinking about what user wants to see there, how to use tade's colors properly there, how to highlight and hide stuff there, how to make it easier to understand and more actionable, so a proper UI/UX design with component and coloring design - also rethink the design and coloring of the components, feel and looks - and make it look super professional - I want more graphical representation of stuff that's immediately visible what it does - instead of random boxes and tables. Also think about paddings, margins, font sizes/bolds etc. An example of paddings/margins is the screenshot where the button is fully squeezed by up and down lines but there is random empty space on the right - make stuff properly centered etc. I want this to look like something meaningful. When you are done with all pages redesigns add few screenshots (in an animation) to the README - and also in tade-web the current Outside & Away section is just a lot of text figure out which text areas and/or tables can be replaced by screenshots of the away platform - and then also run 2 agents in tade-web beside that to write 2 blog posts, one about away and one about software factory ingestion. So several agents in tade and 3 agents in tade-web after the tade ones are done. Schedule them after the currently scheduled ones are done",
+  "effort": "away-pages-redesign",
+  "agents": [
+    {
+      "name": "away-design-foundation",
+      "project": "tade",
+      "said": "rethink the design and coloring of the components, feel and looks - and make it look super professional - I want more graphical representation of stuff that's immediately visible what it does - instead of random boxes and tables. Also think about paddings, margins, font sizes/bolds etc. An example of paddings/margins is the screenshot where the button is fully squeezed by up and down lines but there is random empty space on the right - make stuff properly centered etc.",
+      "done": "said",
+      "thinking": "high",
+      "after": [
+        {
+          "agent": "tade-web/site-terminal-ground",
+          "why": "the person asked for this after the currently scheduled work; it builds on the terminal ground and square edges just set"
+        }
+      ],
+      "touches": [
+        "packages/web/src/assets/ui.css",
+        "packages/web/src/assets/ui.js",
+        "packages/web/src/assets/tokens.css",
+        "packages/web/src/assets/charts.js",
+        "packages/web/src/assets/pages.js"
+      ],
+      "prompt": "Foundation for a page-by-page redesign of Tade Away (packages/web); thirteen page agents follow you, one per page. The person's words (whole request is long; the parts for you): \"it's very cluttered just random data placed in the middle, all pages almost look the same, using same components, data is not nicely aligned ... rethink the design and coloring of the components, feel and looks - and make it look super professional - I want more graphical representation of stuff that's immediately visible what it does - instead of random boxes and tables. Also think about paddings, margins, font sizes/bolds etc. An example of paddings/margins is the screenshot where the button is fully squeezed by up and down lines but there is random empty space on the right - make stuff properly centered etc. I want this to look like something meaningful.\" Screenshot: ~/.tade/orchestrator/claude/17479c12eb21/attachments/1791899537100-1.png.\nDo: (1) a real design language on the terminal ground and Tade colours just set: spacing scale and vertical rhythm, type scale and weights, alignment/centering rules (fix the squeezed-button case everywhere: controls get proper vertical padding, content is centred or deliberately aligned, no dead space), a colour-role system (what amber, green, red, dim, accent mean; when to highlight vs mute), elevation. (2) A graphical component library in the shared ui layer: stat with sparkline, meter/gauge, stacked bar, timeline/swimlane, status ring, dependency/flow graph, calendar/heat strip, progress steps, empty/loading/error states — SVG, accessible (text alternative), themable. (3) Split pages.js so every page lives in its own file (e.g. pages/inbox.js, pages/findings.js …) and each page has its own CSS file, so the page agents after you each own exactly one page's files and never edit shared ones. (4) Write the conventions down in a short design doc beside the code (packages/web/src/design or the add-away-surface skill) that the page agents will read: components to use, how to request a new shared component (they list it in their final message rather than editing ui.*). Keep add-away-surface rules, accessibility, the browser harness green; commit."
+    },
+    {
+      "name": "away-page-overview",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... overview",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-design-foundation",
+          "why": "uses its design language, components and per-page files"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Overview page (its own page files only, as away-design-foundation split them; read its design doc first). PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-project",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... project overview",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-overview",
+          "why": "one lane of page agents at a time keeps the browser harness and the shared checkout calm"
+        }
+      ],
+      "prompt": "Redesign Tade Away's project overview page. PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-agent",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... agent overview ... (e.g. right side of agent page is 3 times longer than the middle where it's empty space etc.)",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-project",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's agent overview page. Today its right side is three times longer than the middle, which is mostly empty: balance it. PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-inbox",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... inbox",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-agent",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Inbox page. PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-runs",
+      "project": "tade",
+      "said": "a better way on how to visualize and present runs",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-design-foundation",
+          "why": "uses its design language, components and per-page files"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Runs page (a run is an effort: every task naming the same plan across projects, with steps, finished/total and a dependency graph). PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-workflows",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... workflows",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-runs",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Workflows page. PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-findings",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... findings",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-workflows",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Findings page (jev review findings: question, probability, agent account, verdict). PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-reviews",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... reviews",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-findings",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Reviews page (pull requests: state, checks, threads). PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-checks",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... checks",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-design-foundation",
+          "why": "uses its design language, components and per-page files"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Checks page. PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-spend",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... spend",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-checks",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Spend page (money priced/guessed/unknown kept apart, plan windows and quotas, never a plan read as money). PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-notes",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... notes",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-spend",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Notes page. PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-devices",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... devices",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-notes",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Devices page. PAGE_BRIEF"
+    },
+    {
+      "name": "away-page-settings",
+      "project": "tade",
+      "said": "a better way on how to visualize and present ... settings",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-devices",
+          "why": "one lane of page agents at a time"
+        }
+      ],
+      "prompt": "Redesign Tade Away's Settings page. PAGE_BRIEF"
+    },
+    {
+      "name": "away-readme-reel",
+      "project": "tade",
+      "said": "When you are done with all pages redesigns add few screenshots (in an animation) to the README",
+      "done": "said",
+      "after": [
+        {
+          "agent": "away-page-inbox",
+          "why": "after all page redesigns"
+        },
+        {
+          "agent": "away-page-reviews",
+          "why": "after all page redesigns"
+        },
+        {
+          "agent": "away-page-settings",
+          "why": "after all page redesigns"
+        }
+      ],
+      "touches": ["README.md", "images"],
+      "prompt": "All Tade Away pages have just been redesigned (effort away-pages-redesign). Add a few screenshots of the away view to tade's README as an animation (a short reel cycling Overview, an agent page, Runs, Spend and the phone layout), generated, never taken by hand — extend `pnpm screens --assets` / the redraw-the-pictures pipeline (and the browser harness that already drives the away page) to render them from the demo data, held to their bytes by packages/app/test/pictures.test.ts like the other pictures. Place it in the Away section of the README; keep the README's showcase structure. Load redraw-the-pictures and add-away-surface; commit."
+    },
+    {
+      "name": "site-away-screens",
+      "project": "tade-web",
+      "said": "in tade-web the current Outside & Away section is just a lot of text figure out which text areas and/or tables can be replaced by screenshots of the away platform",
+      "done": "said",
+      "after": [
+        {
+          "agent": "tade/away-readme-reel",
+          "why": "uses the redesigned away pages and their generated screenshots"
+        }
+      ],
+      "prompt": "tade-web's 'Outside & Away' section is mostly text and tables. Tade Away has just been redesigned and its screenshots/reel are now generated in the tade repo (~/tade, README pictures and images/). Decide which text blocks and tables are better shown as screenshots of the away platform (pairing, overview, an agent, runs, spend, the phone layout), bring them in through the site's sync scripts (sync:screens/sync:motion — extend them for away shots rather than copying by hand), replace the text/tables they make redundant, and keep only the words that carry something a picture can't. Check every page, run the site's checks/build, commit (not pushed). Two sibling agents write blog posts at the same time — don't touch the blog."
+    },
+    {
+      "name": "blog-tade-away",
+      "project": "tade-web",
+      "said": "run 2 agents in tade-web beside that to write 2 blog posts, one about away",
+      "done": "said",
+      "after": [
+        {
+          "agent": "tade/away-readme-reel",
+          "why": "after the tade work, so the post shows the redesigned away view"
+        }
+      ],
+      "prompt": "Write a blog post for tade-web about Tade Away: what it is (the control room above your agents, from a phone or another machine), why (agents run for hours; you shouldn't have to sit at the laptop), how it works (paired devices, per-device grants, the live view, talking to the orchestrator, notifications, the security model in plain words: nothing is served unless you turn it on, sessions bound to the host, acting needs https or this machine, every act journaled under its device), and how to try it (turn it on, scan the code; tailscale for on-the-go). Use the generated away screenshots from ~/tade (README pictures/images) via the site's sync scripts. Match the existing blog's format, tone, front matter and listing (read the posts already there). Only claim what is built — check the tade repo. Don't touch the 'Outside & Away' section (a sibling agent is). Run the site's checks/build; commit (not pushed)."
+    },
+    {
+      "name": "blog-factory-ingestion",
+      "project": "tade-web",
+      "said": "and one about software factory ingestion",
+      "done": "said",
+      "after": [
+        {
+          "agent": "tade/away-readme-reel",
+          "why": "the person asked for the tade-web agents after the tade ones"
+        }
+      ],
+      "prompt": "Write a blog post for tade-web about Tade's software-factory intake (work arriving from outside the machine): a request written locally (the intake spool / `tade` CLI door), a labelled GitHub issue, a Linear issue, a Slack @-mention — all going through the same grant, rule, queue and approval; polled, never answering in real time; who may file work (the grant's allow-list); `propose` parking work for a person; outside text treated as material, never instruction; how it shows in the window and the away view. Read the tade repo for what is actually built (packages/extensions/intake, the add-intake-source skill, README) and claim nothing beyond it. Match the existing blog's format, tone and listing; a screenshot or two from ~/tade's generated pictures if one fits. Don't touch the 'Outside & Away' section. Run the site's checks/build; commit (not pushed)."
+    }
+  ]
+}

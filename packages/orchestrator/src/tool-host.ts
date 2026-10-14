@@ -681,6 +681,7 @@ function planOf(p: Record<string, unknown>): Plan {
     project: text(p.project),
     said: text(p.said),
     ...(p.effort ? { effort: text(p.effort) } : {}),
+    ...(p.context ? { context: text(p.context) } : {}),
     agents: p.agents.map((raw) => {
       const agent = (raw ?? {}) as Record<string, unknown>
       return {

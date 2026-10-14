@@ -28,7 +28,7 @@ const object = (
 
 const string = (description: string) => ({ type: 'string', description })
 
-const stringList = (description: string) => ({
+export const stringList = (description: string) => ({
   type: 'array',
   description,
   items: { type: 'string' },
@@ -44,6 +44,16 @@ const stringList = (description: string) => ({
  */
 export const TOUCHES =
   'the files it will change, by path, as you read the code: not whole folders, and not files nearly every change in this project ends up touching (its README pictures, a file-size budget) unless the work is about them. Where agents share one checkout, any listed file somebody has left uncommitted, or any file in a listed folder, holds its start'
+
+/**
+ * What every agent in a plan is told, said once: `tade_plan`'s own `context`,
+ * written beside each task file before the agent's own. With nowhere to put a
+ * brief thirteen agents shared, on 2026-10-13 their prompts each ended in
+ * `PAGE_BRIEF` instead, and a plan with one placeholder left in two prompts is
+ * now refused (`placeholdersIn`).
+ */
+export const PLAN_CONTEXT =
+  'what every agent in the plan should know before it starts, in markdown, said once rather than in each prompt: a brief they share, what you found, where to look, what done looks like. Written beside each agent’s task file in Tade’s home, and every agent is told where; each prompt then says only what is its own. Say what the work is, never how an agent is to work: where it works, when it commits and whether finished work is pushed are the project’s own settings, already in what each agent is told'
 
 export function queueTools(
   rpc: (method: string, params: Record<string, unknown>) => Promise<unknown>,

@@ -206,6 +206,13 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   a plan made its first task, threw on its second, and the next attempt was refused over the task
   it had left behind. What still fails after the checks (a disk, git) is named, not removed:
   removing never gives a name back, and what was made is a prefix that waits only on what exists.
+- **A brief the agents share is said once, and a blank left for it is refused.** `Plan.context`
+  (`tade_plan`'s own `context`) is written beside every task file, ahead of an agent's own. With
+  nowhere to put it, on 2026-10-13 thirteen prompts each ended in `PAGE_BRIEF`, and the repair was
+  seventeen removals. So `checkPlan` refuses one placeholder in two or more prompts that nothing
+  said or spelled out (`placeholdersIn`): a rule, never a judge, since refusing must be the same
+  every time. It refuses one of the 43 plans the orchestrator had made by then, and it is that one
+  (`test/fixtures/plans/page-brief.json`); widen the shapes only against that history.
 - **A plan's warnings are only collisions somebody could act on.** What it is checked against is
   work still going or waiting to go (`planBusyOf` in the window, `busyFrom` for a dry run): never
   finished work, whose agent sits at its prompt and which status calls `blocked`, and "waiting on

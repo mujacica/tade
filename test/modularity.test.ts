@@ -99,7 +99,11 @@ const BUDGET: Record<string, number> = {
   // 970 -> 934 when `tade_queue` and `tade_queue_change` moved out to
   // `tools-queue.ts`, as `after` and `retell` came in: at its budget again, and
   // how a plan is changed once it is made reads better as one subject.
-  'packages/orchestrator/src/tools-extension.ts': 934,
+  //
+  // 934 -> 929 when `tade_plan` gained a `context` of its own, whose words went
+  // to `tools-queue.ts` beside `TOUCHES`, and `stringList` stopped being two
+  // copies of one helper.
+  'packages/orchestrator/src/tools-extension.ts': 929,
   // The facade is the point and stays: ~1,700 lines of it are the one object
   // the CLI, the window and the orchestrator all call, average method 19 lines,
   // already delegating to eight split collaborators — splitting a facade

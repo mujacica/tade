@@ -7,7 +7,7 @@ import { configTools } from './tools-config.ts'
 import { documentTools } from './tools-documents.ts'
 import { type Gateable, gateTools } from './tools-gate.ts'
 import { machineTools } from './tools-machine.ts'
-import { queueTools, TOUCHES } from './tools-queue.ts'
+import { PLAN_CONTEXT, queueTools, stringList, TOUCHES } from './tools-queue.ts'
 import { intakeTools, templateTools } from './tools-templates.ts'
 
 /** Where extensions live. Set by the orchestrator that launched us. */
@@ -268,15 +268,9 @@ export function orchestratorTools(
       }),
   )
 
-  const stringList = (description: string) => ({
-    type: 'array',
-    description,
-    items: { type: 'string' },
-  })
-
   tool(
     'tade_plan',
-    "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. A plan may span repositories — give an agent its own project and it works there, and a wait may name a task in another project, which waits for it to finish and then starts from its own repository's base. The plan's own project is the default for a plan that is all one repository, and an agent that names none is put there: so when the work spans two, give every agent its own project, including the ones in the plan's. A plan where one agent names another repository and another names none is refused. When the whole plan is one change, give it an effort: a short name, which every task it makes carries, so \"two of three repos done\" is one question later. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept: every name, wait, project and done rule is checked before anything is, a name against every task Tade has ever had, and the answer gives every reason at once, with a free name for each one used before. Should making stop after that, on a disk or git error, the answer names what was made, which stays queued, and what was not. To change when work already queued starts, use tade_queue_change after: never remove it and plan it again, which uses its name up for good and holds everything waiting on it.",
+    "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. A plan may span repositories — give an agent its own project and it works there, and a wait may name a task in another project, which waits for it to finish and then starts from its own repository's base. The plan's own project is the default for a plan that is all one repository, and an agent that names none is put there: so when the work spans two, give every agent its own project, including the ones in the plan's. A plan where one agent names another repository and another names none is refused. When the whole plan is one change, give it an effort: a short name, which every task it makes carries, so \"two of three repos done\" is one question later. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. What every agent should know goes once, in context, and each prompt says only what is its own: a placeholder left in two prompts that nobody said (PAGE_BRIEF, {{brief}}, TODO) is refused. Nothing is made if the plan cannot be kept: every name, wait, project, done rule and prompt is checked before anything is, a name against every task Tade has ever had, and the answer gives every reason at once, with a free name for each one used before. Should making stop after that, on a disk or git error, the answer names what was made, which stays queued, and what was not. To change when work already queued starts, use tade_queue_change after: never remove it and plan it again, which uses its name up for good and holds everything waiting on it.",
     object(
       {
         project: string(
@@ -286,6 +280,7 @@ export function orchestratorTools(
         effort: string(
           'what to call this one change, lowercase with dashes, when the whole plan is one change across repositories or one of several streams in a repository',
         ),
+        context: string(PLAN_CONTEXT),
         agents: {
           type: 'array',
           description: 'one entry per agent, in any order',

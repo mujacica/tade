@@ -73,6 +73,13 @@ export interface Plan {
    * Without one the plan behaves exactly as it always has and makes none.
    */
   effort?: string
+  /**
+   * What every agent in it should know before it starts, said once: written
+   * beside each agent's task file, before that agent's own `context`. A brief
+   * thirteen agents share had nowhere to go but thirteen prompts, so on
+   * 2026-10-13 they each ended in `PAGE_BRIEF` instead (`placeholdersIn`).
+   */
+  context?: string
   agents: PlannedAgent[]
 }
 
@@ -198,6 +205,7 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     const produces = agent.produces === undefined ? null : producesProblem(agent.produces)
     if (produces) problems.push(`${agent.name} cannot produce that: ${produces}`)
   }
+  problems.push(...placeholdersIn(plan))
 
   const byName = new Map<string, PlannedAgent[]>()
   for (const agent of plan.agents) {
@@ -278,6 +286,55 @@ export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
     waitsOn,
     warnings: [...wholePackages(plan, context), ...overlaps(plan, waitsOn, context)],
   }
+}
+
+/**
+ * A word that stands for text rather than being text: an ALL_CAPS name with
+ * an underscore, `{{…}}`, `<…>` around a capitalised word, or TODO, TBD,
+ * FIXME and XXX.
+ */
+const PLACEHOLDER =
+  /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\{\{[^{}\n]*\}\}|(?<!\w)<[A-Z][\w -]*>|\b(?:TODO|TBD|FIXME|XXX)\b/g
+
+/** Code in a prompt, which names a thing in the tree rather than leaving a blank. */
+const CODE = /```[\s\S]*?```|`[^`\n]*`/g
+
+/**
+ * Each placeholder left in two or more agents' prompts that nothing the plan
+ * says accounts for, as a reason to refuse it: the token and whose prompts.
+ *
+ * On 2026-10-13 a plan made eighteen tasks, and thirteen were told in full
+ * "Redesign Tade Away's Inbox page. PAGE_BRIEF" — a brief the orchestrator
+ * meant to paste once and never did. It saw that six seconds later, and the
+ * repair was seventeen removals and two more plans. Refused, nothing would
+ * have been made, and the cost of being wrong is one retry: this is the rule's
+ * to say and never a judge's, because only a rule is the same every time.
+ *
+ * Kept narrow on purpose. One prompt naming `LOOK_SOON_MS` is an agent told
+ * which constant to change, and it is code names like that, written bare,
+ * that a token in one prompt almost always is; the same blank in many prompts
+ * is the shape of text factored out. Of the 43 plans the orchestrator made
+ * between 2026-10-11 and 2026-10-14, this refuses one, and it is that one. A
+ * token somebody said, or one the plan's context or an agent's own spells out,
+ * is accounted for, and code in backticks is a name rather than a blank — the
+ * way past a refusal that was wrong.
+ */
+export function placeholdersIn(plan: Plan): string[] {
+  const accounted = [plan.said, plan.context ?? '']
+    .concat(plan.agents.flatMap((agent) => [agent.said, agent.context ?? '']))
+    .join('\n')
+  const whose = new Map<string, string[]>()
+  for (const agent of plan.agents) {
+    for (const token of new Set(agent.prompt.replace(CODE, ' ').match(PLACEHOLDER))) {
+      whose.set(token, [...(whose.get(token) ?? []), agent.name])
+    }
+  }
+  return [...whose]
+    .filter(([token, names]) => names.length > 1 && !accounted.includes(token))
+    .map(
+      ([token, names]) =>
+        `${token} is in the prompts of ${joined(names)} and nowhere in what was said, so it stands for text that was never written in: say that text once, in the plan's context, which every agent is given, or in each prompt (a name from the code goes in backticks)`,
+    )
 }
 
 /**

@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkPlan, type PlannedAgent, wholePackage } from '../src/plan.ts'
+import { checkPlan, type Plan, type PlannedAgent, wholePackage } from '../src/plan.ts'
 
 // Whether the shape of a plan holds together before any of it is made: cycles
 // named rather than deadlocked, a plan that spans repositories made to say
@@ -390,5 +392,125 @@ describe('a plan', () => {
     expect(apart.ok && apart.warnings).toEqual([
       'everything says it touches all of packages/app/src and packages/drivers/pty, whole packages: every agent in them collides with it. Name the files it will change instead',
     ])
+  })
+})
+
+describe('a placeholder left in the prompts', () => {
+  // The plan the orchestrator sent at 06:53 PDT on 2026-10-13, as it sent it
+  // but for a home directory written as ~. Thirteen of its prompts end in
+  // `PAGE_BRIEF`, a brief it meant to paste once and never did, and it was
+  // made: eighteen tasks, then seventeen removals six seconds later.
+  const sent = JSON.parse(
+    readFileSync(join(import.meta.dirname, '../../../test/fixtures/plans/page-brief.json'), 'utf8'),
+  ) as Omit<Plan, 'agents'> & { agents: Partial<PlannedAgent>[] }
+  const pageBrief: Plan = {
+    ...sent,
+    // What `tade_plan` leaves out, the window reads as none.
+    agents: sent.agents.map((one) => ({ after: [], touches: [], ...one }) as PlannedAgent),
+  }
+  const context = {
+    workspace: () => 'checkout' as const,
+    tasks: new Set(['tade-web/site-terminal-ground']),
+  }
+  const pages = [
+    'away-page-overview',
+    'away-page-project',
+    'away-page-agent',
+    'away-page-inbox',
+    'away-page-runs',
+    'away-page-workflows',
+    'away-page-findings',
+    'away-page-reviews',
+    'away-page-checks',
+    'away-page-spend',
+    'away-page-notes',
+    'away-page-devices',
+    'away-page-settings',
+  ]
+
+  it('refuses the plan of 2026-10-13, naming the token and all thirteen agents', () => {
+    const check = checkPlan(pageBrief, context)
+    expect(check.ok).toBe(false)
+    if (check.ok) return
+    expect(check.problems).toEqual([
+      `PAGE_BRIEF is in the prompts of ${pages.slice(0, -1).join(', ')} and away-page-settings and nowhere in what was said, so it stands for text that was never written in: say that text once, in the plan's context, which every agent is given, or in each prompt (a name from the code goes in backticks)`,
+    ])
+  })
+
+  it('makes it once the brief is said once, in the plan’s context', () => {
+    const brief = 'Every page: its own files only, the design doc first, the browser harness green.'
+    const without = {
+      ...pageBrief,
+      context: brief,
+      agents: pageBrief.agents.map((one) => ({
+        ...one,
+        prompt: one.prompt.replace(' PAGE_BRIEF', ''),
+      })),
+    }
+    expect(checkPlan(without, context).ok).toBe(true)
+    // A name the context spells out is not a blank: each agent has the text.
+    expect(checkPlan({ ...pageBrief, context: `PAGE_BRIEF: ${brief}` }, context).ok).toBe(true)
+  })
+
+  /** What two agents both told `prompt` are refused over, with `over` on the plan. */
+  const refused = (prompt: string, over: Partial<Plan> = {}): string[] => {
+    const told = (name: string): PlannedAgent => ({
+      name,
+      said: name,
+      prompt,
+      after: [],
+      touches: [],
+    })
+    const check = checkPlan(
+      { project: 'shop', said: '', agents: [told('one'), told('two')], ...over },
+      { workspace: () => 'worktree', tasks: new Set() },
+    )
+    return check.ok ? [] : check.problems.map((problem) => problem.split(' is in ')[0] ?? '')
+  }
+
+  it('knows a placeholder by its shape', () => {
+    for (const [prompt, token] of [
+      ['Then SHARED_BRIEF', 'SHARED_BRIEF'],
+      ['Then {{brief}}', '{{brief}}'],
+      ['Then <Brief>', '<Brief>'],
+      ['Then <Insert the brief here>.', '<Insert the brief here>'],
+      ['TODO: say what', 'TODO'],
+      ['Done when TBD.', 'TBD'],
+      ['FIXME', 'FIXME'],
+      ['Ship it by XXX', 'XXX'],
+    ]) {
+      expect([prompt, refused(prompt as string)]).toEqual([prompt, [token]])
+    }
+    // Every token is said once, in a plan that left several.
+    expect(refused('Do TODO, then PAGE_BRIEF and PAGE_BRIEF again')).toEqual(['TODO', 'PAGE_BRIEF'])
+  })
+
+  it('leaves alone what is not one: a word, a type, a name in backticks', () => {
+    for (const prompt of [
+      'Make the page BRIEF and the PAGE clear',
+      'It returns Promise<Plan> and Array<String>',
+      'Fill in the <brief> and the {single} braces',
+      'Raise `LOOK_SOON_MS` and keep `PAGE_BRIEF` as it is named',
+      'Change ```\nconst TODO_LIST = []\n``` and nothing else',
+      'there is nothing todo or tbd here',
+    ]) {
+      expect([prompt, refused(prompt)]).toEqual([prompt, []])
+    }
+  })
+
+  it('leaves alone a token only one prompt has, or that somebody said', () => {
+    const check = checkPlan(
+      {
+        project: 'shop',
+        said: '',
+        agents: [
+          { name: 'one', said: '', prompt: 'Lower LOOK_SOON_MS', after: [], touches: [] },
+          { name: 'two', said: '', prompt: 'Leave it', after: [], touches: [] },
+        ],
+      },
+      { workspace: () => 'worktree', tasks: new Set() },
+    )
+    expect(check.ok).toBe(true)
+    expect(refused('Rename PAGE_BRIEF', { said: 'rename PAGE_BRIEF in both' })).toEqual([])
   })
 })

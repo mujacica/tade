@@ -305,7 +305,7 @@ describe('a plan that spans repositories, as it reaches the window', () => {
     host = null
   })
 
-  it('carries each agent’s own project and the name of the change, and leaves them off when unsaid', async () => {
+  it('carries each agent’s own project, the name of the change and what all of it is told, and leaves them off when unsaid', async () => {
     const path = join(tmp('tade-plan-'), 'tools.sock')
     const made: Plan[] = []
     host = await ToolHost.listen({
@@ -325,6 +325,7 @@ describe('a plan that spans repositories, as it reaches the window', () => {
       project: 'api',
       said: 'widen the scopes and bump the client',
       effort: 'oauth-scopes',
+      context: 'The scopes are listed in docs/scopes.md.',
       agents: [
         { name: 'oauth-scopes', said: 'widen', prompt: 'widen them' },
         {
@@ -337,6 +338,7 @@ describe('a plan that spans repositories, as it reaches the window', () => {
       ],
     })
     expect(made[0]?.effort).toBe('oauth-scopes')
+    expect(made[0]?.context).toBe('The scopes are listed in docs/scopes.md.')
     // Unsaid is absent, not empty: the plan's own project is the default, and
     // an empty string would be a project nobody has. Reading is all this does
     // — a plan that spans repositories and leans on that default is refused by
@@ -351,6 +353,7 @@ describe('a plan that spans repositories, as it reaches the window', () => {
       agents: [{ name: 'a', said: 'a', prompt: 'a' }],
     })
     expect(made[1]).not.toHaveProperty('effort')
+    expect(made[1]).not.toHaveProperty('context')
   })
 })
 
