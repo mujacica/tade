@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   agoSaid,
+  answered,
   DAY,
   DOES,
   dateSaid,
@@ -11,6 +12,7 @@ import {
   leadState,
   listOf,
   listSaid,
+  listState,
   liveOf,
   matrixOf,
   NEW_FOR,
@@ -18,10 +20,13 @@ import {
   RECENT,
   reachOf,
   recentOf,
+  recentState,
   SESSION_MS,
   sessionOf,
+  tellingOf,
   thisOf,
 } from '../src/assets/pages/devices-shape.js'
+import { CANNOT, DENIED, INSECURE, NOT_OFFERED, OFF, ON, PUSH_SAID } from '../src/assets/push.js'
 import { GRANTS as PAGE_GRANTS } from '../src/assets/store.js'
 import { TROUBLES } from '../src/assets/trouble.js'
 import { type Device, listing } from '../src/devices.ts'
@@ -267,6 +272,65 @@ describe('every device, as the list draws them', () => {
   })
 })
 
+describe('asking for the list again', () => {
+  it('worked only where the list was replaced, which an answer always does', () => {
+    const held = [{ device: ME, label: 'iPhone', pairedAt: '', you: true }]
+    expect(answered(held, [...held])).toBe('done')
+    expect(answered(null, held)).toBe('done')
+    expect(answered(held, held)).toBe('failed')
+    expect(answered(null, null)).toBe('failed')
+  })
+
+  it('draws a skeleton while the first answer is coming, and the machine not answering after', () => {
+    expect(listState(null, 'asking')).toEqual({ coming: true, box: null, stale: false })
+    const failed = listState(null, 'failed')
+    expect(failed.coming).toBe(false)
+    expect(failed.box).toMatchObject({
+      kind: 'error',
+      heading: TROUBLES.offline?.title,
+      retry: true,
+    })
+  })
+
+  it('keeps a list it already had, said as the one from before, rather than an error', () => {
+    const list = listOf(listed(device()).devices, NOW)
+    expect(listState(list, 'failed')).toEqual({ coming: false, box: null, stale: true })
+    expect(listState(list, 'done')).toEqual({ coming: false, box: null, stale: false })
+    expect(listState(list, 'asking')).toEqual({ coming: false, box: null, stale: false })
+  })
+
+  it('says no device is paired for an empty list, with nothing to press', () => {
+    expect(listState([], 'done').box).toMatchObject({ kind: 'empty', retry: false })
+  })
+})
+
+describe('notifications on this device', () => {
+  it('draws nothing while the machine is not offering them or the phone has not answered', () => {
+    expect(tellingOf(NOT_OFFERED).drawn).toBe(false)
+    expect(tellingOf(null).drawn).toBe(false)
+    expect(tellingOf(null).said).toBe('asking…')
+  })
+
+  it('says every standing in its own word and the push table’s own sentence', () => {
+    const words = new Set<string>()
+    for (const standing of [ON, OFF, DENIED, INSECURE, CANNOT]) {
+      const one = tellingOf(standing)
+      expect(one.drawn, standing).toBe(true)
+      expect(one.said).toBe(PUSH_SAID[standing])
+      words.add(one.word)
+    }
+    expect(words.size).toBe(5)
+  })
+
+  it('offers the press only where a press could change it', () => {
+    expect(tellingOf(ON)).toMatchObject({ on: true, press: 'Stop telling this device' })
+    expect(tellingOf(OFF)).toMatchObject({ on: false, press: 'Tell this device' })
+    for (const standing of [DENIED, INSECURE, CANNOT]) {
+      expect(tellingOf(standing).press, standing).toBeNull()
+    }
+  })
+})
+
 describe('this device, for the lead', () => {
   it('is its own session’s name and kind, and the list’s moment it was paired', () => {
     const { you, devices } = listed(device({ label: 'Windows PC' }))
@@ -349,6 +413,22 @@ describe('what this device said', () => {
     const { chat, notes } = rows([])
     const recent = recentOf({ chat, notes, device: ME, mayTalk: false, mayNotes: false }, NOW)
     expect(recent).toMatchObject({ granted: false, items: [], said: '' })
+  })
+
+  it('says not granted and nothing yet as two different sentences, and nothing over lines', () => {
+    const { chat, notes } = rows(EVERY)
+    const none = recentState(
+      recentOf({ chat, notes, device: OTHER, mayTalk: true, mayNotes: true }, NOW),
+    )
+    const withheld = recentState(
+      recentOf({ chat, notes, device: ME, mayTalk: false, mayNotes: false }, NOW),
+    )
+    expect(none?.heading).toBe('Nothing sent from here yet')
+    expect(withheld?.heading).toBe('Not granted to this device')
+    const some = recentOf({ chat, notes, device: ME, mayTalk: true, mayNotes: true }, NOW)
+    expect(some.items.length).toBeGreaterThan(0)
+    expect(recentState(some)).toBeNull()
+    expect(recentState(null)).toBeNull()
   })
 
   it('shows the newest few and counts the rest', () => {

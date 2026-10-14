@@ -20,30 +20,23 @@ import { mayFor } from '../access.js'
 import { gauge, gaugeIn } from '../charts.js'
 import { classOn, el, into, keyed, skeleton, textIn } from '../dom.js'
 import { icon } from '../icons.js'
-import {
-  CANNOT,
-  DENIED,
-  INSECURE,
-  NOT_OFFERED,
-  OFF,
-  ON,
-  PUSH_SAID,
-  pushState,
-  subscribe,
-  unsubscribe,
-} from '../push.js'
+import { ON, pushState, subscribe, unsubscribe } from '../push.js'
 import { section } from '../rows.js'
 import { chatOf, notesOf } from '../store.js'
 import { TROUBLES, troubleOf, UNKNOWN_TROUBLE } from '../trouble.js'
 import { answerIn, facts, factsIn, panel, problem, problemIn, stateBox, stateBoxIn } from '../ui.js'
 import {
+  answered,
   leadState,
   listOf,
   listSaid,
+  listState,
   liveOf,
   matrixOf,
   reachOf,
   recentOf,
+  recentState,
+  tellingOf,
   thisOf,
 } from './devices-shape.js'
 
@@ -78,7 +71,7 @@ export function devicesScreen(ctx) {
 
   const every = everyOf(() => void freshen())
   const grants = grantsOf()
-  const telling = tellingOf(ctx)
+  const telling = notifyingOf(ctx)
   const recent = recentPartOf()
   // The list and, beside it at a desk, the two short ones; the matrix across
   // the whole width under both, where its cells sit four abreast. On a phone
@@ -95,15 +88,14 @@ export function devicesScreen(ctx) {
   let last = null
   // The device list is not on the stream — letting a phone in or disconnecting
   // one is not a projection change — so it is asked for when this screen
-  // opens, which is the only moment anybody is reading it. `freshen` answers
-  // nothing, so whether it worked is whether the list it holds was replaced:
-  // a new answer is always a new array.
+  // opens, which is the only moment anybody is reading it, and whether that
+  // worked is `answered`'s.
   const freshen = async () => {
     asked = 'asking'
     if (last !== null) draw(last)
     const before = ctx.devices()
     await ctx.freshen()
-    asked = ctx.devices() !== before ? 'done' : 'failed'
+    asked = answered(before, ctx.devices())
     if (last !== null) draw(last)
   }
 
@@ -285,21 +277,18 @@ function everyOf(retry) {
   return {
     node: made.node,
     fill(rows, asked) {
-      const none = rows === null
-      coming.hidden = !none || asked !== 'asking'
+      const shown = listState(rows, asked)
       const again = { word: 'Try again', run: retry }
+      coming.hidden = !shown.coming
+      const box = shown.box
       stateBoxIn(
         wrong,
-        none && asked === 'failed'
-          ? boxOf('error', TROUBLES.offline.title, TROUBLES.offline.fix, again)
-          : !none && rows.length === 0
-            ? boxOf('empty', 'No device is paired', 'Pair one from the Away panel at the machine.')
-            : null,
+        box === null ? null : boxOf(box.kind, box.heading, box.line, box.retry ? again : null),
       )
       // A list that is there but could not be asked again is still the list,
       // said as the one it is rather than replaced by an error.
-      problemIn(stale, !none && asked === 'failed' ? TROUBLES.offline : null, again)
-      list.hidden = none || rows.length === 0
+      problemIn(stale, shown.stale ? TROUBLES.offline : null, again)
+      list.hidden = rows === null || rows.length === 0
       textIn(sum, listSaid(rows))
       keyed(list, rows ?? [], (one) => one.key, createDevice, fillDevice)
     },
@@ -419,27 +408,13 @@ function fillCell(node, one) {
 /* ── notifications ─────────────────────────────────────────────────────────── */
 
 /**
- * The word a notification's standing is said in beside its sentence, and the
- * glyph before it — `PUSH_SAID`'s six standings, less the one that hides the
- * section, and the moment before the phone has answered.
- */
-const TELLING = {
-  [ON]: { glyph: '●', word: 'on', on: true },
-  [OFF]: { glyph: '○', word: 'off', on: false },
-  [DENIED]: { glyph: '⊘', word: 'blocked', on: false },
-  [INSECURE]: { glyph: '⊘', word: 'needs https', on: false },
-  [CANNOT]: { glyph: '⊘', word: 'unavailable', on: false },
-}
-const ASKING = { glyph: '◴', word: 'asking', on: false }
-
-/**
  * **The notifications control, and it is on this screen because this is the
  * screen about this device.** The permission belongs to the phone, not to the
  * machine, and `pushState` reads the phone's own answer rather than a row in a
  * file — so a permission somebody took back in their browser's settings draws
  * as blocked here instead of as on.
  */
-function tellingOf(ctx) {
+function notifyingOf(ctx) {
   const made = section('NOTIFICATIONS', {
     hint: 'A count of what wants you and nothing else — no project, no task, no title — unless details are turned on at the machine. Relayed by your browser’s push service, which cannot read it; sent only while Tade’s window is open and the machine awake, and never caught up.',
   })
@@ -465,20 +440,18 @@ function tellingOf(ctx) {
    */
   let asked = null
   const draw = () => {
-    // Hidden rather than drawn as unavailable while the machine is not
-    // offering it: a control for a thing nobody turned on costs a section to
-    // say nothing. The same decision the window makes about its own away
-    // panel.
-    made.node.hidden = standing === null || standing === NOT_OFFERED
-    const shown = TELLING[standing] ?? ASKING
+    const shown = tellingOf(standing)
+    made.node.hidden = !shown.drawn
+    // A toned pill draws its own dot (`ui.css`), so the glyph is said only
+    // where there is no tone to draw one.
     textIn(glyph, shown.glyph)
     glyph.hidden = shown.on
     textIn(word, shown.word)
     classOn(pill, 't-done', shown.on)
-    textIn(said, standing === null ? 'asking…' : (PUSH_SAID[standing] ?? ''))
-    tell.hidden = standing !== ON && standing !== OFF
-    classOn(tell, 'quietly', standing === ON)
-    textIn(tell, standing === ON ? 'Stop telling this device' : 'Tell this device')
+    textIn(said, shown.said)
+    tell.hidden = shown.press === null
+    classOn(tell, 'quietly', shown.on)
+    textIn(tell, shown.press ?? '')
   }
   const askPhone = async () => {
     asked = JSON.stringify(ctx.shell()?.notifying ?? null)
@@ -530,25 +503,10 @@ function recentPartOf() {
       list.hidden = shown.length === 0
       textIn(sum, recent?.said ?? '')
       textIn(more, recent !== null && recent.more > 0 ? `and ${recent.more} older` : '')
+      const box = recentState(recent)
       stateBoxIn(
         state,
-        recent === null || shown.length > 0
-          ? null
-          : !recent.granted
-            ? boxOf(
-                'empty',
-                'Not granted to this device',
-                'Reading the conversation or the notes is granted at the machine.',
-                null,
-                'talk',
-              )
-            : boxOf(
-                'empty',
-                'Nothing sent from here yet',
-                'A message to Tade or a note left from this device shows here.',
-                null,
-                'talk',
-              ),
+        box === null ? null : boxOf(box.kind, box.heading, box.line, null, box.icon),
       )
       keyed(list, shown, (one) => one.key, createMoment, fillMoment)
     },

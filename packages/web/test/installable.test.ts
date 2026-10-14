@@ -273,7 +273,7 @@ describe('the real folder', () => {
     // files and 77 KB as they sit, where it was two and 18) took it to 1122.
     // 1128 until the notes (three files and 41 KB as they sit, where it was
     // two and 4) took it to 1159. 1168 until the devices (three files and 46 KB
-    // as they sit, where it was two and 8) took it to 1201: the pages still to
+    // as they sit, where it was two and 8) took it to 1203: the pages still to
     // come spend the rest, and the next one is this conversation again.
     expect(raw).toBeLessThan(1208 * 1024)
   })

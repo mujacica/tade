@@ -12,6 +12,7 @@
 //
 // No DOM and no clock: `asOf` is handed in. Held by `test/devices-client.test.ts`.
 
+import { CANNOT, DENIED, INSECURE, NOT_OFFERED, OFF, ON, PUSH_SAID } from '../push.js'
 import { TROUBLES } from '../trouble.js'
 
 /** A day, which is the unit a pairing and a session are counted in. */
@@ -345,6 +346,84 @@ export function leadState(session, asked) {
   return { kind: 'loading', heading: 'Reading this device', line: null }
 }
 
+/**
+ * How asking the machine for the list again went, out of what it held before
+ * and after. `freshen` answers nothing and replaces the list only on an
+ * answer — a new answer is always a new array — so the same list afterwards
+ * is a machine that did not answer.
+ */
+export function answered(before, after) {
+  return after !== before ? 'done' : 'failed'
+}
+
+/**
+ * What the list's region draws besides the rows: a skeleton while the first
+ * answer is coming, a box where there is no list to draw — the machine not
+ * answering, or no device at all — and, where a list is there but could not
+ * be asked for again, that it is the one from before.
+ */
+export function listState(list, asked) {
+  if (list === null || list === undefined) {
+    return {
+      coming: asked !== 'failed',
+      box:
+        asked === 'failed'
+          ? {
+              kind: 'error',
+              heading: TROUBLES.offline.title,
+              line: TROUBLES.offline.fix,
+              retry: true,
+            }
+          : null,
+      stale: false,
+    }
+  }
+  return {
+    coming: false,
+    box:
+      list.length === 0
+        ? {
+            kind: 'empty',
+            heading: 'No device is paired',
+            line: 'Pair one from the Away panel at the machine.',
+            retry: false,
+          }
+        : null,
+    stale: asked === 'failed',
+  }
+}
+
+/* ── notifications ─────────────────────────────────────────────────────────── */
+
+/**
+ * How notifications stand on this device, as the section draws it: whether
+ * the section is drawn at all, the word and glyph of its pill, its sentence
+ * (`PUSH_SAID`'s, verbatim) and which press it offers — or none, where the
+ * browser is what stands in the way.
+ *
+ * **Hidden while the machine is not offering it**, and before the phone has
+ * answered: a control for a thing nobody turned on costs a section to say
+ * nothing — the decision the window makes about its own away panel.
+ */
+export function tellingOf(standing) {
+  const words = {
+    [ON]: { glyph: '●', word: 'on' },
+    [OFF]: { glyph: '○', word: 'off' },
+    [DENIED]: { glyph: '⊘', word: 'blocked' },
+    [INSECURE]: { glyph: '⊘', word: 'needs https' },
+    [CANNOT]: { glyph: '⊘', word: 'unavailable' },
+  }
+  const shown = words[standing] ?? { glyph: '◴', word: 'asking' }
+  return {
+    drawn: standing !== null && standing !== undefined && standing !== NOT_OFFERED,
+    ...shown,
+    on: standing === ON,
+    said: standing === null || standing === undefined ? 'asking…' : (PUSH_SAID[standing] ?? ''),
+    press:
+      standing === ON ? 'Stop telling this device' : standing === OFF ? 'Tell this device' : null,
+  }
+}
+
 /* ── what this device said ─────────────────────────────────────────────────── */
 
 /**
@@ -390,4 +469,26 @@ export function recentOf({ chat, notes, device, mayTalk, mayNotes }, asOf) {
     .map(([kind, n]) => `${n} ${of[kind]}${n === 1 ? '' : 's'}`)
     .join(' · ')
   return { granted, items, more, said }
+}
+
+/**
+ * What the region draws where it has no lines: not granted, which is about
+ * this device, or nothing sent yet, which is about what it did — two nulls
+ * and two sentences. Null where there are lines, or before the first snapshot.
+ */
+export function recentState(recent) {
+  if (recent === null || recent === undefined || recent.items.length > 0) return null
+  return recent.granted
+    ? {
+        kind: 'empty',
+        icon: 'talk',
+        heading: 'Nothing sent from here yet',
+        line: 'A message to Tade or a note left from this device shows here.',
+      }
+    : {
+        kind: 'empty',
+        icon: 'talk',
+        heading: 'Not granted to this device',
+        line: 'Reading the conversation or the notes is granted at the machine.',
+      }
 }

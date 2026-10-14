@@ -96,6 +96,21 @@ declare module '*/assets/pages/devices-shape.js' {
     session: unknown,
     asked: string,
   ): { kind: string; heading: string; line: string | null } | null
+  type Box = { kind: string; heading: string; line: string; retry?: boolean; icon?: string }
+  export function answered(before: unknown, after: unknown): 'done' | 'failed'
+  export function listState(
+    list: readonly Row[] | null | undefined,
+    asked: string,
+  ): { coming: boolean; box: Box | null; stale: boolean }
+  export function tellingOf(standing: string | null | undefined): {
+    drawn: boolean
+    glyph: string
+    word: string
+    on: boolean
+    said: string
+    press: string | null
+  }
+  export function recentState(recent: Recent | null | undefined): Box | null
   export function recentOf(
     from: {
       chat: readonly import('../src/protocol.ts').ChatRow[] | null
