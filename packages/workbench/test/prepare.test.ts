@@ -1,5 +1,14 @@
 import { spawn } from 'node:child_process'
-import { existsSync, lstatSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { type Config, ConfigSchema, setupLine, taskDir } from '@tade/core'
 import { describe, expect, it } from 'vitest'
@@ -97,6 +106,27 @@ describe('preparing a new worktree', () => {
       'lockfiles for npm and yarn and no packageManager to say which',
     ])
     expect(existsSync(made.worktree)).toBe(true)
+  })
+
+  it('never writes through a link the worktree has into somewhere else', async () => {
+    const outside = tmp('tade-outside-')
+    const repo = mkrepo()
+    repo.commit('ignore', { '.gitignore': 'certs/\n', '.worktreeinclude': 'certs/*.pem\n' })
+    // The base commit tracks `certs` as a link out of the repository; the
+    // checkout is on a branch where it is a real, ignored folder of secrets.
+    repo.git('branch', 'dev')
+    symlinkSync(outside, join(repo.root, 'certs'))
+    repo.git('add', '-f', 'certs')
+    repo.git('commit', '-q', '-m', 'a link')
+    repo.git('checkout', '-q', '-f', 'dev')
+    rmSync(join(repo.root, 'certs'), { force: true })
+    repo.write({ 'certs/local.pem': 'PEM\n' })
+    const made = await task(repo, 'escape', { base: 'main' })
+    expect(made.prepared?.files).toEqual([])
+    expect(made.prepared?.said).toEqual([
+      'certs/local.pem would land outside the worktree through a link in it, so it was not brought',
+    ])
+    expect(readdirSync(outside)).toEqual([])
   })
 
   it('refuses more files than a worktree is given, rather than bringing some of them', async () => {

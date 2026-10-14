@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { copyFile, lstat, mkdir, readFile, symlink } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, readFile, realpath, symlink } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import {
   type Config,
@@ -151,6 +151,12 @@ export async function bringFiles(opts: {
         said.push(`${path} is already in the worktree, so it was left as it is`)
         continue
       }
+      if (!(await landsInside(dirname(to), opts.worktree))) {
+        said.push(
+          `${path} would land outside the worktree through a link in it, so it was not brought`,
+        )
+        continue
+      }
       await mkdir(dirname(to), { recursive: true })
       if (opts.link) await symlink(from, to)
       else await copyFile(from, to, constants.COPYFILE_EXCL)
@@ -160,6 +166,27 @@ export async function bringFiles(opts: {
     }
   }
   return { brought, said }
+}
+
+/**
+ * Whether a folder in the worktree is really in it: the nearest part of the
+ * path that exists, with every link followed. The worktree is the base commit,
+ * not the checkout, so a folder the checkout has may be a tracked link there —
+ * and writing through it would put the checkout's secrets wherever it points.
+ */
+async function landsInside(dir: string, worktree: string): Promise<boolean> {
+  const home = await realpath(worktree)
+  let at = dir
+  for (;;) {
+    try {
+      const real = await realpath(at)
+      return real === home || real.startsWith(`${home}/`)
+    } catch {
+      const up = dirname(at)
+      if (up === at) return false
+      at = up
+    }
+  }
 }
 
 /** Give a new worktree what its project says it needs. Never throws: what went wrong is `said`. */
