@@ -5,6 +5,10 @@ Every change to Tade, newest first, in the words whoever made it wrote. Generate
 explains the reasoning in the body, and a tool that reshaped them into `feat:` and `fix:` would
 say less than the history already does.
 
+## [0.2.1](https://github.com/mujacica/tade/compare/v0.2.0...v0.2.1) — 2026-10-14
+
+- A fresh Tade starts muted: no speech and no sounds until somebody unmutes it ([`090ef91`](https://github.com/mujacica/tade/commit/090ef91c26ff16f0a3447d8464f6fb7616b2acbd))
+
 ## [0.2.0](https://github.com/mujacica/tade/compare/v0.1.1...v0.2.0) — 2026-10-14
 
 - The v0.2.0 release gate failed on both systems because the retired-tools scan read the changelog, whose commit subjects name a retired tool to say agents were told it was gone ([`22169a0`](https://github.com/mujacica/tade/commit/22169a0d680d97832bdfb6bf58acf0979d95f0aa))
