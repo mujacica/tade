@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changedSays, handedOnSays, nowSays } from '../src/queue.ts'
+import { changedSays, handedOnSays, inPlaceSays, nowSays } from '../src/queue.ts'
 
 // What a change to queued work answers with: where each piece stands once the
 // queue has looked again, in a sentence that says what happens next and
@@ -91,6 +91,19 @@ describe('what removing work says once its waits were handed on', () => {
     )
     expect(handedOnSays('app/b', [{ task: 'app/c', problem: 'gone' }], [], ['app/c is held'])).toBe(
       'app/b is removed:\n- app/c could not take over what app/b waited on: gone\n- app/c is held',
+    )
+  })
+})
+
+describe('what removing work that never started says', () => {
+  it('says what changes queued work in place, after the answer and never inside its lines', () => {
+    const said =
+      'app/b had not started. To change what queued work is told or when it starts, tade_queue_change retell (prompt, touches) and after change it in place; removing it uses its name for good, so planning it again needs a new one.'
+    expect(inPlaceSays('app/b is removed. Nothing waited on it.', 'app/b')).toBe(
+      `app/b is removed. Nothing waited on it. ${said}`,
+    )
+    expect(inPlaceSays('app/b is removed:\n- app/c is held', 'app/b')).toBe(
+      `app/b is removed:\n- app/c is held\n${said}`,
     )
   })
 })

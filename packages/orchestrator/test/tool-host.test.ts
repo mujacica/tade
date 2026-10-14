@@ -1,8 +1,9 @@
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Arm, LOCAL, type Plan } from '@tade/core'
-import type { Workbench } from '@tade/workbench'
+import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { ToolHost, type ToolHostOptions } from '../src/tool-host.ts'
 import { call } from './host-harness.ts'
 
@@ -105,6 +106,48 @@ describe('starting an agent for the orchestrator', () => {
     await call(path, 'worker/start', { task: 'app/refunds', cwd: '/src/app', prompt: '' })
     expect(handedOff).toBe(0)
     expect(started).toEqual([{ task: 'app/refunds', cwd: '/src/app', prompt: '' }])
+  })
+})
+
+// On 2026-10-11 a design task was made three times over: steering it while it
+// was queued answered "no agent running", so each time the person said more the
+// orchestrator removed it and planned it again.
+describe('steering work that has not started', () => {
+  let host: ToolHost | null = null
+  let client: Workbench | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    await client?.close().catch(() => {})
+    host = null
+    client = null
+  })
+
+  it('says what reaches queued work instead, and only of work whose agent never ran', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-steer-')
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `agents:\n  workspace: checkout\nprojects:\n  app:\n    root: ${repo.root}\n`,
+    )
+    // Its own sessions, so nothing of a real ~/.pi is read or written.
+    const tade = await Workbench.open({ home, sessionsRoot: tmp('tade-sessions-') })
+    client = tade
+    const agent = (name: string) => ({ name, said: name, prompt: name, after: [], touches: [] })
+    await tade.planTasks({ project: 'app', said: '', agents: [agent('design'), agent('ran')] })
+    await tade.log.append({ type: 'run_started', task: 'app/ran', detail: {} })
+    const path = join(tmp('tade-tools-'), 'tools.sock')
+    host = await ToolHost.listen({ tade, path })
+
+    const queued = await call(path, 'worker/steer', { task: 'app/design', message: 'add ⌘K' })
+    expect(queued.error?.message).toBe(
+      'app/design has not started: tade_queue_change retell changes what it will be told; a note scoped to it (tade_remember about: app/design) is in what it is told when it starts',
+    )
+    // One that ran and stopped is not queued work, and neither is no task at all.
+    const stopped = await call(path, 'worker/steer', { task: 'app/ran', message: 'hello' })
+    expect(stopped.error?.message).toBe('no agent running on app/ran')
+    const none = await call(path, 'worker/steer', { task: 'app/ghost', message: 'hello' })
+    expect(none.error?.message).toBe('no agent running on app/ghost')
   })
 })
 

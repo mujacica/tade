@@ -41,10 +41,12 @@ describe('making a plan', () => {
   })
 
   /** A task made and taken away again: its name is used for good. */
-  const usedUp = async (name: string) => {
+  const usedUp = async (name: string, ran = false) => {
     const [task] = (await client.planTasks({ project: 'app', said: '', agents: [agent(name)] }))
       .made
     if (!task) throw new Error(`${name} was not made`)
+    // Its agent ran before it went: what the journal says of work that started.
+    if (ran) await client.log.append({ type: 'run_started', task: task.id, detail: {} })
     const removed = await client.removeTask({
       root: repo.root,
       worktree: task.worktree,
@@ -88,7 +90,7 @@ describe('making a plan', () => {
         ],
       }),
     ).rejects.toThrow(
-      /^the plan was not made: app\/key-echo-not-paced was used before, and a task's name is never used twice: name it again \(free: key-echo-not-paced-2\)$/,
+      /^the plan was not made: app\/key-echo-not-paced was used before, and a task's name is never used twice: name it again \(free: key-echo-not-paced-2\)\. app\/key-echo-not-paced was removed before it started: change queued work with tade_queue_change retell \(prompt, touches\) or after \(what it waits on\) rather than removing it and planning it again$/,
     )
     // The first agent, which once was made before the second was refused.
     expect(existsSync(taskDir(home, 'app/bottom-bar-jev-and-remote'))).toBe(false)
@@ -119,9 +121,38 @@ describe('making a plan', () => {
       'the plan was not made: lost waits on ghost, which is neither in the plan nor a task Tade has; ' +
         "app/gone was used before, app/here is a task already and app/a.b would carry on app/a-b's conversation, and a task's name is never used twice: " +
         // `gone-2` was used too, so the free name skips it.
-        'name them again (free: gone-3, here-2, a.b-2), or have the work wait on what is a task already, in after, rather than planning it again',
+        'name them again (free: gone-3, here-2, a.b-2), or have the work wait on what is a task already, in after, rather than planning it again. ' +
+        // Both went before they started; `here` is still queued, and says so above.
+        'app/gone and app/a-b were removed before they started: change queued work with tade_queue_change retell (prompt, touches) or after (what it waits on) rather than removing it and planning it again',
     )
     expect(existsSync(taskDir(home, 'app/fine'))).toBe(false)
+  })
+
+  // On 2026-10-13 seventeen queued tasks were removed to be planned again, and
+  // the refusal over four of the names offered `-2` names and nothing else.
+  it('says what changes queued work in place only of a name removed lately, before it started', async () => {
+    await usedUp('started-then-removed', true)
+    await usedUp('removed-long-ago')
+    const deps = (now: number) => ({
+      config: client.config,
+      events: client.events.bind(client),
+      note: async () => {},
+      createTask: client.createTask.bind(client),
+      resolveModel: client.resolveModel.bind(client),
+      keyOf: [],
+      now: () => now,
+    })
+    const plan = (name: string) => ({ project: 'app', said: '', agents: [agent(name)] })
+    await expect(makePlan(deps(Date.now()), plan('started-then-removed'))).rejects.toThrow(
+      /^the plan was not made: app\/started-then-removed was used before, and a task's name is never used twice: name it again \(free: started-then-removed-2\)$/,
+    )
+    // Over an hour on, it is no longer the re-plan the removal was made for.
+    await expect(
+      makePlan(deps(Date.now() + 61 * 60_000), plan('removed-long-ago')),
+    ).rejects.toThrow(/^the plan was not made: app\/removed-long-ago was used before, [^.]*\)$/)
+    await expect(makePlan(deps(Date.now()), plan('removed-long-ago'))).rejects.toThrow(
+      /app\/removed-long-ago was removed before it started: change queued work with tade_queue_change retell/,
+    )
   })
 
   it('refuses two agents of one plan that would be one conversation', async () => {

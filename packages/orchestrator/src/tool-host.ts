@@ -21,6 +21,7 @@ import {
   inboxItem,
   intakeWouldRun,
   openChat,
+  readTaskFile,
   type Workbench,
   wouldRunSays,
 } from '@tade/workbench'
@@ -444,7 +445,10 @@ export class ToolHost {
       'worker/pending': (p, arm) =>
         waiting(tade.pendingApprovals(p.task ? String(p.task) : undefined), arm),
       'worker/steer': async (p) => {
-        await tade.steerAgent(String(p.task), String(p.message))
+        const task = String(p.task)
+        await tade.steerAgent(task, String(p.message)).catch(async (err: unknown) => {
+          throw (await notStartedYet(tade, task)) ?? err
+        })
         return { ok: true }
       },
       'worker/stop': async (p) => {
@@ -704,6 +708,27 @@ function doneRuleOf(value: unknown): DoneRule {
   const rule = DONE_RULES.find((one) => one === String(value).trim().toLowerCase())
   if (!rule) throw new Error(`${String(value)} is not a way to finish: ${DONE_RULES.join(', ')}`)
   return rule
+}
+
+/**
+ * Why a task cannot be steered, when the reason is that it is queued and its
+ * agent has never run: what does reach it, instead of "no agent running".
+ *
+ * Told only that, the orchestrator removed queued work to plan it again with
+ * the new words — a design task made three times on 2026-10-11 — when a note
+ * scoped to the task was already in what its agent is told when it starts
+ * (`agentPrompt`). Here and not in `steerAgent`, because the words name the
+ * orchestrator's tools and the CLI steers through the workbench too.
+ */
+async function notStartedYet(tade: Workbench, task: string): Promise<Error | null> {
+  const file = await readTaskFile(tade.home, task).catch(() => null)
+  if (!file?.start) return null
+  const ran = await tade.events({ types: ['run_started'], task, limit: 1 }).catch(() => null)
+  // A journal that would not answer cannot say it never ran.
+  if (ran === null || ran.length > 0) return null
+  return new Error(
+    `${task} has not started: tade_queue_change retell changes what it will be told; a note scoped to it (tade_remember about: ${task}) is in what it is told when it starts`,
+  )
 }
 
 /** Links as a model sent them: only the ones with somewhere to go. */

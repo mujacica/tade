@@ -46,7 +46,12 @@ export interface PlanDeps {
    * `a-b` somebody removed is refused before anything is made.
    */
   keyOf: readonly ((id: string) => string)[]
+  /** The clock a removal is "just now" by; `Date.now` unless a test says otherwise. */
+  now?: () => number
 }
+
+/** How long a removal counts as part of the re-plan it was made for. */
+const RECENTLY = 60 * 60_000
 
 /** One planned agent's task id: its own project's, which may not be the plan's. */
 export function agentId(plan: Plan, agent: { name: string; project?: string }): string {
@@ -75,7 +80,7 @@ export async function makePlan(
     )
   }
   const journal = await deps
-    .events({ types: ['task_created', 'task_removed', 'effort_named'] })
+    .events({ types: ['task_created', 'task_removed', 'run_started', 'effort_named'] })
     .catch(() => [])
   // Every task Tade has, in every project. The ids are already qualified, so
   // widening this is the whole of what lets a task in one repository wait on a
@@ -83,6 +88,11 @@ export async function makePlan(
   const tasks = new Set<string>()
   // And every name a task has ever had, which a removed one keeps for good.
   const used: string[] = []
+  // What was taken out of the queue before its agent ever ran, and lately:
+  // the mark of work removed so that it could be planned again.
+  const started = new Set<string>()
+  const unstarted = new Set<string>()
+  const since = (deps.now ?? Date.now)() - RECENTLY
   let named: unknown
   for (const event of journal) {
     if (event.type === 'effort_named' && event.detail.effort === plan.effort) {
@@ -92,7 +102,11 @@ export async function makePlan(
     if (event.type === 'task_created') {
       tasks.add(event.task)
       used.push(event.task)
-    } else if (event.type === 'task_removed') tasks.delete(event.task)
+    } else if (event.type === 'run_started') started.add(event.task)
+    else if (event.type === 'task_removed') {
+      tasks.delete(event.task)
+      if (!started.has(event.task) && Date.parse(event.ts) >= since) unstarted.add(event.task)
+    }
   }
   const check = checkPlan(plan, {
     workspace: (project) => workspaceFor(deps.config, project),
@@ -103,7 +117,7 @@ export async function makePlan(
   // Every reason in one answer, names included: asked one task at a time as
   // each was made, a plan made its first task and then threw on its second,
   // and the next attempt was refused over the task that one had left behind.
-  const taken = namesTaken(deps.keyOf, plan, used, tasks)
+  const taken = namesTaken(deps.keyOf, plan, used, tasks, unstarted)
   if (!check.ok || taken) {
     const problems = [...(check.ok ? [] : check.problems), ...(taken ? [taken] : [])]
     throw new Error(`the plan was not made: ${problems.join('; ')}`)
@@ -171,24 +185,34 @@ export async function makePlan(
  * `guardName`'s, asked of the whole plan before anything is made. A free name
  * is the agent's own with a number, the way schedules number theirs, and only
  * a suggestion.
+ *
+ * A name taken by queued work removed before it started, and lately, is the
+ * shape of removing work in order to plan it again — seventeen removals and a
+ * refused plan on 2026-10-13, where thirteen retells would have done — so the
+ * refusal says what changes queued work in place. Said in the answer because
+ * an answer is the one thing a harness never freezes: a tool's description may
+ * be the one the conversation began with.
  */
 function namesTaken(
   keyOf: PlanDeps['keyOf'],
   plan: Plan,
   used: readonly string[],
   tasks: ReadonlySet<string>,
+  unstarted: ReadonlySet<string>,
 ): string | undefined {
   const ids = plan.agents.map((agent) => agentId(plan, agent))
   // What no name may be, a free one included: every task's, and every agent's here.
   const taken = [...used, ...ids]
   const said: string[] = []
   const free: string[] = []
+  const replanned = new Set<string>()
   plan.agents.forEach((agent, n) => {
     const id = agentId(plan, agent)
     // The same name twice in a plan is `checkPlan`'s to say.
     const earlier = ids.slice(0, n).filter((other) => other !== id)
     const clash = sameConversation(keyOf, used, id) ?? sameConversation(keyOf, earlier, id)
     if (!clash) return
+    if (unstarted.has(clash)) replanned.add(clash)
     said.push(
       clash !== id
         ? `${id} would carry on ${clash}'s conversation`
@@ -206,7 +230,12 @@ function namesTaken(
   })
   if (said.length === 0) return undefined
   const existing = said.some((one) => one.endsWith(' is a task already'))
-  return `${joined(said)}, and a task's name is never used twice: name ${said.length === 1 ? 'it' : 'them'} again${free.length > 0 ? ` (free: ${free.join(', ')})` : ''}${existing ? ', or have the work wait on what is a task already, in after, rather than planning it again' : ''}`
+  const gone = [...replanned]
+  const inPlace =
+    gone.length > 0
+      ? `. ${joined(gone)} ${gone.length === 1 ? 'was' : 'were'} removed before ${gone.length === 1 ? 'it' : 'they'} started: change queued work with tade_queue_change retell (prompt, touches) or after (what it waits on) rather than removing it and planning it again`
+      : ''
+  return `${joined(said)}, and a task's name is never used twice: name ${said.length === 1 ? 'it' : 'them'} again${free.length > 0 ? ` (free: ${free.join(', ')})` : ''}${existing ? ', or have the work wait on what is a task already, in after, rather than planning it again' : ''}${inPlace}`
 }
 
 /**

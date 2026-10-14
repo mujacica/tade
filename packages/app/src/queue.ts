@@ -450,6 +450,22 @@ export function handedOnSays(
   return changedSays(`${lead}${lines.length > 0 ? ':' : '.'}`, started, lines)
 }
 
+/**
+ * What the orchestrator is told after removing work that never started: what
+ * changes queued work where it is, and what removing it cost.
+ *
+ * Removing was how queued work got changed — seventeen tasks in nine seconds on
+ * 2026-10-13, each to be planned again, and the plan refused over the names —
+ * because the tool's description the model held was the one its conversation
+ * began with, which knew no `retell` or `after`. An answer is never frozen, so
+ * the route is said here, where the next removal is read.
+ */
+export function inPlaceSays(answer: string, task: string): string {
+  const said = `${task} had not started. To change what queued work is told or when it starts, tade_queue_change retell (prompt, touches) and after change it in place; removing it uses its name for good, so planning it again needs a new one.`
+  // Lines stay lines: under the last one it would read as about that piece.
+  return `${answer}${answer.includes('\n') ? '\n' : ' '}${said}`
+}
+
 /** Queued work and where each stands, in lines, oldest first. */
 export function describeQueue(
   items: readonly Queued[],

@@ -27,6 +27,7 @@ import {
   describeSchedule,
   handedOnSays,
   heldMessage,
+  inPlaceSays,
   nowSays,
   planAnswer,
   planBusyOf,
@@ -553,15 +554,23 @@ export class Queue implements Subject {
       })
       if (!result.removed) throw new Error(result.reason)
     }
-    if (dependents === 'inherit') return this.handOn(task, waited, by, removing)
+    // Every removal of unstarted work on record was followed by a plan for the
+    // same work under a new name, so the orchestrator is told what changes it
+    // in place (`inPlaceSays`); a person who pressed Remove meant it.
+    const unstarted =
+      by !== 'you' && (this.wire.live?.queued ?? []).some((one) => one.task === task)
+    const said = (answer: string) => (unstarted ? inPlaceSays(answer, task) : answer)
+    if (dependents === 'inherit') return said(await this.handOn(task, waited, by, removing))
     await removing()
     const started = await this.settle(waited, by)
     if (waited.length === 0)
-      return changedSays(`${task} is removed. Nothing waited on it.`, started, [])
-    return changedSays(
-      `${task} is removed. ${joined(waited)} waited on it:`,
-      started,
-      this.nowOf(waited.filter((one) => !started.includes(one))),
+      return said(changedSays(`${task} is removed. Nothing waited on it.`, started, []))
+    return said(
+      changedSays(
+        `${task} is removed. ${joined(waited)} waited on it:`,
+        started,
+        this.nowOf(waited.filter((one) => !started.includes(one))),
+      ),
     )
   }
 

@@ -17,6 +17,10 @@ import {
 // `wait` answered "waits again" while the task was held again in the same
 // second, and there was no way to say "after that one" about work already made.
 
+/** What removing queued work that never started tells the orchestrator, after its name. */
+const inPlace =
+  'had not started. To change what queued work is told or when it starts, tade_queue_change retell (prompt, touches) and after change it in place; removing it uses its name for good, so planning it again needs a new one.'
+
 describe('changing work already queued', () => {
   let terminal: FakeTerminal
   let client: Workbench
@@ -148,7 +152,8 @@ describe('changing work already queued', () => {
     )
 
     expect(await tools.change({ task: 'app/step-b', change: 'remove' })).toBe(
-      'app/step-b is removed. app/step-c waited on it: app/step-c is held: app/step-b was removed before it finished. It stays held until it is answered: start it anyway, change what it waits on (after, with replace to drop app/step-b), or remove it.',
+      'app/step-b is removed. app/step-c waited on it: app/step-c is held: app/step-b was removed before it finished. It stays held until it is answered: start it anyway, change what it waits on (after, with replace to drop app/step-b), or remove it. ' +
+        `app/step-b ${inPlace}`,
     )
     expect(
       await tools.change({
@@ -168,7 +173,11 @@ describe('changing work already queued', () => {
     ).rejects.toThrow('app/step-c cannot wait on ghost, which is not a task Tade has')
 
     expect(await tools.change({ task: 'app/step-c', change: 'remove' })).toBe(
-      'app/step-c is removed. Nothing waited on it.',
+      `app/step-c is removed. Nothing waited on it. app/step-c ${inPlace}`,
+    )
+    // Work that has started was not removed to be planned again.
+    expect(await tools.change({ task: 'app/step-a', change: 'remove' })).toBe(
+      'app/step-a is removed. Nothing waited on it.',
     )
   })
 
@@ -222,6 +231,7 @@ describe('changing work already queued', () => {
         'app/link-b is removed, and app/link-c and app/link-d take over its waits:',
         '- app/link-c waits on app/link-a, and starts by itself once that has finished',
         '- app/link-d waits on app/link-a and app/link-c, and starts by itself once they have finished',
+        `app/link-b ${inPlace}`,
       ].join('\n'),
     )
     const instead = 'in place of app/link-b, which was removed'
@@ -255,6 +265,10 @@ describe('changing work already queued', () => {
     )
     expect(await client.events({ types: ['queue_held'] })).toEqual([])
     expect(told.filter((text) => text.includes(' is held'))).toEqual([])
+    // A person who pressed Remove meant it, and is not told the tools.
+    expect(await tools.change({ task: 'app/link-d', change: 'remove', by: 'you' })).toBe(
+      'app/link-d is removed. Nothing waited on it.',
+    )
   })
 
   it('changes what queued work waits on and what it is told from its menu', async () => {
