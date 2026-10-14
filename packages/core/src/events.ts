@@ -234,6 +234,20 @@ export const EventType = z.enum([
   'usage',
   /** A finished task was looked back over, so it is never looked at twice. */
   'reflected',
+  /**
+   * What the orchestrator was told when it started — its tools, instructions
+   * and notes, as fingerprints — and whether its conversation holds that or
+   * what it was first told (`holds`). Written down because a harness that pins
+   * what a conversation was first told keeps that record itself, where
+   * nothing can ask it again.
+   */
+  'orchestrator_told',
+  /**
+   * Tade compacted the orchestrator's conversation, and why: its context was
+   * filling (`percent`), or what it was told had changed under a harness that
+   * pins it (`changed`). With what it was told then, which it now holds.
+   */
+  'orchestrator_compacted',
   // what was verified, and what was written
   /**
    * A check finished, against the commit it checked. The run itself is kept in
@@ -474,6 +488,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   usage: 'routine',
   // Nobody needs to be told that Tade thought about something.
   reflected: 'trace',
+  orchestrator_told: 'routine',
+  orchestrator_compacted: 'routine',
   // Routine rather than trace, for the same reason `usage` is: both are read
   // back out of the journal to be added up, and trace is the first thing
   // dropped when a subscriber falls behind. A statistic with holes in it that

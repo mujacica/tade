@@ -18,4 +18,5 @@ export {
 } from './extensions.ts'
 export * from './orchestrator.ts'
 export * from './origin.ts'
+export { tellingOf } from './told.ts'
 export * from './tool-host.ts'

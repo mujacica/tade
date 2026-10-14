@@ -63,6 +63,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { Keeping } from './keeping.ts'
 import { armOfThinker, cannotTalk, stopTurn, whoseTurn } from './orchestrator-away.ts'
 
 // The thing you talk to, seen from the window.
@@ -145,10 +146,13 @@ export class Orchestrator implements Subject {
   private newsWaiting: News[] = []
   /** The tasks as last seen, so what changed between two looks is news. */
   private seenTasks: readonly TaskSnapshot[] | null = null
+  /** Its conversation, kept short and told what it is told now (`keeping.ts`). */
+  private readonly keeping: Keeping
 
   constructor(wire: Wiring, deps: OrchestratorDeps) {
     this.wire = wire
     this.deps = deps
+    this.keeping = new Keeping(wire)
     // Where the window was opened with one, it is taken up here and nothing is
     // said about it: it was there before you looked. `attach` is the other
     // path — one that arrived while you waited — and that one says so.
@@ -160,7 +164,6 @@ export class Orchestrator implements Subject {
     return this.borrowing
   }
 
-  /** What its harness can be asked of a turn in flight, or nothing before it has started. */
   /**
    * Scrolled back, the lines you are reading stay where they are while new
    * ones arrive below: the distance from the bottom grows by what was added.
@@ -223,6 +226,7 @@ export class Orchestrator implements Subject {
       for (const text of taskNews(this.seenTasks, tasks)) this.note(text)
     }
     this.seenTasks = tasks
+    void this.keeping.beat()
   }
 
   /**
@@ -259,6 +263,7 @@ export class Orchestrator implements Subject {
   /** Take free text to this thinker, and show what it does as it does it. */
   private use(thinker: Thinker): void {
     this.thinker = thinker
+    this.keeping.attached(thinker)
     thinker.onEvent?.((event) => {
       // Said as it streams. The whole message follows its pieces, and only
       // closes them off: said again, every answer was heard twice at once.

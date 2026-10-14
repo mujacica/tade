@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { App, thinkerOffers } from '@tade/app'
 import {
   activityFrom,
+  type Config,
   defaultConfigPath,
   effortsIn,
   expandHome,
@@ -16,8 +17,11 @@ import {
   modelDetail,
   readiness,
   type ThinkingLevel,
+  TOLD_EVENTS,
+  type ToldPrint,
   tadeHome,
   type Unclosed,
+  unheardNotes,
 } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { installedServers as claudeServers } from '@tade/harnesses-claude/installed'
@@ -31,10 +35,12 @@ import {
   extensionWorkbench,
   loadExtensions,
   Orchestrator,
+  type OrchestratorOptions,
   orchestratorExtensions,
   orchestratorHistory,
   ToolHost,
   type ToolHostOptions,
+  tellingOf,
   workbenchExtensions,
   writtenTools,
 } from '@tade/orchestrator'
@@ -366,6 +372,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // not something inference can see.
       let orchestrator: Orchestrator | null = null
       let restartThinker: () => Promise<void> = async () => {}
+      let toldNow = async (_since: number): Promise<ToldPrint> => {
+        throw opening()
+      }
       const stopOrchestrator = async () => {
         await orchestrator?.stop().catch(() => {})
       }
@@ -394,6 +403,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
           restartThinker: () => restartThinker(),
+          toldNow: (since) => toldNow(since),
           // What was said to it before this window, out of its harness's own
           // record: shown before it has started, and if it never does.
           history: orchestratorHistory({
@@ -468,7 +478,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // could have, and it says so in the strip when it arrives. If it never
         // does — no model configured yet — everything except free text still
         // works, which is the honest outcome.
-        const startThinker = async () => {
+        // Everything it is started with, read again at every start: also what
+        // `toldNow` composes, so the two can only differ by what really moved.
+        const thinkerOptions = async (): Promise<OrchestratorOptions & { config: Config }> => {
           // Read again: a model chosen in the window is in the file, not in
           // what was loaded when this started.
           const now = await loadConfig(opts.config)
@@ -476,55 +488,66 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // The journal it opens on: what its own lessons are measured
           // against, and what it is told happened while it was not running.
           const journal = await client.events({ limit: 2_000 }).catch(() => [])
+          return {
+            home,
+            socket: tools.path,
+            runDir: join(home, 'orchestrator'),
+            cwd: process.cwd(),
+            config,
+            // So it knows what you have told it, not just what it can do.
+            notes: client.recallAll(),
+            // And which of its own lessons still apply.
+            activity: activityFrom(historyFrom(journal, Date.now()), Object.keys(config.projects)),
+            journal,
+            // What it was tracking: the queue's own words, so the briefing
+            // and tade_queue can never say different things.
+            queue: await queue?.describe().catch(() => ''),
+            // And what spans repositories, which the journal alone cannot
+            // say: an effort is the fold of the task files that name it,
+            // read out of the same status answer everything else reads.
+            efforts: effortsIn(
+              (await status().catch(() => null))?.projects.flatMap((project) => project.tasks) ??
+                [],
+              new Set(finishedFrom(journal).keys()),
+            ),
+            safe,
+            // Whether the conversation needs a gate on its own tool calls,
+            // which is wired when it starts. Read from the config here
+            // rather than asked later, because a gate added mid-session
+            // would be a gate the turn already in flight never had — and
+            // the setting says *takes effect on restart* for that reason.
+            talking: config.surfaces.web.enabled && config.surfaces.web.orchestrator,
+            signal: quitting.signal,
+            extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
+            // What its conversation was told before, read for that alone:
+            // it may be older than the briefing's two thousand lines.
+            toldBefore: await client.events({ types: TOLD_EVENTS, limit: 20 }).catch(() => []),
+            onUsage: ({ model, ...usage }) => {
+              void client.log
+                .append({
+                  type: 'usage',
+                  task: null,
+                  // The model written the one way everything writes it: what
+                  // the orchestrator costs is the same question as what an
+                  // agent costs, and a second spelling of one model here is
+                  // a second row of it on the Spend page.
+                  detail: { by: 'orchestrator', ...usage, ...modelDetail(model) },
+                })
+                .catch(() => {})
+            },
+          }
+        }
+        // What it would be told now, its own notes since `since` left out:
+        // they are in its conversation already.
+        toldNow = async (since) => {
+          const options = await thinkerOptions()
+          return tellingOf({ ...options, notes: unheardNotes(options.notes ?? [], since) }).told
+        }
+        const startThinker = async () => {
+          const options = await thinkerOptions()
+          const config = options.config
           return (
-            Orchestrator.start({
-              home,
-              socket: tools.path,
-              runDir: join(home, 'orchestrator'),
-              cwd: process.cwd(),
-              config,
-              // So it knows what you have told it, not just what it can do.
-              notes: client.recallAll(),
-              // And which of its own lessons still apply.
-              activity: activityFrom(
-                historyFrom(journal, Date.now()),
-                Object.keys(config.projects),
-              ),
-              journal,
-              // What it was tracking: the queue's own words, so the briefing
-              // and tade_queue can never say different things.
-              queue: await queue?.describe().catch(() => ''),
-              // And what spans repositories, which the journal alone cannot
-              // say: an effort is the fold of the task files that name it,
-              // read out of the same status answer everything else reads.
-              efforts: effortsIn(
-                (await status().catch(() => null))?.projects.flatMap((project) => project.tasks) ??
-                  [],
-                new Set(finishedFrom(journal).keys()),
-              ),
-              safe,
-              // Whether the conversation needs a gate on its own tool calls,
-              // which is wired when it starts. Read from the config here
-              // rather than asked later, because a gate added mid-session
-              // would be a gate the turn already in flight never had — and
-              // the setting says *takes effect on restart* for that reason.
-              talking: config.surfaces.web.enabled && config.surfaces.web.orchestrator,
-              signal: quitting.signal,
-              extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
-              onUsage: ({ model, ...usage }) => {
-                void client.log
-                  .append({
-                    type: 'usage',
-                    task: null,
-                    // The model written the one way everything writes it: what
-                    // the orchestrator costs is the same question as what an
-                    // agent costs, and a second spelling of one model here is
-                    // a second row of it on the Spend page.
-                    detail: { by: 'orchestrator', ...usage, ...modelDetail(model) },
-                  })
-                  .catch(() => {})
-              },
-            })
+            Orchestrator.start(options)
               .then(async (started) => {
                 orchestrator = started
                 app.attachThinker({
@@ -551,6 +574,11 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                   arm: () => started.arm,
                   busy: () => started.busy,
                   unarmed: () => started.unarmed,
+                  // Its conversation, kept short and told what it is told now:
+                  // the window decides when (`Keeping`), never mid-turn.
+                  compact: () => started.compact(),
+                  context: () => started.context,
+                  told: () => started.told,
                 })
                 // Nothing chosen, so the harness picked: keep what it picked, so the
                 // next time an agent switches model the orchestrator does not follow.

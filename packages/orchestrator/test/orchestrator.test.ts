@@ -134,6 +134,34 @@ describe('Orchestrator', () => {
     await until(() => idle)
   }, 90_000)
 
+  it('says how full it is, and compacts between turns without starting a conversation over', async () => {
+    // Long enough that pi has something to fold away — it keeps the newest
+    // twenty thousand tokens as they were — and short enough that its own
+    // compaction, near the fake model's 128k, never gets there first.
+    const long = `Nothing is running. ${'The queue is empty and every agent is idle. '.repeat(1_200)}`
+    const chat = await start({ finalText: long })
+    await chat.askFor('where are we')
+    // pi says how full it is only when asked, which it is once a turn is over.
+    await until(() => chat.context !== null)
+    await chat.askFor('and the queue')
+    const asked = model?.requests.length ?? 0
+    await chat.compact()
+    // The summary was asked of the model, and the next turn is in the same
+    // conversation, carrying it: never an empty start.
+    expect(model?.requests.length).toBeGreaterThan(asked)
+    await chat.askFor('and now')
+    expect(told(model ? model.requests.length - 1 : 0)).toContain('Nothing is running.')
+  }, 90_000)
+
+  it('says why, in pi’s own words, when there is nothing to compact', async () => {
+    const chat = await start({ finalText: 'Nothing is running.' })
+    await chat.askFor('where are we')
+    await expect(chat.compact()).rejects.toThrow('Nothing to compact')
+    // And it is free again: what you say next is answered.
+    expect(chat.busy).toBe(false)
+    expect(await chat.askFor('and now')).toBe('Nothing is running.')
+  }, 90_000)
+
   it('stops the turn it is on, and carries on the same conversation after', async () => {
     // Interrupting is not stopping. Everything about the window's escape key
     // rests on this: the process stays up, the session id does not change, and

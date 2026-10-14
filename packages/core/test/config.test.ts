@@ -456,6 +456,23 @@ describe('the orchestrator’s harness', () => {
   })
 })
 
+describe('how full the orchestrator’s context may get', () => {
+  it('is 80% unless somebody says otherwise', () => {
+    const r = parseConfig('')
+    expect(r.ok && r.config.orchestrator.compact_at).toBe(80)
+  })
+
+  it('takes a percentage, and 0 for leaving it to the harness', () => {
+    const r = parseConfig('orchestrator:\n  compact_at: 0\n')
+    expect(r.ok && r.config.orchestrator.compact_at).toBe(0)
+  })
+
+  it('is refused past the whole of it', () => {
+    const r = parseConfig('orchestrator:\n  compact_at: 120\n')
+    expect(!r.ok && r.issues[0]?.path).toBe('orchestrator.compact_at')
+  })
+})
+
 describe('where a project’s agents work', () => {
   it('means exactly what it meant before the key existed', () => {
     // A config written before this: no project says anything, so every project

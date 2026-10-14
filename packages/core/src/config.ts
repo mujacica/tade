@@ -365,6 +365,8 @@ export const ConfigSchema = z
          * rather propose lessons yourself.
          */
         reflect: z.boolean().default(true),
+        /** How full its context may get, in percent, before Tade compacts it between turns; 0 never. */
+        compact_at: z.int().min(0).max(100).default(80),
       })
       .prefault({}),
     workers: z

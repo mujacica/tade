@@ -13,10 +13,11 @@ import type {
 import {
   AWAY_WORDS,
   cameFromAway,
-  composePrompt,
+  changedFrom,
   expandHome,
+  type Holding,
+  heldIn,
   LOCAL,
-  livingSkills,
   orchestratorRoute,
   wentQuiet,
 } from '@tade/core'
@@ -34,11 +35,11 @@ import {
 } from '@tade/harnesses-core'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
-import { composeBriefing } from './briefing.ts'
-import { activeSkills, enabledTools } from './extensions.ts'
-import { skillsRoot, TOOLS_MCP, toolEnv, writeToolServer } from './launch.ts'
+import { enabledTools } from './extensions.ts'
+import { TOOLS_MCP, toolEnv, writeToolServer } from './launch.ts'
 import { modelNamed, startingModel } from './model.ts'
 import { canBeArmed } from './origin.ts'
+import { tellingOf } from './told.ts'
 
 // Re-exported, so a file split for size is not a rename of everybody's
 // imports: both are what a harness is handed at launch, and `launch.ts` is
@@ -147,6 +148,14 @@ export interface OrchestratorOptions {
   onUsage?: (usage: OrchestratorUsage) => void
   /** Something that went wrong but did not stop it: never swallowed. */
   onWarning?: (message: string) => void
+  /**
+   * The journal's lines about what its conversation was told
+   * (`TOLD_EVENTS`), read for that alone: a briefing's two thousand lines
+   * can be a morning's, and what the conversation holds may be older.
+   */
+  toldBefore?: readonly TadeEvent[]
+  /** The harness, when not the registry's: for tests, with a scripted one. */
+  adapter?: WorkerAdapter
 }
 
 export interface OrchestratorUsage {
@@ -193,8 +202,9 @@ export type OrchestratorEvent =
 
 /** The adapter of the harness the orchestrator talks through, or null for one Tade has none of. */
 function adapterFor(
-  opts: Pick<OrchestratorOptions, 'config' | 'runDir' | 'args' | 'env'>,
+  opts: Pick<OrchestratorOptions, 'config' | 'runDir' | 'args' | 'env' | 'adapter'>,
 ): WorkerAdapter | null {
+  if (opts.adapter) return opts.adapter
   const route = opts.config ? orchestratorRoute(opts.config) : null
   const make = HARNESS_ADAPTERS[route?.harness ?? 'pi']
   return (
@@ -293,6 +303,10 @@ export class Orchestrator {
   private working = false
   /** Why this harness cannot run a remote turn, or null when it can. */
   private unarmable: string | null = null
+  /** How full its context is, as its harness last said: a percentage. */
+  private full: number | null = null
+  /** What it was told at launch, and what of it its conversation holds: set once it has started. */
+  private holding: Holding | null = null
 
   private constructor(adapter: WorkerAdapter) {
     this.adapter = adapter
@@ -350,39 +364,14 @@ export class Orchestrator {
           opts.config?.extensions ?? {},
         )
 
-    // What it missed. The conversation comes back by itself; the world it was
-    // talking about does not, so the journal is read back to it as of now.
-    const briefing = composeBriefing({
-      now: opts.now ?? Date.now(),
-      events: opts.journal ?? [],
-      projects: Object.keys(opts.config?.projects ?? {}),
-      ...(opts.efforts ? { efforts: opts.efforts } : {}),
-      ...(opts.queue ? { queue: opts.queue } : {}),
-    })
-
-    // What it is, and where things stood: one is true whenever it is read,
-    // the other a snapshot with times on it, so they are said apart. Appended
-    // to the harness's own instructions, never replacing them.
-    const instructions = [
-      opts.config
-        ? composePrompt({
-            config: opts.config,
-            ...(opts.notes ? { notes: opts.notes } : {}),
-            // Only the lessons that still apply: one about a project nobody
-            // has touched in a month is noise in every prompt.
-            skills: livingSkills(
-              activeSkills(skillsRoot(opts)),
-              opts.activity ?? { lastSeenAt: {}, known: Object.keys(opts.config.projects) },
-              opts.now ?? Date.now(),
-            ),
-            ...(opts.extensions?.prompt ? { extensions: opts.extensions.prompt } : {}),
-          })
-        : '',
-      briefing,
-      opts.extensions?.extras.instructions ?? '',
-    ]
-      .filter(Boolean)
-      .join('\n\n')
+    // What it missed, and what it is: composed once, and fingerprinted so a
+    // harness that pins what it was first told can be brought up to date.
+    const since = Date.now()
+    const { instructions, told } = tellingOf({ ...opts, written })
+    // Whether there is a conversation to come back to, asked before starting
+    // one: a new one holds whatever this launch says, pinned or not.
+    const cwd = opts.cwd ?? process.cwd()
+    const going = await adapter.hasConversation(ORCHESTRATOR_TASK, cwd).catch(() => true)
 
     // Tade's own tools, given to this harness the way it takes them: modules
     // it loads, or an MCP server it starts. Asked of the harness rather than
@@ -477,6 +466,8 @@ export class Orchestrator {
         emit({ type: 'exited', code: signal.code })
         // Anyone waiting for it to finish a turn would wait forever.
         for (const listener of orchestrator.idleListeners) listener()
+      } else if (signal.type === 'context') {
+        orchestrator.full = signal.percent ?? orchestrator.full
       } else if (signal.type === 'usage') {
         const { type: _type, run: _run, at: _at, ...usage } = signal
         opts.onUsage?.({
@@ -497,7 +488,7 @@ export class Orchestrator {
       .start({
         run: ORCHESTRATOR_RUN,
         task: ORCHESTRATOR_TASK,
-        cwd: opts.cwd ?? process.cwd(),
+        cwd,
         prompt: '',
         ...(model ? { model } : {}),
         // How hard it thinks, from its first turn: chosen like an agent's, and
@@ -517,7 +508,43 @@ export class Orchestrator {
     // A harness that refused to start — a model it could not resolve, most
     // often — has already said why, and that is the answer to give.
     if (orchestrator.gone) throw new Error(orchestrator.gone)
+    // Read after it started: a harness may only know whether it pins once it
+    // has looked at what the binary here takes.
+    const held = going && adapter.capabilities.pins ? heldIn(opts.toldBefore ?? []) : told
+    orchestrator.holding = { told, stale: changedFrom(held, told), known: held !== null, since }
     return orchestrator
+  }
+
+  /** What its conversation was told, and what of it the conversation does not hold. */
+  get told(): Holding | null {
+    return this.holding
+  }
+
+  /** How full its context is, as a percentage its harness last said: null before it has. */
+  get context(): number | null {
+    return this.full
+  }
+
+  /**
+   * Summarise its conversation so far, keeping its session: the same id, the
+   * same conversation, only shorter — and, where its harness pins what it was
+   * first told, told what this launch said. Between turns only, which is the
+   * caller's to choose; a turn in flight is refused rather than cut across.
+   *
+   * Busy while it runs, so a phone is told *still answering* rather than
+   * steering a stranger's words into it.
+   */
+  async compact(): Promise<void> {
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    if (this.working)
+      throw new Error('the orchestrator is answering, and compacts only between turns')
+    this.working = true
+    try {
+      await this.adapter.compact(ORCHESTRATOR_RUN)
+      if (this.holding) this.holding = { ...this.holding, stale: [], known: true }
+    } finally {
+      this.working = false
+    }
   }
 
   /** Say something, with pictures if there are any. Replies arrive through `onMessage`. */

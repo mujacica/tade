@@ -12,6 +12,7 @@ import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
 import { keepGroup } from './settings-keep.ts'
+import { orchestratorGroup } from './settings-orchestrator.ts'
 import { projectGroups } from './settings-projects.ts'
 import { queueGroup } from './settings-queue.ts'
 import { windowGroup } from './settings-window.ts'
@@ -360,54 +361,7 @@ export function settingsOf(
         },
       ],
     },
-    {
-      id: 'orchestrator',
-      title: 'Orchestrator',
-      about: 'The one you talk to.',
-      settings: [
-        {
-          path: 'orchestrator.harness',
-          title: 'Harness',
-          means: 'the program you talk through; each harness keeps its own conversation',
-          value: config.orchestrator.harness,
-          fallback: 'pi',
-          type: { kind: 'choice', options: [...HARNESS_IDS] },
-          keywords: ['claude', 'code', 'pi', 'agent'],
-          live: false,
-        },
-        {
-          path: 'orchestrator.model',
-          title: 'Model',
-          means: 'what you talk to. Omit to use whatever the harness is logged in to',
-          value: config.orchestrator.model
-            ? config.orchestrator.provider
-              ? `${config.orchestrator.provider}/${config.orchestrator.model}`
-              : config.orchestrator.model
-            : '',
-          fallback: 'the harness decides',
-          type: { kind: 'model', harness: thinkerHarness },
-          live: false,
-        },
-        {
-          path: 'orchestrator.thinking',
-          title: 'Thinking',
-          means: 'how hard it thinks before it answers; it moves from its next reply',
-          value: config.orchestrator.thinking ?? '',
-          fallback: 'the harness decides',
-          type: { kind: 'choice', options: [...thinksAt(thinkerHarness)] },
-          live: true,
-        },
-        {
-          path: 'orchestrator.reflect',
-          title: 'Look back at finished tasks',
-          means: 'write down a lesson when a task lands, if there is one to write',
-          value: String(config.orchestrator.reflect),
-          fallback: 'true',
-          type: { kind: 'flag' },
-          live: true,
-        },
-      ],
-    },
+    orchestratorGroup(config, thinksAt(thinkerHarness)),
     queueGroup(config),
     {
       id: 'checks',

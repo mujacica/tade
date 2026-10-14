@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
-import type { Arm, Config } from '@tade/core'
+import type { Arm, Config, Holding, ToldPrint } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
 import type { HarnessModels, HistoryAsk, HistoryPage } from '@tade/harnesses-core'
 import type { StatusCollector } from '@tade/status'
@@ -87,6 +87,15 @@ export interface Thinker {
   busy?(): boolean
   /** Why this harness cannot answer a paired device, or null when it can. */
   unarmed?(): string | null
+  /**
+   * Make its conversation shorter, keeping its session and its id: between
+   * turns only, and only ever asked by the window (`Keeping`).
+   */
+  compact?(): Promise<void>
+  /** How full its context is, as a percentage its harness last said; null before it has. */
+  context?(): number | null
+  /** What it was told when it started, and what of it its conversation does not hold. */
+  told?(): Holding | null
 }
 
 /**
@@ -214,6 +223,13 @@ export interface AppOptions {
    * conversation. Without it, a new model applies when Tade next starts.
    */
   restartThinker?: () => Promise<void>
+  /**
+   * What the orchestrator would be told if it started now, leaving out the
+   * notes it wrote itself since `since` — they are in its conversation. Asked
+   * only when the notes or the config moved, to know whether starting it
+   * again is worth a turn.
+   */
+  toldNow?: (since: number) => Promise<ToldPrint>
   /** What the orchestrator could run on, as its own harness offers them, and nobody else's. */
   orchestratorModels?: () => Promise<HarnessModels>
   /**

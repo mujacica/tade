@@ -242,7 +242,14 @@ export class CodexAdapter implements WorkerAdapter {
     headless: true,
     spend: { usd: 'none', tokens: true, limits: 'while-working' },
     accounts: true,
+    // Run headless it is one `codex exec` per turn, with nothing to say
+    // `/compact` to in between; what Tade tells it arrives at every session
+    // start (`SessionStart`), so nothing it was told is pinned.
+    compact: 'none',
+    pins: false,
     why: {
+      compact:
+        'has /compact only in its own terminal, and runs one process per turn when Tade draws it, with nothing in between to ask',
       model:
         'takes a model only when it starts, so changing it starts the agent again, keeping the conversation',
       models:
@@ -711,6 +718,11 @@ export class CodexAdapter implements WorkerAdapter {
     if (entry.child) return
     if (entry.turn === 'idle') await this.type(entry, `/rename ${flat}`)
     else entry.naming = flat
+  }
+
+  async compact(run: RunId): Promise<void> {
+    this.require(run)
+    throw new Error(`Codex ${this.capabilities.why.compact}`)
   }
 
   async abort(run: RunId): Promise<void> {

@@ -265,7 +265,13 @@ export class PiAdapter implements WorkerAdapter {
     // the provider's to know.
     spend: { usd: 'exact', tokens: true, limits: 'none' },
     accounts: false,
+    // `compact` over its protocol, between turns. Its system prompt is made
+    // at every launch and kept in no session, so nothing it was told is pinned.
+    compact: 'idle',
+    pins: false,
     why: {
+      compact:
+        'compacts only between turns, and an agent in a lane only when /compact is typed into it',
       accounts: 'keeps one set of sign-ins, in ~/.pi: you sign in to its providers inside pi',
       models:
         'runs the models of the providers you are signed in to, and has written no catalog here yet: open pi once and sign in with /login',
@@ -713,6 +719,14 @@ export class PiAdapter implements WorkerAdapter {
     await this.rpc(entry, { type: 'abort' }).catch(() => {})
   }
 
+  /** Its own `compact`, given as long as a summary takes to write: minutes, not seconds. */
+  async compact(run: RunId): Promise<void> {
+    const entry = this.require(run)
+    if (!entry.child) throw new Error(`pi ${this.capabilities.why.compact}`)
+    await this.rpc(entry, { type: 'compact' }, 10 * 60_000)
+    await this.sayContext(entry)
+  }
+
   async stop(run: RunId): Promise<void> {
     const entry = this.runs.get(run)
     if (!entry) return
@@ -909,6 +923,7 @@ export class PiAdapter implements WorkerAdapter {
     }
     if (!this.opts.supervise && message.type === 'agent_settled') {
       this.dispatch(run.handle.run, { type: 'idle', run: run.handle.run, at: Date.now() })
+      void this.sayContext(run)
       return
     }
     if (!this.opts.supervise && message.type === 'tool_execution_end') {
@@ -946,7 +961,27 @@ export class PiAdapter implements WorkerAdapter {
     })
   }
 
-  private rpc(run: Run, command: Record<string, unknown>): Promise<RpcResponse> {
+  /** How full its context is: pi says so only when asked, so it is asked once a turn is over. */
+  private async sayContext(run: Run): Promise<void> {
+    const stats = await this.rpc(run, { type: 'get_session_stats' }).catch(() => null)
+    const full = stats?.data?.contextUsage as { tokens?: unknown; percent?: unknown } | undefined
+    if (typeof full?.percent !== 'number') return
+    const tokens = typeof full.tokens === 'number' ? full.tokens : null
+    const at = Date.now()
+    this.dispatch(run.handle.run, {
+      type: 'context',
+      run: run.handle.run,
+      at,
+      tokens,
+      percent: full.percent,
+    })
+  }
+
+  private rpc(
+    run: Run,
+    command: Record<string, unknown>,
+    timeoutMs = 15_000,
+  ): Promise<RpcResponse> {
     // An agent in a lane speaks the extension channel, never this: there is no
     // stdin to write to, because its process belongs to the lane.
     const child = run.child
@@ -960,7 +995,7 @@ export class PiAdapter implements WorkerAdapter {
       const timer = setTimeout(() => {
         run.pendingRpc.delete(id)
         reject(new Error(`pi did not answer ${String(command.type)}`))
-      }, 15_000)
+      }, timeoutMs)
       timer.unref?.()
       run.pendingRpc.set(id, (response) => {
         clearTimeout(timer)

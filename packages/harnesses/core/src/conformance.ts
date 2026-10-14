@@ -59,6 +59,10 @@ const PARTIAL: Array<[HarnessFeature, (adapter: WorkerAdapter) => boolean]> = [
   // harness that only speaks while an agent runs has nothing to show until one
   // has, and "nothing yet" must never be read as "nothing used".
   ['limits', (a) => a.capabilities.spend.limits !== 'anytime'],
+  // What a person reads when Tade could not keep the orchestrator's context
+  // short, or had to compact it to bring what it was told up to date.
+  ['compact', (a) => a.capabilities.compact !== 'live'],
+  ['pins', (a) => a.capabilities.pins],
 ]
 
 let counter = 0
@@ -99,6 +103,7 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
           can.model,
           can.thinking,
           can.rename,
+          can.compact,
         ]) {
           expect(SUPPORT).toContain(support)
         }
@@ -311,6 +316,13 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
       it('says a run it does not know is not there', async () => {
         const one = await adapter()
         await expect(one.abort('conformance/nobody/agent')).rejects.toBeInstanceOf(
+          WorkerNotFoundError,
+        )
+      })
+
+      it('says a run it does not know has no conversation to compact', async () => {
+        const one = await adapter()
+        await expect(one.compact('conformance/nobody/agent')).rejects.toBeInstanceOf(
           WorkerNotFoundError,
         )
       })

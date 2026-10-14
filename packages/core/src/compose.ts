@@ -174,7 +174,7 @@ function describeProjects(config: Config): string {
   return ['Projects on this machine:', ...lines].join('\n')
 }
 
-function describeNotes(input: ComposeInput): string {
+export function describeNotes(input: ComposeInput): string {
   const notes = input.notes ?? []
   if (notes.length === 0) return ''
   // Newest first and capped: a prompt that grows without limit is one that

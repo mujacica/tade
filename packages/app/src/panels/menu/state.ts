@@ -443,20 +443,27 @@ export interface ThinkerOffers {
    * never real.
    */
   levels: readonly string[]
+  /**
+   * Making its conversation shorter, keeping its session: what Tade does
+   * itself between turns (`keepingDue`), and says it cannot where its harness
+   * cannot be asked.
+   */
+  compact?: Offer
 }
 
 export function thinkerOffers(harness: string, capabilities: WorkerCapabilities): ThinkerOffers {
   const abort = offer(capabilities, 'abort', capabilities.abort)
   const levels = capabilities.thinkingLevels
+  const compact = offer(capabilities, 'compact', capabilities.compact)
   // Only `live` is an interruption. `idle` waits for the turn to end and
   // `restart` starts the agent again — either would be a key that looks like
   // it stopped something and did not, so they are declined here with the
   // harness's own sentence rather than offered as a stop.
-  if (abort.support === 'live') return { harness, interrupt: abort, levels }
+  if (abort.support === 'live') return { harness, interrupt: abort, levels, compact }
   // The harness's own sentence where it wrote one — every `why` is written to
   // follow the harness's name — and a plain one where it did not.
   const why = capabilities.why.abort ?? 'cannot stop a turn once it has started'
-  return { harness, interrupt: { ...abort, shown: false, note: why }, levels }
+  return { harness, interrupt: { ...abort, shown: false, note: why }, levels, compact }
 }
 
 export function agentOffers(harness: string, capabilities: WorkerCapabilities): AgentOffers {

@@ -55,6 +55,8 @@ export class FakeAdapter implements WorkerAdapter {
     accounts: false,
     mcp: false,
     headless: true,
+    compact: 'idle',
+    pins: false,
     why: {},
   }
   readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []
@@ -62,6 +64,14 @@ export class FakeAdapter implements WorkerAdapter {
   /** What was sent as an ordinary instruction, and how it was to arrive if busy. */
   readonly prompted: Array<{ run: string; message: string; whenBusy?: string }> = []
   readonly stopped: string[] = []
+  /** What each start was given, in order: what a headless run was told. */
+  readonly starts: WorkerSpec[] = []
+  /** The runs compacted, in order. */
+  readonly compacted: string[] = []
+  /** How full the context is once compacted, which it says as a harness does; null says nothing. */
+  afterCompact: number | null = 12
+  /** Why the next compaction fails, as the harness would say it; null for one that works. */
+  compactFails: string | null = null
   readonly answers: Array<{ run: string; callId: string; ok: boolean; text: string }> = []
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
   private readonly handles = new Map<string, WorkerHandle>()
@@ -127,6 +137,7 @@ export class FakeAdapter implements WorkerAdapter {
   }
 
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
+    this.starts.push(spec)
     return this.supervise(spec)
   }
 
@@ -163,6 +174,15 @@ export class FakeAdapter implements WorkerAdapter {
   async setThinking(): Promise<void> {}
   async name(): Promise<void> {}
   async abort(): Promise<void> {}
+  async compact(run: RunId): Promise<void> {
+    this.compacted.push(run)
+    const fails = this.compactFails
+    this.compactFails = null
+    if (fails) throw new Error(fails)
+    if (this.afterCompact !== null) {
+      this.emit(run, { type: 'context', tokens: null, percent: this.afterCompact })
+    }
+  }
   async stop(run: RunId): Promise<void> {
     this.stopped.push(run)
     this.handles.delete(run)

@@ -41,7 +41,9 @@ import {
   type WorkerSpec,
 } from '@tade/harnesses-core'
 import { BACKGROUNDED } from './background.ts'
+import { claudeCapabilities, EFFORTS } from './capabilities.ts'
 import { type ChannelRequest, ClaudeChannel } from './channel.ts'
+import { COMPACT_LINE, compactionIn, percentOf, tokensIn, windowIn } from './compact.ts'
 import { headlessArgs, headlessEnv, SNAPSHOT_OPTION } from './headless.ts'
 import { optionsOf } from './installed.ts'
 import {
@@ -74,9 +76,6 @@ export const MCP_PATH = fileURLToPath(new URL('./mcp.ts', import.meta.url))
 
 /** The harness's name, as tasks, routes and the journal say it. */
 export const CLAUDE_CODE = 'claude-code'
-
-/** The thinking levels Claude Code can be told, as its `--effort`. */
-const EFFORTS: readonly ThinkingLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 /** What of your own Claude Code a second account is given, when shared: never its sign-in. */
 const SHARED = [
@@ -197,6 +196,10 @@ interface Run {
   stderr?: string
   /** Tade asked for the turn to stop, so the end of it is not a failure. */
   aborting?: boolean
+  /** A `/compact` Tade sent, until its `result`: and why it failed, once it says. */
+  compacting?: { done: (failed: string | null) => void; failed: string | null } | null
+  /** What its context holds, as the protocol last said: for a headless run. */
+  tokens?: number | null
   cwd: string
   /** Whether a turn is running, as its hooks said. `starting` until the session has begun. */
   turn: 'starting' | 'running' | 'idle'
@@ -226,73 +229,6 @@ interface Run {
   counting: NodeJS.Timeout | null
 }
 
-/**
- * What Claude Code can do, on this sign-in.
- *
- * Everything here is the same whoever is signed in but the money, and the
- * money is the whole of the difference: a subscription charges a flat fee, so
- * there is no price per turn to report and Claude Code's own running estimate
- * is a guess at what an API would have charged rather than a bill anybody
- * gets. Totalled as money it is a large number that means nothing. Against an
- * API key that same estimate is what the account will be charged.
- */
-function claudeCapabilities(account: HarnessAccount | undefined): WorkerCapabilities {
-  return {
-    permissionGate: true,
-    // Typed while a turn runs, Claude Code takes it at its next tool call and
-    // answers it in the same turn: a real steer.
-    steer: 'live',
-    // Held until the turn's Stop hook, then typed.
-    queue: 'live',
-    abort: 'live',
-    model: 'restart',
-    thinking: 'restart',
-    thinkingLevels: EFFORTS,
-    rename: 'idle',
-    visibleUi: true,
-    resume: true,
-    // A resumed session starts on whatever the account's default is, so the
-    // model it was on has to be said again.
-    resumeKeeps: false,
-    // `API Error: Your computer went to sleep mid-response.` and back to the
-    // prompt, with the session intact: it needs telling, not restarting.
-    continues: true,
-    images: 'path',
-    done: true,
-    nativeExtensions: false,
-    skills: true,
-    tools: true,
-    mcp: true,
-    // `-p --input-format stream-json`: a conversation over its own protocol,
-    // which is how Tade draws the thing you talk to.
-    headless: true,
-    // A plan has no price per turn, so on a subscription there is no money
-    // to report at all and the plan's windows are what is used up. Against an
-    // API key the same estimate is a bill somebody gets, and is worth saying.
-    spend: {
-      usd: account?.kind === 'api-key' ? 'estimate' : 'none',
-      tokens: true,
-      limits: 'while-working',
-    },
-    accounts: true,
-    why: {
-      model:
-        'takes a model only when it starts, so changing it starts the agent again, keeping the conversation',
-      thinking:
-        'takes how hard to think only when it starts, so changing it starts the agent again, keeping the conversation',
-      rename: 'renames a session only between turns, so a new name waits for the turn to end',
-      images: 'is shown a picture as a file it is told about, since its terminal cannot take one',
-      nativeExtensions:
-        'has no place for pi extensions: their tools and skills still reach it, their own code does not',
-      spend:
-        account?.kind === 'api-key'
-          ? 'prices a session only as its own estimate, never against a catalog'
-          : "is paid for by a plan, which has no price per turn: what is used up is the plan's windows",
-      limits: 'reports it as one of its agents replies, so there is nothing to show until one has',
-    },
-  }
-}
-
 export class ClaudeAdapter implements WorkerAdapter {
   readonly id = CLAUDE_CODE
   /**
@@ -305,9 +241,12 @@ export class ClaudeAdapter implements WorkerAdapter {
   readonly provider = 'anthropic'
   /**
    * Built here rather than declared flat, because what its money is worth
-   * depends on how this account pays: see `claudeCapabilities`.
+   * depends on how this account pays, and whether it pins its prompt on what
+   * the binary here takes: see `claudeCapabilities`.
    */
-  readonly capabilities: WorkerCapabilities
+  get capabilities(): WorkerCapabilities {
+    return claudeCapabilities(this.opts.account, !this.offered?.has(SNAPSHOT_OPTION))
+  }
 
   readonly programs: readonly RequiredProgram[] = [
     {
@@ -352,7 +291,6 @@ export class ClaudeAdapter implements WorkerAdapter {
       home,
       account: opts.account,
     }
-    this.capabilities = claudeCapabilities(opts.account)
   }
 
   async probe(): Promise<HarnessProbe> {
@@ -767,6 +705,7 @@ export class ClaudeAdapter implements WorkerAdapter {
         this.say(run, { type: 'failed', error: exitReason(code, run.stderr ?? '') })
       }
       this.say(run, { type: 'exited', code })
+      run.compacting?.done('Claude Code stopped before it had compacted')
       this.runs.delete(spec.run)
     })
     if (spec.prompt.trim()) await this.prompt(spec.run, spec.prompt, spec.images ?? [])
@@ -782,9 +721,14 @@ export class ClaudeAdapter implements WorkerAdapter {
       // Not ours to read: anything Claude Code prints that is not the protocol.
       return
     }
-    const message = event.message as { content?: unknown; model?: unknown } | undefined
+    const message = event.message as
+      | { content?: unknown; model?: unknown; usage?: unknown }
+      | undefined
     switch (event.type) {
       case 'system': {
+        const compacted = compactionIn(event)
+        if (compacted && 'after' in compacted) run.tokens = compacted.after
+        else if (compacted && run.compacting) run.compacting.failed = compacted.failed
         if (event.subtype !== 'init') return
         if (typeof event.model === 'string') run.model = event.model
         // Said once: a turn of its own begins with an init line every time.
@@ -810,6 +754,7 @@ export class ClaudeAdapter implements WorkerAdapter {
       }
       case 'assistant': {
         if (typeof message?.model === 'string') run.model = message.model
+        run.tokens = tokensIn(message) ?? run.tokens ?? null
         for (const block of Array.isArray(message?.content) ? message.content : []) {
           const part = block as Record<string, unknown>
           if (part.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
@@ -840,6 +785,15 @@ export class ClaudeAdapter implements WorkerAdapter {
       }
       case 'result': {
         this.sayResultUsage(run, event)
+        // How full it is, after every turn: the window is the protocol's to say.
+        const window = windowIn(event, run.model)
+        if (window && run.tokens) {
+          this.say(run, {
+            type: 'context',
+            tokens: run.tokens,
+            percent: percentOf(run.tokens, window),
+          })
+        }
         const aborted = run.aborting === true
         run.aborting = false
         const failed = event.is_error === true || event.subtype !== 'success'
@@ -852,6 +806,9 @@ export class ClaudeAdapter implements WorkerAdapter {
         })
         run.turn = 'idle'
         this.say(run, { type: 'idle' })
+        const compacting = run.compacting
+        run.compacting = null
+        compacting?.done(compacting.failed ?? (failed ? String(event.result ?? 'it failed') : null))
         return
       }
       default:
@@ -983,6 +940,21 @@ export class ClaudeAdapter implements WorkerAdapter {
     // is cut short, so the end of it is said here.
     await this.inTurn(entry, () => this.keys(entry, '\x1b'))
     this.settle(entry, 'aborted')
+  }
+
+  /** `/compact` over the protocol, between turns: settled by the `result` it ends with. */
+  async compact(run: RunId): Promise<void> {
+    const entry = this.require(run)
+    const child = entry.child
+    if (!child) throw new Error(`Claude Code ${this.capabilities.why.compact}`)
+    if (entry.turn === 'running' || entry.compacting) {
+      throw new Error('Claude Code is in the middle of a turn, and compacts only between them')
+    }
+    const failed = await new Promise<string | null>((done) => {
+      entry.compacting = { done, failed: null }
+      child.stdin?.write(COMPACT_LINE)
+    })
+    if (failed) throw new Error(`Claude Code could not compact: ${failed}`)
   }
 
   async stop(run: RunId): Promise<void> {

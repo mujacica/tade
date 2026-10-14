@@ -10,6 +10,9 @@ import type {
 } from '@tade/core'
 import { z } from 'zod'
 import type { HistoryAsk, HistoryPage } from './history.ts'
+import type { HarnessFeature, ImageSupport, Support } from './offer.ts'
+
+export * from './offer.ts'
 
 // The WorkerAdapter port: what an agent is telling us, and how we answer it.
 //
@@ -297,81 +300,6 @@ export interface WorkerImage {
   mimeType: string
 }
 
-/**
- * How a harness does something a person can ask of a running agent.
- *
- * - `live`: now, even in the middle of a turn.
- * - `idle`: only between turns, so Tade holds it until the turn ends.
- * - `restart`: by starting the agent again on the same conversation, which is
- *   kept; mid-turn, that waits for the turn to end too.
- * - `none`: not at all. Whatever would offer it is hidden, and whatever is
- *   asked for it anyway answers with the harness's `why`.
- */
-export const SUPPORT = ['live', 'idle', 'restart', 'none'] as const
-export type Support = (typeof SUPPORT)[number]
-
-/**
- * How something a harness supports is offered to a person: shown or not, and
- * what to say beside it. One rule for the window, the orchestrator's tools
- * and voice, so no surface offers what another one hides.
- */
-export interface Offer {
-  shown: boolean
-  /** How, for a surface with room for a word rather than a sentence. */
-  support: Support
-  /** Said beside it, or as the refusal when it is not shown. Null when there is nothing to add. */
-  note: string | null
-}
-
-export function offer(
-  capabilities: Pick<WorkerCapabilities, 'why'>,
-  feature: HarnessFeature,
-  support: Support,
-): Offer {
-  const why = capabilities.why[feature] ?? null
-  switch (support) {
-    case 'live':
-      return { support: 'live', shown: true, note: null }
-    case 'idle':
-      return { support: 'idle', shown: true, note: why ?? 'waits for its turn to end' }
-    case 'restart':
-      return {
-        support: 'restart',
-        shown: true,
-        note: why ?? 'starts it again, keeping the conversation',
-      }
-    case 'none':
-      return { support: 'none', shown: false, note: why ?? 'this harness cannot do that' }
-  }
-}
-
-/** How a picture reaches the agent: with the instruction, as a file it is told about, or not at all. */
-export type ImageSupport = 'inline' | 'path' | 'none'
-
-/** The things a harness may do only partly, each of which can carry a `why`. */
-export type HarnessFeature =
-  | 'permissionGate'
-  | 'steer'
-  | 'queue'
-  | 'abort'
-  | 'model'
-  /** Saying which models it runs at all, which is what a picker offers. */
-  | 'models'
-  | 'thinking'
-  | 'rename'
-  | 'images'
-  | 'done'
-  | 'resume'
-  | 'continues'
-  | 'nativeExtensions'
-  | 'skills'
-  | 'tools'
-  | 'mcp'
-  | 'headless'
-  | 'spend'
-  | 'limits'
-  | 'accounts'
-
 export interface WorkerCapabilities {
   /** Can hold a tool call until a decision arrives. Without this there are no reliable approvals. */
   permissionGate: boolean
@@ -449,6 +377,21 @@ export interface WorkerCapabilities {
    * sign-in, kept apart — so agents on two of them can work at once.
    */
   accounts: boolean
+  /**
+   * Summarising a conversation Tade runs headless (`start`) — the one you talk
+   * to — so its context has room again, **keeping its session**: the same id,
+   * the same conversation, only shorter. `idle` is between turns, which is
+   * the only time Tade asks; `none` says why in `why.compact`.
+   */
+  compact: Support
+  /**
+   * A conversation Tade runs headless and comes back to is declared what it
+   * was **first** told — its instructions and its tools — rather than what
+   * this launch passes, until it is compacted. Where it does, a changed note,
+   * instruction or tool never reaches the model by starting it again, and only
+   * a compaction does (`why.pins` says what it pins).
+   */
+  pins: boolean
   /**
    * The sentence a person sees beside something this harness does only partly
    * or not at all, in its own words. Every feature that is not `live` (or
@@ -770,6 +713,13 @@ export interface WorkerAdapter {
   name(run: RunId, title: string): Promise<void>
   /** Stop the current turn, leaving the run alive. */
   abort(run: RunId): Promise<void>
+  /**
+   * Summarise a headless run's conversation so far, keeping its session
+   * (`capabilities.compact`). Asked between turns; resolves once it is done,
+   * having said how full the context is now (`context`), and throws the
+   * harness's own words where it cannot or it failed.
+   */
+  compact(run: RunId): Promise<void>
   stop(run: RunId): Promise<void>
   onSignal(run: RunId, listener: WorkerSignalListener): Unsubscribe
   list(): Promise<WorkerHandle[]>

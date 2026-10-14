@@ -304,6 +304,26 @@ Everything else the orchestrator needs is already neutral: `extras.instructions`
 and what it missed, `spec.env` for what its tools need to find their way back, and the run's task
 name for the one conversation it keeps.
 
+**Its conversation is Tade's to keep in shape, because nobody else can.** The person talks to it
+through Tade, so a `/compact` is not theirs to send. Two declarations and one method make that work:
+
+- **`capabilities.compact`** — whether a headless run can be summarised between turns, keeping its
+  session and its id (`compact(run)`, which resolves once it is done and says how full it is now with
+  a `context` signal). Claude Code takes `/compact` as a protocol message, pi its RPC `compact`;
+  Codex's is only in its own terminal, so it is `none`, and the window *says* that rather than
+  compacting nothing. A headless run must also report `context` after each turn, or nothing can tell
+  it is filling: Claude Code's from the last request's usage over `modelUsage.contextWindow`, pi's
+  from `get_session_stats`.
+- **`capabilities.pins`** — whether a conversation it comes back to is declared what it was *first*
+  told rather than what this launch passes. Claude Code's is read off the binary (`--help` lists
+  `--system-prompt-snapshot`), so it is a getter rather than a constant. Where it pins, a changed
+  tool, instruction or note reaches the model only through a compaction.
+- What the window does with them — compact past `orchestrator.compact_at`, compact a pinned
+  conversation whose fingerprint moved, start it again on the same session when a note it never
+  heard changes what it would be told, never across a turn or under somebody typing, one line each
+  and an `orchestrator_told` / `orchestrator_compacted` in the journal — is `keepingDue`
+  (`core/src/told.ts`) and `app/src/wire/keeping.ts`. Nothing in it names a harness.
+
 ## Rules
 
 - **Never infer state from rendered output.** A signal comes from a structured channel (an
