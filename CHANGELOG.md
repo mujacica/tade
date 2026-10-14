@@ -7,6 +7,7 @@ say less than the history already does.
 
 ## [0.2.0](https://github.com/mujacica/tade/compare/v0.1.1...v0.2.0) — 2026-10-14
 
+- The v0.2.0 release gate failed on both systems because the retired-tools scan read the changelog, whose commit subjects name a retired tool to say agents were told it was gone ([`22169a0`](https://github.com/mujacica/tade/commit/22169a0d680d97832bdfb6bf58acf0979d95f0aa))
 - The notch test now says, when it times out, whether the window asked the driver, which is what splits its one macOS failure in two ([`ea38630`](https://github.com/mujacica/tade/commit/ea386309a4203b344151df232ff936b16f66ddd9))
 - The Codex adapter's tests gave a real sh five seconds to start, write a file or die, which a loaded machine did not always manage ([`3647387`](https://github.com/mujacica/tade/commit/36473872a580bc11e655b5fddf927d1706b1d064))
 - The live-reload test wrote its burst the moment the folder was watched, before FSEvents was listening, so on a loaded Mac nothing was ever heard ([`7577fc8`](https://github.com/mujacica/tade/commit/7577fc89f75a7882e197dd1fd95410fc3e498ba0))
