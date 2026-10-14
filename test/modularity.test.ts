@@ -80,7 +80,8 @@ const BUDGET: Record<string, number> = {
   'packages/extensions/jev/src/extension.ts': 1_250,
   'packages/extensions/jev/test/jev.test.ts': 1_000,
   'packages/extensions/review/src/extension.ts': 1_100,
-  'packages/harnesses/claude/src/adapter.ts': 1_600,
+  // 1,600 -> 1,590 when the orchestrator's launch line moved to `headless.ts`.
+  'packages/harnesses/claude/src/adapter.ts': 1_590,
   'packages/harnesses/codex/src/adapter.ts': 1_700,
   'packages/harnesses/pi/src/adapter.ts': 1_100,
   // 1,000 -> 975 when the template tools moved out to `tools-templates.ts`,

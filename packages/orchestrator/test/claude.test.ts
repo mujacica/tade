@@ -292,4 +292,54 @@ describe.runIf(installed)('the orchestrator in Claude Code', () => {
     expect(chat.stopped).toBeNull()
     expect(model?.requests.length).toBeGreaterThan(1)
   }, 120_000)
+
+  // One conversation for good, so nothing it was told the first time may be
+  // pinned: Claude Code records the system prompt and each deferred tool's
+  // schema at the first turn and, left to itself, sends that record on every
+  // resume after (`headless.ts`).
+  it('is told what it is told now, on a conversation it takes up again', async () => {
+    model = await startFakeAnthropic({})
+    const runDir = tmp('tcc-chat-')
+    const told = async (instructions: string) => {
+      let idle = false
+      orchestrator = await Orchestrator.start({
+        home,
+        socket: tools.path,
+        runDir,
+        cwd: repo.root,
+        config: ConfigSchema.parse({
+          orchestrator: { harness: 'claude-code', model: 'haiku' },
+          projects: { app: { root: repo.root } },
+        }),
+        env: {
+          ...process.env,
+          CLAUDE_CONFIG_DIR: account,
+          ANTHROPIC_BASE_URL: model?.url,
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+          // As if inherited from wherever Tade was opened: tool search on, which
+          // is what writes each schema down at its first load.
+          ENABLE_TOOL_SEARCH: 'true',
+        },
+        extensions: { prompt: '', extras: { instructions } },
+      })
+      orchestrator.onIdle(() => {
+        idle = true
+      })
+      await orchestrator.ask('hello')
+      await until(() => idle)
+      await orchestrator.stop()
+    }
+    await told('The first word is MARKER_ONE.')
+    const before = model.requests.length
+    await told('The first word is MARKER_TWO.')
+    const again = model.requests.slice(before).find((request) => Array.isArray(request.tools))
+    expect(JSON.stringify(again?.system)).toContain('MARKER_TWO')
+    expect(JSON.stringify(again?.system)).not.toContain('MARKER_ONE')
+    // Every tool declared whole, from what the server says now — never a
+    // name to be looked up and declared from an old record.
+    const declared = (again?.tools ?? []) as Array<{ name?: string; input_schema?: unknown }>
+    const change = declared.find((tool) => tool.name === 'mcp__tade__tade_queue_change')
+    expect(change?.input_schema, 'tade_queue_change, declared whole').toBeDefined()
+    expect(JSON.stringify(change?.input_schema)).toContain('retell')
+  }, 180_000)
 })

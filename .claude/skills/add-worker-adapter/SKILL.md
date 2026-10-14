@@ -211,6 +211,13 @@ everything said to it is typed into its lane. Each of these was found the hard w
 - **Subscriptions are the user's own, through the harness's own sign-in.** Tade runs the unmodified
   binary, never reads or stores a subscription token, and an API key it keeps is read by the harness
   through a command, so it is never written into a launch line.
+- **A conversation resumed for good must not pin what it was first told.** Claude Code records the
+  system prompt at a conversation's first request and each deferred tool's schema at its first
+  load, and declares both from those records on every resume; the orchestrator's session never
+  changes, so for days it never saw a new note or `tade_queue_change after`, and re-planned queued
+  work instead. Its line passes `--system-prompt-snapshot off` where `claude --help` lists it
+  (`optionsOf`) and `ENABLE_TOOL_SEARCH=false`, last over `spec.env` (`headless.ts`); the test that
+  holds it resumes a real `claude` with new instructions.
 - **A reopened conversation keeps the habits of the version it was recorded on.** Claude Code
   backgrounds an MCP call still running after two minutes — `checks_run` nearly always — and once
   the answer was fetched with a tool 2.1.287 retired (`RETIRED_TOOLS`). Agents reopened on it called

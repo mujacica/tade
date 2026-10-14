@@ -627,7 +627,11 @@ describe('the conversation Tade draws itself, when the window closes', () => {
   /** A `claude` that says nothing, never ends by itself, and writes down where it is. */
   const stubborn = (): string => {
     const bin = join(tmp('tade-claude-fake-'), 'claude')
-    writeFileSync(bin, '#!/bin/sh\necho $$ > "$0.pid"\nexec sleep 600\n')
+    // Asked what it takes before it is started (`optionsOf`), it says nothing.
+    writeFileSync(
+      bin,
+      '#!/bin/sh\n[ "$1" = "--help" ] && exit 0\necho $$ > "$0.pid"\nexec sleep 600\n',
+    )
     chmodSync(bin, 0o755)
     return bin
   }

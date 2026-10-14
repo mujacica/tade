@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { runProgram } from '@tade/core'
 
 // What Claude Code loads by itself, whoever runs it: the MCP servers a person
 // added with `claude mcp add`, and the ones a project ships in its own
@@ -15,7 +16,8 @@ import { join } from 'node:path'
 // surprise, and adopting is a separate act nobody has asked for.
 //
 // The files are somebody else's and may change shape; anything unfamiliar is
-// left out rather than guessed at.
+// left out rather than guessed at. So is what the binary itself takes on its
+// command line (`optionsOf`), asked of it rather than assumed from a version.
 
 export interface HarnessPiece {
   name: string
@@ -48,4 +50,26 @@ export function installedServers(home = homedir(), project?: string): HarnessPie
     }
   }
   return out
+}
+
+/**
+ * Every long option the installed Claude Code lists in `--help`, or null when
+ * it could not be asked — which is not the same as it offering none.
+ *
+ * Asked rather than worked out from a version, because a flag is a promise of
+ * the binary that is actually here: Claude Code refuses an option it does not
+ * know and exits before it reads a word, so a flag passed to an older one is a
+ * launch that never happens. Only an option where commander puts one counts,
+ * two spaces in: one named inside another's description, forty spaces in on
+ * a line of its own, is not one it takes.
+ */
+export async function optionsOf(bin: string, env: NodeJS.ProcessEnv): Promise<Set<string> | null> {
+  const said = await runProgram(bin, ['--help'], { timeoutMs: 10_000, env })
+  if (said.code !== 0) return null
+  const options = new Set<string>()
+  for (const line of said.stdout.split('\n')) {
+    const option = /^ {2}(?:-\w, )?(--[a-z][\w-]*)/.exec(line)?.[1]
+    if (option) options.add(option)
+  }
+  return options
 }

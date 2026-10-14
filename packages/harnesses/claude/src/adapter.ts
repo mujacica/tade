@@ -42,6 +42,8 @@ import {
 } from '@tade/harnesses-core'
 import { BACKGROUNDED } from './background.ts'
 import { type ChannelRequest, ClaudeChannel } from './channel.ts'
+import { headlessArgs, headlessEnv, SNAPSHOT_OPTION } from './headless.ts'
+import { optionsOf } from './installed.ts'
 import {
   defaultConfigDir,
   historyOn,
@@ -328,6 +330,7 @@ export class ClaudeAdapter implements WorkerAdapter {
     account: HarnessAccount | undefined
   }
   private planLimits: PlanLimits | null = null
+  private offered: Set<string> | null = null
 
   constructor(opts: ClaudeAdapterOptions) {
     const home = opts.home ?? homedir()
@@ -688,36 +691,29 @@ export class ClaudeAdapter implements WorkerAdapter {
     const session = sessionIdFor(spec.task)
     const launch = {
       command: this.opts.bin,
-      args: [
-        '--mcp-config',
-        ...[files.mcp, ...(spec.extras?.mcp ?? [])],
-        '-p',
-        '--input-format',
-        'stream-json',
-        '--output-format',
-        'stream-json',
-        // Whole messages and the pieces as they arrive: the window draws a
-        // reply as it is written.
-        '--verbose',
-        '--include-partial-messages',
-        // The same conversation every time: made under this id once, and
-        // taken up again every time after.
-        ...(going ? ['--resume', session] : ['--session-id', session]),
-        '--permission-mode',
-        'bypassPermissions',
-        ...(spec.model ? ['--model', modelName(spec.model)] : []),
-        ...(spec.thinking ? ['--effort', effortOf(spec.thinking)] : []),
-        ...(files.instructions ? ['--append-system-prompt-file', files.instructions] : []),
-        ...(files.plugin ? ['--plugin-dir', files.plugin] : []),
-        ...this.opts.args,
-      ],
+      args: headlessArgs({
+        // Not this adapter's own server (`files.mcp`): it answers over a run's
+        // channel, and a headless run has none, so every call on it could only
+        // say Tade is not open. The orchestrator's tools come as its own
+        // server, extension tools and its `tade_done` included — and both
+        // were called `tade`, which left whose `tade_done` it was to Claude Code.
+        mcp: spec.extras?.mcp ?? [],
+        session,
+        going: going !== null,
+        model: spec.model ? modelName(spec.model) : null,
+        effort: spec.thinking ? effortOf(spec.thinking) : null,
+        instructions: files.instructions,
+        plugin: files.plugin,
+        snapshot: (await this.options())?.has(SNAPSHOT_OPTION) ?? false,
+        extra: this.opts.args,
+      }),
     }
     // It has no lane to carry on in and nobody could find it again, so it
     // does not outlive Tade — however Tade ends.
     const watched = reaped(launch)
     const child = spawn(watched.command, watched.args, {
       cwd: spec.cwd,
-      env: { ...this.headlessEnv(spec), ...spec.env },
+      env: headlessEnv(this.accountEnv(), spec),
       stdio: ['pipe', 'pipe', 'pipe'],
       // Its own process group, like everything Tade starts: a long-lived model
       // process in the terminal's foreground group is what the terminal names
@@ -904,14 +900,10 @@ export class ClaudeAdapter implements WorkerAdapter {
     })
   }
 
-  /** What a headless run is told about itself. */
-  private headlessEnv(spec: WorkerSpec): NodeJS.ProcessEnv {
-    const env = this.accountEnv()
-    env[WORKER_ENV.run] = spec.run
-    env[WORKER_ENV.task] = spec.task
-    env.MCP_TOOL_TIMEOUT = String(15 * 60_000)
-    if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
-    return env
+  /** What `claude --help` lists: kept once it answers, and asked again after a look that failed. */
+  private async options(): Promise<Set<string> | null> {
+    this.offered ??= await optionsOf(this.opts.bin, this.accountEnv())
+    return this.offered
   }
 
   async prompt(
