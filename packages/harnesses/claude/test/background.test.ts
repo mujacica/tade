@@ -15,11 +15,17 @@ import { BACKGROUNDED, RETIRED_TOOLS } from '../src/background.ts'
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 const HERE = 'packages/harnesses/claude/src/background.ts'
 
-/** What could reach an agent: every tracked file but tests and their fixtures. */
+/**
+ * What could reach an agent: every tracked file but tests and their fixtures —
+ * and the changelog, which is the commit subjects verbatim (`pnpm changelog`),
+ * read by people and never told to an agent. A subject saying an agent was told
+ * a retired tool was gone names it, and failed the v0.2.0 release gate on the
+ * one commit that had ever written it there.
+ */
 function shipped(): string[] {
   return execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((path) => path !== '' && path !== HERE)
+    .filter((path) => path !== '' && path !== HERE && path !== 'CHANGELOG.md')
     .filter((path) => !/(^|\/)test\//.test(path) && !/\.(png|jpg|gif|ico|lock)$/.test(path))
 }
 
