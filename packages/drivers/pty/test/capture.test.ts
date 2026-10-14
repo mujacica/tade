@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { LaneId } from '@tade/core'
 import { ECHO_CHILD } from '@tade/drivers-core/conformance'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -163,25 +165,42 @@ describe('reading a lane', () => {
 //
 // Every row carries the frame number, so a capture whose rows disagree is
 // provably torn and nothing has to be inferred from how it looked.
-const REPAINTER = [
-  'const ROWS = 40',
-  'const piece = (from, to, f) => {',
-  "  let out = ''",
-  `  for (let r = from; r < to; r++) out += '${ESC}[' + (r + 1) + ';1H${ESC}[2Kframe ' + f + ' row ' + r`,
-  '  return out',
-  '}',
-  // The alternate screen and the mouse: `scrolling` is then `lane`, which is
-  // the situation this is about, and the one where rows are rewritten in place.
-  `process.stdout.write('${ESC}[?1049h${ESC}[?1000h${ESC}[?1006h')`,
-  'let n = 0',
-  'setInterval(() => {',
-  '  n++',
-  '  process.stdout.write(piece(0, 10, n))',
-  '  setTimeout(() => process.stdout.write(piece(10, 20, n)), 1)',
-  '  setTimeout(() => process.stdout.write(piece(20, 30, n)), 2)',
-  '  setTimeout(() => process.stdout.write(piece(30, 40, n)), 3)',
-  '}, 27)',
-].join('\n')
+//
+// The gaps inside a frame are timers, and a timer on a starved runner fires
+// late: a 1ms gap became 5 or more, which is a pause the driver is *meant* to
+// read as the frame having ended (`QUIET_MS`). So the repainter measures its
+// own gaps and writes down, to `stretched`, every frame it drew with one of 3ms
+// or more — under the boundary, for the time a write takes to reach the driver.
+const repainter = (stretched: string) =>
+  [
+    "const { appendFileSync } = require('node:fs')",
+    'const ROWS = 40',
+    'const piece = (from, to, f) => {',
+    "  let out = ''",
+    `  for (let r = from; r < to; r++) out += '${ESC}[' + (r + 1) + ';1H${ESC}[2Kframe ' + f + ' row ' + r`,
+    '  return out',
+    '}',
+    // The alternate screen and the mouse: `scrolling` is then `lane`, which is
+    // the situation this is about, and the one where rows are rewritten in place.
+    `process.stdout.write('${ESC}[?1049h${ESC}[?1000h${ESC}[?1006h')`,
+    'let n = 0',
+    'setInterval(() => {',
+    '  const f = ++n',
+    '  let last = performance.now()',
+    '  let widest = 0',
+    '  const write = (from, to) => {',
+    '    const now = performance.now()',
+    '    widest = Math.max(widest, now - last)',
+    '    last = now',
+    '    process.stdout.write(piece(from, to, f))',
+    `    if (to === ROWS && widest >= 3) appendFileSync(${JSON.stringify(stretched)}, f + '\\n')`,
+    '  }',
+    '  write(0, 10)',
+    '  setTimeout(() => write(10, 20), 1)',
+    '  setTimeout(() => write(20, 30), 2)',
+    '  setTimeout(() => write(30, 40), 3)',
+    '}, 27)',
+  ].join('\n')
 
 /** Which frames a capture is made of. More than one is a torn screen. */
 function framesIn(screen: string): number[] {
@@ -201,7 +220,9 @@ describe('a program that repaints in place and says nothing', () => {
 
   it('is never photographed between two of its frames', async () => {
     driver = new PtyDriver()
-    await script(driver, 'tear/repaint', REPAINTER)
+    const stretched = join(mkdtempSync(join(tmpdir(), 'tade-tear-')), 'stretched')
+    writeFileSync(stretched, '')
+    await script(driver, 'tear/repaint', repainter(stretched))
     const lane = 'tear/repaint' as LaneId
     await until(async () => framesIn(await driver.capture(lane, { lines: 40 })).length > 0)
 
@@ -218,14 +239,31 @@ describe('a program that repaints in place and says nothing', () => {
       seen.push(first)
       await new Promise((resolve) => setTimeout(resolve, 8))
     }
+    // Read once the newest frame in a capture has had time to finish, since
+    // a frame is written down only after its last piece.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const late = new Set(readFileSync(stretched, 'utf8').split('\n').filter(Boolean).map(Number))
+    // A frame the runner stretched past the boundary was, as far as anything
+    // could tell, two frames, and a capture between them is the driver keeping
+    // its word; it is the tears inside the contract that count. macOS CI tore
+    // three such in sixty on 2026-10-14, a commit that touched no driver code.
+    const excused = torn.filter((frames) => frames.some((frame) => late.has(frame)))
+    const counted = torn.length - excused.length
     // Before the write itself was taken as the frame boundary this was one
     // capture in six, and one in five with four lanes repainting under load.
     // So one is allowed and two are not: ten of sixty still fails by a mile,
     // and a single interleaving on a runner sharing two cores with 279 forked
     // workers stops being a regression that names the wrong cause.
-    expect(torn.length, `${torn.length} of 60 captures were two frames mixed`).toBeLessThanOrEqual(
-      1,
-    )
+    expect(
+      counted,
+      `${counted} of 60 captures were two frames mixed, drawn without a gap the driver may end a frame on`,
+    ).toBeLessThanOrEqual(1)
+    // And the excuse is not a way for everything to pass: a runner that late
+    // left nothing to judge, which is said rather than counted as green.
+    expect(
+      excused.length,
+      `${excused.length} of 60 torn captures were frames the runner stretched`,
+    ).toBeLessThan(20)
     // And it is not a photograph: a screen held back rather than drawn torn is
     // held back for one capture and no more.
     expect(Math.max(...seen)).toBeGreaterThan(Math.min(...seen))
