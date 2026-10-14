@@ -215,6 +215,31 @@ export function typedSaid(editor, value) {
   return value.trim() === '' ? 'Type a new value first.' : null
 }
 
+/**
+ * What an answer to a change does: what the row says now, whether every
+ * drawing of it moves its control to the new value, and whether the box it
+ * was typed in is emptied. `came` is `afterAnswer`'s, `rev` the body's own.
+ *
+ * **Only a `200` empties a box.** A `409` is the world having moved: what is
+ * true now goes into the row, and what somebody typed stays where it was — the
+ * one failure they could not undo is losing it. Any other answer changes
+ * nothing but the line it is said on. A key's row takes `set` or `not set` and
+ * nothing else, whatever the body said.
+ */
+export function afterChange(row, editor, rev, came) {
+  if (typeof rev !== 'string' || !(came?.ok === true || came?.moved === true)) {
+    return { row: null, sync: false, clear: false }
+  }
+  const key = row.held !== null && row.held !== undefined
+  return {
+    row: key
+      ? { was: rev, shown: row.shown, held: rev === 'set' ? 'set' : 'not set' }
+      : { was: rev, shown: rev, held: row.held ?? null },
+    sync: came.ok === true,
+    clear: came.ok === true && (editor.kind === 'number' || editor.kind === 'text'),
+  }
+}
+
 /** The press's word: once to ask, again to send, and nothing while it goes. */
 export function pressWord(editor, armed, going) {
   if (going) return 'Saving…'

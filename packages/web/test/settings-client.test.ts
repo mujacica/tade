@@ -1,8 +1,9 @@
 import { ConfigSchema, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { settingStanding } from '../src/assets/acts.js'
+import { afterAnswer, settingStanding } from '../src/assets/acts.js'
 import { ICONS } from '../src/assets/icons.js'
 import {
+  afterChange,
   CUT_FROM,
   capsOf,
   drawnOf,
@@ -232,6 +233,55 @@ describe('changing one', () => {
     expect(typedSaid({ kind: 'number', options: [] }, '  ')).toBe('Type a new value first.')
     expect(typedSaid({ kind: 'number', options: [] }, '12')).toBeNull()
     expect(typedSaid({ kind: 'pick', options: [] }, '')).toBeNull()
+  })
+
+  it('empties a box only on a 200, and keeps what was typed when the world moved', () => {
+    const editor = row('surfaces.window.editor')
+    const height = row('surfaces.window.strip_height')
+    // Each answer through the page's own reading of it (`afterAnswer`).
+    const ok = (rev: string) => afterAnswer({ status: 200, body: { rev, said: 'Saved.' } }, '')
+    const moved = (rev: string) =>
+      afterAnswer({ status: 409, body: { error: 'gone', rev } }, 'it moved')
+    expect(afterChange(editor, editorOf(editor), 'vim', ok('vim'))).toEqual({
+      row: { was: 'vim', shown: 'vim', held: null },
+      sync: true,
+      clear: false,
+    })
+    // A typed box: a 200 empties it, a 409 writes what is true now and leaves it.
+    expect(afterChange(height, editorOf(height), '14', ok('14')).clear).toBe(true)
+    expect(afterChange(height, editorOf(height), '12', moved('12'))).toEqual({
+      row: { was: '12', shown: '12', held: null },
+      sync: false,
+      clear: false,
+    })
+    // A refusal that is trouble changes nothing, and neither does a body
+    // with no revision in it.
+    const refused = afterAnswer({ status: 403, body: { error: 'out_of_scope' } }, 'no')
+    expect(afterChange(height, editorOf(height), '9', refused)).toEqual({
+      row: null,
+      sync: false,
+      clear: false,
+    })
+    expect(afterChange(height, editorOf(height), undefined, ok('x')).row).toBeNull()
+  })
+
+  it('writes a key’s row as held or not, never as whatever the body said', () => {
+    const key = row('extensions.jev.key')
+    const cleared = afterChange(
+      key,
+      editorOf(key),
+      'not set',
+      afterAnswer({ status: 200, body: { rev: 'not set' } }, ''),
+    )
+    expect(cleared.row).toEqual({ was: 'not set', shown: '', held: 'not set' })
+    const odd = afterChange(
+      key,
+      editorOf(key),
+      KEY,
+      afterAnswer({ status: 200, body: { rev: KEY } }, ''),
+    )
+    expect(odd.row?.held).toBe('not set')
+    expect(odd.row?.shown).toBe('')
   })
 
   it('asks twice, and says what the second press does', () => {

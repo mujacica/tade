@@ -42,6 +42,16 @@ declare module '*/assets/pages/settings-shape.js' {
   export function editorOf(row: Row): Editor
   export function typedSaid(editor: Editor, value: string): string | null
   export function pressWord(editor: Editor, armed: boolean, going: boolean): string
+  export function afterChange(
+    row: Row,
+    editor: Editor,
+    rev: unknown,
+    came: { ok: boolean; moved: boolean },
+  ): {
+    row: { was: string; shown: string; held: 'set' | 'not set' | null } | null
+    sync: boolean
+    clear: boolean
+  }
   export function partsOf(group: Group): {
     own: Row[]
     scopes: { key: string; rows: Row[] }[]

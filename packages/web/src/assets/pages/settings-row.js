@@ -31,6 +31,7 @@ import { icon } from '../icons.js'
 import { dlIn } from '../rows.js'
 import { answerIn } from '../ui.js'
 import {
+  afterChange,
   drawnOf,
   editorOf,
   factsOf,
@@ -254,16 +255,15 @@ function editorFor(row, opts) {
     word()
     const came = afterAnswer(got, opts.ctx.sentence(got))
     answerIn(said, came.said, came.trouble)
-    // What is true now goes into the row, and the box is left alone: a `409`
-    // is the world having moved, not a reason to throw away a value.
-    const now = got.body?.rev
-    if (typeof now === 'string' && (came.ok || came.moved)) {
-      row.was = now
-      if (row.held === null) row.shown = now
-      else row.held = now === 'set' ? 'set' : 'not set'
-      opts.saved(came.ok)
+    // What is true now goes into the row, and the box is emptied only by a
+    // `200`: a `409` is the world having moved, not a reason to throw away a
+    // value (`afterChange`).
+    const after = afterChange(row, editor, got.body?.rev, came)
+    if (after.row !== null) {
+      Object.assign(row, after.row)
+      opts.saved(after.sync)
     }
-    if (came.ok && (editor.kind === 'number' || editor.kind === 'text')) control.value = ''
+    if (after.clear) control.value = ''
   })
   return { node, sync }
 }
