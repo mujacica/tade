@@ -150,6 +150,9 @@ describe('the orchestrator’s conversation, kept by the window', () => {
     await until('the line saying so', () =>
       shown().includes('refreshed the orchestrator: tools changed'),
     )
+    // Said, then written down: the line is on screen before the journal has
+    // it, and ubuntu once read the journal in between.
+    await until('the journal', async () => (await logged('orchestrator_compacted')).length === 1)
     const [line] = await logged('orchestrator_compacted')
     expect(line?.detail).toMatchObject({ ...told, why: 'told', changed: ['tools'], known: true })
     // It wrote down that it did not hold it when it started.
