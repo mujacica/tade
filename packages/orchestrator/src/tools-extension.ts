@@ -604,7 +604,7 @@ export function orchestratorTools(
 
   tool(
     'tade_remember',
-    "Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything. A note scoped to a task is in what that task's agent is told when it starts, so it is how to add the person's words to queued work without changing what it was asked to do — changing or adding to that is tade_queue_change retell.",
+    'Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything. A note scoped to a task is in what that task\'s agent is told when it starts, so it carries a remark of theirs about queued work. More for that work to do — "add this to X", "it has to cover Y too" — changes what it was asked, and that is tade_queue_change retell, never a note.',
     object(
       {
         text: string('exactly what they said, never a tidier version of it'),
