@@ -1,1 +1,406 @@
 /* The devices page's own sheet: every rule scoped to it (`.page-devices`, `test/pages.test.ts`). */
+
+/*
+  One rhythm: the bar, the lead, then the groups, each `--stack` apart.
+  Sections keep no margin of their own, so the gap is the only space between
+  them. At a desk the list has the two short groups beside it and the matrix
+  runs across under both; on a phone they are one column, in that order.
+*/
+.page-devices {
+  display: grid;
+  gap: var(--stack);
+  container-type: inline-size;
+}
+
+.page-devices .section,
+.page-devices > .section.pg {
+  margin-block-end: 0;
+}
+
+.dv-cols,
+.dv-aside {
+  display: grid;
+  gap: var(--stack);
+  align-items: start;
+  min-width: 0;
+}
+
+@container (min-width: 46rem) {
+  .dv-cols {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
+
+  .dv-cols > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  /* Declared before the cells' own rule, so it names the page to win. */
+  .page-devices .dv-cells {
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  }
+}
+
+/* What went wrong signing out, under the bar; nothing while there is nothing. */
+.dv-out-said {
+  margin: 0 0 var(--s3);
+}
+
+.dv-out-said:empty {
+  display: none;
+}
+
+/* ── the lead: this device ─────────────────────────────────────────────────── */
+
+/*
+  Its mark, its name and how it stands on the left, the session as a gauge on
+  the right, and four facts under both. Narrower than a phone held sideways,
+  the gauge takes a line of its own, centred under the name.
+*/
+.dv-lead {
+  display: grid;
+  gap: var(--s4);
+  padding: var(--inset);
+  container-type: inline-size;
+}
+
+.page-devices .dv-lead .ui-state {
+  min-height: 12rem;
+}
+
+.dv-me {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3) var(--s4);
+}
+
+.dv-mark {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--r2);
+  border: 1px solid var(--amber-dark);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--amber);
+}
+
+.dv-mark .ic {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.dv-who {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.dv-name {
+  margin: 0;
+  overflow: hidden;
+  color: var(--bright);
+  font-size: var(--step-2);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.dv-kind {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-devices .dv-gauge {
+  grid-column: 1 / -1;
+  width: 8rem;
+}
+
+@container (min-width: 30rem) {
+  .dv-me {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .page-devices .dv-gauge {
+    grid-column: auto;
+  }
+}
+
+/* ── every device ──────────────────────────────────────────────────────────── */
+
+.dv-sum {
+  margin: 0 0 var(--s3);
+  color: var(--body);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
+.dv-sum:empty {
+  display: none;
+}
+
+.page-devices .dv-stale {
+  margin-block-end: var(--s3);
+}
+
+.dv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+  A row: the device's kind as a tile, its name with what marks it, how long
+  ago it was let in at the end — the same three columns as every row, so the
+  ages read down one edge.
+*/
+.dv-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 4rem;
+  padding: var(--s3) var(--inset);
+  border-block-start: var(--border);
+}
+
+.dv-row:first-child {
+  border-block-start: 0;
+}
+
+/* Where you are: a step lighter, its tile in amber. */
+.dv-row.is-you {
+  background: var(--surface);
+}
+
+.dv-tile {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--r2);
+  background: var(--raised);
+  color: var(--body);
+}
+
+.dv-row.is-you .dv-tile {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber);
+}
+
+.dv-tile .ic {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.dv-row-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dv-row-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  min-width: 0;
+}
+
+.dv-row-name {
+  min-width: 0;
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+  overflow-wrap: anywhere;
+}
+
+.dv-row-name.is-unnamed {
+  color: var(--heading);
+  font-weight: var(--w-label);
+}
+
+.dv-row-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.dv-row-ago {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+/* ── what this device may read and do ──────────────────────────────────────── */
+
+.dv-grants {
+  display: grid;
+  gap: var(--s5);
+  padding: var(--inset);
+}
+
+.dv-group {
+  display: grid;
+  gap: var(--s3);
+}
+
+.dv-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.dv-group-head h3 {
+  margin: 0;
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.dv-group-n {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  The matrix: a cell per grant, as many across as fit, every one drawn. On is
+  lit — a step up, a filled tick, the word in the brightest grey; off is a
+  dashed outline, a dash and the word muted. Never a hue: whether a device may
+  is the shape and the word, and colour on this page is kept for what wants
+  somebody.
+*/
+.dv-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dv-cell {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s2);
+  min-height: 2.75rem;
+  padding: var(--s2);
+  border-radius: var(--r2);
+  border: 1px dashed var(--control);
+  color: var(--quiet);
+  font-size: var(--step-0);
+}
+
+.dv-cell.is-on {
+  border: 1px solid var(--raised);
+  background: var(--surface);
+  color: var(--bright);
+}
+
+.dv-tick {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--round);
+}
+
+.dv-cell.is-on .dv-tick {
+  background: var(--bright);
+  color: var(--ink);
+}
+
+.dv-tick .ic {
+  width: 0.75rem;
+  height: 0.75rem;
+  stroke-width: 3;
+}
+
+.dv-dash {
+  width: 0.625rem;
+  height: 2px;
+  border-radius: var(--r3);
+  background: currentColor;
+}
+
+.dv-cell-words {
+  display: grid;
+  min-width: 0;
+}
+
+.dv-cell-word {
+  font-weight: var(--w-label);
+  line-height: var(--lead-tight);
+}
+
+.dv-cell-under {
+  color: var(--heading);
+  font-size: var(--step--1);
+  line-height: var(--lead-tight);
+}
+
+/* ── notifications ─────────────────────────────────────────────────────────── */
+
+.dv-tell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--inset);
+}
+
+.dv-tell-said {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
+.dv-tell-press {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* ── what this device said ─────────────────────────────────────────────────── */
+
+.page-devices .dv-recent {
+  margin: 0;
+  list-style: none;
+}
+
+/* Two lines of what was said, cut by the sheet and never by the words. */
+.dv-said {
+  display: -webkit-box;
+  white-space: normal;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
+.dv-more {
+  margin: var(--s2) 0 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  text-align: center;
+}
+
+.dv-more:empty {
+  display: none;
+}
