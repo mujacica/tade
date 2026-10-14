@@ -59,6 +59,8 @@ interface World {
   tade: Workbench
   repo: ReturnType<typeof mkrepo>
   asked: Asked
+  /** What `tade_queue` answers: `QUEUED`, or the work a case queued itself. */
+  queued: string
 }
 
 interface Said {
@@ -169,14 +171,14 @@ async function ask(
   )
   const tade = await Workbench.open({ home })
   const asked: Asked = { queue: [], config: [] }
-  const world: World = { tade, repo, asked }
+  const world: World = { tade, repo, asked, queued: QUEUED }
   await seed?.(world)
 
   const tools = await ToolHost.listen({
     tade,
     path: join(home, 'tools.sock'),
     queue: {
-      describe: async () => QUEUED,
+      describe: async () => world.queued,
       change: async (req) => {
         asked.queue.push({ ...req })
         return `done: ${req.change}`
@@ -252,6 +254,60 @@ async function withTask(world: World, slug = 'refunds'): Promise<void> {
     intent: 'the refund flow double-charges when the webhook retries, in src/pay.ts',
     by: 'you',
   })
+}
+
+/**
+ * Two tasks waiting for tomorrow morning, made by a real plan, so that
+ * `tade_status` lists them and their task files say what each will be told —
+ * and `tade_queue` says the same, as the window would. The refund emails were
+ * planned with a file that is not there, for the case about a prompt's mistake.
+ */
+async function withQueued(world: World): Promise<void> {
+  const at = new Date()
+  at.setDate(at.getDate() + 1)
+  at.setHours(9, 0, 0, 0)
+  await world.tade.planTasks({
+    project: 'app',
+    said: 'design the receipt page, and email the customer when a refund is posted',
+    agents: [
+      {
+        name: 'receipt-design',
+        said: 'design the receipt page',
+        prompt:
+          'Design the receipt page for a charge in a new src/receipt.ts: its layout, type and colours.',
+        after: [],
+        touches: ['src/receipt.ts'],
+        at: at.toISOString(),
+      },
+      {
+        name: 'refund-emails',
+        said: 'email the customer when a refund is posted',
+        prompt:
+          'Send the customer an email from src/mail.ts whenever postToLedger records a refund.',
+        after: [],
+        touches: ['src/mail.ts'],
+        at: at.toISOString(),
+      },
+    ],
+  })
+  world.queued = [
+    'Queued in app:',
+    '- app/receipt-design — at 09:00 tomorrow',
+    '- app/refund-emails — at 09:00 tomorrow',
+  ].join('\n')
+}
+
+/**
+ * What a case that changes queued work in place must leave: one `change` on
+ * that task, and nothing removed or planned again — 40 unstarted tasks went
+ * that way between 2026-10-11 and 10-13 (orchestrator-replan-loop).
+ */
+function changedInPlace(world: World, change: string, task: string) {
+  const asked = world.asked.queue
+  expect(asked.filter((one) => one.change === 'remove' || one.change === 'plan')).toEqual([])
+  const made = asked.find((one) => one.change === change)
+  expect(String(made?.task)).toMatch(new RegExp(`(^|/)${task}$`))
+  return made
 }
 
 const CHOICES: readonly Choice[] = [
@@ -397,6 +453,46 @@ const CHOICES: readonly Choice[] = [
       const change = world.asked.queue.find((one) => one.change === 'pause')
       expect(change).toBeTruthy()
       expect(change?.project).toBe('app')
+    },
+  },
+  {
+    // The three that were remove-and-plan-again, said the way they were said.
+    // More of what the person wants is a change to what the agent is asked to
+    // do, and the work has not started: it is retold where it stands, never
+    // removed and planned again under a new name.
+    what: 'retells queued work when somebody adds to it, rather than planning it again',
+    say: 'add this to the queued design task: it has to cover the refund receipt too, not only the one for a charge',
+    seed: withQueued,
+    reaches: 'tade_queue_change',
+    notThis: ['tade_plan'],
+    also: ({ world }) => {
+      const retold = changedInPlace(world, 'retell', 'receipt-design')
+      expect(String(retold?.prompt).toLowerCase()).toContain('refund')
+    },
+  },
+  {
+    what: 'retells queued work whose prompt was wrong',
+    say: 'the prompt you gave refund-emails has a mistake: there is no src/mail.ts, the email has to go out from handleRefund in src/pay.ts. fix it',
+    seed: withQueued,
+    reaches: 'tade_queue_change',
+    notThis: ['tade_plan'],
+    also: ({ world }) => {
+      const retold = changedInPlace(world, 'retell', 'refund-emails')
+      expect(String(retold?.prompt)).toContain('src/pay.ts')
+    },
+  },
+  {
+    what: 'writes a wait on queued work rather than planning it again',
+    say: 'make refund-emails wait for receipt-design',
+    seed: withQueued,
+    reaches: 'tade_queue_change',
+    notThis: ['tade_plan'],
+    also: ({ world }) => {
+      const waits = changedInPlace(world, 'after', 'refund-emails')
+      const on = (waits?.after ?? []) as Array<{ task?: string }>
+      expect(on.map((one) => String(one.task))).toEqual([
+        expect.stringMatching(/(^|\/)receipt-design$/),
+      ])
     },
   },
   {

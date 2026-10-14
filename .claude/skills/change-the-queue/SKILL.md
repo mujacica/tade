@@ -238,7 +238,11 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   one is the reuse `guardName` exists to stop. It went in because on 2026-10-11 two holds became
   nineteen removals, twenty creations, three refused plans and an orphan: with no way to put a wait
   on work already made, removing it and planning it again was the only way to say "after that one",
-  and every removal held everything downstream of it.
+  and every removal held everything downstream of it. The orchestrator is told so in one standing
+  line (`CHANGED_IN_PLACE`, `core/src/compose.ts`), whoever decides holds; `tade_steer` says queued
+  work has no agent to tell, and `tade_remember` that a note scoped to a task is in what its agent
+  is told when it starts — the person's words added without changing what it was asked to do. Three
+  cases in `live.test.ts` (add to it, fix its prompt, make it wait) hold a real model to it.
 - **A change answers with where the work stands after the queue has looked again** (`nowSays`),
   never with what it meant to do: `wait` looks again from now and is not "wait for the files", so
   on work the tree still holds it is held again in the same second, and an answer of "waits again"

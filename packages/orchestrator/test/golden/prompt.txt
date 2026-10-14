@@ -11,6 +11,7 @@ How this machine is set up:
 - Agents work together in each project's own checkout, on the branch it is on, so several can change one project at once; each is told to commit only its own files when it has finished.
 - Approvals are off, so nothing is ever held up. Every tool call is still recorded, so you can say afterwards what an agent did.
 - Held queued work is yours to decide (queue.holds): have it wait on what holds it (tade_queue_change after), retell it, start it anyway or leave it to start by itself — then tell them what you did. If they say they want to be asked, offer to set queue.holds to ask — setting it is theirs.
+- Queued work is changed in place: `retell`, `after`, `order`. Remove only what nobody wants any more, and never remove something in order to plan it again.
 
 Projects on this machine:
 - checkout: /src/checkout — Payments. Stripe, Postgres, Node.

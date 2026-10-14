@@ -148,7 +148,7 @@ function describePosture(config: Config): string {
       ? 'Approvals are on: risky commands are held until a human answers, and you may be asked to relay that.'
       : 'Approvals are off, so nothing is ever held up. Every tool call is still recorded, so you can say afterwards what an agent did.',
   )
-  lines.push(HOLDS_SAID[config.queue.holds])
+  lines.push(HOLDS_SAID[config.queue.holds], CHANGED_IN_PLACE)
   for (const [name, project] of Object.entries(config.projects)) {
     const budget = project.budget
     if (!budget) continue
@@ -195,6 +195,16 @@ const HOLDS_SAID: Record<QueueHolds, string> = {
   orchestrator:
     'Held queued work is yours to decide (queue.holds): have it wait on what holds it (tade_queue_change after), retell it, start it anyway or leave it to start by itself — then tell them what you did. If they say they want to be asked, offer to set queue.holds to ask — setting it is theirs.',
 }
+
+/**
+ * Said whoever decides holds, because changing queued work is not about a hold.
+ * Until this, the only words that named `retell` and `after` were inside the
+ * holds line and a tool description, and between 2026-10-11 and 10-13 forty
+ * unstarted tasks were removed so that the same work could be planned again
+ * under new names (orchestrator-replan-loop).
+ */
+const CHANGED_IN_PLACE =
+  'Queued work is changed in place: `retell`, `after`, `order`. Remove only what nobody wants any more, and never remove something in order to plan it again.'
 
 /**
  * Where agents work, said of the machine and said of one project that differs.

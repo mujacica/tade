@@ -146,6 +146,14 @@ describe('what it is told about this machine', () => {
     expect(ask).not.toContain('Held queued work is yours to decide')
   })
 
+  it('says queued work is changed in place, whoever decides holds', () => {
+    for (const holds of ['orchestrator', 'ask'] as const) {
+      const prompt = composePrompt({ config: ConfigSchema.parse({ queue: { holds } }) })
+      expect(prompt).toContain('Queued work is changed in place: `retell`, `after`, `order`.')
+      expect(prompt).toContain('never remove something in order to plan it again')
+    }
+  })
+
   it('waits only on what the tools list, because a name out of a message may be gone', () => {
     expect(composePrompt({ config: ConfigSchema.parse({}) })).toContain(
       'only ever wait on a task tade_queue or tade_status lists',

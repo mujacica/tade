@@ -527,7 +527,7 @@ export function orchestratorTools(
 
   tool(
     'tade_steer',
-    'Tell the agent working on a task something, without stopping it.',
+    'Tell the agent working on a task something, without stopping it. It is for an agent that is running: queued work has no agent yet, so what it will be told when it starts is changed with tade_queue_change retell.',
     object({ task: string('task id, like checkout/refunds'), message: string('what to tell it') }, [
       'task',
       'message',
@@ -604,7 +604,7 @@ export function orchestratorTools(
 
   tool(
     'tade_remember',
-    'Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything.',
+    "Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything. A note scoped to a task is in what that task's agent is told when it starts, so it is how to add the person's words to queued work without changing what it was asked to do — changing or adding to that is tade_queue_change retell.",
     object(
       {
         text: string('exactly what they said, never a tidier version of it'),
