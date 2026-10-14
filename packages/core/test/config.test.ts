@@ -25,6 +25,18 @@ describe('parseConfig', () => {
     expect(r.config.projects).toEqual({})
   })
 
+  it('starts muted, and keeps a person’s own answer to it', () => {
+    // A Tade nobody has heard yet makes no sound until somebody unmutes it.
+    const fresh = parseConfig('')
+    expect(fresh.ok && fresh.config.surfaces.voice.muted).toBe(true)
+    const unmuted = parseConfig('surfaces: { voice: { muted: false } }')
+    expect(unmuted.ok && unmuted.config.surfaces.voice.muted).toBe(false)
+    const refused = parseConfig('surfaces: { voice: { muted: sometimes } }')
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(refused.issues[0]?.path).toBe('surfaces.voice.muted')
+  })
+
   it('accepts a fully populated config', () => {
     const r = parseConfig(`
 workspace: { driver: tmux, adopt: true }

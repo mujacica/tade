@@ -305,7 +305,9 @@ export class Voice implements Subject {
   async toggleMute(): Promise<void> {
     const muted = !this.wire.opts.config.surfaces.voice.muted
     try {
-      writeSetting(configPathOf(this.wire.opts), 'surfaces.voice.muted', muted ? true : undefined)
+      // Written either way, never deleted: muted is the default, so taking the
+      // key away would mute again the next time Tade starts.
+      writeSetting(configPathOf(this.wire.opts), 'surfaces.voice.muted', muted)
     } catch {
       // Not writable: muted for this window only.
     }

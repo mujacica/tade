@@ -178,6 +178,7 @@ export async function gather(
     micOk: mic.ok,
     speechOk: speech.ok,
     speechReason: speech.ok ? null : speech.reason,
+    muted: voice?.muted,
     judgeKey: (process.env[judgeKeyVariable(config?.extensions?.jev)] ?? '').length > 0,
     // Whatever records that the extension is on or off is the answer: two
     // places saying whether a judge is on is the bug this avoids.

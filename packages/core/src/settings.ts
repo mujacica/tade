@@ -492,7 +492,7 @@ export function settingsOf(
           title: 'Muted',
           means: 'no speech and no sounds; the conversation still shows everything',
           value: String(voice.muted),
-          fallback: 'false',
+          fallback: 'true',
           type: { kind: 'flag' },
           live: true,
         },

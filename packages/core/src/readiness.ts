@@ -115,6 +115,8 @@ export interface ReadinessFacts {
   micOk: boolean
   speechOk: boolean
   speechReason: string | null
+  /** Nothing is said or played until somebody unmutes it, which is how Tade starts. */
+  muted?: boolean
   /**
    * A judge's key is in the environment. Never required, and never asked for
    * before Tade works: it is the only step that costs money and the only one

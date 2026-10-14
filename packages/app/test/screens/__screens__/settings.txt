@@ -13,7 +13,7 @@
  ▸ I│                            █│ Microphone       MacBook Pro Microphone                          ↻ on restart ▕│    
  ▾ C│  Checks                    █│                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                        ▕│    
   M │                            █│                                                                               ▕│    
-  A │▌ Voice                     █│ Muted           ████──── off                                                  ▕│    
+  A │▌ Voice                     █│ Muted           ────████ on                                                   ▕│    
   M │▌                           █│                                                                               ▕│    
     │  Window                    █│ Spoken replies  ────████ on                                                   ▕│    
  ▾ F│                            █│                                                                               ▕│    

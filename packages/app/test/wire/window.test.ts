@@ -326,9 +326,10 @@ describe('answering where you are looking', () => {
     const clock = { at: Date.now() }
     await start({ now: () => clock.at })
     await until('the first frame', () => terminal.written.includes('refunds'))
-    const mute = find('Mute')
-    click(mute.col + 1, mute.row)
-    const said = 'muted: nothing will be said or played'
+    // A fresh Tade starts muted, so the button it offers is the way back.
+    const unmute = find('Unmute')
+    click(unmute.col + 1, unmute.row)
+    const said = 'sound back on'
     await until('the flash', () => shown(said))
     const rows = screenOf(terminal.written)
     // On the rule over the foot's own buttons, and nowhere else on screen.

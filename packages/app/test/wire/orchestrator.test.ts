@@ -69,6 +69,11 @@ describe('the window, talking to the orchestrator', () => {
     const listeners: Array<(event: ThinkerEvent) => void> = []
     const answer = 'Refunds has an agent on it. Which opus: 4.6 or 5?'
     await start({
+      // Somebody who unmuted it: a fresh Tade starts muted and says nothing.
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        surfaces: { voice: { muted: false } },
+      }),
       speaker,
       thinker: {
         onEvent: (listener) => {

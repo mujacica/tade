@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { ConfigSchema } from '@tade/core'
 import type { Recorder, Recording } from '@tade/voice-core'
 import { ScriptedRecorder, ScriptedTranscriber } from '@tade/voice-stt'
 import { Speaker } from '@tade/voice-tts'
@@ -11,8 +14,12 @@ import { type FakeTerminal, until, windowUnderTest } from './harness.ts'
 
 describe('the window, listening', () => {
   let terminal: FakeTerminal
+  let root = ''
+  let home = ''
   const { start } = windowUnderTest((wired) => {
     terminal = wired.terminal
+    root = wired.repo.root
+    home = wired.home
   })
 
   it('records what you say, and acts on it', async () => {
@@ -135,6 +142,11 @@ describe('the window, listening', () => {
     const listeners: Array<(event: ThinkerEvent) => void> = []
     const answer = 'The first sentence. The second sentence. The third sentence.'
     await start({
+      // Somebody who unmuted it: a fresh Tade starts muted, and says nothing to cut.
+      config: ConfigSchema.parse({
+        projects: { app: { root } },
+        surfaces: { voice: { muted: false } },
+      }),
       speaker,
       thinker: {
         onEvent: (listener) => {
@@ -161,5 +173,55 @@ describe('the window, listening', () => {
     // Nothing finished, and the two sentences queued behind it never start.
     expect(finished).toEqual([])
     expect(started).toEqual(['The first sentence.'])
+  })
+
+  it('starts muted, says nothing until unmuted, and keeps the unmute for next time', async () => {
+    const ran: string[] = []
+    const speaker = await Speaker.create({
+      soundDir: tmp('tade-app-sound-'),
+      platform: 'darwin',
+      run: async (command) => {
+        ran.push(command.command)
+      },
+    })
+    const listeners: Array<(event: ThinkerEvent) => void> = []
+    const answer = 'Refunds waits on the ledger.'
+    await start({
+      speaker,
+      thinker: {
+        onEvent: (listener) => {
+          listeners.push(listener)
+          return () => {}
+        },
+        ask: async () => {
+          for (const listener of listeners) listener({ type: 'message', text: answer })
+          return answer
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const ask = (text: string) => {
+      terminal.press('\x00')
+      for (const char of text) terminal.press(char)
+      terminal.press('\r')
+    }
+
+    ask('why is refunds slow')
+    await until('the answer on screen', () => terminal.written.includes('waits on the ledger'))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    // The conversation shows everything; nothing is said and nothing sounds.
+    expect(ran).toEqual([])
+
+    // ctrl+m, as a terminal sends it.
+    terminal.press('\x1b[109;5u')
+    // Written down as false rather than taken away, which would mute it again
+    // the next time Tade starts.
+    const file = join(home, 'config.yaml')
+    await until(
+      'the unmute to be kept',
+      () => existsSync(file) && /muted: false/.test(readFileSync(file, 'utf8')),
+    )
+    ask('and now')
+    await until('it to say the answer', () => ran.includes('say'))
   })
 })

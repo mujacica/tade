@@ -461,8 +461,11 @@ export const ConfigSchema = z
               .prefault({}),
             /** Say replies and news out loud. Off keeps the earcons and the text. */
             speak: z.boolean().default(true),
-            /** Nothing is said and nothing sounds: no speech, no earcons. The text stays. */
-            muted: z.boolean().default(false),
+            /**
+             * Nothing is said and nothing sounds: no speech, no earcons. The text stays.
+             * On until somebody unmutes it: a Tade nobody has heard yet starts quiet.
+             */
+            muted: z.boolean().default(true),
             /** Where the speech comes from. */
             mic: z
               .strictObject({

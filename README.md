@@ -52,8 +52,9 @@ goes with whatever you say next.
 
 ## Voice, first
 
-Hold `ctrl+space` and talk. Speech stays on your machine by default, answers come back as a few
-spoken sentences with the rest on screen, and mute cuts the sentence being said, not the next one.
+Hold `ctrl+space` and talk. Speech stays on your machine by default. Tade starts muted, with every
+answer on screen; unmute it (`ctrl+m`) and answers come back as a few spoken sentences, and muting
+again cuts the sentence being said, not the next one.
 
 ![Push to talk: the strip says it is listening, a level meter moves with your voice](https://raw.githubusercontent.com/mujacica/tade/main/images/voice.svg)
 

@@ -573,6 +573,11 @@ function setExtension(name: string, on: boolean): void {
 async function setUpVoice(ui: Ui, facts: ReadinessFacts, look: Look): Promise<void> {
   ui.say(`Speech is optional — ${facts.speechReason ?? 'not set up'}.`)
   ui.say('Whatever you choose, ctrl+space always opens a line you can type into.')
+  if (facts.muted !== false) {
+    ui.say(
+      'Tade starts muted and answers on screen; Unmute, at the foot of the window, lets it talk.',
+    )
+  }
 
   const engines = [
     'whisper.cpp — runs here, nothing leaves this machine',
