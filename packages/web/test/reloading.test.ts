@@ -27,19 +27,36 @@ describe('watching the folder', () => {
     // A settle long enough that a loaded machine writing three files in a
     // row still writes them inside it: the claim is one reload per burst.
     const stop = watchFolder(dir, () => (said += 1), 400)
+    const pause = (ms: number) => new Promise((done) => setTimeout(done, ms))
     try {
+      // Listening only once it has heard something: FSEvents starts its stream
+      // a moment after `watch` returns and never reports a write made before,
+      // so a burst written straight away went unheard on a loaded machine —
+      // `expected 0 to be 1`. Primed until it speaks, then let go quiet.
+      let until = Date.now() + 10_000
+      while (said === 0 && Date.now() < until) {
+        await writeFile(join(dir, 'primer.css'), String(Date.now()))
+        await pause(200)
+      }
+      let was = -1
+      while (was !== said) {
+        was = said
+        await pause(1_000)
+      }
+      const before = said
       await Promise.all(['a.css', 'b.js', 'c.css'].map((name) => writeFile(join(dir, name), name)))
-      const until = Date.now() + 10_000
-      while (said === 0 && Date.now() < until) await new Promise((done) => setTimeout(done, 20))
+      until = Date.now() + 10_000
+      while (said === before && Date.now() < until) await pause(20)
       // Longer than the settle again, to see that the burst stayed one.
-      await new Promise((done) => setTimeout(done, 600))
-      expect(said).toBe(1)
+      await pause(600)
+      expect(before).toBeGreaterThan(0)
+      expect(said - before).toBe(1)
     } finally {
       stop()
     }
     // A watched folder can take seconds to say anything on a loaded machine
     // (FSEvents batches), so this one gets its own deadline.
-  }, 15_000)
+  }, 30_000)
 
   it('stops when told, and a folder that is not there is quietly not watched', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-reload-'))
