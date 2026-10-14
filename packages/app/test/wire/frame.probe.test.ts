@@ -341,31 +341,24 @@ describe('what the frame loop costs', () => {
       await client.write(opened.id, 'exec cat\r')
       await start({ frameMs: 250 })
       await until('the first frame', () => terminal.written.includes('refunds'))
-      // Clicked until it is in front, found afresh each time: a click aimed off
-      // a frame the next one moved focuses something else, and every key then
-      // goes where nothing echoes it — "E" passes on any capital E on screen,
-      // and "EC" waits out the deadline, which is how ubuntu failed it once.
-      // The shell's echo of `exec cat` is drawn only once the lane is in front.
-      let aimed = 0
-      await until('terminal 1 in front', () => {
-        if (screenOf(terminal.written).some((row) => row.includes('exec cat'))) return true
-        if (performance.now() - aimed > 500) {
-          const tab = find('terminal 1')
-          click(tab.col + 1, tab.row)
-          aimed = performance.now()
-        }
-        return false
-      })
       const tab = find('terminal 1')
+      click(tab.col + 1, tab.row)
       // What `cat` echoes, found by content: a run nothing else on screen has.
       let line = ''
       const type = async (keys: string): Promise<void> => {
         for (const key of keys) {
           line += key
           terminal.press(key)
+          // What was on screen goes with a failure: "EC" never echoed once on
+          // ubuntu with nothing to say whether the keys reached `cat`.
           await until(`"${line}" echoed`, () =>
             screenOf(terminal.written).some((row) => row.includes(line)),
-          )
+          ).catch((error: Error) => {
+            const screen = screenOf(terminal.written).join('\n')
+            throw new Error(
+              `${error.message}, terminal 1 at ${tab.row}:${tab.col}, on screen:\n${screen}`,
+            )
+          })
         }
       }
       await type('ECHO>')
