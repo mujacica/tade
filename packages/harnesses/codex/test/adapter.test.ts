@@ -24,10 +24,14 @@ import { toml } from '../src/toml.ts'
 // is kept instead of reaching a terminal. A turn Tade draws itself is run
 // against a `codex` that prints the events a real one prints.
 
-async function until(check: () => boolean, timeout = 5_000): Promise<void> {
+// A bound on "never", not a measurement: every wait here is on a real `sh`
+// starting, writing a file or dying, and five seconds of that on a machine
+// running other suites was a test of the machine ("is ended on shutdown",
+// red at load 13 and green alone). The message says which wait it was.
+async function until(check: () => boolean, timeout = 30_000): Promise<void> {
   const deadline = Date.now() + timeout
   while (!check()) {
-    if (Date.now() > deadline) throw new Error('timed out')
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${check}`)
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
@@ -315,7 +319,7 @@ describe('CodexAdapter', () => {
       await one.prompt(spec.run, 'start here')
       expect(typed).toEqual([])
       await hook(started())
-      await until(() => typed.length > 0, 3_000)
+      await until(() => typed.length > 0)
       expect(typed.join('')).toContain('start here')
     })
 
@@ -327,7 +331,7 @@ describe('CodexAdapter', () => {
       await one.queue(spec.run, 'and then the other one')
       expect(typed.join('')).not.toContain('and then the other one')
       await hook({ hook_event_name: 'Stop', last_assistant_message: 'done' })
-      await until(() => typed.join('').includes('and then the other one'), 3_000)
+      await until(() => typed.join('').includes('and then the other one'))
     })
 
     it('renames its thread between turns, never in the middle of one', async () => {
@@ -337,7 +341,7 @@ describe('CodexAdapter', () => {
       await one.name(spec.run, 'refund flow')
       expect(typed.join('')).not.toContain('/rename')
       await hook({ hook_event_name: 'Stop', last_assistant_message: 'done' })
-      await until(() => typed.join('').includes('/rename refund flow'), 3_000)
+      await until(() => typed.join('').includes('/rename refund flow'))
     })
 
     it('refuses a model or an effort rather than typing a command that changes a default', async () => {
@@ -527,7 +531,7 @@ describe('CodexAdapter', () => {
       made.onSignal(spec.run, (signal) => signals.push(signal))
       await made.start(spec)
       await made.prompt(spec.run, 'where are we')
-      await until(() => signals.some((signal) => signal.type === 'idle'), 8_000)
+      await until(() => signals.some((signal) => signal.type === 'idle'))
       const kinds = signals.map((signal) => signal.type)
       expect(kinds).toContain('turn_started')
       expect(signals.find((signal) => signal.type === 'message')).toMatchObject({
@@ -571,7 +575,7 @@ describe('CodexAdapter', () => {
       made.onSignal(spec.run, (signal) => signals.push(signal))
       const handle = await made.start(spec)
       expect(handle.sessionId).toBe('thread-kept')
-      await until(() => signals.some((signal) => signal.type === 'idle'), 8_000)
+      await until(() => signals.some((signal) => signal.type === 'idle'))
     })
 
     it('says why it would not start rather than leaving a turn that never comes', async () => {
@@ -592,7 +596,7 @@ describe('CodexAdapter', () => {
       made.onSignal(spec.run, (signal) => signals.push(signal))
       await made.start(spec)
       await made.prompt(spec.run, 'anything')
-      await until(() => signals.some((signal) => signal.type === 'failed'), 8_000)
+      await until(() => signals.some((signal) => signal.type === 'failed'))
       expect(signals.find((signal) => signal.type === 'turn_done')).toMatchObject({
         status: 'error',
       })
