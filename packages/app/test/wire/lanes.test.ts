@@ -441,13 +441,25 @@ describe('the window, and the lanes in it', () => {
     let letGo = () => {}
     const held = new Promise<void>((resolve) => (letGo = resolve))
     const capture = client.capture.bind(client)
+    const asked: (number | undefined)[] = []
     client.capture = async (lane, lines, styled) => {
+      asked.push(lines)
       await held
       return capture(lane, lines, styled)
     }
     try {
       terminal.press(up)
-      await until('the second notch drawn', () => newestPrinted(terminal) < once)
+      // Red once on macOS with nothing to say why. Whether the driver was asked
+      // splits it: asked, the held lines were refused for the notch; not
+      // asked, the notch itself went nowhere.
+      await until('the second notch drawn', () => newestPrinted(terminal) < once).catch(
+        (error: Error) => {
+          const screen = screenOf(terminal.written).join('\n')
+          throw new Error(
+            `${error.message}, first notch at ${once}, driver asked for ${JSON.stringify(asked)} lines, on screen:\n${screen}`,
+          )
+        },
+      )
       // Still over the live rows, which is the whole of what this is about.
       expect(400 - newestPrinted(terminal)).toBeLessThan(live)
     } finally {
