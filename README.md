@@ -457,14 +457,18 @@ typed address reaches the pairing page with nothing to present. The listener die
 a page opened with Tade closed says it cannot reach the machine — and, where the phone kept its
 last view, what it last knew — never an empty control room.
 
+![Tade's away view on a laptop and then a phone: the overview with what needs you and its presses, the agent waiting on npm i stripe@15 with Allow and Deny and its screen, two plans with their steps, the morning's spend against each plan's limits, and three phones](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
+
 On a laptop it takes the window's shape — the places in a menu down the left, the work down the
-right a project at a time (its agents with their marks, grouped by run, and its queue hung as a tree
+right a project at a time (its agents with their marks, grouped by plan, and its queue hung as a tree
 of what waits on what), and Tade docked at the foot of the middle; each of the three folds, with
 `[`, `]` and `\`, and stays folded on that device. Every page in the middle is one template: a bar
 level with the side's own heading — its name, where it is one row of, and what may be done there —
-then groups headed as the menu heads its own. An agent's page opens on a row of facts (its state,
-harness and model, account, branch, checks and cost), then its current turn and screen as one card,
-its activity, and what was asked for, its run and the controls beside them. Pairing is four steps the page leads you through:
+then groups headed as the menu heads its own. An agent's page opens on what it is doing now —
+washed in its tone when it wants you or failed — with its checks, branch, spend and plan beside it,
+then its screen with a box to tell it something, its timeline, what was asked for and the controls.
+The picture above is the page drawing itself: its own code over a made-up morning, the same one the
+window's pictures show. Pairing is four steps the page leads you through:
 open Tade, scan its code — or, on a computer, click the link under it or its Open or Copy — name
 the device, approve it at the machine. What its
 screen shows is a grant of its own, per device and off for every one: the last rows, read only
@@ -484,9 +488,8 @@ or overrule a check, and it acts only from this machine or an `https` name you t
 from one reaches the same conversation you type into, cannot authorise a setting change however it
 is phrased, and is answered with Tade's tools narrowed in code to that device's own view. Publishing
 a workflow, turning a source on and granting anything stay acts at this machine: **no route for any
-of them exists**, and every act a device does take is in the journal under its own id. Both pictures
-below are this end of it — the window; what a phone opens is a page, held to its look by a browser
-rather than drawn here.
+of them exists**, and every act a device does take is in the journal under its own id. The two
+pictures below are the window's end of it.
 
 <table>
 <tr>

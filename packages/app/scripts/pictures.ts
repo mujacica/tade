@@ -1,8 +1,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { stillsOf, type Visit, type WorldAt } from '../../web/scripts/still.ts'
 import { draw } from '../src/view.ts'
+import { DESK, PHONE } from '../test/screens/scenarios/away-page.ts'
 import { SCENARIOS, type Scenario } from '../test/screens/scenarios.ts'
 import { type Box, cropGrid, reel, type Shot, shot } from './ansi-svg.ts'
+import { pageReel } from './page-svg.ts'
 import { type Grid, toGrid } from './terminal.ts'
 
 // The pictures the README is made of.
@@ -17,17 +20,18 @@ import { type Grid, toGrid } from './terminal.ts'
 // the panel — the same crop a person would make with a screenshot tool, except
 // that this one is written down.
 //
-// **The away view's own page is not in here, and that is the rule holding
-// rather than an omission.** The README's section about it shows the window's
-// end of it — the panel that pairs a device, the switches, the device list —
-// because everything here is drawn by the window's renderer over fixed state,
-// and the page a phone opens is HTML. The one thing that can photograph that is
-// `packages/web/scripts/browser.ts`, whose browser is deliberately not in this
-// repository's lockfile, so nothing it takes could be redrawn by `pnpm screens
-// --assets` or held to its bytes by `pictures.test.ts` — which is the whole of
-// what keeps these pictures true. What holds the page to its look instead is
-// `packages/web`'s own tests and that harness, where a browser is on the
-// machine.
+// **The away view's page is in here too, and it is not a photograph.** A
+// browser is deliberately not in this repository's lockfile, so nothing one
+// took could be redrawn by `pnpm screens --assets` or held to its bytes by
+// `pictures.test.ts`. So the page draws itself instead: `PAGE_REEL` runs the
+// page's own `boot.js` and every screen it routes to in a stand-in document
+// (`packages/web/scripts/still.ts`), over the projection of a made-up world
+// (`scenarios/away-page.ts`), and puts what it built — with the page's own
+// stylesheets, pinned to the size it is of — in an SVG's `<foreignObject>`
+// (`page-svg.ts`), which the browser showing the README lays out. Bytes that are
+// the same on every machine, of a page that changes when the page does. Whether
+// the stand-in builds what Chromium builds is `packages/web/scripts/
+// browser-stills.ts`'s question, where a browser is on the machine.
 
 export interface Picture {
   /** File name under the pictures folder. */
@@ -69,6 +73,54 @@ export const REEL: Reel = {
     { scenario: 'a-brief-on-demand', hold: 4 },
   ],
 }
+
+/**
+ * The away view's page, as the README shows it: a desk and then a phone.
+ *
+ * Every frame is a path the page routes, on a device of `PAGE_WORLD`'s, at the
+ * size it is drawn; `pictures.test.ts` holds each path to a screen the page
+ * knows. The desk keeps Tade folded to its line at the foot — one press of `\`
+ * — so each screen has the room to be seen; the phone has it in the tab bar.
+ */
+export const PAGE_REEL = {
+  file: 'away-page.svg',
+  about:
+    'The away view on a laptop and then a phone, each screen the page itself drawing the same ' +
+    'morning as the window: the overview with what needs you and its presses, the agent ' +
+    'waiting on `npm i stripe@15` with Allow and Deny and its screen, two plans with their ' +
+    'steps, what the morning cost against each plan’s limits, and three phones — the ' +
+    'overview, that agent and the conversation with Tade.',
+  width: 1280,
+  height: 800,
+  /** Where a phone would type it, which is where `tade web` says it listens. */
+  at: 'localhost:7654',
+  /** Where the world is, so each visit's own process can load it. */
+  world: {
+    module: new URL('../test/screens/scenarios/away-page.ts', import.meta.url).href,
+    name: 'PAGE_WORLD',
+  } satisfies WorldAt,
+  desk: {
+    device: DESK.id,
+    width: 1280,
+    height: 800,
+    pointer: 'fine',
+    folded: ['tade'],
+    // What Chromium measures a plan's map at in a 1280 desk with the menu and
+    // the side open, which the map spreads its steps across. `pnpm screens
+    // --page` says the new number when the layout moves.
+    measured: { '.runs-map': 510 },
+    paths: ['/', '/t/checkout/stripe-v15', '/plans', '/spend'],
+  } satisfies Visit,
+  deskHold: 4,
+  phone: {
+    device: PHONE.id,
+    width: 360,
+    height: 744,
+    pointer: 'coarse',
+    paths: ['/', '/t/checkout/stripe-v15', '/talk'],
+  } satisfies Visit,
+  phoneHold: 6,
+} as const
 
 export const PICTURES: readonly Picture[] = [
   {
@@ -514,6 +566,35 @@ export interface Written {
   bytes: number
 }
 
+/** The away view's reel: the page run over `PAGE_WORLD`, a frame a screen, then the phones. */
+async function drawPage(): Promise<Drawn> {
+  const stills = await stillsOf(PAGE_REEL.world, [PAGE_REEL.desk, PAGE_REEL.phone])
+  const desk = stills.slice(0, PAGE_REEL.desk.paths.length)
+  const phone = stills.slice(PAGE_REEL.desk.paths.length)
+  const frames = [
+    ...desk.map((still) => ({
+      stills: [still],
+      hold: PAGE_REEL.deskHold,
+      caption: `${PAGE_REEL.at}${still.path}`,
+      about: `${still.path} on a laptop`,
+    })),
+    {
+      stills: phone,
+      hold: PAGE_REEL.phoneHold,
+      caption: `${PAGE_REEL.at} on a phone`,
+      about: `${PAGE_REEL.phone.paths.join(', ')} on a phone`,
+    },
+  ]
+  return {
+    file: PAGE_REEL.file,
+    svg: pageReel(frames, {
+      width: PAGE_REEL.width,
+      height: PAGE_REEL.height,
+      label: 'Tade’s away view',
+    }),
+  }
+}
+
 /**
  * Every picture the README uses, drawn.
  *
@@ -521,8 +602,11 @@ export interface Written {
  * to read the same bytes without touching the tree: four agents share this
  * checkout, and a test that wrote the pictures to check them would be a test
  * that made the change it was looking for.
+ *
+ * Asynchronous for the away view's page alone, which boots the way a page
+ * does: it asks, and draws when it is answered.
  */
-export function drawPictures(): Drawn[] {
+export async function drawPictures(): Promise<Drawn[]> {
   const shots: Shot[] = REEL.frames.map((frame) => ({
     grid: gridOf(frame.scenario),
     hold: frame.hold,
@@ -540,14 +624,15 @@ export function drawPictures(): Drawn[] {
       ),
     })
   }
+  drawn.push(await drawPage())
   return drawn
 }
 
 /** Draw every picture the README uses into `dir`, and say what was written. */
-export function writePictures(dir: string): Written[] {
+export async function writePictures(dir: string): Promise<Written[]> {
   mkdirSync(dir, { recursive: true })
   const written: Written[] = []
-  for (const one of drawPictures()) {
+  for (const one of await drawPictures()) {
     writeFileSync(join(dir, one.file), one.svg)
     written.push({ file: one.file, bytes: one.svg.length })
   }

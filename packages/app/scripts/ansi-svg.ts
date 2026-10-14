@@ -47,7 +47,8 @@ const FONT = 14
 const BASELINE = 13.2
 const PAD = 12
 const BAR = 28
-const FONT_STACK =
+/** The terminal's face, which the window's pictures and their captions are set in. */
+export const FONT_STACK =
   "ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono','Liberation Mono',monospace"
 
 export interface ShotOptions {
@@ -445,44 +446,68 @@ export function reel(shots: readonly Shot[], opts: ShotOptions = {}): string {
   if (!first) throw new Error('a reel needs at least one frame')
   const { width, height, originX, originY, head } = chrome(first.grid, opts)
   const theme = opts.theme ?? THEME
-  const total = shots.reduce((sum, one) => sum + one.hold, 0)
-  // Frames are stacked and shown one at a time by opacity: a cut rather than a
-  // fade, so the stops either side of one are a hundredth of a percent apart.
-  // Everything is spelt out, 0% to 100%, because a keyframe list that starts
-  // part-way through is filled in from the element's own value, and what that
-  // interpolates to is a renderer's business rather than ours.
-  const rules: string[] = ['.f{opacity:0}']
-  const frames: string[] = []
+  const frames = shots.map((one, i) =>
+    framed(i, body(one.grid, originX, originY, theme), one.about),
+  )
+  return `${open(width, height, opts.title ?? 'Tade')}<style>${cuts(shots.map((one) => one.hold)).join('')}</style>${head}${frames.join('')}</svg>\n`
+}
+
+/**
+ * The stylesheet that shows a reel's frames one at a time, `#f0` onwards, each
+ * for its hold in seconds, forever.
+ *
+ * Frames are stacked and shown one at a time by opacity: a cut rather than a
+ * fade, so the stops either side of one are a hundredth of a percent apart.
+ * Everything is spelt out, 0% to 100%, because a keyframe list that starts
+ * part-way through is filled in from the element's own value, and what that
+ * interpolates to is a renderer's business rather than ours. Shared with the
+ * away view's reel (`page-svg.ts`), which is frames of another kind cut the
+ * same way.
+ */
+export function cuts(holds: readonly number[], inner?: string): string[] {
+  const total = holds.reduce((sum, one) => sum + one, 0)
+  // `inner`, where a frame holds something a renderer may paint whatever its
+  // group's opacity says: WebKit draws a `<foreignObject>`'s HTML through a
+  // hidden `<g>`, so that HTML is cut by its own opacity, on the same keyframes.
+  const also = (i: number) => (inner === undefined ? '' : `,#f${i} ${inner}`)
+  const rules: string[] = [
+    inner === undefined ? '.f{opacity:0}' : `.f,.f ${inner}{opacity:0}#f0 ${inner}{opacity:1}`,
+  ]
   const step = 0.01
   let at = 0
-  shots.forEach((one, i) => {
+  holds.forEach((hold, i) => {
     const from = (at / total) * 100
-    at += one.hold
+    at += hold
     // The last frame holds to the end, so no rounding can leave a blank flash
     // between one loop and the next.
-    const to = i === shots.length - 1 ? 100 : (at / total) * 100
+    const to = i === holds.length - 1 ? 100 : (at / total) * 100
     const stops: string[] = []
     if (from > 0) stops.push('0%{opacity:0}', `${round(from - step)}%{opacity:0}`)
     stops.push(`${round(from)}%{opacity:1}`)
     if (to < 100) stops.push(`${round(to - step)}%{opacity:1}`, `${round(to)}%{opacity:0}`)
     stops.push(`100%{opacity:${to < 100 ? 0 : 1}}`)
     rules.push(
-      `#f${i}{animation:f${i} ${round(total)}s infinite}`,
+      `#f${i}${also(i)}{animation:f${i} ${round(total)}s infinite}`,
       `@keyframes f${i}{${stops.join('')}}`,
-    )
-    const comment = one.about ? `<!-- ${escapeXml(one.about)} -->` : ''
-    // The attribute as well as the class, so a reader that has no stylesheets
-    // at all — a thumbnailer, a PDF — shows the first frame rather than every
-    // frame at once. An animation overrides both.
-    frames.push(
-      `${comment}<g id="f${i}" class="f"${i === 0 ? ' style="opacity:1"' : ' opacity="0"'}>${body(one.grid, originX, originY, theme)}</g>`,
     )
   })
   // Somebody who has asked for less movement gets the first frame and no
   // demo. Last, and naming the same ids, so it wins on order rather than on
   // `!important` — which reverses the cascade and is never needed here.
   rules.push(
-    `@media (prefers-reduced-motion:reduce){${shots.map((_, i) => `#f${i}`).join(',')}{animation:none}}`,
+    `@media (prefers-reduced-motion:reduce){${holds.map((_, i) => `#f${i}${also(i)}`).join(',')}{animation:none}}`,
   )
-  return `${open(width, height, opts.title ?? 'Tade')}<style>${rules.join('')}</style>${head}${frames.join('')}</svg>\n`
+  return rules
+}
+
+/**
+ * One frame of a reel, as the group `cuts` shows and hides.
+ *
+ * The attribute as well as the class, so a reader that has no stylesheets at
+ * all — a thumbnailer, a PDF — shows the first frame rather than every frame at
+ * once. An animation overrides both.
+ */
+export function framed(i: number, drawn: string, about?: string): string {
+  const comment = about ? `<!-- ${escapeXml(about)} -->` : ''
+  return `${comment}<g id="f${i}" class="f"${i === 0 ? ' style="opacity:1"' : ' opacity="0"'}>${drawn}</g>`
 }

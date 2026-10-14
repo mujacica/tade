@@ -1,6 +1,6 @@
 ---
 name: redraw-the-pictures
-description: Redraw the README's pictures after changing how the window looks, and photograph the running window to check them. Use whenever a change touches layout, colour, a panel, a control or anything else somebody can see — the pictures are part of the change, not a follow-up.
+description: Redraw the README's pictures after changing how the window or the away view's page looks, and photograph the running window, or ask a browser about the page, to check them. Use whenever a change touches layout, colour, a panel, a control, a page's script or stylesheet, or anything else somebody can see — the pictures are part of the change, not a follow-up.
 ---
 
 # Redrawing the pictures
@@ -26,6 +26,9 @@ Any change that somebody could see, including:
 - a label, a button, a heading, a hint somebody reads
 - what an extension's `view` returns, which the window draws in a panel
 - the markdown renderer, the diff, the editor, the highlighter
+- anything in `packages/web/src/assets/` that draws on one of the away view reel's screens — the
+  overview, an agent, the plans, the spend, the conversation, the frame around them — and what the
+  projection hands it (below)
 
 If you are unsure, run it: redrawing is seconds and costs nothing when nothing changed.
 
@@ -72,6 +75,57 @@ looks wrong and you cannot see why in the golden, and before a release. It is ho
 two buttons was found to be coming back painted (`styledLine`, the pty driver) — a bug no golden
 could see, because the goldens never go through a terminal.
 
+## The away view's page
+
+`away-page.svg` (`PAGE_REEL` in `packages/app/scripts/pictures.ts`) is the page a phone opens, and
+it is **the page drawing itself, never a screenshot**: the page's own `boot.js`, routed to each
+screen, booted in a stand-in document (`packages/web/scripts/still-dom.ts`) and answered the way
+the server answers it — the projection of `scenarios/away-page.ts`, the same morning as the
+window's pictures — then written out as XHTML into an SVG's `<foreignObject>` with the page's own
+stylesheets (`page-svg.ts`). The browser showing the README lays it out. So `pnpm screens
+--assets` redraws it like any other picture, and `pictures.test.ts` holds it to its bytes.
+
+What makes the bytes the same everywhere, and each is load-bearing:
+
+- **A visit is a process of its own** (`still.ts` spawns `still-visit.ts`), because a page load
+  is a page of its own: the page numbers its headings and keeps folds in its modules, and a
+  second boot in one process carries on from the first. The process gets `TZ=UTC` and nothing
+  else from the environment; the clock is the world's and a date the page spells is `en-US`.
+  Node 22 and Node 26 draw it to the same byte.
+- **The stylesheets are pinned to the size** (`still-css.ts`): a media query and a viewport unit
+  are about the picture, which a README draws at any width, so they are answered for the frame;
+  `:root`, `html` and `body` become `.still-html` and `.still-body`, every rule is scoped under
+  its size so a desk and a phone share one picture, and a rule naming a class no frame has is cut.
+- **Nothing in it moves.** Every `animation`, `transition` and `@starting-style` is left out: a
+  thumbnailer, a PDF and WebKit draw at the first instant, where a screen rising in is blank. And
+  no scrollbar, which a phone and a Mac never draw at rest.
+- **The frames are cut twice.** WebKit paints a `<foreignObject>`'s HTML through a `<g>` whose
+  opacity is 0, so `cuts(holds, '.still-html')` hides each frame's page by its own opacity too.
+- **No layout, so 0 for every measure** — except where a visit wrote down what a browser
+  measured (`measured: { '.runs-map': 510 }`, the plan map's room on a 1280 desk).
+- **The stage refuses what is not the page**: a boot that threw, the pairing screen, a page that
+  never went live and *Nothing here* each throw rather than becoming a picture. A selector the
+  stand-in cannot read throws too, and `packages/web/test/still.test.ts` reads every one the
+  page asks, offline.
+
+Whether the stand-in builds what a browser builds is the one thing it cannot say about itself:
+
+```sh
+pnpm screens --page [dir]   # every screen of the reel in Chromium, compared, and photographed
+```
+
+It serves the same world through the real server, pairs through the real page, has Chromium
+build each screen at the same size, clock, zone and language, and writes each out with the same
+serializer: `same`, `layout` (only an SVG's geometry differs — it prints what Chromium measures,
+which is the number to write into `measured`), or `differs`, which exits 1. Into `dir` go the
+page as Chromium drew it (`<n>-page.png`) and each frame of the picture as an `<img>`
+(`frame-<n>.png`), to look at side by side. It needs Playwright, which is not in the lockfile:
+run it from a scratch clone with `node_modules/playwright` linked in, never in a shared checkout.
+Without it every screen is `unrun` and it exits 2.
+
+A new screen in the reel is a path on `PAGE_REEL.desk` or `.phone` (`pictures.test.ts` holds
+each to a route the page knows), and whatever it reads added to the world.
+
 ## Adding a picture
 
 1. Add a scenario to the file for what it is about under `packages/app/test/screens/scenarios/` —
@@ -97,4 +151,11 @@ could see, because the goldens never go through a terminal.
   and ground are the person's, not the program's, and text Tade leaves unpainted has to come out as
   *something*. Change it there, never per picture.
 - **The reel at the top of the README** (`REEL`) is several scenarios one after another as a
-  stylesheet, not a video. Adding a frame is adding a scenario to its list.
+  stylesheet, not a video. Adding a frame is adding a scenario to its list. The away view's reel is
+  cut by the same stylesheet (`cuts`).
+- **Playwright hides the caret by writing an inline style** onto the box it is in, which the next
+  screen's document then carries as `style=""`. `--page` screenshots with `caret: 'initial'`.
+- **`images/` is out of Biome's reach** (`biome.json`). Biome reads an SVG as HTML, so it held the
+  page's runtime markup inside the away view's picture to rules for markup somebody writes, and
+  would have reformatted bytes `pictures.test.ts` holds. What a picture's markup may say is the
+  page's own harness's question (axe, in `packages/web/scripts/browser.ts`).

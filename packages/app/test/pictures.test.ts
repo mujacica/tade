@@ -2,7 +2,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { drawPictures, PICTURES, REEL } from '../scripts/pictures.ts'
+import { viewOf } from '../../web/src/assets/routes.js'
+import { drawPictures, PAGE_REEL, PICTURES, REEL } from '../scripts/pictures.ts'
 import { SCENARIOS } from './screens/scenarios.ts'
 
 // The README's pictures.
@@ -41,7 +42,7 @@ const wanted = [
     /raw\.githubusercontent\.com\/mujacica\/tade\/main\/images\/([a-z0-9-]+\.svg)/g,
   ),
 ].map((match) => match[1])
-const drawn = [REEL.file, ...PICTURES.map((picture) => picture.file)]
+const drawn = [REEL.file, ...PICTURES.map((picture) => picture.file), PAGE_REEL.file]
 
 describe('the pictures the README is made of', () => {
   it('draws each one from a scenario that still exists', () => {
@@ -53,8 +54,16 @@ describe('the pictures the README is made of', () => {
     expect(missing).toEqual([])
   })
 
+  it('takes the away view only on screens its page routes to', () => {
+    // A path the router does not know is drawn by the page as *nothing here*,
+    // which is a real screen and a picture of a broken link.
+    const paths = [...PAGE_REEL.desk.paths, ...PAGE_REEL.phone.paths]
+    expect(paths.filter((path) => viewOf(path).view === 'nowhere')).toEqual([])
+  })
+
   it('says what each one shows, for anybody who cannot see it', () => {
-    for (const picture of [...PICTURES, REEL]) expect(picture.about.length).toBeGreaterThan(40)
+    for (const picture of [...PICTURES, REEL, PAGE_REEL])
+      expect(picture.about.length).toBeGreaterThan(40)
   })
 
   it('has every picture the README asks for, written down', () => {
@@ -79,16 +88,20 @@ describe('the pictures the README is made of', () => {
     expect(drawn.filter((file) => !files.includes(file))).toEqual([])
   })
 
-  it('holds the file on disk to what the renderer draws today', () => {
-    // Drawing every picture is ~170ms over 36 scenarios, which is what this
-    // rule costs the suite. The goldens already prove `draw` gives the same
-    // bytes on every machine; everything after it here is arithmetic over a
-    // grid, with no clock, no randomness and no path in it.
+  it('holds the file on disk to what the renderer draws today', async () => {
+    // Drawing every picture is ~170ms over 36 scenarios, and the away view's
+    // reel half a second more — two processes booting the page, at once —
+    // which is what this rule costs the suite. The goldens already prove
+    // `draw` gives the same bytes on every machine; everything after it here
+    // is arithmetic over a grid, with no clock, no randomness and no path in
+    // it. The reel is the page's own code with its clock, zone and language
+    // pinned (`packages/web/scripts/still.ts`), and Node 22 and Node 26 draw
+    // it to the same byte.
     //
     // Thrown rather than expected, for `modularity.test.ts`'s reason: a diff
     // of two hundred-kilobyte SVGs teaches nobody, and the name of the picture
     // and the command to run are the whole of what somebody needs here.
-    const stale = drawPictures()
+    const stale = (await drawPictures())
       .filter((one) => {
         let onDisk: string
         try {

@@ -1,12 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { stillsInBrowser } from '../../web/scripts/browser-stills.ts'
 import { draw } from '../src/view.ts'
 import { SCENARIOS } from '../test/screens/scenarios.ts'
 import { ansiToHtml } from './ansi-html.ts'
 import { cropGrid, shot } from './ansi-svg.ts'
 import { capture, TAKES, unchanged, unreadable } from './capture.ts'
-import { panelBox, writePictures } from './pictures.ts'
+import { drawPictures, PAGE_REEL, panelBox, writePictures } from './pictures.ts'
 
 // A page of every protected screen, in colour, for a person to look at, the
 // pictures the README is made of, and a photograph of the running window.
@@ -14,6 +15,7 @@ import { panelBox, writePictures } from './pictures.ts'
 //   pnpm screens [out.html]          the page
 //   pnpm screens --assets [dir]      the README's pictures, as SVG
 //   pnpm screens --live [dir]        the real `tade`, run and photographed
+//   pnpm screens --page [dir]        the away view's picture, asked of a browser
 //
 // `--live` is the check on the other two: it starts the actual binary in a
 // real terminal on a disposable home with real repositories in it, presses
@@ -21,6 +23,13 @@ import { panelBox, writePictures } from './pictures.ts'
 // how the window looks — the pictures come from the scenarios, and this says
 // whether the scenarios still come from the program. `--live <dir> --home
 // ~/.tade` photographs your own window instead of a seeded one.
+//
+// `--page` is the same check for the away view's picture, which is the page's
+// own code run with no browser (`packages/web/scripts/still.ts`): it has
+// Chromium build every screen of the reel from the same world and says whether
+// the picture's document is the one Chromium built, and photographs both into
+// `dir`. It needs Playwright, which is not in the lockfile, and says `unrun`
+// without it.
 //
 // Each screen is drawn from the scenarios the golden tests use. Where the
 // drawing no longer matches its golden file, the page shows both, the golden
@@ -66,11 +75,35 @@ if (live >= 0) {
   process.exit(0)
 }
 
+const page = args.indexOf('--page')
+if (page >= 0) {
+  const next = args[page + 1]
+  const dir = resolve(next && !next.startsWith('--') ? next : join(process.cwd(), 'tade-page'))
+  const picture = (await drawPictures()).find((one) => one.file === PAGE_REEL.file)?.svg
+  const checks = await stillsInBrowser(PAGE_REEL.world, [PAGE_REEL.desk, PAGE_REEL.phone], {
+    dir,
+    ...(picture === undefined ? {} : { picture }),
+  })
+  for (const check of checks)
+    process.stdout.write(
+      `${check.verdict.padEnd(8)} ${check.at}\n${check.verdict === 'same' ? '' : `  ${check.said}\n`}`,
+    )
+  process.stdout.write(`${dir} · ${checks.length} screens\n`)
+  // Unrun is never a pass, and a picture of a page Chromium does not build is a failure.
+  process.exit(
+    checks.some((check) => check.verdict === 'unrun')
+      ? 2
+      : checks.some((check) => check.verdict === 'differs')
+        ? 1
+        : 0,
+  )
+}
+
 const assets = args.indexOf('--assets')
 if (assets >= 0) {
   const dir = resolve(args[assets + 1] ?? join(repo, 'images'))
   let total = 0
-  for (const written of writePictures(dir)) {
+  for (const written of await writePictures(dir)) {
     total += written.bytes
     process.stdout.write(`${written.file.padEnd(20)} ${(written.bytes / 1024).toFixed(1)} KB\n`)
   }
