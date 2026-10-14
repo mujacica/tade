@@ -325,12 +325,6 @@ a.ui-card:hover,
   font-size: var(--step--1);
 }
 
-.ui-notes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--s4);
-}
-
 /* ── problem: what went wrong, and the one thing to do ─────────────────────── */
 
 /*

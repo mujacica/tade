@@ -1,201 +1,405 @@
 // What Tade is set up with, as this device may read it — and the few settings
 // it may change.
 //
+// **What somebody opening this page wants** is one of two things: to change
+// one of the few settings a phone may change, or to find out what something is
+// set to. So the page leads with the first — *Change from here*, every row this
+// device may change, wherever its group is, each with its control one tap away
+// — and puts the second behind a search and an index: every group a card that
+// opens, its rows one line each, a name and a value in a column down the right.
+// A phone sees the cards; a desk sees the index down the left and one group at
+// a time beside it, the way a settings window is read.
+//
 // **Asked when the screen opens, never on the stream.** Settings change when
-// somebody changes one, so a phone is not sent forty rows of them on every
-// beat for a page nobody has open: this screen asks `/api/settings` once when
-// it is drawn and again after a change.
+// somebody changes one, so a phone is not sent a hundred and fifty rows on
+// every beat for a page nobody has open: this screen asks `/api/settings` once
+// when it is drawn, again when somebody presses *Read again*, and a change
+// answers with what is true after it.
 //
-// The rules this page keeps, each of them the machine's before it is this
-// page's:
+// **Built when the answer arrives and never by a paint**: a delta twice a
+// second would wipe a value somebody was halfway through typing. It is built
+// again only when what this device may do changed — a grant somebody made at
+// the machine — and then whatever was open stays open.
 //
-// - **A key is never on this page.** The machine sends `set` or `not set` and
-//   nothing of the key, so there is nothing here to hide — and the one thing a
-//   device may ever do to one is clear it, which is all `changeBody` can send
-//   for a row that holds one.
-// - **A control nothing could carry out is absent with its reason.** A row a
-//   device may not change says where it is changed (`why`), and a device that
-//   was not granted changing anything is told nothing about controls at all: a
-//   sentence naming a scope somebody does not have is a map of what else to
-//   ask for.
-// - **Two presses, and the body's own `confirm: true`.** Neither stands in for
-//   the other: the press stops a mis-tap, and the literal means there is no
-//   body that says *do not*.
-// - **What was typed survives a refusal.** A `409` redraws the value that is
-//   true now beside the box and leaves the box alone.
-// - **Nothing here derives anything.** What may be changed, and what a change
-//   must echo, is on the row (`may`, `was`); the page only draws it.
+// **Nothing here derives anything.** What may be changed and what a change
+// must echo are on the row (`may`, `was`) and in `settingStanding`; every word
+// and every count is `settings-shape.js`'s, and each row is `settings-row.js`'s.
 
-import {
-  afterAnswer,
-  CHANGE_PATH,
-  changeBody,
-  SETTINGS_PATH,
-  settingStanding,
-  settingsSaid,
-  shownOf,
-} from '../acts.js'
-import { keyOf } from '../controls.js'
-import { el, hintOf, into, textIn } from '../dom.js'
+import { SETTINGS_PATH, settingStanding } from '../acts.js'
+import { classOn, el, into, skeleton, textIn } from '../dom.js'
+import { icon } from '../icons.js'
 import { section } from '../rows.js'
 import { troubleOf, UNKNOWN_TROUBLE } from '../trouble.js'
-import { answerIn, note, panel } from '../ui.js'
+import { panel, problem, problemIn, stateBox, stateBoxIn } from '../ui.js'
+import { settingRow } from './settings-row.js'
+import {
+  finds,
+  firstChosen,
+  foundIn,
+  groupSaid,
+  HERE,
+  hereOf,
+  iconOf,
+  leftSaid,
+  missedBox,
+  pageState,
+  partsOf,
+  queryOf,
+  totalOf,
+} from './settings-shape.js'
 
-/**
- * The screen: built once on open, again after a change, and **never by a
- * paint** — a page that rebuilt its rows twice a second would wipe a value
- * somebody was halfway through typing.
- */
+/** The width, in rem, from which the index stands beside the groups (`settings.css`). */
+const DESK = 44
+
 export function settingsScreen(ctx) {
   const node = el('div')
   const top = section('SETTINGS', { top: true })
-  const said = el('p', { class: 'empty nothing' })
-  const withheld = el('p', { class: 'unknown' })
-  const keys = note(
-    'keys hidden',
-    'A key or a token is said as set or not set, and never shown here.',
-    'settings',
-  )
-  const groups = el('div')
-  into(top.body, said, withheld, keys)
-  into(node, top.node, groups)
+  // Asking again, at the end of the bar: a setting changed at the machine
+  // while this page was open is not on the stream, so it is asked for.
+  const again = el('button', { class: 'press quietly small st-again', attrs: { type: 'button' } })
+  into(again, icon('refresh'), el('span', { text: 'Read again' }))
+  into(top.tools, again)
+  // A read again that failed, over the settings it could not replace.
+  const failed = problem()
+  const state = stateBox()
+  const coming = skeleton(6)
+  classOn(coming, 'st-coming', true)
+
+  const cols = el('div', { class: 'st-cols' })
+  const side = el('div', { class: 'st-side' })
+  const find = findOf((typed) => {
+    words = queryOf(typed)
+    said = typed
+    shut.clear()
+    apply()
+  })
+  const index = el('nav', { class: 'st-index', attrs: { 'aria-label': 'Setting groups' } })
+  const entries = el('ul', { class: 'st-entries' })
+  into(index, entries)
+  into(side, find.node, index)
+
+  const work = el('div', { class: 'st-main' })
+  const lead = section('CHANGE FROM HERE')
+  classOn(lead.node, 'st-lead', true)
+  const leadRows = panel('ul', 'st-rows')
+  into(lead.body, leadRows)
+  const groups = el('div', { class: 'st-groups' })
+  const missed = stateBox()
+  const left = el('p', { class: 'st-left' })
+  into(work, lead.node, groups, missed, left)
+  into(cols, side, work)
+  classOn(top.body, 'st-page', true)
+  into(top.body, failed, state, coming, cols)
+  into(node, top.node)
 
   let answer = null
+  let trouble = null
   let acts = {}
   let drawnWith = null
   let gone = false
+  /** What the search box holds, as typed and as words. */
+  let said = ''
+  let words = []
+  /** Where the desk is: `HERE`, or a group's id. */
+  let chosen = null
+  /** The groups open, the ones closed while a search held them open, and each group's scope. */
+  const open = new Set()
+  const shut = new Set()
+  const scopes = new Map()
+  /** The rows somebody opened, by where they are and their path. */
+  const opened = new Set()
+  /** What is drawn now: the lead's rows, the cards, and every drawing of each setting. */
+  let leadMade = []
+  let cards = []
+  let views = new Map()
+
+  const wide = () => {
+    const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+    return node.clientWidth >= DESK * rem
+  }
+
+  /** Every drawing of one setting, refilled after an answer moved it. */
+  const saved = (path) => (sync) => {
+    for (const one of views.get(path) ?? []) one.fill(sync)
+  }
+
+  const rowFor = (row, group, where, crumb) => {
+    const key = `${where}:${row.path}`
+    const made = settingRow(row, {
+      crumb,
+      standing: settingStanding(row, acts),
+      open: opened.has(key),
+      toggled: (now) => {
+        if (now) opened.add(key)
+        else opened.delete(key)
+      },
+      ctx,
+      saved: saved(row.path),
+    })
+    views.set(row.path, [...(views.get(row.path) ?? []), made])
+    return { ...made, group }
+  }
 
   const draw = () => {
-    textIn(said, settingsSaid(answer))
-    said.hidden = settingsSaid(answer) === ''
-    const n = answer?.withheld ?? 0
-    textIn(
-      withheld,
-      n === 0 ? '' : `${n} settings of projects this device does not read are not here`,
+    const now = pageState(answer, answer === null ? trouble : null)
+    const box = now.box
+    // The skeleton is the shape of what is coming; the box says the rest.
+    stateBoxIn(
+      state,
+      box === null || now.kind === 'coming'
+        ? null
+        : { ...box, action: box.retry ? { word: 'Ask again', run: () => void load() } : null },
     )
-    withheld.hidden = n === 0
-    keys.hidden = answer?.granted !== true
+    coming.hidden = now.kind !== 'coming'
+    cols.hidden = now.kind !== 'ready'
+    again.hidden = now.kind === 'coming' || now.kind === 'wrong'
     drawnWith = acts.configure === true
-    groups.replaceChildren(
-      ...(answer?.granted === true ? answer.groups : []).map((group) => groupNode(group)),
+    views = new Map()
+    if (now.kind !== 'ready') {
+      leadRows.replaceChildren()
+      groups.replaceChildren()
+      entries.replaceChildren()
+      leadMade = []
+      cards = []
+      textIn(top.figure, '')
+      return
+    }
+    const ids = new Set([HERE, ...answer.groups.map((group) => group.id)])
+    if (
+      chosen === null ||
+      !ids.has(chosen) ||
+      (chosen === HERE && hereOf(answer, acts).length === 0)
+    ) {
+      chosen = firstChosen(answer, acts)
+      // A desk opens on one group, so that one starts open; a phone starts
+      // with every card closed, which is the index.
+      if (chosen !== HERE && wide()) open.add(chosen)
+    }
+    leadMade = hereOf(answer, acts).map((one) => rowFor(one.row, one.group, HERE, one.crumb))
+    leadRows.replaceChildren(...leadMade.map((one) => one.node))
+    textIn(lead.figure, String(leadMade.length))
+    cards = answer.groups.map((group) => cardFor(group))
+    groups.replaceChildren(...cards.map((card) => card.node))
+    entries.replaceChildren(
+      ...(leadMade.length > 0 ? [entryFor(HERE, 'Change from here', 'flag', true)] : []),
+      ...answer.groups.map((group) => entryFor(group.id, group.title, iconOf(group.id), false)),
     )
+    textIn(left, leftSaid(answer) ?? '')
+    apply()
   }
 
-  const load = async () => {
-    const got = await ctx.ask('GET', SETTINGS_PATH)
-    if (gone) return
-    if (got.status === 200 && got.body !== null && typeof got.body.granted === 'boolean') {
-      answer = got.body
-    } else {
-      answer = { granted: false, groups: [], withheld: 0 }
-      answerIn(said, '', troubleOf(got) ?? UNKNOWN_TROUBLE)
+  /** One group, as a card that opens: its mark, its name and count, its rows. */
+  const cardFor = (group) => {
+    const id = `st-group-${group.id}`
+    const node = el('section', {
+      class: 'ui-panel st-group',
+      attrs: { 'aria-labelledby': `${id}-name` },
+    })
+    const head = el('h2', { class: 'st-head' })
+    const toggle = el('button', {
+      class: 'st-toggle',
+      attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': `${id}-body` },
+    })
+    const mark = el('span', { class: 'st-mark', attrs: { 'aria-hidden': 'true' } })
+    into(mark, icon(iconOf(group.id), 'st-mark-ic'))
+    const named = el('span', { class: 'st-words' })
+    const name = el('span', {
+      class: 'st-group-name',
+      text: group.title,
+      attrs: { id: `${id}-name` },
+    })
+    const sub = el('span', { class: 'st-sub' })
+    into(named, name, sub)
+    const chev = el('span', { class: 'st-end', attrs: { 'aria-hidden': 'true' } })
+    into(chev, icon('chevron', 'st-chev'))
+    into(toggle, mark, named, chev)
+    into(head, toggle)
+    const body = el('div', { class: 'st-body', attrs: { id: `${id}-body` } })
+    into(node, head, body)
+    classOn(node, 'is-here', groupHere(group))
+
+    const parts = partsOf(group)
+    const rows = []
+    if (parts.own.length > 0) {
+      const list = el('ul', { class: 'st-rows' })
+      for (const row of parts.own) {
+        const made = rowFor(row, group, group.id, null)
+        rows.push(made)
+        into(list, made.node)
+      }
+      into(body, list)
     }
-    draw()
+    const blocks = []
+    let chips = null
+    if (parts.scopes.length > 0) {
+      if (!scopes.has(group.id) || !parts.scopes.some((one) => one.key === scopes.get(group.id))) {
+        scopes.set(group.id, parts.scopes[0].key)
+      }
+      chips = el('div', {
+        class: 'st-scopes',
+        attrs: { role: 'group', 'aria-label': `Which of ${group.title} to show` },
+      })
+      for (const scope of parts.scopes) {
+        const chip = el('button', {
+          class: 'ui-chip st-chip',
+          text: scope.key,
+          attrs: { type: 'button', 'aria-pressed': 'false' },
+        })
+        chip.addEventListener('click', () => {
+          scopes.set(group.id, scope.key)
+          apply()
+        })
+        into(chips, chip)
+        const block = el('div', { class: 'st-scope' })
+        const heading = el('h3', { class: 'st-scope-name', text: scope.key })
+        const list = el('ul', { class: 'st-rows' })
+        const mine = []
+        for (const row of scope.rows) {
+          const made = rowFor(row, group, group.id, null)
+          rows.push(made)
+          mine.push(made)
+          into(list, made.node)
+        }
+        into(block, heading, list)
+        into(body, block)
+        blocks.push({ key: scope.key, node: block, chip, rows: mine })
+      }
+      body.insertBefore(chips, body.querySelector('.st-scope'))
+    }
+
+    toggle.addEventListener('click', () => {
+      if (words.length > 0) {
+        if (shut.has(group.id)) shut.delete(group.id)
+        else shut.add(group.id)
+      } else if (open.has(group.id)) open.delete(group.id)
+      else open.add(group.id)
+      apply()
+    })
+    return { group, node, toggle, body, sub, rows, blocks, chips }
   }
 
-  const groupNode = (group) => {
-    const part = section(group.title.toUpperCase())
-    const list = panel('ul', 'settings-list')
-    for (const row of group.settings) into(list, rowNode(row))
-    into(part.body, list)
-    return part.node
-  }
+  /** Whether a group holds a row this device may change. */
+  const groupHere = (group) =>
+    group.settings.some((row) => settingStanding(row, acts).kind === 'yes')
 
-  const rowNode = (row) => {
-    // **A setting is a name and a value on one line**, the value as a pill;
-    // what its options mean, and why it cannot be changed from here, are one
-    // `?` each — the sentences are kept whole, and asked for rather than set
-    // under every row.
-    const item = el('li', { class: 'setting' })
-    const line = el('div', { class: 'setting-line' })
-    const name = el('span', { class: 'setting-name' })
-    if (row.scope !== null) into(name, el('span', { class: 'ui-pill', text: row.scope }))
-    into(name, el('span', { text: row.title }))
-    const value = el('span', { class: 'ui-pill is-mono setting-value', text: shownOf(row) })
-    into(line, name, value)
-    if (row.means !== '') {
-      const means = hintOf(row.means)
-      into(line, means.press)
-      into(item, line, means.body)
-    } else {
-      into(item, line)
-    }
-    const tags = el('div', { class: 'ui-notes setting-tags' })
-    if (!row.live) into(tags, note('on restart', 'applies when Tade next starts', 'refresh'))
-    const standing = settingStanding(row, acts)
-    if (standing.kind === 'no' && standing.why !== '') {
-      into(tags, note('at the machine', standing.why, 'laptop'))
-    }
-    if (tags.children.length > 0) into(item, tags)
-    if (standing.kind === 'yes') into(item, controlFor(row, value))
+  /** One line of the desk's index: a mark, the name, and how many. */
+  const entryFor = (id, name, mark, here) => {
+    const item = el('li')
+    const press = el('button', {
+      class: here ? 'st-entry is-here' : 'st-entry',
+      attrs: { type: 'button', 'data-group': id },
+    })
+    const figure = el('span', { class: 'st-entry-n' })
+    into(press, icon(mark), el('span', { class: 'st-entry-name', text: name }), figure)
+    press.addEventListener('click', () => choose(id))
+    into(item, press)
     return item
   }
 
-  /**
-   * One change: a box shaped like the setting, and the press that asks twice.
-   *
-   * The box starts empty rather than holding what is stored — the designer's
-   * own rule (`.field`): a box pre-filled with the value reads as an edit
-   * somebody already made.
-   */
-  const controlFor = (row, value) => {
-    const node = el('div')
-    const box = boxFor(row)
-    const press = el('button', { class: 'press quietly', attrs: { type: 'button' } })
-    const status = el('p', { attrs: { role: 'status' } })
-    const presses = el('div', { class: 'presses' })
-    into(presses, press)
-    into(node, box, presses, status)
-    const word = row.held === null ? 'Change it' : 'Clear it'
-    let asked = false
-    let going = false
-    const settle = () => {
-      textIn(press, asked ? 'Tap again to confirm' : word)
-      press.classList.toggle('asked', asked)
-    }
-    settle()
-    press.addEventListener('click', async () => {
-      if (going) return
-      if (!asked) {
-        asked = true
-        settle()
-        return
-      }
-      going = true
-      press.disabled = true
-      const got = await ctx.ask(
-        'POST',
-        CHANGE_PATH,
-        changeBody(row, box?.value ?? '', keyOf(), ctx.revOf()),
-      )
-      going = false
-      press.disabled = false
-      asked = false
-      settle()
-      const came = afterAnswer(got, ctx.sentence(got))
-      answerIn(status, came.said, came.trouble)
-      // What is true now goes beside the box, and the box is left alone: a
-      // `409` is the world having moved, not a reason to throw away a value.
-      const now = got.body?.rev
-      if (typeof now === 'string' && (came.ok || came.moved)) {
-        row.was = now
-        if (row.held === null) row.shown = now
-        else row.held = now === 'set' ? 'set' : 'not set'
-        textIn(value, shownOf(row))
-      }
-      if (came.ok && box !== null) box.value = ''
-    })
-    return node
+  /** The desk's index pressed: that group beside it, opened, and the keyboard on it. */
+  const choose = (id) => {
+    chosen = id
+    if (id !== HERE) open.add(id)
+    shut.delete(id)
+    apply()
+    const card = cards.find((one) => one.group.id === id)
+    const target = id === HERE ? lead.node : card?.node
+    target?.scrollIntoView({ block: 'nearest' })
+    if (id === HERE) leadMade[0]?.node.querySelector('button')?.focus({ preventScroll: true })
+    else card?.toggle.focus({ preventScroll: true })
   }
 
+  /** Who is shown, opened and counted, for the search and the choices as they are now. */
+  const apply = () => {
+    if (answer === null || answer.granted !== true || answer.groups.length === 0) return
+    const finding = words.length > 0
+    classOn(cols, 'is-finding', finding)
+    let found = 0
+    // What this device may change, found like everything else.
+    let leadFound = 0
+    for (const one of leadMade) {
+      const shown = finds(one.row, one.group, words)
+      one.node.hidden = !shown
+      if (shown) leadFound += 1
+    }
+    lead.node.hidden = leadMade.length === 0 || leadFound === 0
+    classOn(lead.node, 'is-chosen', chosen === HERE)
+    for (const card of cards) {
+      const n = foundIn(card.group, words)
+      found += n
+      card.node.hidden = finding && n === 0
+      classOn(card.node, 'is-chosen', chosen === card.group.id)
+      const expanded = finding ? !shut.has(card.group.id) : open.has(card.group.id)
+      card.body.hidden = !expanded
+      card.toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false')
+      classOn(card.node, 'is-open', expanded)
+      textIn(card.sub, groupSaid(card.group, acts, words))
+      for (const row of card.rows) row.node.hidden = !finds(row.row, card.group, words)
+      if (card.chips !== null) {
+        card.chips.hidden = finding
+        const scope = scopes.get(card.group.id)
+        for (const block of card.blocks) {
+          block.chip.setAttribute('aria-pressed', block.key === scope ? 'true' : 'false')
+          const any = block.rows.some((row) => !row.node.hidden)
+          block.node.hidden = finding ? !any : block.key !== scope
+          classOn(block.node, 'is-named', finding)
+        }
+      }
+    }
+    for (const entry of entries.children) {
+      const press = entry.firstChild
+      const id = press.getAttribute('data-group')
+      const group = answer.groups.find((one) => one.id === id)
+      const n = id === HERE ? (finding ? leadFound : leadMade.length) : foundIn(group, words)
+      entry.hidden = finding && n === 0
+      textIn(press.lastChild, String(id === HERE || finding ? n : group.settings.length))
+      if (chosen === id && !finding) press.setAttribute('aria-current', 'true')
+      else press.removeAttribute('aria-current')
+    }
+    const total = totalOf(answer) ?? 0
+    textIn(top.figure, finding ? `${found} of ${total}` : String(total))
+    stateBoxIn(
+      missed,
+      finding && found === 0 && leadFound === 0
+        ? { ...missedBox(said), action: { word: 'Clear the search', run: () => find.clear() } }
+        : null,
+    )
+    left.hidden = finding || left.textContent === ''
+  }
+
+  const load = async () => {
+    again.disabled = true
+    const got = await ctx.ask('GET', SETTINGS_PATH)
+    if (gone) return
+    again.disabled = false
+    if (got.status === 200 && got.body !== null && typeof got.body?.granted === 'boolean') {
+      answer = got.body
+      trouble = null
+      problemIn(failed, null)
+    } else if (answer === null) {
+      trouble = troubleOf(got) ?? UNKNOWN_TROUBLE
+    } else {
+      // What was read before stays: a failed read again is not a reason to
+      // take away the settings it could not replace.
+      problemIn(failed, troubleOf(got) ?? UNKNOWN_TROUBLE, {
+        word: 'Ask again',
+        run: () => void load(),
+      })
+      return
+    }
+    draw()
+  }
+  again.addEventListener('click', () => void load())
+
+  draw()
   void load()
 
   return {
     node,
     update(view) {
       acts = view.may?.acts ?? {}
-      // Rebuilt only when what this device may do changed — a grant somebody
-      // made at the machine — and never on an ordinary paint.
+      // Built again only when what this device may do changed — a grant
+      // somebody made at the machine — and never on an ordinary paint.
       if (answer !== null && drawnWith !== (acts.configure === true)) draw()
     },
     leave() {
@@ -205,32 +409,36 @@ export function settingsScreen(ctx) {
 }
 
 /**
- * A box shaped like the setting, labelled by its title. Null for a key, which
- * is only ever cleared and so takes nothing typed.
+ * The search: a box with its mark, finding as it is typed, and Escape empties
+ * it. (The page's own keys are never a field's, so Escape here goes nowhere
+ * else either way.)
  */
-function boxFor(row) {
-  if (row.held !== null) return null
-  const label = `${row.title}, a new value`
-  if (row.kind === 'choice' || row.kind === 'flag') {
-    const box = el('select', { attrs: { 'aria-label': label } })
-    const options = row.kind === 'flag' ? ['true', 'false'] : row.options
-    for (const one of options) {
-      // Nothing set is a choice of its own for some — a project's push mode
-      // goes back to the machine's — and an empty option would draw as nothing.
-      const text = one === '' ? `nothing set — ${row.fallback}` : one
-      into(box, el('option', { text, attrs: { value: one } }))
-    }
-    // **On what it is now**, so a mistaken pair of taps sends the value that
-    // is already set — answered *was already that* — rather than whichever
-    // option happens to be first.
-    box.value = row.was ?? ''
-    return box
-  }
-  return el('input', {
+function findOf(typed) {
+  const node = el('div', { class: 'st-find', attrs: { role: 'search' } })
+  const box = el('input', {
+    class: 'st-find-box',
     attrs: {
-      type: row.kind === 'number' ? 'number' : 'text',
-      'aria-label': label,
-      maxlength: '2000',
+      type: 'search',
+      'aria-label': 'Find a setting',
+      placeholder: 'Find a setting',
+      autocomplete: 'off',
+      spellcheck: 'false',
+      enterkeyhint: 'search',
     },
   })
+  into(node, icon('search', 'st-find-mark'), box)
+  box.addEventListener('input', () => typed(box.value))
+  box.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || box.value === '') return
+    box.value = ''
+    typed('')
+  })
+  return {
+    node,
+    clear() {
+      box.value = ''
+      typed('')
+      box.focus()
+    },
+  }
 }

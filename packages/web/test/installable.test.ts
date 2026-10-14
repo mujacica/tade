@@ -263,8 +263,13 @@ describe('the real folder', () => {
     // away, rather than one flat list of words) took it to 362. 364 until the
     // devices (11 KB more: this device drawn as a lead with its session as a
     // gauge, every grant as a matrix of cells on and off, and what it said to
-    // Tade, rather than four facts and a list of names) took it to 374.
-    expect(wire).toBeLessThan(376 * 1024)
+    // Tade, rather than four facts and a list of names) took it to 374. 376
+    // until the settings (12 KB more: what this device may change as a lead,
+    // every group a card that opens and an index at a desk, one project or
+    // source at a time, a search, and each setting a line that opens onto its
+    // control, rather than a hundred and fifty rows with a tag under each)
+    // took it to 386.
+    expect(wire).toBeLessThan(388 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -273,8 +278,10 @@ describe('the real folder', () => {
     // files and 77 KB as they sit, where it was two and 18) took it to 1122.
     // 1128 until the notes (three files and 41 KB as they sit, where it was
     // two and 4) took it to 1159. 1168 until the devices (three files and 46 KB
-    // as they sit, where it was two and 8) took it to 1203: the pages still to
-    // come spend the rest, and the next one is this conversation again.
-    expect(raw).toBeLessThan(1208 * 1024)
+    // as they sit, where it was two and 8) took it to 1203. 1208 until the
+    // settings (four files and 50 KB as they sit, where it was two and 10) took
+    // it to 1243: the pages still to come spend the rest, and the next one is
+    // this conversation again.
+    expect(raw).toBeLessThan(1248 * 1024)
   })
 })

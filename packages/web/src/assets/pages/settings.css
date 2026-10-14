@@ -1,49 +1,535 @@
 /* The settings page's own sheet: every rule scoped to it (`.page-settings`, `test/pages.test.ts`). */
 
-/* ── settings ──────────────────────────────────────────────────────────────── */
-
 /*
-A setting is one row of a panel: its name, and its value as a pill at the
-end; a tag under it for what it is (*on restart*, *at the machine*), each
-with its sentence one `?` away; and, where this device may change it, the
-box and its press on one line.
+  One column on a phone: the search, what this device may change, then every
+  group as a card that opens. From 44rem of room the index stands down the
+  left — the search and every group by name — and one group at a time beside
+  it, the way a settings window is read; a search shows everything it found
+  on both. Sections keep no margin of their own, so the gaps are the grid's.
 */
-.settings-list {
-  display: grid;
+.page-settings {
+  container-type: inline-size;
 }
 
-.setting-line {
+.page-settings .section,
+.page-settings > .section.pg {
+  margin-block-end: 0;
+}
+
+.st-page,
+.st-main {
+  display: grid;
+  gap: var(--stack);
+  min-width: 0;
+}
+
+.st-cols {
+  display: grid;
+  gap: var(--stack);
+  align-items: start;
+  min-width: 0;
+}
+
+.st-side {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.st-groups {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+/* A skeleton row is the height of a closed group. */
+.page-settings .st-coming span {
+  height: 4rem;
+  border-radius: var(--r2);
+}
+
+/* The settings of projects this device does not read: one quiet line, centred under the groups. */
+.st-left {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  text-align: center;
+}
+
+.st-left:empty {
+  display: none;
+}
+
+/* ── the search ────────────────────────────────────────────────────────────── */
+
+.st-find {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--s2);
-  min-height: 2rem;
+  min-width: 0;
 }
 
-.setting-name {
+.st-find-mark {
+  position: absolute;
+  inset-inline-start: var(--s3);
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--heading);
+  pointer-events: none;
+}
+
+.page-settings .st-find-box {
+  max-width: none;
+  padding-inline-start: calc(var(--s3) + 1.125rem + var(--s2));
+}
+
+/* ── the index, at a desk ──────────────────────────────────────────────────── */
+
+.st-index {
+  display: none;
+}
+
+.st-entries {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A group by name: its mark, its name, how many — the menu's own line. */
+.st-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: var(--tap);
+  padding-inline: var(--s3);
+  border: 0;
+  border-radius: var(--r1);
+  background: none;
+  color: var(--body);
+  font: inherit;
+  font-size: var(--step-0);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background var(--ease),
+    color var(--ease);
+}
+
+.st-entry .ic {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--heading);
+}
+
+.st-entry-name {
   flex: 1 1 auto;
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-entry-n {
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.st-entry:hover {
+  background: var(--panel);
   color: var(--bright);
 }
 
-.setting-value {
-  flex: 0 1 auto;
-  max-width: 50%;
+/* Where the desk is: a step lighter, its mark amber, as the menu marks its own. */
+.st-entry[aria-current="true"] {
+  background: var(--surface);
+  color: var(--bright);
+  font-weight: var(--w-label);
 }
 
-/* The box and its press on one line where there is room. */
-.setting > div:last-child:not(.setting-tags) {
+.st-entry[aria-current="true"] > .ic,
+.st-entry.is-here > .ic {
+  color: var(--amber);
+}
+
+@container (min-width: 44rem) {
+  .st-cols {
+    grid-template-columns: 13rem minmax(0, 1fr);
+  }
+
+  .st-index {
+    display: block;
+  }
+
+  /* One group at a time beside the index, unless a search is showing what it found. */
+  .st-cols:not(.is-finding) .st-lead:not(.is-chosen),
+  .st-cols:not(.is-finding) .st-group:not(.is-chosen) {
+    display: none;
+  }
+}
+
+/* ── a group: a card that opens ────────────────────────────────────────────── */
+
+.st-head {
+  margin: 0;
+  font: inherit;
+}
+
+/*
+  Its mark in a tile, its name over how many, and the chevron at the end —
+  the whole line one press, 64px tall so a thumb finds it.
+*/
+.st-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 4rem;
+  padding: var(--s3) var(--inset);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+
+.st-toggle:hover {
+  background: var(--surface);
+}
+
+.st-mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--r2);
+  background: var(--surface);
+  color: var(--heading);
+}
+
+.st-mark-ic {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* A group holding something this device may change: its mark in amber, the one colour that means *this one counts*. */
+.st-group.is-here .st-mark {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber);
+}
+
+.st-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.st-group-name {
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+  line-height: var(--lead-tight);
+}
+
+.st-sub {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+/* The chevron: down while closed, up while open. */
+.st-end {
+  display: inline-flex;
+  color: var(--heading);
+}
+
+.st-chev {
+  width: 1rem;
+  height: 1rem;
+  transform: rotate(90deg);
+  transition: transform var(--ease);
+}
+
+.st-group.is-open > .st-head .st-chev,
+.st-row.is-open > .st-line .st-chev {
+  transform: rotate(-90deg);
+}
+
+/* One project or one source at a time: a chip each, on a line of their own. */
+.st-scopes {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s2);
-  align-items: center;
+  padding: var(--s3) var(--inset);
+  border-block-start: var(--border);
 }
 
-.setting > div:last-child:not(.setting-tags) > select,
-.setting > div:last-child:not(.setting-tags) > input {
-  flex: 1 1 12rem;
+.page-settings .st-chip {
+  font-family: var(--font-mono);
+}
+
+/* A scope's name, drawn only while a search shows every scope's rows at once. */
+.st-scope-name {
+  margin: 0;
+  padding: var(--s3) var(--inset) var(--s1);
+  border-block-start: var(--border);
+  color: var(--body);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+}
+
+.st-scope:not(.is-named) > .st-scope-name {
+  display: none;
+}
+
+/* ── a setting: a line that opens ─────────────────────────────────────────── */
+
+.st-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.st-row {
+  border-block-start: var(--border);
+}
+
+/* The lead's own panel draws its edge; its first row needs no second one. */
+.st-lead .st-row:first-child {
+  border-block-start: 0;
+}
+
+/*
+  The name on the left, the value on the right — every value in one column
+  down the card's edge — and the chevron or the amber *Change* at the end.
+*/
+.st-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 3rem;
+  padding: var(--s2) var(--inset);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+
+.st-line:hover {
+  background: var(--surface);
+}
+
+.st-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.st-title {
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+  line-height: var(--lead-tight);
+}
+
+/* Where a row is out of its group: what it is one of, under its name. */
+.st-crumb {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.st-value {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--s1);
+  min-width: 0;
+  max-width: min(45cqi, 18rem);
+  color: var(--body);
+  font-size: var(--step-0);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.st-value.is-mono {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+.st-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nothing set: what applies instead, a step quieter, and the word that says so. */
+.st-value.is-default {
+  color: var(--heading);
+}
+
+.st-tag {
+  flex: 0 0 auto;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.st-value.is-flag:not(.is-on),
+.st-value.is-held:not(.is-on) {
+  color: var(--heading);
+}
+
+/* A key that is held: a block, as the window draws a tag. */
+.st-value.is-held.is-on > .st-said {
+  padding: 1px var(--s2);
+  border-radius: var(--r3);
+  background: var(--raised);
+  color: var(--pressed);
+  font-size: var(--step--1);
+}
+
+.st-value kbd {
+  font-family: var(--font-mono);
+}
+
+.st-change {
+  color: var(--amber);
+  font-size: var(--step--1);
+  font-weight: var(--w-strong);
+}
+
+/* ── an opened setting ─────────────────────────────────────────────────────── */
+
+.st-more {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s1) var(--inset) var(--inset);
+}
+
+.st-means {
+  max-width: 42rem;
+  margin: 0;
+  color: var(--body);
+  font-size: var(--step-0);
+  line-height: var(--lead);
+}
+
+.page-settings .st-facts {
+  gap: var(--s1) var(--s4);
+  padding: 0;
+}
+
+.page-settings .st-facts dd {
+  color: var(--bright);
+  font-family: var(--font-ui);
+}
+
+.page-settings .st-facts dd.is-mono {
+  font-family: var(--font-mono);
+}
+
+.st-aside,
+.st-why {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  line-height: var(--lead);
+}
+
+.st-why {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+.st-why-ic {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin-block-start: 2px;
+}
+
+/* ── changing one ──────────────────────────────────────────────────────────── */
+
+.st-edit {
+  display: grid;
+  gap: var(--s3);
+  justify-items: start;
+  padding-block-start: var(--s3);
+  border-block-start: var(--border);
+}
+
+.st-pick {
+  display: grid;
+  gap: var(--s2);
+  width: 100%;
+  max-width: 26rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* An option: the whole line is the target, and the one chosen is washed amber. */
+.page-settings .st-option {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
+  margin: 0;
+  padding-inline: var(--s3);
+  border: 1px solid var(--control);
+  border-radius: var(--r1);
+  background: var(--ground);
+  color: var(--body);
+  font-size: var(--step-0);
+  cursor: pointer;
+  transition:
+    background var(--ease),
+    border-color var(--ease);
+}
+
+.page-settings .st-option:hover {
+  border-color: var(--hovered);
+}
+
+.page-settings .st-option:has(input:checked) {
+  border-color: var(--amber-dark);
+  background: color-mix(in srgb, var(--amber) 10%, var(--ground));
+  color: var(--bright);
+}
+
+.page-settings .st-option input {
+  flex: 0 0 auto;
+  width: 1.125rem;
+  height: 1.125rem;
+  min-height: 0;
   max-width: none;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--amber);
+}
+
+.page-settings .st-box {
+  max-width: 26rem;
+}
+
+.st-answer {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--step--1);
 }

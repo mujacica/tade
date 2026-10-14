@@ -1,4 +1,12 @@
-import { markOf, noSpend, type PlanStanding, type Spend } from '@tade/core'
+import {
+  ConfigSchema,
+  markOf,
+  noSpend,
+  type PlanStanding,
+  type SettingGroup,
+  type Spend,
+  settingsOf,
+} from '@tade/core'
 import type { ActivityIn, AgentIn } from '../src/agent.ts'
 import type { IntakeIn, RunIn, SourceIn, WorkflowIn } from '../src/factory.ts'
 import type {
@@ -717,4 +725,24 @@ export function agentHeld(over: Partial<AgentIn> = {}): AgentIn {
     known: [HELD_KEY, 'short'],
     ...over,
   }
+}
+
+/**
+ * The settings the window would list for the fixture's two projects, with a
+ * key held: what `/api/settings` is made from, through the reach of whoever
+ * asks. The browser harness hands these over, so the settings page is laid
+ * out with every group in it rather than only its empty state — and the key is
+ * `HELD_KEY`, so a page that ever drew one is a page the harness can read it on.
+ */
+export function settingRows(): SettingGroup[] {
+  return settingsOf(
+    ConfigSchema.parse({
+      projects: {
+        sentry: { root: PRIVATE.root, push: 'branch' },
+        tade: { root: `${PRIVATE.root}/../tade` },
+      },
+      surfaces: { window: { editor: 'zed' } },
+    }),
+    [{ path: 'extensions.jev.key', title: 'Jev API key', means: '', value: HELD_KEY, from: null }],
+  )
 }

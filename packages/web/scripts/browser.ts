@@ -21,7 +21,7 @@ import {
   WIDTHS,
   worstOf,
 } from '../test/browser-plan.ts'
-import { agentHeld, input, NOW } from '../test/fixtures.ts'
+import { agentHeld, input, NOW, settingRows } from '../test/fixtures.ts'
 import { deskAt, lanesSeen, paletteAt, unpairedAt } from './browser-desk.ts'
 import { frameAt } from './browser-frame.ts'
 import { asPwa } from './browser-pwa.ts'
@@ -134,7 +134,10 @@ async function serve() {
     readingFor: (reach: Reach) => {
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
-      const made = projector(input({ reach }), NOW, { agent: () => agentHeld() })
+      const made = projector(input({ reach }), NOW, {
+        agent: () => agentHeld(),
+        settings: () => ({ groups: settingRows(), known: [] }),
+      })
       held.set(reach.device, made)
       return made
     },
