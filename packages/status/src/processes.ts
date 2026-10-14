@@ -87,7 +87,7 @@ export type Run = (command: string, args: readonly string[]) => Promise<Ran>
  * what Terminal.app names the window after, so polling retitled it to `ps`.
  * From its absolute path, so it is never in that group even while starting.
  */
-const spawn: Run = async (command, args) => {
+export const spawnProbe: Run = async (command, args) => {
   const ran = await execa(located(command), [...args], {
     reject: false,
     timeout: PROBE_MS,
@@ -172,7 +172,7 @@ function staleServers(): ToolServers {
 export async function listAgentProcesses(
   options: { run?: Run } = {},
 ): Promise<{ processes: AgentProcess[]; servers: ToolServers; warnings: string[] }> {
-  const run = options.run ?? spawn
+  const run = options.run ?? spawnProbe
   // `ppid` as well, which is what ties Tade's own tool server to the agent it
   // was started for: the server is the harness process's child. One more
   // column on a scan that was already being made, rather than a second spawn —

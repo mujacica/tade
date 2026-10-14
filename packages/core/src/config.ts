@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { WebSurface } from './away.ts'
 import { IntakeSurface } from './intake.ts'
+import { PrepareConfigSchema } from './prepare.ts'
 import { ModelPriceSchema } from './prices.ts'
 import { GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES } from './project.ts'
@@ -193,6 +194,8 @@ export const ProjectConfigSchema = z.strictObject({
     .optional(),
   /** This project's own answer to any of the `checks` settings but `suites`, which is the machine's. */
   checks: ChecksConfigSchema.omit({ suites: true }).partial().optional(),
+  /** What a new worktree is given before its agent starts, over what the project says (`prepare.ts`). */
+  prepare: PrepareConfigSchema.optional(),
 })
 
 /**

@@ -106,6 +106,15 @@ having no `programs`. What Tade itself needs whichever implementations are in us
   (`watchCommand`, `offerInstall` → `ui.run`). An installer handed the terminal is an installer whose
   output you cannot see and whose questions you cannot answer, because Tade is still holding the
   keyboard. A command that fails says so and the answer is no, never a failure.
+- **A project's own install in its own worktree is not installing a program.** "Nothing installs
+  anything" is about the *machine*: a program on PATH that Tade or a port needs, which goes through
+  `programs`, the page and a person pressing the button. `pnpm install` in a new worktree is the
+  project's code, run where the agent was about to run it anyway, and it is the project's own answer
+  to what a worktree needs — so it runs without asking, but the same way: the command shown first,
+  in the agent's lane where somebody can watch it, with a deadline, before the agent starts
+  (*Preparing a new worktree*, below). What does put a program on the machine is refused there
+  rather than run: a devcontainer's `sudo apt-get` or `curl … | sh` is named in `unread`, because a
+  container may do that and this machine was never asked to.
 - **An update runs one way** (`Updates.run`): the strip's chip, a button on the Updates page and
   `tade_updates_run` all come through it. Each step is the page's exact command typed into the
   `updates` terminal, put in front first, followed by an ending it prints under a tag of its own
@@ -142,6 +151,55 @@ having no `programs`. What Tade itself needs whichever implementations are in us
   taken. `tade_reload` answers first and reloads half a second later, because the reload ends the
   turn its answer goes to; the orchestrator picks its conversation back up in the new window, by the
   session id that never changes.
+
+## Preparing a new worktree
+
+A worktree is what git tracks and nothing else — no `.env`, no local certificate, no `node_modules`
+— and an agent started in a bare one spends its first minutes finding that out. So where a project's
+agents work in worktrees (`workspace: worktree`, still never the default), a new one is *prepared*.
+The pure half is `packages/core/src/prepare.ts`, the I/O half `packages/workbench/src/prepare.ts`,
+and the tests are `packages/core/test/prepare.test.ts` and `packages/workbench/test/prepare.test.ts`,
+against real repositories and real processes.
+
+- **Two moments, two acts.** When the worktree is made (`prepareWorktree`, from `createTask`), the
+  ignored files the project lists are brought across from its checkout and the setup command is
+  read and kept in the task file (`TaskFile.setup`) — a task keeps what it was made with. When its
+  first agent starts (`setupBefore`, from `startAgent`), the setup runs in that agent's lane before
+  the agent does. Only a **new** agent — an opening instruction and no conversation to come back to
+  — because running an install over work an agent has done is the relaunch bug again.
+- **Read like the checks are read: narrow only, and name what cannot be read.** `readingOf` believes
+  Cursor's `.cursor/worktrees.json` (`setup-worktree-unix`, else `setup-worktree`, a list of
+  commands), then a devcontainer's `postCreateCommand`, then the lockfile's package manager
+  (`packageManager` in `package.json` over the lockfiles, installing without changing the lockfile)
+  — and stops at the first. Everything it cannot place goes in `unread` with why: a script path, an
+  object of side-by-side commands, a `${…}` only a container's tooling fills in, two lockfiles and
+  no declaration, a command that installs a program. Those land in the journal's `task_created`
+  (`prepare_said`). A new source is a new `from…` function with a table case for what it reads
+  **and** what it refuses.
+- **Files are the ones git ignores, and only those.** `.worktreeinclude` (gitignore patterns) names
+  them; `bringFiles` asks git which untracked files match (`ls-files -o -i -x`) and then which of
+  those the project itself ignores (`check-ignore`). An untracked file that is not ignored is
+  somebody's work in progress and is never handed out; a file the worktree already has is never
+  written over; past `MOST_FILES` none are brought, and that is said rather than a partial set.
+  Copied by default, so an agent's edit to its `.env` stays its own; `link` symlinks instead.
+- **A person's answer is Tade's config, never a file in the repository.**
+  `projects.<name>.prepare` (`files`, `link`, `command`, `deadline_minutes`) answers over what is
+  read — `command: ''` runs nothing. It is under `projects`, a `never` subtree, and deliberately not
+  in `ALLOWED_UNDER`: a setup command runs as you, so the orchestrator never sets one.
+- **The setup runs under `setupLine`, said once and written nowhere.** The lane is launched as
+  `/bin/sh` running a small Node program (`SETUP_JS`) and then `exec`-ing the agent's own line, so
+  the agent is the lane's process exactly as before; the lane's stored spec stays the agent's line
+  (the opening instruction's rule), so a relaunch never prepares twice. Node and not `sh`, because
+  the deadline has to stop everything the install started and only `setsid` gives it a group of its
+  own (`kill(-pid)`) — a shell without job control cannot, and macOS has no `setsid`. ctrl+c skips
+  the setup (`trap : INT`, a handler and not an ignore, which would survive `exec` and deafen the
+  agent). It always lets the agent start: a failed setup is a fact the agent is told
+  (`composeAgentPrompt`'s `setup`, with the log in the task's folder), never a reason not to begin.
+- **Ports are derived, never assigned** (`packages/status/src/ports.ts`). A lane's listening ports
+  are `lsof` over listening TCP sockets, matched to the lane's process group and its descendants
+  from one `ps`; a server that detached to init is nobody's. Two spawns a look, so it is asked for
+  (`StatusOptions.ports`, `StatusAsk.ports`) — `tade status` does, once; the window's beat does not
+  until something draws them. A look that could not be made leaves `Lane.ports` absent, never `[]`.
 
 ## Setting up ends with a lane
 

@@ -19,11 +19,11 @@
  ▾ F│                            █│▌                         never: nothing of search reaches its remote; branch: █│    
    ▾│  Away view                 █│▌                         agents push the branch they are on; branch-and-revi… █│    
     │                            █│▌                                                                              █│    
-    │  Intake                    █│ Agents at once             ‹   as many as are started   ›                     █│    
-   ▸│                            █│                                                                               █│    
-━   │▌ Projects              ● 1 █│ Budget a day               ‹   no budget   ›                     ↻ on restart █│   ━
+    │  Intake                    █│ Worktree setup            what the project says                               ▕│    
+   ▸│                            █│                                                                               ▕│    
+━   │▌ Projects              ● 1 █│ Setup deadline             ‹   10   ›    minutes                              ▕│   ━
     │▌                           ▕│                                                                               ▕│    
-    │  Journal                   ▕│ Checks needed before      push                                 ▾              ▕│   ▕
+    │  Journal                   ▕│ Agents at once             ‹   as many as are started   ›                     ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
     │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕

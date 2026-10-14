@@ -7,6 +7,7 @@ import {
   deriveState,
   expandHome,
   isLive,
+  type Lane,
   type Project,
   projectDir,
   recordsDir,
@@ -31,6 +32,7 @@ import {
 } from './git.ts'
 import { type LivenessProbe, noLanes } from './liveness.ts'
 import { pooled } from './pool.ts'
+import { listeningPorts } from './ports.ts'
 import { type AgentProcess, listAgentProcesses } from './processes.ts'
 import { verifiedAt } from './tests.ts'
 
@@ -80,6 +82,8 @@ export interface StatusOptions {
    */
   transcripts?: TranscriptReads | undefined
   liveness?: LivenessProbe
+  /** Look at which ports each live lane listens on (`ports.ts`): two spawns a look. */
+  ports?: boolean | undefined
   processes?: () => Promise<{
     processes: AgentProcess[]
     servers: ToolServers
@@ -192,6 +196,7 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     out.push({ ...ref, tasks, untracked: untracked.sort(bySession) })
   }
 
+  if (opts.ports) await withPorts(out, warnings)
   const elsewhere = sessions.filter((s) => !claimed.has(s) && isLive(s, now)).sort(bySession)
   out.sort((a, b) => cmp(a.name, b.name))
   return {
@@ -200,6 +205,23 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     elsewhere,
     toolServers: procs.servers,
     warnings: [...new Set(warnings)].sort(),
+  }
+}
+
+/** Each live lane's listening ports, on a copy of the lane; left absent where the look could not be made. */
+async function withPorts(projects: Project[], warnings: string[]): Promise<void> {
+  const tasks = projects.flatMap((p) => p.tasks)
+  const live = (lane: Lane) => (lane.alive && lane.pid !== null ? lane.pid : null)
+  const pids = tasks.flatMap((t) => t.lanes.flatMap((lane) => live(lane) ?? []))
+  const looked = await listeningPorts([...new Set(pids)])
+  warnings.push(...looked.warnings)
+  const found = looked.ports
+  if (!found) return
+  for (const task of tasks) {
+    task.lanes = task.lanes.map((lane) => {
+      const ports = found.get(live(lane) ?? -1)
+      return ports ? { ...lane, ports } : lane
+    })
   }
 }
 

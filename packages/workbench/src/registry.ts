@@ -2,7 +2,16 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type Config, givesWay, type LaneId, LaneKind, niced, taskDir } from '@tade/core'
+import {
+  type Config,
+  givesWay,
+  type LaneId,
+  LaneKind,
+  niced,
+  type Setup,
+  setupLine,
+  taskDir,
+} from '@tade/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
@@ -130,6 +139,11 @@ export interface SpawnRequest {
    * back from what was stored reattaches instead of starting over.
    */
   opening?: string[]
+  /**
+   * What runs in the lane before it, once: a new worktree's setup
+   * (`setupLine`). Never written down, for the opening instruction's reason.
+   */
+  before?: { setup: Setup; log: string; root: string }
   env?: Record<string, string>
   cols?: number
   rows?: number
@@ -305,8 +319,9 @@ export class LaneRegistry {
     // lane has none (`laneSignal`) — and the setting can change under a lane
     // that is already up. So the wrapper is re-decided at every launch and
     // the kind is what decides, not the caller.
+    const line = { command: req.command, args: [...(req.args ?? []), ...(req.opening ?? [])] }
     const lowered = niced(
-      { command: req.command, args: [...(req.args ?? []), ...(req.opening ?? [])] },
+      req.before ? setupLine({ ...req.before, node: process.execPath, line }) : line,
       this.lowerBy(req),
     )
     const spec: LaneSpec = {

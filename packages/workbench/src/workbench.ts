@@ -9,7 +9,6 @@ import {
   type Config,
   ConfigSchema,
   checkBudget,
-  type checksFor,
   composeAgentPrompt,
   type DoneRule,
   type EventFilter,
@@ -78,7 +77,7 @@ import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import { type AccountView, harnessAccount, listAccounts, planSources } from './accounts.ts'
 import { recordAuthored } from './authored.ts'
-import { checksAt, checksGate, sharesCheckout } from './checks.ts'
+import { checksGate, checksTold, sharesCheckout } from './checks.ts'
 import { documentsFolder, removedDocument, settleDocuments } from './documents.ts'
 import { chooseDriver, troubleSaid } from './driver-choice.ts'
 import { EventLog, readJournal } from './events.ts'
@@ -89,6 +88,7 @@ import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { notStartable, type ParkedBy, park } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
+import { preparedDetail, setupBefore, setupTold } from './prepare.ts'
 import { changeQueued, type QueueChangeRequest } from './queue-changes.ts'
 import { type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
@@ -973,6 +973,7 @@ export class Workbench {
       ...(req.produces ? { produces: req.produces } : {}),
       ...(req.start ? { start: req.start } : {}),
       ...(req.effort ? { effort: req.effort } : {}),
+      prepare: configured?.prepare,
       workspace,
     })
     await this.log.append({
@@ -991,6 +992,7 @@ export class Workbench {
         ...(req.produces ? { produces: req.produces } : {}),
         ...(req.start ? { after: req.start.after.map((dep) => dep.task) } : {}),
         ...(req.start?.at ? { at: req.start.at } : {}),
+        ...preparedDetail(task.prepared),
       },
     })
     return task
@@ -1515,6 +1517,8 @@ export class Workbench {
         // Said at this launch and written down nowhere: what puts the lane
         // back later must not repeat the instruction it opened with.
         ...(launch.opening ? { opening: launch.opening } : {}),
+        // A new agent in a new worktree: its setup first, in this lane (`prepare.ts`).
+        ...(await setupBefore(this.home, this.config, req.task, !resuming && req.prompt !== '')),
         env: launch.env,
         title: req.task,
         harness,
@@ -1567,45 +1571,6 @@ export class Workbench {
     }
   }
 
-  /**
-   * What a project's checks are, and the rule about when they run, for the
-   * agent's prompt.
-   *
-   * A project that says nothing gets an empty list rather than nothing at all,
-   * because `checksTold` has something to say about that case: Tade will not
-   * invent a gate, so the agent is told to work out what checking this project
-   * means and run it itself.
-   */
-  private async checksTold(
-    project: string,
-    cwd: string,
-    task: string,
-  ): Promise<{ checks?: { ids: string[]; rule: ReturnType<typeof checksFor>; hold: boolean } }> {
-    try {
-      const stood = await checksAt({
-        config: this.config,
-        project,
-        worktree: cwd,
-        tadeHome: this.home,
-        task,
-        commit: null,
-      })
-      return {
-        checks: {
-          ids: stood.read.checks.map((check) => check.id),
-          rule: stood.rule,
-          // Only under `policy` can a push actually be held; anywhere else
-          // the rule is something the agent keeps, and Tade writes down.
-          hold: this.config.approvals.mode === 'policy' && stood.rule.on_red === 'hold',
-        },
-      }
-    } catch {
-      // A workflow that will not read is the extension's problem to report,
-      // never a reason an agent cannot start.
-      return {}
-    }
-  }
-
   /** What an agent starting on a task is told about where it is. */
   private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
@@ -1628,7 +1593,8 @@ export class Workbench {
       instructions: this.config.agents.instructions,
       push: pushFor(this.config, project, workspace).mode,
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
-      ...(await this.checksTold(project, cwd, task)),
+      ...(await checksTold({ config: this.config, home: this.home }, project, cwd, task)),
+      ...(await setupTold(this.home, task)),
       // The resolved path, not the name: the agent is told the one place to
       // write it, and a hand-edited name Tade would not have written is left
       // out rather than joined onto a path.

@@ -31,6 +31,8 @@ export function registerStatus(program: Command, io: Io, setExit: (code: number)
         tadeHome: tadeHome(),
         cwd: process.cwd(),
         pr: opts.pr && process.env.TADE_NO_GH !== '1',
+        // Once, so worth the two spawns: which port each lane's server is on.
+        ports: true,
         liveness,
       })
       if (opts.json) io.out(JSON.stringify(ws, null, 2))

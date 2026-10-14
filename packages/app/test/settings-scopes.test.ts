@@ -26,6 +26,8 @@ describe('the Projects page, which is one project at a time', () => {
       'projects.checkout.brief',
       'projects.checkout.workspace',
       'projects.checkout.push',
+      'projects.checkout.prepare.command',
+      'projects.checkout.prepare.deadline_minutes',
       'projects.checkout.max_parallel',
       'projects.checkout.budget.usd_per_day',
       'projects.checkout.checks.before',

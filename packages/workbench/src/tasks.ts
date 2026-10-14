@@ -3,8 +3,10 @@ import { mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import {
   type DoneRule,
+  type PrepareConfig,
   producesPath,
   producesProblem,
+  type Setup,
   type StartCondition,
   TaskFile,
   TaskId,
@@ -13,6 +15,7 @@ import {
 } from '@tade/core'
 import { git, parseStatusV2, resolveBase } from '@tade/status'
 import { parse as parseYaml, stringify } from 'yaml'
+import { type Prepared, prepareWorktree } from './prepare.ts'
 
 // Task lifecycle: where the work happens, and the sentence you said when you
 // started. A task works either in the project's own checkout, beside other
@@ -83,6 +86,8 @@ export interface CreateTaskOptions {
   produces?: string
   /** When it starts, for queued work: kept in the task file until it does. */
   start?: StartCondition
+  /** The project's own answer about preparing a new worktree, over what it says (`prepare.ts`). */
+  prepare?: PrepareConfig | undefined
   now?: Date
 }
 
@@ -119,6 +124,7 @@ export interface TaskWorktree {
   base: string
   baseRef: string
   workspace: 'checkout' | 'worktree'
+  prepared?: Prepared
 }
 
 export interface RemoveTaskOptions {
@@ -179,6 +185,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     30_000,
   )
   if (!added.ok) throw new Error(`git worktree add failed: ${firstLine(added.stderr)}`)
+  const prepared = await prepareWorktree({ root: opts.root, worktree, configured: opts.prepare })
 
   const task: TaskWorktree = {
     id,
@@ -188,6 +195,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     base,
     baseRef,
     workspace: 'worktree',
+    prepared,
   }
   const dir = taskDir(opts.home, id)
   await writeTaskFile(
@@ -202,6 +210,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
       produces: opts.produces?.trim(),
       start: opts.start,
       effort: opts.effort,
+      setup: prepared.setup,
     },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
@@ -292,6 +301,7 @@ async function writeTaskFile(
     produces?: string | undefined
     start?: StartCondition | undefined
     effort?: string | undefined
+    setup?: Setup | null | undefined
   },
 ): Promise<void> {
   await mkdir(join(path, '..'), { recursive: true })
@@ -312,6 +322,7 @@ async function writeTaskFile(
       ...(kept.done ? { done: kept.done } : {}),
       ...(kept.produces ? { produces: kept.produces } : {}),
       ...(kept.start ? { start: kept.start } : {}),
+      ...(kept.setup ? { setup: kept.setup } : {}),
     }),
   )
 }

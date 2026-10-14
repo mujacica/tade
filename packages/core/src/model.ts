@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Setup } from './prepare.ts'
 
 // The object model. These schemas are the single source of truth for the shape
 // of a Task: the CLI, the RPC layer and the orchestrator's tool definitions
@@ -133,6 +134,8 @@ export const TaskFile = z.object({
   produces: z.string().optional(),
   /** When it starts, for work asked for now and started later. */
   start: StartCondition.optional(),
+  /** What its worktree runs before its first agent starts, as read when it was made. */
+  setup: Setup.optional(),
 })
 export type TaskFile = z.infer<typeof TaskFile>
 
@@ -269,6 +272,11 @@ export const Lane = z.object({
   pid: z.number().int().nullable(),
   lastOutputAt: z.number().nullable(),
   attach: z.string(),
+  /**
+   * The TCP ports its processes listen on, derived by looking (`listeningPorts`).
+   * Absent where nobody asked or the look could not be made — never `[]` for that.
+   */
+  ports: z.array(z.number().int()).optional(),
 })
 export type Lane = z.infer<typeof Lane>
 

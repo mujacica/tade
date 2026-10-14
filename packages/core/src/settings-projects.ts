@@ -1,4 +1,5 @@
 import { AGENT_WORKSPACES, type Config } from './config.ts'
+import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
 import { PUSH_MODES, pushDefault, pushFor, workspaceFor } from './project.ts'
 import type { Setting, SettingGroup } from './settings.ts'
 
@@ -109,6 +110,35 @@ export function projectGroups(config: Config): SettingGroup[] {
           type: { kind: 'choice', options: ['', ...PUSH_MODES] } as const,
           live: true,
           keywords: [name, 'push', 'pushing', 'remote', 'review', 'pull request'],
+          scope: name,
+        },
+        {
+          // Over what the project says (`prepare.ts`): empty gives the question
+          // back to its devcontainer, Cursor's worktrees.json or its lockfile.
+          // A command run as you, so the orchestrator's arm never reaches it —
+          // `projects` is a `never` subtree and this is not in `ALLOWED_UNDER`.
+          path: `projects.${name}.prepare.command`,
+          title: 'Worktree setup',
+          means: `what a new worktree of ${name}'s runs in its agent's lane, shown and with a deadline, before the agent starts; empty is what ${name} itself says`,
+          value: project.prepare?.command ?? '',
+          fallback: 'what the project says',
+          type: { kind: 'text', placeholder: 'pnpm install' } as const,
+          live: true,
+          keywords: [name, 'setup', 'install', 'worktree', 'prepare', 'bootstrap'],
+          scope: name,
+        },
+        {
+          path: `projects.${name}.prepare.deadline_minutes`,
+          title: 'Setup deadline',
+          means: `how long ${name}'s worktree setup may run before it is stopped and the agent starts anyway`,
+          value:
+            project.prepare?.deadline_minutes === undefined
+              ? ''
+              : String(project.prepare.deadline_minutes),
+          fallback: String(PREPARE_DEADLINE_MINUTES),
+          type: { kind: 'number', unit: 'minutes' } as const,
+          live: true,
+          keywords: [name, 'setup', 'install', 'timeout', 'deadline'],
           scope: name,
         },
         {

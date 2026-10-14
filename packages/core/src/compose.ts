@@ -375,6 +375,8 @@ export interface AgentPromptInput {
   context: string | null
   /** How this project checks its work, when the config says. */
   testCommand?: string
+  /** The setup its new worktree ran in its lane before it started, and where what it printed is. */
+  setup?: { command: string; log: string }
   /**
    * The checks this project has, and the rule about when they run. Said
    * instead of the one test command when a project has a manifest: an agent
@@ -441,6 +443,9 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
           input.branch
             ? `Your branch is ${input.branch}. Do not switch branches or create new ones.`
             : 'You have no branch yet. Tade creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
+          input.setup
+            ? `Before you started, Tade ran this project's setup, \`${input.setup.command}\`, in your worktree; what it printed and how it ended are in ${input.setup.log}. If it failed or was stopped, deal with that before you trust a test.`
+            : null,
         ]),
     COMMIT_TELLS[input.commit ?? (input.workspace === 'checkout' ? 'own-files' : 'as-you-go')],
     // Only where there will be commits to carry it: an agent told never to

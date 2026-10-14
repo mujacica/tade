@@ -134,6 +134,46 @@ export async function checksAt(opts: {
   }
 }
 
+/**
+ * What a project's checks are, and the rule about when they run, for the
+ * agent's prompt.
+ *
+ * A project that says nothing gets an empty list rather than nothing at all,
+ * because `checksTold` has something to say about that case: Tade will not
+ * invent a gate, so the agent is told to work out what checking this project
+ * means and run it itself.
+ */
+export async function checksTold(
+  at: { config: Config; home: string },
+  project: string,
+  cwd: string,
+  task: string,
+): Promise<{ checks?: { ids: string[]; rule: ChecksConfig; hold: boolean } }> {
+  try {
+    const stood = await checksAt({
+      config: at.config,
+      project,
+      worktree: cwd,
+      tadeHome: at.home,
+      task,
+      commit: null,
+    })
+    return {
+      checks: {
+        ids: stood.read.checks.map((check) => check.id),
+        rule: stood.rule,
+        // Only under `policy` can a push actually be held; anywhere else
+        // the rule is something the agent keeps, and Tade writes down.
+        hold: at.config.approvals.mode === 'policy' && stood.rule.on_red === 'hold',
+      },
+    }
+  } catch {
+    // A workflow that will not read is the extension's problem to report,
+    // never a reason an agent cannot start.
+    return {}
+  }
+}
+
 /** Run a project's checks here, the way Tade runs them: one at a time, written down. */
 export async function runProjectChecks(opts: {
   config: Config

@@ -145,10 +145,10 @@ attached to the decision it governs. Load the matching one rather than working f
 ### Where agents work
 
 - **Agents work where the *project* says, and the machine's answer is only its default.**
-  `workspaceFor(config, project)` (`core/src/project.ts`) is the one reader; nothing asks the machine.
-  `checkout` (the default) is every agent in the project's own checkout; `worktree` is a worktree and
-  branch each. **Nothing that runs git on a task's directory may assume the directory is the task's
-  alone — ask `task.workspace`.**
+  `workspaceFor` (`core/src/project.ts`) is the one reader; nothing asks the machine. `checkout`
+  (the default) is every agent in the project's checkout; `worktree` is a worktree and branch each,
+  prepared as the project says (`prepare.ts`). **Nothing that runs git on a task's directory may
+  assume the directory is the task's alone — ask `task.workspace`.**
 - **Nothing Tade writes is inside a project** (`core/src/home.ts`, held by `test/own-files.test.ts`):
   task files, context, attachments, check runs and locks live under `<TADE_HOME>/projects/<name>/`, so
   no project needs a `.gitignore` line and none is written; `removeOwnIgnore` takes back one an older

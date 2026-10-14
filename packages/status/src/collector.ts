@@ -32,6 +32,8 @@ export interface StatusAsk {
   pr: boolean
   /** The window's own lanes and runs, read just before the look. */
   lanes: LivenessTable
+  /** Look at which ports each live lane listens on: two spawns, so asked for. */
+  ports?: boolean
 }
 
 /** What one look cost the process that made it. */

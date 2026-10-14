@@ -323,6 +323,12 @@ describe('the shape of the rule', () => {
       'extensions.sentry.projects',
       'extensions.sentry.token_env',
       'extensions.sentry.url',
+      // A command run as you before an agent starts, and how long it may
+      // run: `projects` is `never` because of `root`, and neither of these is
+      // in `ALLOWED_UNDER`, because what a worktree runs is not a sentence a
+      // page the orchestrator read gets to write (`prepare.ts`).
+      'projects.app.prepare.command',
+      'projects.app.prepare.deadline_minutes',
       'projects.app.root',
       // The away view's five, and **every one of them `never`**: each either
       // widens who can reach the control room (`enabled`, `bind`), decides
