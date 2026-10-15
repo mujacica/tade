@@ -25,6 +25,7 @@ import { Router } from './wire/actions.ts'
 import { Agents } from './wire/agents.ts'
 import { Awake, caffeineHold } from './wire/awake.ts'
 import { Checks } from './wire/checks.ts'
+import { Comments } from './wire/comments.ts'
 import {
   type AppOptions,
   copySaying,
@@ -135,6 +136,7 @@ export class App {
   private readonly lanes: Lanes
   /** The file you have open, the diff beside it, and the branch underneath. */
   private readonly files: Files
+  private readonly comments: Comments
   /** Making an agent, opening one again, stopping it, taking it away. */
   private readonly agents: Agents
   /** What an agent runs on: its harness, its account, its model, how hard it thinks. */
@@ -403,6 +405,13 @@ export class App {
       applyPanel: (outcome) => this.router.applyPanel(outcome),
       selectedInFile: () => this.mouse.fileSelectionText(),
       copySelection: (text) => copySpanSaying(this.wire, text, (data) => this.terminal.write(data)),
+      comment: (panel, choice) => this.comments.submit(panel, choice),
+    })
+    this.comments = new Comments(this.wire, {
+      shown: () => this.files.shown(),
+      ask: (words, about) => this.orchestrator.ask(words, about),
+      listening: () => this.voice.ready,
+      remember: (words) => this.keyboard.remember(words),
     })
     this.mouse = new Mouse(this.wire, {
       stopped: () => this.stopped,
@@ -455,6 +464,7 @@ export class App {
       this.queue,
       this.intake,
       this.orchestrator,
+      this.comments,
       this.earlier,
       this.extensions,
       this.search,
@@ -593,23 +603,7 @@ export class App {
   }
 
   private async begin(): Promise<void> {
-    const { sidebarWidth, stripHeight, order, projectOrder, spots, ...view } = this.window.recall()
-    this.state = {
-      ...this.state,
-      sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
-      order: order ?? {},
-      projectOrder: projectOrder ?? [],
-      // Where you were in each project, so coming back to one tomorrow is the
-      // same as coming back to it a second after leaving. Whatever it names
-      // may have gone since; `standingIn` is what checks that, at the tab.
-      spots: spots ?? {},
-      // Here rather than on the first tasks: the view you left is what the
-      // first frame draws, never a flash of what you had put away.
-      hidingDone: view.hidingDone ?? this.state.hidingDone,
-      folded: view.folded ?? this.state.folded,
-      opened: view.opened ?? this.state.opened,
-      queueViews: view.queueViews ?? this.state.queueViews,
-    }
+    this.window.restoreView()
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.machine.loadAccounts()
     // What the last window found about updates, so the strip says it at once.

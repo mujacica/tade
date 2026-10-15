@@ -19,6 +19,7 @@ import {
   TAB,
 } from '../../viewer.ts'
 import { tildeOf } from '../cells.ts'
+import { COMMENTED, commentBar } from '../comment.ts'
 import type { PanelContext } from '../context.ts'
 import { BAR, bar, panelSize } from '../frame.ts'
 import { type FileAsk, type FilePanel, fileMatches, fileSelection, showsDiff } from './state.ts'
@@ -216,11 +217,15 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
       const there = inline ? shown !== undefined : at < lines.length
       const number = line === null ? null : line + 1
       const marked = !formatted && number !== null && panel.line === number
+      const commented =
+        !formatted &&
+        number !== null &&
+        (ctx.comments?.here ?? []).some((one) => one.side === 'new' && one.line === number)
       const sign = inline ? SIGNS[shown?.kind ?? 'context'] : ''
       const gutter =
         formatted || !there
           ? ''
-          : `${sign}${marked ? '▶' : ' '}${(number === null ? '' : String(number)).padStart(digits)} │ `
+          : `${sign}${marked ? '▶' : commented ? COMMENTED : ' '}${(number === null ? '' : String(number)).padStart(digits)} │ `
       const room = Math.max(1, text - visibleCells(gutter))
       const source = !there
         ? ''
@@ -231,13 +236,21 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
             : colouredAt(line, edit, viewing, ctx)
       const tabbed = source.replaceAll('\t', TAB)
       const cut = fitRow(left === 0 ? tabbed : sliceByColumn(tabbed, left, room), room)
-      const painted = `${formatted || !there ? '' : paintGutter(gutter, sign, marked, skin)}${cut}`
+      const painted = `${formatted || !there ? '' : paintGutter(gutter, sign, marked, skin, commented)}${cut}`
       const hits: Hit[] = [
         { row: 0, from: 0, to: text - 1, target: { kind: 'scroll', area: 'panel' } },
       ]
       // Clicking the text puts the caret in it; clicking the numbers does not,
       // so the gutter is still somewhere to take hold of the file and scroll.
       // A gone line is nowhere to put one: it is not in the file to be typed in.
+      // A line's number is where a comment on it is written: the box opens on it.
+      if (!formatted && line !== null)
+        hits.push({
+          row: 0,
+          from: 0,
+          to: gutterWidth - 1,
+          target: { kind: 'control', id: `comment:${line}` },
+        })
       if (typeable && line !== null)
         hits.push({
           row: 0,
@@ -288,7 +301,10 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   // The buttons are what the footer is for; where they are position is said,
   // and the keys only where there is room for them too.
   const saving = edit?.dirty === true
+  const drafted = ctx.comments?.total ?? 0
+  const sending = drafted > 0 ? `Send ${drafted}` : ''
   const buttons =
+    (sending ? sending.length + 5 : 0) +
     'Copy path'.length +
     'Open in editor'.length +
     'Close'.length +
@@ -306,26 +322,30 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     const hints =
       panel.asking?.kind === 'find'
         ? ['  enter the next · ↑↓ move · esc shuts the bar']
-        : edit
-          ? selection
-            ? ['  ctrl+shift+c copies · ctrl+s saves · esc leaves']
-            : ['  ctrl+s saves · ctrl+f finds · esc leaves']
-          : typeable
-            ? changes
-              ? // `ctrl+d` goes first where there is no room for all four,
-                // because the chip in the heading says it and nothing says
-                // `ctrl+g` but this row.
-                [
-                  '  click to edit · ctrl+f find · ctrl+g line · ctrl+d changes',
-                  '  click to edit · ctrl+f find · ctrl+g line',
-                ]
-              : ['  click to edit · ctrl+f find · ctrl+g line']
-            : ['  ↑↓ scroll · space a page · e editor']
+        : panel.asking?.kind === 'comment'
+          ? ['  enter keeps it · tab says who · esc closes', '  enter keeps · tab who']
+          : edit
+            ? selection
+              ? ['  ctrl+shift+c copies · ctrl+s saves · esc leaves']
+              : ['  ctrl+s saves · ctrl+f finds · esc leaves']
+            : typeable
+              ? changes
+                ? // `ctrl+d` goes first where there is no room for all four,
+                  // because the chip in the heading says it and nothing says
+                  // `ctrl+g` but this row.
+                  [
+                    '  click to edit · c comment · ctrl+f find · ctrl+g line · ctrl+d changes',
+                    '  click to edit · ctrl+f find · ctrl+g line · ctrl+d changes',
+                    '  click to edit · ctrl+f find · ctrl+g line',
+                  ]
+                : ['  click to edit · ctrl+f find · ctrl+g line']
+              : ['  ↑↓ scroll · space a page · e editor']
     if (1 + where.length + buttons + 2 <= inner) foot.text(where, skin.hint)
     const keys = hints.find((one) => 1 + where.length + one.length + buttons + 2 <= inner)
     if (keys) foot.text(keys, skin.hint)
   }
   foot.right((r) => {
+    if (sending) r.button(sending, control('send'), 'go').space()
     if (saving) r.button('Save', control('save'), 'attention').space()
     r.button('Copy path', control('copy-path'))
       .space()
@@ -363,12 +383,20 @@ const SIGNS = { context: ' ', add: '+', remove: '−' } as const
  * and the number, then the rule. One place, because the row is built as one
  * string and the slices have to add back up to the gutter's own width.
  */
-function paintGutter(gutter: string, sign: string, marked: boolean, skin: Skin): string {
+function paintGutter(
+  gutter: string,
+  sign: string,
+  marked: boolean,
+  skin: Skin,
+  commented = false,
+): string {
   const signed = sign === '+' ? skin.done(sign) : sign === '−' ? skin.bad(sign) : sign
   const rest = gutter.slice(sign.length)
   const numbers = marked
     ? skin.signal(rest.slice(0, 1)) + skin.you(rest.slice(1, -2))
-    : skin.hint(rest.slice(0, -2))
+    : commented
+      ? skin.signal(rest.slice(0, 1)) + skin.hint(rest.slice(1, -2))
+      : skin.hint(rest.slice(0, -2))
   return `${signed}${numbers}${skin.chrome('│ ')}`
 }
 
@@ -456,7 +484,7 @@ function laidOver(row: string, over: Overlays): string {
   return out
 }
 
-/** The find bar, or the go-to-line bar: whichever is open, on one row. */
+/** The find bar, the go-to-line bar or the comment box: whichever is open, on one row. */
 function fileBar(
   ask: FileAsk,
   matches: readonly Match[],
@@ -465,6 +493,7 @@ function fileBar(
 ): { text: string; hits: Hit[] } {
   const { skin } = ctx
   const control = (id: string) => ({ kind: 'control' as const, id })
+  if (ask.kind === 'comment') return commentBar(ask.box, `On line ${ask.box.line}`, inner, ctx)
   const row = new Row(inner, skin, ctx.pointer).space()
   if (ask.kind === 'goto') {
     return row

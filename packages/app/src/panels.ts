@@ -4,7 +4,11 @@ import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 
 export type { UpdatesShown }
 
+import type { LineComment } from './comments.ts'
+import type { ParsedDiff } from './diff.ts'
 import { type AwayPanel, awayClick, awayKey } from './panels/away/state.ts'
+import type { CommentChoice } from './panels/comment.ts'
+import { type DiffPanel, diffClick, diffKey } from './panels/diff/state.ts'
 import {
   type ExtensionSetupPanel,
   type ExtensionViewPanel,
@@ -49,9 +53,6 @@ import {
   type ConfirmRemovePanel,
   confirmClick,
   confirmKey,
-  type DiffPanel,
-  diffClick,
-  diffKey,
   type FindPanel,
   findClick,
   findKey,
@@ -141,6 +142,14 @@ export interface PanelInputs {
    * will be drawn, and turning it off where the row at the top of the view is.
    */
   diffRows?: readonly InlineRow[] | null
+  /** What git said about the file the patch reader is on: which lines are lines, and which hunks. */
+  patch?: ParsedDiff | null
+  /** The comments kept on the file a diff panel is showing, for writing on a line again. */
+  comments?: readonly LineComment[]
+  /** How many comments the review holds in all: what Send sends. */
+  drafted?: number
+  /** Who a comment can go to, in the order tab goes through them. */
+  commentTo?: readonly CommentChoice[]
   /** The project's branches, for switching. */
   branches?: readonly BranchRow[]
   /** How many lines the find panel's query matches. */
@@ -230,7 +239,7 @@ export function panelKey(
   if (panel.kind === 'confirm') return confirmKey(panel, key)
   if (panel.kind === 'confirm-remove') return confirmKey(panel, key)
   if (panel.kind === 'close-done') return confirmKey(panel, key)
-  return diffKey(panel, key)
+  return diffKey(panel, key, data, inputs)
 }
 
 /**
@@ -285,5 +294,5 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'branch') return branchClick(panel, control, inputs.branches ?? [])
   if (panel.kind === 'confirm-remove' || panel.kind === 'confirm' || panel.kind === 'close-done')
     return confirmClick(panel, control)
-  return diffClick(panel, control)
+  return diffClick(panel, control, inputs)
 }

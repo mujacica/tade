@@ -27,7 +27,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `input.ts` | What is selected in the line you type on and in the file you have open — one model for both (`spanOf`, `wordAt`, `clickedSpan`, `putCaret`, `cutSpan`, `rowStarts`) | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
 | `panels.ts` | The `Panel` union, `PanelInputs`, and the two dispatches — `panelKey` and `panelClick` — and nothing else | a terminal |
-| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, `summary` (one row of a list, in full), `away` (what the away view is listening as, the code to scan, who is asking in, and every paired device — the recipe is `add-away-surface`), and `small` for the ten that are one question each. Over four shared ones: `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow`, `listRow`/`ITEM` — the shell every panel is drawn in, down to how tall a row of its list is), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
+| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `diff` (the patch reader), `project`, `spend`, `menu`, `models`, `search`, `summary` (one row of a list, in full), `away` (what the away view is listening as, the code to scan, who is asking in, and every paired device — the recipe is `add-away-surface`), and `small` for the nine that are one question each. Over five shared ones: `comment` (the box a comment on a line is written in, which both diff panels open), `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow`, `listRow`/`ITEM` — the shell every panel is drawn in, down to how tall a row of its list is), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events, and which window a day is (`sinceOf`) | a terminal |
 | `queue-view.ts` | What the SMART QUEUE shows (`QueueView`, `shownBy`) and nothing about what is in it | a terminal |
 | `queue.ts` | What the queue says in words, including what an empty list says (`queueEmptySays`) | a terminal |
@@ -43,6 +43,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `wire/viewed.ts` | The one file the window has open: read once, coloured once, laid out for the width it has, and the rows git's answer makes of it — `files.ts` owns what is on disk *here*, this owns what is open | a terminal |
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
+| `comments.ts` | A comment on a line of a diff, the hunk it carries, and what Tade and an agent are each told (`forTade`, `forAgent`) | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Tade | a terminal |
 | `transcript.ts` | The conversation with the orchestrator as entries, folded from what it does | a terminal |
 | `flash.ts` | What is said back where you are looking: an acknowledgement's flash (`acknowledge`, `flashing`), and whether the conversation has something unread (`unreadSince`) | a terminal |
@@ -785,6 +786,14 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
     (`Router.applyPanel` → `loadFileDiff`): a toggle that appears only once it is on is one nobody
     finds twice. A save asks again, because what was saved is what the diff is now of. A file that
     matches its base says so in words — `+0 −0` is a figure drawn for an answer that is not one.
+  - **A line is written on, and the words are the person's** (`comments.ts`, the box in
+    `panels/comment.ts`, kept by `wire/comments.ts`): a line's number or `c` opens the box in the
+    file's one bar, as it does under the patch reader. It goes to Tade by default, or — tab, on the
+    same comment — to an agent over `steerAgent`, the one whose change it is first; one a line,
+    kept per review in memory and sent together. **The hunk is an agent's text**, so Tade is handed
+    it above `THEIR_WORDS` (`ask`'s `about`) and only the words go under it and into `said`, where
+    `namedBy` reads authority. What could not be delivered stays kept and is said. The away view
+    draws no diff, so it has no comments: a diff is a reading grant of its own (`add-away-surface`).
   - **It is never on with `formatted`**, for `asking`'s reason: laid-out Markdown has no line of the
     file to mark. Each turns the other off, so `showsDiff` is the one answer everything else reads,
     and the heading pins its own controls before the path, which gives way (`shownPath`) — a heading

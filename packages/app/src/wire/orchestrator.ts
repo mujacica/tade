@@ -477,8 +477,8 @@ export class Orchestrator implements Subject {
     }
   }
 
-  /** Free text, which only the orchestrator can answer. */
-  async ask(text: string): Promise<string> {
+  /** Free text, which only the orchestrator can answer; `about` is Tade's, above their words. */
+  async ask(text: string, about: string | null = null): Promise<string> {
     if (!this.thinker) return 'The orchestrator is still starting.'
     this.wire.put(
       withTranscript(this.wire.state, thinking(this.wire.state.transcript, this.wire.now())),
@@ -503,17 +503,13 @@ export class Orchestrator implements Subject {
     // projects open, "start an agent on the flaky test" is unanswerable
     // without it, and a remembered location is stale the moment a tab moves.
     const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
-    const message = withNews(
-      text,
-      this.newsWaiting,
-      clockOf,
-      THEIR_WORDS,
-      whereYouAre({
-        project: this.wire.state.project,
-        agent: pane ? shownName(pane) : null,
-        projects: this.wire.state.known,
-      }),
-    )
+    const here = whereYouAre({
+      project: this.wire.state.project,
+      agent: pane ? shownName(pane) : null,
+      projects: this.wire.state.known,
+    })
+    const above = [here, about].filter(Boolean).join('\n\n') || null
+    const message = withNews(text, this.newsWaiting, clockOf, THEIR_WORDS, above)
     this.newsWaiting = []
     try {
       return await this.thinker.ask(message, images)

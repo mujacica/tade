@@ -467,6 +467,8 @@ export interface Frame {
       | 'branch'
       | 'base'
       | 'diff'
+      | 'comments'
+      | 'commentTo'
       | 'choices'
       | 'settings'
       | 'accounts'

@@ -212,6 +212,31 @@ export class Window implements Subject {
     return this.kept
   }
 
+  /**
+   * The view the last window left, put back before the first frame: its sizes,
+   * the order of agents and projects, where you were in each, what was folded.
+   */
+  restoreView(): void {
+    const { sidebarWidth, stripHeight, order, projectOrder, spots, ...view } = this.recall()
+    const state = this.wire.state
+    this.wire.put({
+      ...state,
+      sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
+      order: order ?? {},
+      projectOrder: projectOrder ?? [],
+      // Where you were in each project, so coming back to one tomorrow is the
+      // same as coming back to it a second after leaving. Whatever it names
+      // may have gone since; `standingIn` is what checks that, at the tab.
+      spots: spots ?? {},
+      // Here rather than on the first tasks: the view you left is what the
+      // first frame draws, never a flash of what you had put away.
+      hidingDone: view.hidingDone ?? state.hidingDone,
+      folded: view.folded ?? state.folded,
+      opened: view.opened ?? state.opened,
+      queueViews: view.queueViews ?? state.queueViews,
+    })
+  }
+
   private read(): RememberedWindow | null {
     try {
       return asRemembered(JSON.parse(readFileSync(this.memoryFile, 'utf8')))

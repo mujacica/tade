@@ -12,7 +12,6 @@ import {
   type CloseDonePanel,
   type ConfirmPanel,
   type ConfirmRemovePanel,
-  type DiffPanel,
   type FindPanel,
   type KeysPanel,
   noteFacts,
@@ -623,75 +622,4 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
   return box(`Close ${count} finished agent${count === 1 ? '' : 's'}?`, rows, width, skin, {
     corner: 'esc',
   })
-}
-
-export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
-  const { skin } = ctx
-  const { width, rows: tall } = panelSize(ctx, { max: 96 })
-  // The diff keeps a column for its bar: it is the one panel where how far
-  // through a file you are is most of what you want to know.
-  const inner = width - 2 - BAR
-  const row = () => new Row(inner, skin, ctx.pointer)
-  const path = panel.files[panel.file] ?? ''
-  const name = panel.task.split('/').at(-1) ?? panel.task
-  const rows: Line[] = []
-  const parsed = ctx.diff
-
-  if (!parsed) {
-    rows.push(row().space().text('reading the diff…', skin.hint).build())
-  } else if (parsed.binary) {
-    rows.push(row().space().text('Binary — no lines to show.', skin.hint).build())
-  } else if (parsed.lines.length === 0) {
-    rows.push(row().space().text('No differences from its base.', skin.hint).build())
-  } else {
-    const numberWidth = String(
-      Math.max(...parsed.lines.map((line) => line.new ?? line.old ?? 0)),
-    ).length
-    for (const line of parsed.lines) {
-      const r = row().space()
-      if (line.kind === 'hunk') {
-        r.text(line.text, skin.hint)
-      } else {
-        const number = String((line.kind === 'remove' ? line.old : line.new) ?? '').padStart(
-          numberWidth,
-        )
-        r.text(number, skin.hint).space()
-        const sign = line.kind === 'add' ? '+ ' : line.kind === 'remove' ? '- ' : '  '
-        const tone =
-          line.kind === 'add' ? skin.done : line.kind === 'remove' ? skin.bad : (t: string) => t
-        r.text(`${sign}${line.text}`, tone)
-      }
-      rows.push(r.build())
-    }
-  }
-  const drawn = column(
-    {
-      body: { lines: rows, width: inner, scroll: panel.scroll },
-      foot: [
-        blank(inner),
-        row()
-          .space()
-          .button('Open in editor', { kind: 'control', id: 'editor' })
-          .space()
-          .button('Ask the agent about this', { kind: 'control', id: 'ask' })
-          .right((r) => {
-            if (panel.files.length > 1) {
-              r.text('‹', skin.signal, { kind: 'control', id: 'prev-file' })
-                .text(` ${panel.file + 1}/${panel.files.length} `, skin.hint)
-                .text('›', skin.signal, { kind: 'control', id: 'next-file' })
-                .space(2)
-            }
-            r.text('↑↓ scroll · ←→ file', skin.hint).space()
-          })
-          .build(),
-      ],
-      rows: tall,
-    },
-    ctx,
-  )
-  const counts =
-    parsed && !parsed.binary
-      ? `${skin.done(`+${parsed.added}`)} ${skin.bad(`−${parsed.removed}`)} `
-      : ''
-  return box(`${path} · ${name}`, drawn.rows, width, skin, { corner: `${counts}esc` })
 }

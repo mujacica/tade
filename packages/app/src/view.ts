@@ -165,6 +165,8 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     branch: extra.branch ?? null,
     base: extra.base ?? frame.base ?? null,
     diff: extra.diff ?? null,
+    comments: extra.comments ?? null,
+    commentTo: extra.commentTo ?? [],
     choices: extra.choices ?? [],
     settings: extra.settings ?? [],
     accounts: extra.accounts ?? [],

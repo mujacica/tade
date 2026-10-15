@@ -65,7 +65,7 @@ export const FLOOR: Record<string, number> = {
   // `src/wire/` is the hole and everything else here is over 89%: the pure
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
   // reaches lanes, files and the machine.
-  'packages/app': 85,
+  'packages/app': 88,
   'packages/harnesses/codex': 83,
   'packages/extensions/sentry': 84,
   // Went up when `checks_propose` went: what a project checks is read from its

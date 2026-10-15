@@ -1,9 +1,12 @@
+import type { LineComment } from '../../../src/comments.ts'
 import { type ParsedDiff, parseDiff } from '../../../src/diff.ts'
 import { offsetOf } from '../../../src/input.ts'
 import { initialState, toggleSection, withProjects } from '../../../src/model.ts'
+import type { CommentChoice } from '../../../src/panels/comment.ts'
+import { diffPanel } from '../../../src/panels/diff/state.ts'
 import { inlineRows } from '../../../src/panels/file/inline.ts'
 import { filePanel } from '../../../src/panels/file/state.ts'
-import { branchPanel, diffPanel } from '../../../src/panels/small/state.ts'
+import { branchPanel } from '../../../src/panels/small/state.ts'
 import {
   type Edited,
   editFrom,
@@ -116,6 +119,38 @@ const webhooksDiff = parseDiff(
 /** A word typed onto the line above the change, with the diff still drawn in. */
 const typedIntoChange = typeIn(editFrom(textLines(webhooksFile), 6, 51), ' // always')
 
+/** The patch the reader scenarios draw: one hunk of `src/webhooks.ts`. */
+const webhooksPatch = [
+  'diff --git a/src/webhooks.ts b/src/webhooks.ts',
+  '--- a/src/webhooks.ts',
+  '+++ b/src/webhooks.ts',
+  '@@ -38,5 +38,7 @@ export async function handle(req, res) {',
+  "   const sig = req.headers['stripe-signature']",
+  '-  const event = stripe.webhooks.constructEvent(body, sig, key)',
+  '+  const event = await stripe.webhooks.constructEventAsync(',
+  '+    body, sig, key, undefined, cryptoProvider,',
+  '+  )',
+  "   if (event.type === 'charge.refunded') {",
+  '     await refund(event)',
+].join('\n')
+
+/** Who a comment can go to, as the window offers it: Tade, then the agent whose change it is. */
+const CHOICES: CommentChoice[] = [
+  { to: 'tade', label: 'Tade' },
+  { to: { agent: 'checkout/stripe-v15' }, label: 'stripe-v15' },
+]
+
+/** A comment kept on the line the change took out. */
+const keptOnRemoved: LineComment = {
+  task: 'checkout/stripe-v15',
+  path: 'src/webhooks.ts',
+  line: 39,
+  side: 'old',
+  hunk: [],
+  words: 'why not keep the sync call behind a flag?',
+  to: 'tade',
+}
+
 export const FILE_SCREENS: Scenario[] = [
   {
     name: 'switching-branch',
@@ -163,21 +198,69 @@ export const FILE_SCREENS: Scenario[] = [
     },
     frame: frame({
       panel: {
-        diff: parseDiff(
-          [
-            'diff --git a/src/webhooks.ts b/src/webhooks.ts',
-            '--- a/src/webhooks.ts',
-            '+++ b/src/webhooks.ts',
-            '@@ -38,5 +38,7 @@ export async function handle(req, res) {',
-            "   const sig = req.headers['stripe-signature']",
-            '-  const event = stripe.webhooks.constructEvent(body, sig, key)',
-            '+  const event = await stripe.webhooks.constructEventAsync(',
-            '+    body, sig, key, undefined, cryptoProvider,',
-            '+  )',
-            "   if (event.type === 'charge.refunded') {",
-            '     await refund(event)',
-          ].join('\n'),
+        diff: parseDiff(webhooksPatch),
+      },
+    }),
+  },
+  {
+    name: 'commenting-on-a-diff-line',
+    about:
+      'A comment being written on a line of the patch reader, to the agent whose change it is, with one already kept on the line it replaced.',
+    state: {
+      ...base(),
+      panel: {
+        ...diffPanel(
+          'checkout/stripe-v15',
+          ['package.json', 'src/webhooks.ts', 'src/webhooks.test.ts'],
+          1,
         ),
+        at: 3,
+        following: true,
+        composing: {
+          line: 39,
+          side: 'new',
+          git: 39,
+          text: '  const event = await stripe.webhooks.constructEventAsync(',
+          words: 'does this need the crypto provider on Node 18 too?',
+          to: { agent: 'checkout/stripe-v15' },
+        },
+      },
+    },
+    frame: frame({
+      panel: {
+        diff: parseDiff(webhooksPatch),
+        comments: { here: [keptOnRemoved], total: 2 },
+        commentTo: CHOICES,
+      },
+    }),
+  },
+  {
+    name: 'comments-kept-on-a-diff',
+    about:
+      'The patch reader with comments kept: a dot by each line, the marked one’s words under it, and Send.',
+    state: {
+      ...base(),
+      panel: {
+        ...diffPanel(
+          'checkout/stripe-v15',
+          ['package.json', 'src/webhooks.ts', 'src/webhooks.test.ts'],
+          1,
+        ),
+        at: 2,
+        following: true,
+      },
+    },
+    frame: frame({
+      panel: {
+        diff: parseDiff(webhooksPatch),
+        comments: {
+          here: [
+            keptOnRemoved,
+            { ...keptOnRemoved, line: 41, side: 'new', words: 'trailing comma?', to: 'tade' },
+          ],
+          total: 3,
+        },
+        commentTo: CHOICES,
       },
     }),
   },
@@ -228,6 +311,40 @@ export const FILE_SCREENS: Scenario[] = [
         homeDir: '/Users/me',
         diff: webhooksDiff,
         viewing: viewing(webhooksFile, undefined, webhooksDiff),
+      },
+    }),
+  },
+  {
+    name: 'commenting-on-a-change-in-the-editor',
+    about:
+      'A line’s number pressed in a changed file: the comment box in the bar, to Tade, and a dot by a line commented on already.',
+    state: {
+      ...base(),
+      panel: {
+        ...filePanel('/Users/me/src/checkout/src/webhooks.ts', 9, false, true),
+        asking: {
+          kind: 'comment',
+          box: {
+            line: 9,
+            side: 'new',
+            git: 9,
+            text: '  const event = await stripe.webhooks.constructEventAsync(',
+            words: 'is the await safe inside the retry loop?',
+            to: 'tade',
+          },
+        },
+      },
+    },
+    frame: frame({
+      panel: {
+        homeDir: '/Users/me',
+        diff: webhooksDiff,
+        viewing: viewing(webhooksFile, undefined, webhooksDiff),
+        comments: {
+          here: [{ ...keptOnRemoved, line: 8, side: 'new', words: 'name it provider' }],
+          total: 2,
+        },
+        commentTo: CHOICES,
       },
     }),
   },

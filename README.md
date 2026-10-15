@@ -162,10 +162,15 @@ Every file an agent touches, marked the way git marks it. Click one and it opens
 editor with git's answer drawn into it — added lines green, the lines that were there red — where you
 can fix it and press ctrl+s, rather than read it here and go and fix it somewhere else.
 
+Or say something about it: press a line's number, or `c`, and write on that line. A comment goes to
+Tade as your own words, anchored at `file:line` with its hunk beside it, or — tab, on the same
+comment — straight to the agent whose change it is. Write on as many lines as you like, in this file
+or the patch reader, and send them together.
+
 <table>
 <tr>
 <td width="30%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
-<td width="70%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/diff.svg" alt="A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it"></td>
+<td width="70%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/diff.svg" alt="A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it and a comment being written on a line"></td>
 </tr>
 </table>
 

@@ -3,8 +3,8 @@ import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The panels that are one question each.
 //
-// Ten of them — a confirmation, a line of text asked for, a list of branches,
-// a diff, the shortcuts sheet — none over a hundred lines of state and none
+// Nine of them — a confirmation, a line of text asked for, a list of branches,
+// the shortcuts sheet — none over a hundred lines of state and none
 // with anything the others need. A folder apiece would be indirection for its
 // own sake, so they share one, and the threshold is the plan's: a panel gets a
 // folder of its own when its two halves pass about 250 lines.
@@ -47,18 +47,6 @@ export interface CloseDonePanel {
   field: 'keep' | 'remove'
   busy: boolean
   error: string | null
-}
-
-/** A changed file, read-only, a hunk at a time. */
-export interface DiffPanel {
-  kind: 'diff'
-  task: string
-  /** The changed files, and which one is shown. */
-  files: string[]
-  file: number
-  /** Lines scrolled past. */
-  scroll: number
-  busy: false
 }
 
 /**
@@ -321,10 +309,6 @@ export function confirmRemovePanel(task: string, unread: string | null = null): 
   return { kind: 'confirm-remove', task, unread, field: 'keep', busy: false, error: null }
 }
 
-export function diffPanel(task: string, files: readonly string[], file = 0): DiffPanel {
-  return { kind: 'diff', task, files: [...files], file: Math.max(0, file), scroll: 0, busy: false }
-}
-
 /** Typing narrows; enter and ↑ go to an older match, ↓ to a newer one. */
 export function findKey(
   panel: FindPanel,
@@ -430,25 +414,6 @@ export function confirmKey(
       : { panel: { ...panel, busy: true, error: null }, submit: true }
   }
   return stay(panel)
-}
-
-export function diffKey(panel: DiffPanel, key: string | undefined): PanelOutcome {
-  if (key === 'escape' || key === 'enter') return close
-  if (key === 'left' || key === 'right') return stay(stepFile(panel, key === 'left' ? -1 : 1))
-  const by = pageBy(key)
-  return by === null ? stay(panel) : stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
-}
-
-export function diffClick(panel: DiffPanel, control: string): PanelOutcome {
-  if (control === 'prev-file') return stay(stepFile(panel, -1))
-  if (control === 'next-file') return stay(stepFile(panel, 1))
-  if (control === 'editor' || control === 'ask') return { panel, submit: true, choice: control }
-  return stay(panel)
-}
-
-function stepFile(panel: DiffPanel, delta: number): DiffPanel {
-  const count = Math.max(1, panel.files.length)
-  return { ...panel, file: (panel.file + delta + count) % count, scroll: 0 }
 }
 
 /**

@@ -13,11 +13,12 @@ import {
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { focusTask, shownName, toggleFolder, viewLane } from '../model.ts'
+import { type DiffPanel, diffPanel } from '../panels/diff/state.ts'
 import { type FilePanel, filePanel, savedFile, showsDiff } from '../panels/file/state.ts'
 import { fileBodySize } from '../panels/file/view.ts'
 import { branchMenuItems, changeMenuItems, fileMenuItems } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
-import { type BranchRow, branchPanel, diffPanel, promptPanel } from '../panels/small/state.ts'
+import { type BranchRow, branchPanel, promptPanel } from '../panels/small/state.ts'
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
@@ -70,6 +71,8 @@ export interface FilesDeps {
   selectedInFile(): string | null
   /** Put a selection on the clipboard, said as how much of it there was. */
   copySelection(text: string): Promise<void>
+  /** A comment kept, or every comment sent: the comments' own (`wire/comments.ts`). */
+  comment(panel: FilePanel | DiffPanel, choice: string): Promise<void>
 }
 
 export class Files implements Subject {
@@ -120,6 +123,7 @@ export class Files implements Subject {
       text: this.textAt(panel),
       branches: this.branchRows,
       ...(panel?.kind === 'file' ? { diffRows: this.viewed.rows(panel.edit) } : {}),
+      ...(panel?.kind === 'diff' ? { patch: this.diff } : {}),
       ...(file ? { lines: this.lines(), body: file.rows, columns: file.columns } : {}),
     }
   }
@@ -196,6 +200,7 @@ export class Files implements Subject {
       branch: (_panel, choice) => this.switchBranch(choice ?? ''),
       confirm: (panel) => this.discard(panel.task, panel.path),
       file: async (panel, choice) => {
+        if (choice === 'comment' || choice === 'send') return this.deps.comment(panel, choice)
         if (choice === 'editor') {
           this.wire.put({ ...this.wire.state, panel: null })
           await this.openPlace({
@@ -216,6 +221,7 @@ export class Files implements Subject {
       diff: async (panel, choice) => {
         const path = panel.files[panel.file]
         if (!path) return
+        if (choice === 'comment' || choice === 'send') return this.deps.comment(panel, choice)
         if (choice === 'editor') {
           this.wire.put({ ...this.wire.state, panel: null })
           await this.openPlace({ path })
@@ -733,6 +739,25 @@ export class Files implements Subject {
       .write(pane.lane as LaneId, new TextEncoder().encode(`Look at ${path}: `))
       .catch(() => {})
   }
+  /**
+   * The change a diff panel is showing, for a comment on it: whose it is (`''`
+   * for the checkout's own), the file as git names it there, and git's answer.
+   */
+  shown(): { task: string; path: string; diff: ParsedDiff | null } | null {
+    const panel = this.wire.state.panel
+    if (panel?.kind === 'diff') {
+      const path = panel.files[panel.file]
+      return path ? { task: panel.task, path, diff: this.diff } : null
+    }
+    if (panel?.kind !== 'file') return null
+    const task = this.viewed.about()
+    const root = (task ? this.wire.live?.worktreeOf(task) : null) ?? this.hereOnDisk()
+    const inside = root ? relative(root, panel.path) : ''
+    const path =
+      inside === '' || inside.startsWith('..') || isAbsolute(inside) ? panel.path : inside
+    return { task: task ?? '', path, diff: this.viewed.diff() }
+  }
+
   /** How many lines the viewer has to scroll through, as it is showing the file now. */
   lines(): number {
     const panel = this.wire.state.panel

@@ -247,11 +247,12 @@ export const PICTURES: readonly Picture[] = [
   },
   {
     file: 'diff.svg',
-    scenario: 'a-change-in-the-editor',
+    scenario: 'commenting-on-a-change-in-the-editor',
     crop: 'panel',
     about:
       'A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it — ' +
-      'added lines green, the line that was there red, and ctrl+s to save what you fix.',
+      'added lines green, the line that was there red — and a comment being written on a line, ' +
+      'to Tade, with another kept and both waiting to be sent.',
   },
   {
     file: 'search.svg',

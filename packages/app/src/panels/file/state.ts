@@ -23,6 +23,7 @@ import {
   matchesIn,
   typeIn,
 } from '../../viewer.ts'
+import { type Composing, composeKey, composeOn, nextTo } from '../comment.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 import { drawnRow, type InlineRow, lineAtRow } from './inline.ts'
 
@@ -77,10 +78,11 @@ export interface FilePanel {
   busy: false
 }
 
-/** Finding in the file, or going to a line: whichever bar is open. */
+/** Finding in the file, going to a line, or writing on one: whichever bar is open. */
 export type FileAsk =
   | { kind: 'find'; query: string; index: number }
   | { kind: 'goto'; digits: string }
+  | { kind: 'comment'; box: Composing }
 
 /**
  * A file, opened at a line when there is one: a few lines of what comes before
@@ -179,6 +181,11 @@ export function fileKey(
       return stay(asking(panel, { kind: 'goto', digits: '' }))
     case 'ctrl+d':
       return stay(withInline(panel, inputs))
+    case 'c':
+    case 'ctrl+r':
+      return stay(commentOn(panel, readingLine(panel, inputs), inputs))
+    case 's':
+      return (inputs.drafted ?? 0) > 0 ? { panel, submit: true, choice: 'send' } : stay(panel)
     case 'down':
       return to(panel.scroll + 1)
     case 'up':
@@ -229,6 +236,7 @@ function typingKey(
   if (key === 'ctrl+f') return stay(asking(panel, { kind: 'find', query: '', index: 0 }))
   if (key === 'ctrl+g') return stay(asking(panel, { kind: 'goto', digits: '' }))
   if (key === 'ctrl+d') return stay(withInline(panel, inputs))
+  if (key === 'ctrl+r') return stay(commentOn(panel, edit.row, inputs))
   if (key === 'escape') return edit.dirty && !panel.warned ? stay(warn(panel)) : close
   const selected = fileSelection(panel)
   // With its modifiers in one order, because a terminal reports them in its
@@ -398,6 +406,13 @@ function askKey(
   const body = Math.max(1, inputs.body ?? 20)
   const text = inputs.text ?? []
   const rows = shownRows(panel, inputs)
+  if (ask.kind === 'comment') {
+    const answer = composeKey(ask.box, key, data, inputs.commentTo ?? [])
+    if ('composing' in answer)
+      return stay({ ...panel, asking: { kind: 'comment', box: answer.composing } })
+    if (answer.done === 'keep') return { panel, submit: true, choice: 'comment' }
+    return stay({ ...panel, asking: null })
+  }
   if (key === 'escape') return stay({ ...panel, asking: null })
   if (ask.kind === 'goto') {
     if (key === 'enter') {
@@ -500,6 +515,17 @@ export function fileClick(panel: FilePanel, control: string, inputs: PanelInputs
     const anchor = how === 'put' ? null : (panel.anchor ?? was)
     return stay(putCaretIn(panel, caretAt(edit, at, column), anchor))
   }
+  // `comment:<line>` — a line's number, pressed: the box opens on that line.
+  if (control.startsWith('comment:'))
+    return stay(commentOn(panel, Number(control.slice('comment:'.length)), inputs))
+  const box = panel.asking?.kind === 'comment' ? panel.asking.box : null
+  if (control === 'comment-keep' && box) return { panel, submit: true, choice: 'comment' }
+  if (control === 'comment-shut') return stay({ ...panel, asking: null })
+  if (control === 'comment-to' && box) {
+    const to = nextTo(box.to, inputs.commentTo ?? [], 1)
+    return stay({ ...panel, asking: { kind: 'comment', box: { ...box, to } } })
+  }
+  if (control === 'send') return { panel, submit: true, choice: 'send' }
   // The bar's own arrows: the same step its keys take.
   if (control === 'match-next' || control === 'match-previous') {
     const ask = panel.asking
@@ -530,4 +556,38 @@ export function fileClick(panel: FilePanel, control: string, inputs: PanelInputs
     default:
       return stay(panel)
   }
+}
+
+/**
+ * The line a comment goes on when nothing says which: the line gone to, else
+ * the first line added at or under the top of the view, else the top of it.
+ */
+function readingLine(panel: FilePanel, inputs: PanelInputs): number {
+  if (panel.line) return panel.line - 1
+  const rows = shownRows(panel, inputs)
+  for (let at = panel.scroll; rows && at < rows.length; at++) {
+    const row = rows[at]
+    if (row?.kind === 'add' && row.line !== null) return row.line
+  }
+  return lineAtRow(rows, panel.scroll)
+}
+
+/**
+ * The comment box opened on a line of the file, holding what is already kept
+ * there. The number is the line as it is drawn; the one git gave it is what
+ * finds its hunk, and a line typed since git was asked has none.
+ */
+function commentOn(panel: FilePanel, line: number, inputs: PanelInputs): FilePanel {
+  const lines = panel.edit?.lines ?? inputs.text ?? []
+  if (panel.formatted || line < 0 || line >= lines.length) return panel
+  const from = panel.edit ? (panel.edit.from[line] ?? -1) : line
+  const kept = inputs.comments?.find((one) => one.side === 'new' && one.line === line + 1) ?? null
+  const box = composeOn(
+    { line: line + 1, side: 'new', git: from >= 0 ? from + 1 : null, text: lines[line] ?? '' },
+    kept,
+  )
+  // Typing, the caret is already on the line, and stays where it was in it.
+  const opened = asking(panel, { kind: 'comment', box })
+  if (panel.edit) return opened
+  return atLine(opened, line + 1, Math.max(1, inputs.body ?? 20), shownRows(panel, inputs))
 }

@@ -1,4 +1,5 @@
 import type { SettingGroup } from '@tade/core'
+import type { LineComment } from '../comments.ts'
 import type { ParsedDiff } from '../diff.ts'
 import type { Change, IntakeOpenView, RowSummaryView, WorkflowView } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
@@ -11,6 +12,8 @@ import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
 import type { AwayView } from './away/view.ts'
 import { away } from './away/view.ts'
+import type { CommentChoice } from './comment.ts'
+import { diff } from './diff/view.ts'
 import type { SetupFieldView } from './extensions/setup.ts'
 import type { ExtensionView, McpServerOffer, WrittenToolView } from './extensions/state.ts'
 import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
@@ -33,7 +36,6 @@ import {
   closeDone,
   confirm,
   confirmRemove,
-  diff,
   find,
   keysSheet,
   prompt,
@@ -87,6 +89,13 @@ export interface PanelContext {
    * patch the diff panel draws, and the counts in the file panel's heading.
    */
   diff: ParsedDiff | null
+  /**
+   * The comments kept on the review a diff panel is showing: those on the file
+   * in front of you, and how many there are in all — which is what Send sends.
+   */
+  comments?: { here: readonly LineComment[]; total: number } | null
+  /** Who a comment can go to: Tade, then the agent whose change it is, then the rest. */
+  commentTo?: readonly CommentChoice[]
   /** Models an agent can be started on. */
   choices: readonly Choice[]
   /** Every setting, grouped, as it is now. */
