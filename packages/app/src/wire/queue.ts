@@ -278,7 +278,7 @@ export class Queue implements Subject {
       }
     }
     if (started.length > 0) await live.refresh()
-    await this.forecast.look().catch(() => {})
+    await this.forecast.look()
     // Drawn where it did something: what it says goes in the conversation
     // (`said`), and a beat with nothing ready — nearly every beat — says nothing.
     if (started.length > 0 || this.wire.state.transcript !== transcript) this.wire.draw()

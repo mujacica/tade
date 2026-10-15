@@ -43,14 +43,28 @@ export class Forecast {
    * pass in between telling it twice.
    */
   private readonly written = new Map<string, string | null>()
+  /** Why the last forecast could not be written down or told, once said; null while it can. */
+  private trouble: string | null = null
 
   constructor(wire: Wiring, deps: ForecastDeps) {
     this.wire = wire
     this.deps = deps
   }
 
-  /** Tell what is new in the last look's forecast, and write down what has gone. */
+  /**
+   * Tell what is new in the last look's forecast, and write down what has gone.
+   * Never throws: what stops it is said once, in the conversation, and the next
+   * pass tries again — nothing it could not tell is counted as told.
+   */
   async look(): Promise<void> {
+    try {
+      await this.tellNew()
+    } catch (err) {
+      this.troubled(err)
+    }
+  }
+
+  private async tellNew(): Promise<void> {
     const live = this.wire.live
     const world = live?.world
     if (!live || !world) return
@@ -64,7 +78,9 @@ export class Forecast {
       for (const conflict of tell) {
         if (!(await this.write(project.name, conflict, false))) continue
         this.deps.said(conflictLine(conflict))
-        void this.deps.tell(this.says(conflict, project.tasks, live.queued)).catch(() => {})
+        void this.deps
+          .tell(this.says(conflict, project.tasks, live.queued))
+          .catch((err) => this.troubled(err))
       }
     }
   }
@@ -111,10 +127,20 @@ export class Forecast {
     }
     try {
       await this.wire.opts.client.log.append(line)
-    } catch {
+    } catch (err) {
+      this.troubled(err)
       return false
     }
     this.written.set(key, files)
+    this.trouble = null
     return true
+  }
+
+  /** Say what went wrong, once for as long as it keeps going wrong the same way. */
+  private troubled(err: unknown): void {
+    const why = err instanceof Error ? err.message : String(err)
+    if (why === this.trouble) return
+    this.trouble = why
+    this.deps.said(`could not tell the orchestrator about work that would collide: ${why}`)
   }
 }
