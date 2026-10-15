@@ -52,10 +52,20 @@ describe('the window, taking a keystroke', () => {
         terminal.press(`\x1b[${char.codePointAt(0)};1:3u`)
       }
     }
-    // A line thrown away with ctrl+c, and one run.
+    const lineOf = (text: string) =>
+      screenOf(terminal.written).findLastIndex((row) => row.includes(text))
+    /** The row the shell's caret is on: a block with the shell's text before it and only the bar after. */
+    const caret = () => screenOf(terminal.written).findLastIndex((row) => /\S *█ +[▕█]$/.test(row))
+    // A line thrown away with ctrl+c, and one run — typed at the prompt
+    // ctrl+c gives back, as a person types it. Bash 5 handed `echo two` while
+    // it is still taking ctrl+c loses the first letter and runs `cho two`:
+    // the shell's own race, the same with no Tade in between, and one no hand
+    // is quick enough to lose.
     typing('echo one')
+    await until('the shell to show what was typed', () => lineOf('echo one') >= 0)
     terminal.press('\x1b[99;5u')
     terminal.press('\x1b[99;5:3u')
+    await until('a fresh prompt below the line thrown away', () => caret() > lineOf('echo one'))
     typing('echo two')
     terminal.press('\r')
     await until('the shell to say two', () => said('two'), 20_000)
