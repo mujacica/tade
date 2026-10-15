@@ -207,7 +207,9 @@ export function bottomTabs(
 
   const controls = (r: Row) => {
     if (activeTerminal(state)) {
-      r.button('⌕', { kind: 'action', name: 'find-terminal' }).space()
+      // A word, not `⌕`: no font Tade can count on has a magnifier, and
+      // Ghostty drew Menlo's at Menlo's size and place, off the button's middle.
+      r.button('find', { kind: 'action', name: 'find-terminal' }).space()
     }
     // Arrows the terminal's own font has. `⤢` and `⤡` are in neither
     // JetBrains Mono (Ghostty's) nor SF Mono (Terminal's), and Ghostty drew
