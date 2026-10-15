@@ -52,23 +52,53 @@ describe('the window, taking a keystroke', () => {
         terminal.press(`\x1b[${char.codePointAt(0)};1:3u`)
       }
     }
-    const lineOf = (text: string) =>
-      screenOf(terminal.written).findLastIndex((row) => row.includes(text))
-    /** The row the shell's caret is on: a block with the shell's text before it and only the bar after. */
-    const caret = () => screenOf(terminal.written).findLastIndex((row) => /\S *█ +[▕█]$/.test(row))
+    /**
+     * One look at the screen: the row the last `text` on it ends on, and the
+     * row the shell's caret is on — a block with the shell's text before it
+     * and only the bar after. From the same look, because a shell at the
+     * bottom of a full pane moves every row up as it prints. The rows are read
+     * as one run without the bar down their right, so a prompt that wraps
+     * what was typed onto the next row — a runner's hostname, a path under
+     * `/var/folders` — wraps it here too.
+     */
+    const look = (text: string) => {
+      const rows = screenOf(terminal.written)
+      let run = ''
+      const ends = rows.map((row) => {
+        run += row.replace(/[\s▕█]+$/, '')
+        return run.length
+      })
+      const at = run.lastIndexOf(text)
+      return {
+        ends: at < 0 ? -1 : ends.findIndex((end) => end >= at + text.length),
+        caret: rows.findLastIndex((row) => /\S *█ +[▕█]$/.test(row)),
+      }
+    }
+    /** A wait that failed, with what was on screen and where the tab it clicked was. */
+    const onScreen = (error: Error): never => {
+      const screen = screenOf(terminal.written).join('\n')
+      throw new Error(
+        `${error.message}, terminal 1 at ${tab.row}:${tab.col}, on screen:\n${screen}`,
+      )
+    }
     // A line thrown away with ctrl+c, and one run — typed at the prompt
     // ctrl+c gives back, as a person types it. Bash 5 handed `echo two` while
     // it is still taking ctrl+c loses the first letter and runs `cho two`:
     // the shell's own race, the same with no Tade in between, and one no hand
     // is quick enough to lose.
     typing('echo one')
-    await until('the shell to show what was typed', () => lineOf('echo one') >= 0)
+    await until('the shell to show what was typed', () => look('echo one').ends >= 0).catch(
+      onScreen,
+    )
     terminal.press('\x1b[99;5u')
     terminal.press('\x1b[99;5:3u')
-    await until('a fresh prompt below the line thrown away', () => caret() > lineOf('echo one'))
+    await until('a fresh prompt below the line thrown away', () => {
+      const { ends, caret } = look('echo one')
+      return caret > ends
+    }).catch(onScreen)
     typing('echo two')
     terminal.press('\r')
-    await until('the shell to say two', () => said('two'), 20_000)
+    await until('the shell to say two', () => said('two'), 20_000).catch(onScreen)
     expect(said('one')).toBe(false)
     const rows = screenOf(terminal.written)
     expect(rows.join('\n')).not.toContain(';1:3u')
