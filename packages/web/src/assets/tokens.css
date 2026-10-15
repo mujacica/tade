@@ -80,8 +80,8 @@
     **not** AAA. So it is used for figures and hints only, and **never** as the
     only statement of a fact: anything that is takes `--heading`.
     `test/design.test.ts` holds it to that by requiring every rule that sets it
-    to set a size in the same block. It is the window's `tab` grey rather than
-    its `quiet` one, which is 4.32:1 on this ground and so never a word here.
+    to set a size in the same block. It is the window's `quiet` and `tab` grey;
+    `quiet` was 244 there, which is 4.32:1 on this ground and 3.5 on Ghostty's.
   */
   --quiet: #949494; /* 246 · 5.62 · figures and hints */
   --tab: #949494; /* 246 · 5.62 · a tab or an icon you are not on */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { COLOUR, contrast, inkOn, type Look, PLAIN } from '../src/skin.ts'
+import { highlight } from '../src/highlight.ts'
+import { COLOUR, contrast, inkOn, type Look, PLAIN, QUIET, type Rgb } from '../src/skin.ts'
 
 // What can be read, and what cannot.
 //
@@ -104,5 +105,52 @@ describe('what a label is painted with', () => {
       const bare = COLOUR.button('Label', look).replaceAll(ANY, '')
       expect(bare.length, look).toBe(plain.length)
     }
+  })
+})
+
+/**
+ * The grounds the window's own words are drawn on. Tade paints no ground under
+ * them, so they are the terminal's: Ghostty's default (`ghostty +show-config
+ * --default`, the `#282c34` that read as a lighter blue), Terminal's Basic
+ * profile in the dark (macOS's text background), and the one the README's
+ * pictures and the away view are drawn on.
+ */
+const GROUNDS: Readonly<Record<string, Rgb>> = {
+  Ghostty: [0x28, 0x2c, 0x34],
+  'Terminal, Basic, dark': [0x1e, 0x1e, 0x1e],
+  'the pictures': [0x1c, 0x1c, 0x1c],
+}
+
+/**
+ * Every look that is words on that ground. Not `faded`, which is the window
+ * behind a panel and is meant to recede, nor `chrome` and `edge`, which are rules.
+ */
+const SAID = [
+  'brand',
+  'signal',
+  'tab',
+  'label',
+  'waiting',
+  'busy',
+  'bad',
+  'done',
+  'you',
+  'hint',
+  'link',
+] as const
+
+describe("what is said on the terminal's own ground", () => {
+  it.each(SAID)('reads on every ground a terminal gives it: %s', (look) => {
+    const ink = Number(COLOUR[look]('x').match(INK)?.[1])
+    for (const [name, ground] of Object.entries(GROUNDS)) {
+      expect(contrast(ink, ground), `${look} on ${name}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('says a comment in the grey every other hint is said in', () => {
+    // The highlighter paints in codes rather than through a skin, so it is the
+    // one place a quiet grey could go on being the old one.
+    expect(Number(COLOUR.hint('x').match(INK)?.[1])).toBe(QUIET)
+    expect(highlight('// why', 'ts').join('')).toContain(`${ESC}[38;5;${QUIET};3m`)
   })
 })

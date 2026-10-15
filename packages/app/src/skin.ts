@@ -297,10 +297,16 @@ const GREY = {
   chrome: 240,
   /** A control under the pointer. */
   hovered: 241,
-  /** Said quietly: hints, paths, prices. */
-  quiet: 244,
   /** A panel's edge, a step brighter than the chrome it floats over. */
   edge: 245,
+  /**
+   * Said quietly: hints, paths, prices. The darkest grey still 4.5:1 on the
+   * grounds it is drawn on, which are the terminal's: Ghostty's `#282c34`
+   * (4.6), Terminal's Basic in the dark, `#1e1e1e` (5.5), and the pictures'
+   * `#1c1c1c` (5.6). 244 was 3.5 on Ghostty. The same grey as `tab`, and as
+   * the away view's `--quiet`, which chose it for the same reason.
+   */
+  quiet: 246,
   /** A tab you are not on. */
   tab: 246,
   /** A section heading. */
@@ -310,6 +316,9 @@ const GREY = {
   /** What you are typing, and the names that matter. */
   bright: 255,
 } as const
+
+/** The quiet grey, for the tables that paint in codes: Markdown, the highlighter. */
+export const QUIET = GREY.quiet
 
 /**
  * The amber the big wordmark is shaded with, light at the crown: the corner
@@ -388,18 +397,21 @@ function rgbOf(tone: number): [number, number, number] {
   return [level(Math.floor(at / 36)), level(Math.floor(at / 6) % 6), level(at % 6)]
 }
 
+/** A colour as red, green and blue: a ground the terminal's theme chose. */
+export type Rgb = readonly [number, number, number]
+
 /** Relative luminance, the WCAG one: 0 for black, 1 for white. */
-function luminance(tone: number): number {
+function luminance(colour: number | Rgb): number {
   const channel = (value: number) => {
     const part = value / 255
     return part <= 0.03928 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4
   }
-  const [r, g, b] = rgbOf(tone)
+  const [r, g, b] = typeof colour === 'number' ? rgbOf(colour) : colour
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 }
 
-/** How far apart two tones are, as the WCAG ratio: 1 for the same, 21 at most. */
-export function contrast(a: number, b: number): number {
+/** How far apart two colours are, as the WCAG ratio: 1 for the same, 21 at most. */
+export function contrast(a: number | Rgb, b: number | Rgb): number {
   const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x)
   return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05)
 }

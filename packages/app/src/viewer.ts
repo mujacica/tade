@@ -2,6 +2,7 @@ import { closeSync, openSync, readSync, statSync, writeFileSync } from 'node:fs'
 import { Markdown, type MarkdownTheme, visibleWidth } from '@earendil-works/pi-tui'
 import { highlight, languageOf } from './highlight.ts'
 import { placeOf, type Span, wordStep } from './input.ts'
+import { QUIET } from './skin.ts'
 
 // A file, read to be looked at inside the window — and typed into, a little.
 //
@@ -169,7 +170,7 @@ const same = (text: string) => text
 const COLOUR_THEME: MarkdownTheme = {
   heading: paint('38;5;80;1'),
   link: paint('38;5;75;4'),
-  linkUrl: paint('38;5;244'),
+  linkUrl: paint(`38;5;${QUIET}`),
   code: paint('38;5;114'),
   codeBlock: paint('38;5;252'),
   codeBlockBorder: () => FENCE,
@@ -213,7 +214,7 @@ const MARKS: Readonly<Record<string, (text: string) => string>> = {
   '✗': paint('38;5;203'),
   '◐': paint('38;5;176'),
   '▲': paint('38;5;176'),
-  '○': paint('38;5;244'),
+  '○': paint(`38;5;${QUIET}`),
 }
 
 /**

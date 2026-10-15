@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { QUIET } from './skin.ts'
 
 /**
  * The part of highlight.js used here. Loaded without its own type definitions:
@@ -145,8 +146,8 @@ const TOKENS: Record<string, string> = {
   function: '38;5;252',
   title: '38;5;80',
   params: '38;5;252',
-  comment: '38;5;243;3',
-  doctag: '38;5;244;1',
+  comment: `38;5;${QUIET};3`,
+  doctag: `38;5;${QUIET};1`,
   // No `meta-keyword` or `meta-string` beside this: highlight.js 11 nests them
   // inside `meta` instead, and the stack above already ends on the inner kind,
   // so the colour is the same one this map used to name twice.
@@ -164,7 +165,7 @@ const TOKENS: Record<string, string> = {
   emphasis: '3',
   strong: '1',
   link: '38;5;75;4',
-  quote: '38;5;243;3',
+  quote: `38;5;${QUIET};3`,
   selector: '38;5;81',
   'selector-tag': '38;5;176',
   'selector-id': '38;5;216',
