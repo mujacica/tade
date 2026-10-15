@@ -29,20 +29,25 @@ describe('the window, and a comment on a line of a change', () => {
   })
 
   /** A task that changed `ledger.ts`, opened from CHANGES with its diff drawn in — or read as a patch. */
-  async function openChange(asked: string[], patch = false): Promise<void> {
+  async function openChange(asked: string[] | null, patch = false): Promise<void> {
     repo.commit('a ledger', { 'ledger.ts': BEFORE })
     const worktree = repo.addTask('ledger', { project: 'app', intent: 'the rate is wrong' })
     writeFileSync(join(worktree, 'ledger.ts'), AFTER)
     terminal.rows = 44
     terminal.columns = 120
-    await start({
-      thinker: {
-        ask: async (text: string) => {
-          asked.push(text)
-          return ''
-        },
-      },
-    })
+    // No list, no orchestrator: the window as it is before one has started.
+    await start(
+      asked
+        ? {
+            thinker: {
+              ask: async (text: string) => {
+                asked.push(text)
+                return ''
+              },
+            },
+          }
+        : {},
+    )
     await until('its changed file in CHANGES', () =>
       screenOf(terminal.written).some((row) => row.includes('ledger.ts') && row.includes('+2 −1')),
     )
@@ -186,5 +191,26 @@ describe('the window, and a comment on a line of a change', () => {
     expect(words).toBe('two, really?')
     expect(above).toContain('ledger.ts:1 — on app/ledger’s change')
     expect(above).toContain('-export const rate = 1\n+export const rate = 2')
+  })
+
+  it('keeps comments for Tade while there is no orchestrator to ask, and says so', async () => {
+    await openChange(null)
+    terminal.press('c')
+    await until('the box', () => terminal.written.includes('On line 1'))
+    type('when it starts')
+    terminal.press('\r')
+    await until('it kept', () => terminal.written.includes('Send 1'))
+    terminal.press('s')
+    terminal.press('\x1b')
+    await until('the reason', () =>
+      screenOf(terminal.written).some((row) => row.includes('not listening yet')),
+    )
+    // Nothing was said on their behalf, and the comment is still there to send.
+    expect(await client.events({ types: ['said'] })).toEqual([])
+    const row = find('+2 −1')
+    click(row.col, row.row)
+    await until('it still kept', () =>
+      screenOf(terminal.written).some((one) => one.includes('Send 1')),
+    )
   })
 })

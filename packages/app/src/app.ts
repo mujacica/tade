@@ -410,7 +410,7 @@ export class App {
     this.comments = new Comments(this.wire, {
       shown: () => this.files.shown(),
       ask: (words, about) => this.orchestrator.ask(words, about),
-      listening: () => this.voice.ready,
+      listening: () => this.orchestrator.started,
       remember: (words) => this.keyboard.remember(words),
     })
     this.mouse = new Mouse(this.wire, {

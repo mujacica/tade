@@ -35,7 +35,7 @@ export interface CommentsDeps {
   shown(): { task: string; path: string; diff: ParsedDiff | null } | null
   /** The orchestrator asked as a turn of the person's: their words, and Tade's paragraph above them. */
   ask(words: string, about: string): Promise<string>
-  /** Whether there is an orchestrator to ask, as typing to it asks. */
+  /** Whether there is an orchestrator to ask yet: comments for it wait, kept, until there is. */
   listening(): boolean
   /** Their words, written down as they said them (`said`). */
   remember(words: string): void

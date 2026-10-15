@@ -206,6 +206,11 @@ export class Orchestrator implements Subject {
     }
   }
 
+  /** Whether there is an orchestrator to ask yet: it is started after the window opens. */
+  get started(): boolean {
+    return this.thinker !== null
+  }
+
   offers(): Thinker['offers'] | null {
     return this.thinker?.offers ?? null
   }
