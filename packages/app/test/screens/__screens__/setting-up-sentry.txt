@@ -21,7 +21,7 @@
        webho│                 your project: its Sentry project, comma separated                           ▕│            
        webho│                                                                                             ▕│            
    ▸ test/  │                                                                                             ▕│            
-━   orchestr│                                                                                             ▕│ ⤢     ▾   ━
+━   orchestr│                                                                                             ▕│ ↑     ▾   ━
             │                                                                                             ▕│            
             │                                                                                             ▕│           ▕
             │                                                                                             ▕│           ▕

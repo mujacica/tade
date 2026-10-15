@@ -45,7 +45,6 @@ const BLOCKS: readonly (readonly [number, number])[] = [
   [0x2500, 0x25fc], // box drawing, block elements, geometric shapes
   [0x2190, 0x22ff], // arrows, and the mathematical operators beside them
   [0x2800, 0x28ff], // braille, which is every spinner frame
-  [0x2900, 0x297f], // the supplemental arrows, which is the pane's grow and shrink
 ]
 
 /**

@@ -209,7 +209,10 @@ export function bottomTabs(
     if (activeTerminal(state)) {
       r.button('⌕', { kind: 'action', name: 'find-terminal' }).space()
     }
-    r.button(state.bottomMode === 'max' ? '⤡' : '⤢', { kind: 'action', name: 'bottom-max' }).space()
+    // Arrows the terminal's own font has. `⤢` and `⤡` are in neither
+    // JetBrains Mono (Ghostty's) nor SF Mono (Terminal's), and Ghostty drew
+    // them out of STIX Two Math at that font's size: larger than the cell.
+    r.button(state.bottomMode === 'max' ? '↓' : '↑', { kind: 'action', name: 'bottom-max' }).space()
     r.button(state.bottomMode === 'min' ? '▴' : '▾', { kind: 'action', name: 'bottom-min' })
     r.text(` ${line}`, rule)
   }

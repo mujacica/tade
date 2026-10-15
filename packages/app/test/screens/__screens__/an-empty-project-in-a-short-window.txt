@@ -8,7 +8,7 @@
  ▸ SCHEDULES        none ▕│                                             
  ▸ INTAKE            off ▕│  + New agent      Open project     in checko
  ▾ CHANGES               ▕│                                             
-━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ▾   ━
                                                                         
                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools  ▕

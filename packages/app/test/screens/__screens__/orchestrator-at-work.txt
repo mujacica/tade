@@ -1,11 +1,11 @@
- ▄▀   T A D E      checkout !⠸    search ✓    infra      +          ! 1  ⠸ 1   in checkout      ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !⣄    search ✓    infra      +          ! 1  ⣄ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ checkout › refunds    agent    actions     +         claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
    ! stripe-v15   880k tok   █│                                                                                         
      wants you to approve…   █│                                                                                         
                              █│                                                                                         
- ▌ ⠸ refunds         $0.62   █│                                                                                         
+ ▌ ⣄ refunds         $0.62   █│                                                                                         
  ▌   working                 ▕│                                                                                         
                              ▕│                                                                                         
  ▸ SMART QUEUE          none ▕│                                                                                         
@@ -14,7 +14,7 @@
  ▾ CHANGES  3        vs main ▕│                                                                                         
   M package.json       +2 −1 ▕│                                                                                         
   A …/webhooks.test.ts   +48 ▕│                                                                                         
-━   orchestrator ⠸     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+━   orchestrator ⣄     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕
@@ -26,7 +26,7 @@
     2 agents, 1 waiting                                                                                                ▕
   ✗ terminal run · tests · "pnpm test src/webhooks"                                                                    ▕
     no terminal called tests is open in checkout: open one first, or name another                                      ▕
-  ⠸ terminal open · checkout · tests                                                                                   ▕
+  ⣄ terminal open · checkout · tests                                                                                   ▕
 ◆ Opening a tests terminal first, then▍                                                                                ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

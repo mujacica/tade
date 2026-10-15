@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import { SPINNER } from '../../src/model.ts'
 import { NEWS_MS, RENDER_FLOOR_MS, WRITE_SHARE } from '../../src/pace.ts'
 import { POINTS, probing, Timings } from '../../src/timing.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
@@ -54,14 +55,13 @@ setInterval(() => {
 }, 8)
 `
 
+/** The orchestrator's tab with a spinner frame on it, the frame caught. */
+const TURNING = new RegExp(`orchestrator ([${SPINNER}])`, 'g')
+
 /** Every spinner frame the orchestrator's tab was drawn with in `written`. */
 function turnsIn(written: string): Set<string> {
-  return new Set(
-    Array.from(written.matchAll(/orchestrator ([⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏])/g), (one) => one[1] ?? ''),
-  )
+  return new Set(Array.from(written.matchAll(TURNING), (one) => one[1] ?? ''))
 }
-
-const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
 
 /**
  * How many glyphs the orchestrator's tab turned between each two frames that
@@ -69,9 +69,7 @@ const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
  * showed drew it for something else, and says nothing about the turning.
  */
 function stepsIn(written: string): number[] {
-  const seen = Array.from(written.matchAll(/orchestrator ([⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏])/g), (one) =>
-    SPINNER.indexOf(one[1] ?? ''),
-  )
+  const seen = Array.from(written.matchAll(TURNING), (one) => SPINNER.indexOf(one[1] ?? ''))
   const steps: number[] = []
   for (let at = 1; at < seen.length; at++) {
     const step = ((seen[at] ?? 0) - (seen[at - 1] ?? 0) + SPINNER.length) % SPINNER.length

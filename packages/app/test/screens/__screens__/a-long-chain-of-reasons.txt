@@ -29,7 +29,7 @@
  ▸ FILES                     ▕│  │ Email the customer when a refund goes through: say how much came back, and when.     
  ▸ NOTES  4             +    ▕│                                                                                         
 ███████████████████████████▕▕ │  TOUCHES    src/mail/refund.ts                                                          
-━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕

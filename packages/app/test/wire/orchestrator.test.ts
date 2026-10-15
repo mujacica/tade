@@ -6,6 +6,7 @@ import { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { SPINNER } from '../../src/model.ts'
 import type { ThinkerEvent } from '../../src/transcript.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
@@ -422,7 +423,7 @@ describe('the window, talking to the orchestrator', () => {
     // The turning mark an agent wears, worn by the thing you talk to: the one
     // thing the window could not tell you before was whether the orchestrator
     // was doing anything at all.
-    const turning = /orchestrator [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/
+    const turning = new RegExp(`orchestrator [${SPINNER}]`)
     // Held in a box rather than a variable: a turn that never ends until the
     // test says so is the whole point, and the resolver is handed over from
     // inside the thinker.

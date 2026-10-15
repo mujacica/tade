@@ -1679,7 +1679,17 @@ export const MARK_TONES: Readonly<Record<AgentMark, 'busy' | 'hint' | 'waiting' 
     parked: 'hint',
   }
 
-const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+/**
+ * The spinner's frames: three dots walking round the edge of a braille cell,
+ * all four rows of it, so they turn about its middle.
+ *
+ * The six-dot set it was (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) never lit the bottom row. Ghostty
+ * draws braille itself, the cell's four rows edge to edge of the line, so
+ * those turned in the top three quarters of it, above the name beside them;
+ * a font's braille sits inside its letters and hid that. Round the whole cell
+ * the two agree.
+ */
+export const SPINNER = '⠋⠙⠸⢰⣠⣄⡆⠇'
 
 /** How long each frame of the spinner is shown: ten a second, and so ten frames a second while one turns. */
 export const SPIN_MS = 100
