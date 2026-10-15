@@ -1,9 +1,10 @@
 import { readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type Schedule, taskDir, watchedFrom } from '@tade/core'
+import { type Schedule, startFrom, taskDir, watchedFrom } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { foldSchedules, readEverMade, readSchedules } from '../src/schedules.ts'
+import { beginFrom, readTaskFile } from '../src/tasks.ts'
 import { Workbench } from '../src/workbench.ts'
 
 const deps = (over: Partial<Schedule> = {}): Schedule => ({
@@ -267,5 +268,45 @@ describe('schedules', () => {
     // Nothing says `checkout` on it, which is how a worktree task's file reads.
     expect(fileOf(apart.task ?? '')).not.toContain('workspace:')
     expect(repo.git('branch', '--list', 'tade/bump-vitest')).toContain('tade/bump-vitest')
+  })
+
+  it('begins work on the ref the finding named, in a tree of its own', async () => {
+    // A review that conflicts is merged into from its own head, so the work says
+    // where its tree begins: kept in its task file, and read when it starts.
+    await client.setSchedule(
+      deps({
+        id: 'conflicts-app',
+        name: 'review.conflicts',
+        when: { every: '10m' },
+        does: { kind: 'watch', watch: 'review.conflicts', input: {}, found: 'agent', most: 2 },
+      }),
+      'you',
+    )
+    repo.git('checkout', '-q', '-b', 'shop/refunds-retry')
+    const head = repo.commit('retry refunds once')
+    repo.git('checkout', '-q', 'main')
+    repo.commit('main moves on')
+    const made = await client.watchFound(
+      'conflicts-app',
+      { key: 'c', title: 'c' },
+      {
+        agent: {
+          title: 'review 412 conflicts with main',
+          prompt: 'Merge main in.',
+          alone: true,
+          from: 'shop/refunds-retry',
+        },
+      },
+    )
+    const task = made.task ?? ''
+    const file = await readTaskFile(home, task)
+    expect(file?.start?.from).toBe('shop/refunds-retry')
+    // What the queue hands the start, and what that start does with it: the
+    // tree begins on the review's head, not on the base it was made from.
+    const worktree = join(home, 'worktrees', task.replace('/', '-'))
+    const from = startFrom(file?.start?.after ?? [], new Map(), 'main', 'app', file?.start?.from)
+    await beginFrom(home, worktree, task, from)
+    expect(repo.git('-C', worktree, 'rev-parse', 'HEAD').trim()).toBe(head)
+    expect((await readTaskFile(home, task))?.base).toBe(head)
   })
 })

@@ -88,6 +88,10 @@ export async function watchIsOn(
   }
 }
 
+/** How far back an attempt still counts against the next one: a night's loop, not last week's. */
+export const FIXING_HOURS = 6
+export const FIXING_WINDOW_MS = FIXING_HOURS * 60 * 60_000
+
 /**
  * How many automatic fixes have already been started on one thing, from the
  * journal: every finding whose key begins with its prefix and that put an

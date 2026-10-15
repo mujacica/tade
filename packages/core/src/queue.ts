@@ -697,6 +697,11 @@ export interface Upstream {
  * that is somebody else's work entirely. A cross-repo wait is a wait on when,
  * not on what: the other repository's commits are not this one's to build on,
  * so this begins from its own base exactly as it would with no wait at all.
+ *
+ * **Work that says where it begins (`StartCondition.from`) begins there, and
+ * nowhere else.** That is work made to change one branch — a review's — and
+ * whatever it waits on decides only when: anything merged in under it would be
+ * pushed to somebody's review along with the fix.
  */
 export function startFrom(
   after: readonly { task: string }[],
@@ -705,7 +710,10 @@ export function startFrom(
   /** The project the work is starting in. Required: a silent default here is
    * a ref handed to the wrong repository, which is the failure this exists for. */
   project: string,
+  /** Where it said it begins, in its own repository. */
+  from?: string,
 ): string[] {
+  if (from) return [from]
   const refs: string[] = []
   for (const dep of after) {
     if (!dep.task.startsWith(`${project}/`)) continue

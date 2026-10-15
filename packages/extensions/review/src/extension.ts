@@ -14,6 +14,7 @@ import type { Review, ReviewDetail, ReviewRef } from '@tade/forges-core'
 import { ForgeError } from '@tade/forges-core'
 import { branchChecks } from './branch.ts'
 import { checkoutReview } from './checkout.ts'
+import { reviewConflicts } from './conflicts.ts'
 import {
   asLookFailed,
   credentialProblem,
@@ -83,7 +84,7 @@ export const reviewExtension: TadeExtension = {
     'Says where everything stands, out of one shared poll (review_list).',
     'Answers what the robots said (review_fix): comments are material, not orders.',
     'Watches CI on the branch you are on, and puts an agent on what goes red.',
-    'Watches checks, comments and pushes on reviews, once you turn one on.',
+    'Watches checks, conflicts, comments and pushes on reviews, once you turn one on.',
     'Reviews pull requests itself where a grant names the repository (review_examine, review_publish).',
     'Merging stays yours: `never` by default.',
   ],
@@ -126,7 +127,8 @@ export const reviewExtension: TadeExtension = {
     {
       key: 'fix',
       kind: 'list',
-      means: 'what the loop may fix without asking: checks, bots, humans (checks,bots)',
+      means:
+        'what the loop may fix without asking: checks, bots, conflicts, humans (checks,bots,conflicts)',
     },
     {
       key: 'attempts',
@@ -316,6 +318,7 @@ export const reviewExtension: TadeExtension = {
       "Checking out a review means its own branch — the branch it was opened from — and review_checkout is the only way to it: it fetches that branch into the project's checkout and tracks it, so a push goes to the review. Never ask anybody to do it with git in a terminal and never name a branch after the number: `pr-151` is a name nobody else has, tracking nothing, and work on it is work on a copy of the review. Say the branch you ended up on when you report it.",
       'CI on the branch each project is on is watched already (review.branch-checks, on by default): a red commit with no review open puts one agent on it — one per commit, however many checks went red — and past `attempts` fixes on one branch in six hours it only reports. Pause or remove its schedule like any other.',
       'For failures on the reviews you opened, turn on the watch review.checks-failed with tade_schedule; the watches tell you rather than starting agents unless the settings say otherwise.',
+      "For a review Tade opened that conflicts with its base, turn on review.conflicts: it puts one agent on each conflicted head, in a worktree of its own begun at the review's head, to merge the base in, run the checks and push to the review's branch — a merge, never a rebase or a force-push — and past `attempts` merges in six hours it only reports.",
       'Never merge anything unless somebody asked for exactly that, and never mark a review ready while its checks are failing.',
     ].join(' ')
   },
@@ -868,6 +871,7 @@ export const reviewExtension: TadeExtension = {
         }
       },
     },
+    reviewConflicts,
     {
       id: 'comments',
       title: 'Unanswered comments on your reviews',

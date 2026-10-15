@@ -1269,10 +1269,10 @@ export class Workbench {
             ...(agent.context ? { context: agent.context } : {}),
             ...(agent.links && agent.links.length > 0 ? { links: agent.links } : {}),
             // Work that cannot share a tree (`FoundWork.alone`) gets one of its
-            // own wherever the project has its agents work. Narrower than the
-            // project's answer and never wider.
+            // own wherever the project has its agents work, never wider, begun
+            // where it says (`from`) or on the base like any queued work.
             ...(agent.alone ? { workspace: 'worktree' as const } : {}),
-            start: { after: [], prompt: agent.prompt, touches: [] },
+            start: { after: [], prompt: agent.prompt, touches: [], from: agent.from },
           })
         } catch (err) {
           if (/already exists|used before/.test(err instanceof Error ? err.message : '')) continue

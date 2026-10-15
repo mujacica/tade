@@ -567,7 +567,7 @@ describe('the words and the settings', () => {
       home: '/home',
       now: () => NOW,
     })
-    expect(settings.fix).toEqual(['checks', 'bots'])
+    expect(settings.fix).toEqual(['checks', 'bots', 'conflicts'])
     expect(settings.merge).toBe('never')
     expect(settings.attempts).toBe(2)
     // And publishes rather than drafts: `review_open` is called on work that

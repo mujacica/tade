@@ -190,8 +190,10 @@ repository.
 
 What you have offered other people, and what they and their robots say about it: your open pull
 requests, what waits on you, what CI makes of each, and the conversations nobody has answered.
-Watches can fix what is red and answer the bots — and nothing merges anything unless you asked for
-exactly that. **CI on the branch itself is watched too**, which is the half of it that has no
+Watches can fix what is red, answer the bots, and settle a review of Tade's that conflicts with its
+base — the base merged in from a tree of its own, never a rebase and never a force-push — and
+nothing merges a review unless you asked for exactly that. **CI on the branch itself is watched
+too**, which is the half of it that has no
 review: push straight to `main`, and a red commit puts one agent on reproducing it here and fixing
 the cause. One agent per red commit, however many checks went red; a re-run of the same commit
 starts nothing new; and it never force-pushes, never reverts and never merges.

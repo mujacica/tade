@@ -108,7 +108,8 @@ export function settingsOf(ctx: ExtensionContext): Settings {
     draft: raw.draft === true,
     // What may be fixed without asking. Human review comments are not in it
     // by default: a person's comment usually contains a decision, not a defect.
-    fix: fix.length > 0 ? fix : ['checks', 'bots'],
+    // A conflict is, because its watch is off until somebody turns it on.
+    fix: fix.length > 0 ? fix : ['checks', 'bots', 'conflicts'],
     attempts: typeof raw.attempts === 'number' && raw.attempts > 0 ? raw.attempts : 2,
     merge: merge === 'when green and approved' ? merge : 'never',
     brief: raw.brief !== false,

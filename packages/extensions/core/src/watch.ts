@@ -217,6 +217,19 @@ export interface WatchAgent {
    * starts an agent itself (`ExtensionWorkbench.startAgent`).
    */
   alone?: boolean
+  /**
+   * Where that tree begins, as the project's own repository names a ref —
+   * `origin/feat/x` — when the work is a change to one branch rather than new
+   * work beside the base: a review that conflicts, merged into from its head.
+   *
+   * Only with `alone`, because a shared checkout begins wherever that checkout
+   * is and moving it would move everybody in it. Read when the work starts
+   * (`startFrom`), so a ref that has gone by then holds the work with why
+   * rather than starting it somewhere else; anything it waits on decides only
+   * when. The watch fetches the ref before it says it, because nothing at the
+   * start does.
+   */
+  from?: string
 }
 
 /**

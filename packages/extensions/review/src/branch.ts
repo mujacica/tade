@@ -7,7 +7,7 @@ import {
 } from '@tade/extensions-core'
 import { type CommitCi, cannotLook, ciOn, saidOf, standingEverywhere } from './commit.ts'
 import { settingsOf, whereOf } from './forge.ts'
-import { attemptsUnder, watchIsOn } from './record.ts'
+import { attemptsUnder, FIXING_HOURS, FIXING_WINDOW_MS, watchIsOn } from './record.ts'
 
 // CI on the branches this project actually has checked out, which is the half
 // of CI that has no review to hang off.
@@ -51,10 +51,6 @@ import { attemptsUnder, watchIsOn } from './record.ts'
 //   · **It only ever adds work.** It never pushes, never reverts, never
 //     merges, and past `attempts` fixes on one branch it stops fixing and
 //     says what is wrong instead.
-
-/** How far back an attempt still counts against the next one: a night's loop, not last week's. */
-const FIXING_HOURS = 6
-const FIXING_WINDOW_MS = FIXING_HOURS * 60 * 60_000
 
 /** The repository and the commit a finding of this watch is about. */
 export function readKey(key: string): { repo: string; commit: string } | null {

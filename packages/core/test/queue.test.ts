@@ -499,6 +499,28 @@ describe('where queued work in a worktree begins', () => {
     expect(startFrom(after, upstream, 'main', 'cli')).toEqual(['tade/bump'])
     expect(startFrom([{ task: 'api/oauth-scopes' }], upstream, 'main', 'cli')).toEqual(['main'])
   })
+
+  it('begins where the work said, and only there, whatever it waits on', () => {
+    // Work made to change one branch — a review that conflicts — begins on that
+    // branch. Anything it waits on decides when, never what: merged in under
+    // it, it would be pushed to somebody's review along with the fix.
+    const upstream = new Map([
+      [
+        'api/refunds',
+        {
+          workspace: 'worktree' as const,
+          branch: 'tade/refunds',
+          head: 'aaa',
+          done: 'said' as const,
+        },
+      ],
+    ])
+    const from = 'origin/shop/refunds-retry'
+    expect(startFrom([], upstream, 'main', 'api', from)).toEqual([from])
+    expect(startFrom([{ task: 'api/refunds' }], upstream, 'main', 'api', from)).toEqual([from])
+    // Said nothing, it is what it always was.
+    expect(startFrom([], upstream, 'main', 'api', undefined)).toEqual(['main'])
+  })
 })
 
 describe('who is at work in a checkout', () => {

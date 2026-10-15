@@ -262,7 +262,13 @@ export class Queue implements Subject {
           task,
           worktree,
           why: because,
-          from: startFrom(item.start.after, live.upstream, live.baseOf(task), item.project),
+          from: startFrom(
+            item.start.after,
+            live.upstream,
+            live.baseOf(task),
+            item.project,
+            item.start.from,
+          ),
         })
         started.push(task)
         this.deps.news(`started ${task}: ${because}`)

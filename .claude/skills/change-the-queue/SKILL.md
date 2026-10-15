@@ -98,7 +98,9 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   `sentry-cli` waiting on one in `sentry` was handed `sentry`'s branch name for `git worktree add`,
   which fails in the good case and in the bad one finds a ref of that name that is somebody else's
   work entirely. A cross-repo wait is a wait on *when*, and the other repository's commits are not
-  this one's to build on.
+  this one's to build on. Work that says where it begins (`start.from`, written from a watch's
+  `WatchAgent.from`) begins there and nowhere else: it is a change to one branch — a review that
+  conflicts — and anything merged in under it would be pushed to that review with the fix.
 - **The plan's own project is a default, and a plan that spans repositories may not lean on it.**
   Where one agent names another repository and another names none, `checkPlan` refuses the plan and
   names the ones that said nothing — because inheriting is right in a one-repo plan and silently

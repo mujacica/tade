@@ -23,6 +23,7 @@ by what the code cannot express, not by being careful at the call site.
 | `packages/extensions/review/src/extension.ts` | `TASK_TRAILER`, the settings, the surfaces, the `review_*` tools, the three review watches |
 | `packages/extensions/review/src/checkout.ts` | the one place a review becomes a local branch: `checkoutPlan`, `ontoReview`, `rootFor`, `checkoutReview` |
 | `packages/extensions/review/src/branch.ts` | `branchChecks`: CI on every branch the project has checked out — `readKey`, `REVIEWS_WATCH` |
+| `packages/extensions/review/src/conflicts.ts` | `review.conflicts`: Tade's own reviews that conflict with their base, and one agent per conflicted head merging the base in — `conflictsIn`, `conflictWork`, `conflictKey`, `onOrigin` |
 | `packages/extensions/review/src/commit.ts` | what CI can say about a commit here, and every honest reason it cannot: `standingOn`, `standingEverywhere`, `onRemote`, `ciOn`, `whatRan`, `cannotLook` |
 | `packages/extensions/review/src/record.ts` | what the watches found, out of the journal: `found`, `attemptsUnder`, `watchIsOn` |
 | `packages/extensions/review/src/reviewing.ts` | reviewing somebody's pull request, as policy: `REVIEW_ACTS`/`ACT_SETTINGS`/`Grants`, `mayI`, `grantProblem`, `reviewVersion`/`reviewKey`/`fixKey`/`keyIsAbout`, `marker`/`markedBy`/`oursAlready`, `FINDING_KINDS`/`findingFrom`, `anchorsIn`/`anchored`, `wouldLeak`, `whyNotReview`/`whyNotFix`/`reviewerOf`, `GRANTS_ARE_LOCAL`, `NOT_A_VERDICT`, `OUR_REVIEW_IS_MATERIAL` |
@@ -95,6 +96,16 @@ wrong if nobody thinks about them.
   never becomes one agent per failing column. One finding per *check* would be three agents editing
   one repository over one push, which in a shared checkout is worse than the failure — so the agent
   is told about every check that failed, with the tail of the first `LOGS` of them.
+- **Work that changes one branch begins on it, and pushes only to it.** `review.conflicts` merges
+  the base into a review Tade opened (a `Tade-Task:` trailer, never a person's unattributed branch),
+  so its agent is `alone` and says `from: origin/<branch>` (`WatchAgent.from`, read at the start by
+  `startFrom`): a tree of its own begun at the review's head, never the project's checkout and
+  never the branch itself, which git will not check out twice. It pushes `HEAD:<branch>` — a
+  fast-forward, because a merge keeps every commit already there — and **never rebases**, because
+  a published branch rebased can only be put back with the force-push a watch may not do. `agent()`
+  fetches the branch first and refuses one whose found head is not on it (a fork's branch of the
+  same name, or one rewritten since), and the key is the head alone, so the merge it pushes is a new
+  finding only if the base moved again — `attempts` in `FIXING_HOURS` bound that.
 - **Ask the cheap question first.** `branchChecks` reads the checks of the commit each branch is on;
   only once one of them is red does it spend a second request asking whether that branch has a
   review, and only then does it read the schedules. A log is fetched in `agent()` and never in

@@ -70,6 +70,13 @@ export const StartCondition = z.object({
   model: z.object({ provider: z.string().optional(), id: z.string() }).optional(),
   /** How hard it thinks from its first turn, when that was chosen. */
   thinking: z.string().optional(),
+  /**
+   * Where its worktree begins, as its own repository names a ref: the branch
+   * of a review it was made to change (`origin/feat/x`). Absent, it begins on
+   * what it waited on or on the base (`startFrom`). Ignored in a shared
+   * checkout, which begins wherever that checkout is.
+   */
+  from: z.string().optional(),
 })
 export type StartCondition = z.infer<typeof StartCondition>
 

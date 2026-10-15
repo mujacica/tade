@@ -105,12 +105,10 @@ export interface FoundWork {
   prompt: string
   context?: string
   links?: readonly { title: string; url: string }[]
-  /**
-   * That this work needs a tree nobody else is in, whatever the project says
-   * about where its agents work — the port's own `WatchAgent.alone` carries
-   * why. Only ever narrower than the project's answer.
-   */
+  /** A tree nobody else is in, whatever the project says (`WatchAgent.alone`): never wider. */
   alone?: boolean
+  /** Where that tree begins, a ref in its own project (`WatchAgent.from`). */
+  from?: string
 }
 
 /** A created task's git facts. The task *model* lives in @tade/core. */
