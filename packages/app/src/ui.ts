@@ -217,11 +217,13 @@ export class Row {
     // What tab would complete to, said quietly after the caret, where it fits.
     const ghost = [...(opts.ghost ?? '')].slice(0, Math.max(0, room - widthOf(body))).join('')
     const pad = ' '.repeat(Math.max(0, room - widthOf(body) - widthOf(ghost))) + tail
-    if (!this.skin.colour) return this.put(`[${body}${ghost}${pad}]`, inner + 2, opts.target)
+    // A field that drops a list down is a control; any other is somewhere to type.
+    const typed = opts.arrow !== true
+    if (!this.skin.colour) return this.put(`[${body}${ghost}${pad}]`, inner + 2, opts.target, typed)
     const drawn = ghost
       ? `${this.skin.field(` ${body}`, opts.hint === true, lit)}${this.skin.field(ghost, true, lit)}${this.skin.field(`${pad} `, false, lit)}`
       : this.skin.field(` ${body}${pad} `, opts.hint === true, lit)
-    return this.put(drawn, inner + 2, opts.target)
+    return this.put(drawn, inner + 2, opts.target, typed)
   }
 
   /**
@@ -315,9 +317,11 @@ export class Row {
     return { text: text + ' '.repeat(Math.max(0, this.width - used)), hits }
   }
 
-  private put(drawn: string, width: number, target?: Target): this {
-    if (target && width > 0)
-      this.hits.push({ row: 0, from: this.col, to: this.col + width - 1, target })
+  private put(drawn: string, width: number, target?: Target, typed = false): this {
+    if (target && width > 0) {
+      const hit: Hit = { row: 0, from: this.col, to: this.col + width - 1, target }
+      this.hits.push(typed ? { ...hit, typed: true } : hit)
+    }
     this.parts.push(drawn)
     this.col += width
     return this

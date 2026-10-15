@@ -1,6 +1,6 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { extentOf, hitAt, hitBoxAt, rowHit, sameTarget } from '../src/hits.ts'
+import { extentOf, hitAt, hitBoxAt, rowHit, sameTarget, shapeOver } from '../src/hits.ts'
 import { COLOUR, PLAIN } from '../src/skin.ts'
 import { box, overlay, Row, slid, stack } from '../src/ui.ts'
 
@@ -236,5 +236,54 @@ describe('a window onto rows wider than the room', () => {
     const hits = [{ row: 9, from: 0, to: 19, target: bar }]
     expect(extentOf(hits, bar)).toEqual({ top: 9, rows: 1 })
     expect(extentOf(hits, bar, true)).toEqual({ top: 0, rows: 20 })
+  })
+})
+
+describe('the pointer over what was drawn', () => {
+  it('is a hand over a control, and arrows over an edge that drags', () => {
+    expect(shapeOver({ kind: 'action', name: 'bottom-max' })).toBe('pointer')
+    expect(shapeOver({ kind: 'task', task: 'app/refunds' })).toBe('pointer')
+    expect(shapeOver({ kind: 'link', url: 'https://example.com' })).toBe('pointer')
+    expect(shapeOver({ kind: 'divider', edge: 'sidebar' })).toBe('ew-resize')
+    expect(shapeOver({ kind: 'divider', edge: 'bottom' })).toBe('ns-resize')
+  })
+
+  it('is a caret over words a drag selects, and over the line you type on', () => {
+    for (const target of [
+      { kind: 'orchestrator' },
+      { kind: 'pane' },
+      { kind: 'terminal' },
+      { kind: 'scroll', area: 'transcript' },
+      { kind: 'inert' },
+      { kind: 'input', line: 0 },
+      null,
+    ] as const) {
+      expect(shapeOver(target as never), JSON.stringify(target)).toBe('text')
+    }
+  })
+
+  it('is a caret over a field you type into, though pressing it is a control', () => {
+    const search = { kind: 'control', id: 'search' } as const
+    expect(shapeOver(search)).toBe('pointer')
+    expect(shapeOver(search, true)).toBe('text')
+  })
+
+  it('is the arrow over a bar taken hold of, and round a panel', () => {
+    expect(shapeOver({ kind: 'scrollbar', area: 'sidebar', total: 40, shown: 10 })).toBe('default')
+    expect(shapeOver({ kind: 'dismiss' })).toBe('default')
+  })
+
+  it('knows a field typed into from one that drops a list down, by its hit', () => {
+    const typed = { kind: 'control', id: 'edit:name' } as const
+    const drop = { kind: 'control', id: 'drop:model' } as const
+    for (const skin of [COLOUR, PLAIN]) {
+      const { hits } = new Row(60, skin)
+        .field('tade', 12, { caret: true, target: typed })
+        .space()
+        .field('sonnet', 12, { arrow: true, target: drop })
+        .build()
+      expect(hits.find((hit) => sameTarget(hit.target, typed))?.typed).toBe(true)
+      expect(hits.find((hit) => sameTarget(hit.target, drop))?.typed).toBeUndefined()
+    }
   })
 })

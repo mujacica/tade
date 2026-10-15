@@ -200,6 +200,44 @@ describe('the window, under the pointer', () => {
     await until('the queue to slide back', () => find('then-reproduce').col === queued.col)
   })
 
+  it('asks for a caret over words and fields and a hand over controls, where it can', async () => {
+    // Ghostty puts the arrow up once a program reports the mouse, and keeps it
+    // until it is asked for another: what the window never asks for there is
+    // an arrow — which over the conversation, an agent's screen and a search
+    // box was everything that was not the line itself. Read when the window
+    // opens, so it is only set for that.
+    terminal.columns = 100
+    terminal.rows = 30
+    const was = process.env.TERM_PROGRAM
+    process.env.TERM_PROGRAM = 'ghostty'
+    try {
+      await start()
+    } finally {
+      if (was === undefined) delete process.env.TERM_PROGRAM
+      else process.env.TERM_PROGRAM = was
+    }
+    await until('the first frame', () => terminal.written.includes('Ask Tade anything'))
+    const caret = '\x1b]22;text\x1b\\'
+    const hand = '\x1b]22;pointer\x1b\\'
+    /** Moved over a label with no button held, and what the terminal was asked for after. */
+    const over = async (label: string, shape: string) => {
+      const at = find(label)
+      const said = terminal.written.length
+      terminal.press(`\x1b[<35;${at.col + 2};${at.row + 1}M`)
+      await until(`${shape === caret ? 'a caret' : 'a hand'} over ${label}`, () =>
+        terminal.written.slice(said).includes(shape),
+      )
+    }
+    await over('Settings', hand)
+    await over('Ask Tade anything', caret)
+    await over('Extensions', hand)
+    // A box you type a search into is a control and a field at once: a caret.
+    terminal.press('\x1b[44;5u')
+    await until('the settings panel', () => terminal.written.includes('search settings'))
+    await over('search settings', caret)
+    await over('Models', hand)
+  })
+
   it('moves an agent to where it is dragged in the list, and remembers it there', async () => {
     await start()
     await until('both agents', () => {

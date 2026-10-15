@@ -1,7 +1,14 @@
 import type { Component } from '@earendil-works/pi-tui'
 import type { LaneId } from '@tade/core'
 import type { Frame } from '../frame.ts'
-import { pressable, type ScrollArea, sameTarget, type Target } from '../hits.ts'
+import {
+  type PointerShape,
+  pressable,
+  type ScrollArea,
+  sameTarget,
+  shapeOver,
+  type Target,
+} from '../hits.ts'
 import { textOf } from '../input.ts'
 import { resolveLayout } from '../layout.ts'
 import {
@@ -158,6 +165,8 @@ export class Mouse {
   )
   /** Notches turned this turn and not answered yet, added up (`turn`). */
   private turning: Wheeled | null = null
+  /** The pointer the terminal was last asked for; the arrow until then, as reporting the mouse leaves it. */
+  private shape: PointerShape = 'default'
 
   constructor(wire: Wiring, deps: MouseDeps) {
     this.wire = wire
@@ -343,23 +352,14 @@ export class Mouse {
       }
       case 'move': {
         if (sameTarget(this.wire.state.hover, event.target)) return false
-        const shapeOf = (target: Target | null) =>
-          target?.kind === 'divider'
-            ? target.edge === 'sidebar'
-              ? 'ew-resize'
-              : 'ns-resize'
-            : // Text you can put the caret in: the shape everything else uses for that.
-              target?.kind === 'caret' || target?.kind === 'input'
-              ? 'text'
-              : pressable(target)
-                ? 'pointer'
-                : 'default'
-        const was = shapeOf(this.wire.state.hover)
         this.wire.put({ ...this.wire.state, hover: event.target })
-        const now = shapeOf(event.target)
-        // A hand over what can be pressed, arrows over what can be dragged,
-        // where the terminal can show one.
-        if (was !== now && this.deps.pointerShapes()) this.deps.write(pointerSequence(now))
+        // A hand over what can be pressed, arrows over what can be dragged and
+        // a caret over words and fields, where the terminal can show one.
+        const shape = shapeOver(event.target, event.typed === true)
+        if (shape !== this.shape && this.deps.pointerShapes()) {
+          this.shape = shape
+          this.deps.write(pointerSequence(shape))
+        }
         return true
       }
       case 'press':

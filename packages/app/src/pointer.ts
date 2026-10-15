@@ -44,7 +44,8 @@ import { draw } from './view.ts'
 
 /** What the pointer did, reduced to what the window cares about. */
 export type PointerEvent =
-  | { kind: 'move'; target: Target | null }
+  /** `typed`: over a field somebody types into (`Hit.typed`). */
+  | { kind: 'move'; target: Target | null; typed?: boolean }
   | { kind: 'press'; target: Target | null }
   | { kind: 'release' }
   /** `cell` is how far along what was clicked the pointer landed, from its left edge. */
@@ -370,7 +371,7 @@ export class Painted implements Component {
     const cell = box ? event.x - box.from : 0
     switch (event.type) {
       case 'move':
-      case 'drag':
+      case 'drag': {
         if (this.dragging) {
           return { handled: true, render: this.onPointer({ kind: 'drag', x: event.x, y: event.y }) }
         }
@@ -449,7 +450,9 @@ export class Painted implements Component {
           })
           return { handled: true, render: true }
         }
-        return { handled: true, render: this.onPointer({ kind: 'move', target }) }
+        const typed = box?.typed === true
+        return { handled: true, render: this.onPointer({ kind: 'move', target, typed }) }
+      }
       case 'press': {
         // A divider taken hold of keeps every movement until it is let go.
         if (event.button === 'left' && target?.kind === 'divider') {

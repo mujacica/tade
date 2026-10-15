@@ -119,6 +119,12 @@ export interface Hit {
   from: number
   to: number
   target: Target
+  /**
+   * A field somebody types into. Pressing one may be a control's to answer
+   * — Settings' edit, a search box — but what is under the pointer is a
+   * place to type, and the pointer says so (`shapeOver`).
+   */
+  typed?: true
 }
 
 /** The scrollable area under this cell, whatever is drawn over it. */
@@ -229,6 +235,30 @@ export function pressable(target: Target | null): boolean {
     target.kind !== 'screen' &&
     target.kind !== 'divider'
   )
+}
+
+/** A pointer shape by its CSS name, which is what `OSC 22` takes. */
+export type PointerShape = 'pointer' | 'default' | 'text' | 'ew-resize' | 'ns-resize'
+
+/**
+ * The pointer a terminal that can show one is asked for over this: a hand
+ * over what can be pressed, arrows over an edge that drags, and a caret over
+ * a field and over words — which is everything else, because a drag anywhere
+ * that is not a control selects them.
+ *
+ * The caret is what Terminal shows over all of it whatever it is told, and
+ * what Ghostty shows nowhere once a program asks for the mouse — it puts the
+ * arrow up then, and keeps it until it is asked for something else. Asking
+ * only over the line and a file left the conversation, an agent's screen and
+ * every search box under an arrow there.
+ */
+export function shapeOver(target: Target | null, typed = false): PointerShape {
+  if (target?.kind === 'divider') return target.edge === 'sidebar' ? 'ew-resize' : 'ns-resize'
+  if (typed || target?.kind === 'caret' || target?.kind === 'input') return 'text'
+  if (pressable(target)) return 'pointer'
+  // A bar is taken hold of, and the dark round a panel puts it away: neither is words.
+  if (target?.kind === 'scrollbar' || target?.kind === 'dismiss') return 'default'
+  return 'text'
 }
 
 /**
