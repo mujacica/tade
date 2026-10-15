@@ -119,6 +119,17 @@ main {
   flex: 0 1 auto;
 }
 
+/* The pages an agent's dev servers serve (`serving.js`), a chip each among the tools. */
+.pg-serving {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.pg-serving:empty {
+  display: none;
+}
+
 /* ── the page-wide bars: reconnecting, a new version, the page changed ─────── */
 
 /*

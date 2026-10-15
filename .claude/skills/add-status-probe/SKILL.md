@@ -71,10 +71,12 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   empty world, and the window keeps the last look that could. The child dies with the window when
   its channel closes, and one that keeps dying is waited on (`restartWait`), never forked per beat.
 
-- **A probe that costs a spawn every beat for something nothing draws yet is asked for.** Which
-  ports each lane listens on (`src/ports.ts`, `lsof` plus `ps`) is `StatusOptions.ports` /
-  `StatusAsk.ports`: `tade status` asks once, and the window's beat turns it on in the commit that
-  draws them. Absent is "not asked or could not look", never `[]`.
+- **A probe that costs a spawn every beat is asked for, and held by whoever asks.** Which ports
+  each lane listens on (`src/ports.ts`, `lsof` plus `ps`) is `StatusOptions.ports` /
+  `StatusAsk.ports`: `tade status` asks once, and the window asks every beat while `PortsHeld` (in
+  the collector's `Held`, beside the gate) answers from the last look for `PORTS_MS` — `lsof` is a
+  tenth of a second on a busy laptop. Absent is "not asked or could not look", never `[]`. What is
+  drawn of them is `devServerPorts` (core): a link per page a dev server serves.
 
 ## Steps
 

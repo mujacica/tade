@@ -281,6 +281,8 @@ export const TaskRowSchema = z.strictObject({
   agents: z.int().nonnegative(),
   /** A COUNT. Never a lane id, never an attach line. */
   lanes: z.int().nonnegative(),
+  /** The ports a dev server of its serves a page on; the page puts its own host in front. */
+  servers: z.array(z.int().min(1).max(65_535)),
   spend: SpendOutSchema.nullable(),
   checks: ChecksOutSchema,
   review: z.strictObject({ state: ReviewState, url: z.string().nullable() }).nullable(),

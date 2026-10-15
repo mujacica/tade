@@ -170,10 +170,7 @@ export class Live {
   private readonly marks = new Map<string, { at: number; marks: Record<string, string> }>()
   /** The branch each project's checkout was last seen on, and whether a look is under way. */
   private readonly branches = new Map<string, { at: number; branch: string | null }>()
-  /**
-   * The last look at what is changed in a checkout, keyed by the place and the
-   * base it is measured from, and whether a look is under way.
-   */
+  /** The last look at what is changed in a checkout, by place and base, and whether one is under way. */
   private readonly changed = new ChangesHeld()
   private readonly looking = new Set<string>()
   /** What status said of each checkout it looks at, by where it is (`treesFrom`). */
@@ -969,6 +966,8 @@ export class Live {
             home: this.opts.home,
             tadeHome: this.opts.tadeHome,
             pr: false,
+            // Every beat, and held a while by whoever looks (`PORTS_MS`): a dev server's link.
+            ports: true,
             cwd: this.opts.cwd,
             lanes: table,
           }),

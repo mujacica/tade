@@ -32,7 +32,7 @@ import {
 } from './git.ts'
 import { type LivenessProbe, noLanes } from './liveness.ts'
 import { pooled } from './pool.ts'
-import { listeningPorts } from './ports.ts'
+import { type PortsHeld, portsFor } from './ports.ts'
 import { type AgentProcess, listAgentProcesses } from './processes.ts'
 import { verifiedAt } from './tests.ts'
 
@@ -84,6 +84,8 @@ export interface StatusOptions {
   liveness?: LivenessProbe
   /** Look at which ports each live lane listens on (`ports.ts`): two spawns a look. */
   ports?: boolean | undefined
+  /** The last look at the ports, which stands for a while. Belongs to whoever polls, as the gate does. */
+  portsHeld?: PortsHeld | undefined
   processes?: () => Promise<{
     processes: AgentProcess[]
     servers: ToolServers
@@ -196,7 +198,7 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     out.push({ ...ref, tasks, untracked: untracked.sort(bySession) })
   }
 
-  if (opts.ports) await withPorts(out, warnings)
+  if (opts.ports) await withPorts(out, warnings, now, opts.portsHeld)
   const elsewhere = sessions.filter((s) => !claimed.has(s) && isLive(s, now)).sort(bySession)
   out.sort((a, b) => cmp(a.name, b.name))
   return {
@@ -209,11 +211,16 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
 }
 
 /** Each live lane's listening ports, on a copy of the lane; left absent where the look could not be made. */
-async function withPorts(projects: Project[], warnings: string[]): Promise<void> {
+async function withPorts(
+  projects: Project[],
+  warnings: string[],
+  now: number,
+  held: PortsHeld | undefined,
+): Promise<void> {
   const tasks = projects.flatMap((p) => p.tasks)
   const live = (lane: Lane) => (lane.alive && lane.pid !== null ? lane.pid : null)
   const pids = tasks.flatMap((t) => t.lanes.flatMap((lane) => live(lane) ?? []))
-  const looked = await listeningPorts([...new Set(pids)])
+  const looked = await portsFor([...new Set(pids)], now, held)
   warnings.push(...looked.warnings)
   const found = looked.ports
   if (!found) return

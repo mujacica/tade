@@ -379,6 +379,8 @@ export interface Frame {
     shownPath?: string
     /** Where the agent's work came from — an issue, a trace — each opened by a click. */
     links?: readonly { title: string; url: string }[]
+    /** The ports a dev server is serving a page on: the agent's, or with none in front every agent's here. */
+    servers?: readonly number[]
   } | null
   /** What the focused agent has changed since it branched: `null` until git has answered. */
   changes?: readonly Change[] | null

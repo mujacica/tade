@@ -575,6 +575,25 @@ export const AGENT_SCREENS: Scenario[] = [
     }),
   },
   {
+    name: 'an-agent-serving-a-page',
+    about:
+      'An agent whose lanes are serving a dev server: under GIT, each page it serves is a link that opens in the browser, and a link in the terminal’s own sense too. The pointer is on the first.',
+    state: {
+      ...toggleSection(toggleSection(base(), 'files'), 'changes'),
+      hover: { kind: 'link', url: 'http://localhost:5173' },
+    },
+    frame: frame({
+      where: {
+        repo: '~/src/checkout',
+        branch: 'tade/stripe-v15',
+        base: 'main',
+        worktree: '~/.tade/worktrees/checkout-stripe-v15',
+        path: '/Users/me/.tade/worktrees/checkout-stripe-v15',
+        servers: [5173, 6006],
+      },
+    }),
+  },
+  {
     name: 'the-finished-agents-hidden',
     about:
       'The AGENTS heading with two letters beside its +, each narrower than it: H, filled in here because the agents that have finished are hidden, and X, which closes them. The pointer is on the H.',

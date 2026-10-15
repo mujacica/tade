@@ -77,6 +77,8 @@ export interface AgentPane {
    * is more than one — and what makes them readable at all.
    */
   effort?: string
+  /** The ports its lanes listen on that a dev server likely serves a page on (`devServerPorts`). */
+  servers?: readonly number[]
 }
 
 /** Queued work, as the window shows it: where it stands, and what it is waiting to do. */
@@ -426,6 +428,7 @@ export interface TaskSnapshot {
   touches?: readonly string[]
   /** The change it is one repository's share of, as its task file says. */
   effort?: string
+  servers?: readonly number[]
 }
 
 /**
@@ -453,6 +456,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     ...(task.by ? { by: task.by } : {}),
     ...(task.effort ? { effort: task.effort } : {}),
     ...(task.queued ? { queued: task.queued } : {}),
+    ...(task.servers ? { servers: task.servers } : {}),
   }))
   const focused = refocus(state, panes)
   const project =

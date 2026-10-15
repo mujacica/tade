@@ -47,6 +47,7 @@ import { AGENT_MARKS, checkMark, findingMark } from '../glyphs.js'
 import { icon } from '../icons.js'
 import { pathOf } from '../routes.js'
 import { pageBar, section } from '../rows.js'
+import { servedBy, servingIn } from '../serving.js'
 import { projectAt, queueIn, tasksIn } from '../store.js'
 import { queuePaused, queueTree } from '../tree.js'
 import { facts, factsIn, panel, stateBox, stateBoxIn } from '../ui.js'
@@ -83,6 +84,8 @@ import {
 export function projectScreen(where, ctx) {
   const node = el('div')
   const bar = pageBar(where.project, { name: true, back: { text: 'Overview', href: '/' } })
+  // The pages every agent's dev servers here serve, a press out each.
+  const serving = servingIn(bar.tools)
   // Before the first snapshot: the shape of what is coming, never a blank.
   const coming = skeleton(5)
   const gone = stateBox()
@@ -210,6 +213,7 @@ export function projectScreen(where, ctx) {
       }
       const shown = project !== null && !shut && !bare
       for (const one of regions) one.node.hidden = !shown
+      serving.update(shown ? servedBy(tasksIn(store, where.project)) : [])
       foot.hidden = project === null
       if (project !== null) acts?.update(project, view)
       if (!shown) {

@@ -1,4 +1,4 @@
-import { inboxWaiting } from '@tade/core'
+import { devServerUrl, inboxWaiting } from '@tade/core'
 import { type FileEntry, folderMark } from '../files.ts'
 import type { Change, Frame, ListSectionView, NoteShown } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, type Target } from '../hits.ts'
@@ -494,6 +494,18 @@ function whereRows(
       tailOf(`${link.title} ↗`, Math.max(1, r.width - r.used - 1)),
       lit ? skin.link : skin.signal,
     )
+    rows.push({ text: r.build().text, hits: [rowHit(0, r.width, target)] })
+  }
+  // A dev server's page, opened by a click and a link in the terminal's own sense too.
+  for (const port of where.servers ?? []) {
+    const url = devServerUrl(port)
+    const target: Target = { kind: 'link', url }
+    const look = sameTarget(row().pointer.hover, target) ? skin.link : skin.signal
+    const r = row().space(3).text('serving'.padEnd(9), skin.hint)
+    const room = Math.max(1, r.width - r.used - 1)
+    // Short of room the host goes first: which port is the half nobody could guess.
+    const said = widthOf(`localhost:${port} ↗`) <= room ? `localhost:${port} ↗` : `:${port} ↗`
+    r.text(tailOf(said, room), (text) => skin.hyperlink(url, look(text)))
     rows.push({ text: r.build().text, hits: [rowHit(0, r.width, target)] })
   }
   if (where.worktree) rows.push(line('worktree', where.worktree))

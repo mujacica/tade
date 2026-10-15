@@ -200,6 +200,7 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     },
     agents: task.agents,
     lanes: task.lanes,
+    servers: [...(task.servers ?? [])],
     review:
       task.review === null
         ? null

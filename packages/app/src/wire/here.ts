@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { expandHome } from '@tade/core'
+import { devServerPorts, expandHome } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { sectionOpen } from '../model.ts'
 import { tilde, type Wiring } from './context.ts'
@@ -70,6 +70,14 @@ export class Here {
             path: worktree ?? repo,
             shownPath: tilde(worktree ?? repo),
             links: facts?.links ?? [],
+            // Its agent's dev servers, or with none in front of you every one in the project.
+            servers: focused
+              ? (focused.servers ?? [])
+              : devServerPorts(
+                  state.panes
+                    .filter((pane) => pane.project === state.project)
+                    .flatMap((pane) => pane.servers ?? []),
+                ),
           }
         : null,
       changes,

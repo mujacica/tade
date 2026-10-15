@@ -4,9 +4,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   listeningPorts,
+  newPortsHeld,
+  PORTS_MS,
   parseListening,
   parseProcessRows,
   portsByLane,
+  portsFor,
   processesOf,
 } from '../src/ports.ts'
 import type { Ran } from '../src/processes.ts'
@@ -113,6 +116,47 @@ describe('listeningPorts', () => {
       },
     })
     expect(looked).toEqual({ ports: new Map(), warnings: [] })
+  })
+
+  it('looks again only once the last look is old, or a lane it was not asked about is there', async () => {
+    let looks = 0
+    const run = async (command: string) => {
+      if (command === 'lsof') looks++
+      return command === 'ps'
+        ? ran({ stdout: '10 1 10\n20 1 20\n' })
+        : ran({ stdout: `p10\nn*:${3000 + looks}\n` })
+    }
+    const held = newPortsHeld()
+    const at = async (now: number, lanes = [10], lane = 10) =>
+      (await portsFor(lanes, now, held, { run })).ports?.get(lane)
+    expect(await at(0)).toEqual([3001])
+    expect(await at(PORTS_MS - 1)).toEqual([3001])
+    expect(looks).toBe(1)
+    expect(await at(PORTS_MS)).toEqual([3002])
+    expect(await at(PORTS_MS + 1, [10, 20])).toEqual([3003])
+    // A lane gone is not a reason to look: what is left was in the last look.
+    expect(await at(PORTS_MS + 2, [20], 20)).toEqual([])
+    expect(looks).toBe(3)
+    // Nobody holding a look looks every time.
+    await portsFor([10], 0, undefined, { run })
+    await portsFor([10], 0, undefined, { run })
+    expect(looks).toBe(5)
+  })
+
+  it('holds a look that could not be made as well, rather than failing twice a beat', async () => {
+    let looks = 0
+    const run = async (command: string) => {
+      if (command === 'lsof') looks++
+      return command === 'ps'
+        ? ran({ stdout: '10 1 10\n' })
+        : ran({ exitCode: undefined, code: 'ENOENT' })
+    }
+    const held = newPortsHeld()
+    await portsFor([10], 0, held, { run })
+    const again = await portsFor([10], 1, held, { run })
+    expect(looks).toBe(1)
+    expect(again.ports).toBeNull()
+    expect(again.warnings).toHaveLength(1)
   })
 })
 

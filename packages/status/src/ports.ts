@@ -14,7 +14,10 @@ import { problemWith, type Run, spawnProbe } from './processes.ts'
 // all the way to init is nobody's, and is not claimed for anybody.
 //
 // Two spawns a look, whatever the number of lanes, so it is asked for
-// (`StatusOptions.ports`) rather than made on every beat by default.
+// (`StatusOptions.ports`) rather than made on every beat by default — and
+// whoever asks every beat holds the last look (`PortsHeld`), which stands for
+// `PORTS_MS`: `lsof` walks every process's descriptors, a tenth of a second on
+// a busy laptop, and a dev server is started far less often than that.
 
 /** One process, as `ps` gives it. */
 export interface ProcessRow {
@@ -122,4 +125,43 @@ export async function listeningPorts(
     ports: portsByLane(lanes, parseProcessRows(ps.stdout), parseListening(lsof.stdout)),
     warnings: [],
   }
+}
+
+/**
+ * How long one look at the ports stands for whoever keeps asking: a server
+ * started this second is a link within ten. A lane the look was not asked
+ * about is looked at at once, so a new agent never waits on an old answer.
+ */
+export const PORTS_MS = 10_000
+
+/** The last look at the ports, kept by whoever polls, as the probe gate is. */
+export interface PortsHeld {
+  last: {
+    at: number
+    lanes: ReadonlySet<number>
+    looked: Awaited<ReturnType<typeof listeningPorts>>
+  } | null
+}
+
+export function newPortsHeld(): PortsHeld {
+  return { last: null }
+}
+
+/**
+ * `listeningPorts`, answered from the last look while it stands. A look that
+ * could not be made stands too: asking again every beat would be two spawns
+ * a beat to be told the same thing, `lsof` still not installed.
+ */
+export async function portsFor(
+  lanes: readonly number[],
+  now: number,
+  held: PortsHeld | undefined,
+  options: { run?: Run } = {},
+): Promise<Awaited<ReturnType<typeof listeningPorts>>> {
+  const last = held?.last
+  if (last && now - last.at < PORTS_MS && lanes.every((lane) => last.lanes.has(lane)))
+    return last.looked
+  const looked = await listeningPorts(lanes, options)
+  if (held) held.last = { at: now, lanes: new Set(lanes), looked }
+  return looked
 }

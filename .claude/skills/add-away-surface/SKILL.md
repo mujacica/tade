@@ -61,6 +61,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | the older pages of a list | the snapshot's `pages.<collection>.next` is the cursor; `GET /api/notes?after=` walks on (no `scope` is every note, as the snapshot lists them); the notes screen asks a page at a time |
 | an icon, a chart | `src/assets/icons.js` (a `<use>` of the sprite in `index.html` — the parser puts it in the SVG namespace, so no module spells a URL), `charts.js` and `charts.css` — **the graphical components every page draws with** (stat and sparkline, gauge, stack and legend, donut, ranked bars, lanes, flow, heat strip, steps), geometry fed through the CSSOM and each with its text alternative; what to use when is `DESIGN.md` beside this file |
 | the agents list | `src/assets/agents.js` |
+| an agent's dev servers, as presses in an agent's and a project's bar | `TaskRow.servers` (ports, never an address), `src/assets/serving.js` (the page's own host in front) |
 | what the window hands the projection each beat | `packages/app/src/wire/web-beat.ts` |
 | adding to a task's context | `packages/workbench/src/context.ts` |
 | what has to be true of an **act** | `src/acts.ts` — pure, and `test/acts.test.ts` runs the cross-product |

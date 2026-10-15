@@ -237,6 +237,12 @@ export interface TaskIn {
   agents: number
   /** A COUNT of the lanes. Never a lane id, never an attach line. */
   lanes: number
+  /**
+   * Metadata: the ports its lanes listen on that a dev server likely serves a
+   * page on (`devServerPorts`). Numbers and never an address: the page puts
+   * its own host in front. Absent where nobody looked, which draws as none.
+   */
+  servers?: readonly number[]
   /** Whether the agent asked something and is waiting. Metadata. */
   question: boolean
   /**

@@ -151,6 +151,13 @@ describe('nothing of the machine crosses the boundary', () => {
     expect(row?.lanes).toBe(1)
   })
 
+  it('carries the ports its dev servers serve a page on, and never an address', () => {
+    const lanes = task().lanes.map((lane) => ({ ...lane, ports: [5432, 5173, 61_000] }))
+    const row = taskIn(task({ lanes }), nothingKnown(), 0)
+    expect(row.servers).toEqual([5173])
+    expect(taskIn(task(), nothingKnown(), 0).servers).toEqual([])
+  })
+
   it('shows what a person wrote, as they wrote it', () => {
     // The claim is exactly this and no stronger: the away view adds no path
     // and no credential of its own, and it shows what you wrote as you wrote

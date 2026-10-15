@@ -1,5 +1,6 @@
 import {
   type AgentMark,
+  devServerPorts,
   type Finished,
   markOf,
   modelIn,
@@ -345,6 +346,7 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
     // `task.agents` is the field that carries all three.
     agents: task.agents.length,
     lanes: task.lanes.length,
+    servers: devServerPorts(task.lanes.flatMap((lane) => lane.ports ?? [])),
     question: extra.question,
     approval: extra.approval,
     finished: extra.finished,

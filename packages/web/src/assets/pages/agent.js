@@ -53,6 +53,7 @@ import { icon } from '../icons.js'
 import { quickActs } from '../quick.js'
 import { pathOf, safeHref } from '../routes.js'
 import { createQueueRow, fillQueueRow, pageBar, section } from '../rows.js'
+import { servingIn } from '../serving.js'
 import { taskAt } from '../store.js'
 import { facts, factsIn, meter, meterIn, note, panel, stateBox, stateBoxIn } from '../ui.js'
 import { agentPane } from './agent-pane.js'
@@ -89,6 +90,8 @@ export function taskScreen(where, ctx) {
   // The presses this device was granted, at the end of the bar: the answer to
   // an agent that is waiting is the reason somebody opened this page.
   const quick = live ? quickActs(ctx, { tell: false }) : null
+  // The pages its dev servers serve, a press out each, before them.
+  const serving = servingIn(bar.tools)
   if (quick !== null) into(bar.tools, quick.node)
 
   const coming = el('div', { class: 'ag-coming' })
@@ -156,6 +159,7 @@ export function taskScreen(where, ctx) {
           : null,
       )
       for (const one of regions) one.hidden = task === null
+      serving.update(task?.servers ?? [])
       if (task === null) return
 
       const mark = nowOf(task, view.asOf, view.frozen).mark

@@ -2,6 +2,7 @@ import { type Config, type LivenessTable, livenessOf, type Workspace } from '@ta
 import { newTranscriptReads, type TranscriptReads } from './adoption.ts'
 import { newProbeGate, type ProbeGate } from './gate.ts'
 import { gitLoad } from './git.ts'
+import { newPortsHeld, type PortsHeld } from './ports.ts'
 import { lookAtStatus, type StatusOptions } from './status.ts'
 
 // How a window looks at status: the port, and the look done in the window's
@@ -70,10 +71,11 @@ export interface StatusCollector {
 /** What a look after `close()` is answered with. */
 export const CLOSED = 'status is no longer being looked at: the window that asked has closed'
 
-/** What whoever polls holds between looks: the gate, and what was read of each transcript. */
+/** What whoever polls holds between looks: the gate, what was read of each transcript, and the ports. */
 export interface Held {
   gate: ProbeGate
   transcripts: TranscriptReads
+  portsHeld: PortsHeld
 }
 
 /** The options a look is asked with here, out of an ask and what will answer it. */
@@ -91,7 +93,11 @@ export function optionsOf(ask: StatusAsk, held: Held): StatusOptions {
  * are the same look by construction rather than by two copies agreeing.
  */
 export function lookHere(): StatusCollector {
-  const held: Held = { gate: newProbeGate(), transcripts: newTranscriptReads() }
+  const held: Held = {
+    gate: newProbeGate(),
+    transcripts: newTranscriptReads(),
+    portsHeld: newPortsHeld(),
+  }
   let closed = false
   return {
     id: 'here',
