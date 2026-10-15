@@ -81,10 +81,13 @@ function subjectOf(target: Target): MenuSubject | null {
 /** A notch of the wheel, as the component that read it says it. */
 type Wheeled = Extract<PointerEvent, { kind: 'wheel' }>
 
-/** Two notches of one movement of the hand: one region, one way round, shift alike. */
+/** Two notches of one movement of the hand: one region, one way round, shift and side alike. */
 function sameRun(was: Wheeled, now: Wheeled): boolean {
   return (
-    was.area === now.area && was.shift === now.shift && Math.sign(was.rows) === Math.sign(now.rows)
+    was.area === now.area &&
+    was.shift === now.shift &&
+    was.turnedSideways === now.turnedSideways &&
+    Math.sign(was.rows) === Math.sign(now.rows)
   )
 }
 
@@ -119,6 +122,8 @@ export interface MouseDeps {
   soonTick(): void
   /** A lane that answers the wheel itself was turned in, so the window does not. */
   turnedInLane(event: Extract<PointerEvent, { kind: 'wheel' }>): boolean
+  /** The notch being answered was the wheel turned sideways at the terminal. */
+  sideways(): boolean
   /** The orchestrator's line: its caret, what is selected on it, and a click in it. */
   selectTo(line: number, cell: number, extend: boolean, drag: boolean): void
   selectedOnLine(): string | null
@@ -174,6 +179,7 @@ export class Mouse {
       (text) => this.deps.copySelection(text),
       clock,
       new LastFrame({ checked: this.wire.opts.checkLastFrame === true }),
+      () => this.deps.sideways(),
     )
   }
 
@@ -227,13 +233,17 @@ export class Mouse {
     // it does, shift or no shift: there is nothing above or below it.
     // Somewhere with nowhere to go sideways hands the wheel back rather
     // than swallowing it, and it scrolls as it would without shift.
-    if (!panel && (event.shift || event.area === 'plan')) {
+    if (!panel && (event.turnedSideways || event.shift || event.area === 'plan')) {
       const moved = scrollBy(this.wire.state, event.area, event.rows, event.sideways, true)
       if (moved !== this.wire.state) {
         this.wire.put(moved)
         return true
       }
     }
+    // Except a notch the terminal says went sideways, which is never handed
+    // back as up or down: Ghostty puts one between every few notches of a
+    // swipe that is, and each would jolt the list the swipe was moving.
+    if (event.turnedSideways) return false
     // A panel is scrolled the way everything else is: through the one
     // move, clamped to what the bar beside it said the body actually is.
     // It used to be answered by pressing the panel's own down key, which

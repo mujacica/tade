@@ -301,6 +301,11 @@ regions in a cycle now.
 - **The wheel is swallowed wherever it lands, scrollable or not.** Tade draws exactly one screen and
   never scrolls one, so a notch handed back is the terminal library moving a viewport of its own,
   which is the window sliding under you.
+- **A notch sideways is sideways and nothing else.** pi-tui reads only 64 and 65 as the wheel, and
+  took left (66) for the right button — a menu opened wherever a swipe crossed, since Ghostty puts
+  one between every few notches of a swipe up or down. So `TimedTerminal` hands it over upright
+  (`sidewaysNotch`) and says it was turned (`turnedSideways`, read like `answeringKey`): it slides
+  what has a bar along its bottom, on a `Wheel` of its own, and is never handed back as up or down.
 
 ## Selecting text
 

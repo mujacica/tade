@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { NOTCH } from '../../src/scroll.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
@@ -10,9 +11,11 @@ import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.t
 describe('the window, under the pointer', () => {
   let terminal: FakeTerminal
   let home: string
+  let client: Workbench
   const { start, click, find } = windowUnderTest((wired) => {
     terminal = wired.terminal
     home = wired.home
+    client = wired.client
   })
 
   it('scrolls the sidebar by dragging the bar down its right', async () => {
@@ -89,6 +92,112 @@ describe('the window, under the pointer', () => {
     // stay put, as the two at the foot do.
     const after = form()
     expect(after.slice(2, 5)).toEqual(before.slice(2 + NOTCH, 5 + NOTCH))
+  })
+
+  // What Ghostty sent for a swipe up or down on a trackpad: the wheel that
+  // way, with a notch sideways every few — 66 left, 67 right — because no
+  // swipe is straight, and two at a time in one read as often as not. pi-tui
+  // read 66 as the right button, so a swipe over the agents or the files
+  // opened the menu of whatever it crossed, and every notch after it went to
+  // that menu instead of the list under it.
+  const swipe = (at: { col: number; row: number }, way: 64 | 65) => {
+    const report = (button: number) => `\x1b[<${button};${at.col + 2};${at.row + 1}M`
+    terminal.type(`${report(way)}${report(66)}`)
+    terminal.type(`${report(67)}${report(67)}`)
+    terminal.type(report(way))
+  }
+  const rightClick = (at: { col: number; row: number }) => {
+    terminal.press(`\x1b[<2;${at.col + 2};${at.row + 1}M`)
+    terminal.press(`\x1b[<2;${at.col + 2};${at.row + 1}m`)
+  }
+
+  it('scrolls an agent swiped over on a trackpad, and opens no menu for it', async () => {
+    // Short of room, so the side has somewhere to scroll to.
+    terminal.columns = 100
+    terminal.rows = 20
+    await start()
+    await until('both agents', () => terminal.written.includes('search'))
+    const heading = screenOf(terminal.written).findIndex((row) => row.includes('AGENTS'))
+    const said = terminal.written.length
+    swipe(find(' search'), 65)
+    await until(
+      'the side to scroll under the swipe',
+      () => !(screenOf(terminal.written)[heading] ?? '').includes('AGENTS'),
+    )
+    expect(terminal.written.slice(said)).not.toContain('Mark finished')
+    // The right button is still the right button.
+    rightClick(find(' search'))
+    await until('the menu', () => terminal.written.includes('Mark finished'))
+  })
+
+  it('scrolls a file swiped over on a trackpad, and opens no menu for it', async () => {
+    terminal.columns = 100
+    terminal.rows = 20
+    await start()
+    await until('both agents', () => terminal.written.includes('search'))
+    // Down the side a notch at a time until a file comes into view at its foot,
+    // by the wheel and nothing else.
+    const side = find(' search')
+    const fileRow = () => screenOf(terminal.written).findIndex((row) => row.includes('README.md'))
+    for (let notch = 0; notch < 20 && fileRow() < 0; notch++) {
+      const was = screenOf(terminal.written).join('\n')
+      terminal.press(`\x1b[<65;${side.col + 2};${side.row + 1}M`)
+      await until('the side to move', () => screenOf(terminal.written).join('\n') !== was)
+    }
+    const file = find('README.md')
+    const said = terminal.written.length
+    swipe(file, 65)
+    await until('the side to scroll on under the swipe', () => {
+      const now = fileRow()
+      return now >= 0 && now < file.row
+    })
+    expect(terminal.written.slice(said)).not.toContain('Copy relative path')
+    rightClick(find('README.md'))
+    await until('the menu', () => terminal.written.includes('Copy relative path'))
+  })
+
+  it('slides the queue and its picture for a notch sideways, and moves nothing else', async () => {
+    // A chain five deep behind an agent that has not started, so nothing in
+    // it starts and the side is wider than its pane: a bar along its bottom,
+    // and the chain's picture beside it with one of its own.
+    let before = 'app/refunds'
+    for (const slug of ['look-first', 'then-reproduce', 'then-fix-it', 'then-test', 'then-ship']) {
+      const after = [{ task: before, why: 'it needs that first' }]
+      const made = await client.createTask({
+        project: 'app',
+        slug,
+        intent: slug,
+        start: { after, prompt: '', touches: [] },
+      })
+      before = made.id
+    }
+    terminal.columns = 100
+    terminal.rows = 30
+    await start()
+    await until('the chain', () => terminal.written.includes('then-reproduce'))
+    const queued = find('then-reproduce')
+    const agent = find(' refunds')
+    const said = terminal.written.length
+    const notch = (button: number, at: { col: number; row: number }) =>
+      terminal.press(`\x1b[<${button};${at.col + 2};${at.row + 1}M`)
+    // Left, with nothing to the left: nowhere to go, and never up instead.
+    notch(66, queued)
+    // Right: the side slides, the chain with it.
+    notch(67, queued)
+    await until('the queue to slide', () => find('then-reproduce').col < queued.col)
+    expect(find(' refunds').row).toBe(agent.row)
+    expect(terminal.written.slice(said)).not.toContain('Do this one first')
+    // The picture slides under it too, the boxes with the names in them.
+    const box = find('\u2502 \u25cb refunds')
+    notch(67, box)
+    notch(67, box)
+    await until(
+      'the picture to slide',
+      () => !screenOf(terminal.written)[box.row]?.includes('\u2502 \u25cb refunds'),
+    )
+    // And left comes back.
+    notch(66, find('then-reproduce'))
+    await until('the queue to slide back', () => find('then-reproduce').col === queued.col)
   })
 
   it('moves an agent to where it is dragged in the list, and remembers it there', async () => {

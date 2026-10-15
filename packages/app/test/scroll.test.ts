@@ -14,6 +14,7 @@ import {
   RUN_MS,
   reachOf,
   scrollable,
+  sidewaysNotch,
   Wheel,
   wheelRows,
 } from '../src/scroll.ts'
@@ -125,6 +126,72 @@ describe('a wheel', () => {
     expect(wheel.rows('pane', 1, 100)).toBe(NOTCH)
     expect(wheel.rows('transcript', 1, 105)).toBe(NOTCH)
     expect(wheel.rows('transcript', 1, 110)).toBe(1)
+  })
+})
+
+describe('a notch sideways', () => {
+  // Read off the terminals themselves, with the modes pi-tui turns on: what
+  // Ghostty 1.3.1 sent for a swipe on a trackpad (up and down with a notch
+  // sideways every few), a left click and a right click, and what Terminal
+  // sends for the same — the wheel up and down, and nothing sideways at all.
+  const GHOSTTY = {
+    up: '\x1b[<64;80;29M',
+    down: '\x1b[<65;80;29M',
+    left: '\x1b[<66;80;29M',
+    right: '\x1b[<67;80;29M',
+    press: '\x1b[<0;80;29M',
+    release: '\x1b[<0;80;29m',
+    rightPress: '\x1b[<2;110;30M',
+    rightRelease: '\x1b[<2;110;30m',
+    moved: '\x1b[<35;133;57M',
+  }
+
+  it('goes on as the wheel, never as the right button pi-tui read it as', () => {
+    // Left as up and right as down, where it is: the window is told which way
+    // it really went, and pi-tui reads only these two as the wheel.
+    expect(sidewaysNotch(GHOSTTY.left)).toBe(GHOSTTY.up)
+    expect(sidewaysNotch(GHOSTTY.right)).toBe(GHOSTTY.down)
+    expect(sidewaysNotch('\x1b[<66;1;100m')).toBe('\x1b[<64;1;100m')
+  })
+
+  it('keeps the keys that were held, and reads the three-byte encoding too', () => {
+    // Shift, alt and control are 4, 8 and 16 on top; X10 adds 32 to it all.
+    for (const held of [4, 8, 16, 28]) {
+      expect(sidewaysNotch(`\x1b[<${66 + held};80;29M`)).toBe(`\x1b[<${64 + held};80;29M`)
+      expect(sidewaysNotch(`\x1b[<${67 + held};80;29M`)).toBe(`\x1b[<${65 + held};80;29M`)
+    }
+    const x10 = (button: number) => `\x1b[M${String.fromCharCode(button + 32)}!!`
+    expect(sidewaysNotch(x10(66))).toBe(x10(64))
+    expect(sidewaysNotch(x10(67))).toBe(x10(65))
+  })
+
+  it('leaves the wheel up and down, a click, a drag and a move as they came', () => {
+    for (const report of [
+      GHOSTTY.up,
+      GHOSTTY.down,
+      GHOSTTY.press,
+      GHOSTTY.release,
+      GHOSTTY.rightPress,
+      GHOSTTY.rightRelease,
+      GHOSTTY.moved,
+      '\x1b[<68;80;29M',
+      '\x1b[<32;80;29M',
+      `\x1b[M${String.fromCharCode(64 + 32)}!!`,
+      `\x1b[M${String.fromCharCode(2 + 32)}!!`,
+    ]) {
+      expect(sidewaysNotch(report), JSON.stringify(report)).toBeNull()
+    }
+  })
+
+  it("leaves a mouse's back and forward buttons, which are past the wheel's", () => {
+    expect(sidewaysNotch('\x1b[<130;80;29M')).toBeNull()
+    expect(sidewaysNotch('\x1b[<131;80;29M')).toBeNull()
+  })
+
+  it('leaves a key, and two reports read at once, which pi-tui splits first', () => {
+    expect(sidewaysNotch('b')).toBeNull()
+    expect(sidewaysNotch('\x1b[A')).toBeNull()
+    expect(sidewaysNotch(`${GHOSTTY.left}${GHOSTTY.left}`)).toBeNull()
   })
 })
 

@@ -118,6 +118,11 @@ export type PointerEvent =
       rows: number
       /** Shift held, which turns the wheel sideways wherever there is a sideways. */
       shift: boolean
+      /**
+       * Turned sideways at the terminal — a trackpad's left and right, a wheel
+       * that tilts — which is sideways where there is one, and nothing else.
+       */
+      turnedSideways: boolean
       reach: Reach
       sideways: Reach
       /**
@@ -213,8 +218,16 @@ export class Painted implements Component {
   private readonly onPointer: (event: PointerEvent) => boolean
   private readonly onCopy: (text: string) => void
   private readonly clock: () => number
+  /** Whether the notch being answered was turned sideways at the terminal. */
+  private readonly sideways: () => boolean
   /** The wheel, which remembers only when it last turned. */
   private readonly wheel = new Wheel()
+  /**
+   * The same, turned sideways: its own, because Ghostty puts one between every
+   * few notches of a swipe up or down, and a ramp shared with them would take
+   * each for the hand turning back and drop what the run was carrying.
+   */
+  private readonly sidewaysWheel = new Wheel()
   /** The regions the last frame drew, so one whose inputs did not move is not drawn again. */
   private readonly lastFrame: LastFrame
   private hits: readonly Hit[] = []
@@ -284,12 +297,14 @@ export class Painted implements Component {
     onCopy: (text: string) => void,
     clock: () => number,
     lastFrame: LastFrame = new LastFrame(),
+    sideways: () => boolean = () => false,
   ) {
     this.frame = frame
     this.onPointer = onPointer
     this.onCopy = onCopy
     this.clock = clock
     this.lastFrame = lastFrame
+    this.sideways = sideways
   }
 
   render(width: number): string[] {
@@ -629,7 +644,9 @@ export class Painted implements Component {
         // when they arrive in a run. Three rows for every notch of a flick is
         // what made a trackpad cross the screen three times over.
         // Shift turns the wheel sideways, as it does everywhere else.
-        const rows = this.wheel.rows(area, event.wheelDelta, this.clock())
+        const turnedSideways = this.sideways()
+        const wheel = turnedSideways ? this.sidewaysWheel : this.wheel
+        const rows = wheel.rows(area, event.wheelDelta, this.clock())
         if (rows === 0) return { handled: true, render: false }
         const region = extentOf(this.hits, { kind: 'scroll', area })
         const across = extentOf(this.hits, { kind: 'scroll', area }, true)
@@ -640,6 +657,7 @@ export class Painted implements Component {
             area,
             rows,
             shift: event.shift,
+            turnedSideways,
             reach: reachOf(this.hits, area),
             sideways: reachOf(this.hits, area, true),
             at: { column: event.x - across.top, row: event.y - region.top },

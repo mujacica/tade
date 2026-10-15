@@ -9,6 +9,7 @@ import {
   renderWait,
   UNHURRIED,
 } from '../pace.ts'
+import { sidewaysNotch } from '../scroll.ts'
 import { timing } from '../timing.ts'
 
 // Four things about the terminal itself, rather than about anything the window
@@ -277,6 +278,11 @@ class TimedScreen extends TuiAltScreen {
     this.soonest = true
   }
 
+  /** Whether the notch being answered was the wheel turned sideways (`TimedTerminal.start`). */
+  turnedSideways(): boolean {
+    return this.accepting.turnedSideways()
+  }
+
   override stop(options?: Parameters<TuiAltScreen['stop']>[0]): void {
     this.release()
     this.drawn()
@@ -337,6 +343,8 @@ class TimedTerminal implements Terminal {
   private took: number | null = null
   /** A key is being answered: a frame it asks for is drawn at once (`TimedScreen`). */
   private answering = false
+  /** The notch being answered was turned sideways, and pi-tui was handed it upright. */
+  private sideways = false
 
   constructor(to: Terminal) {
     this.to = to
@@ -378,14 +386,22 @@ class TimedTerminal implements Terminal {
    * time and answered before the next — so whether a key is being answered is
    * known for exactly as long as it is. A pointer report is not a key: the
    * frames a flick asks for are paced like any others, forty of them at a time.
+   *
+   * Which also makes it the one place a report pi-tui would misread can be
+   * put right: the wheel turned sideways, which it takes for a right click,
+   * goes on as the same notch up or down (`sidewaysNotch`), and whether the
+   * notch being answered was one is known for exactly as long, too.
    */
   start(onInput: (data: string) => void, onResize: () => void): void {
     this.to.start((data) => {
+      const upright = sidewaysNotch(data)
+      this.sideways = upright !== null
       this.answering = !data.startsWith('\x1b[<') && !data.startsWith('\x1b[M')
       try {
-        onInput(data)
+        onInput(upright ?? data)
       } finally {
         this.answering = false
+        this.sideways = false
       }
     }, onResize)
   }
@@ -393,6 +409,11 @@ class TimedTerminal implements Terminal {
   /** Whether a key is being answered right now. */
   answeringKey(): boolean {
     return this.answering
+  }
+
+  /** Whether the notch being answered right now was the wheel turned sideways. */
+  turnedSideways(): boolean {
+    return this.sideways
   }
   stop(): void {
     this.to.stop()
@@ -427,7 +448,7 @@ class TimedTerminal implements Terminal {
 }
 
 /** What the window draws on: pi-tui's alternate screen, timed, paced, and told what is only news. */
-export type Screen = TuiAltScreen & Pick<TimedScreen, 'requestNews' | 'oweEcho'>
+export type Screen = TuiAltScreen & Pick<TimedScreen, 'requestNews' | 'oweEcho' | 'turnedSideways'>
 
 /** The alternate screen the window draws on, with the two pi-tui points timed. */
 export function screenFor(terminal: Terminal): Screen {

@@ -155,6 +155,38 @@ export class Wheel {
   }
 }
 
+/** What follows `ESC [ <` in a pointer report in SGR: `b ; x ; y`, then M or m. */
+const SGR_REPORT = /^(\d+);\d+;\d+[Mm]$/
+
+/**
+ * A report of the wheel turned sideways — a trackpad's left and right, a
+ * wheel that tilts — as the same notch up or down, which is the only wheel
+ * pi-tui reads; null for any other report, which goes on as it came.
+ *
+ * The wheel's four ways are buttons 4 to 7, each reported with 64 added — up
+ * 64, down 65, left 66, right 67 — and 4, 8 and 16 more for shift, alt and
+ * control. pi-tui takes 64 and 65 for the wheel and anything else for a
+ * button by its low two bits, so left came out as 2, the right button, and
+ * opened the menu of whatever the pointer was over. Ghostty sends one every
+ * few notches of an ordinary swipe up or down, since no swipe is straight;
+ * Terminal sends none, which is why it was never seen there. So left is
+ * handed over as up and right as down, keys and place kept, and the window
+ * is told which it really was (`wire/paint.ts`): what moves sideways moves,
+ * and nothing else does.
+ */
+export function sidewaysNotch(report: string): string | null {
+  const sgr = report.startsWith('\x1b[<') ? SGR_REPORT.exec(report.slice(3)) : null
+  // X10's is three bytes after `ESC [ M`, each with 32 added.
+  const x10 = report.length === 6 && report.startsWith('\x1b[M')
+  const button = sgr ? Number(sgr[1]) : x10 ? report.charCodeAt(3) - 32 : -1
+  // 128 and up are buttons 8 to 11, a mouse's back and forward: not the wheel.
+  if (button < 0 || (button & 192) !== 64 || (button & 3) < 2) return null
+  const upright = button - 2
+  return sgr
+    ? `\x1b[<${upright}${report.slice(3 + String(button).length)}`
+    : `\x1b[M${String.fromCharCode(upright + 32)}${report.slice(4)}`
+}
+
 /**
  * A lane's screen as it was last read back, kept as its lines.
  *
