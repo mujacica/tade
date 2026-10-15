@@ -155,6 +155,49 @@ export class Wheel {
   }
 }
 
+/**
+ * Notches in a row the other way that turn a movement of the hand onto that
+ * way. One is a hand not quite straight; two is a hand going that way.
+ *
+ * Read off a session of real swipes on Ghostty: up and down, a notch sideways
+ * came between every three or four, always one on its own (23 of them in 147);
+ * sideways, a notch up or down came on its own between runs of four to
+ * twenty-six (12 in 271). At two, the swipes up and down kept all 124 of
+ * theirs and lost all 23; the swipes sideways kept 258 of 259 and lost the 12.
+ */
+export const TURNED_AFTER = 2
+
+/**
+ * Which way a movement of the hand is going: down the window, or across it.
+ *
+ * A terminal reports a trackpad's every notch with its way and nothing else,
+ * and no swipe is straight — so a swipe up a list wears a notch sideways every
+ * few, and once something on screen moved sideways, each of them slid it a
+ * column under a hand that was only going up. A movement goes the way its
+ * first notch went (`RUN_MS` apart is a new one), a notch the other way on its
+ * own is the hand drifting and answers nothing, and `TURNED_AFTER` of them in a
+ * row turn it. A notch alone after a pause is a movement of its own, so a
+ * wheel tilted once still goes sideways.
+ */
+export class AxisLock {
+  private across: boolean | null = null
+  private at = Number.NEGATIVE_INFINITY
+  /** Notches in a row against the way it is going. */
+  private against = 0
+
+  /** Whether this notch goes the way the hand is going. `now` is the clock. */
+  holds(across: boolean, now: number): boolean {
+    if (now - this.at >= RUN_MS) this.across = null
+    this.at = now
+    if (this.across !== null && this.across !== across && ++this.against < TURNED_AFTER) {
+      return false
+    }
+    this.across = across
+    this.against = 0
+    return true
+  }
+}
+
 /** What follows `ESC [ <` in a pointer report in SGR: `b ; x ; y`, then M or m. */
 const SGR_REPORT = /^(\d+);\d+;\d+[Mm]$/
 

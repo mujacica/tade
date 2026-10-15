@@ -5,6 +5,7 @@ import type { Hit } from '../src/hits.ts'
 import { resolveLayout } from '../src/layout.ts'
 import { type AppState, scrollBy } from '../src/model.ts'
 import {
+  AxisLock,
   asking,
   cutFrom,
   DRAG_MS,
@@ -15,6 +16,7 @@ import {
   reachOf,
   scrollable,
   sidewaysNotch,
+  TURNED_AFTER,
   Wheel,
   wheelRows,
 } from '../src/scroll.ts'
@@ -126,6 +128,39 @@ describe('a wheel', () => {
     expect(wheel.rows('pane', 1, 100)).toBe(NOTCH)
     expect(wheel.rows('transcript', 1, 105)).toBe(NOTCH)
     expect(wheel.rows('transcript', 1, 110)).toBe(1)
+  })
+})
+
+describe('which way the hand is going', () => {
+  /** Which of a run of notches eight milliseconds apart, as a trackpad sends them, are answered. */
+  const answered = (ways: string, from = 0) => {
+    const lock = new AxisLock()
+    return [...ways].filter((way, i) => lock.holds(way === '>', from + i * 8)).join('')
+  }
+
+  it('drops a notch sideways on its own in a swipe up or down', () => {
+    // The shape of a real swipe on Ghostty: `|` up or down, `>` sideways.
+    const swipe = '||>||||>|||>|>||'
+    expect(answered(swipe)).toBe(swipe.replaceAll('>', ''))
+  })
+
+  it('drops a notch up or down on its own in a swipe sideways', () => {
+    const swipe = '>>>>|>>>>>>|>>>>'
+    expect(answered(swipe)).toBe(swipe.replaceAll('|', ''))
+  })
+
+  it('turns with the hand once the other way comes more than once in a row', () => {
+    expect(TURNED_AFTER).toBe(2)
+    expect(answered('|||>>>>')).toBe('|||>>>')
+    expect(answered('>>||||')).toBe('>>|||')
+  })
+
+  it('starts again after a pause, so a wheel tilted once still goes sideways', () => {
+    const lock = new AxisLock()
+    expect(lock.holds(false, 0)).toBe(true)
+    expect(lock.holds(true, 8)).toBe(false)
+    expect(lock.holds(true, 8 + RUN_MS)).toBe(true)
+    expect(lock.holds(false, 16 + RUN_MS)).toBe(false)
   })
 })
 

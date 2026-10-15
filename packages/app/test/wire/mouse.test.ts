@@ -95,16 +95,40 @@ describe('the window, under the pointer', () => {
   })
 
   // What Ghostty sent for a swipe up or down on a trackpad: the wheel that
-  // way, with a notch sideways every few — 66 left, 67 right — because no
-  // swipe is straight, and two at a time in one read as often as not. pi-tui
+  // way, two to a read as often as not, with a notch sideways on its own every
+  // three or four — 66 left, 67 right — because no swipe is straight. pi-tui
   // read 66 as the right button, so a swipe over the agents or the files
   // opened the menu of whatever it crossed, and every notch after it went to
   // that menu instead of the list under it.
   const swipe = (at: { col: number; row: number }, way: 64 | 65) => {
     const report = (button: number) => `\x1b[<${button};${at.col + 2};${at.row + 1}M`
-    terminal.type(`${report(way)}${report(66)}`)
-    terminal.type(`${report(67)}${report(67)}`)
+    terminal.type(`${report(way)}${report(way)}`)
+    terminal.type(report(66))
+    terminal.type(`${report(way)}${report(way)}`)
+    terminal.type(report(67))
     terminal.type(report(way))
+  }
+  /**
+   * A chain five deep behind an agent that has not started, so nothing in it
+   * starts and the side is wider than its pane: a bar along its bottom, and
+   * the chain's picture beside it with one of its own.
+   */
+  const chainFiveDeep = async () => {
+    let before = 'app/refunds'
+    for (const slug of ['look-first', 'then-reproduce', 'then-fix-it', 'then-test', 'then-ship']) {
+      const after = [{ task: before, why: 'it needs that first' }]
+      const made = await client.createTask({
+        project: 'app',
+        slug,
+        intent: slug,
+        start: { after, prompt: '', touches: [] },
+      })
+      before = made.id
+    }
+    terminal.columns = 100
+    terminal.rows = 30
+    await start()
+    await until('the chain', () => terminal.written.includes('then-reproduce'))
   }
   const rightClick = (at: { col: number; row: number }) => {
     terminal.press(`\x1b[<2;${at.col + 2};${at.row + 1}M`)
@@ -118,12 +142,16 @@ describe('the window, under the pointer', () => {
     await start()
     await until('both agents', () => terminal.written.includes('search'))
     const heading = screenOf(terminal.written).findIndex((row) => row.includes('AGENTS'))
+    const atTop = () => (screenOf(terminal.written)[heading] ?? '').includes('AGENTS')
     const said = terminal.written.length
-    swipe(find(' search'), 65)
-    await until(
-      'the side to scroll under the swipe',
-      () => !(screenOf(terminal.written)[heading] ?? '').includes('AGENTS'),
-    )
+    const agent = find(' search')
+    swipe(agent, 65)
+    await until('the side to scroll under the swipe', () => !atTop())
+    // And back up it, as far as it goes, drifting the same way.
+    await until('the side back at its top', () => {
+      swipe(agent, 64)
+      return atTop()
+    })
     expect(terminal.written.slice(said)).not.toContain('Mark finished')
     // The right button is still the right button.
     rightClick(find(' search'))
@@ -156,25 +184,18 @@ describe('the window, under the pointer', () => {
     await until('the menu', () => terminal.written.includes('Copy relative path'))
   })
 
+  it('scrolls a queue that slides up and down under a swipe, and never slides it', async () => {
+    // The notches a swipe drifts sideways are the hand, not a way to go: each
+    // slid the side a column under somebody only scrolling up and down it.
+    await chainFiveDeep()
+    const queued = find('then-reproduce')
+    swipe(queued, 65)
+    await until('the side to scroll under the swipe', () => find('then-reproduce').row < queued.row)
+    expect(find('then-reproduce').col).toBe(queued.col)
+  })
+
   it('slides the queue and its picture for a notch sideways, and moves nothing else', async () => {
-    // A chain five deep behind an agent that has not started, so nothing in
-    // it starts and the side is wider than its pane: a bar along its bottom,
-    // and the chain's picture beside it with one of its own.
-    let before = 'app/refunds'
-    for (const slug of ['look-first', 'then-reproduce', 'then-fix-it', 'then-test', 'then-ship']) {
-      const after = [{ task: before, why: 'it needs that first' }]
-      const made = await client.createTask({
-        project: 'app',
-        slug,
-        intent: slug,
-        start: { after, prompt: '', touches: [] },
-      })
-      before = made.id
-    }
-    terminal.columns = 100
-    terminal.rows = 30
-    await start()
-    await until('the chain', () => terminal.written.includes('then-reproduce'))
+    await chainFiveDeep()
     const queued = find('then-reproduce')
     const agent = find(' refunds')
     const said = terminal.written.length

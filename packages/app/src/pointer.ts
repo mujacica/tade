@@ -12,7 +12,7 @@ import {
   type Target,
 } from './hits.ts'
 import type { AppState } from './model.ts'
-import { type Reach, reachOf, Wheel } from './scroll.ts'
+import { AxisLock, type Reach, reachOf, Wheel } from './scroll.ts'
 import {
   cellsIn,
   type End,
@@ -229,6 +229,8 @@ export class Painted implements Component {
    * each for the hand turning back and drop what the run was carrying.
    */
   private readonly sidewaysWheel = new Wheel()
+  /** Which way the hand is going, so a notch it drifted the other way moves nothing. */
+  private readonly axis = new AxisLock()
   /** The regions the last frame drew, so one whose inputs did not move is not drawn again. */
   private readonly lastFrame: LastFrame
   private hits: readonly Hit[] = []
@@ -640,14 +642,16 @@ export class Painted implements Component {
         // its own viewport by — the whole window sliding, the line you type
         // on with it. The keys that did this are already taken back
         // (`freeViewportKeys`); the wheel is the one that was left.
+        const turnedSideways = this.sideways()
+        // Asked of every notch, wherever it lands: the hand is the same hand.
+        const straight = this.axis.holds(turnedSideways, this.clock())
         const area = scrollAt(this.hits, event.x, event.y)
-        if (!area || !event.wheelDelta) return { handled: true, render: false }
+        if (!straight || !area || !event.wheelDelta) return { handled: true, render: false }
         // How far a notch goes is the wheel's to say: what the terminal
         // counted, at a few rows each when they arrive apart and a row each
         // when they arrive in a run. Three rows for every notch of a flick is
         // what made a trackpad cross the screen three times over.
         // Shift turns the wheel sideways, as it does everywhere else.
-        const turnedSideways = this.sideways()
         const wheel = turnedSideways ? this.sidewaysWheel : this.wheel
         const rows = wheel.rows(area, event.wheelDelta, this.clock())
         if (rows === 0) return { handled: true, render: false }
