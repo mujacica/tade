@@ -246,6 +246,39 @@ const deepChainTasks: TaskSnapshot[] = [
 ]
 
 /** Schedules beside the queued work: one on repeat, one that asks the orchestrator, one paused. */
+/**
+ * Two agents the conflict forecast says would collide in one file, and the
+ * queued work after both of them: what makes them a plan.
+ */
+const collidingTasks: TaskSnapshot[] = [
+  {
+    task: 'checkout/fix-charge',
+    state: 'working',
+    lane: 'checkout/fix-charge/agent',
+    conflicts: [{ kind: 'hunks', with: 'checkout/bump-mailer', files: ['src/charge.ts'] }],
+  },
+  {
+    task: 'checkout/bump-mailer',
+    state: 'review',
+    conflicts: [{ kind: 'hunks', with: 'checkout/fix-charge', files: ['src/charge.ts'] }],
+  },
+  {
+    task: 'checkout/refund-emails',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/fix-charge', 'checkout/bump-mailer'] },
+      after: [
+        { task: 'checkout/fix-charge', why: 'it sends what the charge returns' },
+        { task: 'checkout/bump-mailer', why: 'it needs the new mailer' },
+      ],
+      prompt: 'Send an email for every refund.',
+      touches: ['src/emails.ts'],
+      at: null,
+    },
+  },
+]
+
 export const queueSchedules: ScheduleView[] = [
   {
     id: 'deps-weekly',
@@ -577,6 +610,17 @@ export const QUEUE_SCREENS: Scenario[] = [
       folded: ['changes', 'files', 'notes', 'where'],
     },
     frame: frame({ screen: '', height: 42, clock: utcClock }),
+  },
+  {
+    name: 'work-that-would-collide',
+    about:
+      'Two agents in one plan that the conflict forecast says would collide: both have uncommitted changes in src/charge.ts. Each wears ⇄ after its name down the side, and in the plan the line under its box says what it would collide with and over which files, where it would otherwise say what it is doing — in a plan, which work runs into which is the thing being read. The orchestrator has been told, and resolves it; nothing here is held or stopped.',
+    state: {
+      ...showPlan(withTasks(withProjects(initialState(), ['checkout']), collidingTasks)),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+    },
+    frame: frame({ screen: '', height: 30, clock: utcClock }),
   },
   {
     name: 'a-long-chain-of-reasons',

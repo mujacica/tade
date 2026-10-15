@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { ClaudeAdapter, HOOK_PATH, MCP_PATH, runSocket } from '../src/adapter.ts'
+import { ClaudeAdapter, HOOK_PATH, MCP_PATH, runSocket, writesOf } from '../src/adapter.ts'
 import { BACKGROUNDED } from '../src/background.ts'
 import { sessionIdFor } from '../src/transcript.ts'
 
@@ -671,4 +671,16 @@ describe('the conversation Tade draws itself, when the window closes', () => {
       await until(() => !alive(pid))
     })
   }
+})
+
+describe('writesOf', () => {
+  it('says which file each of its editing tools writes, and nothing for any other', () => {
+    expect(writesOf('Edit', { file_path: '/repo/src/a.ts', old_string: 'a' })).toEqual([
+      '/repo/src/a.ts',
+    ])
+    expect(writesOf('Write', { file_path: '/repo/b.ts' })).toEqual(['/repo/b.ts'])
+    expect(writesOf('NotebookEdit', { notebook_path: '/repo/n.ipynb' })).toEqual(['/repo/n.ipynb'])
+    expect(writesOf('Read', { file_path: '/repo/src/a.ts' })).toEqual([])
+    expect(writesOf('Edit', {})).toEqual([])
+  })
 })

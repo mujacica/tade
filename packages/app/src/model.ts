@@ -1,5 +1,6 @@
 import {
   type AgentMark,
+  type ConflictOn,
   type DoneRule,
   type Marked,
   markOf,
@@ -79,6 +80,8 @@ export interface AgentPane {
   effort?: string
   /** The ports its lanes listen on that a dev server likely serves a page on (`devServerPorts`). */
   servers?: readonly number[]
+  /** What it would collide with, as the last look forecast it (`conflictsOn`). */
+  conflicts?: readonly ConflictOn[]
 }
 
 /** Queued work, as the window shows it: where it stands, and what it is waiting to do. */
@@ -429,6 +432,7 @@ export interface TaskSnapshot {
   /** The change it is one repository's share of, as its task file says. */
   effort?: string
   servers?: readonly number[]
+  conflicts?: readonly ConflictOn[]
 }
 
 /**
@@ -457,6 +461,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     ...(task.effort ? { effort: task.effort } : {}),
     ...(task.queued ? { queued: task.queued } : {}),
     ...(task.servers ? { servers: task.servers } : {}),
+    ...(task.conflicts ? { conflicts: task.conflicts } : {}),
   }))
   const focused = refocus(state, panes)
   const project =

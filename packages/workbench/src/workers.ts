@@ -9,6 +9,7 @@ import {
   type TaskId,
   type ThinkingLevel,
   type Tier,
+  type Wrote,
   withCaution,
 } from '@tade/core'
 import {
@@ -24,6 +25,7 @@ import {
   type WorkerSignal,
 } from '@tade/harnesses-core'
 import { type AgentTurns, agentTurns, noReporter, type Reporter } from '@tade/telemetry'
+import { type Doing, Doings, type TurnEnd } from './doing.ts'
 import type { EventLog } from './events.ts'
 import { adapterParts } from './harnesses.ts'
 import { producedDetail } from './tasks.ts'
@@ -150,32 +152,7 @@ interface RunState {
   stop: () => void
 }
 
-/**
- * What an agent has been doing lately, as the window watched it happen.
- *
- * Kept in memory and nowhere else, like a lane's screen: it is a reading, and
- * a stale one is worse than none. The journal holds what was *decided* about a
- * tool call; what an agent did inside a turn is the shape of the turn, and
- * writing every step of it down would be the log becoming the transcript.
- */
-export interface Doing {
-  at: number
-  tool: string
-  /** What it was about, short and the same every time it is the same call. */
-  about: string
-  /** Whether it worked; null while it is still running. */
-  ok: boolean | null
-}
-
-/** How a turn ended, as its harness said. */
-export interface TurnEnd {
-  at: number
-  status: 'ok' | 'error' | 'aborted'
-}
-
-/** How much of one agent's recent doing is kept: enough to see a loop in it. */
-const KEPT_DOING = 40
-const KEPT_TURNS = 12
+export type { Doing, TurnEnd } from './doing.ts'
 
 /**
  * What a tool call was about, in one line that is the same every time the same
@@ -229,14 +206,8 @@ export class WorkerSupervisor {
   private readonly turns = new Map<string, 'running' | 'idle'>()
   /** By run: a turn begun and not ended — `turns` stays `running` through one. */
   private readonly inTurn = new Set<string>()
-  /**
-   * By run: the last things each agent did, and how its last turns ended.
-   * Bounded, because a window is open for days and an agent that is fine is
-   * the ordinary case: what is kept is what a loop would show up in.
-   */
-  private readonly doing = new Map<string, { did: Doing[]; ends: TurnEnd[] }>()
-  /** Calls still running, so an answer can find what it answers. */
-  private readonly calls = new Map<string, Doing>()
+  /** By run: what each agent has been doing lately; by task, what it wrote (`doing.ts`). */
+  private readonly doing = new Doings()
   /**
    * Hard-tier requests you have already refused, per run. Asking again for the
    * same thing is refused without troubling you; asking for something else is
@@ -533,8 +504,7 @@ export class WorkerSupervisor {
     this.reading.delete(run)
     this.saidAbout.delete(run)
     this.timing.gone(run)
-    this.doing.delete(run)
-    for (const key of [...this.calls.keys()]) if (key.startsWith(`${run}:`)) this.calls.delete(key)
+    this.doing.forget(run)
     const state = this.runs.get(run)
     state?.stop()
     this.runs.delete(run)
@@ -556,9 +526,7 @@ export class WorkerSupervisor {
         return
       case 'turn_done': {
         this.inTurn.delete(run)
-        const kept = this.kept(run)
-        kept.ends.push({ at: signal.at, status: signal.status })
-        if (kept.ends.length > KEPT_TURNS) kept.ends.shift()
+        this.doing.ended(run, { at: signal.at, status: signal.status })
         this.timing.done(run, { status: signal.status, at: signal.at })
         await this.log.append({ type: 'turn_done', task, run, detail: { status: signal.status } })
         return
@@ -655,11 +623,11 @@ export class WorkerSupervisor {
       // of the turn, and the journal keeps what was decided about it instead.
       case 'tool_call':
         this.timing.tool(run, { callId: signal.callId, tool: signal.tool, at: signal.at })
-        this.noteDoing(run, signal)
+        this.doing.called(run, task, signal, aboutToolCall(signal.input))
         return
       case 'tool_result':
         this.timing.toolDone(run, { callId: signal.callId, ok: signal.ok, at: signal.at })
-        this.noteDone(run, signal)
+        this.doing.answered(run, signal)
         return
       default:
         // Streamed messages are noise in the journal; tool calls are recorded
@@ -677,39 +645,16 @@ export class WorkerSupervisor {
   doingByTask(): { task: string; run: string; did: Doing[]; ends: TurnEnd[] }[] {
     const out: { task: string; run: string; did: Doing[]; ends: TurnEnd[] }[] = []
     for (const [run, state] of this.runs) {
-      const kept = this.doing.get(run)
-      if (!kept) continue
+      if (!this.doing.has(run)) continue
+      const kept = this.doing.of(run)
       out.push({ task: state.task, run, did: [...kept.did], ends: [...kept.ends] })
     }
     return out
   }
 
-  /** What is kept about one run, made the first time it does anything. */
-  private kept(run: string): { did: Doing[]; ends: TurnEnd[] } {
-    const already = this.doing.get(run)
-    if (already) return already
-    const fresh = { did: [] as Doing[], ends: [] as TurnEnd[] }
-    this.doing.set(run, fresh)
-    return fresh
-  }
-
-  private noteDoing(run: RunId, signal: Extract<WorkerSignal, { type: 'tool_call' }>): void {
-    const kept = this.kept(run)
-    kept.did.push({
-      at: signal.at,
-      tool: signal.tool,
-      about: aboutToolCall(signal.input),
-      ok: null,
-    })
-    if (kept.did.length > KEPT_DOING) kept.did.shift()
-    this.calls.set(`${run}:${signal.callId}`, kept.did[kept.did.length - 1] as Doing)
-  }
-
-  private noteDone(run: RunId, signal: Extract<WorkerSignal, { type: 'tool_result' }>): void {
-    const key = `${run}:${signal.callId}`
-    const did = this.calls.get(key)
-    this.calls.delete(key)
-    if (did) did.ok = signal.ok
+  /** What each task's agent wrote while this window watched, by task (`Doings.wroteBy`). */
+  wrote(): Map<string, Wrote[]> {
+    return this.doing.wroteBy()
   }
 
   /**

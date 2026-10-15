@@ -1,5 +1,5 @@
 import { sliceByColumn } from '@earendil-works/pi-tui'
-import { DONE_RULE_MEANS, type QueueState } from '@tade/core'
+import { type ConflictOn, DONE_RULE_MEANS, type QueueState } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
 import {
@@ -25,6 +25,7 @@ import { blank, type Drawn, fit, type Pointer, Row, slid, stack } from '../ui.ts
 import { widthOf } from '../width.ts'
 import { planPicture, planTone } from './plan.ts'
 import {
+  CLASH,
   doing,
   type ListItem,
   QUEUE_ICONS,
@@ -522,16 +523,27 @@ function planBoxes(
       }
     }
     const spent = spend[pane.task]
+    const cost = spent && spent.usd > 0 ? dollars(spent.usd) : ''
+    // What the forecast says it would collide with takes the line under its
+    // name: in a plan, which work runs into which is the thing being read.
+    const clash = pane.conflicts?.[0]
     return {
       task: pane.task,
       mark: glyph(pane, now),
       name: shownName(pane),
-      right: spent && spent.usd > 0 ? dollars(spent.usd) : '',
-      note: doing(pane),
+      right: clash ? `${CLASH.trim()}${cost ? ` ${cost}` : ''}` : cost,
+      note: clash ? clashSays(pane.conflicts ?? []) : doing(pane),
       tone: planTone(MARK_TONES[markOf(pane)]),
       ...mine,
     }
   })
+}
+
+/** What an agent would collide with, in the few words a plan box has: `⇄ b · x.ts, y.ts`. */
+function clashSays(conflicts: readonly ConflictOn[]): string {
+  const withs = [...new Set(conflicts.map((one) => one.with.split('/').at(-1) ?? one.with))]
+  const files = [...new Set(conflicts.flatMap((one) => one.files))]
+  return `${CLASH.trim()} ${withs.join(', ')} · ${files.join(', ')}`
 }
 
 /** A queued task's state, in a word, for its card. */

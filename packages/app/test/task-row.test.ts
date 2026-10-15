@@ -58,3 +58,25 @@ describe('an agent down the side', () => {
     expect(row({ tokens: 1_200_000, usd: 0 })).toContain('1.2M tok')
   })
 })
+
+describe('an agent whose work would collide with another’s', () => {
+  it('wears the mark after its name, in the same width', () => {
+    const marked = stripTerminalSequences(
+      taskRow(
+        WIDTH,
+        COLOUR,
+        NO_POINTER,
+        {
+          ...pane,
+          focused: false,
+          conflicts: [{ kind: 'hunks', with: 'checkout/other', files: ['a.ts'] }],
+        },
+        undefined,
+        0,
+      ).rows[0]?.text ?? '',
+    )
+    expect(marked).toContain('… ⇄')
+    expect(visibleWidth(marked)).toBe(WIDTH)
+    expect(row(undefined)).not.toContain('⇄')
+  })
+})

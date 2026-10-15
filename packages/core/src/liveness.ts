@@ -1,3 +1,4 @@
+import type { Wrote } from './conflicts.ts'
 import type { AgentSignal, Lane, TaskId } from './model.ts'
 
 // Liveness of lanes Tade itself started. The lane registry is the only thing
@@ -11,6 +12,11 @@ export interface LivenessProbe {
    * Optional because with nothing running there are none to report.
    */
   records?(task: TaskId): Promise<Lane[]>
+  /**
+   * The files its agent's harness said it wrote, as the window watched it:
+   * how a shared checkout's uncommitted hunks are told apart (`hunksFrom`).
+   */
+  wrote?(task: TaskId): Promise<Wrote[]>
 }
 
 export const noLanes: LivenessProbe = {
@@ -28,7 +34,10 @@ export const noLanes: LivenessProbe = {
  * sends the answers along. A task with no entry has no lanes, which is what
  * the probe would have said about it.
  */
-export type LivenessTable = Record<string, { lanes: AgentSignal[]; records: Lane[] }>
+export type LivenessTable = Record<
+  string,
+  { lanes: AgentSignal[]; records: Lane[]; wrote?: Wrote[] }
+>
 
 /** A probe that answers out of a table: the same answers, asked again. */
 export function livenessOf(table: LivenessTable): LivenessProbe {
@@ -41,6 +50,9 @@ export function livenessOf(table: LivenessTable): LivenessProbe {
     },
     async records(task) {
       return of(task)?.records ?? []
+    },
+    async wrote(task) {
+      return of(task)?.wrote ?? []
     },
   }
 }

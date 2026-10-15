@@ -570,7 +570,13 @@ export default function tadeExtension(pi: PiApi): void {
     // Recorded either way, so the journal is honest even when nothing is
     // gated. `send` is a no-op while disconnected: what happened is still in
     // pi's own session, which is where it gets recovered from.
-    send({ type: 'tool_call', callId: event.toolCallId, tool: event.toolName, input: event.input })
+    send({
+      type: 'tool_call',
+      callId: event.toolCallId,
+      tool: event.toolName,
+      input: event.input,
+      writes: writesOf(event),
+    })
     if (!GATED) return {}
     if (!connected) {
       return { block: true, reason: 'Tade is not reachable, and approvals are on' }
@@ -588,6 +594,14 @@ export default function tadeExtension(pi: PiApi): void {
     })
     return decision
   }) as never)
+}
+
+/** The files a call of pi's own tools writes: its editing tools, by their path. */
+export function writesOf(event: ToolCallEvent): string[] {
+  if (!['edit', 'write', 'multi_edit'].includes(event.toolName)) return []
+  const input = event.input ?? {}
+  const path = input.path ?? input.file_path ?? input.filePath
+  return typeof path === 'string' && path.length > 0 ? [path] : []
 }
 
 /** One line, exact enough to read back before approving. */

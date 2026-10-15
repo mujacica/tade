@@ -20,6 +20,7 @@ import {
 } from '@tade/core'
 import { parse as parseYaml } from 'yaml'
 import { type AdoptedSession, scanTranscripts, type TranscriptReads } from './adoption.ts'
+import { type ConflictsHeld, forecastConflicts } from './conflicts.ts'
 import type { ProbeGate } from './gate.ts'
 import {
   type BaseRef,
@@ -86,6 +87,8 @@ export interface StatusOptions {
   ports?: boolean | undefined
   /** The last look at the ports, which stands for a while. Belongs to whoever polls, as the gate does. */
   portsHeld?: PortsHeld | undefined
+  /** What merges and commits the conflict forecast has asked about. Belongs to whoever polls, as the gate does. */
+  conflicts?: ConflictsHeld | undefined
   processes?: () => Promise<{
     processes: AgentProcess[]
     servers: ToolServers
@@ -195,7 +198,22 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     )
     for (const s of untracked) claimed.add(s)
     tasks.sort((a, b) => cmp(a.id, b.id))
-    out.push({ ...ref, tasks, untracked: untracked.sort(bySession) })
+    // What its live work would collide over, out of what was just looked at.
+    const forecast = await forecastConflicts({
+      root: ref.root,
+      tasks,
+      base,
+      wrote: async (task) => (await liveness.wrote?.(task)) ?? [],
+      pool: GIT_POOL,
+      held: opts.conflicts,
+    })
+    warnings.push(...forecast.warnings)
+    out.push({
+      ...ref,
+      tasks,
+      untracked: untracked.sort(bySession),
+      conflicts: forecast.conflicts,
+    })
   }
 
   if (opts.ports) await withPorts(out, warnings, now, opts.portsHeld)

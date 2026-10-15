@@ -71,6 +71,11 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
   empty world, and the window keeps the last look that could. The child dies with the window when
   its channel closes, and one that keeps dying is waited on (`restartWait`), never forked per beat.
 
+- **An answer that is a function of commit ids is kept by them, with no ceiling.** The conflict
+  forecast (`src/conflicts.ts`) keeps each `git merge-tree` by the two commits it merged, in the
+  collector's `Held` beside the gate, and asks at most `MERGES_PER_LOOK` new ones a beat — the rest
+  come on the next. The heads come off the gated git look, so nothing new is stat'ed for it. What the
+  window alone knows (which files each agent wrote) crosses on the liveness table as data (`wrote`).
 - **A probe that costs a spawn every beat is asked for, and held by whoever asks.** Which ports
   each lane listens on (`src/ports.ts`, `lsof` plus `ps`) is `StatusOptions.ports` /
   `StatusAsk.ports`: `tade status` asks once, and the window asks every beat while `PortsHeld` (in

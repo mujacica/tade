@@ -1,4 +1,5 @@
 import {
+  type Conflict,
   describeLook,
   describeQueueState,
   describeWhen,
@@ -355,6 +356,80 @@ export function heldMessage(
     whoDecides(told.holds, on !== null ? ANSWERS.trouble(on) : ANSWERS.failed),
     `Each is tade_queue_change with task: ${task} and the change named.`,
   ].join(' ')
+}
+
+/** What a conflict's message needs to know besides the conflict: names the tools take. */
+export interface ConflictTold {
+  holds: QueueHolds
+  /** The side the call is addressed to, and the other one (`whoYields`). */
+  yields: string
+  keeps: string | null
+  /** Each task's branch, where it has one. */
+  branches: ReadonlyMap<string, string>
+  /** Queued work planned to change these files that does not wait on `keeps` yet. */
+  queued: readonly string[]
+}
+
+/**
+ * What the orchestrator is told when two pieces of live work would collide:
+ * what, between whom, over which files, and the one call that answers it.
+ *
+ * Spelled out with its arguments for the reason a hold's is, and with the
+ * other side named by its branch, because "merge the other one in" is not
+ * something an agent can do. Whose it is to resolve is `queue.holds`, read at
+ * the moment of telling: by default the orchestrator's, without asking anybody
+ * — which is what was asked for. Nothing has been held: a forecast tells.
+ */
+export function conflictSays(conflict: Conflict, told: ConflictTold): string {
+  const files = joined(conflict.files)
+  const them = conflict.files.length === 1 ? 'it' : 'them'
+  const [a = '', b = ''] = conflict.tasks
+  const branchOf = (task: string) => told.branches.get(task) || task
+  const steer = (message: string) => `tade_steer with task: ${told.yields}, message: "${message}"`
+  const keeps = told.keeps ?? ''
+  const said =
+    conflict.kind === 'base'
+      ? [
+          `${a} would no longer merge into ${conflict.base} cleanly: ${conflict.base} has moved since its branch left it, and the two conflict in ${files}.`,
+          `The one call: ${steer(`${conflict.base} has moved under your branch and the two conflict in ${files}: merge ${conflict.base} into your branch now and resolve ${them}, keeping what both meant — never a rebase and a force-push.`)}.`,
+        ]
+      : conflict.kind === 'branches'
+        ? [
+            `${a} and ${b} would conflict in ${files} if both were merged: git merge-tree says so of their branches as they stand.`,
+            `The one call: ${steer(`${keeps} (branch ${branchOf(keeps)}) changes ${files} too, and merging the two would conflict: merge ${branchOf(keeps)} into your branch now and resolve ${them}, keeping what both meant, then carry on.`)}.`,
+          ]
+        : [
+            `${a} and ${b} both have uncommitted changes in ${files}, in the checkout they share: each wrote ${them} and nothing has committed ${them} since.`,
+            `The one call: ${steer(`${keeps} has uncommitted changes in ${files} too: leave ${them} alone until ${keeps} has committed, then build on what it committed and commit only your own changes, each file by path.`)}.`,
+          ]
+  const queued = told.queued.map(
+    (task) =>
+      `Queued ${task} was planned to change ${files} too: to have it start after ${keeps} instead, tade_queue_change with change: after, task: ${task}, after: [{task: ${keeps}, why: <why it has to wait>}].`,
+  )
+  const who =
+    told.holds === 'orchestrator'
+      ? `Resolving it is yours (queue.holds), without asking them: make that call, or another — tade_steer the other side, retell queued work, stop one — if you judge it better. Then tell them what you did and why, in a sentence.`
+      : `The person decides, as they set it (queue.holds): tell them what collides and what you would do — that call — and do what they choose.`
+  return [
+    ...said,
+    ...(keeps ? queued : []),
+    who,
+    'It is a forecast: nothing has been held or stopped, and the next look says whether it is still true.',
+  ].join(' ')
+}
+
+/** That a collision told before is no longer there, for the next thing said. */
+export function conflictGoneSays(conflict: Conflict): string {
+  const between =
+    conflict.kind === 'base' ? `${conflict.tasks[0]} and ${conflict.base}` : joined(conflict.tasks)
+  return `${between} no longer collide over ${joined(conflict.files)}`
+}
+
+/** One line in the conversation: who would collide with whom, over what. */
+export function conflictLine(conflict: Conflict): string {
+  const other = conflict.kind === 'base' ? (conflict.base ?? 'its base') : conflict.tasks[1]
+  const how = conflict.kind === 'hunks' ? 'both have uncommitted changes in' : 'would conflict in'
+  return `⇄ ${conflict.tasks[0]} and ${other} ${how} ${joined(conflict.files)}`
 }
 
 /**

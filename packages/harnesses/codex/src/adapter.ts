@@ -849,7 +849,7 @@ export class CodexAdapter implements WorkerAdapter {
         const callId = str('tool_use_id') ?? `${Date.now()}`
         const tool = toolName(str('tool_name') ?? '')
         const input = event.tool_input ?? {}
-        this.say(entry, { type: 'tool_call', callId, tool, input })
+        this.say(entry, { type: 'tool_call', callId, tool, input, writes: writesOf(tool, input) })
         if (this.opts.approvals !== 'policy') return null
         const decision = await new Promise<PermissionDecision>((resolve) => {
           entry.held.set(callId, { resolve })
@@ -1076,6 +1076,7 @@ export class CodexAdapter implements WorkerAdapter {
             callId: String(item.id ?? ''),
             tool,
             input: item,
+            writes: writesOf(tool, item),
           })
         }
         return
@@ -1481,6 +1482,34 @@ export function exitReason(code: number | null, stderr: string): string {
 }
 
 /** What a started item is a call of, when it is one: null for everything else. */
+/**
+ * The files a call of Codex's own tools writes: a patch's files, out of the
+ * `changes` its item carries or the patch text its hook is handed, and the
+ * file of an edit.
+ */
+export function writesOf(tool: string, input: unknown): string[] {
+  const fields = (input ?? {}) as Record<string, unknown>
+  if (tool === 'Write' || tool === 'Edit') {
+    return typeof fields.file_path === 'string' && fields.file_path ? [fields.file_path] : []
+  }
+  if (tool !== 'apply_patch') return []
+  const changes = fields.changes
+  if (Array.isArray(changes)) {
+    return changes.flatMap((one) => {
+      const path = (one as Record<string, unknown> | null)?.path
+      return typeof path === 'string' && path ? [path] : []
+    })
+  }
+  if (changes && typeof changes === 'object') return Object.keys(changes)
+  const patch = [fields.input, fields.patch, fields.command]
+    .flat()
+    .filter((one): one is string => typeof one === 'string')
+    .join('\n')
+  return [...patch.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)].map((m) =>
+    (m[1] ?? '').trim(),
+  )
+}
+
 function itemTool(item: Record<string, unknown>): string | null {
   switch (item.type) {
     case 'command_execution':

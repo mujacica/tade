@@ -15,6 +15,7 @@ import {
   methodIn,
   runSocket,
   toolName,
+  writesOf,
 } from '../src/adapter.ts'
 import { rememberThread, threadOf } from '../src/sessions.ts'
 import { toml } from '../src/toml.ts'
@@ -668,6 +669,26 @@ describe('what Codex is told, and what it says back', () => {
       'shell: rm -rf build',
     )
     expect(describeToolCall('apply_patch', { path: 'src/app.ts' })).toBe('apply_patch src/app.ts')
+  })
+
+  it('says which files a patch writes, from its item or its hook', () => {
+    expect(
+      writesOf('apply_patch', {
+        type: 'file_change',
+        changes: [{ path: '/r/a.ts', kind: 'update' }],
+      }),
+    ).toEqual(['/r/a.ts'])
+    expect(writesOf('apply_patch', { changes: { 'b.ts': { add: {} } } })).toEqual(['b.ts'])
+    expect(
+      writesOf('apply_patch', {
+        command: [
+          'apply_patch',
+          '*** Begin Patch\n*** Update File: src/c.ts\n@@\n*** Add File: d.ts\n*** End Patch',
+        ],
+      }),
+    ).toEqual(['src/c.ts', 'd.ts'])
+    expect(writesOf('Edit', { file_path: '/r/e.ts' })).toEqual(['/r/e.ts'])
+    expect(writesOf('shell', { command: ['ls'] })).toEqual([])
   })
 
   it('names the skills an extension ships, with where to read them', () => {

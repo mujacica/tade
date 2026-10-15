@@ -760,12 +760,10 @@ export class ClaudeAdapter implements WorkerAdapter {
           if (part.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
             this.say(run, { type: 'message', text: part.text })
           } else if (part.type === 'tool_use') {
-            this.say(run, {
-              type: 'tool_call',
-              callId: String(part.id ?? ''),
-              tool: toolName(String(part.name ?? '')),
-              input: part.input ?? {},
-            })
+            const tool = toolName(String(part.name ?? ''))
+            const input = part.input ?? {}
+            const callId = String(part.id ?? '')
+            this.say(run, { type: 'tool_call', callId, tool, input, writes: writesOf(tool, input) })
           }
         }
         return
@@ -1064,7 +1062,7 @@ export class ClaudeAdapter implements WorkerAdapter {
         const callId = str('tool_use_id') ?? `${Date.now()}`
         const tool = toolName(str('tool_name') ?? '')
         const input = event.tool_input ?? {}
-        this.say(entry, { type: 'tool_call', callId, tool, input })
+        this.say(entry, { type: 'tool_call', callId, tool, input, writes: writesOf(tool, input) })
         if (this.opts.approvals !== 'policy') return null
         const decision = await new Promise<PermissionDecision>((resolve) => {
           entry.held.set(callId, { resolve })
@@ -1525,6 +1523,14 @@ function promptWithImages(
     return path
   })
   return `${message}\n\n${paths.map((path) => `[picture: ${path}]`).join('\n')}`
+}
+
+/** The files a call of Claude Code's own tools writes: its editing tools, by their own field. */
+export function writesOf(tool: string, input: unknown): string[] {
+  if (!['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(tool)) return []
+  const fields = (input ?? {}) as Record<string, unknown>
+  const path = fields.file_path ?? fields.notebook_path
+  return typeof path === 'string' && path.length > 0 ? [path] : []
 }
 
 /** One line, exact enough to read back before approving. */

@@ -1,6 +1,14 @@
 import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import type { AgentSignal, Lane, LivenessProbe, LivenessTable, TaskId, TurnState } from '@tade/core'
+import type {
+  AgentSignal,
+  Lane,
+  LivenessProbe,
+  LivenessTable,
+  TaskId,
+  TurnState,
+  Wrote,
+} from '@tade/core'
 import type { WorkerHandle } from '@tade/harnesses-core'
 import { LaneRecord } from './registry.ts'
 import type { PendingApproval } from './workers.ts'
@@ -55,6 +63,8 @@ export interface RunningWork {
   pendingApprovals(task?: string): PendingApproval[]
   /** Whether a run is in the middle of a turn, as its agent said. */
   turnOf?(run: string): TurnState
+  /** What each task's agent wrote while this window watched (`Doings`). */
+  readonly workers?: { wrote(): ReadonlyMap<string, readonly Wrote[]> }
 }
 
 export function livenessFrom(work: RunningWork): LivenessProbe {
@@ -75,7 +85,16 @@ export function livenessFrom(work: RunningWork): LivenessProbe {
     async records(task: TaskId): Promise<Lane[]> {
       return safely(() => work.lanes(task), [] as LaneRecord[]).map(asLane)
     },
+
+    async wrote(task: TaskId): Promise<Wrote[]> {
+      return [...(wroteBy(work).get(task) ?? [])]
+    },
   }
+}
+
+/** What every task's agent wrote, or nothing where the work cannot say. Never throws. */
+function wroteBy(work: RunningWork): ReadonlyMap<string, readonly Wrote[]> {
+  return safely(() => work.workers?.wrote() ?? new Map(), new Map<string, readonly Wrote[]>())
 }
 
 /**
@@ -86,13 +105,21 @@ export function livenessFrom(work: RunningWork): LivenessProbe {
  */
 export async function livenessTableFrom(work: RunningWork): Promise<LivenessTable> {
   const probe = livenessFrom(work)
+  const wrote = wroteBy(work)
   const tasks = new Set([
     ...safely(() => work.lanes(), [] as LaneRecord[]).map((lane) => lane.task),
     ...safely(() => work.runs(), [] as WorkerHandle[]).map((run) => run.task),
+    // An agent that has stopped left its hunks where they were.
+    ...wrote.keys(),
   ])
   const table: LivenessTable = {}
   for (const task of tasks) {
-    table[task] = { lanes: await probe.lanes(task), records: (await probe.records?.(task)) ?? [] }
+    const files = wrote.get(task) ?? []
+    table[task] = {
+      lanes: await probe.lanes(task),
+      records: (await probe.records?.(task)) ?? [],
+      ...(files.length > 0 ? { wrote: [...files] } : {}),
+    }
   }
   return table
 }

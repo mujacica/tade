@@ -1,5 +1,6 @@
 import { type Config, type LivenessTable, livenessOf, type Workspace } from '@tade/core'
 import { newTranscriptReads, type TranscriptReads } from './adoption.ts'
+import { type ConflictsHeld, newConflictsHeld } from './conflicts.ts'
 import { newProbeGate, type ProbeGate } from './gate.ts'
 import { gitLoad } from './git.ts'
 import { newPortsHeld, type PortsHeld } from './ports.ts'
@@ -71,11 +72,12 @@ export interface StatusCollector {
 /** What a look after `close()` is answered with. */
 export const CLOSED = 'status is no longer being looked at: the window that asked has closed'
 
-/** What whoever polls holds between looks: the gate, what was read of each transcript, and the ports. */
+/** What whoever polls holds between looks: the gate, what was read of each transcript, the ports, and the forecast's merges. */
 export interface Held {
   gate: ProbeGate
   transcripts: TranscriptReads
   portsHeld: PortsHeld
+  conflicts: ConflictsHeld
 }
 
 /** The options a look is asked with here, out of an ask and what will answer it. */
@@ -97,6 +99,7 @@ export function lookHere(): StatusCollector {
     gate: newProbeGate(),
     transcripts: newTranscriptReads(),
     portsHeld: newPortsHeld(),
+    conflicts: newConflictsHeld(),
   }
   let closed = false
   return {

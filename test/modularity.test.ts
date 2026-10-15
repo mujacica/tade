@@ -115,7 +115,9 @@ const BUDGET: Record<string, number> = {
   // as it learned to write what queued work waits on and is told; 2,421 when
   // `guardName`'s harness keys became one method a plan asks too.
   'packages/workbench/src/workbench.ts': 2_387,
-  'packages/workbench/src/workers.ts': 1_100,
+  // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
+  // it learned which files each one wrote for the conflict forecast.
+  'packages/workbench/src/workers.ts': 1_045,
   // Its harness — a fake adapter, a supervisor and a log — is now
   // `workers-harness.ts`, which is the half of the file that was not about any
   // particular behaviour and is under the default on its own.

@@ -1,6 +1,7 @@
 import { type Config, ConfigSchema } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { newConflictsHeld } from '../src/conflicts.ts'
 import { newProbeGate } from '../src/gate.ts'
 import { gitLoad, resetGitLoad } from '../src/git.ts'
 import { collectStatus, type StatusOptions } from '../src/status.ts'
@@ -65,11 +66,17 @@ async function cost<T>(work: () => Promise<T>): Promise<{ value: T; spawns: numb
 describe('what a status beat costs', () => {
   it('asks nothing per worktree on a beat where nothing happened', async () => {
     const { opts } = fixture()
+    // Held as the window holds them (`Held`): the gate, and the conflict
+    // forecast's merges, which are kept by the commits they merged.
     const gate = newProbeGate()
-    const beat = () => collectStatus({ ...opts(), gate })
+    const conflicts = newConflictsHeld()
+    const beat = () => collectStatus({ ...opts(), gate, conflicts })
 
     const cold = await cost(beat)
+    const merges = gitLoad().commands['merge-tree'] ?? 0
     const warm = await cost(beat)
+    expect(cold.value.projects[0]?.conflicts).toEqual([])
+    expect(gitLoad().commands['merge-tree'] ?? 0).toBe(merges)
     expect(cold.value.projects[0]?.tasks).toHaveLength(WORKTREES)
     expect(cold.value.warnings).toEqual([])
 

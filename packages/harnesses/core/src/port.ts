@@ -119,6 +119,12 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     callId: z.string(),
     tool: z.string(),
     input: z.unknown(),
+    /**
+     * The files this call writes, as the harness reads its own tools — never
+     * guessed from a tool's name by anybody else. What a shared checkout's
+     * conflict forecast tells one agent's hunks from another's by.
+     */
+    writes: z.array(z.string()).optional(),
   }),
   /** The agent is running one of Tade's extension tools, and waits for the answer. */
   z.object({

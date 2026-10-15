@@ -123,6 +123,12 @@ export const EventType = z.enum([
   'queue_held',
   /** Someone changed queued work: paused it, resumed it, started it anyway, or chose to wait. */
   'queue_changed',
+  /**
+   * Two pieces of live work would collide (`conflicts.ts`): what, between whom,
+   * over which files — or, with `gone`, that a collision told before is no
+   * longer there. Written when the orchestrator is told, so it is told once.
+   */
+  'conflict_forecast',
   /** A schedule came due: what it did then — or that it skipped runs Tade was closed for. */
   'schedule_fired',
   /** A schedule was made, renamed, paused, resumed or removed, and by whom. */
@@ -441,6 +447,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // in words. Blocking would raise a pane for work that has none.
   queue_held: 'notable',
   queue_changed: 'notable',
+  // Notable and never blocking, as a hold is: nobody is stopped yet, and the
+  // orchestrator is told in words.
+  conflict_forecast: 'notable',
   schedule_fired: 'notable',
   schedule_changed: 'notable',
   // Routine: it looks on a clock, and a look that found nothing is not news.

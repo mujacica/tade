@@ -1,6 +1,14 @@
 import type { Queued, QueueFacts, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { describeQueue, heldMessage, planAnswer, whyStarting } from '../src/queue.ts'
+import {
+  conflictGoneSays,
+  conflictLine,
+  conflictSays,
+  describeQueue,
+  heldMessage,
+  planAnswer,
+  whyStarting,
+} from '../src/queue.ts'
 
 const facts = (events: TadeEvent[] = [], finished: string[] = []): QueueFacts => ({
   tasks: new Map([['shop/fix-charge', { state: 'working', reason: '' }]]),
@@ -168,5 +176,69 @@ describe('what the queue says', () => {
         'Queued sentry-cli/oauth-scopes (after sentry/oauth-scopes).',
       ].join('\n'),
     )
+  })
+})
+
+describe('what the orchestrator is told about work that would collide', () => {
+  const branches = new Map([
+    ['shop/refunds', 'tade/refunds'],
+    ['shop/search', 'tade/search'],
+  ])
+  const told = { holds: 'orchestrator' as const, branches, queued: [] }
+
+  it('says what, between whom, over which files, and the one call — the other side by its branch', () => {
+    const said = conflictSays(
+      { kind: 'branches', tasks: ['shop/refunds', 'shop/search'], files: ['a.ts', 'b.ts'] },
+      { ...told, yields: 'shop/search', keeps: 'shop/refunds' },
+    )
+    expect(said).toContain('shop/refunds and shop/search would conflict in a.ts and b.ts')
+    expect(said).toContain(
+      'The one call: tade_steer with task: shop/search, message: "shop/refunds (branch tade/refunds) changes a.ts and b.ts too, and merging the two would conflict: merge tade/refunds into your branch now and resolve them',
+    )
+    expect(said).toContain('Resolving it is yours (queue.holds), without asking them')
+    expect(said).toContain('nothing has been held or stopped')
+  })
+
+  it('has a branch take in a base that moved, and never by a rebase and a force-push', () => {
+    const said = conflictSays(
+      { kind: 'base', tasks: ['shop/refunds'], base: 'main', files: ['a.ts'] },
+      { ...told, yields: 'shop/refunds', keeps: null },
+    )
+    expect(said).toContain('shop/refunds would no longer merge into main cleanly')
+    expect(said).toContain('tade_steer with task: shop/refunds, message: "main has moved')
+    expect(said).toContain('never a rebase and a force-push')
+  })
+
+  it('has the one that gives way in a shared checkout go second, and commit its own by path', () => {
+    const said = conflictSays(
+      { kind: 'hunks', tasks: ['shop/refunds', 'shop/search'], files: ['a.ts'] },
+      { ...told, yields: 'shop/search', keeps: 'shop/refunds', queued: ['shop/emails'] },
+    )
+    expect(said).toContain('both have uncommitted changes in a.ts, in the checkout they share')
+    expect(said).toContain(
+      'tade_steer with task: shop/search, message: "shop/refunds has uncommitted changes in a.ts too: leave it alone until shop/refunds has committed',
+    )
+    // Queued work planned over the same files can be made to wait instead.
+    expect(said).toContain(
+      'tade_queue_change with change: after, task: shop/emails, after: [{task: shop/refunds, why:',
+    )
+  })
+
+  it('puts it to the person where they set it so', () => {
+    const said = conflictSays(
+      { kind: 'hunks', tasks: ['shop/refunds', 'shop/search'], files: ['a.ts'] },
+      { ...told, holds: 'ask', yields: 'shop/search', keeps: 'shop/refunds' },
+    )
+    expect(said).toContain('The person decides, as they set it (queue.holds)')
+    expect(said).not.toContain('without asking them')
+  })
+
+  it('says it in a line, and says when it has gone', () => {
+    const pair = { kind: 'hunks' as const, tasks: ['shop/a', 'shop/b'], files: ['x.ts'] }
+    expect(conflictLine(pair)).toBe('⇄ shop/a and shop/b both have uncommitted changes in x.ts')
+    expect(conflictGoneSays(pair)).toBe('shop/a and shop/b no longer collide over x.ts')
+    expect(
+      conflictGoneSays({ kind: 'base', tasks: ['shop/a'], base: 'main', files: ['x.ts'] }),
+    ).toBe('shop/a and main no longer collide over x.ts')
   })
 })

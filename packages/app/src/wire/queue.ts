@@ -46,6 +46,7 @@ import {
   whenShort,
   why,
 } from './context.ts'
+import { Forecast } from './forecast.ts'
 // Type-only, so it is erased and no module edge exists between the two
 // subjects: the queue's tools answer for schedules as well, and this is the
 // shape of what `queue_schedule` takes. What it *does* is the schedules'.
@@ -134,10 +135,17 @@ export class Queue implements Subject {
    * it is reading rather than in a second message a turn later.
    */
   private readonly answering = new Set<string>()
+  /** What would collide, told on the same pass (`forecast.ts`). */
+  private readonly forecast: Forecast
 
   constructor(wire: Wiring, deps: QueueDeps) {
     this.wire = wire
     this.deps = deps
+    this.forecast = new Forecast(wire, {
+      tell: (text) => deps.tell(text),
+      news: (said) => deps.news(said),
+      said: (text) => this.said(text),
+    })
   }
 
   /**
@@ -270,6 +278,7 @@ export class Queue implements Subject {
       }
     }
     if (started.length > 0) await live.refresh()
+    await this.forecast.look().catch(() => {})
     // Drawn where it did something: what it says goes in the conversation
     // (`said`), and a beat with nothing ready — nearly every beat — says nothing.
     if (started.length > 0 || this.wire.state.transcript !== transcript) this.wire.draw()

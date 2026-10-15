@@ -185,6 +185,19 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   and news for the orchestrator (`addNews`), which goes with the next thing said to it; what needs
   it now is `tell()`, delivered after its turn. A hold is said once (`holdSaid`); a watch that
   cannot look is said when it starts going wrong, not at every look.
+- **What would collide is forecast, told once, and only ever told.** Status looks
+  (`status/src/conflicts.ts`): with a worktree each, `git merge-tree --write-tree` between each pair
+  of live branches and each branch against a base that moved, kept by the pair of commit ids so a
+  beat where no branch moved spawns nothing; in a shared checkout, two agents whose harness said they
+  wrote one changed file (`writes` on `tool_call`, kept by `Doings`, carried on the liveness table)
+  and neither write older than the last commit of it (`hunksFrom`). Every `Project.conflicts`, marked
+  `⇄` on both agents and in the plan. The queue's pass tells it (`wire/forecast.ts`): a
+  `conflict_forecast` line first, so it is said once per collision and again only for a new file,
+  and a `gone` line when it heals. It goes by `tell()`, not news, because the person asked for the
+  orchestrator to resolve it without them, and news waits for them to speak; `conflictSays` names
+  the one call (`whoYields` picks who gives way, by rule) and whose it is to make is `queue.holds`.
+  **It never holds, starts or stops anything**: a forecast is evidence, and what to do about two
+  live agents is a judgement — the orchestrator's, with a tool behind every option it is offered.
 - **Who decides what was held is the person's setting, `queue.holds`.** `orchestrator` (the
   default): it decides and says what it did; `ask`: it is told and asks them. Either way the
   choice is a `queue_changed`, read back by the rule, and it is words in what the orchestrator is

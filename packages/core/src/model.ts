@@ -331,6 +331,24 @@ export const Task = z.object({
 })
 export type Task = z.infer<typeof Task>
 
+/**
+ * Two pieces of work that would collide, as a look found them (`conflicts.ts`).
+ *
+ * `branches`: merging both branches would conflict in `files` (`git merge-tree`).
+ * `base`: one branch would no longer merge into its base cleanly. `hunks`: in a
+ * shared checkout, both agents wrote `files` and neither write has been
+ * committed since. A forecast, and only ever a reason to tell somebody.
+ */
+export const Conflict = z.object({
+  kind: z.enum(['branches', 'base', 'hunks']),
+  /** The tasks on either side, sorted: two, or the one for `base`. */
+  tasks: z.array(z.string()),
+  /** The base branch, for `base`. */
+  base: z.string().optional(),
+  files: z.array(z.string()),
+})
+export type Conflict = z.infer<typeof Conflict>
+
 export const Project = z.object({
   name: z.string(),
   root: z.string(),
@@ -338,6 +356,11 @@ export const Project = z.object({
   tasks: z.array(Task),
   /** Agent sessions in this repo that don't belong to any Tade task. */
   untracked: z.array(AgentSignal.extend({ cwd: z.string() })),
+  /**
+   * What its live work would collide over, as the look found it. Absent where
+   * nobody looked or the look could not be made — never `[]` for that.
+   */
+  conflicts: z.array(Conflict).optional(),
 })
 export type Project = z.infer<typeof Project>
 

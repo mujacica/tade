@@ -29,6 +29,8 @@ export const QUEUE_READS = [
   'queue_started',
   'queue_held',
   'queue_changed',
+  // What the orchestrator was told would collide, so it is told once.
+  'conflict_forecast',
   'schedule_fired',
   // What a watch has found, which is never forgotten: one finding, one piece of work.
   'watch_checked',

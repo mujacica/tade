@@ -263,6 +263,8 @@ export function isScrolling(state: AppState, area: ScrollArea, across = false): 
  * all its life, so that one keeps a token figure's room instead.
  */
 const COST_SLOT = widthOf('$99.99') + 1
+/** Worn after the name of each agent whose work the forecast says would collide with another's. */
+export const CLASH = ' ⇄'
 const TOKENS_SLOT = widthOf('999k tok') + 1
 
 /**
@@ -302,8 +304,11 @@ export function taskRow(
     cost ? widthOf(cost) + 1 : 0,
     buttons ? TAB_ICONS : 0,
   )
-  const room = Math.max(1, inner.width - inner.used - right - 1)
+  // Its work would collide with another's (`conflictsOn`): a mark both of them wear.
+  const clash = (task.conflicts?.length ?? 0) > 0 ? CLASH : ''
+  const room = Math.max(1, inner.width - inner.used - right - 1 - widthOf(clash))
   inner.text(shortened(shownName(task), room), task.focused ? skin.you : (t) => t, target)
+  if (clash) inner.text(clash, skin.waiting, target)
   inner.right((r) => {
     if (cost) r.text(cost, skin.hint, target).space()
     if (buttons) r.icon('×', close, 'danger').icon('≡', menu).space()

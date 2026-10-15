@@ -1,5 +1,6 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import {
+  conflictsOn,
   devServerPorts,
   type Finished,
   finishedFrom,
@@ -90,6 +91,8 @@ export function snapshotsFrom(
       const done = finished.get(task.id)
       // What its lanes listen on that is likely a page, where a look said: a link to its dev server.
       const servers = devServerPorts(task.lanes.flatMap((one) => one.ports ?? []))
+      // What it would collide with, as the look forecast it: a mark on both sides.
+      const conflicts = conflictsOn(task.id, project.conflicts)
       snapshots.push({
         task: task.id,
         state: task.state,
@@ -104,6 +107,7 @@ export function snapshotsFrom(
         ...(task.start && task.start.after.length > 0 ? { waitsOn: task.start.after } : {}),
         ...(task.start && task.start.touches.length > 0 ? { touches: task.start.touches } : {}),
         ...(servers.length > 0 ? { servers } : {}),
+        ...(conflicts.length > 0 ? { conflicts } : {}),
         title: task.title ?? null,
         // Verbatim, as its task file has it: nothing can recover what somebody
         // asked for once it has been reworded, which is why search matches it

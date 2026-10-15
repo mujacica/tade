@@ -6,7 +6,7 @@ import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, piBinary, runSocket, sessionIdFor } from '../src/adapter.ts'
-import { describeToolCall } from '../src/tade.ts'
+import { describeToolCall, writesOf } from '../src/tade.ts'
 
 /** Processes whose command line carries this mark, by pid. */
 function running(mark: string): number[] {
@@ -175,5 +175,12 @@ describe('describeToolCall', () => {
 
   it('falls back to the arguments for unknown tools', () => {
     expect(describeToolCall(call('deploy', { env: 'prod' }))).toBe('deploy {"env":"prod"}')
+  })
+
+  it('says which files its editing tools write, and nothing for any other', () => {
+    expect(writesOf(call('edit', { path: 'src/app.ts' }))).toEqual(['src/app.ts'])
+    expect(writesOf(call('write', { file_path: '/repo/new.ts' }))).toEqual(['/repo/new.ts'])
+    expect(writesOf(call('read', { path: 'src/app.ts' }))).toEqual([])
+    expect(writesOf(call('bash', { command: 'echo > x' }))).toEqual([])
   })
 })

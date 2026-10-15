@@ -191,6 +191,25 @@ describe('livenessTableFrom', () => {
     ])
   })
 
+  it('carries what each agent wrote, a stopped one with no lane included', async () => {
+    const wrote = new Map([
+      ['app/refunds', [{ path: 'src/refund.ts', at: 5 }]],
+      ['app/stopped', [{ path: 'src/left.ts', at: 4 }]],
+    ])
+    const table = await livenessTableFrom({ ...work, workers: { wrote: () => wrote } } as never)
+    expect(Object.keys(table).sort()).toEqual([
+      'app/old',
+      'app/queued',
+      'app/refunds',
+      'app/stopped',
+    ])
+    const read = livenessOf(JSON.parse(JSON.stringify(table)))
+    expect(await read.wrote?.('app/refunds')).toEqual([{ path: 'src/refund.ts', at: 5 }])
+    expect(await read.wrote?.('app/stopped')).toEqual([{ path: 'src/left.ts', at: 4 }])
+    expect(await read.wrote?.('app/queued')).toEqual([])
+    expect(table['app/queued']).not.toHaveProperty('wrote')
+  })
+
   it('is an empty table, never a throw, when the workbench cannot answer', async () => {
     const broken = {
       lanes: () => {
