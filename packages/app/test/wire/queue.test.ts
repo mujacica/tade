@@ -84,6 +84,50 @@ describe('the window, and the work waiting in it', () => {
     )
   })
 
+  it('begins work a watch said where to begin on that ref, never on the base', async () => {
+    // A review that conflicts is merged into from its own head, so the watch's
+    // work says where its tree begins, and it is the start that reads it.
+    repo.git('checkout', '-q', '-b', 'shop/refunds-retry')
+    const head = repo.commit('retry refunds once', { 'retry.ts': 'once' })
+    repo.git('checkout', '-q', 'main')
+    repo.commit('main moves on', { 'main.ts': 'on' })
+    await client.setSchedule(
+      {
+        id: 'conflicts-app',
+        name: 'review.conflicts',
+        project: 'app',
+        said: 'merge main into my reviews when they conflict',
+        when: { every: '10m' },
+        does: { kind: 'watch', watch: 'review.conflicts', input: {}, found: 'agent', most: 2 },
+        missed: 'once',
+        by: 'you',
+        created: '2026-09-15T08:00:00.000Z',
+      },
+      'you',
+    )
+    const made = await client.watchFound(
+      'conflicts-app',
+      { key: 'github.com/acme/app#412:conflicts@abc', title: 'PR #412 conflicts with main' },
+      {
+        agent: {
+          title: 'pr 412 conflicts with main',
+          prompt: 'Merge main in.',
+          alone: true,
+          from: 'shop/refunds-retry',
+        },
+      },
+    )
+    const task = made.task ?? ''
+    await start()
+    await until(
+      'the watch’s work started',
+      () => client.runs().some((run) => run.task === task),
+      SPAWNING_MS,
+    )
+    const worktree = join(home, 'worktrees', task.replace('/', '-'))
+    expect(repo.git('-C', worktree, 'rev-parse', 'HEAD').trim()).toBe(head)
+  })
+
   it('shows queued work under the agents, opens it, and starts it from its card', async () => {
     terminal.columns = 120
     terminal.rows = 60
