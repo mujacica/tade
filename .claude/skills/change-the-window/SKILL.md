@@ -107,6 +107,9 @@ regions in a cycle now.
   hold-to-talk on one terminal and a toggle on another without the model knowing.
 - **Hold-to-talk needs key releases**, which only some terminals report. Check
   `terminal.kittyProtocolActive` and degrade to a toggle; never assume releases arrive.
+- **A key goes into a lane as a terminal with no kitty protocol sends it** (`forLane`). The window
+  asks its terminal for releases; a lane's emulator offers the program in it nothing of the kind,
+  so a release is dropped and ctrl, alt and escape go back to their legacy bytes.
 - **`addInputListener` runs before the focused component**, and returning `{ consume: true }` stops
   the keystroke there. Returning `undefined` lets it through to the agent — that is the default.
 - **Nothing steals the screen while you are typing.** A pane may raise itself only for a `blocking`
@@ -306,6 +309,8 @@ regions in a cycle now.
   one between every few notches of a swipe up or down. So `TimedTerminal` hands it over upright
   (`sidewaysNotch`) and says it was turned (`turnedSideways`, read like `answeringKey`): it slides
   what has a bar along its bottom, on a `Wheel` of its own, and is never handed back as up or down.
+  And a movement of the hand goes one way (`AxisLock`): a notch the other way on its own is the
+  swipe not being straight and answers nothing; `TURNED_AFTER` in a row turn it.
 
 ## Selecting text
 

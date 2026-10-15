@@ -30,6 +30,41 @@ describe('the window, taking a keystroke', () => {
     client = wired.client
   })
 
+  it('types into a shell what Terminal would, from a terminal speaking the kitty protocol', async () => {
+    // What Ghostty sends with the flags the window asks it for: a letter as
+    // itself and then its release, ctrl+c as `ESC [ 99 ; 5 u`. Handed on as it
+    // came, the shell printed every release after every letter and took
+    // ctrl+c for more of them.
+    const opened = await client.openTerminal({ project: 'app' })
+    await client.write(opened.id, 'echo ready\r')
+    terminal.rows = 40
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    /** The shell's own lines, without the bar down their right or the caret. */
+    const said = (line: string) =>
+      screenOf(terminal.written).some((row) => row.replace(/[\s▕█]+$/, '') === line)
+    await until('the shell in front', () => said('ready'), 20_000)
+    const typing = (text: string) => {
+      for (const char of text) {
+        terminal.press(char)
+        terminal.press(`\x1b[${char.codePointAt(0)};1:3u`)
+      }
+    }
+    // A line thrown away with ctrl+c, and one run.
+    typing('echo one')
+    terminal.press('\x1b[99;5u')
+    terminal.press('\x1b[99;5:3u')
+    typing('echo two')
+    terminal.press('\r')
+    await until('the shell to say two', () => said('two'), 20_000)
+    expect(said('one')).toBe(false)
+    const rows = screenOf(terminal.written)
+    expect(rows.join('\n')).not.toContain(';1:3u')
+    expect(rows.join('\n')).not.toContain('99;5u')
+  })
+
   it('takes a keystroke and opens the dictation line', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

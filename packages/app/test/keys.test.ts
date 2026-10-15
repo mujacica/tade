@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appKey, normalKey } from '../src/keys.ts'
+import { appKey, forLane, normalKey } from '../src/keys.ts'
 
 // The shell claims as little as possible. Anything it names here is a key the
 // focused agent will never see, so each one has to earn its place.
@@ -100,5 +100,72 @@ describe('keys the shell claims', () => {
   it('ignores the release half of every other key', () => {
     // Kitty reports both halves; acting twice on one keystroke would be a bug.
     expect(appKey('\x1b[97;1:3u', held)).toBeNull()
+  })
+})
+
+describe('a key on its way into a lane', () => {
+  // What Ghostty 1.3.1 sent, read off it with the flags pi-tui asks for (7):
+  // `git ` typed, then ctrl+c, escape, ctrl+b, shift+enter, ctrl+enter, and an
+  // `a` held down. A letter comes as itself, a held one as itself again, and
+  // every one of them is let go of in kitty's own words.
+  const GHOSTTY: readonly (readonly [string, string])[] = [
+    ['g', 'g'],
+    ['\x1b[103;1:3u', ''],
+    ['i', 'i'],
+    ['\x1b[105;1:3u', ''],
+    ['t', 't'],
+    ['\x1b[116;1:3u', ''],
+    [' ', ' '],
+    ['\x1b[32;1:3u', ''],
+    ['\x1b[99;5u', '\x03'],
+    ['\x1b[99;5:3u', ''],
+    ['\x1b[27u', '\x1b'],
+    ['\x1b[27;1:3u', ''],
+    ['\x1b[98;5u', '\x02'],
+    ['\x1b[98;5:3u', ''],
+    ['a', 'a'],
+    ['a', 'a'],
+    ['\x1b[97;1:3u', ''],
+  ]
+
+  it('is what Terminal would have sent, and nothing for letting go', () => {
+    for (const [sent, typed] of GHOSTTY) expect(forLane(sent), JSON.stringify(sent)).toBe(typed)
+  })
+
+  it('stays as kitty spelt it where legacy has no bytes for it', () => {
+    // shift+enter is the newline an agent's editor wants; legacy would make it enter.
+    expect(forLane('\x1b[13;2u')).toBe('\x1b[13;2u')
+    expect(forLane('\x1b[13;5u')).toBe('\x1b[13;5u')
+    // Super has no byte in any legacy terminal.
+    expect(forLane('\x1b[99;9u')).toBe('\x1b[99;9u')
+    expect(forLane('\x1b[99;9:2u')).toBe('\x1b[99;9u')
+  })
+
+  it('is the legacy bytes for alt, shift and ctrl on the keys that have them', () => {
+    expect(forLane('\x1b[98;3u')).toBe('\x1bb')
+    expect(forLane('\x1b[9;2u')).toBe('\x1b[Z')
+    expect(forLane('\x1b[13;3u')).toBe('\x1b\r')
+    expect(forLane('\x1b[127;5u')).toBe('\b')
+    expect(forLane('\x1b[127;3u')).toBe('\x1b\x7f')
+    expect(forLane('\x1b[32;5u')).toBe('\x00')
+    expect(forLane('\x1b[99;6u')).toBe('\x03')
+    // Shift with the alternate key kitty reports, and caps lock changing nothing.
+    expect(forLane('\x1b[97:65;2u')).toBe('A')
+    expect(forLane('\x1b[99;69u')).toBe('\x03')
+  })
+
+  it('drops an arrow let go of, and takes one held for pressed again', () => {
+    expect(forLane('\x1b[1;1:3A')).toBe('')
+    expect(forLane('\x1b[1;1:2A')).toBe('\x1b[A')
+    expect(forLane('\x1b[1;5:2C')).toBe('\x1b[1;5C')
+    expect(forLane('\x1b[3;1:3~')).toBe('')
+    expect(forLane('\x1b[3;1:2~')).toBe('\x1b[3~')
+    expect(forLane('\x1b[1;1:2P')).toBe('\x1bOP')
+  })
+
+  it('leaves alone what was never kitty: legacy keys, a paste, text', () => {
+    for (const sent of ['\x1b[A', '\x1b[1;5C', '\x03', '\x1b', '\x1b[200~git\x1b[201~', 'héllo']) {
+      expect(forLane(sent), JSON.stringify(sent)).toBe(sent)
+    }
   })
 })

@@ -242,3 +242,106 @@ export function freeViewportKeys(): void {
   }
   bindings.setUserBindings({ ...bindings.getUserBindings(), ...freed })
 }
+
+/** Kitty's modifier bits, once its one is taken off. */
+const SHIFT = 1
+const ALT = 2
+const CTRL = 4
+/** Super, hyper and meta: nothing a legacy terminal has a byte for. */
+const BEYOND = 8 | 16 | 32
+/** Caps lock and num lock, which say how a key was pressed and change no byte of it. */
+const LOCKS = 64 | 128
+
+/** What follows `ESC [` in a key kitty sends as `CSI u`: the key, its alternates, the modifiers and event, the text. */
+const CSI_U = /^(\d+)(?::(\d*))?(?::\d+)?(?:;(\d*)(?::([123]))?)?(?:;[\d:]*)?u$/
+/** What follows `ESC [` in a key kitty sends in its legacy form with an event on it: `1;1:3A`, `3;5:2~`. */
+const LEGACY_EVENT = /^(\d+);(\d+):([123])([~A-DHFPQS])$/
+
+/**
+ * The keys xterm sends a control byte for with ctrl held, past the letters:
+ * `ctrl+@` and `ctrl+space` are NUL, `ctrl+[` is escape, and so on, and the
+ * digits two to eight stand in for the punctuation above them.
+ */
+const CONTROLS: Readonly<Record<string, number>> = {
+  ' ': 0,
+  '@': 0,
+  '2': 0,
+  '[': 27,
+  '3': 27,
+  '\\': 28,
+  '4': 28,
+  ']': 29,
+  '5': 29,
+  '^': 30,
+  '6': 30,
+  _: 31,
+  '7': 31,
+  '/': 31,
+  '?': 127,
+  '8': 127,
+}
+
+/**
+ * A key as the window read it, in the bytes a program in a lane reads it as:
+ * what a terminal that has never heard of the kitty keyboard protocol sends,
+ * or nothing for what such a terminal never sends at all.
+ *
+ * The window asks its own terminal for the protocol, so a held key can be let
+ * go of (`kitty`, above), and Ghostty does what it is asked: every key comes
+ * with a release (`ESC [ 103 ; 1 : 3 u` after a `g`), and ctrl, alt and escape
+ * come as `ESC [ … u` too (`ctrl+c` is `ESC [ 99 ; 5 u`). A lane's emulator
+ * never offers that protocol to the program in it, so a shell there printed
+ * every release as text after every letter and took ctrl+c for more of it —
+ * where Terminal, which offers none, sent `g` and `\x03`. So a release is
+ * dropped, a repeat is a press, and a press goes back to its legacy bytes.
+ *
+ * A key legacy has no bytes for — shift+enter, ctrl+enter, anything with super
+ * — goes on as kitty spelt it: there is nothing truer to send, and it is the
+ * one way an agent in the lane can still tell shift+enter from enter.
+ */
+export function forLane(data: string): string {
+  if (!data.startsWith('\x1b[')) return data
+  const rest = data.slice(2)
+  const legacy = LEGACY_EVENT.exec(rest)
+  if (legacy) {
+    const [, number, mods, event, final] = legacy
+    if (event === '3') return ''
+    if (mods !== '1') return `\x1b[${number};${mods}${final}`
+    if (final === '~') return `\x1b[${number}~`
+    // F1 to F4 unmodified are `ESC O P` and its neighbours; the rest `ESC [ A`.
+    return 'PQS'.includes(final ?? '') ? `\x1bO${final}` : `\x1b[${final}`
+  }
+  const key = CSI_U.exec(rest)
+  if (!key) return data
+  const [, code, shifted, mods, event] = key
+  if (event === '3') return ''
+  const asPressed = `\x1b[${code}${mods && mods !== '1' ? `;${mods}` : ''}u`
+  const held = (Number(mods || '1') - 1) & ~LOCKS
+  if (held & BEYOND) return asPressed
+  const point = Number(code)
+  const alt = held & ALT ? '\x1b' : ''
+  const ctrl = (held & CTRL) !== 0
+  const shift = (held & SHIFT) !== 0
+  switch (point) {
+    case 13:
+      return held === 0 ? '\r' : held === ALT ? '\x1b\r' : asPressed
+    case 9:
+      return held === 0 ? '\t' : held === SHIFT ? '\x1b[Z' : held === ALT ? '\x1b\t' : asPressed
+    case 127:
+      return ctrl ? (held === CTRL ? '\b' : asPressed) : `${alt}\x7f`
+    case 27:
+      return held === 0 ? '\x1b' : held === ALT ? '\x1b\x1b' : asPressed
+  }
+  // Kitty's own codes for keys Unicode has no character for — the keypad,
+  // media keys — and anything not a character at all: as kitty spelt them.
+  if (point < 32 || point >= 0xe000) return asPressed
+  const typed = shift && shifted ? Number(shifted) : point
+  let char = String.fromCodePoint(typed)
+  if (shift && !shifted) char = char.toUpperCase()
+  if (!ctrl) return `${alt}${char}`
+  const lower = char.toLowerCase()
+  if (lower >= 'a' && lower <= 'z')
+    return `${alt}${String.fromCharCode(lower.charCodeAt(0) & 0x1f)}`
+  const control = CONTROLS[char] ?? CONTROLS[String.fromCodePoint(point)]
+  return control === undefined ? asPressed : `${alt}${String.fromCharCode(control)}`
+}

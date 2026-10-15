@@ -27,7 +27,7 @@ import {
   spanOf,
   withSelection,
 } from '../input.ts'
-import { appKey, normalKey } from '../keys.ts'
+import { appKey, forLane, normalKey } from '../keys.ts'
 import {
   activeTerminal,
   focusBy,
@@ -327,14 +327,16 @@ export class Keyboard implements Subject {
         break
     }
 
-    // A terminal with the keyboard gets every keystroke Tade did not keep.
+    // A terminal with the keyboard gets every key Tade did not keep, as legacy bytes (`forLane`).
+    const lanes = forLane(data)
+    if (lanes === '') return { consume: true }
     const terminal = activeTerminal(this.wire.state)
     if (terminal && this.wire.state.keyboard === 'terminal' && this.wire.state.dictation === null) {
       const scrolled = this.wire.state.terminalScroll !== 0
       this.wire.put({ ...this.wire.state, terminalScroll: 0 })
       const split = terminalSplitShown(this.wire.state)
       const into = split && this.wire.state.splitFocus ? split.lane : terminal.id
-      this.wire.outbox.write(into as LaneId, data)
+      this.wire.outbox.write(into as LaneId, lanes)
       // No look of its own: the echo is the lane printing, which looks at once
       // (`Looks.printed`); one asked for here found nothing and held the echo a
       // floor behind it. Only a terminal scrolled back is owed one, to its end.
@@ -357,7 +359,7 @@ export class Keyboard implements Subject {
       this.type(data)
       return { consume: true }
     }
-    this.deps.toLane(data)
+    this.deps.toLane(lanes)
     return undefined
   }
 
