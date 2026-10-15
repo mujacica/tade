@@ -333,6 +333,9 @@ regions in a cycle now.
   which is honest about the limit: **as far back as Tade has read, and no further.** Everywhere else —
   the side, a panel, the ACTIONS page — a selection is still the rows it was made on, because none of
   those is a thing people drag over pages of.
+- **A second press on words takes the word and a third the line, and copies it** (`wordAcross`,
+  `Painted.takeWords`), as a terminal does: the first press still does what one press does — the
+  conversation's opens the line — and a control, the line you type on and a file keep their own.
 - **The far end of a *live* drag is deliberately not anchored.** It follows the pointer, so content
   moving under a hand that is holding still is what **extends** the selection — which is what makes the
   wheel during a drag, and the scroll at an edge (`drag-region`, on a timer like the file's), do what a

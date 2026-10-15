@@ -22,6 +22,7 @@ import {
   selectedText,
   spanText,
   type Within,
+  wordAcross,
 } from '../src/selection.ts'
 import { emptyTranscript, said, type Transcript } from '../src/transcript.ts'
 import { draw } from '../src/view.ts'
@@ -450,5 +451,90 @@ describe('a selection dragged over the conversation', () => {
     const lines = (copied[0] ?? '').split('\n')
     expect(lines.length).toBeGreaterThan(region.rows)
     for (const line of lines.slice(1, -1)) expect(line).toMatch(/^● answer number \d+$/)
+  })
+})
+
+describe('a word taken by a second press', () => {
+  it('is the word under the pointer, last column included', () => {
+    const row = 'answer number 12      '
+    expect(wordAcross(row, 0, null, 2)).toEqual({ from: 0, to: 5 })
+    expect(wordAcross(row, 9, null, 2)).toEqual({ from: 7, to: 12 })
+    expect(wordAcross(row, 15, null, 2)).toEqual({ from: 14, to: 15 })
+  })
+
+  it('is the whole of the row for a third, without the space round it', () => {
+    expect(wordAcross('  answer number 12    ', 4, null, 3)).toEqual({ from: 2, to: 17 })
+  })
+
+  it('reads colour as nothing and a wide character as one', () => {
+    expect(wordAcross('\x1b[38;5;246mhint\x1b[0m words', 7, null, 2)).toEqual({ from: 5, to: 9 })
+    expect(wordAcross('日本 word', 6, null, 2)).toEqual({ from: 5, to: 8 })
+    expect(wordAcross('日本 word', 1, null, 2)).toEqual({ from: 0, to: 3 })
+  })
+
+  it('never runs on into what is drawn beside the region', () => {
+    // The side's words end at column 9, and the region pressed in starts at 10.
+    const row = 'sidewords|regionwords'
+    expect(wordAcross(row, 12, { from: 10, to: 20 }, 2)).toEqual({ from: 10, to: 20 })
+  })
+
+  it('is nothing where there is only space to take', () => {
+    expect(wordAcross('word        ', 9, null, 2)).toBeNull()
+    expect(wordAcross('            ', 3, null, 3)).toBeNull()
+  })
+})
+
+describe('a second press on the conversation', () => {
+  function pressing() {
+    let transcript: Transcript = emptyTranscript()
+    for (let i = 0; i < 40; i++) transcript = said(transcript, `answer number ${i}`, i)
+    const state: AppState = {
+      ...withTranscript(withProjects(initialState(), ['checkout']), transcript),
+      bottomMode: 'max',
+    }
+    const frame = { width: 100, height: 30, screen: '' } as unknown as Frame
+    const copied: string[] = []
+    const told: PointerEvent[] = []
+    const painted = new Painted(
+      () => ({ state, frame }),
+      (event) => {
+        told.push(event)
+        return false
+      },
+      (text) => copied.push(text),
+      () => 0,
+    )
+    const rows = painted.render(100).map((row) => stripTerminalSequences(row))
+    const y = rows.findIndex((row) => row.includes('answer number 39'))
+    const x = (rows[y] ?? '').indexOf('number') + 2
+    /** Pressed and let go where it was pressed, `clicks` times, as a terminal reports it. */
+    const click = (clicks: number) => {
+      const at = { button: 'left', x, y, screenX: x, screenY: y, width: 100, height: 30 }
+      const keys = { shift: false, alt: false, ctrl: false }
+      for (const type of ['press', 'release'] as const)
+        painted.handleMouse({ type, ...at, ...keys } as never)
+      painted.handleMouse({ type: 'click', ...at, ...keys, clickCount: clicks } as never)
+    }
+    return { copied, told, click, draw: () => painted.render(100) }
+  }
+
+  it('takes and copies the word, and is still a press there', () => {
+    const { copied, told, click, draw } = pressing()
+    click(1)
+    click(2)
+    expect(copied).toEqual(['number'])
+    // Each press went on to the conversation as well, which keeps the line open.
+    const clicks = told.filter((event) => event.kind === 'click')
+    expect(clicks.map((event) => event.kind === 'click' && event.clicks)).toEqual([1, 2])
+    // And it stays lit, as a dragged selection does.
+    expect(draw().some((row) => row.includes('\x1b[7m'))).toBe(true)
+  })
+
+  it('takes the line on a third', () => {
+    const { copied, click } = pressing()
+    click(1)
+    click(2)
+    click(3)
+    expect(copied.at(-1)).toBe('● answer number 39')
   })
 })

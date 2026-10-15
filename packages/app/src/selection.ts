@@ -1,5 +1,6 @@
 import { sliceByColumn, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { ScrollArea } from './hits.ts'
+import { wordAt } from './input.ts'
 
 // Selecting text by dragging over it, and copying what was covered.
 //
@@ -189,4 +190,46 @@ export function highlighted(
     const lit = sliceByColumn(plain, start, Math.max(0, end - start))
     return `${sliceByColumn(row, 0, start)}\x1b[0m\x1b[7m${lit}\x1b[0m${sliceByColumn(row, end, Math.max(0, width - end))}`
   })
+}
+
+/**
+ * The columns a second press takes on a row, the last of them included: the
+ * word under `x`, found as the line you type on and a file find one
+ * (`wordAt`), or for a third press the row's text end to end. Read only
+ * inside `within`, the region pressed in, so a word never runs on into the
+ * side beside it; nothing where there is nothing but space to take.
+ */
+export function wordAcross(
+  row: string,
+  x: number,
+  within: Within | null,
+  clicks: number,
+): { from: number; to: number } | null {
+  const plain = stripTerminalSequences(row)
+  const first = within?.from ?? 0
+  const last = within?.to ?? Number.POSITIVE_INFINITY
+  // The region's characters, each with the column it starts in and how far
+  // into their text it starts, so a wide one is still one character.
+  const chars: { char: string; column: number; at: number }[] = []
+  let text = ''
+  let column = 0
+  for (const char of plain) {
+    const width = visibleWidth(char)
+    if (column >= first && column + Math.max(1, width) - 1 <= last) {
+      chars.push({ char, column, at: text.length })
+      text += char
+    }
+    column += width
+  }
+  const under = chars.findLastIndex((one) => one.column <= x)
+  if (under < 0) return null
+  const span =
+    clicks >= 3
+      ? { from: text.length - text.trimStart().length, to: text.trimEnd().length }
+      : wordAt(text, chars[under]?.at ?? 0)
+  if (text.slice(span.from, span.to).trim() === '') return null
+  const start = chars.find((one) => one.at >= span.from)
+  const end = chars.findLast((one) => one.at < span.to)
+  if (!start || !end) return null
+  return { from: start.column, to: end.column + Math.max(1, visibleWidth(end.char)) - 1 }
 }

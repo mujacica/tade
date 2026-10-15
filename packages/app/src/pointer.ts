@@ -23,6 +23,7 @@ import {
   selectedText,
   spanText,
   type Within,
+  wordAcross,
 } from './selection.ts'
 import { timing } from './timing.ts'
 import { LastFrame } from './view/last-frame.ts'
@@ -208,6 +209,17 @@ export function placeAt(held: HeldAgent, y: number): number {
 }
 
 /**
+ * Whether a press here lands on words a second press may take: text the window
+ * drew or holds — the conversation, a lane it reads, a panel's rows — and
+ * nothing that takes a press of its own.
+ */
+function words(target: Target | null): boolean {
+  return (
+    target === null || ['orchestrator', 'scroll', 'pane', 'terminal', 'inert'].includes(target.kind)
+  )
+}
+
+/**
  * The one component the TUI holds: it paints a frame and answers the mouse.
  *
  * Named for what it does rather than for the window, because `wire/window.ts`
@@ -332,6 +344,23 @@ export class Painted implements Component {
     // rows that have gone is an offset into nothing.
     const chosen = cellsIn(selection, this.regionOf(selection.area), selection.within)
     return highlighted(drawn.rows, chosen, width, selection.within)
+  }
+
+  /** A word or a line taken by a second or third press, and copied: whether there was one. */
+  private takeWords(x: number, y: number, clicks: number): boolean {
+    const area = scrollAt(this.hits, x, y)
+    const across = area ? extentOf(this.hits, { kind: 'scroll', area }, true) : null
+    const within =
+      across && across.rows > 0 ? { from: across.top, to: across.top + across.rows - 1 } : null
+    const span = wordAcross(this.rows[y] ?? '', x, within, clicks)
+    if (!span) return false
+    const region = this.regionOf(area)
+    const line = region ? lineAt(region, y) : null
+    const from = { x: span.from, y, line }
+    this.selection = { area, from, to: { ...from, x: span.to }, moved: true, within }
+    const text = this.copied()
+    if (text.trim() !== '') this.onCopy(text)
+    return true
   }
 
   /** The region a selection is anchored in, where the last frame drew one. */
@@ -619,12 +648,26 @@ export class Painted implements Component {
         if (!moved) this.selection = null
         return { handled: true, render: this.onPointer({ kind: 'release' }) || moved }
       }
-      case 'click':
+      case 'click': {
         // A terminal makes one out of the press and the release it already
         // reported, and both of those have gone to the lane: passed on here
         // as well it would be the same click twice.
         if (target?.kind === 'screen') return { handled: true, render: false }
-        if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
+        // A second press on words takes the word and a third the line, as a
+        // terminal does, and copies it as a drag does: while the window has
+        // the mouse that is the only copy there is. Not on a control, nor on
+        // the line you type on or a file, which take their own (`clickedOn`).
+        // It is still a press there as well — the conversation's opens the
+        // line — because two presses a moment apart are two presses too.
+        const took =
+          (event.clickCount ?? 1) >= 2 &&
+          event.button === 'left' &&
+          words(target) &&
+          this.takeWords(event.x, event.y, event.clickCount ?? 2)
+        const shown = took ? { handled: true, render: true } : { handled: true }
+        if (!target || (event.button !== 'left' && event.button !== 'right')) {
+          return took ? shown : undefined
+        }
         this.onPointer({
           kind: 'click',
           target,
@@ -634,7 +677,8 @@ export class Painted implements Component {
           cell,
           clicks: event.clickCount ?? 1,
         })
-        return { handled: true }
+        return shown
+      }
       case 'wheel': {
         // Swallowed wherever it lands, even over a corner of the window that
         // scrolls nothing. Tade draws exactly one screen and never scrolls
