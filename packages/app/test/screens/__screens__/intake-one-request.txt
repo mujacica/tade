@@ -21,7 +21,7 @@
    ○ req-9  │ WHAT APPROVING IT STARTS ────────────────────────────────────────────────────────────────── ▕│            
      @lee · │  checkout/reproduce-req-7  worktree  done: said                                             ▕│            
             │  checkout/fix-req-7        worktree  done: committed                                        ▕│            
-━   orchestr│                            after checkout/reproduce-req-7 — there is no fix until the fail… ▕│ ↑     ▾   ━
+━   orchestr│                            after checkout/reproduce-req-7 — there is no fix until the fail… ▕│ ↑     ↓   ━
             │  warning checkout/fix-req-7 and checkout/stripe-v15, which is working, both change          ▕│            
             │  src/export.ts: merging both may conflict                                                   ▕│           ▕
             │  Allowed by surfaces.intake.sources.cli, at propose.                                        ▕│           ▕

@@ -22,7 +22,7 @@
      │                                                                                                           █│     
    ▸ │ 2 verdict(s) is not a rate. Under 5 the counts are said and the percentage is not, because one verdict    █│     
      │ moving a figure by a quarter is not a trend.                                                              █│     
-━   o│                                                                                                           █│▾   ━
+━   o│                                                                                                           █│↓   ━
      │ Loudest questions                                                                                         █│     
      │                                                                                                           █│    ▕
      │   ◐ test_missing     2 fired  none judged                                                                 █│    ▕

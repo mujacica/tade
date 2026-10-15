@@ -212,8 +212,10 @@ export function bottomTabs(
     // Arrows the terminal's own font has. `⤢` and `⤡` are in neither
     // JetBrains Mono (Ghostty's) nor SF Mono (Terminal's), and Ghostty drew
     // them out of STIX Two Math at that font's size: larger than the cell.
+    // Both buttons wear the same pair, side by side as they are: the `▾` a
+    // dropdown wears beside an `↑` read as two different kinds of control.
     r.button(state.bottomMode === 'max' ? '↓' : '↑', { kind: 'action', name: 'bottom-max' }).space()
-    r.button(state.bottomMode === 'min' ? '▴' : '▾', { kind: 'action', name: 'bottom-min' })
+    r.button(state.bottomMode === 'min' ? '↑' : '↓', { kind: 'action', name: 'bottom-min' })
     r.text(` ${line}`, rule)
   }
   const probe = new Row(width, skin)

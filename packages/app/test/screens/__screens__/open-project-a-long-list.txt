@@ -21,7 +21,7 @@
        webhooks.test.│ ▸ search/                                    git · main                 › █│                     
        webhooks.ts   │ ▸ shipping/                                  no git                     › █│                     
    ▸ test/           │ ▸ subscriptions/                             no git                     › █│                     
-━   orchestrator     │ ▸ webhooks/                                  git · main                 › █│━━━━━━━   ↑     ▾   ━
+━   orchestrator     │ ▸ webhooks/                                  git · main                 › █│━━━━━━━   ↑     ↓   ━
                      │                                                                            │                     
                      │ ▲ notifications has no git.                                                │                    ▕
                      │   ■ git init, committing what's there                                      │                    ▕

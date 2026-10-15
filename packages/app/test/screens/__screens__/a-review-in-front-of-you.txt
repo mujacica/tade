@@ -21,7 +21,7 @@
        webhooks.te│ Task         checkout/stripe-v15                                                ▕│                  
        webhooks.ts│                                                                                 ▕│                  
    ▸ test/        │ https://github.com/acme/checkout/pull/418                                       ▕│                  
-━   orchestrator  │                                                                                 ▕│━━━━   ↑     ▾   ━
+━   orchestrator  │                                                                                 ▕│━━━━   ↑     ↓   ━
                   │                                                                                 ▕│                  
                   │                                                                                 ▕│                 ▕
                   │                                                                                 ▕│                 ▕

@@ -31,7 +31,7 @@
    from     main       │ answer & steer: a device acts as a request, never as your own words    │                       
    worktree …kout-strip│ an agent on this machine could pair itself     Disconnect everything   │                       
    path     /Users/me/.╰────────────────────────────────────────────────────────────────────────╯                       
-━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ▾   ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕

@@ -31,7 +31,7 @@
                              ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  
                              ▕│  │ came back and when.                                                                  
                              ▕│                                                                                         
-━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ▾   ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕

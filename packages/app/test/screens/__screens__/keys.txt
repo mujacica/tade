@@ -21,7 +21,7 @@
        webhook│ Deny                         d    deny what an agent asks, while one waits              █│              
        webhook│                                                                                         █│              
    ▸ test/    │ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│              
-━   orchestrat│ Stop the orchestrator        esc    stops the turn it is on · what you typed stays      █│   ↑     ▾   ━
+━   orchestrat│ Stop the orchestrator        esc    stops the turn it is on · what you typed stays      █│   ↑     ↓   ━
               │ Discard what you typed       ctrl   +   c    the line and the pictures with it          ▕│              
               │ Quit                         ctrl   +   c    once there is nothing left to discard      ▕│             ▕
               │ In a panel                   enter      esc      ↑     ↓    the wheel scrolls it        ▕│             ▕

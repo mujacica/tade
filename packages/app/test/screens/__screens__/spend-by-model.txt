@@ -21,7 +21,7 @@
        webhook│ search          $0.68                       no budget — set one                        ▕│               
        webhook│                                                                                        ▕│               
    ▸ test/    │                                                                                        ▕│               
-━   orchestrat│                                                                                        ▕│━   ↑     ▾   ━
+━   orchestrat│                                                                                        ▕│━   ↑     ↓   ━
               │                                                                                        ▕│               
               │                                                                                        ▕│              ▕
               │                                                                                        ▕│              ▕

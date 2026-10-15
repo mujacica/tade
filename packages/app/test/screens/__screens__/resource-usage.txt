@@ -21,7 +21,7 @@
      │ By agent and terminal                                                                                     ▕│     
      │                                                                                                           ▕│     
    ▸ │                                 CPU              memory                                                   ▕│     
-━   o│   refunds                       ████████░░   76%  █████░░░░░  361 MB                                      ▕│▾   ━
+━   o│   refunds                       ████████░░   76%  █████░░░░░  361 MB                                      ▕│↓   ━
      │   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                      ▕│     
      │   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                      ▕│    ▕
      │   terminal 1                    ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                      ▕│    ▕
