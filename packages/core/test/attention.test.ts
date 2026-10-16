@@ -4,6 +4,7 @@ import {
   type Channel,
   DEFAULT_ATTENTION,
   decideAttention,
+  describeEvent,
   parseQuietHours,
   type Surface,
   summarise,
@@ -277,5 +278,16 @@ describe('money', () => {
     const other = { ...budgetWarning(), detail: { message: 'config.yaml is invalid' } }
     const context = { now: NOW, surface: 'voice' as const, spokenInLastHour: 0, localHour: 14 }
     expect(decideAttention(other, context).channel).toBe('earcon')
+  })
+})
+
+describe('a document an agent handed over', () => {
+  it('is spoken as a wait on you while its agent waits, and as worth knowing while it carries on', () => {
+    const waits = event('document_ready', { urgency: 'blocking', detail: { waits: true } })
+    const draft = event('document_ready', { urgency: 'notable', detail: { waits: false } })
+    expect(decideAttention(waits, context(), DEFAULT_ATTENTION.voice).channel).toBe('speak')
+    expect(decideAttention(draft, context(), DEFAULT_ATTENTION.voice).channel).toBe('earcon')
+    expect(describeEvent(waits)).toBe('has a document waiting on your decision')
+    expect(describeEvent(draft)).toBe('handed over a draft of its document')
   })
 })

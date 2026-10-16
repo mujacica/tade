@@ -178,6 +178,38 @@ describe('the window, talking to the orchestrator', () => {
     expect(asked[0]).not.toContain('handed over')
   })
 
+  it('keeps a document it could not tell as news, and says so where the person will see it', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+        tell: async () => {
+          throw new Error('the session is restarting')
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await client.log.append({
+      type: 'document_ready',
+      task: 'app/refunds',
+      urgency: 'blocking',
+      detail: { produces: '/h/documents/refunds/plan.md', bytes: 40, waits: true },
+    })
+    await until('the failure said', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('Could not tell the orchestrator a document was handed over'),
+      ),
+    )
+    terminal.press('\x00')
+    for (const char of 'anything new') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator asked', () => asked.length === 1)
+    expect(asked[0]).toContain('app/refunds handed over the document it produces')
+  })
+
   it('tells the orchestrator that agents are gone, rather than letting a call find out', async () => {
     const asked: string[] = []
     await start({

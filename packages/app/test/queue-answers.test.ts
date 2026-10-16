@@ -14,6 +14,9 @@ describe('where queued work stands after a change', () => {
     expect(nowSays('app/a', { kind: 'waiting', on: ['app/b', 'app/c'] }, clock)).toBe(
       'app/a waits on app/b and app/c, and starts by itself once they have finished',
     )
+    expect(nowSays('app/a', { kind: 'waiting', on: ['app/b'], approval: ['app/b'] }, clock)).toBe(
+      'app/a waits on app/b, and starts by itself once that has finished and the person has approved what app/b produced — tade_document_triage with approved, in their words, once they have',
+    )
     expect(nowSays('app/a', { kind: 'scheduled', at: 5 }, clock)).toBe('app/a starts at 5')
     expect(nowSays('app/a', { kind: 'paused', all: false }, clock)).toBe('app/a is paused')
     expect(nowSays('app/a', { kind: 'paused', all: true }, clock)).toBe(

@@ -41,6 +41,7 @@ import { Earlier } from './wire/earlier.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { frameOf } from './wire/frame.ts'
+import { tellOrKeep } from './wire/handed.ts'
 import { Images } from './wire/images.ts'
 import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
@@ -638,11 +639,11 @@ export class App {
       },
       onEvent: (event) => {
         this.state = onEvent(this.state, event, this.now())
-        // A document handed over is told now, and kept as news only while there
-        // is no orchestrator yet to tell; everything else waits as news.
+        // A document handed over is told now (or kept as news where it cannot
+        // be: `tellOrKeep`); everything else waits as news.
         const told = eventTell(event, this.live?.queueFacts().events ?? [])
-        if (told && this.orchestrator.started) void this.orchestrator.tell(told).catch(() => {})
-        const heard = told && this.orchestrator.started ? null : (told ?? eventNews(event))
+        if (told) tellOrKeep(this.wire, this.orchestrator, told)
+        const heard = told ? null : eventNews(event)
         if (heard) this.orchestrator.note(heard)
         // An agent that is gone, however it went: told rather than discovered
         // by the orchestrator steering something that is not there any more.

@@ -1,5 +1,6 @@
-import type { Queued, QueueFacts, TadeEvent } from '@tade/core'
+import { DOCUMENT_EVENTS, type Queued, type QueueFacts, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { QUEUE_READS } from '../src/histories.ts'
 import {
   conflictGoneSays,
   conflictLine,
@@ -49,6 +50,20 @@ describe('what the queue says', () => {
       start: { ...refunds.start, after: [], at: '2026-09-15T12:00:00Z' },
     }
     expect(whyStarting(timed, facts())).toBe('its time came')
+    const approved: Queued = {
+      ...refunds,
+      start: { ...refunds.start, after: [{ task: 'shop/plan', why: 'the plan', approved: true }] },
+    }
+    expect(whyStarting(approved, facts())).toBe(
+      'shop/plan has finished and the person approved what shop/plan produced',
+    )
+  })
+
+  it('reads every line about documents from the whole journal, so an approval is never forgotten', () => {
+    // `approvedFrom` is a fold over all of them, not over the triage alone: a
+    // busy morning past the 500-line window must not turn an approval back
+    // into a wait, or a wait into a start on a document asked about again.
+    expect(QUEUE_READS).toEqual(expect.arrayContaining([...DOCUMENT_EVENTS]))
   })
 
   it('lists queued work with where it stands and why it waits', () => {
