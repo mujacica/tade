@@ -377,8 +377,11 @@ function tracked(): string[] {
 function sourceOf(path: string): string | null {
   try {
     return readFileSync(join(ROOT, path), 'utf8')
-  } catch {
-    return null
+  } catch (problem) {
+    // Only absence is a deletion; a file that could not be read is not one
+    // that has nothing in it.
+    if ((problem as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw problem
   }
 }
 
