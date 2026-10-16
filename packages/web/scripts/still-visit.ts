@@ -1,7 +1,8 @@
 import { type Device, listing } from '../src/devices.ts'
 import { keepingOf } from '../src/installable.ts'
+import { passkeyStanding } from '../src/passkeys.ts'
 import { projector } from '../src/reading.ts'
-import { reachOf } from '../src/surface.ts'
+import { OFF, reachOf } from '../src/surface.ts'
 import { type Still, type Visit, type World, worldAt } from './still.ts'
 import { Listening, StillDocument, StillElement, StillEvent, SVG } from './still-dom.ts'
 import { xhtmlOf } from './still-xhtml.ts'
@@ -104,15 +105,20 @@ function staged(world: World, device: Device, visit: Visit, reading: ReturnType<
     if (url.pathname === '/api/devices')
       return answered(
         200,
-        listing(device, world.devices, keepingOf({ installing: false, keepsView: false }), {
-          // Loopback, so acting asks for no passkey and the page draws no bar.
-          asks: false,
-          made: false,
-          proven: false,
-          until: null,
-          makeBy: null,
-          hours: 12,
-        }),
+        listing(
+          device,
+          world.devices,
+          keepingOf({ installing: false, keepsView: false }),
+          // What the server's own function answers this device, which is on
+          // this machine's loopback listener at the default hours: nothing is
+          // asked, so the page draws no bar — the world's, not written here.
+          passkeyStanding(
+            device,
+            { scheme: 'http', host: 'localhost', listener: 'loopback' },
+            { ...OFF, enabled: true, passkeyMs: 12 * 3_600_000 },
+            world.now,
+          ),
+        ),
       )
     if (url.pathname === '/api/snapshot') return answered(200, reading.snapshot())
     if (url.pathname === '/api/settings') return answered(200, reading.settings())
