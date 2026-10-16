@@ -1,27 +1,51 @@
 # Tade — **T**erminal **A**gentic **D**evelopment **E**nvironment
 
-### Run as many coding agents as you can land. Know exactly what each one did, and what it cost.
+### Run as many coding agents as you can land.
 
-Plenty of things run agents in parallel; the work still has to be read before it lands, and that is
-where the day goes. Tade is the one that keeps the books, and puts the finished work in the order it
-is cheapest to trust. A queue where every
-piece says what it waits on and holds when that fails. The project's own checks, recorded against
-the commit they ran on. Per-agent cost that never adds a subscription's turns to a dollar total. A
-judge whose findings the agent has to answer and you rule on. And nothing is remembered — what each
-agent *is* comes back from git and the processes every time you look, so nothing drifts and closing
-Tade leaves nothing behind.
+Plenty of things run agents in parallel. The work still has to be read, checked and merged before it
+counts, and that is where the day goes: you are the queue. Tade is the place agent work becomes
+merged work — honestly, which means what it says about the work is read back out of git, the checks,
+the forge and what the agents spent, and none of it is graded by the agent that did the work.
 
-One machine, one terminal. No server, no browser, no cloud, and agents are not sandboxed — see
-[Agents run as you](#agents-run-as-you).
+- **[Collisions, forecast before they happen.](#collisions-forecast-before-they-happen)** Live work
+  that would collide is marked on both agents while either can still give way, and the orchestrator
+  is told which one should.
+- **[A desk of what is ready to land, sorted by trust.](#the-landing-desk)** Green, small and
+  unquestioned first; then what waits on you; then what waits on its agent — each with the one
+  sentence saying why.
+- **[An independent judge, and its findings answered.](#jev-a-judge-whose-findings-are-answered)**
+  It reads each change once it stops moving, for what nobody has time to; the agent accounts for
+  each finding, and the verdict is yours or the orchestrator's, never the agent's.
+- **[Scorecards nobody graded for themselves.](#evaluations-which-way-of-working-lands-work)** Which
+  harness, model, persona and template lands work, counted from what was recorded — and your own
+  landed tasks [replayed on a candidate](#your-own-eval-replay-what-landed-on-a-candidate) before
+  your agents move to it.
+- **[Mistakes turned into checks.](#a-mistake-made-twice-becomes-a-check)** The same real finding
+  twice in one project becomes a proposed hook line, lint rule or test, rather than one more
+  paragraph an agent can read past.
+
+The number to read first is **what a landed task cost**, not how many agents are running:
+Evaluations divides each way of working's spend by the work of it that landed — merged, or committed
+onto a shared checkout under its own trailer — with billed money and a plan's list price kept apart.
+How long finished work then waits to land is the next figure, and is not built yet
+([Planned](#planned)).
+
+Under all of it: the project's own checks, recorded against the commit they ran on; spend that never
+adds a subscription's turns to a dollar total; and nothing remembered — what each agent *is* comes
+back from git and the processes every time you look, so nothing drifts and closing Tade leaves
+nothing behind. One machine, one terminal. No server, no browser, no cloud, and agents are not
+sandboxed — see [Agents run as you](#agents-run-as-you).
 
 ```sh
 npm install -g tade-sh   # the package is `tade-sh`; the command it installs is `tade`
 tade                     # the window; the first time, a short setup that sets you up
 ```
 
-Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest.
+Needs Node ≥ 22.19 and git; [Installing](#installing) has the rest. Most of the landing story — the
+forecast, the desk, Evaluations, races, replays and mistakes turned into checks — was built after
+0.2.1: it is on `main` now, and in `tade-sh` from the release after it.
 
-![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
+![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and then the landing desk — every finished piece of work in the order it is cheapest to trust](https://raw.githubusercontent.com/mujacica/tade/main/images/tade.svg)
 
 ## Agents run as you
 
@@ -32,10 +56,236 @@ and yours to turn on; containing an agent is its harness's business, not Tade's;
 would rather Tade never wrote down can stay in an environment variable, which always wins over the
 file.
 
+## The landing desk
+
+Generating changes is the easy half; landing them is the queue, and you are it. The desk is every
+finished piece of work and every open review, in every project, **in the order it is cheapest to
+trust**: what is green at its head, has nothing open and waits on nobody first, smallest change
+first; then what waits on you — an answer, a verdict on a finding its agent accounted for, a check
+nobody ran, a draft; then what waits on its agent — a red check, a finding nobody answered, a
+collision the forecast found — each with the one sentence saying why. Beside each: its checks, the
+judge's findings, the collisions, what its own commits changed, what it cost, and how long it has
+waited. Enter opens the change to read, and a comment on a line goes to Tade or straight to the
+agent whose change it is. It is a view and nothing more — nothing on it is remembered — and it is a
+page of its own on the away view too. `/land` opens it, and so does the `land` count on the AGENTS
+heading, which is what waits to land in the project you are in. Landing is yours, on the forge: Tade
+never merges.
+
+![The landing desk: finished work across three projects, green and small first, then what waits on you, then what waits on its agent, each with the one sentence why and its figures beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/landing.svg)
+
+## Agents, together or apart
+
+Every agent gets a lane of its own. By default they all work in the project's checkout; one setting
+gives each a worktree and branch instead, and a new worktree gets what its project says it needs —
+the ignored files it lists in `.worktreeinclude`, copied or linked from the checkout, and the setup
+command read from `.cursor/worktrees.json`, a devcontainer or the lockfile, run in the agent's lane
+before it starts. What each one *is* — working, idle, waiting on you, failed, finished — is read
+back from git and the processes, never remembered, and an agent's dev server is a link under GIT.
+
+With a worktree each, finished work ends up where somebody can read it: the agent pushes its own
+branch and opens a pull request on it, published rather than a draft. In the shared checkout there is
+no branch of its own to open one for, so it commits and stops and pushing stays yours. Either answer
+is one setting, per project or for the machine, and merging is never Tade's.
+
+<table>
+<tr>
+<td width="34%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/agents.svg" alt="Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused"></td>
+<td width="66%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/terminals.svg" alt="A shell open beside the agent, in the same worktree, with a divider you can drag"></td>
+</tr>
+</table>
+
+## Collisions, forecast before they happen
+
+Two agents can each be right and still not land together. While the work is live, Tade looks for
+what would collide: with a worktree each, it asks git whether each pair of branches — and each
+branch against a base that has moved — would merge cleanly (`git merge-tree`, which writes nothing);
+in a shared checkout, whether two agents have uncommitted changes in the same file, from what each
+one's harness said it wrote. Work that would collide wears `⇄` on both agents and in the plan, with
+what it runs into and over which files, and the orchestrator is told once — naming the side that
+should give way, by merging the other in or, in a shared checkout, by going second — and settles it
+without asking unless you keep that decision for yourself (`queue.holds: ask`). A collision is said
+again only for a new file. The forecast only tells, never stops or holds anything, and when it
+cannot tell it says that rather than nothing.
+
+![Two agents the forecast says would collide in one file, each marked ⇄ down the side and in the plan, with the work queued after both waiting for them](https://raw.githubusercontent.com/mujacica/tade/main/images/collide.svg)
+
+Once the work is out for review, a conflict with its base is for the review watches to settle —
+**Conflicts on your reviews**, off until you turn it on — in
+[Reviews, and the loop around them](#reviews-and-the-loop-around-them).
+
+## Changes, tracked as they happen
+
+Every file an agent touches, marked the way git marks it. Click one and it opens in the window's own
+editor with git's answer drawn into it — added lines green, the lines that were there red — where you
+can fix it and press ctrl+s, rather than read it here and go and fix it somewhere else.
+
+Or say something about it: press a line's number, or `c`, and write on that line. A comment goes to
+Tade as your own words, anchored at `file:line` with its hunk beside it, or — tab, on the same
+comment — straight to the agent whose change it is. Write on as many lines as you like, in this file
+or the patch reader, and send them together.
+
+<table>
+<tr>
+<td width="30%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
+<td width="70%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/diff.svg" alt="A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it and a comment being written on a line"></td>
+</tr>
+</table>
+
+## The checks, before anybody else sees them
+
+Nothing to configure: a project already says what it checks, in the workflows that run on every
+change and in the hook that runs before a commit, and Tade reads those. It runs them here, one set
+at a time per checkout, and records each against the commit it ran on. A push with nothing green
+behind it is held, with what is missing.
+
+![The ACTIONS tab: the commits this agent made, what is not committed, and each check with how long it took and what it counted](https://raw.githubusercontent.com/mujacica/tade/main/images/work.svg)
+
+Two categories, because a step only CI can run — a secret, a service container — is not a step that
+passed. What runs here is the page; what does not is a fold with the reason on each row, and it is
+out of what a local run adds up to. Which category a check is in is yours: turn one off, turn a
+skipped one on, and the answer goes in Tade's own config under the project — never a file in your
+repository.
+
+![The checks as two categories: what runs here, and under a fold the ones that do not, each saying why](https://raw.githubusercontent.com/mujacica/tade/main/images/checks-here.svg)
+
+## Jev, a judge whose findings are answered
+
+A judge answers bounded questions — yes or no, one of these, one of these levels — with a
+probability and no paragraph, cheaply enough to ask of every diff and every thousand lines of log.
+Tade asks it where nobody is going to look: a branch that has stopped moving, read for injection,
+secrets, permissions, swallowed errors, missing tests, whether it did what was asked and this
+project's own rules; a command an agent is held at that the approval rules do not name; an agent
+going round on the same failing command; a sentence typed into search; a request before it becomes a
+plan, and a queue that needs an order.
+
+It may only ever add caution — it never approves, merges, closes, unholds or shortens anything — and
+what reaches you is a sentence Tade wrote, never a number. Every question it asks and every threshold
+is one file you can argue with, every finding keeps the version that answered, and what was made of
+a finding is kept beside it, so a question that never fires can be deleted and one that is always
+wrong can be rewritten.
+
+That last part is a loop, and who says what in it is the whole of it. The agent whose change was
+flagged gets the question in the judge's own words — material to judge, never an instruction — and
+answers it: it fixed the cause, or the finding is not real and why. That is its **account**, not a
+verdict; an agent marking its own work a false positive is the defendant grading the exam. The
+**verdict** is yours or the orchestrator's, and it has to name what in the change decided it. What
+nobody answered is swept up and put in front of you — again as it keeps waiting, never once and
+then silence — and nothing becomes a false positive by getting old. Every finding with no verdict
+says *why* it has none, because "waiting on a verdict" is the symptom and each of its causes wants
+something different done.
+
+![What Jev read today, where every finding stands and why, and whether the questions earn their place](https://raw.githubusercontent.com/mujacica/tade/main/images/jev.svg)
+
+Paste a key and it is on. With none, none of it runs and nothing else changes.
+
+### A mistake made twice becomes a check
+
+When the verdicts say the same question was real about two changes in one project — or the
+orchestrator, looking back at finished work, sees the same correction twice — Tade proposes
+something a machine runs, a line in the commit hook, a lint rule or a test, rather than another
+paragraph an agent can read past. Only verdicts somebody wrote count, never an agent's account or a
+probability, and only questions a machine could catch. It arrives as parked work, and picking it up
+is approving it. The watch that looks for them, **Mistakes made twice**, is on wherever Jev is.
+
+## Evaluations: which way of working lands work
+
+Every vendor publishes the flattering version of this number, graded by themselves. Tade already
+writes down the facts the honest version needs, so `/evals` (or `tade stats --by
+harness|model|persona|template`) folds them: per harness, model, persona and template, how many
+agents finished and landed — merged, or committed straight onto a shared checkout under their own
+trailer — how often the first push was green, the reds caught on this machine before CI saw them,
+what the judge raised about each change and how its verdicts came out, what a landed agent cost in
+money and tokens, and how long work took to finish. Counts come first and a rate only from five,
+because `2 of 2` is a fact and `100%` is not; billed money and a plan's list price are divided by
+their own agents and never added; and anything nobody could say is a dash with its word, never a
+nought. The judge's own record sits on a tab beside them — precision per question and per band of
+probability, out of verdicts people wrote — and the same page is on the away view. How long finished
+work then waits to land is not one of its figures yet ([Planned](#planned)).
+
+![Evaluations by harness: agents, done and landed, first push green, reds caught here, the judge's findings, cost per landed agent and time to done — counts first, a rate only from five](https://raw.githubusercontent.com/mujacica/tade/main/images/evaluations.svg)
+
+## Your own eval: replay what landed, on a candidate
+
+Public benchmarks do not transfer to your repository; your own landed work does. Ask the
+orchestrator to eval a model (or run `tade eval run <project> --model <m> --ceiling <usd>`) and
+Tade takes the last few tasks that landed there and asks each again — in a worktree at the commit
+it began from, with your original words verbatim — on the candidate. It varies one thing: a model
+on the harness each task first ran on, or a harness alone, because changing both at once confounds
+the comparison. Each replay is scored by the facts the original was read with: the project's
+checks at its head, the tests the original change added laid over it, whether the judge says it
+did what was asked, how big it is beside the original, and what it cost and took. Words that were
+an answer to a conversation nobody kept, and agents that stopped without changing anything, are
+*could not replay* — never a fail. It costs money, so it runs only when you ask, under a ceiling
+you set, a few at a time through the queue (`--at` puts it off until tonight), and is never pushed.
+`tade eval judge` does the same for the judge: Jev's questions asked again of a candidate judge,
+counted against the verdicts people wrote. Both land on `/evals` under Replays.
+
+![Your own eval: a candidate judge counted against the verdicts, then five landed tasks asked again on Sonnet, each beside its original — passed, failed with why, could not replay, running — with cost, time and the ceiling](https://raw.githubusercontent.com/mujacica/tade/main/images/replays.svg)
+
+## Races: one request, several agents, and you keep one
+
+Ask the orchestrator to race something and it gives the same request to two to four agents at
+once — each on its own harness or model, each in a worktree of its own — and the queue starts them
+like any other work. `/race` puts them side by side in the order the facts put them: the checks at
+each one's head, whether the judge said a change did something other than what was asked, the
+findings nobody has settled, then the smaller change, with what each cost and what the race has
+cost so far. That order is not a pick, and nothing picks but you: press **Pick this one**, say yes,
+and the others are stopped and marked finished with every branch kept. The orchestrator can do it
+too, but only when a line of yours since the race began asks it to. There is a `race` template for
+three attempts on one route, and the races are a tab on the away view's Evaluations page.
+
+![A race: one request given to three agents on Claude Code, Codex and pi, in the order the facts put them — checks, whether the judge said one strayed from what was asked, findings, size and cost — and nobody has picked](https://raw.githubusercontent.com/mujacica/tade/main/images/race.svg)
+
+## Reviews, and the loop around them
+
+What you have offered other people, and what they and their robots say about it: your open pull
+requests, what waits on you, what CI makes of each, and the conversations nobody has answered.
+Watches can fix what is red, answer the bots, and settle a review of Tade's that conflicts with its
+base — the base merged in from a tree of its own, never a rebase and never a force-push — and
+nothing merges a review unless you asked for exactly that. **CI on the branch itself is watched
+too**, which is the half of it that has no
+review: push straight to `main`, and a red commit puts one agent on reproducing it here and fixing
+the cause. One agent per red commit, however many checks went red; a re-run of the same commit
+starts nothing new; and it never force-pushes, never reverts and never merges.
+
+![The REVIEWS section: every review open on the project you are in, as two rows — where it stands, and what its checks and verdicts came to](https://raw.githubusercontent.com/mujacica/tade/main/images/reviews.svg)
+
+## Spend, time and tokens
+
+What every agent and the orchestrator cost — tokens, runtime and dollars, each project against the
+budget you gave it — over today, this window, seven days, thirty, or the whole of the journal, which
+goes back as far as you have been running Tade.
+
+Where a subscription pays for the work there is no price per turn, so what is used up is a share of
+a rolling window: how much of each plan is gone and when it comes back. Never added to the money: a
+plan and a dollar are different currencies with no rate between them, and a plan's turns are tokens
+and hours on this page rather than a large number of dollars nobody is charged. Every sign-in is
+read — each harness's own and every account beside it — and the fullest window of any of them sits in
+the status bar beside the cost, since that is the one about to stop somebody working; press its name
+to look at another. Ask Tade and it will tell you where each one stands and what else there is when
+one is nearly gone, and leave switching to you.
+
+![Spend: every agent with its model, tokens, share, runtime and cost over the range you pick, how much of each subscription’s window is used and when it resets, and each project against its budget](https://raw.githubusercontent.com/mujacica/tade/main/images/spend.svg)
+
+Ask it by agent, by project, by model — or by the harness it ran in, the sign-in it ran as and the
+provider it was reached through. A model is one row under its own name however it was reached, so an
+agent's hours and its money are in the same place; the same weights on a subscription, through an
+API key and through a router are three different bills, and those last three groupings are what tell
+them apart. Money a harness priced against its own catalog is never added to money it could only
+guess at without saying so: a guessed figure wears a `~` wherever you read it, one Tade worked out
+from the published rate wears a `≈`, and money nobody reported and nothing could price at all is a
+dash rather than a zero that reads as free. Where a plan paid, the cost column says what those turns
+would have cost at list price — quietly, because nobody is billed it, and in no total. How long the
+agents ran is every agent's time added together rather than time on the clock, which the figure says
+as it stands.
+
+![The same morning grouped by model: one model reached three ways is one row, its hours and its money in the same place, with the groupings for harness, sign-in and provider beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/spend-by-model.svg)
+
 ## The window
 
-Agents down the left with what each has cost, their changes, the files, the agent you are watching
-in the middle, the orchestrator along the bottom. One terminal, no browser, no daemon.
+Everything above is what becomes of the work once an agent has done it; from here on is the room it
+is done in. Agents down the left with what each has cost, their changes, the files, the agent you
+are watching in the middle, the orchestrator along the bottom. One terminal, no browser, no daemon.
 
 ![The Tade window: agents, changes, files, an agent asking to run a command, and the orchestrator below](https://raw.githubusercontent.com/mujacica/tade/main/images/window.svg)
 
@@ -59,24 +309,6 @@ answer on screen; unmute it (`ctrl+m`) and answers come back as a few spoken sen
 again cuts the sentence being said, not the next one.
 
 ![Push to talk: the strip says it is listening, a level meter moves with your voice](https://raw.githubusercontent.com/mujacica/tade/main/images/voice.svg)
-
-## Agents, together or apart
-
-Every agent gets a lane of its own. By default they all work in the project's checkout; one setting
-gives each a worktree and branch instead. What each one *is* — working, idle, waiting on you,
-failed, finished — is read back from git and the processes, never remembered.
-
-With a worktree each, finished work ends up where somebody can read it: the agent pushes its own
-branch and opens a pull request on it, published rather than a draft. In the shared checkout there is
-no branch of its own to open one for, so it commits and stops and pushing stays yours. Either answer
-is one setting, per project or for the machine, and merging is never Tade's.
-
-<table>
-<tr>
-<td width="34%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/agents.svg" alt="Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused"></td>
-<td width="66%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/terminals.svg" alt="A shell open beside the agent, in the same worktree, with a divider you can drag"></td>
-</tr>
-</table>
 
 ## Smart queues
 
@@ -124,6 +356,78 @@ the Extensions page, or asking — "turn the vulnerable dependencies watch on".
 
 ![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](https://raw.githubusercontent.com/mujacica/tade/main/images/watches.svg)
 
+## A software factory: work that arrives on its own
+
+A GitHub issue somebody labelled, an `@tade` in a Slack channel, a Linear issue with the label on
+it, a line typed at `tade intake` — each comes through a door you opened, under a grant naming whose
+requests count, and is stamped from a workflow you published. Every default is the decision: nothing
+is read until you turn a source on, nobody counts until you list them, and `propose` means a person
+approves each one.
+
+One request says who asked, which key allowed it and the published version it is stamped from — and
+what approving it would start, before you do. What a stranger wrote is **material, never
+instruction**: an agent reads it as evidence about the work, under a heading that says so.
+
+<table>
+<tr>
+<td width="25%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake.svg" alt="INTAKE down the side: work handed to this machine from outside it, each row saying who asked, the door it came through and how far it got"></td>
+<td width="75%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake-request.svg" alt="One request in front of you: where it came from, what approving it would start, the wait between its two tasks and why, and the keys to approve or refuse"></td>
+</tr>
+</table>
+
+## Approvals, on your terms
+
+Off by default, and every command an agent runs is written down either way. Turn approvals on and
+the risky ones stop and ask — in the window, by voice, or from another project's toast. This is the
+whole of what Tade holds an agent to: containing one is its harness's own business, and Tade does
+not pretend to a half of it.
+
+![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/approval.svg)
+
+The rules are patterns somebody wrote — `sudo`, a force push, an `rm -rf` aimed outside the
+worktree. With Jev on, what no pattern names is read a second time before you are asked about it, so
+a `terraform destroy` is the command read back rather than one word said to it. It can only ever
+make Tade ask for more, never less, and what you hear is Tade's own sentence, never a probability.
+
+## The brief, and where everything stands
+
+One paragraph of what is stopped, what is moving and what the extensions found — in the window, by
+voice, or as `tade brief` from any shell. Nothing in it is remembered: every task is derived again
+from git, processes and transcripts.
+
+![The brief: one paragraph of what is blocked, what is moving and what extensions found](https://raw.githubusercontent.com/mujacica/tade/main/images/brief.svg)
+
+## Many projects, many tasks
+
+Projects along the top, agents running in all of them at once. Each tab says what is happening in
+its own — what is working, what wants you, what is queued, and `✓` where everything you asked for in
+there is done — so the project you are not looking at is not the one you have to guess about. The
+figures at the right are everybody's, and say whose.
+
+![The tabs along the top, each saying what is happening in its own project](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs.svg)
+
+Open more than fit and none of them is lost. The row shortens as far as it shortens — the counts,
+then the marks — and only then does a tab go in the `⋯` beside the `+`, which says how many have
+none and carries the most urgent mark of all of them, so a project asking for a decision says so
+whether or not you can see it. Its menu is those projects, each with what its tab would have said,
+and going to one brings its tab back: the project you are in always has one. Which ones keep a tab
+is the order you arranged them in, so Move left is how one stays.
+
+![Twelve projects and room for eight, the rest in the `⋯` beside the `+`](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs-more.svg)
+
+Each tab has an `×` and a `≡` of its own, like a terminal's. The menu is where a project is renamed
+— what it is called here, never its name, which every task id, every `Tade-Task:` trailer and every
+line of the journal keeps — moved along the row, configured, or closed. **Closing one deletes
+nothing**: the folder, the git history, the branches, the worktrees and the journal all stay, and
+opening that path again brings them back.
+
+![A project's menu: rename, move, configure and close](https://raw.githubusercontent.com/mujacica/tade/main/images/project-menu.svg)
+
+An agent in a project you are not looking at can still reach you — and be answered from where you
+are.
+
+![Projects along the top, and an agent in another project asking for approval](https://raw.githubusercontent.com/mujacica/tade/main/images/projects.svg)
+
 ## An IDE in the terminal
 
 The repository is right there while the agents work it: the file tree, the diffs, the branch, a
@@ -158,156 +462,6 @@ reach whoever answers, which today is Jev's provider. It is on because a sentenc
 names alone is not answered at all. Turn it off in Settings › Search and search keeps everything
 else, letters and all; `Answer search` off on Jev's own page stops the question being asked at all.
 
-## Changes, tracked as they happen
-
-Every file an agent touches, marked the way git marks it. Click one and it opens in the window's own
-editor with git's answer drawn into it — added lines green, the lines that were there red — where you
-can fix it and press ctrl+s, rather than read it here and go and fix it somewhere else.
-
-Or say something about it: press a line's number, or `c`, and write on that line. A comment goes to
-Tade as your own words, anchored at `file:line` with its hunk beside it, or — tab, on the same
-comment — straight to the agent whose change it is. Write on as many lines as you like, in this file
-or the patch reader, and send them together.
-
-<table>
-<tr>
-<td width="30%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
-<td width="70%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/diff.svg" alt="A changed file clicked in CHANGES: the editor it opens in, with git’s answer drawn into it and a comment being written on a line"></td>
-</tr>
-</table>
-
-## The checks, before anybody else sees them
-
-Nothing to configure: a project already says what it checks, in the workflows that run on every
-change and in the hook that runs before a commit, and Tade reads those. It runs them here, one set
-at a time per checkout, and records each against the commit it ran on. A push with nothing green
-behind it is held, with what is missing.
-
-![The ACTIONS tab: the commits this agent made, what is not committed, and each check with how long it took and what it counted](https://raw.githubusercontent.com/mujacica/tade/main/images/work.svg)
-
-Two categories, because a step only CI can run — a secret, a service container — is not a step that
-passed. What runs here is the page; what does not is a fold with the reason on each row, and it is
-out of what a local run adds up to. Which category a check is in is yours: turn one off, turn a
-skipped one on, and the answer goes in Tade's own config under the project — never a file in your
-repository.
-
-![The checks as two categories: what runs here, and under a fold the ones that do not, each saying why](https://raw.githubusercontent.com/mujacica/tade/main/images/checks-here.svg)
-
-## The landing desk
-
-Generating changes is the easy half; landing them is the queue, and you are it. The desk is every
-finished piece of work and every open review, in every project, **in the order it is cheapest to
-trust**: what is green at its head, has nothing open and waits on nobody first, smallest change
-first; then what waits on you — an answer, a verdict on a finding its agent accounted for, a check
-nobody ran, a draft; then what waits on its agent — a red check, a finding nobody answered, a
-collision the forecast found — each with the one sentence saying why. Beside each: its checks, the
-judge's findings, the collisions, what its own commits changed, what it cost, and how long it has
-waited. Enter opens the change to read, and a comment on a line goes to Tade or straight to the
-agent whose change it is. It is a view and nothing more — nothing on it is remembered — and it is a
-page of its own on the away view too. Landing is yours, on the forge: Tade never merges.
-
-![The landing desk: finished work across three projects, green and small first, then what waits on you, then what waits on its agent, each with the one sentence why and its figures beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/landing.svg)
-
-## Evaluations: which way of working lands work
-
-Every vendor publishes the flattering version of this number, graded by themselves. Tade already
-writes down the facts the honest version needs, so `/evals` (or `tade stats --by
-harness|model|persona|template`) folds them: per harness, model, persona and template, how many
-agents finished and landed — merged, or committed straight onto a shared checkout under their own
-trailer — how often the first push was green, the reds caught on this machine before CI saw them,
-what the judge raised about each change and how its verdicts came out, what a landed agent cost in
-money and tokens, and how long work took to finish. Counts come first and a rate only from five,
-because `2 of 2` is a fact and `100%` is not; billed money and a plan's list price are divided by
-their own agents and never added; and anything nobody could say is a dash with its word, never a
-nought. The judge's own record sits on a tab beside them — precision per question and per band of
-probability, out of verdicts people wrote — and the same page is on the away view.
-
-![Evaluations by harness: agents, done and landed, first push green, reds caught here, the judge's findings, cost per landed agent and time to done — counts first, a rate only from five](https://raw.githubusercontent.com/mujacica/tade/main/images/evaluations.svg)
-
-## Races: one request, several agents, and you keep one
-
-Ask the orchestrator to race something and it gives the same request to two to four agents at
-once — each on its own harness or model, each in a worktree of its own — and the queue starts them
-like any other work. `/race` puts them side by side in the order the facts put them: the checks at
-each one's head, whether the judge said a change did something other than what was asked, the
-findings nobody has settled, then the smaller change, with what each cost and what the race has
-cost so far. That order is not a pick, and nothing picks but you: press **Pick this one**, say yes,
-and the others are stopped and marked finished with every branch kept. The orchestrator can do it
-too, but only when a line of yours since the race began asks it to. There is a `race` template for
-three attempts on one route, and the races are a tab on the away view's Evaluations page.
-
-![A race: one request given to three agents on Claude Code, Codex and pi, in the order the facts put them — checks, whether the judge said one strayed from what was asked, findings, size and cost — and nobody has picked](https://raw.githubusercontent.com/mujacica/tade/main/images/race.svg)
-
-## Your own eval: replay what landed, on a candidate
-
-Public benchmarks do not transfer to your repository; your own landed work does. Ask the
-orchestrator to eval a model (or run `tade eval run <project> --model <m> --ceiling <usd>`) and
-Tade takes the last few tasks that landed there and asks each again — in a worktree at the commit
-it began from, with your original words verbatim — on the candidate. It varies one thing: a model
-on the harness each task first ran on, or a harness alone, because changing both at once confounds
-the comparison. Each replay is scored by the facts the original was read with: the project's
-checks at its head, the tests the original change added laid over it, whether the judge says it
-did what was asked, how big it is beside the original, and what it cost and took. Words that were
-an answer to a conversation nobody kept, and agents that stopped without changing anything, are
-*could not replay* — never a fail. It costs money, so it runs only when you ask, under a ceiling
-you set, a few at a time through the queue (`--at` puts it off until tonight), and is never pushed.
-`tade eval judge` does the same for the judge: Jev's questions asked again of a candidate judge,
-counted against the verdicts people wrote. Both land on `/evals` under Replays.
-
-![Your own eval: a candidate judge counted against the verdicts, then five landed tasks asked again on Sonnet, each beside its original — passed, failed with why, could not replay, running — with cost, time and the ceiling](https://raw.githubusercontent.com/mujacica/tade/main/images/replays.svg)
-
-## Reviews, and the loop around them
-
-What you have offered other people, and what they and their robots say about it: your open pull
-requests, what waits on you, what CI makes of each, and the conversations nobody has answered.
-Watches can fix what is red, answer the bots, and settle a review of Tade's that conflicts with its
-base — the base merged in from a tree of its own, never a rebase and never a force-push — and
-nothing merges a review unless you asked for exactly that. **CI on the branch itself is watched
-too**, which is the half of it that has no
-review: push straight to `main`, and a red commit puts one agent on reproducing it here and fixing
-the cause. One agent per red commit, however many checks went red; a re-run of the same commit
-starts nothing new; and it never force-pushes, never reverts and never merges.
-
-![The REVIEWS section: every review open on the project you are in, as two rows — where it stands, and what its checks and verdicts came to](https://raw.githubusercontent.com/mujacica/tade/main/images/reviews.svg)
-
-## Spend, time and tokens
-
-What every agent and the orchestrator cost — tokens, runtime and dollars, each project against the
-budget you gave it — over today, this window, seven days, thirty, or the whole of the journal, which
-goes back as far as you have been running Tade.
-
-Where a subscription pays for the work there is no price per turn, so what is used up is a share of
-a rolling window: how much of each plan is gone and when it comes back. Never added to the money: a
-plan and a dollar are different currencies with no rate between them, and a plan's turns are tokens
-and hours on this page rather than a large number of dollars nobody is charged. Every sign-in is
-read — each harness's own and every account beside it — and the fullest window of any of them sits in
-the status bar beside the cost, since that is the one about to stop somebody working; press its name
-to look at another. Ask Tade and it will tell you where each one stands and what else there is when
-one is nearly gone, and leave switching to you.
-
-![Spend: every agent with its model, tokens, share, runtime and cost over the range you pick, how much of each subscription’s window is used and when it resets, and each project against its budget](https://raw.githubusercontent.com/mujacica/tade/main/images/spend.svg)
-
-Ask it by agent, by project, by model — or by the harness it ran in, the sign-in it ran as and the
-provider it was reached through. A model is one row under its own name however it was reached, so an
-agent's hours and its money are in the same place; the same weights on a subscription, through an
-API key and through a router are three different bills, and those last three groupings are what tell
-them apart. Money a harness priced against its own catalog is never added to money it could only
-guess at without saying so: a guessed figure wears a `~` wherever you read it, one Tade worked out
-from the published rate wears a `≈`, and money nobody reported and nothing could price at all is a
-dash rather than a zero that reads as free. Where a plan paid, the cost column says what those turns
-would have cost at list price — quietly, because nobody is billed it, and in no total. How long the
-agents ran is every agent's time added together rather than time on the clock, which the figure says
-as it stands.
-
-![The same morning grouped by model: one model reached three ways is one row, its hours and its money in the same place, with the groupings for harness, sign-in and provider beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/spend-by-model.svg)
-
-## Resources
-
-Tade has to be light, and proves it: what it and everything it runs is using, in the status bar and
-broken down by project, by kind and by agent.
-
-![Resources: CPU and memory by project, by kind, and by agent](https://raw.githubusercontent.com/mujacica/tade/main/images/resources.svg)
-
 ## Local memory and notes
 
 Notes are the one thing Tade is told rather than derives, so they are kept word for word, in a file
@@ -322,206 +476,6 @@ clicking a note opens the note itself, where you can write one yourself, change 
 or forget it.
 
 ![A note read whole: the headline it was given, what it is about, who said it when, and its own words — changed, copied, forgotten or given a headline from the same page](https://raw.githubusercontent.com/mujacica/tade/main/images/note.svg)
-
-## Many projects, many tasks
-
-Projects along the top, agents running in all of them at once. Each tab says what is happening in
-its own — what is working, what wants you, what is queued, and `✓` where everything you asked for in
-there is done — so the project you are not looking at is not the one you have to guess about. The
-figures at the right are everybody's, and say whose.
-
-![The tabs along the top, each saying what is happening in its own project](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs.svg)
-
-Open more than fit and none of them is lost. The row shortens as far as it shortens — the counts,
-then the marks — and only then does a tab go in the `⋯` beside the `+`, which says how many have
-none and carries the most urgent mark of all of them, so a project asking for a decision says so
-whether or not you can see it. Its menu is those projects, each with what its tab would have said,
-and going to one brings its tab back: the project you are in always has one. Which ones keep a tab
-is the order you arranged them in, so Move left is how one stays.
-
-![Twelve projects and room for eight, the rest in the `⋯` beside the `+`](https://raw.githubusercontent.com/mujacica/tade/main/images/project-tabs-more.svg)
-
-Each tab has an `×` and a `≡` of its own, like a terminal's. The menu is where a project is renamed
-— what it is called here, never its name, which every task id, every `Tade-Task:` trailer and every
-line of the journal keeps — moved along the row, configured, or closed. **Closing one deletes
-nothing**: the folder, the git history, the branches, the worktrees and the journal all stay, and
-opening that path again brings them back.
-
-![A project's menu: rename, move, configure and close](https://raw.githubusercontent.com/mujacica/tade/main/images/project-menu.svg)
-
-An agent in a project you are not looking at can still reach you — and be answered from where you
-are.
-
-![Projects along the top, and an agent in another project asking for approval](https://raw.githubusercontent.com/mujacica/tade/main/images/projects.svg)
-
-## Extensions
-
-Checks, Dependencies, Jev, Reviews, Sentry and Resources ship with Tade; yours go beside them in
-`~/.tade/extensions/`. An extension brings tools the orchestrator and your agents can both call,
-settings and watches. Being there is not being on: one of yours is listed and off until you turn it
-on. Keys are pasted in as text and written into `~/.tade/config.yaml`, so you can read one back and
-check it against the console that issued it — and any agent you run can read it too. To keep one out
-of the file, export its variable instead, or leave that extension unconfigured.
-
-Every one of them is down the side, searchable by anything it would say — and the one you pick says
-what it is for in the work you actually do, every tool it brings with what each is for, what it
-offers to watch, and what it can be given.
-
-![The Extensions panel: the list down the side, and one of them in full — how it is used, its buttons, its tools, its watches and its settings](https://raw.githubusercontent.com/mujacica/tade/main/images/extensions.svg)
-
-## MCP servers, in one place
-
-An MCP server somebody turns on is an extension whose tools are that server's tools. The window is
-the only client there is, so turning one on hands its tools to every agent and to the orchestrator —
-pi, Claude Code, Codex alike — named by Tade, gated by Tade, and with your key never leaving this
-machine. No config written for anybody else's client, and no process per agent per server.
-
-The popular ones are listed and off: a server is somebody else's code with tools your agents will
-call, so turning one on is yours alone, in the window or with `tade mcp enable <name>`. What each
-harness loads by itself is listed too — read, never adopted.
-
-![The MCP servers Tade knows about, listed and off: what each is for, how Tade would talk to it, and what turning it on would need](https://raw.githubusercontent.com/mujacica/tade/main/images/mcp.svg)
-
-## Jev, for what nobody has time to read
-
-A judge answers bounded questions — yes or no, one of these, one of these levels — with a
-probability and no paragraph, cheaply enough to ask of every diff and every thousand lines of log.
-Tade asks it where nobody is going to look: a branch that has stopped moving, read for injection,
-secrets, permissions, swallowed errors, missing tests, whether it did what was asked and this
-project's own rules; a command an agent is held at that the approval rules do not name; an agent
-going round on the same failing command; a sentence typed into search; a request before it becomes a
-plan, and a queue that needs an order.
-
-It may only ever add caution — it never approves, merges, closes, unholds or shortens anything — and
-what reaches you is a sentence Tade wrote, never a number. Every question it asks and every threshold
-is one file you can argue with, every finding keeps the version that answered, and what was made of
-a finding is kept beside it, so a question that never fires can be deleted and one that is always
-wrong can be rewritten.
-
-That last part is a loop, and who says what in it is the whole of it. The agent whose change was
-flagged gets the question in the judge's own words — material to judge, never an instruction — and
-answers it: it fixed the cause, or the finding is not real and why. That is its **account**, not a
-verdict; an agent marking its own work a false positive is the defendant grading the exam. The
-**verdict** is yours or the orchestrator's, and it has to name what in the change decided it. What
-nobody answered is swept up and put in front of you — again as it keeps waiting, never once and
-then silence — and nothing becomes a false positive by getting old. Every finding with no verdict
-says *why* it has none, because "waiting on a verdict" is the symptom and each of its causes wants
-something different done.
-
-And a mistake made twice becomes a check. When the verdicts say the same question was real about two
-changes in one project — or the orchestrator, looking back at finished work, sees the same correction
-twice — Tade proposes something a machine runs, a line in the commit hook, a lint rule or a test,
-rather than another paragraph an agent can read past. It arrives as parked work, and picking it up is
-approving it.
-
-![What Jev read today, where every finding stands and why, and whether the questions earn their place](https://raw.githubusercontent.com/mujacica/tade/main/images/jev.svg)
-
-Paste a key and it is on. With none, none of it runs and nothing else changes.
-
-## Sentry, both ways
-
-Point the Sentry extension at your organisation and *"fix new Sentry errors as they come"* becomes a
-watch: each new issue is an agent with the stack trace, the trace and the logs already in its
-context. Point Tade's own telemetry at a Sentry project of yours and it reports **itself** the same
-way — its crashes and its own warnings, never your code or what you said — so Tade can be handed its
-own bug.
-
-![An agent started from a Sentry issue: the issue and trace one click away, the context file the first thing it reads](https://raw.githubusercontent.com/mujacica/tade/main/images/sentry.svg)
-
-## Models and harnesses
-
-Pick what the orchestrator runs on and what every new agent starts on — every model you are signed
-in to, priced per million tokens — and how hard it should think.
-
-![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](https://raw.githubusercontent.com/mujacica/tade/main/images/models.svg)
-
-Agents run in **pi**, **Claude Code** or **Codex**, side by side, one harness per agent, moved from
-one to another from its menu — or in any agent that speaks the **Agent Client Protocol** (Gemini
-CLI, opencode, goose, Copilot CLI, Kiro CLI), whose conversation Tade draws in its lane. Claude Code signs in as itself — Tade never sees it — and can run as more
-than one account at once; an agent that runs out moves to another, its conversation with it.
-
-![Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of the plan is used, and what can be done to each](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
-
-## Shortcuts and settings
-
-`ctrl+space` talk · `ctrl+k` search · `tab` next agent · `ctrl+n` new agent · `ctrl+t` terminal ·
-`ctrl+/` orchestrator · `ctrl+m` mute · `F1` every shortcut · `ctrl+,` settings
-
-Everything else goes straight to the agent or terminal you are typing at. Every key is changeable,
-and every setting has what it means beside it.
-
-<table>
-<tr>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/keys.svg" alt="The keys Tade keeps, talking first"></td>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/settings.svg" alt="Settings over the window: categories down the side, and a real control for each with what it means beside it"></td>
-</tr>
-</table>
-
-## Up to date, and honest about it
-
-Which of the programs Tade runs are here, how each one got here — Homebrew, a global npm package, a
-binary somebody dropped on their PATH — and what is current. Nothing is written down at a call site:
-every driver, harness and forge declares what it needs and how to ask it its version. What nobody can
-be asked about comes back as *cannot tell* rather than a guess, and Tade itself is a row like any
-other.
-
-The window asks what is current once a day (Settings › Window › *Check for updates*: daily, weekly or
-never) and keeps the answer, so the next window knows it without asking again. When something can
-move forward, a chip in the strip says `updates 2`. Pressing it runs the exact commands Settings ›
-Updates shows, one after another, in an `updates` terminal put in front of you — `updating 1/2` while
-it goes — and says what came of it in the conversation: what moved and to what, and for anything that
-failed, its command and the last of what it printed. Nothing installs anything behind your back.
-When Tade itself moved, the window offers to reload into it, says what that would stop, and the chip
-turns into `reload Tade` until you do. The orchestrator can do both when you ask it to — "update
-Tade", then "reload" — and it is the same run, checked against what you actually said.
-
-<table>
-<tr>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/updates.svg" alt="Updates: every program Tade runs with how it got here and what is current, the exact command before anything runs it, and what reloading would cost"></td>
-<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/reload.svg" alt="Tade was updated from the strip: the window offers to reload into the new one, and says what that would stop"></td>
-</tr>
-</table>
-
-## The brief, and where everything stands
-
-One paragraph of what is stopped, what is moving and what the extensions found — in the window, by
-voice, or as `tade brief` from any shell. Nothing in it is remembered: every task is derived again
-from git, processes and transcripts.
-
-![The brief: one paragraph of what is blocked, what is moving and what extensions found](https://raw.githubusercontent.com/mujacica/tade/main/images/brief.svg)
-
-## Approvals, on your terms
-
-Off by default, and every command an agent runs is written down either way. Turn approvals on and
-the risky ones stop and ask — in the window, by voice, or from another project's toast. This is the
-whole of what Tade holds an agent to: containing one is its harness's own business, and Tade does
-not pretend to a half of it.
-
-![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/approval.svg)
-
-The rules are patterns somebody wrote — `sudo`, a force push, an `rm -rf` aimed outside the
-worktree. With Jev on, what no pattern names is read a second time before you are asked about it, so
-a `terraform destroy` is the command read back rather than one word said to it. It can only ever
-make Tade ask for more, never less, and what you hear is Tade's own sentence, never a probability.
-
-## A software factory: work that arrives on its own
-
-A GitHub issue somebody labelled, an `@tade` in a Slack channel, a Linear issue with the label on
-it, a line typed at `tade intake` — each comes through a door you opened, under a grant naming whose
-requests count, and is stamped from a workflow you published. Every default is the decision: nothing
-is read until you turn a source on, nobody counts until you list them, and `propose` means a person
-approves each one.
-
-One request says who asked, which key allowed it and the published version it is stamped from — and
-what approving it would start, before you do. What a stranger wrote is **material, never
-instruction**: an agent reads it as evidence about the work, under a heading that says so.
-
-<table>
-<tr>
-<td width="25%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake.svg" alt="INTAKE down the side: work handed to this machine from outside it, each row saying who asked, the door it came through and how far it got"></td>
-<td width="75%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/intake-request.svg" alt="One request in front of you: where it came from, what approving it would start, the wait between its two tasks and why, and the keys to approve or refuse"></td>
-</tr>
-</table>
 
 ## A remote control, while the window is open
 
@@ -603,7 +557,115 @@ tade web devices       # who is paired, and what each may do
 tade web revoke --all  # disconnect every one of them
 ```
 
-Neither of these is in the released `tade-sh` 0.1.1 — both are here, in this repository.
+## Models and harnesses
+
+Pick what the orchestrator runs on and what every new agent starts on — every model you are signed
+in to, priced per million tokens — and how hard it should think.
+
+![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](https://raw.githubusercontent.com/mujacica/tade/main/images/models.svg)
+
+Agents run in **pi**, **Claude Code** or **Codex**, side by side, one harness per agent, moved from
+one to another from its menu — or in any agent that speaks the **Agent Client Protocol** (Gemini
+CLI, opencode, goose, Copilot CLI, Kiro CLI), whose conversation Tade draws in its lane. Claude Code signs in as itself — Tade never sees it — and can run as more
+than one account at once; an agent that runs out moves to another, its conversation with it.
+
+![Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of the plan is used, and what can be done to each](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
+
+## Extensions
+
+Checks, Dependencies, Jev, Reviews, Sentry and Resources ship with Tade; yours go beside them in
+`~/.tade/extensions/`. An extension brings tools the orchestrator and your agents can both call,
+settings and watches. Being there is not being on: one of yours is listed and off until you turn it
+on. Keys are pasted in as text and written into `~/.tade/config.yaml`, so you can read one back and
+check it against the console that issued it — and any agent you run can read it too. To keep one out
+of the file, export its variable instead, or leave that extension unconfigured.
+
+Every one of them is down the side, searchable by anything it would say — and the one you pick says
+what it is for in the work you actually do, every tool it brings with what each is for, what it
+offers to watch, and what it can be given.
+
+![The Extensions panel: the list down the side, and one of them in full — how it is used, its buttons, its tools, its watches and its settings](https://raw.githubusercontent.com/mujacica/tade/main/images/extensions.svg)
+
+## MCP servers, in one place
+
+An MCP server somebody turns on is an extension whose tools are that server's tools. The window is
+the only client there is, so turning one on hands its tools to every agent and to the orchestrator —
+pi, Claude Code, Codex alike — named by Tade, gated by Tade, and with your key never leaving this
+machine. No config written for anybody else's client, and no process per agent per server.
+
+The popular ones are listed and off: a server is somebody else's code with tools your agents will
+call, so turning one on is yours alone, in the window or with `tade mcp enable <name>`. What each
+harness loads by itself is listed too — read, never adopted.
+
+![The MCP servers Tade knows about, listed and off: what each is for, how Tade would talk to it, and what turning it on would need](https://raw.githubusercontent.com/mujacica/tade/main/images/mcp.svg)
+
+## Sentry, both ways
+
+Point the Sentry extension at your organisation and *"fix new Sentry errors as they come"* becomes a
+watch: each new issue is an agent with the stack trace, the trace and the logs already in its
+context. Point Tade's own telemetry at a Sentry project of yours and it reports **itself** the same
+way — its crashes and its own warnings, never your code or what you said — so Tade can be handed its
+own bug.
+
+![An agent started from a Sentry issue: the issue and trace one click away, the context file the first thing it reads](https://raw.githubusercontent.com/mujacica/tade/main/images/sentry.svg)
+
+## Resources
+
+Tade has to be light, and proves it: what it and everything it runs is using, in the status bar and
+broken down by project, by kind and by agent.
+
+![Resources: CPU and memory by project, by kind, and by agent](https://raw.githubusercontent.com/mujacica/tade/main/images/resources.svg)
+
+## Shortcuts and settings
+
+`ctrl+space` talk · `ctrl+k` search · `tab` next agent · `ctrl+n` new agent · `ctrl+t` terminal ·
+`ctrl+/` orchestrator · `ctrl+m` mute · `F1` every shortcut · `ctrl+,` settings
+
+Everything else goes straight to the agent or terminal you are typing at. Every key is changeable,
+and every setting has what it means beside it.
+
+<table>
+<tr>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/keys.svg" alt="The keys Tade keeps, talking first"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/settings.svg" alt="Settings over the window: categories down the side, and a real control for each with what it means beside it"></td>
+</tr>
+</table>
+
+## Up to date, and honest about it
+
+Which of the programs Tade runs are here, how each one got here — Homebrew, a global npm package, a
+binary somebody dropped on their PATH — and what is current. Nothing is written down at a call site:
+every driver, harness and forge declares what it needs and how to ask it its version. What nobody can
+be asked about comes back as *cannot tell* rather than a guess, and Tade itself is a row like any
+other.
+
+The window asks what is current once a day (Settings › Window › *Check for updates*: daily, weekly or
+never) and keeps the answer, so the next window knows it without asking again. When something can
+move forward, a chip in the strip says `updates 2`. Pressing it runs the exact commands Settings ›
+Updates shows, one after another, in an `updates` terminal put in front of you — `updating 1/2` while
+it goes — and says what came of it in the conversation: what moved and to what, and for anything that
+failed, its command and the last of what it printed. Nothing installs anything behind your back.
+When Tade itself moved, the window offers to reload into it, says what that would stop, and the chip
+turns into `reload Tade` until you do. The orchestrator can do both when you ask it to — "update
+Tade", then "reload" — and it is the same run, checked against what you actually said.
+
+<table>
+<tr>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/updates.svg" alt="Updates: every program Tade runs with how it got here and what is current, the exact command before anything runs it, and what reloading would cost"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/mujacica/tade/main/images/reload.svg" alt="Tade was updated from the strip: the window offers to reload into the new one, and says what that would stop"></td>
+</tr>
+</table>
+
+## Planned
+
+Not built yet, and named here rather than anywhere above, at the part of Tade it would be built on.
+
+- **Time from done to landed**, beside the cost per landed task on Evaluations
+  (`evaluationsFrom`, `core/src/evaluations.ts`). The desk already says how long each piece of work
+  has waited since it last moved, and Evaluations how long work took to finish; nothing yet folds
+  the stretch from `task_done` to the merge that landed it into a figure per harness, model,
+  persona and template. Work committed straight onto a shared checkout has landed by the time it is
+  done, so the figure is about reviews.
 
 ## Installing
 

@@ -58,19 +58,26 @@ export interface Reel {
   frames: readonly { scenario: string; hold: number }[]
 }
 
-/** The demo at the top of the README: one request, from asking to done. */
+/**
+ * The demo at the top of the README: one request, from asking to the desk.
+ *
+ * It ends on the landing desk rather than the brief because that is what the
+ * README says Tade is for — agent work becoming merged work — and a demo that
+ * stops at an agent working shows the half every tool already has.
+ */
 export const REEL: Reel = {
   file: 'tade.svg',
   title: 'tade',
   about:
     'Tade in a terminal: a project with nothing running, a request typed to the orchestrator, ' +
-    'the orchestrator calling its tools, an agent at work asking for approval, and the brief.',
+    'the orchestrator calling its tools, an agent at work asking for approval, and then the ' +
+    'landing desk — every finished piece of work in the order it is cheapest to trust.',
   frames: [
     { scenario: 'first-open', hold: 3 },
     { scenario: 'typing-to-tade', hold: 3 },
     { scenario: 'orchestrator-at-work', hold: 4 },
     { scenario: 'watching-an-agent', hold: 4 },
-    { scenario: 'a-brief-on-demand', hold: 4 },
+    { scenario: 'the-landing-desk', hold: 5 },
   ],
 }
 
@@ -161,6 +168,16 @@ export const PICTURES: readonly Picture[] = [
       'the order it is cheapest to trust — green and small first, then what waits on you, then ' +
       'what waits on its agent, each with the one sentence why — and beside each its checks, ' +
       'findings, collisions, size, cost and how long it has waited.',
+  },
+  {
+    file: 'collide.svg',
+    scenario: 'work-that-would-collide',
+    crop: { top: 2, left: 0, width: 90, height: 13 },
+    title: 'tade — work that would collide',
+    about:
+      'Two agents the conflict forecast says would collide, both with uncommitted changes in one ' +
+      'file: each wears ⇄ after its name down the side, and in the plan the line under its box ' +
+      'names the other — while the work queued after both waits for them, and nothing is stopped.',
   },
   {
     file: 'evaluations.svg',
