@@ -1,7 +1,7 @@
 import type { SettingGroup } from '@tade/core'
 import type { LineComment } from '../comments.ts'
 import type { ParsedDiff } from '../diff.ts'
-import type { Change, IntakeOpenView, RowSummaryView, WorkflowView } from '../frame.ts'
+import type { Change, DeskRow, IntakeOpenView, RowSummaryView, WorkflowView } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
 import type { Panel } from '../panels.ts'
@@ -20,6 +20,7 @@ import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
 import type { InlineRow } from './file/inline.ts'
 import { fileView } from './file/view.ts'
 import { intake } from './intake/view.ts'
+import { landing } from './landing/view.ts'
 import type { MenuItem } from './menu/state.ts'
 import { menu } from './menu/view.ts'
 import type { ModelChoice } from './models/state.ts'
@@ -80,6 +81,12 @@ export interface PanelContext {
   items: readonly MenuItem[]
   /** What a task has changed, for the question before removing it. */
   changes: readonly Change[]
+  /** The landing desk, in the order it is cheapest to trust (`Frame.landing`). */
+  landing: readonly DeskRow[]
+  /** Line comments kept and not sent, by the task whose change they are on. */
+  kept?: Readonly<Record<string, number>>
+  /** The frame's moment, which every age on a panel is counted to. */
+  now: number
   /** Commits the task's branch has that its base does not. */
   ahead: number | null
   branch: string | null
@@ -293,5 +300,7 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: workflow(panel, ctx), popups: [] }
     case 'model':
       return { panel: models(panel, ctx), popups: [] }
+    case 'landing':
+      return { panel: landing(panel, ctx), popups: [] }
   }
 }

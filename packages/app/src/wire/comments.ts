@@ -16,6 +16,7 @@ import type { FilePanel } from '../panels/file/state.ts'
 import type { PanelInputs } from '../panels.ts'
 import { youSaid } from '../transcript.ts'
 import { flash, notify, type Subject, type Wiring, why } from './context.ts'
+import { unlessSame } from './kept.ts'
 
 // Comments on lines of a diff: kept here, by the review they are on, until
 // they are sent — together, however many files they are spread over.
@@ -56,6 +57,7 @@ export class Comments implements Subject {
   /** The last answer each fact was, so a frame that changed nothing hands over the same objects. */
   private handed: Handed | null = null
   private chosen: { panes: unknown; task: string; choices: CommentChoice[] } | null = null
+  private counts: Readonly<Record<string, number>> = {}
 
   constructor(wire: Wiring, deps: CommentsDeps) {
     this.wire = wire
@@ -63,6 +65,8 @@ export class Comments implements Subject {
   }
 
   panel(): Frame['panel'] {
+    // The landing desk says, beside each piece of work, what is written on it and not sent.
+    if (this.wire.state.panel?.kind === 'landing') return { kept: this.counted() }
     const shown = this.open() ? this.deps.shown() : null
     if (!shown) return {}
     const all = this.kept.get(shown.task) ?? NONE
@@ -81,6 +85,14 @@ export class Comments implements Subject {
       drafted: all.length,
       commentTo: this.choices(shown.task),
     }
+  }
+
+  /** How many are kept on every review, by its task: the same object while none changed. */
+  private counted(): Readonly<Record<string, number>> {
+    const counts: Record<string, number> = {}
+    for (const [task, kept] of this.kept) counts[task] = kept.length
+    this.counts = unlessSame(this.counts, counts)
+    return this.counts
   }
 
   /** How many are kept on a review: what its Send would send. */

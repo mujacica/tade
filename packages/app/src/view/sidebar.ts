@@ -93,6 +93,8 @@ export function renderSidebar(
   // is hiding, which has to stay reachable.
   const done = doneTasks(state).length
   const all = agentsHere(state).length
+  // What waits to land here: the desk's rows in this project, which it opens on.
+  const landing = (frame.landing ?? []).filter((row) => row.project === state.project).length
 
   const sections: Section[] = [
     {
@@ -101,6 +103,18 @@ export function renderSidebar(
       count: tasks.length,
       of: all,
       actions: [
+        ...(landing > 0
+          ? [
+              {
+                // The landing desk, with how much of this project waits on it:
+                // a word, because it is a place, and drawn only while there is
+                // something to land.
+                label: `land ${landing}`,
+                target: { kind: 'action' as const, name: 'landing' },
+                small: true,
+              },
+            ]
+          : []),
         ...(done > 0 || state.hidingDone
           ? [
               {

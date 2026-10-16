@@ -408,3 +408,29 @@ describe('the pack knows documentation is not code', () => {
     }
   })
 })
+
+describe('what the record hands the window', () => {
+  it('is every finding with what its agent said and which way it was judged, never the verdict’s words', async () => {
+    const { loaded, worktree, key } = await flagged()
+    expect((await loaded.findings()).findings).toMatchObject([
+      { key, tasks: ['shop/add-refunds'], stillThere: true, account: null, verdict: null },
+    ])
+    await loaded.call(
+      'jev_account',
+      { finding: key, did: 'not real', said: 'covered by test/refund.test.ts' },
+      agentAsking('shop/add-refunds', worktree),
+    )
+    await loaded.call(
+      'jev_verdict',
+      { finding: key, was: 'false positive', said: 'src/refund.ts has a test beside it' },
+      asked,
+    )
+    const { findings, problems } = await loaded.findings()
+    expect(problems).toEqual([])
+    expect(findings[0]?.account).toMatchObject({
+      did: 'not real',
+      said: 'covered by test/refund.test.ts',
+    })
+    expect(findings[0]?.verdict).toEqual({ was: 'false positive', at: expect.any(String) })
+  })
+})

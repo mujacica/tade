@@ -45,6 +45,7 @@ import { tellOrKeep } from './wire/handed.ts'
 import { Images } from './wire/images.ts'
 import { Intake } from './wire/intake.ts'
 import { Keyboard } from './wire/keyboard.ts'
+import { Landing } from './wire/landing.ts'
 import { Lanes } from './wire/lanes.ts'
 import { Looks } from './wire/looks.ts'
 import { Machine } from './wire/machine.ts'
@@ -148,8 +149,6 @@ export class App {
   private readonly extensions: Extensions
   /** The folder you are looking in, and the projects Tade already knows. */
   private readonly projects: Projects
-  /** What the agents cost, and what a subscription has used up. */
-  private readonly spend: Spend
   private readonly earlier: Earlier
   /** Where an action, a menu, a panel and a command land. */
   private readonly router: Router
@@ -449,7 +448,6 @@ export class App {
       openSettings: (page, find, project) => this.settings.open(page, find, project),
       rememberWindow: () => this.window.remember(),
     })
-    this.spend = new Spend(this.wire)
     this.earlier = new Earlier(this.wire)
     this.subjects = [
       this.window,
@@ -459,7 +457,8 @@ export class App {
       this.agents,
       this.routes,
       this.checks,
-      this.spend,
+      new Spend(this.wire),
+      new Landing(this.wire),
       this.notes,
       this.schedules,
       this.queue,

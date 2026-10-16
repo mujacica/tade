@@ -119,6 +119,33 @@ export interface BriefItem {
   links?: readonly Link[]
 }
 
+/**
+ * One finding a judge raised about one agent's change, and what became of it:
+ * what the agent said, and that somebody decided. Never the verdict's own
+ * sentence — that cites somebody's code and belongs to the calibration — and a
+ * probability is carried to be shown as one, never to order or count anything.
+ */
+export interface JudgeFinding {
+  /** Stable for ever: the same question about the same change is one finding. */
+  key: string
+  /** The question's own id. */
+  question: string
+  project: string
+  /** The tasks whose work the change was. */
+  tasks: readonly string[]
+  /** When the reading that raised it was made. */
+  at: number
+  probability: number
+  /** The file it was highest about, repository-relative. */
+  file: string
+  /** Whether the newest reading of that change still raises it. */
+  stillThere: boolean
+  /** What the agent whose change it was said: testimony, never a verdict. */
+  account: { did: 'fixed' | 'not real'; said: string; at: string } | null
+  /** That somebody judged it, and which way. */
+  verdict: { was: 'confirmed' | 'false positive'; at: string } | null
+}
+
 /** Something on screen an extension knows how to open: a Sentry short id, say. */
 export interface Linker {
   /** A regular expression, as source; every match is a link. */
@@ -541,6 +568,12 @@ export interface TadeExtension {
    * given a deadline and a late answer is never shown.
    */
   meant?(ctx: ExtensionContext, request: MeantRequest): Promise<readonly string[]>
+  /**
+   * The findings a judge it runs has raised, read out of its own record — never
+   * by asking a model, because the window asks on a clock. It is how the landing
+   * desk and a paired phone read findings without knowing whose they are.
+   */
+  findings?(ctx: ExtensionContext): Promise<readonly JudgeFinding[]>
   /** What belongs in the brief, when anything does. */
   brief?(ctx: ExtensionContext): Promise<readonly BriefItem[]>
   /** Told to the orchestrator: when to reach for this, and how. */

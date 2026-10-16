@@ -285,6 +285,24 @@ export function extensionConformance(
       expect(await host.lists(tade)).toEqual(sections)
     })
 
+    it('says what its judges found from its own record, as findings and nothing else', async () => {
+      if (!extension.findings) return
+      const host = await load()
+      const { findings, problems } = await host.findings()
+      // An extension that is not ready is not asked; one that is answers a list.
+      expect(Array.isArray(findings)).toBe(true)
+      for (const problem of problems) expect(typeof problem).toBe('string')
+      for (const one of findings) {
+        expect(one.key).toBeTruthy()
+        expect(Array.isArray(one.tasks)).toBe(true)
+        expect(typeof one.stillThere).toBe('boolean')
+        // A verdict says which way it went and never its sentence.
+        if (one.verdict) expect(Object.keys(one.verdict).sort()).toEqual(['at', 'was'])
+      }
+      const keys = findings.map((one) => one.key)
+      expect(new Set(keys).size).toBe(keys.length)
+    })
+
     it('takes its credentials from the config, and from the environment first', async () => {
       const declared = (extension.settings ?? []).filter((setting) => setting.kind === 'secret')
       if (declared.length === 0) return

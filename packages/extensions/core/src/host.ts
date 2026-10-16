@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { extensionEnabled, findSecret, runProgram, secretPath } from '@tade/core'
+import { askFindings } from './findings.ts'
 import type {
   Audience,
   BriefItem,
@@ -14,6 +15,7 @@ import type {
   ExtensionSetting,
   ExtensionWorkbench,
   JsonSchema,
+  JudgeFinding,
   Link,
   Linker,
   ListRow,
@@ -1099,6 +1101,13 @@ export class ExtensionHost {
     } finally {
       if (timer) clearTimeout(timer)
     }
+  }
+
+  /** Every finding a ready extension's judge has raised (`askFindings`). */
+  findings(
+    timeoutMs?: number,
+  ): Promise<{ findings: JudgeFinding[]; problems: string[]; asked: number }> {
+    return askFindings(this.ready(), timeoutMs)
   }
 
   /**
