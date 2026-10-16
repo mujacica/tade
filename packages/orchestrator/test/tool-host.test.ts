@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type Arm, LOCAL, type Plan } from '@tade/core'
+import type { Plan } from '@tade/core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -20,7 +20,7 @@ describe('starting an agent for the orchestrator', () => {
 
   const tade = {
     // Among what the task's own harness offers.
-    async resolveModelFor(_task: string, _cwd: string, said: string) {
+    async resolveModelFor(_task: string, said: string) {
       if (said === 'opus') return { provider: 'openrouter', id: 'anthropic/claude-opus-5' }
       throw new Error(`"${said}" could be gpt-4o, gpt-5: say which`)
     },

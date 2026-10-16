@@ -464,7 +464,7 @@ export class Workbench {
       if (lane.kind !== 'agent' || !lane.alive) continue
       // By the harness it was started in: another adapter would listen on a
       // channel its agent never dials.
-      const harness = lane.harness ?? (await this.harnessOf(lane.task, lane.spec.cwd))
+      const harness = lane.harness ?? (await this.harnessOf(lane.task))
       // And the account it was started on, whose adapter is made again here.
       const resumed = await Promise.resolve()
         .then(() => this.adapterFor(harness, lane.account))
@@ -511,7 +511,7 @@ export class Workbench {
   private async reconcileSpend(): Promise<void> {
     for (const lane of this.registry.list()) {
       if (lane.kind !== 'agent') continue
-      const harness = lane.harness ?? (await this.harnessOf(lane.task, lane.spec.cwd))
+      const harness = lane.harness ?? (await this.harnessOf(lane.task))
       const adapter = await Promise.resolve()
         .then(() => this.adapterFor(harness, lane.account))
         .catch(() => null)
@@ -1381,8 +1381,8 @@ export class Workbench {
       // Two agents in one worktree is two agents editing the same files.
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
-    const harness = req.harness ?? (await this.harnessOf(req.task, req.cwd))
-    const account = req.account ?? (await this.accountOf(req.task, req.cwd, harness))
+    const harness = req.harness ?? (await this.harnessOf(req.task))
+    const account = req.account ?? (await this.accountOf(req.task, harness))
     const adapter = this.adapterFor(harness, account)
     const extras = withTade(
       req.extras ??
@@ -1466,8 +1466,8 @@ export class Workbench {
    * is for at least once.
    */
   private async hasConversation(task: string, cwd: string): Promise<boolean> {
-    const harness = await this.harnessOf(task, cwd)
-    const account = await this.accountOf(task, cwd, harness)
+    const harness = await this.harnessOf(task)
+    const account = await this.accountOf(task, harness)
     return Promise.resolve()
       .then(() => this.adapterFor(harness, account).hasConversation(task as TaskId, cwd))
       .catch(() => false)
@@ -1549,7 +1549,7 @@ export class Workbench {
    * harness's new agents use, else the harness's own sign-in. One that is not
    * this harness's is not used: an account belongs to one harness.
    */
-  private async accountOf(task: string, cwd: string, harness: string): Promise<string | undefined> {
+  private async accountOf(task: string, harness: string): Promise<string | undefined> {
     const own = await this.taskAccount(task)
     if (!own) return this.accountUsing(harness)
     return this.config.accounts[own]?.harness === harness ? own : undefined
@@ -1582,10 +1582,9 @@ export class Workbench {
    */
   async agentHarness(
     task: string,
-    cwd: string,
   ): Promise<{ harness: string; account: string | null; capabilities: WorkerCapabilities }> {
-    const harness = await this.harnessOf(task, cwd)
-    const account = await this.accountOf(task, cwd, harness)
+    const harness = await this.harnessOf(task)
+    const account = await this.accountOf(task, harness)
     return {
       harness,
       account: account ?? null,
@@ -1616,7 +1615,7 @@ export class Workbench {
   }
 
   /** The harness a task's agent runs in: its own choice, else its project's route. */
-  private async harnessOf(task: string, cwd: string): Promise<string> {
+  private async harnessOf(task: string): Promise<string> {
     const own = await this.taskHarness(task)
     if (own) return own
     const project = task.split('/')[0] ?? ''
@@ -1732,11 +1731,11 @@ export class Workbench {
     worktree: string
     account: string | null
   }): Promise<{ account: string | null; restarted: boolean; carried: boolean }> {
-    const harness = await this.harnessOf(req.task, req.worktree)
+    const harness = await this.harnessOf(req.task)
     if (req.account && this.config.accounts[req.account]?.harness !== harness) {
       throw new Error(`${req.account} is not a ${harness} account`)
     }
-    const from = this.adapterFor(harness, await this.accountOf(req.task, req.worktree, harness))
+    const from = this.adapterFor(harness, await this.accountOf(req.task, harness))
     const to = this.adapterFor(harness, req.account ?? undefined)
     const lane = `${req.task}/agent` as LaneId
     const running = this.registry.get(lane)?.alive === true
@@ -1914,9 +1913,9 @@ export class Workbench {
    * catalog is not this agent's. An empty answer carries the harness's own
    * words rather than anybody else's list.
    */
-  async agentModels(task: string, cwd: string): Promise<HarnessModels> {
-    const harness = await this.harnessOf(task, cwd)
-    return modelsOffered(this.adapterFor(harness, await this.accountOf(task, cwd, harness)))
+  async agentModels(task: string): Promise<HarnessModels> {
+    const harness = await this.harnessOf(task)
+    return modelsOffered(this.adapterFor(harness, await this.accountOf(task, harness)))
   }
 
   /**
@@ -1946,12 +1945,8 @@ export class Workbench {
   }
 
   /** A model said for a task's agent, among what its harness offers. Throws what to ask. */
-  async resolveModelFor(
-    task: string,
-    cwd: string,
-    said: string,
-  ): Promise<{ provider: string; id: string }> {
-    const found = await this.adapterFor(await this.harnessOf(task, cwd)).resolveModel(said)
+  async resolveModelFor(task: string, said: string): Promise<{ provider: string; id: string }> {
+    const found = await this.adapterFor(await this.harnessOf(task)).resolveModel(said)
     if (!found.ok) throw new Error(found.reason)
     return { provider: found.provider, id: found.id }
   }

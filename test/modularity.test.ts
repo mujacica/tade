@@ -97,8 +97,9 @@ const BUDGET: Record<string, number> = {
   // an agent's tool calls went to `agent-tools.ts`, Tade's own first; 2,372
   // when `holdQueued` joined `changeQueued` and a plan learned races; 2,315
   // when making a finding into work went to `found.ts`, as it learned to park;
-  // 2,291 when a schedule's run followed it there, as both learned to propose.
-  'packages/workbench/src/workbench.ts': 2_291,
+  // 2,291 when a schedule's run followed it there, as both learned to propose;
+  // 2,285 when the `cwd` the harness and account lookups no longer read went.
+  'packages/workbench/src/workbench.ts': 2_285,
   // 1,100 -> 1,045 when what each agent has been doing went to `doing.ts`, as
   // it learned which files each one wrote for the conflict forecast.
   'packages/workbench/src/workers.ts': 1_045,

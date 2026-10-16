@@ -91,7 +91,7 @@ describe('accounts', () => {
       account: 'work',
     })
     expect(moved).toEqual({ account: 'work', restarted: false, carried: false })
-    expect(await client.agentHarness(task.id, task.worktree)).toMatchObject({
+    expect(await client.agentHarness(task.id)).toMatchObject({
       harness: 'claude-code',
       account: 'work',
     })

@@ -281,9 +281,7 @@ export class Routes implements Subject {
 
   /** Which account an agent runs as, asked of its harness first so the menu marks the one it is on. */
   async openAccount(task: string): Promise<void> {
-    const known = await this.wire.opts.client
-      .agentHarness(task, this.wire.live?.worktreeOf(task) ?? '')
-      .catch(() => null)
+    const known = await this.wire.opts.client.agentHarness(task).catch(() => null)
     await this.deps.loadAccounts()
     this.wire.put({
       ...this.wire.state,
@@ -441,7 +439,7 @@ export class Routes implements Subject {
     const from = `${worktree}\0${await markOf(taskFilePath(this.wire.opts.home, task))}`
     const learned = this.learnedFrom.get(task)
     if (learned?.from === from && learned.config === config) return false
-    const known = await this.wire.opts.client.agentHarness(task, worktree).catch(() => null)
+    const known = await this.wire.opts.client.agentHarness(task).catch(() => null)
     if (!known) return false
     this.learnedFrom.set(task, { from, config })
     const was = this.offersByTask.get(task)
@@ -521,7 +519,7 @@ export class Routes implements Subject {
     }
     const worktree = this.wire.live?.worktreeOf(target)
     const asked = worktree
-      ? await this.wire.opts.client.agentModels(target, worktree).catch(() => null)
+      ? await this.wire.opts.client.agentModels(target).catch(() => null)
       : null
     if (asked) this.offered.set(asked.harness, asked)
     // Nowhere to ask about this agent in particular: its harness is known all

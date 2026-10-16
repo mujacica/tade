@@ -366,7 +366,7 @@ describe('task and run RPC', () => {
   })
 
   it('keeps who asked for a task, in its file and in the journal', async () => {
-    const task = await client.createTask({
+    await client.createTask({
       project: 'app',
       slug: 'fix',
       intent: INTENT,
@@ -402,7 +402,7 @@ describe('task and run RPC', () => {
 
   it('offers the models of the harness a task runs in, and nobody else’s', async () => {
     const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
-    const pi = await client.agentModels(task.id, task.worktree)
+    const pi = await client.agentModels(task.id)
     expect(pi.harness).toBe('pi')
     // Either a list, or the harness's own words for why there is none —
     // never a fallback to what some other harness runs.
@@ -421,7 +421,7 @@ describe('task and run RPC', () => {
       worktree: task.worktree,
       harness: 'claude-code',
     })
-    expect(await client.agentModels(task.id, task.worktree)).toEqual(claude)
+    expect(await client.agentModels(task.id)).toEqual(claude)
   })
 
   it('says a harness it does not run has no models, rather than offering someone’s', async () => {

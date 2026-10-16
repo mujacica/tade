@@ -3,27 +3,14 @@ import {
   conflictsOn,
   devServerPorts,
   type Finished,
-  finishedFrom,
-  historyFrom,
   type KnownTask,
-  type Queued,
-  queueStanding,
-  queueStateOf,
-  summariseWork,
-  type TaskState,
-  type Upstream,
-  type Watched,
-  type WorkHistory,
-  type WorkSummary,
   type Workspace,
-  watchedFrom,
-  workedFrom,
 } from '@tade/core'
 import { chatsFrom } from '@tade/workbench/chats'
 import type { LaneRecord } from '@tade/workbench/registry'
 import { terminalsFrom } from '@tade/workbench/terminals'
 import type { PendingApproval } from '@tade/workbench/workers'
-import type { Change, CheckView, CommitView } from './frame.ts'
+import type { Change, CommitView } from './frame.ts'
 import type { QueuedView, TaskSnapshot, TerminalTab } from './model.ts'
 
 // What git and the journal said, read into the shapes the window draws.

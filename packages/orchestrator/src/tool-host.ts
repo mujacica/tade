@@ -419,7 +419,7 @@ export class ToolHost {
         const cwd = String(p.cwd)
         // Among what the task's own harness offers.
         const model = p.model
-          ? await tade.resolveModelFor(String(p.task), cwd, String(p.model))
+          ? await tade.resolveModelFor(String(p.task), String(p.model))
           : undefined
         // Files go with something to say about them. A start that says nothing
         // opens the agent, and must not set it working on a picture alone.
