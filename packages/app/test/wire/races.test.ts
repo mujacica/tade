@@ -99,6 +99,22 @@ describe('the window, and a race', () => {
       screenOf(terminal.written).some((row) => row.includes('closed, branch kept')),
     )
     expect(repo.git('branch', '--list', 'tade/dark-*').split('\n').filter(Boolean)).toHaveLength(2)
+
+    // Enter reads the entrant the keyboard is on as a patch, once its files are looked at.
+    terminal.press('\r')
+    let pressed = Date.now()
+    await until('the patch reader on its change', () => {
+      const screen = screenOf(terminal.written)
+      if (screen.some((row) => row.includes('+ export const dark = true'))) return true
+      if (
+        screen.some((row) => row.includes('not been looked at yet')) &&
+        Date.now() - pressed > 300
+      ) {
+        terminal.press('\r')
+        pressed = Date.now()
+      }
+      return false
+    })
   })
 
   it('lets the orchestrator pick only on a line of the person’s asking for one', async () => {
