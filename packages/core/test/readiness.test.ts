@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   isReady,
+  lingerCommand,
   nextStep,
   type ReadinessFacts,
   readiness,
@@ -342,6 +343,18 @@ describe('a server, with nobody logged in', () => {
       done: true,
       detail: '',
     })
+  })
+
+  it('quotes a name a shell would read otherwise, because the line is run through one', () => {
+    expect(lingerCommand({ ...box, user: 'EXAMPLE\\you' })).toBe(
+      "sudo loginctl enable-linger 'EXAMPLE\\you'",
+    )
+    expect(lingerCommand({ ...box, user: "o'brien" })).toBe(
+      "sudo loginctl enable-linger 'o'\\''brien'",
+    )
+    expect(lingerCommand({ ...box, user: 'you@example.com' })).toBe(
+      'sudo loginctl enable-linger you@example.com',
+    )
   })
 
   it('asks root for no sudo', () => {

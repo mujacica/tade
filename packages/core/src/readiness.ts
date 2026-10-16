@@ -219,9 +219,18 @@ export function readiness(facts: ReadinessFacts): Step[] {
   ]
 }
 
-/** The command that keeps a user's services running with nobody logged in. */
+/**
+ * The command that keeps a user's services running with nobody logged in.
+ *
+ * The name is the system's own for whoever runs this, and the line is run
+ * through a shell — and a name a directory service hands out may carry what a
+ * shell reads (`EXAMPLE\you`), so anything but a plain one is quoted.
+ */
 export function lingerCommand(box: Unattended): string {
-  return `${box.root ? '' : 'sudo '}loginctl enable-linger ${box.user}`
+  const user = /^[A-Za-z0-9_.@-]+$/.test(box.user)
+    ? box.user
+    : `'${box.user.replaceAll("'", `'\\''`)}'`
+  return `${box.root ? '' : 'sudo '}loginctl enable-linger ${user}`
 }
 
 /**
