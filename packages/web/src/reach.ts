@@ -144,7 +144,7 @@ export const WITHHOLDS: Readonly<Record<Grant, readonly string[]>> = {
   titles: ['projects.title', 'tasks.title'],
   intent: ['tasks.intent', 'queue.waitsOn.why', 'runs.steps.waits.why'],
   notes: ['notes'],
-  findings: ['findings'],
+  findings: ['findings', 'tasks.landing'],
   // Quotas are `plans`: what a sign-in has used of its plan is a figure about
   // money, and goes with the rest of it.
   spend: ['tasks.spend', 'plans', 'intake.would.limits', 'runs.steps.usd', 'runs.usd'],

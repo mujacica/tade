@@ -1,0 +1,219 @@
+/*
+  The landing desk's own sheet: every rule scoped to it (`.page-landing`) or
+  to a class only its modules draw (`test/pages.test.ts`).
+
+  **The colour is down the left edge of the cards, and says whose move it
+  is**: green where it is ready to land, violet where it waits on the person,
+  and nothing where it waits on its agent — that is not the person's to act
+  on yet. Everything else is the grey ladder: names bright, the sentence why
+  in the body grey, the figures in labels and values.
+*/
+
+/* The bar's word takes its tone: the shared bar's grey would out-rank it. */
+.page-landing .pg-bar > .figure.t-done {
+  color: var(--green);
+}
+
+.page-landing .pg-bar > .figure.t-wants {
+  color: var(--violet);
+}
+
+/* One gap between every region of the page, and none of the sections' own. */
+.page-landing .ld-body {
+  display: grid;
+  gap: var(--stack);
+  align-content: start;
+  min-width: 0;
+}
+
+.page-landing .ld-body > .section {
+  margin-block-end: 0;
+  min-width: 0;
+}
+
+.page-landing .ld-body .section-head:not(.pg-bar) {
+  margin-block-end: var(--s3);
+}
+
+/* What waits on the person is the one count that wears its tone, beside its heading. */
+.page-landing .ld-group-yours > .section-head > .figure:not(:empty) {
+  padding-inline: 6px;
+  border-radius: var(--r3);
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+  font-weight: var(--w-strong);
+}
+
+/* ── the lead: how many are ready, of how many, over a bar of the desk ────── */
+
+.ld-lead {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--inset);
+}
+
+.ld-lead-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
+  margin: 0;
+}
+
+.ld-lead-n {
+  color: var(--bright);
+  font-size: var(--step-3);
+  font-weight: var(--w-strong);
+  letter-spacing: var(--tight);
+  line-height: var(--lead-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.ld-lead-word {
+  color: var(--body);
+  font-size: var(--step-0);
+  font-weight: var(--w-label);
+}
+
+.ld-lead-of {
+  margin-inline-start: auto;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-landing .ld-bar > .ui-stack-bar {
+  height: 12px;
+}
+
+/* ── the cards ────────────────────────────────────────────────────────────── */
+
+.ld-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ld-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-block-end: var(--inset);
+}
+
+/* The edge: whose move it is, in its tone, the height of the card. */
+.ld-card::before {
+  content: "";
+  position: absolute;
+  inset-block: -1px;
+  inset-inline-start: -1px;
+  width: 3px;
+  border-start-start-radius: var(--r2);
+  border-end-start-radius: var(--r2);
+  background: transparent;
+}
+
+.ld-card.is-ready::before {
+  background: var(--green);
+}
+
+.ld-card.is-yours {
+  border-color: color-mix(in srgb, var(--violet) 40%, var(--line));
+}
+
+.ld-card.is-yours::before {
+  background: var(--violet);
+}
+
+.ld-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  min-height: var(--tap);
+  padding: var(--s3) var(--inset) 0;
+  border-start-start-radius: var(--r2);
+  border-start-end-radius: var(--r2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.ld-card-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+}
+
+.ld-card-head:hover .ld-card-name {
+  color: var(--amber-light);
+}
+
+.ld-card-project {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.ld-card-age {
+  flex: none;
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.ld-go {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--heading);
+}
+
+.ld-card-words {
+  display: -webkit-box;
+  margin: 0;
+  padding-inline: var(--inset);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--body);
+  font-size: var(--step-0);
+}
+
+/* The mark in its own column and the sentence beside it, so a wrapped one comes back under the words. */
+.ld-why {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s3) var(--inset) 0;
+  color: var(--body);
+  font-size: var(--step-0);
+}
+
+.ld-card.is-yours .ld-why-because {
+  color: var(--violet);
+}
+
+.ld-why-also {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-landing .ld-facts {
+  padding: var(--s3) var(--inset) 0;
+}

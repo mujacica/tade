@@ -27,6 +27,7 @@ Everything below is one rule read at different distances: **a judge answers, it 
 | `packages/extensions/jev/src/verdicts.ts` | `jev_findings`, `jev_account`, `jev_verdict`, and the standing sweep (`verdictsWatch`) |
 | `packages/extensions/jev/src/stuck.ts` | why a finding has not closed: `stuckOf`, and the six answers |
 | `packages/extensions/jev/src/precision.ts` | whether a question earns its place: `ENOUGH`, `worthOf`, `precisionOf` |
+| `packages/extensions/core/src/findings.ts` | `askFindings`: the `findings` hook on the extension port, which is how the landing desk and the away view read what any judge found, out of its own record and never by asking a model. Counted by what became of each — never ordered by a probability — and `asked: 0` is no judge here, not none found |
 | `packages/extensions/jev/src/reviews.ts` | `reviews.jsonl` — readings, accounts and verdicts, the one thing that cannot be asked again |
 | `packages/core/src/policy.ts` | `withCaution`: the only thing a reading may do to a command |
 | `packages/app/src/meant.ts` | `isSentence`, `worthAsking`, `shortlist`, `wordsIn`: the recall a judge adds precision to |

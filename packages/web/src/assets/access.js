@@ -14,7 +14,7 @@ export const WITHHOLDS = {
   titles: ['projects.title', 'tasks.title'],
   intent: ['tasks.intent', 'queue.waitsOn.why', 'runs.steps.waits.why'],
   notes: ['notes'],
-  findings: ['findings'],
+  findings: ['findings', 'tasks.landing'],
   spend: ['tasks.spend', 'plans', 'intake.would.limits', 'runs.steps.usd', 'runs.usd'],
   reviews: ['tasks.review.url'],
   accounts: ['tasks.account', 'plans.account'],

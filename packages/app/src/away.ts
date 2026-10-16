@@ -13,6 +13,7 @@ import {
   type Reality,
   runFactsOf,
   type Spend,
+  sizeOf,
   type TadeEvent,
   type Task,
   type TaskOrigin,
@@ -20,6 +21,7 @@ import {
   UNRECORDED,
   type Workspace,
 } from '@tade/core'
+import type { JudgeFinding } from '@tade/extensions-core'
 import type { Offer } from '@tade/harnesses-core'
 import type {
   AgentLane,
@@ -27,6 +29,7 @@ import type {
   Cannot,
   ChatIn,
   CheckTreeIn,
+  FindingIn,
   How,
   IntakeIn,
   NoteIn,
@@ -43,6 +46,7 @@ import { chatRev } from '@tade/web'
 import { checksIn } from './away-checks.ts'
 import { agentLaneOf, closedIn, type ProjectLine, projectAble } from './away-lifecycle.ts'
 import type { ActionsView, NoteShown } from './frame.ts'
+import { movedAt } from './landing.ts'
 import type { Entry, Transcript } from './transcript.ts'
 
 // What the away view is handed, built out of what the window already holds.
@@ -95,6 +99,8 @@ export interface TaskExtra {
   steering: Steering
   /** How many times an agent was started on it, out of `run_started` (`startsOf`). */
   starts: number
+  /** What the conflict forecast found about it (`conflictsFor`), or null where nobody looked. */
+  conflicts: readonly { with: string | null; files: number }[] | null
 }
 
 /**
@@ -370,6 +376,31 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
     spend: extra.spend ?? noSpendAt(),
     checks: checksIn(extra.work, extra.overridden),
     review: git?.pr ?? null,
+    // What the landing desk reads beside the row: whether anything looked at
+    // its commits, what they changed, and what the forecast found — counts.
+    looked: extra.work !== null,
+    size: sizeOf(extra.work?.mine ?? null),
+    conflicts: extra.conflicts,
+  }
+}
+
+/**
+ * One finding, field by field: what the agent said and which way somebody
+ * judged it, and never a verdict's own sentence, which the extension does not
+ * hand over either.
+ */
+export function findingIn(one: JudgeFinding): FindingIn {
+  return {
+    key: one.key,
+    question: one.question,
+    project: one.project,
+    tasks: [...one.tasks],
+    at: one.at,
+    probability: one.probability,
+    file: one.file,
+    stillThere: one.stillThere,
+    account: one.account && { did: one.account.did, said: one.account.said, at: one.account.at },
+    verdict: one.verdict && { was: one.verdict.was, at: one.verdict.at },
   }
 }
 
@@ -463,6 +494,8 @@ export interface AwayParts {
   machineUpSince: number | null
   /** The moment `TaskExtra.spend` is folded from. The window's own midnight. */
   spendSince: number | null
+  /** What the judges last said (`findingIn`), or null where no judge reads anything. */
+  findings: readonly FindingIn[] | null
   /**
    * The factory floor, already projected by the slices that hold it.
    *
@@ -492,17 +525,11 @@ export interface AwayCollections {
   tasks: TaskIn[]
   queue: QueueIn[]
   /**
-   * Always empty here, and that is a decision rather than a gap.
-   *
-   * A finding is a judge's reading of one agent's change, and what the window
-   * holds about one lives in the `jev` extension rather than in `Live` — so
-   * carrying it would mean the away view asking an extension on the thread the
-   * window draws on. The collection is on the wire with its real count of
-   * nought, which is the honest shape: the page says *no findings* because
-   * none were handed over, and the slice that hands them over is the one with
-   * the extension's own list to hand.
+   * What the judges last said, as the window holds it (`heldFindings`) — asked
+   * of the extensions on the beat, never by a page — or null where no judge
+   * here reads anything, which is not a judge that found nothing.
    */
-  findings: readonly never[]
+  findings: readonly FindingIn[] | null
   notes: NoteIn[]
   plans: readonly PlanStanding[]
   intake: readonly IntakeIn[]
@@ -530,14 +557,6 @@ export interface AwayCollections {
  * the *reach* is what differs, so the projector narrows them per device
  * (`readingFor`). Building per device instead would be four projections' worth
  * of work on the thread the window draws on.
- *
- * **`findings` is deliberately empty here.** A finding is a judge's reading of
- * one agent's change, and what the window holds about one lives in the `jev`
- * extension rather than in `Live` — so carrying it would mean the away view
- * asking an extension on the drawing thread. The collection exists on the wire
- * with its real count of nought, which is the honest shape: the page says
- * *no findings* because none were handed over, and the slice that hands them
- * over is the one that has the extension's own list to hand.
  */
 export function awayCollections(parts: AwayParts): AwayCollections {
   const tasks: TaskIn[] = []
@@ -569,7 +588,7 @@ export function awayCollections(parts: AwayParts): AwayCollections {
     ],
     tasks,
     queue: queueIn(parts.queued, parts.queueFacts, parts.order),
-    findings: [],
+    findings: parts.findings,
     notes: noteIn(parts.notes),
     plans: parts.plans,
     // Carried as they were handed over. Nothing is narrowed here: a device's
@@ -715,6 +734,7 @@ export function nothingKnown(): TaskExtra {
     // steer control on the strength of a default.
     steering: notSteerable('nothing here knows what its harness can do'),
     starts: 0,
+    conflicts: null,
   }
 }
 
@@ -730,20 +750,6 @@ export interface QueueParts {
 /** `UNRECORDED` and nothing said are one answer on the wire: the empty string. */
 function said(value: string): string {
   return value === UNRECORDED ? '' : value
-}
-
-/**
- * The last time anything about this task was seen to move.
- *
- * The newest of what git saw and what an agent last did, because either one
- * alone is wrong in a way somebody notices: a task whose agent has been
- * thinking for ten minutes has an old commit, and a task somebody committed to
- * by hand has no agent at all.
- */
-function movedAt(task: Task): number | null {
-  const moments = [task.git?.headTime ?? null, ...task.agents.map((one) => one.lastActivityAt)]
-  const known = moments.filter((at): at is number => at !== null && Number.isFinite(at))
-  return known.length === 0 ? null : Math.max(...known)
 }
 
 /** An ISO string as a moment, or null for one that is not a date. */

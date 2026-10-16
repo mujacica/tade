@@ -37,6 +37,7 @@ import { checksScreen } from './pages/checks.js'
 import { devicesScreen } from './pages/devices.js'
 import { findingsScreen } from './pages/findings.js'
 import { inboxScreen, requestScreen } from './pages/inbox.js'
+import { landingScreen } from './pages/landing.js'
 import { moreScreen, nowhereScreen } from './pages/more.js'
 import { notesScreen } from './pages/notes.js'
 import { nowScreen } from './pages/overview.js'
@@ -244,6 +245,7 @@ const SCREENS = {
   workflows: () => workflowsScreen(),
   workflow: (at) => workflowScreen(at, ctx),
   checks: () => checksScreen(),
+  land: () => landingScreen(),
   reviews: () => reviewsScreen(ctx),
   spend: () => spendScreen(),
   findings: () => findingsScreen(),
@@ -365,6 +367,8 @@ function paint() {
         intake: intakeWaiting(held.store).length,
         runs: held.store.rows.runs.size + omitted(held.store, 'runs'),
         workflows: held.store.rows.workflows.size + omitted(held.store, 'workflows'),
+        // What is ready to land: the one figure on the desk nobody has to read past.
+        land: rowsOf(held.store, 'tasks').filter((task) => task.landing?.tier === 'ready').length,
         reviews: rowsOf(held.store, 'tasks').filter((task) => task.review !== null).length,
         findings: held.store.rows.findings.size,
         notes: held.store.rows.notes.size + omitted(held.store, 'notes'),

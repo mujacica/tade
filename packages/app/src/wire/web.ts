@@ -40,6 +40,7 @@ import { AWAY_CONTROLS, awayPanel } from '../panels/away/state.ts'
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { Actions, Subject, Submits, Wiring } from './context.ts'
+import { heldFindings } from './findings.ts'
 import type { Settings } from './settings.ts'
 import { armingFor, seenFrom, type Talking } from './web-asking.ts'
 import {
@@ -405,12 +406,11 @@ export class Away implements Subject {
         titles: titlesOf(this.config()),
         plans: planStandings(this.wire.opts.client.planUsage(), this.wire.now()),
         machineUpSince: this.upSince,
-        // The period `spendToday` covers, handed over beside the fold so the
-        // page says what the figures are of rather than guessing. Through
-        // `startOfToday`, which is the same rule `Live` folds by — one rule,
-        // so the label and the number cannot be of two different days.
+        // The period `spendToday` covers, by `startOfToday` — the rule `Live` folds
+        // by — so the page's label and its figures can never be of two different days.
         spendSince: startOfToday(this.wire.now()),
         checks: this.records.heldNow(this.wire.opts.home, world),
+        findings: heldFindings(this.wire),
       },
       world,
       (task) => steeringFor(this.wire.opts.client, task),

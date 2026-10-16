@@ -177,6 +177,7 @@ export const ROUTES: readonly Route[] = [
   shellAt('/workflows', 'workflows page'),
   shellAt('/w/:name', 'workflow page'),
   shellAt('/checks', 'checks page'),
+  shellAt('/land', 'landing desk page'),
   shellAt('/reviews', 'reviews page'),
   shellAt('/spend', 'spend page'),
   shellAt('/findings', 'findings page'),

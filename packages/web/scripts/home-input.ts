@@ -106,6 +106,10 @@ function taskIn(project: string, folder: string, file: TaskFile): TaskIn {
     spend: noSpend(),
     checks: { state: 'unknown', failed: [], missing: [], overridden: false },
     review: null,
+    // Nothing here looks at git, so nothing has looked: the desk says so.
+    looked: false,
+    size: null,
+    conflicts: null,
   }
 }
 

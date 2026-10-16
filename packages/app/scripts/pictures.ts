@@ -153,6 +153,16 @@ export const PICTURES: readonly Picture[] = [
       '`run here` on any of them moves it across.',
   },
   {
+    file: 'landing.svg',
+    scenario: 'the-landing-desk',
+    crop: 'panel',
+    about:
+      'The landing desk: every finished piece of work and open review across three projects, in ' +
+      'the order it is cheapest to trust — green and small first, then what waits on you, then ' +
+      'what waits on its agent, each with the one sentence why — and beside each its checks, ' +
+      'findings, collisions, size, cost and how long it has waited.',
+  },
+  {
     file: 'reviews.svg',
     scenario: 'what-an-agent-has-done',
     crop: { top: 2, width: 29, height: 21 },

@@ -175,6 +175,7 @@ function readingFor(
           plans: [],
           machineUpSince: null,
           spendSince: null,
+          findings: null,
           checks: null,
         }),
         reach,

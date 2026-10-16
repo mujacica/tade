@@ -22,6 +22,7 @@ export const ICONS = [
   'spend',
   'checks',
   'workflows',
+  'land',
   'reviews',
   'findings',
   'notes',

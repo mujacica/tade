@@ -1,8 +1,10 @@
 # Tade — **T**erminal **A**gentic **D**evelopment **E**nvironment
 
-### Run a team of coding agents. Know exactly what each one did, and what it cost.
+### Run as many coding agents as you can land. Know exactly what each one did, and what it cost.
 
-Plenty of things run agents in parallel. Tade is the one that keeps the books. A queue where every
+Plenty of things run agents in parallel; the work still has to be read before it lands, and that is
+where the day goes. Tade is the one that keeps the books, and puts the finished work in the order it
+is cheapest to trust. A queue where every
 piece says what it waits on and holds when that fails. The project's own checks, recorded against
 the commit they ran on. Per-agent cost that never adds a subscription's turns to a dollar total. A
 judge whose findings the agent has to answer and you rule on. And nothing is remembered — what each
@@ -190,6 +192,21 @@ skipped one on, and the answer goes in Tade's own config under the project — n
 repository.
 
 ![The checks as two categories: what runs here, and under a fold the ones that do not, each saying why](https://raw.githubusercontent.com/mujacica/tade/main/images/checks-here.svg)
+
+## The landing desk
+
+Generating changes is the easy half; landing them is the queue, and you are it. The desk is every
+finished piece of work and every open review, in every project, **in the order it is cheapest to
+trust**: what is green at its head, has nothing open and waits on nobody first, smallest change
+first; then what waits on you — an answer, a verdict on a finding its agent accounted for, a check
+nobody ran, a draft; then what waits on its agent — a red check, a finding nobody answered, a
+collision the forecast found — each with the one sentence saying why. Beside each: its checks, the
+judge's findings, the collisions, what its own commits changed, what it cost, and how long it has
+waited. Enter opens the change to read, and a comment on a line goes to Tade or straight to the
+agent whose change it is. It is a view and nothing more — nothing on it is remembered — and it is a
+page of its own on the away view too. Landing is yours, on the forge: Tade never merges.
+
+![The landing desk: finished work across three projects, green and small first, then what waits on you, then what waits on its agent, each with the one sentence why and its figures beside it](https://raw.githubusercontent.com/mujacica/tade/main/images/landing.svg)
 
 ## Reviews, and the loop around them
 

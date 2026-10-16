@@ -8,11 +8,13 @@ import type {
   TadeEvent,
   Workspace,
 } from '@tade/core'
-import { documentsIn, overridesFrom, writtenOrder } from '@tade/core'
+import { conflictsFor, documentsIn, overridesFrom, writtenOrder } from '@tade/core'
+import type { JudgeFinding } from '@tade/extensions-core'
 import { offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import type { CheckTreeIn, IntakeIn, SnapshotInput, SourceIn, TalkIn, WorkflowIn } from '@tade/web'
 import {
   type awayCollections,
+  findingIn,
   nothingKnown,
   ranOn,
   type Steering,
@@ -119,7 +121,8 @@ export function nothingYet(): AwayHeld {
     projects: [],
     tasks: [],
     queue: [],
-    findings: [],
+    // No judge has answered yet: not read, which is not none found.
+    findings: null,
     notes: [],
     plans: [],
     // The factory floor, empty for the same reason the rest is: nothing has
@@ -233,6 +236,7 @@ export function beatParts(
         // tools ask, so no surface offers what another hides.
         steering: steering(task.id),
         starts: starts.get(task.id) ?? 0,
+        conflicts: conflictsFor(project.conflicts, task.id),
       })
     }
   }
@@ -265,6 +269,7 @@ export function beatParts(
     // revision. The roots stay in here and never reach a row.
     projectLines: projectLines(live.rootLines),
     checks: live.checks,
+    findings: live.findings ? live.findings.map(findingIn) : null,
   }
 }
 
@@ -314,6 +319,8 @@ export interface Beatable {
   spendSince: number | null
   /** Every tree's run record as last read (`CheckRecords`), null before the first read. */
   checks: readonly CheckTreeIn[] | null
+  /** What the judges last said (`heldFindings`), or null where none reads anything. */
+  findings?: readonly JudgeFinding[] | null
 }
 
 /**

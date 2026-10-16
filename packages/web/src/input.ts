@@ -311,6 +311,26 @@ export interface TaskIn {
   checks: ChecksIn
   /** The review this branch is out for. `url` is carried only with `reviews`. */
   review: { state: ReviewState; url: string } | null
+  /**
+   * Whether the window has looked at its commits and checks at all. Metadata.
+   *
+   * What tells `checks: unknown` because nothing ran apart from `unknown`
+   * because nothing has looked yet — the landing desk says the two
+   * differently, and a figure nobody looked for is never nought.
+   */
+  looked: boolean
+  /**
+   * What its own commits — the ones whose trailer names it — changed: how many,
+   * and the lines git counted. Counts and never a path. Null where nothing has
+   * looked at them, and a half git could not count is null within it.
+   */
+  size: { commits: number; added: number | null; removed: number | null } | null
+  /**
+   * What the conflict forecast found it would collide with: the other task, or
+   * null for its own base, and how many files — a count, never their names.
+   * Null where nobody looked, which is not the same as nothing found.
+   */
+  conflicts: readonly { with: string | null; files: number }[] | null
 }
 
 /**
@@ -545,7 +565,11 @@ export interface SnapshotInput {
   projects: readonly ProjectIn[]
   tasks: readonly TaskIn[]
   queue: readonly QueueIn[]
-  findings: readonly FindingIn[]
+  /**
+   * What the judges found, or null where no judge here reads anything — which
+   * the landing desk says as *not read*, never as *no findings*.
+   */
+  findings: readonly FindingIn[] | null
   notes: readonly NoteIn[]
   /**
    * The factory floor, each one hand-written in `factory.ts` for the reason

@@ -153,6 +153,9 @@ export function task(over: Partial<TaskIn> = {}): TaskIn {
     spend: spend(),
     checks: { state: 'unknown', failed: [], missing: ['tests'], overridden: false },
     review: { state: 'open', url: 'https://github.invalid/acme/sentry/pull/412' },
+    looked: true,
+    size: { commits: 2, added: 40, removed: 6 },
+    conflicts: [{ with: 'sentry/pasted', files: 1 }],
     ...over,
   }
   // The window's own mark over what the fixture says, unless a test names one:

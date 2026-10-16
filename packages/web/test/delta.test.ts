@@ -112,6 +112,15 @@ describe('what changed', () => {
       state: 'review',
       mark: 'done',
       reason: '2 commits, tests unknown',
+      // Where it stands on the landing desk moved with it: no longer still
+      // working, so the collision is the first thing its agent has to do.
+      landing: {
+        rank: 0,
+        tier: 'theirs',
+        why: 'it would conflict with pasted in 1 file',
+        also: 1,
+        findings: { open: 0, answered: 0, confirmed: 0, dismissed: 0 },
+      },
     })
   })
 

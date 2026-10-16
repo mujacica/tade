@@ -88,6 +88,7 @@ const PLAIN = [
   'workflows',
   'talk',
   'checks',
+  'land',
   'reviews',
   'spend',
   'findings',
@@ -157,6 +158,7 @@ export const TITLES = {
   workflows: 'Workflows',
   workflow: 'Workflow',
   checks: 'Checks',
+  land: 'Landing desk',
   reviews: 'Reviews',
   spend: 'Spend',
   findings: 'Findings',
@@ -194,6 +196,7 @@ export const PAGE_OF = {
   workflows: 'workflows',
   workflow: 'workflows',
   checks: 'checks',
+  land: 'landing',
   reviews: 'reviews',
   findings: 'findings',
   spend: 'spend',
@@ -242,6 +245,9 @@ export const MORE = [
   { view: 'runs', icon: 'runs', mark: '⑁', label: 'Plans', counts: 'runs' },
   { view: 'spend', icon: 'spend', mark: '$', label: 'Spend', counts: null },
   { view: 'checks', icon: 'checks', mark: '✓', label: 'Checks', counts: null },
+  // Beside Reviews: the same work, in the order it is cheapest to trust, with
+  // how much of it is ready on its badge.
+  { view: 'land', icon: 'land', mark: '⇣', label: 'Land', counts: 'land' },
   { view: 'reviews', icon: 'reviews', mark: '◴', label: 'Reviews', counts: 'reviews' },
   { view: 'findings', icon: 'findings', mark: '◈', label: 'Findings', counts: 'findings' },
   { view: 'workflows', icon: 'workflows', mark: '⌗', label: 'Workflows', counts: 'workflows' },
@@ -275,7 +281,7 @@ export const MORE = [
  */
 export const GROUPS = [
   { key: 'main', title: '', views: ['now', 'inbox'] },
-  { key: 'work', title: 'Work', views: ['runs', 'reviews', 'findings', 'workflows'] },
+  { key: 'work', title: 'Work', views: ['runs', 'land', 'reviews', 'findings', 'workflows'] },
   { key: 'insight', title: 'Insight', views: ['spend', 'checks'] },
   { key: 'tade', title: 'Tade', views: ['notes'] },
   { key: 'system', title: 'System', views: ['devices', 'settings'] },

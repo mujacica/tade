@@ -122,6 +122,7 @@ function collections(over: Partial<Parameters<typeof awayCollections>[0]> = {}) 
     plans: [],
     machineUpSince: Date.parse('2026-10-07T08:00:00.000Z'),
     spendSince: Date.parse('2026-10-08T00:00:00.000Z'),
+    findings: null,
     checks: null,
     ...over,
   })
@@ -299,11 +300,22 @@ describe('the whole thing is what the wire accepts', () => {
     expect(() => SnapshotSchema.parse(built)).not.toThrow()
   })
 
-  it('has a findings collection, empty, rather than no collection', () => {
-    // Nought is the real count here and is said as one: the page draws *no
-    // findings* because none were handed over, not because the field is
-    // missing. The slice that hands them over has the extension's list.
-    expect(collections().findings).toEqual([])
+  it('hands over what the judges said, and null where no judge reads anything', () => {
+    // Null is *not read*, which the landing desk says as such: never *no findings*.
+    expect(collections().findings).toBeNull()
+    const said = {
+      key: 'shop/refunds:test_missing',
+      question: 'test_missing',
+      project: 'shop',
+      tasks: ['shop/refunds'],
+      at: 1,
+      probability: 0.9,
+      file: 'src/refund.ts',
+      stillThere: true,
+      account: { did: 'not real' as const, said: 'covered', at: '2026-10-08T14:00:00.000Z' },
+      verdict: null,
+    }
+    expect(collections({ findings: [said] }).findings).toEqual([said])
   })
 })
 
