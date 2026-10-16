@@ -19,7 +19,7 @@ import {
   watchedFrom,
   watchNamedBy,
 } from '@tade/core'
-import { type ExtensionHost, type Finding, troubleOf, troubleUntil } from '@tade/extensions-core'
+import { type ExtensionHost, troubleOf, troubleUntil } from '@tade/extensions-core'
 import { readEverMade } from '@tade/workbench/schedules'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
