@@ -572,19 +572,25 @@ export function accountMenuItems(
  * Queued work's menu: start it, pause or resume it, wait past what held it,
  * change what it waits on or is told, rename or remove it.
  */
-export function queueMenuItems(queued: { state: { kind: string } }): MenuItem[] {
+export function queueMenuItems(queued: {
+  state: { kind: string; parked?: boolean; all?: boolean }
+}): MenuItem[] {
   const paused = queued.state.kind === 'paused'
   const held = queued.state.kind === 'held'
   // Starting parked work picks it up, in the one press (`pickUpToStart`), and
   // its answer says so: offered and then refused, a park read as a Start now
-  // that did nothing.
+  // that did nothing. Resume lifts this piece's own pause and no other, so it
+  // says why not where a park or the whole queue holds it.
+  const resumeOff = queued.state.parked ? 'parked' : queued.state.all ? 'its queue is paused' : null
   return [
     { id: 'open', label: 'Open', note: 'enter' },
     { id: 'queue-start', label: 'Start now' },
     // A preference among what is ready, not a start: it waits for what it
     // waits on exactly as it did, and goes first when it can go at all.
     { id: 'queue-first', label: 'Do this one first' },
-    paused ? { id: 'queue-resume', label: 'Resume' } : { id: 'queue-pause', label: 'Pause' },
+    paused
+      ? { id: 'queue-resume', label: 'Resume', ...(resumeOff ? { off: resumeOff } : {}) }
+      : { id: 'queue-pause', label: 'Pause' },
     {
       id: 'queue-wait',
       label: 'Wait for a retry',

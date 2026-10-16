@@ -311,8 +311,8 @@ export function queueSpread(
 /**
  * Queued work down the side, as a tab like an agent's: its mark, its name, and
  * when it starts; under it, what it waits for and who asked. It sits right of
- * what it waits on, hanging from it by a line. Under the pointer, pause (or
- * resume), remove and a menu take the place of when.
+ * what it waits on, hanging from it by a line. Under the pointer, pause (or ▶,
+ * which starts it), remove and a menu take the place of when.
  *
  * The tree and the name are laid out in the room the tree needs and shown
  * through the room the side has, scrolled together by `tree.across`, so every
@@ -333,9 +333,12 @@ function queueRow(
   const pane = row.pane
   const target: Target = { kind: 'task', task: pane.task }
   const paused = pane.queued.state.kind === 'paused'
+  // ▶ is a start, the same press as Start now: it lifts a park, its own pause
+  // and its project's (`choicesFor`). As a resume it did nothing on parked
+  // work or a paused queue, and a play button that does nothing reads broken.
   const toggle: Target = {
     kind: 'action',
-    name: `queue-${paused ? 'resume' : 'pause'}:${pane.task}`,
+    name: `queue-${paused ? 'start' : 'pause'}:${pane.task}`,
   }
   const remove: Target = { kind: 'action', name: `queue-remove:${pane.task}` }
   const menu: Target = { kind: 'task-menu', task: pane.task }
@@ -584,18 +587,19 @@ export function renderQueued(
   const clock = clockOf(frame)
   const start: Target = { kind: 'action', name: `queue-start:${pane.task}` }
   const paused = queued.state.kind === 'paused'
+  // Resume lifts this piece's own pause and nothing else, so it is drawn only
+  // there: on parked work or a paused queue it would be a press that does
+  // nothing, and Start now beside it is the one that does.
+  const resumes = queued.state.kind === 'paused' && !queued.state.parked && !queued.state.all
   const toggle: Target = {
     kind: 'action',
     name: `queue-${paused ? 'resume' : 'pause'}:${pane.task}`,
   }
   const remove: Target = { kind: 'action', name: `queue-remove:${pane.task}` }
   const controls = (r: Row) => {
-    r.button('Start now', start, 'primary')
-      .space()
-      .button(paused ? '▶ Resume' : '‖ Pause', toggle)
-      .space()
-      .button('×', remove, 'danger')
-      .space()
+    r.button('Start now', start, 'primary').space()
+    if (!paused || resumes) r.button(paused ? '▶ Resume' : '‖ Pause', toggle).space()
+    r.button('×', remove, 'danger').space()
   }
   const probe = new Row(width, skin)
   controls(probe)

@@ -13,7 +13,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | Path | What |
 |---|---|
 | `packages/core/src/done.ts` | when a task is finished: `finishedFrom`, `ruleMet`, `workedFrom` |
-| `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `inWrittenOrder`, `startFrom`, `collidesNow`, `atWorkFrom`, `checkWaits`, `QUEUE_CHANGES` |
+| `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `choicesFor`, `startFrom`, `collidesNow`, `atWorkFrom`, `checkWaits`, `QUEUE_CHANGES` |
+| `packages/core/src/queue-order.ts` | the written order, only ever a preference among the ready: `writtenOrder`, `inWrittenOrder`, `orderFirst` |
 | `packages/core/src/plan.ts` | a plan before it is made: `checkPlan`, `overlaps`, `wholePackage` |
 | `packages/workbench/src/packages.ts` | which folders a plan names are packages, looked up in the tree: `packagesOf` |
 | `packages/core/src/produces.ts` | what a task produces instead of code: `producesProblem`, `producesPath`, `documentsIn`, `documentsToCompact`, `producedClause` |
@@ -200,12 +201,14 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   is what a section exists to prevent.
 - **Starting parked work picks it up, in one act** (`pickUpToStart`, `workbench/src/parked.ts`).
   Work a watch or a template makes parked waits for somebody to say go, and *Start now* — the card,
-  the menu, the away view's `start`, `tade_queue_change` — is saying it: the park is lifted as
-  whoever asked (`state_change` with `by`), then the start is written, and the queue's own pass
-  starts it with every other hold still in front of it and said. It used to be refused ("pick it up
-  again before it can start"), so the press did nothing. Nothing parked starts by rule
-  (`queueStateOf` reads the park first, `startQueued` refuses one), and work from outside this
-  machine is the one park a start lifts only for the person at it (`NotYours`).
+  the menu, a queue row's ▶, the away view's `start`, `tade_queue_change` — is saying it: the park
+  is lifted as whoever asked (`state_change` with `by`), then the start is written, and the queue's
+  own pass starts it with every other hold still in front of it and said. A start is also newer
+  than the pauses written before it — its own, and its project's whole queue for that one piece
+  (`choicesFor`'s `startedAt`) — and a pause written after it holds again. Both used to stand: the
+  row's ▶ was a resume, which lifts no park, and six presses on 2026-10-16 started nothing. Nothing
+  parked starts by rule (`queueStateOf` reads the park first, `startQueued` refuses one), and work
+  from outside this machine is the one park a start lifts only for the person at it (`NotYours`).
 - **Write it down, then do it.** `schedule_fired` before a schedule's task is made, so a window that
   stops half way never runs it twice; `watch_found` for every finding, a failed start included, so
   one finding never makes work twice; `watch_checked` for every look — how much it found, which was
@@ -327,8 +330,8 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   (`tade/check-ubuntu-latest-failing-on-main-a`, `tade/check-macos-latest-failing-on-main-the`,
   2026-10-15). Whether a second agent helps is a judgement, and the orchestrator is the one with every
   task in front of it. So the work is made **exactly as before** — the same task, prompt, context the
-  watch fetched and links — but **parked**, which is already what a proposal is (`WatchAgent.parked`,
-  intake under `propose`), and `watch_found` / `schedule_fired` say `proposed: true`. The orchestrator
+  watch fetched and links — but **parked**, which is already what a proposal is (as intake under `propose`
+  is), and `watch_found` / `schedule_fired` say `proposed: true`. The orchestrator
   is told **now** (`tellOrKeep`'s shape, never news, because the work waits on exactly this): what was
   found, its key, and what may already be on it — `relatedWork`, three facts and never a reading of
   meaning: made by the same schedule, sharing a link (the finding's links go on `watch_found` for
@@ -345,10 +348,14 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   `proposalsIn` folds every proposal and what settled it — a decision, a person picking it up,
   a run starting, a removal — and the briefing lists the undecided ones uncapped, so a window shut
   before anybody decided opens knowing. With the window closed nothing looks, so nothing is found.
-  **Two kinds of finding are never proposals**: intake, whose owner's grant is already the person's
-  rule about whether that source's work starts (`takeIntake`), and work a watch says is a proposal
-  *for a person* (`WatchAgent.parked`), which is theirs: the orchestrator starts one only when they
-  ask it to (`tade_queue_change` with `start`), never on its own decision. And
+  **Intake is the one finding that is never a proposal**: its owner's grant is already the person's
+  rule about whether that source's work starts (`takeIntake`), so under `propose` it waits on them,
+  and the orchestrator cannot lift that park (`NotYours`). Work a watch says is always decided
+  (`WatchAgent.parked` — `jev.mistakes`'s checks) is the opposite: a proposal **even under
+  `decides: itself`**, because no rule may start it. It used to be parked "for a person" and was
+  never put to anybody, so four `check-for-*` tasks waited on the person on 2026-10-16. A check the
+  orchestrator proposes itself (`tade_propose_check`) is one too, marked on its own `task_created`
+  with no schedule behind it, and decided with the same tool. And
   it is a setting on the schedule, `decides: orchestrator | itself`, absent meaning the orchestrator
   so every schedule written before it is routed: `itself` is the old way, for a schedule somebody
   wants run unwatched, and `Schedules.set` refuses `decides` where nothing starts (an ask, a watch

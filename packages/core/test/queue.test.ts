@@ -7,8 +7,6 @@ import {
   atWorkFrom,
   collidesNow,
   describeQueueState,
-  inWrittenOrder,
-  orderFirst,
   type Queued,
   type QueueFacts,
   queueStanding,
@@ -16,8 +14,8 @@ import {
   type Reality,
   readyToStart,
   startFrom,
-  writtenOrder,
 } from '../src/queue.ts'
+import { inWrittenOrder, orderFirst, writtenOrder } from '../src/queue-order.ts'
 import { RUNTIME_EVENTS, runsFoldedFrom } from '../src/runtime.ts'
 
 const NOW = Date.parse('2026-09-15T13:00:00Z')
@@ -177,6 +175,41 @@ describe('where queued work stands', () => {
       events: [event('queue_changed', null, { change: 'pause', all: true, project: 'search' })],
     })
     expect(queueStateOf(later, elsewhere)).toMatchObject({ kind: 'scheduled' })
+  })
+
+  // ▶ on a paused row is a start, the same press as Start now, and a start
+  // that left the pause standing was a press that did nothing.
+  it('starts anyway what was paused before the start, and pauses again after a pause', () => {
+    const later = queued('shop/release-notes')
+    const own = (change: string) => event('queue_changed', 'shop/release-notes', { change })
+    const whole = (change: string) =>
+      event('queue_changed', null, { change, all: true, project: 'shop' })
+    expect(queueStateOf(later, facts({ events: [own('pause'), own('start')] }))).toEqual({
+      kind: 'ready',
+    })
+    expect(queueStateOf(later, facts({ events: [own('start'), own('pause')] }))).toEqual({
+      kind: 'paused',
+      all: false,
+    })
+    // A whole queue paused before it: started anyway, this one goes and the
+    // rest of the queue stays paused.
+    expect(queueStateOf(later, facts({ events: [whole('pause'), own('start')] }))).toEqual({
+      kind: 'ready',
+    })
+    const other = queued('shop/other')
+    expect(queueStateOf(other, facts({ events: [whole('pause'), own('start')] }))).toEqual({
+      kind: 'paused',
+      all: true,
+    })
+    // And a whole queue paused after it holds it again, as it does once the
+    // start-anyway is taken back by a wait.
+    expect(queueStateOf(later, facts({ events: [own('start'), whole('pause')] }))).toEqual({
+      kind: 'paused',
+      all: true,
+    })
+    expect(
+      queueStateOf(later, facts({ events: [whole('pause'), own('start'), own('wait')] })),
+    ).toEqual({ kind: 'paused', all: true })
   })
 
   // Parking is the one thing here a person tells Tade rather than Tade

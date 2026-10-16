@@ -90,8 +90,9 @@ export const NEEDS = {
  * rule), so it is offered — except on work from outside the machine, where
  * picking it up is approving somebody else's request, which is the `intake`
  * verb's. `ready` marks the one that is an order among what is ready, which
- * parked work is not, so a tap on it could only be refused. The machine
- * refuses both too — this is the page not asking.
+ * parked work is not, so a tap on it could only be refused; and a resume lifts
+ * no park, so on a parked row it would be a tap that did nothing. The machine
+ * refuses the first two too — this is the page not asking.
  */
 export const QUEUE_ASKS = [
   { change: 'pause', said: 'Pause' },
@@ -105,7 +106,9 @@ export const QUEUE_ASKS = [
 export function asksFor(row) {
   if (row?.parked !== true) return QUEUE_ASKS
   const outside = row.origin?.kind === 'intake'
-  return QUEUE_ASKS.filter((one) => one.ready !== true && !(outside && one.change === 'start'))
+  return QUEUE_ASKS.filter(
+    (one) => one.ready !== true && one.change !== 'resume' && !(outside && one.change === 'start'),
+  )
 }
 
 /**

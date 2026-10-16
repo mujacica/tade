@@ -107,6 +107,8 @@ describe('the scope each verb needs, written twice', () => {
     const watched = changes({ parked: true, origin: { kind: 'schedule', name: 'jev' } })
     expect(watched).toContain('start')
     expect(watched).not.toContain('first')
+    // A resume lifts no park: a tap on it would do nothing.
+    expect(watched).not.toContain('resume')
     // Picking up a request from outside is approving it: the intake verb's.
     const outside = changes({ parked: true, origin: { kind: 'intake', name: 'github' } })
     expect(outside).not.toContain('start')

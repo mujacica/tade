@@ -190,11 +190,16 @@ export interface Choices {
   anyway: boolean
   /** Where the last choice was made: trouble before it has been answered. */
   answeredAt: number
+  /**
+   * Where the start-anyway that stands was written, which a whole queue paused
+   * before it does not hold; 0 where none stands.
+   */
+  startedAt: number
 }
 
 /** Every choice a person has made about one piece of queued work. */
 export function choicesFor(task: string, events: readonly TadeEvent[]): Choices {
-  const choices: Choices = { paused: false, anyway: false, answeredAt: 0 }
+  const choices: Choices = { paused: false, anyway: false, answeredAt: 0, startedAt: 0 }
   for (const event of events) {
     if (event.type !== 'queue_changed' || event.task !== task) continue
     switch (event.detail.change) {
@@ -205,12 +210,19 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
         choices.paused = false
         choices.answeredAt = event.seq
         break
+      // A start is newer than a pause and says the opposite, so it lifts this
+      // piece's own pause — ▶ on a paused row is a start (`view/queue.ts`),
+      // and one that left the pause standing was a press that did nothing. A
+      // pause written after it holds again.
       case 'start':
         choices.anyway = true
+        choices.paused = false
         choices.answeredAt = event.seq
+        choices.startedAt = event.seq
         break
       case 'wait':
         choices.anyway = false
+        choices.startedAt = 0
         choices.answeredAt = event.seq
         break
       // A wait written down is newer than a start-anyway and says the
@@ -219,7 +231,10 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
       // by a removal (`inheritWaits`) say nothing new — it already waited on
       // all of them through the task removed — so a start-anyway stands.
       case 'after':
-        if (event.detail.inherited === undefined) choices.anyway = false
+        if (event.detail.inherited === undefined) {
+          choices.anyway = false
+          choices.startedAt = 0
+        }
         break
     }
   }
@@ -227,66 +242,22 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
 }
 
 /**
- * The order last written for queued work, or nothing written. Like every
- * other choice about the queue it is a fact in the journal, with who made it
- * and why — never a score that recomputes, so the last line written wins and
- * nothing can be starved by something newer looking better.
- */
-export function writtenOrder(events: readonly TadeEvent[]): string[] {
-  let order: string[] = []
-  for (const event of events) {
-    if (event.type !== 'queue_changed' || event.detail.change !== 'order') continue
-    const said = event.detail.order
-    if (Array.isArray(said)) order = said.map(String).filter((task) => task !== '')
-  }
-  return order
-}
-
-/**
- * Ready work in the order last written for it; anything unnamed keeps its
- * place behind, in the order it was asked for.
- *
- * This is a preference among work that is already ready, and nothing more: it
- * cannot jump a wait, unhold a hold, resume a pause, exceed `max_parallel` or
- * change what `queueStateOf` says about anything. `readyToStart` keeps its
- * rule and its signature — what changes is only which of the ready ones is
- * looked at first.
- */
-export function inWrittenOrder(items: readonly Queued[], events: readonly TadeEvent[]): Queued[] {
-  const written = writtenOrder(events)
-  if (written.length === 0) return [...items]
-  const place = new Map(written.map((task, at) => [task, at]))
-  const behind = written.length
-  // A stable sort, so work nobody named stays in the order it arrived in.
-  return [...items].sort(
-    (one, other) => (place.get(one.task) ?? behind) - (place.get(other.task) ?? behind),
-  )
-}
-
-/** An order that puts one piece of work first and leaves the rest as they were. */
-export function orderFirst(
-  items: readonly Queued[],
-  events: readonly TadeEvent[],
-  task: string,
-): string[] {
-  const rest = inWrittenOrder(items, events)
-    .map((item) => item.task)
-    .filter((one) => one !== task)
-  return [task, ...rest]
-}
-
-/**
  * Whether a project's whole queue is paused: the last word on it, for that
  * project or for every project.
  */
 export function queuePaused(events: readonly TadeEvent[], project: string): boolean {
-  let paused = false
+  return queuePausedAt(events, project) !== null
+}
+
+/** Where the pause that holds a project's whole queue now was written, or null where none does. */
+function queuePausedAt(events: readonly TadeEvent[], project: string): number | null {
+  let paused: number | null = null
   for (const event of events) {
     if (event.type !== 'queue_changed' || event.detail.all !== true) continue
     const scope = event.detail.project
     if (typeof scope === 'string' && scope !== project) continue
-    if (event.detail.change === 'pause') paused = true
-    if (event.detail.change === 'resume') paused = false
+    if (event.detail.change === 'pause') paused = event.seq
+    if (event.detail.change === 'resume') paused = null
   }
   return paused
 }
@@ -406,8 +377,12 @@ function stateOf(item: Queued, facts: QueueFacts, tree: boolean): QueueState {
   // should lose to. `deriveState` orders it the same way, which is what keeps
   // the queue and the task list from giving two answers about one task.
   if (item.parked) return { kind: 'paused', all: false, parked: true }
-  if (queuePaused(facts.events, item.project)) return { kind: 'paused', all: true }
   const choices = choicesFor(item.task, facts.events)
+  // A whole queue paused holds every piece of it but one somebody started
+  // anyway since: that start is a person's newer word about this one piece,
+  // and the rest of the queue stays paused.
+  const whole = queuePausedAt(facts.events, item.project)
+  if (whole !== null && choices.startedAt <= whole) return { kind: 'paused', all: true }
   if (choices.paused) return { kind: 'paused', all: false }
   const own = troubleStarting(item.task, facts.events, choices.answeredAt)
   if (own) return { kind: 'held', on: null, because: own }

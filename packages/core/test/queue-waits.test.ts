@@ -153,6 +153,8 @@ describe('how the queue reads a wait or a retelling', () => {
       paused: false,
       anyway: false,
       answeredAt: anyway.seq,
+      // Taken back with it, so a whole queue paused before the start holds it again.
+      startedAt: 0,
     })
     // A wait added on top of one that failed still holds on the failure: a
     // wait may only ever make a start later.
