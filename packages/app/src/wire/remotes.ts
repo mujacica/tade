@@ -67,6 +67,8 @@ export class Remotes {
   private fileAt: number | null = null
   private reading = false
   private waking: Waking = AWAKE
+  /** The remotes no registered link reaches, each said once. */
+  private readonly unreachable = new Set<string>()
   /** What reading the file last said went wrong, so it is said once and not every beat. */
   private trouble: string | null = null
   private stopped = false
@@ -120,7 +122,14 @@ export class Remotes {
     for (const [name, config] of Object.entries(remotes)) {
       const kind = linkOf(config)
       const link = this.linkFor(kind)
-      if (link === null) continue
+      if (link === null) {
+        // Named once, never skipped in silence: a remote nothing here can reach.
+        if (!this.unreachable.has(name))
+          this.deps.say(`${name} is reached by a link this Tade does not have (${kind})`)
+        this.unreachable.add(name)
+        continue
+      }
+      this.unreachable.delete(name)
       this.holder.set(name, kind)
       link.open(remoteOf(name, config))
     }

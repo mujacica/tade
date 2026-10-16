@@ -191,6 +191,26 @@ describe('the window’s remotes', () => {
     expect(one.lines.filter((line) => line.type === 'remote_linked')).toHaveLength(1)
   })
 
+  it('says a remote no link here can reach, once, rather than leaving it out in silence', async () => {
+    const north = await far(['api'])
+    const one = await rig({ vps: await block('north', north) })
+    const quiet = new Remotes({
+      home: '/nonexistent/home',
+      remotes: () => ({ vps: { ...(one.config.vps as RemoteConfig) } }),
+      configPath: one.configPath,
+      lastInputAt: () => null,
+      now: () => Date.now(),
+      log: async () => {},
+      say: (line) => one.said.push(line),
+      links: {},
+    })
+    made.remotes.push(quiet)
+    quiet.beat()
+    quiet.beat()
+    expect(one.said).toEqual(['vps is reached by a link this Tade does not have (ssh)'])
+    expect(quiet.held()).toEqual([])
+  })
+
   it('follows the config: a remote removed is closed, and one added from a shell is linked', async () => {
     const north = await far(['api'])
     const south = await far(['infra'])
